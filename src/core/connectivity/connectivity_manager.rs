@@ -56,15 +56,15 @@ enum WebSocketState{
 }
 
 struct WebSockets {
-    websocket_main: Arc<Mutex<WebSocketConnectivity>>,
-    websocket_secondary: Arc<Mutex<WebSocketConnectivity>>,
+    websocket_main: Mutex<WebSocketConnectivity>,
+    websocket_secondary: Mutex<WebSocketConnectivity>,
 }
 
 impl WebSockets {
-    fn get_websocket_state(&self, role: WebSocketRole) -> Arc<Mutex<WebSocketConnectivity>> {
+    fn get_websocket_state(&self, role: WebSocketRole) -> &Mutex<WebSocketConnectivity> {
         match role {
-            WebSocketRole::Main => self.websocket_main.clone(),
-            WebSocketRole::Secondary => self.websocket_secondary.clone()
+            WebSocketRole::Main => &self.websocket_main,
+            WebSocketRole::Secondary => &self.websocket_secondary
         }
     }
 }
@@ -97,8 +97,8 @@ impl ConnectivityManager {
                 exchange_name,
                 exchange_actor,
                 websockets: WebSockets {
-                    websocket_main: Arc::new(Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main))),
-                    websocket_secondary: Arc::new(Mutex::new(WebSocketConnectivity::new(WebSocketRole::Secondary))),
+                    websocket_main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
+                    websocket_secondary: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Secondary)),
                 },
                 callback_connecting: Mutex::new(None),
                 callback_connected: Mutex::new(None),
@@ -146,12 +146,12 @@ impl ConnectivityManager {
         is_connected
     }
 
-    pub async fn disconnect(&self) {
-        Self::disconnect_for_websocket(self.websockets.websocket_main.clone()).await;
-        Self::disconnect_for_websocket(self.websockets.websocket_secondary.clone()).await;
+    pub async fn disconnect(self: Arc<Self>) {
+        Self::disconnect_for_websocket(&self.websockets.websocket_main).await;
+        Self::disconnect_for_websocket(&self.websockets.websocket_secondary).await;
     }
 
-    async fn disconnect_for_websocket(websocket_connectivity: Arc<Mutex<WebSocketConnectivity>>) {
+    async fn disconnect_for_websocket(websocket_connectivity: &Mutex<WebSocketConnectivity>) {
         let guard = websocket_connectivity.lock().unwrap();
 
         let finished_receiver = match &guard.state {
@@ -188,7 +188,7 @@ impl ConnectivityManager {
         }
     }
 
-    fn set_disconnected_state(finished_sender: async_channel::Sender<()>, websocket_connectivity: Arc<Mutex<WebSocketConnectivity>>) {
+    fn set_disconnected_state(finished_sender: async_channel::Sender<()>, websocket_connectivity: &Mutex<WebSocketConnectivity>) {
         websocket_connectivity.lock().unwrap().deref_mut().state = WebSocketState::Disconnected;
         let _ = finished_sender.try_send(());
     }
@@ -272,7 +272,7 @@ impl ConnectivityManager {
 
         }
 
-        Self::set_disconnected_state(finished_sender, websocket_connectivity.clone());
+        Self::set_disconnected_state(finished_sender, &websocket_connectivity);
 
         false
     }
@@ -372,7 +372,7 @@ mod tests {
                 let connect_result = connectivity_manager.clone().connect(false).await;
                 assert_eq!(connect_result, true, "websocket should connect successfully");
 
-                connectivity_manager.disconnect().await;
+                connectivity_manager.clone().disconnect().await;
             }
 
             assert_eq!(connected_count.take(), EXPECTED_CONNECTED_COUNT, "we should reconnect expected count times");
