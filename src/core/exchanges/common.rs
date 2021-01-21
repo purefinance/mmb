@@ -1,6 +1,6 @@
-use std::fmt::{self, Display, Formatter};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
+use std::fmt::{self, Display, Formatter};
 
 type String4 = SmallString<[u8; 4]>;
 type String12 = SmallString<[u8; 12]>;
@@ -8,11 +8,14 @@ type String16 = SmallString<[u8; 16]>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
+// TODO ExchangeAccountId
 pub struct ExchangeId(String16);
 
 impl ExchangeId {
     #[inline]
-    pub fn new(exchange_id: String16) -> Self { ExchangeId(exchange_id) }
+    pub fn new(exchange_id: String16) -> Self {
+        ExchangeId(exchange_id)
+    }
 
     /// Extracts a string slice containing the entire string.
     #[inline]
@@ -29,16 +32,20 @@ impl ExchangeId {
 
 impl From<&str> for ExchangeId {
     #[inline]
-    fn from(value: &str) -> Self { ExchangeId(String16::from_str(value)) }
+    fn from(value: &str) -> Self {
+        ExchangeId(String16::from_str(value))
+    }
 }
 
 impl Display for ExchangeId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { write!(f, "{}", self.0) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
-
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
+// TODO ExchangeId
 pub struct ExchangeName(String16);
 
 impl ExchangeName {
@@ -85,7 +92,9 @@ impl CurrencyPair {
 
     /// Extracts a string slice containing the entire string.
     #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str { self.0.as_mut_str() }
+    pub fn as_mut_str(&mut self) -> &mut str {
+        self.0.as_mut_str()
+    }
 }
 
 impl From<&str> for CurrencyPair {
@@ -93,7 +102,6 @@ impl From<&str> for CurrencyPair {
         CurrencyPair(String12::from_str(value))
     }
 }
-
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CurrencyCode(String4);
@@ -106,7 +114,9 @@ impl CurrencyCode {
 
     /// Extracts a string slice containing the entire string.
     #[inline]
-    pub fn as_str(&self) -> &str { self.0.as_str() }
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 
     /// Extracts a string slice containing the entire string.
     #[inline]
@@ -123,6 +133,7 @@ impl From<&str> for CurrencyCode {
 
 /// Unified format currency pair for this framework
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+// TODO CurrencyPairCode
 pub struct CurrencyCodePair(String12);
 
 impl CurrencyCodePair {
@@ -144,9 +155,10 @@ impl CurrencyCodePair {
 
     /// Extracts a string slice containing the entire string.
     #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str { self.0.as_mut_str() }
+    pub fn as_mut_str(&mut self) -> &mut str {
+        self.0.as_mut_str()
+    }
 }
-
 
 pub enum ExchangeErrorType {
     Unknown,
