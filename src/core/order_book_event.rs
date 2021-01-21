@@ -21,8 +21,8 @@ pub struct OrderBookEvent {
 
     pub event_id: String,
 
-    event_type: OrderBookEventType,
-    order_book_data: OrderBookData,
+    pub event_type: OrderBookEventType,
+    pub data: OrderBookData,
 }
 
 impl OrderBookEvent {
@@ -33,7 +33,7 @@ impl OrderBookEvent {
         currency_pair: CurrencyCodePair,
         event_id: String,
         event_type: OrderBookEventType,
-        order_book_data: OrderBookData,
+        data: OrderBookData,
     ) -> OrderBookEvent {
         OrderBookEvent {
             id: 0,
@@ -43,11 +43,11 @@ impl OrderBookEvent {
             currency_pair,
             event_id,
             event_type,
-            order_book_data,
+            data,
         }
     }
 
     pub fn apply_data_update(&mut self, updates: Vec<OrderBookData>) {
-        self.order_book_data.update(updates);
+        self.data.update(updates);
     }
 }

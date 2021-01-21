@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
 use std::fmt::{self, Display, Formatter};
 
+use chrono::Utc;
+
+pub type DateTime = chrono::DateTime<Utc>;
+
 type String4 = SmallString<[u8; 4]>;
 type String12 = SmallString<[u8; 12]>;
 type String16 = SmallString<[u8; 16]>;

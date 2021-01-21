@@ -1,7 +1,9 @@
+use crate::core::local_order_book_snapshot::LocalOrderBookSnapshot;
+use chrono::Utc;
 use rust_decimal::*;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
-type OrderDataMap = HashMap<Decimal, Decimal>;
+type OrderDataMap = BTreeMap<Decimal, Decimal>;
 
 pub struct OrderBookData {
     pub asks: OrderDataMap,
@@ -13,6 +15,10 @@ impl OrderBookData {
     // Разными именами методами
     pub fn new(asks: OrderDataMap, bids: OrderDataMap) -> Self {
         Self { asks, bids }
+    }
+
+    pub fn to_local_order_book_snapshot(self) -> LocalOrderBookSnapshot {
+        LocalOrderBookSnapshot::new(self.asks, self.bids, Utc::now())
     }
 
     // Сделать просто Vec вторым параметром
