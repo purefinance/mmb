@@ -31,5 +31,7 @@ async-channel = "1.5.1"
 
 smallstr = { version = "0.2.0", features = ["serde"]}
 
+anyhow = "1.0.38"
+
 [dev-dependencies]
 actix-rt = "2.0.0-beta.2"
