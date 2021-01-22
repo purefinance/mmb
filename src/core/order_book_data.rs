@@ -3,7 +3,7 @@ use chrono::Utc;
 use rust_decimal::*;
 use std::collections::BTreeMap;
 
-type OrderDataMap = BTreeMap<Decimal, Decimal>;
+pub type OrderDataMap = BTreeMap<Decimal, Decimal>;
 
 #[derive(Clone)]
 pub struct OrderBookData {
@@ -12,8 +12,12 @@ pub struct OrderBookData {
 }
 
 impl OrderBookData {
-    // TODO Здесь потенциально должно быть несколько конструкторов. А как?
-    // Разными именами методами
+    pub fn new_raw() -> Self {
+        Self {
+            asks: BTreeMap::new(),
+            bids: BTreeMap::new(),
+        }
+    }
     pub fn new(asks: OrderDataMap, bids: OrderDataMap) -> Self {
         Self { asks, bids }
     }
@@ -54,45 +58,66 @@ mod tests {
     #[test]
     fn update_asks() {
         // Prepare data for updates
-        let mut first_update_asks = OrderDataMap::new();
-        first_update_asks.insert(Decimal::new(1), Decimal::new(2));
-        first_update_asks.insert(Price(3), Amount(4));
+        let mut update_asks = OrderDataMap::new();
+        update_asks.insert(Decimal::new(1, 0), Decimal::new(2, 0));
+        update_asks.insert(Decimal::new(3, 0), Decimal::new(4, 0));
 
-        let mut first_update_bids = OrderDataMap::new();
-        first_update_bids.insert(Price(1), Amount(2));
-        first_update_bids.insert(Price(3), Amount(4));
-
-        // TODO Full tests with several updates
-        //let mut second_update_asks = OrderDataMap::new();
-        //second_update_asks.insert(5, 6);
-        //second_update_asks.insert(7, 8);
-
-        //let mut second_update_bids = OrderDataMap::new();
-        //second_update_bids.insert(5, 6);
-        //second_update_bids.insert(7, 8);
+        let update_bids = OrderDataMap::new();
 
         // Create updates
-        let first_update = OrderBookData::new(first_update_asks, first_update_bids);
-        //let second_update = OrderBookData::new(second_update_asks, second_update_bids);
+        let update = OrderBookData::new(update_asks, update_bids);
 
-        let updates = vec![first_update];
-        //updates.push_back(second_update);
+        let updates = vec![update];
 
         // Prepare updated object
         let mut primary_asks = OrderDataMap::new();
-        primary_asks.insert(Price(1), Amount(1));
-        primary_asks.insert(Price(3), Amount(1));
+        let primary_bids = OrderDataMap::new();
+        primary_asks.insert(Decimal::new(1, 0), Decimal::new(1, 0));
+        primary_asks.insert(Decimal::new(3, 0), Decimal::new(1, 0));
 
-        let mut primary_bids = OrderDataMap::new();
-        primary_asks.insert(Price(1), Amount(1));
-        primary_asks.insert(Price(3), Amount(1));
         let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
 
         main_order_data.update(updates);
 
-        assert_eq!(main_order_data.asks.get(&Price(3)), Some(&Amount(4)));
+        assert_eq!(
+            main_order_data.asks.get(&Decimal::new(3, 0)),
+            Some(&Decimal::new(4, 0))
+        );
+    }
+
+    #[test]
+    fn bids_update() {
+        // Prepare data for updates
+        let update_asks = OrderDataMap::new();
+
+        let mut update_bids = OrderDataMap::new();
+        update_bids.insert(Decimal::new(1, 0), Decimal::new(2, 2));
+        update_bids.insert(Decimal::new(3, 0), Decimal::new(4, 0));
+
+        // Create updates
+        let update = OrderBookData::new(update_asks, update_bids);
+
+        let updates = vec![update];
+
+        // Prepare updated object
+        let primary_asks = OrderDataMap::new();
+        let mut primary_bids = OrderDataMap::new();
+        primary_bids.insert(Decimal::new(1, 0), Decimal::new(1, 0));
+        primary_bids.insert(Decimal::new(3, 0), Decimal::new(1, 0));
+
+        let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
+
+        main_order_data.update(updates);
+
+        assert_eq!(
+            main_order_data.bids.get(&Decimal::new(1, 0)),
+            Some(&Decimal::new(2, 2))
+        );
     }
 
     #[test]
     fn empty_update() {}
+
+    #[test]
+    fn several_updates() {}
 }

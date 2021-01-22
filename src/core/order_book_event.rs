@@ -1,8 +1,9 @@
 use super::exchanges::common::*;
 use crate::core::order_book_data::OrderBookData;
+use crate::DateTime;
+use smallstr::SmallString;
 
 use chrono::Utc;
-type DateTime = chrono::DateTime<Utc>;
 
 // TODO reduce usin OrderBookEvent just cause namespace: order_book_event::type
 pub enum OrderBookEventType {
@@ -26,6 +27,21 @@ pub struct OrderBookEvent {
 }
 
 impl OrderBookEvent {
+    pub fn new_raw() -> Self {
+        Self {
+            id: 0,
+            datetime: Utc::now(),
+            exchange_id: ExchangeId::from(""),
+            exchange_name: ExchangeName::from(""),
+            currency_code_pair: CurrencyCodePair::new(SmallString::new()),
+
+            event_id: "".to_string(),
+
+            event_type: OrderBookEventType::Snapshot,
+            data: OrderBookData::new_raw(),
+        }
+    }
+
     pub fn new(
         datetime: DateTime,
         exchange_id: ExchangeId,

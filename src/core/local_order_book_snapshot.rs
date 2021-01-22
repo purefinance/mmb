@@ -7,9 +7,9 @@ type SortedOrderData = BTreeMap<Decimal, Decimal>;
 #[derive(Clone)]
 // TODO Snapshots??? Снапшотов ведь много
 pub struct LocalOrderBookSnapshot {
-    asks: SortedOrderData,
-    bids: SortedOrderData,
-    last_update_time: DateTime,
+    pub asks: SortedOrderData,
+    pub bids: SortedOrderData,
+    pub last_update_time: DateTime,
 }
 
 impl LocalOrderBookSnapshot {
