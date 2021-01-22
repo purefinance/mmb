@@ -49,7 +49,7 @@ trait ControlLocalSnapshots {
     fn update(
         &mut self,
         order_book_event: OrderBookEvent,
-    ) -> Option<(LocalOrderBookSnapshot, ExchangeIdSymbol)>;
+    ) -> Option<(&LocalOrderBookSnapshot, ExchangeIdSymbol)>;
 }
 
 // TODO that was LocalSnapshotService
@@ -67,7 +67,7 @@ impl ControlLocalSnapshots for LocalSnapshotsController {
     fn update(
         &mut self,
         order_book_event: order_book_event::OrderBookEvent,
-    ) -> Option<(LocalOrderBookSnapshot, ExchangeIdSymbol)> {
+    ) -> Option<(&LocalOrderBookSnapshot, ExchangeIdSymbol)> {
         // TODO Bad name!
         let exchange_symbol = ExchangeIdSymbol::new(
             order_book_event.exchange_id,
@@ -82,9 +82,16 @@ impl ControlLocalSnapshots for LocalSnapshotsController {
 
                 self.local_snapshots.insert(
                     exchange_symbol.get_exchanger_currency_state(),
-                    local_order_book_snapshot.clone(),
+                    local_order_book_snapshot,
                 );
-                return Some((local_order_book_snapshot, exchange_symbol));
+
+                return Some((
+                    self.local_snapshots
+                        .get(&exchange_symbol.get_exchanger_currency_state())
+                        // unwrap here is safe because that value was just inserted
+                        .unwrap(),
+                    exchange_symbol,
+                ));
             }
             OrderBookEventType::Update => {
                 match self
@@ -93,8 +100,7 @@ impl ControlLocalSnapshots for LocalSnapshotsController {
                 {
                     Some(snapshot) => {
                         snapshot.apply_update(order_book_event.data, order_book_event.datetime);
-                        let result_snaphot = snapshot.clone();
-                        return Some((result_snaphot, exchange_symbol));
+                        return Some((snapshot, exchange_symbol));
                     }
                     None => return None,
                 }
