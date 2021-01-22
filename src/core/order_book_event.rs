@@ -17,7 +17,7 @@ pub struct OrderBookEvent {
     pub datetime: DateTime,
     pub exchange_id: ExchangeId,
     pub exchange_name: ExchangeName,
-    pub currency_pair: CurrencyCodePair,
+    pub currency_code_pair: CurrencyCodePair,
 
     pub event_id: String,
 
@@ -30,7 +30,7 @@ impl OrderBookEvent {
         datetime: DateTime,
         exchange_id: ExchangeId,
         exchange_name: ExchangeName,
-        currency_pair: CurrencyCodePair,
+        currency_code_pair: CurrencyCodePair,
         event_id: String,
         event_type: OrderBookEventType,
         data: OrderBookData,
@@ -40,7 +40,7 @@ impl OrderBookEvent {
             datetime,
             exchange_id,
             exchange_name,
-            currency_pair,
+            currency_code_pair,
             event_id,
             event_type,
             data,

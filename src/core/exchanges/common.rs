@@ -47,7 +47,7 @@ impl Display for ExchangeId {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 // TODO ExchangeId
 pub struct ExchangeName(String16);
@@ -136,7 +136,7 @@ impl From<&str> for CurrencyCode {
 }
 
 /// Unified format currency pair for this framework
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 // TODO CurrencyPairCode
 pub struct CurrencyCodePair(String12);
 

@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 type OrderDataMap = BTreeMap<Decimal, Decimal>;
 
+#[derive(Clone)]
 pub struct OrderBookData {
     pub asks: OrderDataMap,
     pub bids: OrderDataMap,
