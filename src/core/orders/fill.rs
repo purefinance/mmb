@@ -1,0 +1,138 @@
+use crate::core::{
+        orders::order::{OrderSide, OrderFillType, OrderFillRole},
+        DateTime,
+        exchanges::common::CurrencyCode
+};
+use rust_decimal::Decimal;
+use serde::{Serialize, Deserialize};
+use uuid::Uuid;
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
+pub enum EventSourceType {
+    RestFallback = 1,
+    Rest = 2,
+    WebSocket = 3
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderFill {
+    id: Uuid,
+    receive_time: DateTime,
+    fill_type: OrderFillType,
+
+    trade_id: Option<String>,
+    price: Decimal,
+    amount: Decimal,
+    cost: Decimal,
+    role: OrderFillRole,
+    commission_currency_code: CurrencyCode,
+    commission_amount: Decimal,
+    referral_reward_amount: Decimal,
+
+    /// ConvertedCommissionCurrencyCode is CommissionCurrencyCode if  CommissionCurrencyCode is equal to base or quote
+    /// Otherwise it is equal to quote currency code (for example, in the case of BNB fee discount) after conversion
+    /// by HandleOrderFilled
+    converted_commission_currency_code: CurrencyCode,
+    converted_commission_amount: Decimal,
+    expected_converted_commission_amount: Decimal,
+
+    is_diff: bool,
+    event_source_type: Option<EventSourceType>,
+    side: Option<OrderSide>
+}
+
+impl OrderFill {
+    pub fn new(
+        id: Uuid,
+        receive_time: DateTime,
+        fill_type: OrderFillType,
+        trade_id: Option<String>,
+        price: Decimal,
+        amount: Decimal,
+        cost: Decimal,
+        role: OrderFillRole,
+        commission_currency_code: CurrencyCode,
+        commission_amount: Decimal,
+        referral_reward_amount: Decimal,
+        converted_commission_currency_code: CurrencyCode,
+        converted_commission_amount: Decimal,
+        expected_converted_commission_amount: Decimal,
+        is_diff: bool,
+        event_source_type: Option<EventSourceType>,
+        side: Option<OrderSide>
+    ) -> Self {
+        OrderFill {
+            id,
+            receive_time,
+            fill_type,
+            trade_id,
+            price,
+            amount,
+            cost,
+            role,
+            commission_currency_code,
+            commission_amount,
+            referral_reward_amount,
+            converted_commission_currency_code,
+            converted_commission_amount,
+            expected_converted_commission_amount,
+            is_diff,
+            event_source_type,
+            side
+        }
+    }
+
+
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+    pub fn receive_time(&self) -> DateTime {
+        self.receive_time
+    }
+    pub fn fill_type(&self) -> OrderFillType {
+        self.fill_type
+    }
+    pub fn trade_id(&self) -> Option<&String> {
+        self.trade_id.as_ref()
+    }
+    pub fn price(&self) -> Decimal {
+        self.price
+    }
+    pub fn amount(&self) -> Decimal {
+        self.amount
+    }
+    pub fn cost(&self) -> Decimal {
+        self.cost
+    }
+    pub fn role(&self) -> OrderFillRole {
+        self.role
+    }
+    pub fn commission_currency_code(&self) -> &CurrencyCode {
+        &self.commission_currency_code
+    }
+    pub fn commission_amount(&self) -> Decimal {
+        self.commission_amount
+    }
+    pub fn referral_reward_amount(&self) -> Decimal {
+        self.referral_reward_amount
+    }
+    pub fn converted_commission_currency_code(&self) -> &CurrencyCode {
+        &self.converted_commission_currency_code
+    }
+    pub fn converted_commission_amount(&self) -> Decimal {
+        self.converted_commission_amount
+    }
+    pub fn expected_converted_commission_amount(&self) -> Decimal {
+        self.expected_converted_commission_amount
+    }
+    pub fn is_diff(&self) -> bool {
+        self.is_diff
+    }
+    pub fn event_source_type(&self) -> Option<EventSourceType> {
+        self.event_source_type
+    }
+    pub fn side(&self) -> Option<OrderSide> {
+        self.side
+    }
+}
