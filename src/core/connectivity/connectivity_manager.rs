@@ -1,21 +1,32 @@
 use actix::Addr;
-use crate::core::{
-    exchanges::{
-        common::{ExchangeId, ExchangeName},
-        actor::ExchangeActor
-    },
-    connectivity::websocket_actor::{self, WebSocketActor}
+use crate::{
+    core::{
+        exchanges::{
+            common::{ExchangeId, ExchangeName},
+            actor::{ExchangeActor, GetWebSocketParams}
+        },
+        connectivity::{
+            websocket_actor::{
+                self,
+                WebSocketActor,
+                WebSocketParams,
+                ForceClose
+            },
+            connectivity_manager::WebSocketState::Disconnected
+        }
+    }
 };
-// TODO change std::sync::mpsc to tokio::mpsc when it implement method try_recv()
-use std::sync::mpsc;
-use crate::core::connectivity::websocket_actor::{WebSocketParams, ForceClose};
+use std::{
+    sync::{
+        mpsc,// TODO change std::sync::mpsc to tokio::mpsc when it implement method try_recv()
+        Arc,
+        mpsc::TryRecvError
+    },
+    ops::DerefMut,
+    borrow::Borrow
+};
 use log::{error, info, log, trace, Level};
-use crate::core::connectivity::connectivity_manager::WebSocketState::Disconnected;
-use std::sync::{Arc, Mutex};
-use std::sync::mpsc::TryRecvError;
-use crate::core::exchanges::actor::GetWebSocketParams;
-use std::ops::DerefMut;
-use std::borrow::Borrow;
+use parking_lot::Mutex;
 
 pub const MAX_RETRY_CONNECT_COUNT: u32 = 3;
 
@@ -107,15 +118,15 @@ impl ConnectivityManager {
     }
 
     pub fn set_callback_connecting(&self, connecting: Callback0) {
-        *self.callback_connecting.lock().unwrap() = Some(connecting);
+        *self.callback_connecting.lock() = Some(connecting);
     }
 
     pub fn set_callback_connected(&self, connected: Callback0) {
-        *self.callback_connected.lock().unwrap() = Some(connected);
+        *self.callback_connected.lock() = Some(connected);
     }
 
     pub fn set_callback_disconnected(&self, disconnected: Callback1<bool>) {
-        *self.callback_disconnected.lock().unwrap() = Some(disconnected)
+        *self.callback_disconnected.lock() = Some(disconnected)
     }
 
     pub async fn connect(
@@ -124,7 +135,7 @@ impl ConnectivityManager {
     ) -> bool {
         trace!("ConnectivityManager '{}' connecting", self.exchange_id);
 
-        if let Some(connecting) = self.callback_connecting.lock().unwrap().as_mut() {
+        if let Some(connecting) = self.callback_connecting.lock().as_mut() {
             connecting();
         }
 
@@ -138,7 +149,7 @@ impl ConnectivityManager {
 
         let is_connected = main_websocket_connection_opened && secondary_websocket_connection_opened;
         if is_connected {
-            if let Some(connected) = self.callback_connected.lock().unwrap().as_mut() {
+            if let Some(connected) = self.callback_connected.lock().as_mut() {
                 connected();
             }
         }
@@ -152,7 +163,7 @@ impl ConnectivityManager {
     }
 
     async fn disconnect_for_websocket(websocket_connectivity: &Mutex<WebSocketConnectivity>) {
-        let guard = websocket_connectivity.lock().unwrap();
+        let guard = websocket_connectivity.lock();
 
         let finished_receiver = match &guard.state {
             Disconnected => { return; }
@@ -177,7 +188,7 @@ impl ConnectivityManager {
     }
 
     pub fn send(&self, role: WebSocketRole, message: &str) {
-        if let WebSocketState::Connected { ref websocket_actor, .. } = self.websockets.get_websocket_state(role).lock().unwrap().borrow().state {
+        if let WebSocketState::Connected { ref websocket_actor, .. } = self.websockets.get_websocket_state(role).lock().borrow().state {
             let sending_result = websocket_actor.try_send(websocket_actor::Send(message.to_owned()));
             if let Err(ref err) = sending_result {
                 error!("Error {} happened when sending to websocket {} message: {}", err, self.exchange_id, message)
@@ -189,7 +200,7 @@ impl ConnectivityManager {
     }
 
     fn set_disconnected_state(finished_sender: async_channel::Sender<()>, websocket_connectivity: &Mutex<WebSocketConnectivity>) {
-        websocket_connectivity.lock().unwrap().deref_mut().state = WebSocketState::Disconnected;
+        websocket_connectivity.lock().deref_mut().state = WebSocketState::Disconnected;
         let _ = finished_sender.try_send(());
     }
 
@@ -197,7 +208,7 @@ impl ConnectivityManager {
 
         {
             let websocket_connectivity_arc = self.websockets.get_websocket_state(websocket_role);
-            let mut websocket_state_guard = websocket_connectivity_arc.lock().unwrap();
+            let mut websocket_state_guard = websocket_connectivity_arc.lock();
 
             {
                 if let WebSocketState::Connected { ref finished_sender, .. } = websocket_state_guard.borrow().state {
@@ -208,7 +219,7 @@ impl ConnectivityManager {
             websocket_state_guard.deref_mut().state = Disconnected;
         }
 
-        if let Some(disconnected) = self.callback_disconnected.lock().unwrap().as_mut() {
+        if let Some(disconnected) = self.callback_disconnected.lock().as_mut() {
             disconnected(false);
         }
     }
@@ -221,7 +232,7 @@ impl ConnectivityManager {
         let websocket_connectivity = self.websockets.get_websocket_state(role);
 
         {
-            websocket_connectivity.lock().unwrap().deref_mut().state = WebSocketState::Connecting {
+            websocket_connectivity.lock().deref_mut().state = WebSocketState::Connecting {
                 finished_receiver: finished_receiver.clone(),
                 cancellation_sender,
             };
@@ -241,7 +252,7 @@ impl ConnectivityManager {
 
                 let websocket_actor = WebSocketActor::open_connection(self.exchange_id.clone(), params.clone(), notifier).await;
                 if let Some(websocket_actor) = websocket_actor {
-                    websocket_connectivity.lock().unwrap().deref_mut().state = WebSocketState::Connected {
+                    websocket_connectivity.lock().deref_mut().state = WebSocketState::Connected {
                         websocket_actor,
                         finished_sender: finished_sender.clone(),
                         finished_receiver: finished_receiver.clone()
@@ -252,7 +263,7 @@ impl ConnectivityManager {
                     }
 
                     if let Ok(()) = cancellation_receiver.try_recv() {
-                        if let WebSocketState::Connected { websocket_actor, ..} = &websocket_connectivity.lock().unwrap().borrow().state {
+                        if let WebSocketState::Connected { websocket_actor, ..} = &websocket_connectivity.lock().borrow().state {
                             let _ = websocket_actor.try_send(ForceClose);
                         }
                     }
@@ -322,11 +333,16 @@ mod tests {
     use super::*;
     use crate::core::logger::init_logger;
     use actix::{Arbiter, Actor};
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use std::time::Duration;
-    use tokio::sync::oneshot;
-    use tokio::time::sleep;
+    use std::{
+        cell::RefCell,
+        rc::Rc,
+        time::Duration,
+        ops::Deref
+    };
+    use tokio::{
+        sync::oneshot,
+        time::sleep
+    };
 
     #[actix_rt::test]
     pub async fn should_connect_and_reconnect_normally() {
@@ -375,7 +391,7 @@ mod tests {
                 connectivity_manager.clone().disconnect().await;
             }
 
-            assert_eq!(connected_count.take(), EXPECTED_CONNECTED_COUNT, "we should reconnect expected count times");
+            assert_eq!(connected_count.deref().replace(0), EXPECTED_CONNECTED_COUNT, "we should reconnect expected count times");
 
             let _ = finish_sender.send(());
         });
