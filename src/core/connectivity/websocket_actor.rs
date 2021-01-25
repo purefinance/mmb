@@ -261,7 +261,7 @@ mod tests {
         });
 
         Arbiter::spawn(async {
-            let exchange_id = "Binance0".into();
+            let exchange_id = "Binance0".parse().unwrap();
             let websocket_addr = WebSocketActor::open_connection(
                 exchange_id,
                 WebSocketParams { url },

@@ -353,7 +353,7 @@ mod tests {
         let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
         Arbiter::spawn(async {
-            let exchange_id: ExchangeId = "Binance0".into();
+            let exchange_id: ExchangeId = "Binance0".parse().unwrap();
             let exchange_name: ExchangeName = "Binance".into();
             let websocket_host = "wss://stream.binance.com:9443".into();
             let currency_pairs = vec![
