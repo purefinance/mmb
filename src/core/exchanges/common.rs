@@ -26,12 +26,6 @@ impl ExchangeId {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str {
-        self.0.as_mut_str()
-    }
 }
 
 impl From<&str> for ExchangeId {
@@ -63,12 +57,6 @@ impl ExchangeName {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str {
-        self.0.as_mut_str()
-    }
 }
 
 impl From<&str> for ExchangeName {
@@ -80,6 +68,7 @@ impl From<&str> for ExchangeName {
 
 /// Currency pair specific for exchange
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct CurrencyPair(String12);
 
 impl CurrencyPair {
@@ -93,12 +82,6 @@ impl CurrencyPair {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str {
-        self.0.as_mut_str()
-    }
 }
 
 impl From<&str> for CurrencyPair {
@@ -108,6 +91,7 @@ impl From<&str> for CurrencyPair {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct CurrencyCode(String4);
 
 impl CurrencyCode {
@@ -121,12 +105,6 @@ impl CurrencyCode {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str {
-        self.0.as_mut_str()
-    }
 }
 
 impl From<&str> for CurrencyCode {
@@ -138,6 +116,7 @@ impl From<&str> for CurrencyCode {
 /// Unified format currency pair for this framework
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 // TODO CurrencyPairCode
+#[serde(transparent)]
 pub struct CurrencyCodePair(String12);
 
 impl CurrencyCodePair {
@@ -156,14 +135,25 @@ impl CurrencyCodePair {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
+}
 
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str {
-        self.0.as_mut_str()
+/// Exchange id and currency code pair
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TradePlace {
+    pub exchange_id: ExchangeId,
+    pub currency_code_pair: CurrencyCodePair,
+}
+
+impl TradePlace {
+    pub fn new(exchange_id: ExchangeId, currency_code_pair: CurrencyCodePair) -> Self {
+        TradePlace {
+            exchange_id,
+            currency_code_pair,
+        }
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ExchangeErrorType {
     Unknown,
     RateLimit,
@@ -192,5 +182,49 @@ pub struct RestErrorDescription {
 impl RestErrorDescription {
     pub fn new(message: String, code: u32) -> Self {
         RestErrorDescription { message, code }
+    }
+}
+
+// TODO Как бы назвать правильно эту пару (ID обменника + валютная пара) ExchangerCurrencyPairState?
+#[derive(PartialEq, Eq, Hash, Clone, Debug, Serialize, Deserialize)]
+pub struct ExchangeNameSymbol {
+    exchange_name: ExchangeName,
+    currency_code_pair: CurrencyCodePair,
+}
+
+impl ExchangeNameSymbol {
+    pub fn new(exchange_name: ExchangeName, currency_code_pair: CurrencyCodePair) -> Self {
+        Self {
+            exchange_name,
+            currency_code_pair,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
+pub struct ExchangeIdSymbol {
+    exchange_id: ExchangeId,
+    exchange_name: ExchangeName,
+    currency_code_pair: CurrencyCodePair,
+}
+
+impl ExchangeIdSymbol {
+    pub fn new(
+        exchange_id: ExchangeId,
+        exchange_name: ExchangeName,
+        currency_code_pair: CurrencyCodePair,
+    ) -> Self {
+        Self {
+            exchange_id,
+            exchange_name,
+            currency_code_pair,
+        }
+    }
+
+    pub fn get_exchanger_currency_state(&self) -> ExchangeNameSymbol {
+        ExchangeNameSymbol {
+            currency_code_pair: self.currency_code_pair.clone(),
+            exchange_name: self.exchange_name.clone(),
+        }
     }
 }

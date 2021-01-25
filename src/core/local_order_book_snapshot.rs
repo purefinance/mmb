@@ -1,11 +1,13 @@
 use crate::core::order_book_data::OrderBookData;
-use crate::DateTime;
+use crate::core::DateTime;
 use rust_decimal::prelude::*;
 use std::collections::BTreeMap;
 
-type SortedOrderData = BTreeMap<Decimal, Decimal>;
+type Price = Decimal;
+type Amount = Decimal;
+type SortedOrderData = BTreeMap<Price, Amount>;
+
 #[derive(Clone)]
-// TODO Snapshots??? Снапшотов ведь много
 pub struct LocalOrderBookSnapshot {
     pub asks: SortedOrderData,
     pub bids: SortedOrderData,
@@ -30,9 +32,9 @@ impl LocalOrderBookSnapshot {
     fn apply_update_by_side(updates: SortedOrderData, current_value: &mut SortedOrderData) {
         for (key, value) in updates.iter() {
             if value.is_zero() {
-                current_value.remove(key);
+                let _ = current_value.remove(key);
             } else {
-                current_value.insert(*key, *value);
+                let _ = current_value.insert(*key, *value);
             }
         }
     }

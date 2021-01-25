@@ -12,12 +12,6 @@ pub struct OrderBookData {
 }
 
 impl OrderBookData {
-    pub fn new_raw() -> Self {
-        Self {
-            asks: BTreeMap::new(),
-            bids: BTreeMap::new(),
-        }
-    }
     pub fn new(asks: OrderDataMap, bids: OrderDataMap) -> Self {
         Self { asks, bids }
     }
@@ -54,13 +48,14 @@ impl OrderBookData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rust_decimal_macros::*;
 
     #[test]
     fn update_asks() {
         // Prepare data for updates
         let mut update_asks = OrderDataMap::new();
-        update_asks.insert(Decimal::new(1, 0), Decimal::new(2, 0));
-        update_asks.insert(Decimal::new(3, 0), Decimal::new(4, 0));
+        update_asks.insert(dec!(1.0), dec!(2.0));
+        update_asks.insert(dec!(3.0), dec!(4.0));
 
         let update_bids = OrderDataMap::new();
 
@@ -72,17 +67,15 @@ mod tests {
         // Prepare updated object
         let mut primary_asks = OrderDataMap::new();
         let primary_bids = OrderDataMap::new();
-        primary_asks.insert(Decimal::new(1, 0), Decimal::new(1, 0));
-        primary_asks.insert(Decimal::new(3, 0), Decimal::new(1, 0));
+        primary_asks.insert(dec!(1.0), dec!(1.0));
+        primary_asks.insert(dec!(3.0), dec!(1.0));
 
         let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
 
         main_order_data.update(updates);
 
-        assert_eq!(
-            main_order_data.asks.get(&Decimal::new(3, 0)),
-            Some(&Decimal::new(4, 0))
-        );
+        assert_eq!(main_order_data.asks.get(&dec!(1.0)), Some(&dec!(2.0)));
+        assert_eq!(main_order_data.asks.get(&dec!(3.0)), Some(&dec!(4.0)));
     }
 
     #[test]
@@ -91,8 +84,8 @@ mod tests {
         let update_asks = OrderDataMap::new();
 
         let mut update_bids = OrderDataMap::new();
-        update_bids.insert(Decimal::new(1, 0), Decimal::new(2, 2));
-        update_bids.insert(Decimal::new(3, 0), Decimal::new(4, 0));
+        update_bids.insert(dec!(1.0), dec!(2.2));
+        update_bids.insert(dec!(3.0), dec!(4.0));
 
         // Create updates
         let update = OrderBookData::new(update_asks, update_bids);
@@ -102,22 +95,66 @@ mod tests {
         // Prepare updated object
         let primary_asks = OrderDataMap::new();
         let mut primary_bids = OrderDataMap::new();
-        primary_bids.insert(Decimal::new(1, 0), Decimal::new(1, 0));
-        primary_bids.insert(Decimal::new(3, 0), Decimal::new(1, 0));
+        primary_bids.insert(dec!(1.0), dec!(1.0));
+        primary_bids.insert(dec!(3.0), dec!(1.0));
 
         let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
 
         main_order_data.update(updates);
 
-        assert_eq!(
-            main_order_data.bids.get(&Decimal::new(1, 0)),
-            Some(&Decimal::new(2, 2))
-        );
+        assert_eq!(main_order_data.bids.get(&dec!(1.0)), Some(&dec!(2.2)));
+        assert_eq!(main_order_data.bids.get(&dec!(3.0)), Some(&dec!(4.0)));
     }
 
     #[test]
-    fn empty_update() {}
+    fn empty_update() {
+        // Prepare data for empty update
+        let updates = Vec::new();
+
+        // Prepare updated object
+        let primary_asks = OrderDataMap::new();
+        let mut primary_bids = OrderDataMap::new();
+        primary_bids.insert(dec!(1.0), dec!(1.0));
+        primary_bids.insert(dec!(3.0), dec!(1.0));
+
+        let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
+
+        main_order_data.update(updates);
+
+        assert_eq!(main_order_data.bids.get(&dec!(1.0)), Some(&dec!(1.0)));
+        assert_eq!(main_order_data.bids.get(&dec!(3.0)), Some(&dec!(1.0)));
+    }
 
     #[test]
-    fn several_updates() {}
+    fn several_updates() {
+        // Prepare data for updates
+        let mut first_update_asks = OrderDataMap::new();
+        first_update_asks.insert(dec!(1.0), dec!(2.0));
+        first_update_asks.insert(dec!(3.0), dec!(4.0));
+        let first_update_bids = OrderDataMap::new();
+
+        let mut second_update_asks = OrderDataMap::new();
+        second_update_asks.insert(dec!(1.0), dec!(2.8));
+        second_update_asks.insert(dec!(3.0), dec!(4.8));
+        let second_update_bids = OrderDataMap::new();
+
+        // Create updates
+        let first_update = OrderBookData::new(first_update_asks, first_update_bids);
+        let second_update = OrderBookData::new(second_update_asks, second_update_bids);
+
+        let updates = vec![first_update, second_update];
+
+        // Prepare updated object
+        let mut primary_asks = OrderDataMap::new();
+        let primary_bids = OrderDataMap::new();
+        primary_asks.insert(dec!(1.0), dec!(1.0));
+        primary_asks.insert(dec!(3.0), dec!(1.0));
+
+        let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
+
+        main_order_data.update(updates);
+
+        assert_eq!(main_order_data.asks.get(&dec!(1.0)), Some(&dec!(2.8)));
+        assert_eq!(main_order_data.asks.get(&dec!(3.0)), Some(&dec!(4.8)));
+    }
 }
