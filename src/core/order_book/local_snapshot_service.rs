@@ -52,7 +52,7 @@ impl LocalSnapshotsService {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use order_book_data::OrderDataMap;
+    use order_book_data::SortedOrderData;
     use rust_decimal_macros::*;
 
     #[test]
@@ -61,10 +61,10 @@ mod tests {
         let local_snapshots = HashMap::new();
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
-        let mut asks = OrderDataMap::new();
+        let mut asks = SortedOrderData::new();
         asks.insert(dec!(1.0), dec!(2.1));
         asks.insert(dec!(3.0), dec!(4.2));
-        let mut bids = OrderDataMap::new();
+        let mut bids = SortedOrderData::new();
         bids.insert(dec!(2.9), dec!(7.8));
         bids.insert(dec!(3.4), dec!(1.2));
 
@@ -102,10 +102,10 @@ mod tests {
         let local_snapshots = HashMap::new();
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
-        let mut asks = OrderDataMap::new();
+        let mut asks = SortedOrderData::new();
         asks.insert(dec!(1.0), dec!(2.1));
         asks.insert(dec!(3.0), dec!(4.2));
-        let mut bids = OrderDataMap::new();
+        let mut bids = SortedOrderData::new();
         bids.insert(dec!(2.9), dec!(7.8));
         bids.insert(dec!(3.4), dec!(1.2));
 
@@ -134,10 +134,10 @@ mod tests {
             CurrencyCodePair::new(test_currency_code_pair.into()),
         );
 
-        let mut primary_asks = OrderDataMap::new();
+        let mut primary_asks = SortedOrderData::new();
         primary_asks.insert(dec!(1.0), dec!(0.1));
         primary_asks.insert(dec!(3.0), dec!(4.2));
-        let mut primary_bids = OrderDataMap::new();
+        let mut primary_bids = SortedOrderData::new();
         primary_bids.insert(dec!(2.9), dec!(7.8));
         primary_bids.insert(dec!(3.4), dec!(1.2));
 
@@ -149,9 +149,9 @@ mod tests {
 
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
-        let mut asks = OrderDataMap::new();
+        let mut asks = SortedOrderData::new();
         asks.insert(dec!(1.0), dec!(2.1));
-        let mut bids = OrderDataMap::new();
+        let mut bids = SortedOrderData::new();
         bids.insert(dec!(2.9), dec!(7.8));
         bids.insert(dec!(3.4), dec!(0));
 

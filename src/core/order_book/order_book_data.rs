@@ -4,16 +4,16 @@ use chrono::Utc;
 use rust_decimal_macros::*;
 use std::collections::BTreeMap;
 
-pub type OrderDataMap = BTreeMap<Price, Amount>;
+pub type SortedOrderData = BTreeMap<Price, Amount>;
 
 #[derive(Clone)]
 pub struct OrderBookData {
-    pub asks: OrderDataMap,
-    pub bids: OrderDataMap,
+    pub asks: SortedOrderData,
+    pub bids: SortedOrderData,
 }
 
 impl OrderBookData {
-    pub fn new(asks: OrderDataMap, bids: OrderDataMap) -> Self {
+    pub fn new(asks: SortedOrderData, bids: SortedOrderData) -> Self {
         Self { asks, bids }
     }
 
@@ -71,11 +71,11 @@ mod tests {
     #[test]
     fn update_asks() {
         // Prepare data for updates
-        let mut update_asks = OrderDataMap::new();
+        let mut update_asks = SortedOrderData::new();
         update_asks.insert(dec!(1.0), dec!(2.0));
         update_asks.insert(dec!(3.0), dec!(4.0));
 
-        let update_bids = OrderDataMap::new();
+        let update_bids = SortedOrderData::new();
 
         // Create updates
         let update = OrderBookData::new(update_asks, update_bids);
@@ -83,8 +83,8 @@ mod tests {
         let updates = vec![update];
 
         // Prepare updated object
-        let mut primary_asks = OrderDataMap::new();
-        let primary_bids = OrderDataMap::new();
+        let mut primary_asks = SortedOrderData::new();
+        let primary_bids = SortedOrderData::new();
         primary_asks.insert(dec!(1.0), dec!(1.0));
         primary_asks.insert(dec!(3.0), dec!(1.0));
 
@@ -99,9 +99,9 @@ mod tests {
     #[test]
     fn bids_update() {
         // Prepare data for updates
-        let update_asks = OrderDataMap::new();
+        let update_asks = SortedOrderData::new();
 
-        let mut update_bids = OrderDataMap::new();
+        let mut update_bids = SortedOrderData::new();
         update_bids.insert(dec!(1.0), dec!(2.2));
         update_bids.insert(dec!(3.0), dec!(4.0));
 
@@ -111,8 +111,8 @@ mod tests {
         let updates = vec![update];
 
         // Prepare updated object
-        let primary_asks = OrderDataMap::new();
-        let mut primary_bids = OrderDataMap::new();
+        let primary_asks = SortedOrderData::new();
+        let mut primary_bids = SortedOrderData::new();
         primary_bids.insert(dec!(1.0), dec!(1.0));
         primary_bids.insert(dec!(3.0), dec!(1.0));
 
@@ -130,8 +130,8 @@ mod tests {
         let updates = Vec::new();
 
         // Prepare updated object
-        let primary_asks = OrderDataMap::new();
-        let mut primary_bids = OrderDataMap::new();
+        let primary_asks = SortedOrderData::new();
+        let mut primary_bids = SortedOrderData::new();
         primary_bids.insert(dec!(1.0), dec!(1.0));
         primary_bids.insert(dec!(3.0), dec!(1.0));
 
@@ -146,15 +146,15 @@ mod tests {
     #[test]
     fn several_updates() {
         // Prepare data for updates
-        let mut first_update_asks = OrderDataMap::new();
+        let mut first_update_asks = SortedOrderData::new();
         first_update_asks.insert(dec!(1.0), dec!(2.0));
         first_update_asks.insert(dec!(3.0), dec!(4.0));
-        let first_update_bids = OrderDataMap::new();
+        let first_update_bids = SortedOrderData::new();
 
-        let mut second_update_asks = OrderDataMap::new();
+        let mut second_update_asks = SortedOrderData::new();
         second_update_asks.insert(dec!(1.0), dec!(2.8));
         second_update_asks.insert(dec!(6.0), dec!(0));
-        let second_update_bids = OrderDataMap::new();
+        let second_update_bids = SortedOrderData::new();
 
         // Create updates
         let first_update = OrderBookData::new(first_update_asks, first_update_bids);
@@ -163,8 +163,8 @@ mod tests {
         let updates = vec![first_update, second_update];
 
         // Prepare updated object
-        let mut primary_asks = OrderDataMap::new();
-        let primary_bids = OrderDataMap::new();
+        let mut primary_asks = SortedOrderData::new();
+        let primary_bids = SortedOrderData::new();
         primary_asks.insert(dec!(1.0), dec!(1.0));
         primary_asks.insert(dec!(2.0), dec!(5.6));
         primary_asks.insert(dec!(3.0), dec!(1.0));
