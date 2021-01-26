@@ -1,10 +1,9 @@
+use crate::core::exchanges::common::*;
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::DateTime;
 use rust_decimal::prelude::*;
 use std::collections::BTreeMap;
 
-type Price = Decimal;
-type Amount = Decimal;
 type SortedOrderData = BTreeMap<Price, Amount>;
 
 #[derive(Clone)]

@@ -1,10 +1,10 @@
+use crate::core::exchanges::common::*;
 use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use chrono::Utc;
-use rust_decimal::*;
 use rust_decimal_macros::*;
 use std::collections::BTreeMap;
 
-pub type OrderDataMap = BTreeMap<Decimal, Decimal>;
+pub type OrderDataMap = BTreeMap<Price, Amount>;
 
 #[derive(Clone)]
 pub struct OrderBookData {
