@@ -1,6 +1,7 @@
 use crate::core::local_order_book_snapshot::LocalOrderBookSnapshot;
 use chrono::Utc;
 use rust_decimal::*;
+use rust_decimal_macros::*;
 use std::collections::BTreeMap;
 
 pub type OrderDataMap = BTreeMap<Decimal, Decimal>;
@@ -32,15 +33,33 @@ impl OrderBookData {
 
     fn update_inner_data(&mut self, updates: Vec<OrderBookData>) {
         for update in updates.iter() {
-            for (key, amount) in update.bids.iter() {
-                self.bids.insert(*key, *amount);
-            }
-
+            let mut zero_amount_asks = Vec::new();
             for (key, amount) in update.asks.iter() {
                 self.asks.insert(*key, *amount);
+
+                // Collect all keys with no amout to remove it later
+                if *amount == dec!(0) {
+                    zero_amount_asks.push(key);
+                }
             }
 
-            // TODO remove elements where value == 0
+            let mut zero_amount_bids = Vec::new();
+            for (key, amount) in update.bids.iter() {
+                self.bids.insert(*key, *amount);
+
+                // Collect all keys with no amout to remove it later
+                if *amount == dec!(0) {
+                    zero_amount_bids.push(key);
+                }
+            }
+
+            zero_amount_asks.iter_mut().for_each(|key| {
+                let _ = self.asks.remove(&key);
+            });
+
+            zero_amount_bids.iter_mut().for_each(|key| {
+                let _ = self.asks.remove(&key);
+            });
         }
     }
 }
@@ -48,7 +67,6 @@ impl OrderBookData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal_macros::*;
 
     #[test]
     fn update_asks() {
