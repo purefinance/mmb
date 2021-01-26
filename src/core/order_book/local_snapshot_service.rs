@@ -1,7 +1,6 @@
-use crate::core::*;
-
-use super::exchanges::common::*;
-use crate::core::local_order_book_snapshot::LocalOrderBookSnapshot;
+use crate::core::exchanges::common::*;
+use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
+use crate::core::order_book::*;
 use std::collections::HashMap;
 
 pub struct LocalSnapshotsService {
@@ -52,6 +51,7 @@ impl LocalSnapshotsService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
     use order_book_data::OrderDataMap;
     use rust_decimal_macros::*;
 

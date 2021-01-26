@@ -1,4 +1,4 @@
-use crate::core::local_order_book_snapshot::LocalOrderBookSnapshot;
+use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use chrono::Utc;
 use rust_decimal::*;
 use rust_decimal_macros::*;
