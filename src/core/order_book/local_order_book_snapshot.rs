@@ -39,7 +39,16 @@ impl LocalOrderBookSnapshot {
     }
 
     pub fn get_top_bid(&self) -> Option<(Price, Amount)> {
-        Self::get_top(&self.bids)
+        if self.bids.is_empty() {
+            return None;
+        }
+
+        // Get the first item (minimal)
+        self.bids
+            .iter()
+            .rev()
+            .next()
+            .map(|price_level| (price_level.0.clone(), price_level.1.clone()))
     }
 
     fn get_top(book_side: &SortedOrderData) -> Option<(Price, Amount)> {
