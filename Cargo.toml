@@ -16,6 +16,7 @@ log = "0.4.11"
 fern = "0.6.0"
 itertools = "0.10.0"
 bytes = "1.0"
+regex = "1"
 
 serde = { version = "^1", features = ["derive", "rc"]}
 serde_json = "1.0"
@@ -43,3 +44,4 @@ derive-getters = "0.2.0"
 
 [dev-dependencies]
 actix-rt = "2.0.0-beta.2"
+pretty_assertions = "0.6"

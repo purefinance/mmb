@@ -14,7 +14,6 @@ pub struct OrderBookEvent {
     id: u128,
     creation_time: DateTime,
     exchange_id: ExchangeId,
-    exchange_name: ExchangeName,
     currency_code_pair: CurrencyCodePair,
 
     event_id: String,
@@ -27,7 +26,6 @@ impl OrderBookEvent {
     pub fn new(
         creation_time: DateTime,
         exchange_id: ExchangeId,
-        exchange_name: ExchangeName,
         currency_code_pair: CurrencyCodePair,
         event_id: String,
         event_type: EventType,
@@ -37,7 +35,6 @@ impl OrderBookEvent {
             id: 0,
             creation_time,
             exchange_id,
-            exchange_name,
             currency_code_pair,
             event_id,
             event_type,
@@ -56,8 +53,7 @@ impl OrderBookEvent {
         OrderBookEvent {
             id: 0,
             creation_time: Utc::now(),
-            exchange_id: ExchangeId::from(""),
-            exchange_name,
+            exchange_id: ExchangeId::new(exchange_name, 0),
             currency_code_pair,
             event_id: "".to_string(),
 

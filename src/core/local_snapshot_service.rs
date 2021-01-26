@@ -5,15 +5,15 @@ use crate::core::local_order_book_snapshot::LocalOrderBookSnapshot;
 use std::collections::HashMap;
 
 pub struct LocalSnapshotsService {
-    local_snapshots: HashMap<ExchangeNameSymbol, LocalOrderBookSnapshot>,
+    local_snapshots: HashMap<ExchangeIdSymbol, LocalOrderBookSnapshot>,
 }
 
 impl LocalSnapshotsService {
-    pub fn new(local_snapshots: HashMap<ExchangeNameSymbol, LocalOrderBookSnapshot>) -> Self {
+    pub fn new(local_snapshots: HashMap<ExchangeIdSymbol, LocalOrderBookSnapshot>) -> Self {
         Self { local_snapshots }
     }
 
-    pub fn get_snapshot(&self, snaphot_id: ExchangeNameSymbol) -> Option<&LocalOrderBookSnapshot> {
+    pub fn get_snapshot(&self, snaphot_id: ExchangeIdSymbol) -> Option<&LocalOrderBookSnapshot> {
         self.local_snapshots.get(&snaphot_id)
     }
 
@@ -22,33 +22,24 @@ impl LocalSnapshotsService {
         order_book_event: order_book_event::OrderBookEvent,
     ) -> Option<ExchangeIdSymbol> {
         // Extract all field
-        let (
-            _,
-            creation_time,
-            exchange_id,
-            exchange_name,
-            currency_code_pair,
-            _,
-            event_type,
-            event_data,
-        ) = order_book_event.dissolve();
+        let (_, creation_time, exchange_id, currency_code_pair, _, event_type, event_data) =
+            order_book_event.dissolve();
 
-        let exchange_symbol = ExchangeIdSymbol::new(exchange_id, exchange_name, currency_code_pair);
+        let exchange_symbol = ExchangeIdSymbol::new(exchange_id, currency_code_pair);
 
         match event_type {
             order_book_event::EventType::Snapshot => {
                 let local_order_book_snapshot = event_data.to_local_order_book_snapshot();
-                let exchanger_currency_state = exchange_symbol.get_exchanger_currency_state();
 
                 self.local_snapshots
-                    .insert(exchanger_currency_state.clone(), local_order_book_snapshot);
+                    .insert(exchange_symbol.clone(), local_order_book_snapshot);
 
                 return Some(exchange_symbol);
             }
             order_book_event::EventType::Update => {
                 // Exctract variable here to avoid partial moving
                 self.local_snapshots
-                    .get_mut(&exchange_symbol.get_exchanger_currency_state())
+                    .get_mut(&exchange_symbol)
                     .map(|snapshot| {
                         snapshot.apply_update(event_data, creation_time);
                         exchange_symbol
@@ -89,12 +80,12 @@ mod tests {
         let exchange_id_symbol = snapshot_controller.update(order_book_event).unwrap();
 
         let updated_asks = &snapshot_controller
-            .get_snapshot(exchange_id_symbol.get_exchanger_currency_state())
+            .get_snapshot(exchange_id_symbol.clone())
             .unwrap()
             .asks;
 
         let updated_bids = &snapshot_controller
-            .get_snapshot(exchange_id_symbol.get_exchanger_currency_state())
+            .get_snapshot(exchange_id_symbol)
             .unwrap()
             .bids;
 
@@ -138,8 +129,8 @@ mod tests {
         let test_exchange_name = "exchange_name";
         let test_currency_code_pair = "test_currency_code_pait";
         // Construct main object
-        let exchange_name_symbol = ExchangeNameSymbol::new(
-            test_exchange_name.into(),
+        let exchange_id_symbol = ExchangeIdSymbol::new(
+            ExchangeId::new(test_exchange_name.into(), 0),
             CurrencyCodePair::new(test_currency_code_pair.into()),
         );
 
@@ -154,7 +145,7 @@ mod tests {
             LocalOrderBookSnapshot::new(primary_asks, primary_bids, Utc::now());
 
         let mut local_snapshots = HashMap::new();
-        local_snapshots.insert(exchange_name_symbol, primary_order_book_snapshot);
+        local_snapshots.insert(exchange_id_symbol, primary_order_book_snapshot);
 
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
@@ -176,12 +167,12 @@ mod tests {
         let exchange_id_symbol = snapshot_controller.update(order_book_event).unwrap();
 
         let updated_asks = &snapshot_controller
-            .get_snapshot(exchange_id_symbol.get_exchanger_currency_state())
+            .get_snapshot(exchange_id_symbol.clone())
             .unwrap()
             .asks;
 
         let updated_bids = &snapshot_controller
-            .get_snapshot(exchange_id_symbol.get_exchanger_currency_state())
+            .get_snapshot(exchange_id_symbol.clone())
             .unwrap()
             .bids;
 
