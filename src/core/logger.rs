@@ -16,17 +16,19 @@ pub fn init_logger() {
             fern::Dispatch::new()
                 .level(LevelFilter::Warn)
                 .level_for("mmb", LevelFilter::Trace)
-                .chain(std::io::stdout()),
+                .chain(std::io::stdout())
         )
         .chain(
-            fern::Dispatch::new().level(LevelFilter::Warn).chain(
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open("log.txt")
-                    .unwrap(),
-            ),
+            fern::Dispatch::new()
+                .level(LevelFilter::Warn)
+                .chain(
+                    std::fs::OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .open("log.txt")
+                        .unwrap()
+                )
         )
         .apply()
         .unwrap();
