@@ -62,7 +62,7 @@ mod tests {
     use smallstr::SmallString;
     use std::collections::BTreeMap;
 
-    fn get_raw_order_book_event() -> order_book_event::OrderBookEvent {
+    fn get_empty_order_book_event() -> order_book_event::OrderBookEvent {
         order_book_event::OrderBookEvent {
             id: 0,
             creation_time: Utc::now(),
@@ -84,11 +84,10 @@ mod tests {
     fn update_by_full_snapshot() {
         // Construct main object
         let local_snapshots = HashMap::new();
-        // TODO add values to map above. Just to control that they'll be changed
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
         // Construct update
-        let mut order_book_event = get_raw_order_book_event();
+        let mut order_book_event = get_empty_order_book_event();
 
         let mut asks = OrderDataMap::new();
         asks.insert(dec!(1.0), dec!(2.1));
@@ -127,7 +126,7 @@ mod tests {
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
         // Construct update
-        let mut order_book_event = get_raw_order_book_event();
+        let mut order_book_event = get_empty_order_book_event();
 
         let mut asks = OrderDataMap::new();
         asks.insert(dec!(1.0), dec!(2.1));
@@ -147,11 +146,12 @@ mod tests {
 
     #[test]
     fn successful_update() {
-        let test_phrase = "test";
+        let test_exchange_name = "exchange_name";
+        let test_currency_code_pair = "test_currency_code_pait";
         // Construct main object
         let exchange_name_symbol = ExchangeNameSymbol::new(
-            ExchangeName::new(test_phrase.into()),
-            CurrencyCodePair::new(test_phrase.into()),
+            test_exchange_name.into(),
+            CurrencyCodePair::new(test_currency_code_pair.into()),
         );
 
         let mut primary_asks = OrderDataMap::new();
@@ -170,7 +170,7 @@ mod tests {
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
         // Construct update
-        let mut order_book_event = get_raw_order_book_event();
+        let mut order_book_event = get_empty_order_book_event();
 
         let mut asks = OrderDataMap::new();
         asks.insert(dec!(1.0), dec!(2.1));
@@ -180,8 +180,8 @@ mod tests {
         order_book_event.event_type = order_book_event::EventType::Update;
 
         // Mathching will be based on this data
-        order_book_event.exchange_name = ExchangeName::new(test_phrase.into());
-        order_book_event.currency_code_pair = CurrencyCodePair::new(test_phrase.into());
+        order_book_event.exchange_name = test_exchange_name.into();
+        order_book_event.currency_code_pair = CurrencyCodePair::new(test_currency_code_pair.into());
 
         // Perform update
         let exchange_id_symbol = snapshot_controller.update(order_book_event).unwrap();

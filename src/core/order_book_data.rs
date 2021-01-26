@@ -135,7 +135,7 @@ mod tests {
 
         let mut second_update_asks = OrderDataMap::new();
         second_update_asks.insert(dec!(1.0), dec!(2.8));
-        second_update_asks.insert(dec!(3.0), dec!(4.8));
+        second_update_asks.insert(dec!(6.0), dec!(0));
         let second_update_bids = OrderDataMap::new();
 
         // Create updates
@@ -148,13 +148,21 @@ mod tests {
         let mut primary_asks = OrderDataMap::new();
         let primary_bids = OrderDataMap::new();
         primary_asks.insert(dec!(1.0), dec!(1.0));
+        primary_asks.insert(dec!(2.0), dec!(5.6));
         primary_asks.insert(dec!(3.0), dec!(1.0));
+        primary_asks.insert(dec!(6.0), dec!(1.0));
 
         let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
 
         main_order_data.update(updates);
 
+        // Updated from second update
         assert_eq!(main_order_data.asks.get(&dec!(1.0)), Some(&dec!(2.8)));
-        assert_eq!(main_order_data.asks.get(&dec!(3.0)), Some(&dec!(4.8)));
+        // Unchanged
+        assert_eq!(main_order_data.asks.get(&dec!(2.0)), Some(&dec!(5.6)));
+        // Updated from first update
+        assert_eq!(main_order_data.asks.get(&dec!(3.0)), Some(&dec!(4.0)));
+        // Deleted because 0 amount in second update
+        assert_eq!(main_order_data.asks.get(&dec!(6.0)), None);
     }
 }
