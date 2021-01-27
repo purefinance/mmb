@@ -1,6 +1,6 @@
 
 
-pub struct ExchangeSettings{
+pub struct ExchangeSettings {
     // TODO add other settings
 
     pub is_marging_trading: bool,

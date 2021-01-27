@@ -1,16 +1,17 @@
+use crate::core::exchanges::common::{
+    CurrencyCodePair, CurrencyPair, ExchangeErrorType, ExchangeId, ExchangeName,
+};
+use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
-use crate::core::exchanges::common::{ExchangeId, ExchangeName, CurrencyPair, CurrencyCodePair, ExchangeErrorType};
-use std::sync::Arc;
-use serde::{Serialize, Deserialize};
-use smallstr::SmallString;
 use rust_decimal::Decimal;
-use uuid::Uuid;
-use crate::core::orders::fill::{OrderFill, EventSourceType};
+use serde::{Deserialize, Serialize};
+use smallstr::SmallString;
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use uuid::Uuid;
 
 type String16 = SmallString<[u8; 16]>;
-
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderSide {
@@ -22,7 +23,7 @@ impl OrderSide {
     pub fn change_side(&self) -> OrderSide {
         match self {
             OrderSide::Buy => OrderSide::Sell,
-            OrderSide::Sell => OrderSide::Buy
+            OrderSide::Sell => OrderSide::Buy,
         }
     }
 }
@@ -36,7 +37,7 @@ impl OptionOrderSideEx for Option<OrderSide> {
         match self {
             None => None,
             Some(OrderSide::Buy) => Some(OrderSide::Sell),
-            Some(OrderSide::Sell) => Some(OrderSide::Buy)
+            Some(OrderSide::Sell) => Some(OrderSide::Buy),
         }
     }
 }
@@ -44,18 +45,17 @@ impl OptionOrderSideEx for Option<OrderSide> {
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderRole {
     Maker = 1,
-    Taker = 2
+    Taker = 2,
 }
 
 impl From<OrderFillRole> for OrderRole {
     fn from(fill_role: OrderFillRole) -> Self {
         match fill_role {
             OrderFillRole::Maker => OrderRole::Maker,
-            OrderFillRole::Taker => OrderRole::Taker
+            OrderFillRole::Taker => OrderRole::Taker,
         }
     }
 }
-
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderType {
@@ -64,16 +64,14 @@ pub enum OrderType {
     Market = 2,
     StopLoss = 3,
     TrailingStop = 4,
-    Liquidation = 5
+    Liquidation = 5,
 }
-
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderExecutionType {
     None = 0,
-    MakerOnly = 1
+    MakerOnly = 1,
 }
-
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
@@ -111,7 +109,6 @@ impl fmt::Display for ClientOrderId {
     }
 }
 
-
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct ExchangeOrderId(String16);
@@ -142,7 +139,6 @@ impl From<&str> for ExchangeOrderId {
     }
 }
 
-
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderStatus {
     Creating = 1,
@@ -151,19 +147,21 @@ pub enum OrderStatus {
     Canceling = 4,
     Canceled = 5,
     FailedToCancel = 6,
-    Completed = 7
+    Completed = 7,
 }
 
 impl Default for OrderStatus {
-    fn default() -> Self { OrderStatus::Creating }
+    fn default() -> Self {
+        OrderStatus::Creating
+    }
 }
 
 impl OrderStatus {
     pub fn is_finished(&self) -> bool {
         let status = *self;
-        status == OrderStatus::FailedToCreate ||
-            status == OrderStatus::Canceled ||
-            status == OrderStatus::Completed
+        status == OrderStatus::FailedToCreate
+            || status == OrderStatus::Canceled
+            || status == OrderStatus::Completed
     }
 }
 
@@ -180,7 +178,6 @@ impl ReservationId {
         ReservationId(new_id)
     }
 }
-
 
 /// Immutable part of order
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -209,10 +206,13 @@ pub struct OrderHeader {
 }
 
 impl OrderHeader {
-    pub fn get_version(&self) -> u32  { self.version }
-    pub fn increment_version(&mut self) { self.version += 1; }
+    pub fn get_version(&self) -> u32 {
+        self.version
+    }
+    pub fn increment_version(&mut self) {
+        self.version += 1;
+    }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSimpleProps {
@@ -226,7 +226,7 @@ pub struct OrderSimpleProps {
 
     pub status: OrderStatus,
 
-    pub finished_time: Option<DateTime>
+    pub finished_time: Option<DateTime>,
 }
 
 impl OrderSimpleProps {
@@ -240,18 +240,24 @@ impl OrderSimpleProps {
             stop_loss_price: Default::default(),
             trailing_stop_delta: Default::default(),
             status: Default::default(),
-            finished_time: None
+            finished_time: None,
         }
     }
 
-    pub fn client_order_id(&self) -> &ClientOrderId { &self.client_order_id }
-    pub fn is_finished(&self) -> bool { self.status.is_finished() }
+    pub fn client_order_id(&self) -> &ClientOrderId {
+        &self.client_order_id
+    }
+    pub fn is_finished(&self) -> bool {
+        self.status.is_finished()
+    }
     pub fn price(&self) -> Decimal {
         if let Some(price) = self.raw_price {
             price
-        }
-        else {
-            panic!("Can't get price from order {}", self.client_order_id.as_str())
+        } else {
+            panic!(
+                "Can't get price from order {}",
+                self.client_order_id.as_str()
+            )
         }
     }
 }
@@ -261,9 +267,8 @@ pub enum OrderFillType {
     UserTrade = 1,
     Liquidation = 2,
     Funding = 3,
-    ClosePosition = 4
+    ClosePosition = 4,
 }
-
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderFillRole {
@@ -275,11 +280,10 @@ impl From<OrderRole> for OrderFillRole {
     fn from(role: OrderRole) -> Self {
         match role {
             OrderRole::Maker => OrderFillRole::Maker,
-            OrderRole::Taker => OrderFillRole::Taker
+            OrderRole::Taker => OrderFillRole::Taker,
         }
     }
 }
-
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrderFills {
@@ -293,18 +297,16 @@ impl OrderFills {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderStatusChange {
     id: Uuid,
     status: OrderStatus,
-    time: DateTime
+    time: DateTime,
 }
-
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrderStatusHistory {
-    status_changes: Vec<OrderStatusChange>
+    status_changes: Vec<OrderStatusChange>,
 }
 
 /// Helping properties for trading engine internal use
@@ -331,7 +333,7 @@ pub struct SystemInternalOrderProps {
     pub last_order_trades_request_time: Option<DateTime>,
 
     pub handled_by_balance_recovery: bool,
-    pub filled_amount_after_cancellation: Option<Decimal>
+    pub filled_amount_after_cancellation: Option<Decimal>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -340,7 +342,7 @@ pub struct OrderSnapshot {
     pub props: OrderSimpleProps,
     pub fills: OrderFills,
     pub status_history: OrderStatusHistory,
-    pub internal_props: SystemInternalOrderProps
+    pub internal_props: SystemInternalOrderProps,
 }
 
 impl OrderSnapshot {
@@ -349,9 +351,15 @@ impl OrderSnapshot {
         props: OrderSimpleProps,
         fills: OrderFills,
         status_history: OrderStatusHistory,
-        internal_props: SystemInternalOrderProps
+        internal_props: SystemInternalOrderProps,
     ) -> Self {
-        OrderSnapshot { header, props, fills, status_history, internal_props }
+        OrderSnapshot {
+            header,
+            props,
+            fills,
+            status_history,
+            internal_props,
+        }
     }
 
     pub fn add_fill(&mut self, fill: OrderFill) {
@@ -361,6 +369,10 @@ impl OrderSnapshot {
 
     pub fn set_status(&mut self, new_status: OrderStatus, time: DateTime) {
         self.props.status = new_status;
-        self.status_history.status_changes.push(OrderStatusChange { id: Uuid::default(), status: new_status, time})
+        self.status_history.status_changes.push(OrderStatusChange {
+            id: Uuid::default(),
+            status: new_status,
+            time,
+        })
     }
 }
