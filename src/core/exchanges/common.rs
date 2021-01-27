@@ -3,14 +3,17 @@ use regex::Regex;
 use rust_decimal::*;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
+use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
 use chrono::Utc;
 
 pub type DateTime = chrono::DateTime<Utc>;
+
 pub type Price = Decimal;
 pub type Amount = Decimal;
+pub type SortedOrderData = BTreeMap<Price, Amount>;
 
 type String4 = SmallString<[u8; 4]>;
 type String12 = SmallString<[u8; 12]>;

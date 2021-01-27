@@ -1,11 +1,9 @@
 use crate::core::exchanges::common::*;
 use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use chrono::Utc;
-use rust_decimal_macros::*;
-use std::collections::BTreeMap;
+use rust_decimal::prelude::*;
 
-pub type SortedOrderData = BTreeMap<Price, Amount>;
-
+/// Main asks and bids storage
 #[derive(Clone)]
 pub struct OrderBookData {
     pub asks: SortedOrderData,
@@ -17,11 +15,12 @@ impl OrderBookData {
         Self { asks, bids }
     }
 
+    /// Transform to LocalOrderBookSnapshot
     pub fn to_local_order_book_snapshot(self) -> LocalOrderBookSnapshot {
         LocalOrderBookSnapshot::new(self.asks, self.bids, Utc::now())
     }
 
-    // Сделать просто Vec вторым параметром
+    /// Perform inner asks and bids update
     pub fn update(&mut self, updates: Vec<OrderBookData>) {
         // If exists at least one update
         if updates.is_empty() {
@@ -38,7 +37,7 @@ impl OrderBookData {
                 self.asks.insert(*key, *amount);
 
                 // Collect all keys with no amout to remove it later
-                if *amount == dec!(0) {
+                if amount.is_zero() {
                     zero_amount_asks.push(key);
                 }
             }
@@ -48,7 +47,7 @@ impl OrderBookData {
                 self.bids.insert(*key, *amount);
 
                 // Collect all keys with no amout to remove it later
-                if *amount == dec!(0) {
+                if amount.is_zero() {
                     zero_amount_bids.push(key);
                 }
             }
@@ -67,6 +66,7 @@ impl OrderBookData {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rust_decimal_macros::*;
 
     #[test]
     fn update_asks() {

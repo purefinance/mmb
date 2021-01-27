@@ -1,23 +1,17 @@
 use crate::core::exchanges::common::*;
 use crate::core::order_book::order_book_data::OrderBookData;
+use crate::core::orders::order::OrderSide;
 use crate::core::DateTime;
 use rust_decimal::prelude::*;
-use std::collections::BTreeMap;
 
-type SortedOrderData = BTreeMap<Price, Amount>;
-
-pub enum OrderSide {
-    Buy,
-    Sell,
-}
-
-pub struct Order {
+/// Fields from OrderSnapshot for exclude order
+pub struct DataToExcludeOrder {
     price: Price,
     amount: Amount,
     side: OrderSide,
 }
 
-impl Order {
+impl DataToExcludeOrder {
     pub fn new(price: Price, amount: Amount, side: OrderSide) -> Self {
         Self {
             price,
@@ -27,6 +21,8 @@ impl Order {
     }
 }
 
+/// Snapshot of certain ask and bids collection
+/// Identified by ExchangeId
 #[derive(Clone)]
 pub struct LocalOrderBookSnapshot {
     pub asks: SortedOrderData,
@@ -43,22 +39,57 @@ impl LocalOrderBookSnapshot {
         }
     }
 
+    /// Update inner asks and bids
     pub fn apply_update(&mut self, order_book_data: OrderBookData, update_time: DateTime) {
         Self::apply_update_by_side(order_book_data.asks, &mut self.asks);
         Self::apply_update_by_side(order_book_data.bids, &mut self.bids);
         self.last_update_time = update_time;
     }
 
-    pub fn exclude_my_orders<T>(&mut self, orders: T)
+    pub fn exclude_orders<T>(&mut self, orders: T)
     where
-        T: IntoIterator<Item = Order>,
+        T: IntoIterator<Item = DataToExcludeOrder>,
     {
         for price_level in orders.into_iter() {
             self.try_remove_order(price_level);
         }
     }
 
-    fn try_remove_order(&mut self, order: Order) {
+    /// Return value with minimum price
+    pub fn get_top_ask(&self) -> Option<(Price, Amount)> {
+        // Get the first item (minimal)
+        self.get_asks_price_levels()
+            .next()
+            .map(|price_level| (price_level.0.clone(), price_level.1.clone()))
+    }
+
+    /// Return value with maximum price
+    pub fn get_top_bid(&self) -> Option<(Price, Amount)> {
+        // Get the last item (maximum)
+        self.get_bids_price_levels()
+            .next()
+            .map(|price_level| (price_level.0.clone(), price_level.1.clone()))
+    }
+
+    /// Return top value of asks or bids
+    pub fn get_top(&self, book_side: OrderSide) -> Option<(Price, Amount)> {
+        match book_side {
+            OrderSide::Buy => self.get_top_bid(),
+            OrderSide::Sell => self.get_top_bid(),
+        }
+    }
+
+    /// Return all asks values starting from the lowest price
+    pub fn get_asks_price_levels(&self) -> impl Iterator<Item = (&Price, &Amount)> {
+        self.asks.iter()
+    }
+
+    /// Return all asks values starting from the highest price
+    pub fn get_bids_price_levels(&self) -> impl Iterator<Item = (&Price, &Amount)> {
+        self.bids.iter().rev()
+    }
+
+    fn try_remove_order(&mut self, order: DataToExcludeOrder) {
         let book_side = self.get_order_book_side(order.side);
 
         if let Some(amount) = book_side.get(&order.price) {
@@ -77,46 +108,6 @@ impl LocalOrderBookSnapshot {
             OrderSide::Buy => &mut self.bids,
             OrderSide::Sell => &mut self.asks,
         }
-    }
-
-    pub fn get_top_ask(&self) -> Option<(Price, Amount)> {
-        if self.asks.is_empty() {
-            return None;
-        }
-
-        // Get the first item (minimal)
-        self.asks
-            .iter()
-            .next()
-            .map(|price_level| (price_level.0.clone(), price_level.1.clone()))
-    }
-
-    pub fn get_top_bid(&self) -> Option<(Price, Amount)> {
-        if self.bids.is_empty() {
-            return None;
-        }
-
-        // Get the last item (maximum)
-        self.bids
-            .iter()
-            .rev()
-            .next()
-            .map(|price_level| (price_level.0.clone(), price_level.1.clone()))
-    }
-
-    pub fn get_top(&self, book_side: OrderSide) -> Option<(Price, Amount)> {
-        match book_side {
-            OrderSide::Buy => self.get_top_bid(),
-            OrderSide::Sell => self.get_top_bid(),
-        }
-    }
-
-    pub fn get_asks_price_levels(&self) -> impl Iterator<Item = (&Price, &Amount)> {
-        self.asks.iter()
-    }
-
-    pub fn get_bids_price_levels(&self) -> impl Iterator<Item = (&Price, &Amount)> {
-        self.bids.iter().rev()
     }
 
     fn apply_update_by_side(updates: SortedOrderData, current_value: &mut SortedOrderData) {
@@ -209,7 +200,7 @@ mod tests {
     #[test]
     fn remove_bid_order_completely() {
         // Construct update
-        let order = Order::new(dec!(1.0), dec!(0.5), OrderSide::Buy);
+        let order = DataToExcludeOrder::new(dec!(1.0), dec!(0.5), OrderSide::Buy);
         let orders = vec![order];
 
         // Construct main object
@@ -220,7 +211,7 @@ mod tests {
 
         let mut order_book_snapshot = LocalOrderBookSnapshot::new(asks, bids, Utc::now());
 
-        order_book_snapshot.exclude_my_orders(orders);
+        order_book_snapshot.exclude_orders(orders);
 
         let mut bids = order_book_snapshot.get_bids_price_levels();
         // Still exists
@@ -232,7 +223,7 @@ mod tests {
     #[test]
     fn decrease_bid_amount() {
         // Construct update
-        let order = Order::new(dec!(1.0), dec!(0.3), OrderSide::Buy);
+        let order = DataToExcludeOrder::new(dec!(1.0), dec!(0.3), OrderSide::Buy);
         let orders = vec![order];
 
         // Construct main object
@@ -243,7 +234,7 @@ mod tests {
 
         let mut order_book_snapshot = LocalOrderBookSnapshot::new(asks, bids, Utc::now());
 
-        order_book_snapshot.exclude_my_orders(orders);
+        order_book_snapshot.exclude_orders(orders);
 
         let mut bids = order_book_snapshot.get_bids_price_levels();
         // Still exists
@@ -255,7 +246,7 @@ mod tests {
     #[test]
     fn remove_ask_order_completely() {
         // Construct update
-        let order = Order::new(dec!(1.0), dec!(0.5), OrderSide::Sell);
+        let order = DataToExcludeOrder::new(dec!(1.0), dec!(0.5), OrderSide::Sell);
         let orders = vec![order];
 
         // Construct main object
@@ -266,7 +257,7 @@ mod tests {
 
         let mut order_book_snapshot = LocalOrderBookSnapshot::new(asks, bids, Utc::now());
 
-        order_book_snapshot.exclude_my_orders(orders);
+        order_book_snapshot.exclude_orders(orders);
 
         let mut asks = order_book_snapshot.get_asks_price_levels();
         // Still exists
@@ -278,7 +269,7 @@ mod tests {
     #[test]
     fn decrease_ask_amount() {
         // Construct update
-        let order = Order::new(dec!(1.0), dec!(1.5), OrderSide::Sell);
+        let order = DataToExcludeOrder::new(dec!(1.0), dec!(1.5), OrderSide::Sell);
         let orders = vec![order];
 
         // Construct main object
@@ -289,7 +280,7 @@ mod tests {
 
         let mut order_book_snapshot = LocalOrderBookSnapshot::new(asks, bids, Utc::now());
 
-        order_book_snapshot.exclude_my_orders(orders);
+        order_book_snapshot.exclude_orders(orders);
 
         let mut asks = order_book_snapshot.get_asks_price_levels();
         // Amount value was updated

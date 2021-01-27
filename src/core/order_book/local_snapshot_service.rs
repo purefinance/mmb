@@ -3,6 +3,8 @@ use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use crate::core::order_book::*;
 use std::collections::HashMap;
 
+/// Main local snapshot controller.
+/// Allows create, update and view existing snapshots
 pub struct LocalSnapshotsService {
     local_snapshots: HashMap<ExchangeIdSymbol, LocalOrderBookSnapshot>,
 }
@@ -16,6 +18,8 @@ impl LocalSnapshotsService {
         self.local_snapshots.get(&snaphot_id)
     }
 
+    /// Create snaphot if it does not exist
+    /// Update snapshot if suitable data arrive
     pub fn update(
         &mut self,
         order_book_event: order_book_event::OrderBookEvent,
@@ -52,8 +56,23 @@ impl LocalSnapshotsService {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use order_book_data::SortedOrderData;
     use rust_decimal_macros::*;
+
+    fn create_order_book_event_for_tests(
+        exchange_name: ExchangeName,
+        currency_code_pair: CurrencyCodePair,
+        event_type: order_book_event::EventType,
+        order_book_data: order_book_data::OrderBookData,
+    ) -> order_book_event::OrderBookEvent {
+        order_book_event::OrderBookEvent::new(
+            Utc::now(),
+            ExchangeId::new(exchange_name, 0),
+            currency_code_pair,
+            "".to_string(),
+            event_type,
+            order_book_data,
+        )
+    }
 
     #[test]
     fn update_by_full_snapshot() {
@@ -69,7 +88,7 @@ mod tests {
         bids.insert(dec!(3.4), dec!(1.2));
 
         // Construct update
-        let order_book_event = order_book_event::OrderBookEvent::new_for_update_tests(
+        let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
             CurrencyCodePair::new("does_not_matter".into()),
             order_book_event::EventType::Snapshot,
@@ -110,7 +129,7 @@ mod tests {
         bids.insert(dec!(3.4), dec!(1.2));
 
         // Construct update
-        let order_book_event = order_book_event::OrderBookEvent::new_for_update_tests(
+        let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
             CurrencyCodePair::new("does_not_matter".into()),
             order_book_event::EventType::Update,
@@ -156,7 +175,7 @@ mod tests {
         bids.insert(dec!(3.4), dec!(0));
 
         // Construct update
-        let order_book_event = order_book_event::OrderBookEvent::new_for_update_tests(
+        let order_book_event = create_order_book_event_for_tests(
             test_exchange_name.into(),
             CurrencyCodePair::new(test_currency_code_pair.into()),
             order_book_event::EventType::Update,
