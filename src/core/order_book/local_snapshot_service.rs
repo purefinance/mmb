@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 /// Main local snapshot controller.
 /// Allows create, update and view existing snapshots
+// Формирует актуальный снэпшот ордербука
 pub struct LocalSnapshotsService {
     local_snapshots: HashMap<ExchangeIdSymbol, LocalOrderBookSnapshot>,
 }

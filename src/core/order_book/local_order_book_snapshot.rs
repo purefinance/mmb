@@ -1,6 +1,6 @@
 use crate::core::exchanges::common::*;
 use crate::core::order_book::order_book_data::OrderBookData;
-use crate::core::orders::order::OrderSide;
+use crate::core::orders::order::*;
 use crate::core::DateTime;
 use rust_decimal::prelude::*;
 
@@ -75,7 +75,7 @@ impl LocalOrderBookSnapshot {
     pub fn get_top(&self, book_side: OrderSide) -> Option<(Price, Amount)> {
         match book_side {
             OrderSide::Buy => self.get_top_bid(),
-            OrderSide::Sell => self.get_top_bid(),
+            OrderSide::Sell => self.get_top_ask(),
         }
     }
 
