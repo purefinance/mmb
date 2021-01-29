@@ -1121,6 +1121,7 @@ dependencies = [
  "actix-web-actors",
  "anyhow",
  "async-channel",
+ "async-trait",
  "awc",
  "bytes",
  "chrono",

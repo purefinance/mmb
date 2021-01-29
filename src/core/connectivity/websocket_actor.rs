@@ -244,6 +244,7 @@ mod tests {
     use actix::Arbiter;
 
     #[actix_rt::test]
+    #[ignore]
     pub async fn connect_and_send_msg() {
         use tokio::sync::oneshot;
 

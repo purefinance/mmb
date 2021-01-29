@@ -1,18 +1,19 @@
-use actix::{Actor, Context, Handler, Message};
-use log::trace;
-use crate::core::{
-        connectivity::connectivity_manager::WebSocketRole,
-        exchanges::common::ExchangeId
-};
+use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::CurrencyPair;
+use crate::core::{
+    connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeId,
+};
+use actix::{Actor, Context, Handler, Message, System};
+use log::trace;
 
 pub struct ExchangeActor {
     exchange_id: ExchangeId,
     websocket_host: String,
     currency_pairs: Vec<CurrencyPair>,
-    websocket_channels: Vec<String>
+    websocket_channels: Vec<String>,
+    exchange_interaction: Box<dyn CommonInteraction>,
 }
 
 impl ExchangeActor {
@@ -20,18 +21,28 @@ impl ExchangeActor {
         exchange_id: ExchangeId,
         websocket_host: String,
         currency_pairs: Vec<CurrencyPair>,
-        websocket_channels: Vec<String>
+        websocket_channels: Vec<String>,
+        exchange_interaction: Box<dyn CommonInteraction>,
     ) -> Self {
         ExchangeActor {
             exchange_id,
             websocket_host,
             currency_pairs,
-            websocket_channels
+            websocket_channels,
+            exchange_interaction,
         }
     }
 
     pub fn create_websocket_params(&mut self, ws_path: &str) -> WebSocketParams {
-        WebSocketParams::new(format!("{}{}", self.websocket_host, ws_path).parse().expect("should be valid url"))
+        WebSocketParams::new(
+            format!("{}{}", self.websocket_host, ws_path)
+                .parse()
+                .expect("should be valid url"),
+        )
+    }
+
+    pub async fn create_order(&self) {
+        self.exchange_interaction.create_order().await;
     }
 }
 
@@ -39,7 +50,7 @@ impl Actor for ExchangeActor {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        trace!("ExchangeActor '{}' started", self.exchange_id);
+        dbg!(&"WORKED");
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -61,10 +72,11 @@ impl Handler<GetWebSocketParams> for ExchangeActor {
         match websocket_role {
             WebSocketRole::Main => {
                 // TODO remove hardcode
-                let ws_path = Binance::build_ws1_path(&self.currency_pairs[..], &self.websocket_channels[..]);
+                let ws_path =
+                    Binance::build_ws1_path(&self.currency_pairs[..], &self.websocket_channels[..]);
                 Some(self.create_websocket_params(&ws_path))
             }
-            WebSocketRole::Secondary => None
+            WebSocketRole::Secondary => None,
         }
     }
 }
