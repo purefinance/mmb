@@ -1,8 +1,11 @@
 use async_trait::async_trait;
 
-// TODO dangerous!!! Not thread-safe, read more about it
 #[async_trait(?Send)]
 pub trait CommonInteraction {
-    async fn create_order(&self) {}
-    async fn cancel_order(&self) {}
+    async fn create_order(&self) {
+        unimplemented!("It's generic trait and has no implementations");
+    }
+    async fn cancel_order(&self) {
+        unimplemented!("It's generic trait and has no implementations");
+    }
 }

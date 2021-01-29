@@ -9,10 +9,15 @@ use itertools::Itertools;
 use serde_json::Value;
 
 pub struct Binance {
+    pub settings: ExchangeSettings,
     pub id: String,
 }
 
 impl Binance {
+    pub fn new(settings: ExchangeSettings, id: String) -> Self {
+        Self { settings, id }
+    }
+
     pub fn extend_settings(settings: &mut ExchangeSettings) {
         if settings.is_marging_trading {
             settings.web_socket_host = "wss://fstream.binance.com".to_string();
