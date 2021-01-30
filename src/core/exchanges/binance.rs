@@ -1,5 +1,5 @@
 use crate::core::settings::ExchangeSettings;
-use crate::core::exchanges::common::{RestRequestResult, RestErrorDescription, ExchangeErrorType, CurrencyPair};
+use crate::core::exchanges::common::{RestRequestResult, RestErrorDescription, ExchangeErrorType, SpecificCurrencyPair};
 use serde_json::Value;
 use itertools::Itertools;
 
@@ -61,8 +61,8 @@ impl Binance {
         todo!("reconnect")
     }
 
-    pub fn build_ws1_path(currency_pairs: &[CurrencyPair], websocket_channels: &[String]) -> String {
-        let stream_names = currency_pairs.iter().flat_map(|currency_pair| {
+    pub fn build_ws1_path(specific_currency_pairs: &[SpecificCurrencyPair], websocket_channels: &[String]) -> String {
+        let stream_names = specific_currency_pairs.iter().flat_map(|currency_pair| {
             //websocket_channels.iter().map(|channel| format!("{}@{}", currency_pair.as_str(), channel))
             let mut results = Vec::new();
             for channel in websocket_channels {
@@ -75,7 +75,7 @@ impl Binance {
         ws_path.to_lowercase()
     }
 
-    fn get_stream_name(currency_pair: &CurrencyPair, channel: &str) -> String { format!("{}@{}", currency_pair.as_str(), channel) }
+    fn get_stream_name(specific_currency_pair: &SpecificCurrencyPair, channel: &str) -> String { format!("{}@{}", specific_currency_pair.as_str(), channel) }
 
     fn is_websocket_reconnecting(&self) -> bool {
         todo!("is_websocket_reconnecting")

@@ -2,30 +2,30 @@ use actix::{Actor, Context, Handler, Message};
 use log::trace;
 use crate::core::{
         connectivity::connectivity_manager::WebSocketRole,
-        exchanges::common::ExchangeId
+        exchanges::common::ExchangeAccountId
 };
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
-use crate::core::exchanges::common::CurrencyPair;
+use crate::core::exchanges::common::SpecificCurrencyPair;
 
 pub struct ExchangeActor {
-    exchange_id: ExchangeId,
+    exchange_account_id: ExchangeAccountId,
     websocket_host: String,
-    currency_pairs: Vec<CurrencyPair>,
+    specific_currency_pairs: Vec<SpecificCurrencyPair>,
     websocket_channels: Vec<String>
 }
 
 impl ExchangeActor {
     pub fn new(
-        exchange_id: ExchangeId,
+        exchange_account_id: ExchangeAccountId,
         websocket_host: String,
-        currency_pairs: Vec<CurrencyPair>,
+        specific_currency_pairs: Vec<SpecificCurrencyPair>,
         websocket_channels: Vec<String>
     ) -> Self {
         ExchangeActor {
-            exchange_id,
+            exchange_account_id,
             websocket_host,
-            currency_pairs,
+            specific_currency_pairs,
             websocket_channels
         }
     }
@@ -39,11 +39,11 @@ impl Actor for ExchangeActor {
     type Context = Context<Self>;
 
     fn started(&mut self, _ctx: &mut Self::Context) {
-        trace!("ExchangeActor '{}' started", self.exchange_id);
+        trace!("ExchangeActor '{}' started", self.exchange_account_id);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        trace!("ExchangeActor '{}' stopped", self.exchange_id);
+        trace!("ExchangeActor '{}' stopped", self.exchange_account_id);
     }
 }
 
@@ -61,7 +61,7 @@ impl Handler<GetWebSocketParams> for ExchangeActor {
         match websocket_role {
             WebSocketRole::Main => {
                 // TODO remove hardcode
-                let ws_path = Binance::build_ws1_path(&self.currency_pairs[..], &self.websocket_channels[..]);
+                let ws_path = Binance::build_ws1_path(&self.specific_currency_pairs[..], &self.websocket_channels[..]);
                 Some(self.create_websocket_params(&ws_path))
             }
             WebSocketRole::Secondary => None

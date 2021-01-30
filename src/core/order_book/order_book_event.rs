@@ -17,8 +17,8 @@ pub enum EventType {
 pub struct OrderBookEvent {
     id: u128,
     creation_time: DateTime,
-    exchange_id: ExchangeId,
-    currency_code_pair: CurrencyCodePair,
+    exchange_account_id: ExchangeAccountId,
+    currency_pair: CurrencyPair,
 
     event_id: String,
 
@@ -29,8 +29,8 @@ pub struct OrderBookEvent {
 impl OrderBookEvent {
     pub fn new(
         creation_time: DateTime,
-        exchange_id: ExchangeId,
-        currency_code_pair: CurrencyCodePair,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
         event_id: String,
         event_type: EventType,
         data: OrderBookData,
@@ -38,8 +38,8 @@ impl OrderBookEvent {
         OrderBookEvent {
             id: 0,
             creation_time,
-            exchange_id,
-            currency_code_pair,
+            exchange_account_id,
+            currency_pair,
             event_id,
             event_type,
             data,

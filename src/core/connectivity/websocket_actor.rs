@@ -21,7 +21,7 @@ use std::{
     time::{Duration, Instant},
 };
 use futures::stream::{SplitSink, StreamExt};
-use crate::core::exchanges::common::ExchangeId;
+use crate::core::exchanges::common::ExchangeAccountId;
 use log::{error, info, trace};
 use actix_web::web::Buf;
 
@@ -50,7 +50,7 @@ impl WebSocketParams {
 pub type WebsocketWriter = SinkWrite<ws::Message, SplitSink<Framed<BoxedSocket, Codec>, ws::Message>>;
 
 pub struct WebSocketActor {
-    exchange_id: ExchangeId,
+    exchange_account_id: ExchangeAccountId,
     writer: WebsocketWriter,
     last_heartbeat_time: Instant,
     connectivity_manager_notifier: ConnectivityManagerNotifier
@@ -58,7 +58,7 @@ pub struct WebSocketActor {
 
 impl WebSocketActor {
     pub async fn open_connection(
-        exchange_id: ExchangeId,
+        exchange_account_id: ExchangeAccountId,
         params: WebSocketParams,
         connectivity_manager_notifier: ConnectivityManagerNotifier
     ) -> Option<Addr<WebSocketActor>> {
@@ -74,7 +74,7 @@ impl WebSocketActor {
             })
             .unwrap();
 
-        trace!("WebsocketActor '{}' connecting status: {}", exchange_id, response.status());
+        trace!("WebsocketActor '{}' connecting status: {}", exchange_account_id, response.status());
         if !(response.status() == StatusCode::SWITCHING_PROTOCOLS) {
             return None;
         }
@@ -85,7 +85,7 @@ impl WebSocketActor {
             WebSocketActor::add_stream(stream, ctx);
 
             WebSocketActor::new(
-                exchange_id,
+                exchange_account_id,
                 SinkWrite::new(sink, ctx),
                 connectivity_manager_notifier
             )
@@ -95,12 +95,12 @@ impl WebSocketActor {
     }
 
     fn new(
-        exchange_id: ExchangeId,
+        exchange_account_id: ExchangeAccountId,
         writer: WebsocketWriter,
         connectivity_manager_notifier: ConnectivityManagerNotifier
     ) -> Self {
         Self {
-            exchange_id,
+            exchange_account_id,
             writer,
             last_heartbeat_time: Instant::now(),
             connectivity_manager_notifier
@@ -110,13 +110,13 @@ impl WebSocketActor {
     fn write(&mut self, msg: ws::Message) {
         match self.writer.write(msg) {
             None => {}
-            Some(msg) => error!("WebsocketActor '{}' can't send message '{:?}'", self.exchange_id, msg)
+            Some(msg) => error!("WebsocketActor '{}' can't send message '{:?}'", self.exchange_account_id, msg)
         }
     }
 
     fn hb(&self, ctx: &mut <Self as Actor>::Context) {
         let notifier = self.connectivity_manager_notifier.clone();
-        let exchange_id = self.exchange_id.clone();
+        let exchange_id = self.exchange_account_id.clone();
         ctx.run_interval(HEARTBEAT_INTERVAL, move |act, _ctx| {
             if Instant::now().duration_since(act.last_heartbeat_time) > HEARTBEAT_FAIL_TIMEOUT {
                 trace!("WebsocketActor '{}' heartbeat failed, disconnecting!", exchange_id);
@@ -131,7 +131,7 @@ impl WebSocketActor {
     }
 
     fn close_websocket(&self, ctx: &mut Context<Self>){
-        self.connectivity_manager_notifier.notify_websocket_connection_closed(&self.exchange_id);
+        self.connectivity_manager_notifier.notify_websocket_connection_closed(&self.exchange_account_id);
         ctx.stop();
     }
 
@@ -145,14 +145,14 @@ impl Actor for WebSocketActor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        trace!("WebSocketActor '{}' started", self.exchange_id);
+        trace!("WebSocketActor '{}' started", self.exchange_account_id);
         self.hb(ctx);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        trace!("WebSocketActor '{}' stopped", self.exchange_id);
+        trace!("WebSocketActor '{}' stopped", self.exchange_account_id);
 
-        self.connectivity_manager_notifier.notify_websocket_connection_closed(&self.exchange_id);
+        self.connectivity_manager_notifier.notify_websocket_connection_closed(&self.exchange_account_id);
     }
 }
 
@@ -168,7 +168,7 @@ impl Handler<Send> for WebSocketActor {
     type Result = ();
 
     fn handle(&mut self, msg: Send, _ctx: &mut Self::Context) -> Self::Result {
-        info!("WebsocketActor '{}' send msg: {}", self.exchange_id, msg.0);
+        info!("WebsocketActor '{}' send msg: {}", self.exchange_account_id, msg.0);
         self.write(ws::Message::Text(msg.0.into()));
     }
 }
@@ -177,7 +177,7 @@ impl Handler<ForceClose> for WebSocketActor {
     type Result = ();
 
     fn handle(&mut self, _msg: ForceClose, _ctx: &mut Self::Context) -> Self::Result {
-        info!("WebsocketActor '{}' received ForceClose message", self.exchange_id);
+        info!("WebsocketActor '{}' received ForceClose message", self.exchange_account_id);
         self.write(ws::Message::Close(Some(CloseReason::from(CloseCode::Normal))))
     }
 }
@@ -188,22 +188,22 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
             Ok(msg) => {
                 match msg {
                     Frame::Text(ref text) => self.handle_websocket_message(text),
-                    Frame::Binary(bytes) => trace!("WebsocketActor '{}' got binary message: {:x?}", &self.exchange_id, &bytes.chunk()),
+                    Frame::Binary(bytes) => trace!("WebsocketActor '{}' got binary message: {:x?}", &self.exchange_account_id, &bytes.chunk()),
                     Frame::Pong(ref msg) => {
                         if &msg[..] == PING_MESSAGE {
                             self.last_heartbeat_time = Instant::now();
                         }
                         else {
                             error!("WebsocketActor '{}' received wrong pong message: {}. We are sending message '{}' only",
-                                self.exchange_id,
-                                String::from_utf8_lossy(&msg),
-                                String::from_utf8_lossy(PING_MESSAGE)
+                                   self.exchange_account_id,
+                                   String::from_utf8_lossy(&msg),
+                                   String::from_utf8_lossy(PING_MESSAGE)
                             );
                         }
                     },
                     Frame::Ping(msg) => self.write(ws::Message::Pong(msg)),
                     Frame::Close(reason) => {
-                        trace!("Websocket {} closed with reason: {}", self.exchange_id, reason.clone().map(|x| x.description).flatten().unwrap_or("None".to_string()));
+                        trace!("Websocket {} closed with reason: {}", self.exchange_account_id, reason.clone().map(|x| x.description).flatten().unwrap_or("None".to_string()));
                         self.close_websocket(ctx);
                     },
                     _ => {}

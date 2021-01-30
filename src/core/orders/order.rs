@@ -1,5 +1,5 @@
 use crate::core::exchanges::common::{
-    CurrencyCodePair, CurrencyPair, ExchangeErrorType, ExchangeId, ExchangeName,
+    CurrencyPair, SpecificCurrencyPair, ExchangeErrorType, ExchangeAccountId, ExchangeId,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
@@ -188,11 +188,11 @@ pub struct OrderHeader {
 
     pub init_time: DateTime,
 
+    pub exchange_account_id: ExchangeAccountId,
     pub exchange_id: ExchangeId,
-    pub exchange_name: ExchangeName,
 
+    pub specific_currency_pair: SpecificCurrencyPair,
     pub currency_pair: CurrencyPair,
-    pub currency_code_pair: CurrencyCodePair,
 
     pub order_type: OrderType,
 
