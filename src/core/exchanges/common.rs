@@ -24,18 +24,18 @@ type String15 = SmallString<[u8; 15]>;
 pub struct ExchangeIdParseError(String);
 
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub struct ExchangeId {
-    pub exchange_name: ExchangeName,
+pub struct ExchangeAccountId {
+    pub exchange_id: ExchangeId,
 
     /// Exchange account number
     pub number: u8,
 }
 
-impl ExchangeId {
+impl ExchangeAccountId {
     #[inline]
-    pub fn new(exchange_name: ExchangeName, number: u8) -> Self {
-        ExchangeId {
-            exchange_name,
+    pub fn new(exchange_id: ExchangeId, number: u8) -> Self {
+        ExchangeAccountId {
+            exchange_id,
             number,
         }
     }
@@ -45,7 +45,7 @@ impl ExchangeId {
     }
 }
 
-impl FromStr for ExchangeId {
+impl FromStr for ExchangeAccountId {
     type Err = ExchangeIdParseError;
 
     fn from_str(text: &str) -> Result<Self, Self::Err> {
@@ -56,7 +56,7 @@ impl FromStr for ExchangeId {
             .iter()
             .collect_vec();
 
-        let exchange_name = captures[1]
+        let exchange_id = captures[1]
             .ok_or(ExchangeIdParseError("Invalid format".into()))?
             .as_str()
             .into();
@@ -69,24 +69,24 @@ impl FromStr for ExchangeId {
                 ExchangeIdParseError(format!("Can't parse exchange account number: {}", x))
             })?;
 
-        Ok(ExchangeId::new(exchange_name, number))
+        Ok(ExchangeAccountId::new(exchange_id, number))
     }
 }
 
-impl Display for ExchangeId {
+impl Display for ExchangeAccountId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.exchange_name.as_str(), self.number)
+        write!(f, "{}{}", self.exchange_id.as_str(), self.number)
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ExchangeName(String15);
+pub struct ExchangeId(String15);
 
-impl ExchangeName {
+impl ExchangeId {
     #[inline]
-    pub fn new(exchange_name: String15) -> Self {
-        ExchangeName(exchange_name)
+    pub fn new(exchange_id: String15) -> Self {
+        ExchangeId(exchange_id)
     }
 
     /// Extracts a string slice containing the entire string.
@@ -96,22 +96,22 @@ impl ExchangeName {
     }
 }
 
-impl From<&str> for ExchangeName {
+impl From<&str> for ExchangeId {
     #[inline]
     fn from(value: &str) -> Self {
-        ExchangeName(String15::from_str(value))
+        ExchangeId(String15::from_str(value))
     }
 }
 
 /// Currency pair specific for exchange
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct CurrencyPair(String12);
+pub struct SpecificCurrencyPair(String12);
 
-impl CurrencyPair {
+impl SpecificCurrencyPair {
     #[inline]
     pub fn new(currency_code: String12) -> Self {
-        CurrencyPair(currency_code)
+        SpecificCurrencyPair(currency_code)
     }
 
     /// Extracts a string slice containing the entire string.
@@ -121,9 +121,9 @@ impl CurrencyPair {
     }
 }
 
-impl From<&str> for CurrencyPair {
+impl From<&str> for SpecificCurrencyPair {
     fn from(value: &str) -> Self {
-        CurrencyPair(String12::from_str(value))
+        SpecificCurrencyPair(String12::from_str(value))
     }
 }
 
@@ -152,19 +152,18 @@ impl From<&str> for CurrencyCode {
 
 /// Unified format currency pair for this framework
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-// TODO CurrencyPairCode
 #[serde(transparent)]
-pub struct CurrencyCodePair(String12);
+pub struct CurrencyPair(String12);
 
-impl CurrencyCodePair {
+impl CurrencyPair {
     #[inline]
     pub fn new(currency_code: String12) -> Self {
-        CurrencyCodePair(currency_code)
+        CurrencyPair(currency_code)
     }
 
     #[inline]
     pub fn from_currency_codes(base: CurrencyCode, quote: CurrencyCode) -> Self {
-        CurrencyCodePair([base.as_str(), quote.as_str()].join("/").into()) // convention from ccxt
+        CurrencyPair([base.as_str(), quote.as_str()].join("/").into()) // convention from ccxt
     }
 
     /// Extracts a string slice containing the entire string.
@@ -174,21 +173,58 @@ impl CurrencyCodePair {
     }
 }
 
-/// Exchange id and currency code pair
+/// Exchange id and currency pair
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TradePlace {
     pub exchange_id: ExchangeId,
-    pub currency_code_pair: CurrencyCodePair,
+    pub currency_pair: CurrencyPair,
 }
 
 impl TradePlace {
-    pub fn new(exchange_id: ExchangeId, currency_code_pair: CurrencyCodePair) -> Self {
+    pub fn new(exchange_id: ExchangeId, currency_pair: CurrencyPair) -> Self {
         TradePlace {
             exchange_id,
-            currency_code_pair,
+            currency_pair
         }
     }
 }
+
+/// Exchange account id and currency pair
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TradePlaceAccount {
+    pub exchange_account_id: ExchangeAccountId,
+    pub currency_pair: CurrencyPair,
+}
+
+impl TradePlaceAccount {
+    pub fn new(exchange_account_id: ExchangeAccountId, currency_pair: CurrencyPair) -> Self {
+        TradePlaceAccount {
+            exchange_account_id,
+            currency_pair,
+        }
+    }
+
+    pub fn trade_place(&self) -> TradePlace {
+        TradePlace::new(self.exchange_account_id.exchange_id.clone(), self.currency_pair.clone())
+    }
+}
+
+
+#[derive(PartialEq, Eq, Clone, Hash, Debug, Serialize, Deserialize)]
+pub struct ExchangeIdCurrencyPair {
+    exchange_account_id: ExchangeAccountId,
+    currency_pair: CurrencyPair,
+}
+
+impl ExchangeIdCurrencyPair {
+    pub fn new(exchange_account_id: ExchangeAccountId, currency_pair: CurrencyPair) -> Self {
+        Self {
+            exchange_account_id,
+            currency_pair,
+        }
+    }
+}
+
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ExchangeErrorType {
@@ -222,6 +258,7 @@ impl RestErrorDescription {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,59 +266,41 @@ mod tests {
 
     #[test]
     pub fn exchange_id_parse_correctly() {
-        let exchange_id = "Binance0".parse::<ExchangeId>();
-        assert_eq!(exchange_id, Ok(ExchangeId::new("Binance".into(), 0)));
+        let exchange_account_id = "Binance0".parse::<ExchangeAccountId>();
+        assert_eq!(exchange_account_id, Ok(ExchangeAccountId::new("Binance".into(), 0)));
     }
 
     #[test]
-    pub fn exchange_id_parse_failed_exchange_name() {
-        let exchange_id = "123".parse::<ExchangeId>();
+    pub fn exchange_id_parse_failed_exchange_id() {
+        let exchange_account_id = "123".parse::<ExchangeAccountId>();
         assert_eq!(
-            exchange_id,
+            exchange_account_id,
             Err(ExchangeIdParseError("Invalid format".into()))
         )
     }
 
     #[test]
     pub fn exchange_id_parse_failed_missing_number() {
-        let exchange_id = "binance".parse::<ExchangeId>();
+        let exchange_account_id = "binance".parse::<ExchangeAccountId>();
         assert_eq!(
-            exchange_id,
+            exchange_account_id,
             Err(ExchangeIdParseError("Invalid format".into()))
         )
     }
 
     #[test]
     pub fn exchange_id_parse_failed_number_parsing() {
-        let exchange_id = "binance256".parse::<ExchangeId>();
+        let exchange_account_id = "binance256".parse::<ExchangeAccountId>();
         assert_eq!(
-            exchange_id,
-            Err(ExchangeIdParseError(
-                r"Can't parse exchange account number: number too large to fit in target type"
-                    .into()
-            ))
+            exchange_account_id,
+            Err(ExchangeIdParseError(r"Can't parse exchange account number: number too large to fit in target type".into()))
         )
     }
 
     #[test]
     pub fn exchange_id_to_string() {
-        let exchange_id = "Binance1".parse::<ExchangeId>().unwrap();
-        let result = exchange_id.to_string();
+        let exchange_account_id = "Binance1".parse::<ExchangeAccountId>().unwrap();
+        let result = exchange_account_id.to_string();
         assert_eq!(result, "Binance1".to_string())
-    }
-}
-
-#[derive(PartialEq, Eq, Clone, Hash, Debug, Serialize, Deserialize)]
-pub struct ExchangeIdSymbol {
-    exchange_id: ExchangeId,
-    currency_code_pair: CurrencyCodePair,
-}
-
-impl ExchangeIdSymbol {
-    pub fn new(exchange_id: ExchangeId, currency_code_pair: CurrencyCodePair) -> Self {
-        Self {
-            exchange_id,
-            currency_code_pair,
-        }
     }
 }
