@@ -5,7 +5,7 @@ use rust_decimal::Decimal;
 use parking_lot::RwLock;
 use serde::{Serialize, Deserialize};
 use std::borrow::{Borrow, BorrowMut};
-use crate::core::exchanges::common::TradePlace;
+use crate::core::exchanges::common::TradePlaceAccount;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -18,8 +18,8 @@ impl OrderRef {
     /// Lock order for write and provide mutate state of order
     pub fn fn_mut<T>(&self, mut f: impl FnMut(&mut OrderSnapshot) -> T) -> T { f(self.0.write().borrow_mut()) }
 
-    pub fn trade_place(&self) -> TradePlace {
-        self.fn_ref(|x| TradePlace::new(x.header.exchange_id.clone(),x.header.currency_code_pair.clone() ))
+    pub fn trade_place_account(&self) -> TradePlaceAccount {
+        self.fn_ref(|x| TradePlaceAccount::new(x.header.exchange_account_id.clone(), x.header.currency_pair.clone() ))
     }
 
     pub fn price(&self) -> Decimal { self.fn_ref(|x| x.props.price()) }

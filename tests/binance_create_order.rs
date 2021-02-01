@@ -24,7 +24,7 @@ fn test_add() {
     let binance = Binance::new(settings, "some_id".into());
 
     let exchange_actor = ExchangeActor::new(
-        mmb::exchanges::common::ExchangeId::new("".into(), 0),
+        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
         vec![],
         vec![],

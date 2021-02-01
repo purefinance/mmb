@@ -2,7 +2,7 @@ use actix::Addr;
 use crate::{
     core::{
         exchanges::{
-            common::{ExchangeId, ExchangeName},
+            common::ExchangeAccountId,
             actor::{ExchangeActor, GetWebSocketParams}
         },
         connectivity::{
@@ -85,8 +85,7 @@ type Callback0 = Box<dyn FnMut()>;
 type Callback1<T> = Box<dyn FnMut(T)>;
 
 pub struct ConnectivityManager {
-    exchange_id: ExchangeId,
-    exchange_name: ExchangeName,
+    exchange_account_id: ExchangeAccountId,
     exchange_actor: Addr<ExchangeActor>,
 
     websockets: WebSockets,
@@ -98,14 +97,12 @@ pub struct ConnectivityManager {
 
 impl ConnectivityManager {
     pub fn new(
-        exchange_id: ExchangeId,
-        exchange_name: ExchangeName,
+        exchange_account_id: ExchangeAccountId,
         exchange_actor: Addr<ExchangeActor>
     ) -> Arc<ConnectivityManager> {
         Arc::new(
             Self {
-                exchange_id,
-                exchange_name,
+                exchange_account_id,
                 exchange_actor,
                 websockets: WebSockets {
                     websocket_main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
@@ -133,7 +130,7 @@ impl ConnectivityManager {
         self: Arc<Self>,
         is_enabled_secondary_websocket: bool
     ) -> bool {
-        trace!("ConnectivityManager '{}' connecting", self.exchange_id);
+        trace!("ConnectivityManager '{}' connecting", self.exchange_account_id);
 
         if let Some(connecting) = self.callback_connecting.lock().as_mut() {
             connecting();
@@ -191,11 +188,11 @@ impl ConnectivityManager {
         if let WebSocketState::Connected { ref websocket_actor, .. } = self.websockets.get_websocket_state(role).lock().borrow().state {
             let sending_result = websocket_actor.try_send(websocket_actor::Send(message.to_owned()));
             if let Err(ref err) = sending_result {
-                error!("Error {} happened when sending to websocket {} message: {}", err, self.exchange_id, message)
+                error!("Error {} happened when sending to websocket {} message: {}", err, self.exchange_account_id, message)
             }
         }
         else {
-            error!("Attempt to send message on {} when websocket is not connected: {}", self.exchange_id, message);
+            error!("Attempt to send message on {} when websocket is not connected: {}", self.exchange_account_id, message);
         }
     }
 
@@ -241,7 +238,7 @@ impl ConnectivityManager {
         let mut attempt = 0;
 
         while let Err(TryRecvError::Empty) = cancellation_receiver.try_recv() {
-            trace!("Getting WebSocket parameters for {}", self.exchange_id.clone());
+            trace!("Getting WebSocket parameters for {}", self.exchange_account_id.clone());
             let params = try_get_websocket_params(self.exchange_actor.clone(), role).await;
             if let Some(params) = params {
                 if let Ok(()) = cancellation_receiver.try_recv() {
@@ -250,7 +247,7 @@ impl ConnectivityManager {
 
                 let notifier = ConnectivityManagerNotifier::new(role, self.clone());
 
-                let websocket_actor = WebSocketActor::open_connection(self.exchange_id.clone(), params.clone(), notifier).await;
+                let websocket_actor = WebSocketActor::open_connection(self.exchange_account_id.clone(), params.clone(), notifier).await;
                 if let Some(websocket_actor) = websocket_actor {
                     websocket_connectivity.lock().deref_mut().state = WebSocketState::Connected {
                         websocket_actor,
@@ -259,7 +256,7 @@ impl ConnectivityManager {
                     };
 
                     if attempt > 0 {
-                        info!("Opened websocket connection for {} after {} attempts", self.exchange_id, attempt);
+                        info!("Opened websocket connection for {} after {} attempts", self.exchange_account_id, attempt);
                     }
 
                     if let Ok(()) = cancellation_receiver.try_recv() {
@@ -274,10 +271,10 @@ impl ConnectivityManager {
                 attempt += 1;
 
                 let log_level = if attempt < MAX_RETRY_CONNECT_COUNT { Level::Warn } else { Level::Error };
-                log!(log_level, "Can't open websocket connection for {} {:?}", self.exchange_id, params);
+                log!(log_level, "Can't open websocket connection for {} {:?}", self.exchange_account_id, params);
 
                 if attempt == MAX_RETRY_CONNECT_COUNT {
-                    panic!("Can't open websocket connection on {}", self.exchange_id);
+                    panic!("Can't open websocket connection on {}", self.exchange_account_id);
                 }
             }
 
@@ -305,12 +302,12 @@ impl ConnectivityManagerNotifier {
         }
     }
 
-    pub fn notify_websocket_connection_closed(&self, exchange_id: &ExchangeId) {
+    pub fn notify_websocket_connection_closed(&self, exchange_account_id: &ExchangeAccountId) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
             connectivity_manager.notify_connection_closed(self.websocket_role)
         }
         else {
-            info!("WebsocketActor '{}' notify about connection closed (in tests)", exchange_id)
+            info!("WebsocketActor '{}' notify about connection closed (in tests)", exchange_account_id)
         }
     }
 }
@@ -353,8 +350,7 @@ mod tests {
         let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
         Arbiter::spawn(async {
-            let exchange_id: ExchangeId = "Binance0".parse().unwrap();
-            let exchange_name: ExchangeName = "Binance".into();
+            let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
             let websocket_host = "wss://stream.binance.com:9443".into();
             let currency_pairs = vec![
                 "bnbbtc".into(),
@@ -366,15 +362,14 @@ mod tests {
             ];
 
             let exchange_actor = ExchangeActor::new(
-                exchange_id.clone(),
+                exchange_account_id.clone(),
                 websocket_host,
                 currency_pairs,
                 channels
             ).start();
 
             let connectivity_manager = ConnectivityManager::new(
-                exchange_id.clone(),
-                exchange_name.clone(),
+                exchange_account_id.clone(),
                 exchange_actor
             );
 

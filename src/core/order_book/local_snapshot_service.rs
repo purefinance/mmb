@@ -7,16 +7,16 @@ use std::collections::HashMap;
 /// Allows create, update and view existing snapshots
 // Формирует актуальный снэпшот ордербука
 pub struct LocalSnapshotsService {
-    local_snapshots: HashMap<ExchangeIdSymbol, LocalOrderBookSnapshot>,
+    local_snapshots: HashMap<ExchangeIdCurrencyPair, LocalOrderBookSnapshot>,
 }
 
 impl LocalSnapshotsService {
-    pub fn new(local_snapshots: HashMap<ExchangeIdSymbol, LocalOrderBookSnapshot>) -> Self {
+    pub fn new(local_snapshots: HashMap<ExchangeIdCurrencyPair, LocalOrderBookSnapshot>) -> Self {
         Self { local_snapshots }
     }
 
-    pub fn get_snapshot(&self, snaphot_id: ExchangeIdSymbol) -> Option<&LocalOrderBookSnapshot> {
-        self.local_snapshots.get(&snaphot_id)
+    pub fn get_snapshot(&self, snapshot_id: ExchangeIdCurrencyPair) -> Option<&LocalOrderBookSnapshot> {
+        self.local_snapshots.get(&snapshot_id)
     }
 
     /// Create snaphot if it does not exist
@@ -24,12 +24,12 @@ impl LocalSnapshotsService {
     pub fn update(
         &mut self,
         order_book_event: order_book_event::OrderBookEvent,
-    ) -> Option<ExchangeIdSymbol> {
+    ) -> Option<ExchangeIdCurrencyPair> {
         // Extract all field
-        let (_, creation_time, exchange_id, currency_code_pair, _, event_type, event_data) =
+        let (_, creation_time, exchange_id, currency_pair, _, event_type, event_data) =
             order_book_event.dissolve();
 
-        let exchange_symbol = ExchangeIdSymbol::new(exchange_id, currency_code_pair);
+        let exchange_symbol = ExchangeIdCurrencyPair::new(exchange_id, currency_pair);
 
         match event_type {
             order_book_event::EventType::Snapshot => {
@@ -60,15 +60,15 @@ mod tests {
     use rust_decimal_macros::*;
 
     fn create_order_book_event_for_tests(
-        exchange_name: ExchangeName,
-        currency_code_pair: CurrencyCodePair,
+        exchange_id: ExchangeId,
+        currency_pair: CurrencyPair,
         event_type: order_book_event::EventType,
         order_book_data: order_book_data::OrderBookData,
     ) -> order_book_event::OrderBookEvent {
         order_book_event::OrderBookEvent::new(
             Utc::now(),
-            ExchangeId::new(exchange_name, 0),
-            currency_code_pair,
+            ExchangeAccountId::new(exchange_id, 0),
+            currency_pair,
             "".to_string(),
             event_type,
             order_book_data,
@@ -91,7 +91,7 @@ mod tests {
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
-            CurrencyCodePair::new("does_not_matter".into()),
+            CurrencyPair::new("does_not_matter".into()),
             order_book_event::EventType::Snapshot,
             order_book_data::OrderBookData::new(asks, bids),
         );
@@ -132,7 +132,7 @@ mod tests {
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
-            CurrencyCodePair::new("does_not_matter".into()),
+            CurrencyPair::new("does_not_matter".into()),
             order_book_event::EventType::Update,
             order_book_data::OrderBookData::new(asks, bids),
         );
@@ -146,12 +146,12 @@ mod tests {
 
     #[test]
     fn successful_update() {
-        let test_exchange_name = "exchange_name";
-        let test_currency_code_pair = "test_currency_code_pait";
+        let test_exchange_id = "exchange_id";
+        let test_currency_pair = "test_currency_pair";
         // Construct main object
-        let exchange_id_symbol = ExchangeIdSymbol::new(
-            ExchangeId::new(test_exchange_name.into(), 0),
-            CurrencyCodePair::new(test_currency_code_pair.into()),
+        let exchange_id_symbol = ExchangeIdCurrencyPair::new(
+            ExchangeAccountId::new(test_exchange_id.into(), 0),
+            CurrencyPair::new(test_currency_pair.into()),
         );
 
         let mut primary_asks = SortedOrderData::new();
@@ -177,8 +177,8 @@ mod tests {
 
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
-            test_exchange_name.into(),
-            CurrencyCodePair::new(test_currency_code_pair.into()),
+            test_exchange_id.into(),
+            CurrencyPair::new(test_currency_pair.into()),
             order_book_event::EventType::Update,
             order_book_data::OrderBookData::new(asks, bids),
         );

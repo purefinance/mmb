@@ -1,6 +1,6 @@
 use super::common_interaction::CommonInteraction;
 use crate::core::exchanges::common::{
-    CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestResult,
+    ExchangeErrorType, RestErrorDescription, RestRequestResult, SpecificCurrencyPair,
 };
 use crate::core::settings::ExchangeSettings;
 use actix::{Actor, Context, Handler, Message, System};
@@ -77,10 +77,10 @@ impl Binance {
     }
 
     pub fn build_ws1_path(
-        currency_pairs: &[CurrencyPair],
+        specific_currency_pairs: &[SpecificCurrencyPair],
         websocket_channels: &[String],
     ) -> String {
-        let stream_names = currency_pairs
+        let stream_names = specific_currency_pairs
             .iter()
             .flat_map(|currency_pair| {
                 //websocket_channels.iter().map(|channel| format!("{}@{}", currency_pair.as_str(), channel))
@@ -96,8 +96,8 @@ impl Binance {
         ws_path.to_lowercase()
     }
 
-    fn get_stream_name(currency_pair: &CurrencyPair, channel: &str) -> String {
-        format!("{}@{}", currency_pair.as_str(), channel)
+    fn get_stream_name(specific_currency_pair: &SpecificCurrencyPair, channel: &str) -> String {
+        format!("{}@{}", specific_currency_pair.as_str(), channel)
     }
 
     fn is_websocket_reconnecting(&self) -> bool {
