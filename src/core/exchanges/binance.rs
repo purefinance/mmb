@@ -2,11 +2,16 @@ use super::common_interaction::CommonInteraction;
 use crate::core::exchanges::common::{
     ExchangeErrorType, RestErrorDescription, RestRequestResult, SpecificCurrencyPair,
 };
+use crate::core::orders::order::{OrderSide, OrderSnapshot, OrderType};
 use crate::core::settings::ExchangeSettings;
 use actix::{Actor, Context, Handler, Message, System};
 use async_trait::async_trait;
+use hex;
+use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
-use serde_json::Value;
+use serde_json::{json, Value};
+use sha2::Sha256;
+use std::collections::HashMap;
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -103,21 +108,92 @@ impl Binance {
     fn is_websocket_reconnecting(&self) -> bool {
         todo!("is_websocket_reconnecting")
     }
+
+    fn get_hmac(&self, data: String) -> String {
+        // TODO fix that unwrap But dunno how
+        let mut hmac = Hmac::<Sha256>::new_varkey(self.settings.secret_key.as_bytes()).unwrap();
+        hmac.update(data.as_bytes());
+        let result = hex::encode(&hmac.finalize().into_bytes());
+
+        return result;
+    }
+
+    fn to_server_order_side(side: OrderSide) -> String {
+        match side {
+            OrderSide::Buy => "BUY".to_owned(),
+            OrderSide::Sell => "SELL".to_owned(),
+        }
+    }
+
+    fn to_server_order_type(order_type: OrderType) -> String {
+        match order_type {
+            OrderType::Limit => "LIMIT".to_owned(),
+            OrderType::Market => "MARKET".to_owned(),
+            // TODO How to handle over types?
+            _ => String::new(),
+        }
+    }
 }
 
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
-    async fn create_order(&self) {
+    async fn create_order(&self, order: &OrderSnapshot) {
+        // TODO Handle it correctly
+        if order.header.side.is_none() {
+            dbg!(&"Unable to create order");
+            return;
+        }
+
+        let order_side = Self::to_server_order_side(order.header.side.unwrap());
+        let order_type = Self::to_server_order_type(order.header.order_type);
+
+        let request_data = HashMap.new();
+        request_data.insert("symbol", order.header.currency_pair.as_str().to_uppercase());
+        //"side": order_side,
+        //"type": order_type,
+        //"quantity": order.header.amount.to_string(),
+
+        if order.header.order_type != OrderType::Market {
+            request_data.insert("test", "tst");
+        }
+
         let client = awc::Client::default();
         let response = client
-            .get("https://api.binance.com/api/v3/time")
+            .post("https://api.binance.com/api/v3/order/test")
+            .header("X-MBX-APIKEY", self.settings.api_key.clone())
             .send()
             .await;
         dbg!(&response.unwrap().body().await);
+
         System::current().stop();
     }
 
     async fn cancel_order(&self) {
         dbg!(&"Cancel order for Binance!");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_hmac() {
+        // All values and strings gotten from binane API example
+        let right_value = "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71";
+
+        let settings = ExchangeSettings {
+            api_key: "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".into(),
+            secret_key: "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".into(),
+            is_marging_trading: false,
+            web_socket_host: "".into(),
+            web_socket2_host: "".into(),
+            rest_host: "https://api.binance.com".into(),
+        };
+
+        let binance = Binance::new(settings, "some_id".into());
+        let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
+        let result = binance.get_hmac(params);
+        assert_eq!(result, right_value);
     }
 }
