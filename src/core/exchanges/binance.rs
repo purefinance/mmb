@@ -1,8 +1,11 @@
 use super::common_interaction::CommonInteraction;
+use super::rest_client;
 use crate::core::exchanges::common::{
     ExchangeErrorType, RestErrorDescription, RestRequestResult, SpecificCurrencyPair,
 };
-use crate::core::orders::order::{OrderSide, OrderSnapshot, OrderType};
+use std::time::{SystemTime, UNIX_EPOCH};
+// TODO first word in each type can be replaced just using module name
+use crate::core::orders::order::{OrderExecutionType, OrderSide, OrderSnapshot, OrderType};
 use crate::core::settings::ExchangeSettings;
 use actix::{Actor, Context, Handler, Message, System};
 use async_trait::async_trait;
@@ -109,15 +112,6 @@ impl Binance {
         todo!("is_websocket_reconnecting")
     }
 
-    fn get_hmac(&self, data: String) -> String {
-        // TODO fix that unwrap But dunno how
-        let mut hmac = Hmac::<Sha256>::new_varkey(self.settings.secret_key.as_bytes()).unwrap();
-        hmac.update(data.as_bytes());
-        let result = hex::encode(&hmac.finalize().into_bytes());
-
-        return result;
-    }
-
     fn to_server_order_side(side: OrderSide) -> String {
         match side {
             OrderSide::Buy => "BUY".to_owned(),
@@ -133,6 +127,39 @@ impl Binance {
             _ => String::new(),
         }
     }
+
+    fn get_hmac(&self, data: String) -> String {
+        // TODO fix that unwrap But dunno how
+        let mut hmac = Hmac::<Sha256>::new_varkey(self.settings.secret_key.as_bytes()).unwrap();
+        hmac.update(data.as_bytes());
+        let result = hex::encode(&hmac.finalize().into_bytes());
+
+        return result;
+    }
+
+    fn add_autentification_headers(parameters: &mut HashMap<String, String>) {
+        // TODO to utils?
+        let time_stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        parameters.insert("timestamp".to_owned(), time_stamp.to_string());
+
+        let message_to_sign = Self::to_http_string(parameters.clone());
+    }
+
+    // TODO to utils?
+    fn to_http_string(parameters: impl IntoIterator<Item = (String, String)>) -> String {
+        let mut http_string = String::new();
+        for (key, value) in parameters.into_iter() {
+            http_string.push_str(&key);
+            http_string.push('=');
+            http_string.push_str(&value);
+            http_string.push('&');
+        }
+
+        http_string
+    }
 }
 
 #[async_trait(?Send)]
@@ -146,21 +173,45 @@ impl CommonInteraction for Binance {
 
         let order_side = Self::to_server_order_side(order.header.side.unwrap());
         let order_type = Self::to_server_order_type(order.header.order_type);
+        let order_price = order.props.raw_price.unwrap();
+        let order_execution_price = order.props.execution_type.unwrap();
 
-        let request_data = HashMap.new();
-        request_data.insert("symbol", order.header.currency_pair.as_str().to_uppercase());
-        //"side": order_side,
-        //"type": order_type,
-        //"quantity": order.header.amount.to_string(),
+        let mut parameters = HashMap::new();
+        parameters.insert(
+            "symbol".to_owned(),
+            order.header.currency_pair.as_str().to_uppercase(),
+        );
+        parameters.insert("side".to_owned(), order_side);
+        parameters.insert("type".to_owned(), order_type);
+        parameters.insert("quantity".to_owned(), order.header.amount.to_string());
+        // TODO Why do we need this? Binance API for create order say nothing about it
+        parameters.insert(
+            "newClientOrderId".to_owned(),
+            order.header.client_order_id.as_str().to_owned(),
+        );
 
         if order.header.order_type != OrderType::Market {
-            request_data.insert("test", "tst");
+            parameters.insert("timeInForce".to_owned(), "GTC".to_owned());
+            parameters.insert("price".to_owned(), order_price.to_string());
+        }
+
+        if order_execution_price == OrderExecutionType::MakerOnly {
+            parameters.insert("timeInForce".to_owned(), "GTX".to_owned());
+        }
+
+        // TODO What is marging trading?
+        let mut url = String::new();
+        if self.settings.is_marging_trading {
+            url = "fapi/v1/order".to_owned();
+        } else {
+            url = "api/v3/order".to_owned();
         }
 
         let client = awc::Client::default();
         let response = client
             .post("https://api.binance.com/api/v3/order/test")
             .header("X-MBX-APIKEY", self.settings.api_key.clone())
+            //.send_json(parameters)
             .send()
             .await;
         dbg!(&response.unwrap().body().await);
@@ -195,5 +246,23 @@ mod tests {
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.get_hmac(params);
         assert_eq!(result, right_value);
+    }
+
+    #[test]
+    fn to_http_string() {
+        let mut parameters = Vec::<(String, String)>::new();
+        parameters.push(("symbol".to_owned(), "LTCBTC".to_owned()));
+        parameters.push(("side".to_owned(), "BUY".to_owned()));
+        parameters.push(("type".to_owned(), "LIMIT".to_owned()));
+        parameters.push(("timeInForce".to_owned(), "GTC".to_owned()));
+        parameters.push(("quantity".to_owned(), "1".to_owned()));
+        parameters.push(("price".to_owned(), "0.1".to_owned()));
+        parameters.push(("recvWindow".to_owned(), "5000".to_owned()));
+        parameters.push(("timestamp".to_owned(), "1499827319559".to_owned()));
+
+        let http_string = Binance::to_http_string(parameters);
+
+        let right_value = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559&";
+        assert_eq!(http_string, right_value);
     }
 }

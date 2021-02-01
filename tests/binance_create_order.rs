@@ -42,7 +42,7 @@ fn test_add() {
 
     let mut system = System::new("test");
 
-    let addr = system.block_on(exchange_actor.create_order());
+    //let addr = system.block_on(exchange_actor.create_order());
 
     system.run();
 

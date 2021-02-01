@@ -41,9 +41,10 @@ impl ExchangeActor {
         )
     }
 
-    pub async fn create_order(&self) {
-        self.exchange_interaction.create_order().await;
-    }
+    // TODO Fix!!
+    //pub async fn create_order(&self) {
+    //    self.exchange_interaction.create_order().await;
+    //}
 }
 
 impl Actor for ExchangeActor {
