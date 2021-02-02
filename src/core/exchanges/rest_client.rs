@@ -1,3 +1,14 @@
+use actix::{Actor, Context, Handler, Message, System};
 use std::collections::HashMap;
 
-pub fn post_request(url: &str, parameters: HashMap<&str, String>, is_signed: bool) {}
+pub async fn send_post_request(url: &str, api_key: &str, parameters: HashMap<String, String>) {
+    let client = awc::Client::default();
+    let response = client
+        .post(url)
+        .header("X-MBX-APIKEY", api_key)
+        .send_form(&parameters)
+        .await;
+    dbg!(&response.unwrap().body().await);
+
+    System::current().stop();
+}

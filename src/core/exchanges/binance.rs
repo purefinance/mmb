@@ -7,7 +7,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // TODO first word in each type can be replaced just using module name
 use crate::core::orders::order::{OrderExecutionType, OrderSide, OrderSnapshot, OrderType};
 use crate::core::settings::ExchangeSettings;
-use actix::{Actor, Context, Handler, Message, System};
 use async_trait::async_trait;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
@@ -137,7 +136,11 @@ impl Binance {
         return result;
     }
 
-    fn add_autentification_headers(parameters: &mut HashMap<String, String>) {
+    // TODO produce here new hashmap?
+    fn add_autentification_headers(
+        &self,
+        mut parameters: HashMap<String, String>,
+    ) -> HashMap<String, String> {
         // TODO to utils?
         let time_stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -146,6 +149,10 @@ impl Binance {
         parameters.insert("timestamp".to_owned(), time_stamp.to_string());
 
         let message_to_sign = Self::to_http_string(parameters.clone());
+        let signature = self.get_hmac(message_to_sign);
+        parameters.insert("signature".to_owned(), signature);
+
+        parameters
     }
 
     // TODO to utils?
@@ -184,7 +191,6 @@ impl CommonInteraction for Binance {
         parameters.insert("side".to_owned(), order_side);
         parameters.insert("type".to_owned(), order_type);
         parameters.insert("quantity".to_owned(), order.header.amount.to_string());
-        // TODO Why do we need this? Binance API for create order say nothing about it
         parameters.insert(
             "newClientOrderId".to_owned(),
             order.header.client_order_id.as_str().to_owned(),
@@ -200,23 +206,17 @@ impl CommonInteraction for Binance {
         }
 
         // TODO What is marging trading?
-        let mut url = String::new();
+        let mut full_url = self.settings.rest_host.clone();
         if self.settings.is_marging_trading {
-            url = "fapi/v1/order".to_owned();
+            // TODO Remove test
+            full_url.push_str("/fapi/v1/order/test");
         } else {
-            url = "api/v3/order".to_owned();
+            full_url.push_str("/api/v3/order/test");
         }
 
-        let client = awc::Client::default();
-        let response = client
-            .post("https://api.binance.com/api/v3/order/test")
-            .header("X-MBX-APIKEY", self.settings.api_key.clone())
-            //.send_json(parameters)
-            .send()
-            .await;
-        dbg!(&response.unwrap().body().await);
+        let full_parameters = self.add_autentification_headers(parameters);
 
-        System::current().stop();
+        rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters);
     }
 
     async fn cancel_order(&self) {
@@ -250,6 +250,7 @@ mod tests {
 
     #[test]
     fn to_http_string() {
+        // Vector needed only for keep order of elements
         let mut parameters = Vec::<(String, String)>::new();
         parameters.push(("symbol".to_owned(), "LTCBTC".to_owned()));
         parameters.push(("side".to_owned(), "BUY".to_owned()));
