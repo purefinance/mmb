@@ -3,17 +3,16 @@ use super::rest_client;
 use crate::core::exchanges::common::{
     ExchangeErrorType, RestErrorDescription, RestRequestResult, SpecificCurrencyPair,
 };
-use std::time::{SystemTime, UNIX_EPOCH};
-// TODO first word in each type can be replaced just using module name
-use crate::core::orders::order::{OrderExecutionType, OrderSide, OrderSnapshot, OrderType};
+use crate::core::orders::order::{DataToCreateOrder, OrderExecutionType, OrderSide, OrderType}; //TODO first word in each type can be replaced just using module name
 use crate::core::settings::ExchangeSettings;
 use async_trait::async_trait;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
-use serde_json::{json, Value};
+use serde_json::Value;
 use sha2::Sha256;
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -171,37 +170,29 @@ impl Binance {
 
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
-    async fn create_order(&self, order: &OrderSnapshot) {
-        // TODO Handle it correctly
-        if order.header.side.is_none() {
-            dbg!(&"Unable to create order");
-            return;
-        }
-
-        let order_side = Self::to_server_order_side(order.header.side.unwrap());
-        let order_type = Self::to_server_order_type(order.header.order_type);
-        let order_price = order.props.raw_price.unwrap();
-        let order_execution_price = order.props.execution_type.unwrap();
-
+    async fn create_order(&self, order: &DataToCreateOrder) {
         let mut parameters = HashMap::new();
         parameters.insert(
             "symbol".to_owned(),
-            order.header.currency_pair.as_str().to_uppercase(),
+            order.currency_pair.as_str().to_uppercase(),
         );
-        parameters.insert("side".to_owned(), order_side);
-        parameters.insert("type".to_owned(), order_type);
-        parameters.insert("quantity".to_owned(), order.header.amount.to_string());
+        parameters.insert("side".to_owned(), Self::to_server_order_side(order.side));
+        parameters.insert(
+            "type".to_owned(),
+            Self::to_server_order_type(order.order_type),
+        );
+        parameters.insert("quantity".to_owned(), order.amount.to_string());
         parameters.insert(
             "newClientOrderId".to_owned(),
-            order.header.client_order_id.as_str().to_owned(),
+            order.client_order_id.as_str().to_owned(),
         );
 
-        if order.header.order_type != OrderType::Market {
+        if order.order_type != OrderType::Market {
             parameters.insert("timeInForce".to_owned(), "GTC".to_owned());
-            parameters.insert("price".to_owned(), order_price.to_string());
+            parameters.insert("price".to_owned(), order.price.to_string());
         }
 
-        if order_execution_price == OrderExecutionType::MakerOnly {
+        if order.execution_type == OrderExecutionType::MakerOnly {
             parameters.insert("timeInForce".to_owned(), "GTX".to_owned());
         }
 
@@ -216,7 +207,7 @@ impl CommonInteraction for Binance {
 
         let full_parameters = self.add_autentification_headers(parameters);
 
-        rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters);
+        rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await;
     }
 
     async fn cancel_order(&self) {

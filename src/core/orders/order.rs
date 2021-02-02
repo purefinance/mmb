@@ -1,5 +1,6 @@
 use crate::core::exchanges::common::{
-    CurrencyPair, SpecificCurrencyPair, ExchangeErrorType, ExchangeAccountId, ExchangeId,
+    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, ExchangeId, Price,
+    SpecificCurrencyPair,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
@@ -197,7 +198,7 @@ pub struct OrderHeader {
     pub order_type: OrderType,
 
     pub side: Option<OrderSide>,
-    pub amount: Decimal,
+    pub amount: Amount,
 
     pub reservation_id: ReservationId,
 
@@ -217,7 +218,7 @@ impl OrderHeader {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSimpleProps {
     client_order_id: ClientOrderId,
-    pub raw_price: Option<Decimal>,
+    pub raw_price: Option<Price>,
     pub role: Option<OrderRole>,
     pub execution_type: Option<OrderExecutionType>,
     pub exchange_order_id: Option<ExchangeOrderId>,
@@ -230,7 +231,7 @@ pub struct OrderSimpleProps {
 }
 
 impl OrderSimpleProps {
-    pub fn new(client_order_id: ClientOrderId, price: Option<Decimal>) -> OrderSimpleProps {
+    pub fn new(client_order_id: ClientOrderId, price: Option<Price>) -> OrderSimpleProps {
         Self {
             client_order_id,
             raw_price: price,
@@ -334,6 +335,17 @@ pub struct SystemInternalOrderProps {
 
     pub handled_by_balance_recovery: bool,
     pub filled_amount_after_cancellation: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataToCreateOrder {
+    pub side: OrderSide,
+    pub order_type: OrderType,
+    pub price: Price,
+    pub execution_type: OrderExecutionType,
+    pub currency_pair: CurrencyPair,
+    pub client_order_id: ClientOrderId,
+    pub amount: Amount,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

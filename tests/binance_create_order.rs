@@ -2,8 +2,11 @@ use actix::{Actor, Addr, Arbiter, Context, System};
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::actor::*;
 use mmb_lib::core::exchanges::binance::*;
+use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::common_interaction::*;
+use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
+use rust_decimal_macros::*;
 use std::env;
 
 #[test]
@@ -42,7 +45,17 @@ fn test_add() {
 
     let mut system = System::new("test");
 
-    //let addr = system.block_on(exchange_actor.create_order());
+    let order = DataToCreateOrder {
+        side: OrderSide::Buy,
+        order_type: OrderType::Limit,
+        price: dec!(0.1),
+        execution_type: OrderExecutionType::None,
+        currency_pair: CurrencyPair::new("BTCUSDT".into()),
+        client_order_id: "test".into(),
+        amount: dec!(0.1),
+    };
+
+    let addr = system.block_on(exchange_actor.create_order(&order));
 
     system.run();
 

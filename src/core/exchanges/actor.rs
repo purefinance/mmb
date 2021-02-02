@@ -2,6 +2,7 @@ use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::SpecificCurrencyPair;
+use crate::core::orders::order::DataToCreateOrder;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
 };
@@ -41,10 +42,9 @@ impl ExchangeActor {
         )
     }
 
-    // TODO Fix!!
-    //pub async fn create_order(&self) {
-    //    self.exchange_interaction.create_order().await;
-    //}
+    pub async fn create_order(&self, order: &DataToCreateOrder) {
+        self.exchange_interaction.create_order(&order).await;
+    }
 }
 
 impl Actor for ExchangeActor {
