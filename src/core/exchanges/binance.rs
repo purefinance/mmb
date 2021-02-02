@@ -138,30 +138,33 @@ impl Binance {
     // TODO produce here new hashmap?
     fn add_autentification_headers(
         &self,
-        mut parameters: HashMap<String, String>,
-    ) -> HashMap<String, String> {
+        mut parameters: rest_client::HttpParams,
+    ) -> rest_client::HttpParams {
         // TODO to utils?
         let time_stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        parameters.insert("timestamp".to_owned(), time_stamp.to_string());
+        parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
 
         let message_to_sign = Self::to_http_string(parameters.clone());
+        dbg!(&message_to_sign);
         let signature = self.get_hmac(message_to_sign);
-        parameters.insert("signature".to_owned(), signature);
+        parameters.push(("signature".to_owned(), signature));
 
         parameters
     }
 
     // TODO to utils?
-    fn to_http_string(parameters: impl IntoIterator<Item = (String, String)>) -> String {
+    fn to_http_string(parameters: rest_client::HttpParams) -> String {
         let mut http_string = String::new();
         for (key, value) in parameters.into_iter() {
+            if !http_string.is_empty() {
+                http_string.push('&');
+            }
             http_string.push_str(&key);
             http_string.push('=');
             http_string.push_str(&value);
-            http_string.push('&');
         }
 
         http_string
@@ -171,29 +174,29 @@ impl Binance {
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
     async fn create_order(&self, order: &DataToCreateOrder) {
-        let mut parameters = HashMap::new();
-        parameters.insert(
+        let mut parameters = rest_client::HttpParams::new();
+        parameters.push((
             "symbol".to_owned(),
             order.currency_pair.as_str().to_uppercase(),
-        );
-        parameters.insert("side".to_owned(), Self::to_server_order_side(order.side));
-        parameters.insert(
+        ));
+        parameters.push(("side".to_owned(), Self::to_server_order_side(order.side)));
+        parameters.push((
             "type".to_owned(),
             Self::to_server_order_type(order.order_type),
-        );
-        parameters.insert("quantity".to_owned(), order.amount.to_string());
-        parameters.insert(
+        ));
+        parameters.push(("quantity".to_owned(), order.amount.to_string()));
+        parameters.push((
             "newClientOrderId".to_owned(),
             order.client_order_id.as_str().to_owned(),
-        );
+        ));
 
         if order.order_type != OrderType::Market {
-            parameters.insert("timeInForce".to_owned(), "GTC".to_owned());
-            parameters.insert("price".to_owned(), order.price.to_string());
+            parameters.push(("timeInForce".to_owned(), "GTC".to_owned()));
+            parameters.push(("price".to_owned(), order.price.to_string()));
         }
 
         if order.execution_type == OrderExecutionType::MakerOnly {
-            parameters.insert("timeInForce".to_owned(), "GTX".to_owned());
+            parameters.push(("timeInForce".to_owned(), "GTX".to_owned()));
         }
 
         // TODO What is marging trading?
@@ -206,6 +209,7 @@ impl CommonInteraction for Binance {
         }
 
         let full_parameters = self.add_autentification_headers(parameters);
+        dbg!(&full_parameters);
 
         rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await;
     }
@@ -241,8 +245,7 @@ mod tests {
 
     #[test]
     fn to_http_string() {
-        // Vector needed only for keep order of elements
-        let mut parameters = Vec::<(String, String)>::new();
+        let mut parameters = rest_client::HttpParams::new();
         parameters.push(("symbol".to_owned(), "LTCBTC".to_owned()));
         parameters.push(("side".to_owned(), "BUY".to_owned()));
         parameters.push(("type".to_owned(), "LIMIT".to_owned()));

@@ -1,7 +1,8 @@
-use actix::{Actor, Context, Handler, Message, System};
-use std::collections::HashMap;
+use actix::System;
 
-pub async fn send_post_request(url: &str, api_key: &str, parameters: HashMap<String, String>) {
+pub type HttpParams = Vec<(String, String)>;
+
+pub async fn send_post_request(url: &str, api_key: &str, parameters: HttpParams) {
     let client = awc::Client::default();
     let response = client
         .post(url)
