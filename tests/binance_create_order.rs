@@ -1,16 +1,15 @@
-use actix::{Actor, Addr, Arbiter, Context, System};
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::actor::*;
 use mmb_lib::core::exchanges::binance::*;
 use mmb_lib::core::exchanges::common::*;
-use mmb_lib::core::exchanges::common_interaction::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
+use tokio;
 
-#[test]
-fn test_add() {
+#[tokio::test]
+async fn test_add() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");
     if api_key.is_err() {
@@ -43,21 +42,20 @@ fn test_add() {
         Box::new(binance),
     );
 
-    let mut system = System::new("test");
-
     let order = DataToCreateOrder {
         side: OrderSide::Buy,
         order_type: OrderType::Limit,
-        price: dec!(0.1),
+        // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
+        price: dec!(0.01),
         execution_type: OrderExecutionType::None,
-        currency_pair: CurrencyPair::new("BTCUSDT".into()),
+        currency_pair: CurrencyPair::new("ETHBTC".into()),
         client_order_id: "test".into(),
-        amount: dec!(0.1),
+        amount: dec!(1),
     };
 
-    let addr = system.block_on(exchange_actor.create_order(&order));
+    let create_order = exchange_actor.create_order(&order);
 
-    system.run();
+    tokio::join!(create_order);
 
-    assert!(true)
+    assert!(true);
 }

@@ -1,3 +1,4 @@
+use super::common::CurrencyPair;
 use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
@@ -9,6 +10,7 @@ use crate::core::{
 use actix::{Actor, Context, Handler, Message};
 use log::trace;
 
+// TODO implement Common_interaction for ExchangeActor? Just redirect there
 pub struct ExchangeActor {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
@@ -43,7 +45,22 @@ impl ExchangeActor {
     }
 
     pub async fn create_order(&self, order: &DataToCreateOrder) {
-        self.exchange_interaction.create_order(&order).await;
+        let order_create_task = self.exchange_interaction.create_order(&order).await;
+
+        // TODO Also here has to be cancelation_token_task
+        //let awaited_task = vec![order_create_task];
+
+        //tokio::select! {
+        //    _ = order_create_task => {
+        //        dbg!(&"Request complited");
+        //    }
+        //}
+    }
+
+    pub async fn cancel_all_orders(&self) {
+        self.exchange_interaction
+            .cancel_all_orders(CurrencyPair::new("".into()))
+            .await;
     }
 }
 

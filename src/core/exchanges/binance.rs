@@ -1,3 +1,4 @@
+use super::common::CurrencyPair;
 use super::common_interaction::CommonInteraction;
 use super::rest_client;
 use crate::core::exchanges::common::{
@@ -11,7 +12,6 @@ use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use serde_json::Value;
 use sha2::Sha256;
-use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub struct Binance {
@@ -202,10 +202,9 @@ impl CommonInteraction for Binance {
         // TODO What is marging trading?
         let mut full_url = self.settings.rest_host.clone();
         if self.settings.is_marging_trading {
-            // TODO Remove test
-            full_url.push_str("/fapi/v1/order/test");
+            full_url.push_str("/fapi/v1/order");
         } else {
-            full_url.push_str("/api/v3/order/test");
+            full_url.push_str("/api/v3/order");
         }
 
         let full_parameters = self.add_autentification_headers(parameters);
@@ -214,8 +213,17 @@ impl CommonInteraction for Binance {
         rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await;
     }
 
-    async fn cancel_order(&self) {
-        dbg!(&"Cancel order for Binance!");
+    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
+        let path_to_delete = "api/v3/openOrders";
+        let mut full_url = self.settings.rest_host.clone();
+        full_url.push_str(path_to_delete);
+
+        let mut parameters = rest_client::HttpParams::new();
+        parameters.push(("symbol".to_owned(), "BTCUSDT".to_owned()));
+
+        let full_parameters = self.add_autentification_headers(parameters);
+
+        rest_client::send_delete_request(&full_url, full_parameters).await;
     }
 }
 
@@ -257,7 +265,7 @@ mod tests {
 
         let http_string = Binance::to_http_string(parameters);
 
-        let right_value = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559&";
+        let right_value = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
         assert_eq!(http_string, right_value);
     }
 }
