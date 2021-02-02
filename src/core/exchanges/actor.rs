@@ -1,18 +1,17 @@
-use actix::{Actor, Context, Handler, Message};
-use log::trace;
-use crate::core::{
-        connectivity::connectivity_manager::WebSocketRole,
-        exchanges::common::ExchangeAccountId
-};
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::SpecificCurrencyPair;
+use crate::core::{
+    connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
+};
+use actix::{Actor, Context, Handler, Message};
+use log::trace;
 
 pub struct ExchangeActor {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
-    websocket_channels: Vec<String>
+    websocket_channels: Vec<String>,
 }
 
 impl ExchangeActor {
@@ -20,18 +19,22 @@ impl ExchangeActor {
         exchange_account_id: ExchangeAccountId,
         websocket_host: String,
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
-        websocket_channels: Vec<String>
+        websocket_channels: Vec<String>,
     ) -> Self {
         ExchangeActor {
             exchange_account_id,
             websocket_host,
             specific_currency_pairs,
-            websocket_channels
+            websocket_channels,
         }
     }
 
     pub fn create_websocket_params(&mut self, ws_path: &str) -> WebSocketParams {
-        WebSocketParams::new(format!("{}{}", self.websocket_host, ws_path).parse().expect("should be valid url"))
+        WebSocketParams::new(
+            format!("{}{}", self.websocket_host, ws_path)
+                .parse()
+                .expect("should be valid url"),
+        )
     }
 }
 
@@ -61,10 +64,13 @@ impl Handler<GetWebSocketParams> for ExchangeActor {
         match websocket_role {
             WebSocketRole::Main => {
                 // TODO remove hardcode
-                let ws_path = Binance::build_ws1_path(&self.specific_currency_pairs[..], &self.websocket_channels[..]);
+                let ws_path = Binance::build_ws1_path(
+                    &self.specific_currency_pairs[..],
+                    &self.websocket_channels[..],
+                );
                 Some(self.create_websocket_params(&ws_path))
             }
-            WebSocketRole::Secondary => None
+            WebSocketRole::Secondary => None,
         }
     }
 }

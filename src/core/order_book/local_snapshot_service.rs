@@ -15,7 +15,10 @@ impl LocalSnapshotsService {
         Self { local_snapshots }
     }
 
-    pub fn get_snapshot(&self, snapshot_id: ExchangeIdCurrencyPair) -> Option<&LocalOrderBookSnapshot> {
+    pub fn get_snapshot(
+        &self,
+        snapshot_id: ExchangeIdCurrencyPair,
+    ) -> Option<&LocalOrderBookSnapshot> {
         self.local_snapshots.get(&snapshot_id)
     }
 

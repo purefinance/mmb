@@ -184,7 +184,7 @@ impl TradePlace {
     pub fn new(exchange_id: ExchangeId, currency_pair: CurrencyPair) -> Self {
         TradePlace {
             exchange_id,
-            currency_pair
+            currency_pair,
         }
     }
 }
@@ -205,10 +205,12 @@ impl TradePlaceAccount {
     }
 
     pub fn trade_place(&self) -> TradePlace {
-        TradePlace::new(self.exchange_account_id.exchange_id.clone(), self.currency_pair.clone())
+        TradePlace::new(
+            self.exchange_account_id.exchange_id.clone(),
+            self.currency_pair.clone(),
+        )
     }
 }
-
 
 #[derive(PartialEq, Eq, Clone, Hash, Debug, Serialize, Deserialize)]
 pub struct ExchangeIdCurrencyPair {
@@ -224,7 +226,6 @@ impl ExchangeIdCurrencyPair {
         }
     }
 }
-
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ExchangeErrorType {
@@ -258,7 +259,6 @@ impl RestErrorDescription {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,7 +267,10 @@ mod tests {
     #[test]
     pub fn exchange_id_parse_correctly() {
         let exchange_account_id = "Binance0".parse::<ExchangeAccountId>();
-        assert_eq!(exchange_account_id, Ok(ExchangeAccountId::new("Binance".into(), 0)));
+        assert_eq!(
+            exchange_account_id,
+            Ok(ExchangeAccountId::new("Binance".into(), 0))
+        );
     }
 
     #[test]
@@ -293,7 +296,10 @@ mod tests {
         let exchange_account_id = "binance256".parse::<ExchangeAccountId>();
         assert_eq!(
             exchange_account_id,
-            Err(ExchangeIdParseError(r"Can't parse exchange account number: number too large to fit in target type".into()))
+            Err(ExchangeIdParseError(
+                r"Can't parse exchange account number: number too large to fit in target type"
+                    .into()
+            ))
         )
     }
 

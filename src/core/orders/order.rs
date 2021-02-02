@@ -1,5 +1,5 @@
 use crate::core::exchanges::common::{
-    CurrencyPair, SpecificCurrencyPair, ExchangeErrorType, ExchangeAccountId, ExchangeId,
+    CurrencyPair, ExchangeAccountId, ExchangeErrorType, ExchangeId, SpecificCurrencyPair,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
