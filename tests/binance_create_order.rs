@@ -6,9 +6,9 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
-use tokio;
 
-#[tokio::test]
+// TODO Why does it don't work with tokio test?
+#[actix_rt::test]
 async fn test_add() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");
@@ -53,9 +53,7 @@ async fn test_add() {
         amount: dec!(1),
     };
 
-    let create_order = exchange_actor.create_order(&order);
-
-    tokio::join!(create_order);
+    exchange_actor.create_order(&order).await;
 
     assert!(true);
 }
