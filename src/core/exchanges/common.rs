@@ -1,3 +1,4 @@
+use awc::http::StatusCode;
 use itertools::Itertools;
 use regex::Regex;
 use rust_decimal::*;
@@ -247,15 +248,22 @@ pub enum RestRequestError {
     HttpStatusCode(u32),
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct RestRequestOutcome {
+    pub content: String,
+    pub status: StatusCode,
+}
+
 pub type RestRequestResult = Result<String, RestRequestError>;
 
+// TODO Bad name, this is specific business error description, not REST
 pub struct RestErrorDescription {
-    message: String,
-    code: u32,
+    pub message: String,
+    pub code: i64,
 }
 
 impl RestErrorDescription {
-    pub fn new(message: String, code: u32) -> Self {
+    pub fn new(message: String, code: i64) -> Self {
         RestErrorDescription { message, code }
     }
 }

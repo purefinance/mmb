@@ -9,6 +9,7 @@ use std::env;
 
 // TODO Why does it don't work with tokio test?
 #[actix_rt::test]
+#[ignore]
 async fn test_add() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");
@@ -57,12 +58,12 @@ async fn test_add() {
     //exchange_actor.get_account_info().await;
     //exchange_actor.cancel_all_orders().await;
 
-    let order_to_cancel = DataToCancelOrder {
-        currency_pair: CurrencyPair::new("DENTETH".into()),
-        order_id: "30".into(),
-    };
+    //let order_to_cancel = DataToCancelOrder {
+    //    currency_pair: CurrencyPair::new("DENTETH".into()),
+    //    order_id: "30".into(),
+    //};
 
-    exchange_actor.cancel_order(&order_to_cancel).await;
+    //exchange_actor.cancel_order(&order_to_cancel).await;
 
     assert!(true);
 }
@@ -105,15 +106,16 @@ async fn should_fail() {
         side: OrderSide::Buy,
         order_type: OrderType::Limit,
         // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.0000001),
+        price: dec!(0.00000005),
         execution_type: OrderExecutionType::None,
-        currency_pair: CurrencyPair::new("DENTETH".into()),
+        currency_pair: CurrencyPair::new("TNBBTC".into()),
         client_order_id: "test".into(),
-        amount: dec!(100000),
+        amount: dec!(1),
     };
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
     dbg!(&create_order_result);
 
-    assert!(true);
+    // It's MIN_NOTIONAL error code
+    assert_eq!(create_order_result.outcome, RequestResult::Error(-1013));
 }

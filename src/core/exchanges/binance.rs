@@ -2,7 +2,8 @@ use super::common::CurrencyPair;
 use super::common_interaction::CommonInteraction;
 use super::rest_client;
 use crate::core::exchanges::common::{
-    ExchangeErrorType, RestErrorDescription, RestRequestResult, SpecificCurrencyPair,
+    ExchangeErrorType, RestErrorDescription, RestRequestOutcome, RestRequestResult,
+    SpecificCurrencyPair,
 };
 use crate::core::orders::order::{
     DataToCancelOrder, DataToCreateOrder, OrderExecutionType, OrderSide, OrderType,
@@ -38,23 +39,21 @@ impl Binance {
         }
     }
 
-    fn is_rest_error_code(response: &RestRequestResult) -> Option<RestErrorDescription> {
+    // TODO Optional here, really? It means we have HTTP error code, but Binance says everything is great
+    pub fn get_error_description(binance_error_msg: &str) -> Option<RestErrorDescription> {
         //Binance is a little inconsistent: for failed responses sometimes they include
         //only code or only success:false but sometimes both
-        match response {
-            Ok(content) => {
-                if content.contains(r#""success":false"#) || content.contains(r#""code""#) {
-                    let data: Value = serde_json::from_str(content).unwrap();
-                    return Some(RestErrorDescription::new(
-                        data["msg"].to_string(),
-                        data["code"].as_u64().unwrap() as u32,
-                    ));
-                }
-            }
-            _ => (),
-        };
-
-        None
+        if binance_error_msg.contains(r#""success":false"#)
+            || binance_error_msg.contains(r#""code""#)
+        {
+            let data: Value = serde_json::from_str(binance_error_msg).unwrap();
+            return Some(RestErrorDescription::new(
+                data["msg"].to_string(),
+                data["code"].as_i64().unwrap() as i64,
+            ));
+        } else {
+            None
+        }
     }
 
     fn get_error_type(message: &str, _code: Option<u32>) -> ExchangeErrorType {
@@ -175,7 +174,7 @@ impl Binance {
 
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
-    async fn create_order(&self, order: &DataToCreateOrder) -> RestRequestResult {
+    async fn create_order(&self, order: &DataToCreateOrder) -> RestRequestOutcome {
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
@@ -221,7 +220,7 @@ impl CommonInteraction for Binance {
         full_url.push_str(path_to_delete);
 
         let mut parameters = rest_client::HttpParams::new();
-        parameters.push(("symbol".to_owned(), "BTCUSDT".to_owned()));
+        parameters.push(("symbol".to_owned(), "DENTETH".to_owned()));
 
         let full_parameters = self.add_autentification_headers(parameters);
 

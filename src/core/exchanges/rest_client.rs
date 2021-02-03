@@ -7,16 +7,24 @@ pub async fn send_post_request(
     url: &str,
     api_key: &str,
     parameters: HttpParams,
-) -> RestRequestResult {
+) -> RestRequestOutcome {
     let client = awc::Client::default();
     let response = client
         .post(url)
         .header("X-MBX-APIKEY", api_key)
         .send_form(&parameters)
         .await;
-    dbg!(&response.unwrap().body().await);
+    let mut response = response.unwrap();
+    //dbg!(&response.status());
+    //dbg!(&response.body().await);
 
-    Ok("test".into())
+    //Ok("test".into())
+    RestRequestOutcome {
+        content: std::str::from_utf8(&response.body().await.unwrap())
+            .unwrap()
+            .to_owned(),
+        status: response.status(),
+    }
 }
 
 pub async fn send_delete_request(url: &str, api_key: &str, parameters: HttpParams) {

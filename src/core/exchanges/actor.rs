@@ -1,20 +1,24 @@
+use super::binance; //< TODO It shouldn't be here. Maybe some generic handling in CommonInteraction?
 use super::common::{CurrencyPair, ExchangeErrorType};
 use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
-use crate::core::exchanges::common::SpecificCurrencyPair;
+use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::order::{DataToCancelOrder, DataToCreateOrder, ExchangeOrderId};
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
 };
 use actix::{Actor, Context, Handler, Message};
+use awc::http::StatusCode;
 use log::trace;
 
 // TODO change name cause ResetRequsetResult already exists
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult {
     Success(ExchangeOrderId),
-    Error(ExchangeErrorType),
+    // TODO for that we need match binance_error_code as number with ExchangeErrorType
+    //Error(ExchangeErrorType),
+    Error(i64),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -34,7 +38,7 @@ impl CreateOrderResult {
         }
     }
 
-    pub fn new_failed(error: ExchangeErrorType /*source_type: EventSourceType*/) -> Self {
+    pub fn new_failed(error: i64 /*source_type: EventSourceType*/) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Error(error),
             //source_type
@@ -76,13 +80,27 @@ impl ExchangeActor {
         )
     }
 
+    fn handle_response(request_outcome: &RestRequestOutcome) -> CreateOrderResult {
+        // It is is_rest_error() first if all
+        if request_outcome.status == StatusCode::OK {
+            CreateOrderResult::new_succesed("".into())
+        } else {
+            let error_description =
+                Binance::get_error_description(&request_outcome.content).unwrap();
+            CreateOrderResult::new_failed(error_description.code)
+        }
+    }
+
     pub async fn create_order(&self, order: &DataToCreateOrder) -> CreateOrderResult {
         let order_create_task = self.exchange_interaction.create_order(&order);
 
         tokio::select! {
-            rest_request_result = order_create_task => {
-                dbg!(&rest_request_result);
-                CreateOrderResult::new_succesed("some tested order id".into())
+            rest_request_outcome = order_create_task => {
+                dbg!(&rest_request_outcome);
+
+                let create_order_result = Self::handle_response(&rest_request_outcome);
+                create_order_result
+
             // TODO Also here has to be cancelation_token_task
             }
         }
