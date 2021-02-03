@@ -175,7 +175,7 @@ impl Binance {
 
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
-    async fn create_order(&self, order: &DataToCreateOrder) {
+    async fn create_order(&self, order: &DataToCreateOrder) -> RestRequestResult {
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
@@ -212,7 +212,7 @@ impl CommonInteraction for Binance {
         let full_parameters = self.add_autentification_headers(parameters);
         dbg!(&full_parameters);
 
-        rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await;
+        rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await
     }
 
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {

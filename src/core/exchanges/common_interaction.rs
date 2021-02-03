@@ -1,10 +1,10 @@
-use super::common::CurrencyPair;
+use super::common::{CurrencyPair, RestRequestResult};
 use crate::core::orders::order::{DataToCancelOrder, DataToCreateOrder};
 use async_trait::async_trait;
 
 #[async_trait(?Send)]
 pub trait CommonInteraction {
-    async fn create_order(&self, _order: &DataToCreateOrder) {
+    async fn create_order(&self, _order: &DataToCreateOrder) -> RestRequestResult {
         unimplemented!("It's generic trait and has no implementations");
     }
 

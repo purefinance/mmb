@@ -1,7 +1,13 @@
+use super::common::*;
 use serde::Deserialize;
+
 pub type HttpParams = Vec<(String, String)>;
 
-pub async fn send_post_request(url: &str, api_key: &str, parameters: HttpParams) {
+pub async fn send_post_request(
+    url: &str,
+    api_key: &str,
+    parameters: HttpParams,
+) -> RestRequestResult {
     let client = awc::Client::default();
     let response = client
         .post(url)
@@ -9,6 +15,8 @@ pub async fn send_post_request(url: &str, api_key: &str, parameters: HttpParams)
         .send_form(&parameters)
         .await;
     dbg!(&response.unwrap().body().await);
+
+    Ok("test".into())
 }
 
 pub async fn send_delete_request(url: &str, api_key: &str, parameters: HttpParams) {
