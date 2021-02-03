@@ -79,9 +79,9 @@ pub struct ConnectivityManager {
 
     websockets: WebSockets,
 
-    callback_connecting: Mutex<Option<Callback0>>,
-    callback_connected: Mutex<Option<Callback0>>,
-    callback_disconnected: Mutex<Option<Callback1<bool>>>,
+    callback_connecting: Mutex<Callback0>,
+    callback_connected: Mutex<Callback0>,
+    callback_disconnected: Mutex<Callback1<bool>>,
 }
 
 impl ConnectivityManager {
@@ -98,22 +98,22 @@ impl ConnectivityManager {
                     WebSocketRole::Secondary,
                 )),
             },
-            callback_connecting: Mutex::new(None),
-            callback_connected: Mutex::new(None),
-            callback_disconnected: Mutex::new(None),
+            callback_connecting: Mutex::new(Box::new(|| {})),
+            callback_connected: Mutex::new(Box::new(|| {})),
+            callback_disconnected: Mutex::new(Box::new(|_| {})),
         })
     }
 
     pub fn set_callback_connecting(&self, connecting: Callback0) {
-        *self.callback_connecting.lock() = Some(connecting);
+        *self.callback_connecting.lock() = connecting;
     }
 
     pub fn set_callback_connected(&self, connected: Callback0) {
-        *self.callback_connected.lock() = Some(connected);
+        *self.callback_connected.lock() = connected;
     }
 
     pub fn set_callback_disconnected(&self, disconnected: Callback1<bool>) {
-        *self.callback_disconnected.lock() = Some(disconnected)
+        *self.callback_disconnected.lock() = disconnected;
     }
 
     pub async fn connect(self: Arc<Self>, is_enabled_secondary_websocket: bool) -> bool {
@@ -122,9 +122,7 @@ impl ConnectivityManager {
             self.exchange_account_id
         );
 
-        if let Some(connecting) = self.callback_connecting.lock().as_mut() {
-            connecting();
-        }
+        self.callback_connecting.lock().as_mut()();
 
         let main_websocket_connection_opened = self
             .clone()
@@ -142,9 +140,7 @@ impl ConnectivityManager {
         let is_connected =
             main_websocket_connection_opened && secondary_websocket_connection_opened;
         if is_connected {
-            if let Some(connected) = self.callback_connected.lock().as_mut() {
-                connected();
-            }
+            self.callback_connected.lock().as_mut()();
         }
 
         is_connected
@@ -241,9 +237,7 @@ impl ConnectivityManager {
             websocket_state_guard.deref_mut().state = Disconnected;
         }
 
-        if let Some(disconnected) = self.callback_disconnected.lock().as_mut() {
-            disconnected(false);
-        }
+        self.callback_disconnected.lock().as_mut()(false);
     }
 
     pub async fn open_websocket_connection(self: Arc<Self>, role: WebSocketRole) -> bool {
