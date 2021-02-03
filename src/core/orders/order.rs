@@ -349,6 +349,12 @@ pub struct DataToCreateOrder {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DataToCancelOrder {
+    pub currency_pair: CurrencyPair,
+    pub order_id: ExchangeOrderId,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSnapshot {
     pub header: Arc<OrderHeader>,
     pub props: OrderSimpleProps,

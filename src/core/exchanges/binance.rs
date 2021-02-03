@@ -4,7 +4,9 @@ use super::rest_client;
 use crate::core::exchanges::common::{
     ExchangeErrorType, RestErrorDescription, RestRequestResult, SpecificCurrencyPair,
 };
-use crate::core::orders::order::{DataToCreateOrder, OrderExecutionType, OrderSide, OrderType}; //TODO first word in each type can be replaced just using module name
+use crate::core::orders::order::{
+    DataToCancelOrder, DataToCreateOrder, OrderExecutionType, OrderSide, OrderType,
+}; //TODO first word in each type can be replaced just using module name
 use crate::core::settings::ExchangeSettings;
 use async_trait::async_trait;
 use hex;
@@ -214,7 +216,7 @@ impl CommonInteraction for Binance {
     }
 
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
-        let path_to_delete = "api/v3/openOrders";
+        let path_to_delete = "/api/v3/openOrders";
         let mut full_url = self.settings.rest_host.clone();
         full_url.push_str(path_to_delete);
 
@@ -223,7 +225,41 @@ impl CommonInteraction for Binance {
 
         let full_parameters = self.add_autentification_headers(parameters);
 
-        rest_client::send_delete_request(&full_url, full_parameters).await;
+        rest_client::send_delete_request(&full_url, &self.settings.api_key, full_parameters).await;
+    }
+
+    async fn get_account_info(&self) {
+        let parameters = rest_client::HttpParams::new();
+
+        let full_parameters = self.add_autentification_headers(parameters);
+        dbg!(&full_parameters);
+
+        let path_to_get_account_data = "/api/v3/account";
+        let mut full_url = self.settings.rest_host.clone();
+        full_url.push_str(path_to_get_account_data);
+
+        rest_client::send_get_request(&full_url, &self.settings.api_key, full_parameters).await;
+    }
+
+    async fn cancel_order(&self, order: &DataToCancelOrder) {
+        let mut parameters = rest_client::HttpParams::new();
+        parameters.push((
+            "symbol".to_owned(),
+            order.currency_pair.as_str().to_uppercase(),
+        ));
+        parameters.push(("orderId".to_owned(), order.order_id.as_str().to_owned()));
+
+        let mut full_url = self.settings.rest_host.clone();
+        if self.settings.is_marging_trading {
+            full_url.push_str("/fapi/v1/order");
+        } else {
+            full_url.push_str("/api/v3/order");
+        }
+
+        let full_parameters = self.add_autentification_headers(parameters);
+        dbg!(&full_parameters);
+
+        rest_client::send_delete_request(&full_url, &self.settings.api_key, full_parameters).await;
     }
 }
 

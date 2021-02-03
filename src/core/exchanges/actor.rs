@@ -3,7 +3,7 @@ use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::SpecificCurrencyPair;
-use crate::core::orders::order::DataToCreateOrder;
+use crate::core::orders::order::{DataToCancelOrder, DataToCreateOrder};
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
 };
@@ -45,22 +45,28 @@ impl ExchangeActor {
     }
 
     pub async fn create_order(&self, order: &DataToCreateOrder) {
-        let order_create_task = self.exchange_interaction.create_order(&order).await;
+        let order_create_task = self.exchange_interaction.create_order(&order);
 
-        // TODO Also here has to be cancelation_token_task
-        //let awaited_task = vec![order_create_task];
+        tokio::select! {
+            _ = order_create_task => {
+                dbg!(&"Request complited");
+            // TODO Also here has to be cancelation_token_task
+            }
+        }
+    }
 
-        //tokio::select! {
-        //    _ = order_create_task => {
-        //        dbg!(&"Request complited");
-        //    }
-        //}
+    pub async fn cancel_order(&self, order: &DataToCancelOrder) {
+        self.exchange_interaction.cancel_order(&order).await;
     }
 
     pub async fn cancel_all_orders(&self) {
         self.exchange_interaction
             .cancel_all_orders(CurrencyPair::new("".into()))
             .await;
+    }
+
+    pub async fn get_account_info(&self) {
+        self.exchange_interaction.get_account_info().await;
     }
 }
 

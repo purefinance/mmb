@@ -42,18 +42,27 @@ async fn test_add() {
         Box::new(binance),
     );
 
-    let order = DataToCreateOrder {
+    let order_to_create = DataToCreateOrder {
         side: OrderSide::Buy,
         order_type: OrderType::Limit,
         // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.01),
+        price: dec!(0.0000001),
         execution_type: OrderExecutionType::None,
-        currency_pair: CurrencyPair::new("ETHBTC".into()),
+        currency_pair: CurrencyPair::new("DENTETH".into()),
         client_order_id: "test".into(),
-        amount: dec!(1),
+        amount: dec!(100000),
     };
 
-    exchange_actor.create_order(&order).await;
+    //exchange_actor.create_order(&order_to_create).await;
+    //exchange_actor.get_account_info().await;
+    //exchange_actor.cancel_all_orders().await;
+
+    let order_to_cancel = DataToCancelOrder {
+        currency_pair: CurrencyPair::new("DENTETH".into()),
+        order_id: "30".into(),
+    };
+
+    exchange_actor.cancel_order(&order_to_cancel).await;
 
     assert!(true);
 }
