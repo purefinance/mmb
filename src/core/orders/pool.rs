@@ -1,11 +1,13 @@
-use std::sync::Arc;
-use dashmap::DashMap;
-use crate::core::orders::order::{OrderHeader, ClientOrderId, OrderStatus, OrderSimpleProps, OrderSnapshot};
-use rust_decimal::Decimal;
-use parking_lot::RwLock;
-use serde::{Serialize, Deserialize};
-use std::borrow::{Borrow, BorrowMut};
 use crate::core::exchanges::common::TradePlaceAccount;
+use crate::core::orders::order::{
+    ClientOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
+};
+use dashmap::DashMap;
+use parking_lot::RwLock;
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use std::borrow::{Borrow, BorrowMut};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -13,18 +15,33 @@ pub struct OrderRef(Arc<RwLock<OrderSnapshot>>);
 
 impl OrderRef {
     /// Lock order for read and provide copy properties or check some conditions
-    pub fn fn_ref<T>(&self, f: impl FnOnce(&OrderSnapshot) -> T) -> T { f(self.0.read().borrow()) }
-
-    /// Lock order for write and provide mutate state of order
-    pub fn fn_mut<T>(&self, mut f: impl FnMut(&mut OrderSnapshot) -> T) -> T { f(self.0.write().borrow_mut()) }
-
-    pub fn trade_place_account(&self) -> TradePlaceAccount {
-        self.fn_ref(|x| TradePlaceAccount::new(x.header.exchange_account_id.clone(), x.header.currency_pair.clone() ))
+    pub fn fn_ref<T>(&self, f: impl FnOnce(&OrderSnapshot) -> T) -> T {
+        f(self.0.read().borrow())
     }
 
-    pub fn price(&self) -> Decimal { self.fn_ref(|x| x.props.price()) }
-    pub fn amount(&self) -> Decimal { self.fn_ref(|x| x.header.amount) }
-    pub fn status(&self) -> OrderStatus { self.fn_ref(|x| x.props.status) }
+    /// Lock order for write and provide mutate state of order
+    pub fn fn_mut<T>(&self, mut f: impl FnMut(&mut OrderSnapshot) -> T) -> T {
+        f(self.0.write().borrow_mut())
+    }
+
+    pub fn trade_place_account(&self) -> TradePlaceAccount {
+        self.fn_ref(|x| {
+            TradePlaceAccount::new(
+                x.header.exchange_account_id.clone(),
+                x.header.currency_pair.clone(),
+            )
+        })
+    }
+
+    pub fn price(&self) -> Decimal {
+        self.fn_ref(|x| x.props.price())
+    }
+    pub fn amount(&self) -> Decimal {
+        self.fn_ref(|x| x.header.amount)
+    }
+    pub fn status(&self) -> OrderStatus {
+        self.fn_ref(|x| x.props.status)
+    }
 }
 
 pub struct OrdersPool {
@@ -53,7 +70,7 @@ impl OrdersPool {
             header,
             fills: Default::default(),
             status_history: Default::default(),
-            internal_props: Default::default()
+            internal_props: Default::default(),
         }));
 
         self.add_snapshot(snapshot)
@@ -65,7 +82,8 @@ impl OrdersPool {
     }
 
     pub fn get(&self, client_order_id: &ClientOrderId) -> Option<OrderRef> {
-        self.orders.get(client_order_id).map(|x| OrderRef(x.clone()))
+        self.orders
+            .get(client_order_id)
+            .map(|x| OrderRef(x.clone()))
     }
 }
-

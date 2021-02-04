@@ -1,19 +1,18 @@
 use crate::core::{
-        orders::order::{OrderSide, OrderFillType, OrderFillRole},
-        DateTime,
-        exchanges::common::CurrencyCode
+    exchanges::common::CurrencyCode,
+    orders::order::{OrderFillRole, OrderFillType, OrderSide},
+    DateTime,
 };
 use rust_decimal::Decimal;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum EventSourceType {
     RestFallback = 1,
     Rest = 2,
-    WebSocket = 3
+    WebSocket = 3,
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderFill {
@@ -39,7 +38,7 @@ pub struct OrderFill {
 
     is_diff: bool,
     event_source_type: Option<EventSourceType>,
-    side: Option<OrderSide>
+    side: Option<OrderSide>,
 }
 
 impl OrderFill {
@@ -60,7 +59,7 @@ impl OrderFill {
         expected_converted_commission_amount: Decimal,
         is_diff: bool,
         event_source_type: Option<EventSourceType>,
-        side: Option<OrderSide>
+        side: Option<OrderSide>,
     ) -> Self {
         OrderFill {
             id,
@@ -79,10 +78,9 @@ impl OrderFill {
             expected_converted_commission_amount,
             is_diff,
             event_source_type,
-            side
+            side,
         }
     }
-
 
     pub fn id(&self) -> Uuid {
         self.id
