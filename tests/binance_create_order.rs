@@ -55,12 +55,6 @@ async fn test_add() {
         amount: dec!(10000),
     };
 
-    //exchange_actor.get_account_info().await;
-    //let cancel_all_result = exchange_actor
-    //    .cancel_all_orders(CurrencyPair::new("TNBBTC".into()))
-    //    .await;
-    //dbg!(&cancel_all_result);
-
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
     dbg!(&create_order_result);
 

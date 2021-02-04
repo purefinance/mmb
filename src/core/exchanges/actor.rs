@@ -1,3 +1,4 @@
+use super::cancellation_token;
 use super::common::CurrencyPair;
 use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
@@ -93,6 +94,7 @@ impl ExchangeActor {
 
     pub async fn create_order(&self, order: &DataToCreateOrder) -> CreateOrderResult {
         let order_create_task = self.exchange_interaction.create_order(&order);
+        let cancellation_token_stub = cancellation_token::CancellationToken::when_cancelled_stub();
 
         tokio::select! {
             rest_request_outcome = order_create_task => {
@@ -100,7 +102,9 @@ impl ExchangeActor {
                 let create_order_result = Self::handle_response(&rest_request_outcome);
                 create_order_result
 
-            // TODO Also here has to be cancelation_token_task
+            }
+            _ = cancellation_token_stub => {
+                unimplemented!();
             }
         }
     }
