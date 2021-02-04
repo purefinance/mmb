@@ -1,5 +1,4 @@
 use super::common::*;
-use serde::Deserialize;
 
 pub type HttpParams = Vec<(String, String)>;
 
@@ -45,19 +44,7 @@ pub async fn send_delete_request(
     }
 }
 
-#[derive(Deserialize, Debug)]
-struct Balance {
-    asset: String,
-    free: String,
-    locked: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct AccountInformation {
-    balances: Vec<Balance>,
-    permissions: Vec<String>,
-}
-
+// FIXME not implemented correctly
 pub async fn send_get_request(url: &str, api_key: &str, parameters: HttpParams) {
     let client = awc::Client::default();
     let response = client
@@ -69,7 +56,5 @@ pub async fn send_get_request(url: &str, api_key: &str, parameters: HttpParams) 
         .send()
         .await;
 
-    //let results: Vec<AccountInformation> = response.unwrap().json().await.unwrap();
-    //dbg!(results);
     dbg!(&response.unwrap().body().await);
 }

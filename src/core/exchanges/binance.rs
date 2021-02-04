@@ -140,7 +140,7 @@ impl Binance {
         &self,
         mut parameters: rest_client::HttpParams,
     ) -> rest_client::HttpParams {
-        // TODO to utils?
+        // TODO extract to utils?
         let time_stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -154,7 +154,7 @@ impl Binance {
         parameters
     }
 
-    // TODO to utils?
+    // TODO excract to utils?
     fn to_http_string(parameters: rest_client::HttpParams) -> String {
         let mut http_string = String::new();
         for (key, value) in parameters.into_iter() {
@@ -211,6 +211,7 @@ impl CommonInteraction for Binance {
         rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await
     }
 
+    // FIXME not implemented correctly
     async fn get_account_info(&self) {
         let parameters = rest_client::HttpParams::new();
 
@@ -223,6 +224,7 @@ impl CommonInteraction for Binance {
         rest_client::send_get_request(&full_url, &self.settings.api_key, full_parameters).await;
     }
 
+    // FIXME not implemented correctly
     async fn cancel_order(&self, order: &DataToCancelOrder) -> RestRequestOutcome {
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
@@ -249,6 +251,7 @@ impl CommonInteraction for Binance {
         outcome
     }
 
+    // FIXME not implemented correctly
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
         let path_to_delete = "/api/v3/openOrders";
         let mut full_url = self.settings.rest_host.clone();

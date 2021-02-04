@@ -13,7 +13,7 @@ use awc::http::StatusCode;
 use log::trace;
 use serde_json::Value;
 
-// TODO change name cause ResetRequsetResult already exists
+// TODO change name cause RestRequsetResult already exists
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult {
     Success(ExchangeOrderId),
