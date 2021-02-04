@@ -172,21 +172,22 @@ impl Binance {
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
     async fn create_order(&self, order: &OrderCreating) -> RestRequestOutcome {
-        let mut parameters = rest_client::HttpParams::new();
-        parameters.push((
-            "symbol".to_owned(),
-            order.currency_pair.as_str().to_uppercase(),
-        ));
-        parameters.push(("side".to_owned(), Self::to_server_order_side(order.side)));
-        parameters.push((
-            "type".to_owned(),
-            Self::to_server_order_type(order.order_type),
-        ));
-        parameters.push(("quantity".to_owned(), order.amount.to_string()));
-        parameters.push((
-            "newClientOrderId".to_owned(),
-            order.client_order_id.as_str().to_owned(),
-        ));
+        let mut parameters = vec![
+            (
+                "symbol".to_owned(),
+                order.currency_pair.as_str().to_uppercase(),
+            ),
+            ("side".to_owned(), Self::to_server_order_side(order.side)),
+            (
+                "type".to_owned(),
+                Self::to_server_order_type(order.order_type),
+            ),
+            ("quantity".to_owned(), order.amount.to_string()),
+            (
+                "newClientOrderId".to_owned(),
+                order.client_order_id.as_str().to_owned(),
+            ),
+        ];
 
         if order.order_type != OrderType::Market {
             parameters.push(("timeInForce".to_owned(), "GTC".to_owned()));
@@ -198,12 +199,12 @@ impl CommonInteraction for Binance {
         }
 
         // TODO What is marging trading?
-        let mut full_url = self.settings.rest_host.clone();
-        if self.settings.is_marging_trading {
-            full_url.push_str("/fapi/v1/order");
+        let url_path = if self.settings.is_marging_trading {
+            "/fapi/v1/order"
         } else {
-            full_url.push_str("/api/v3/order");
-        }
+            "/api/v3/order"
+        };
+        let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
         let full_parameters = self.add_autentification_headers(parameters);
 
@@ -295,15 +296,16 @@ mod tests {
 
     #[test]
     fn to_http_string() {
-        let mut parameters = rest_client::HttpParams::new();
-        parameters.push(("symbol".to_owned(), "LTCBTC".to_owned()));
-        parameters.push(("side".to_owned(), "BUY".to_owned()));
-        parameters.push(("type".to_owned(), "LIMIT".to_owned()));
-        parameters.push(("timeInForce".to_owned(), "GTC".to_owned()));
-        parameters.push(("quantity".to_owned(), "1".to_owned()));
-        parameters.push(("price".to_owned(), "0.1".to_owned()));
-        parameters.push(("recvWindow".to_owned(), "5000".to_owned()));
-        parameters.push(("timestamp".to_owned(), "1499827319559".to_owned()));
+        let parameters = vec![
+            ("symbol".to_owned(), "LTCBTC".to_owned()),
+            ("side".to_owned(), "BUY".to_owned()),
+            ("type".to_owned(), "LIMIT".to_owned()),
+            ("timeInForce".to_owned(), "GTC".to_owned()),
+            ("quantity".to_owned(), "1".to_owned()),
+            ("price".to_owned(), "0.1".to_owned()),
+            ("recvWindow".to_owned(), "5000".to_owned()),
+            ("timestamp".to_owned(), "1499827319559".to_owned()),
+        ];
 
         let http_string = Binance::to_http_string(&parameters);
 
