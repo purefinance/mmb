@@ -10,6 +10,7 @@ use crate::core::{
 };
 use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
+use log::info;
 use log::trace;
 use serde_json::Value;
 
@@ -30,7 +31,7 @@ pub struct CreateOrderResult {
 }
 
 impl CreateOrderResult {
-    pub fn succesed(exchange_order_id: ExchangeOrderId, /*source_type: EventSourceType*/) -> Self {
+    pub fn successed(exchange_order_id: ExchangeOrderId, /*source_type: EventSourceType*/) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Success(exchange_order_id),
             //source_type
@@ -78,7 +79,15 @@ impl ExchangeActor {
         )
     }
 
-    fn handle_response(request_outcome: &RestRequestOutcome) -> CreateOrderResult {
+    fn handle_response(
+        request_outcome: &RestRequestOutcome,
+        order: &OrderCreating,
+    ) -> CreateOrderResult {
+        info!(
+            "Create response for {}, {}, {}, {:?}",
+            order.client_order_id, order.client_order_id, order.client_order_id, request_outcome
+        );
+
         if request_outcome.status == StatusCode::OK {
             let response: Value = serde_json::from_str(&request_outcome.content).unwrap();
             CreateOrderResult::succesed(response["orderId"].to_string().as_str().into())
@@ -96,7 +105,7 @@ impl ExchangeActor {
         tokio::select! {
             rest_request_outcome = order_create_task => {
 
-                let create_order_result = Self::handle_response(&rest_request_outcome);
+                let create_order_result = Self::handle_response(&rest_request_outcome, &order);
                 create_order_result
 
             }

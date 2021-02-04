@@ -208,7 +208,7 @@ impl CommonInteraction for Binance {
 
         let full_parameters = self.add_autentification_headers(parameters);
 
-        rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await
+        rest_client::send_post_request(&full_url, &self.settings.api_key, &full_parameters).await
     }
 
     // TODO not implemented correctly
@@ -221,7 +221,7 @@ impl CommonInteraction for Binance {
         let mut full_url = self.settings.rest_host.clone();
         full_url.push_str(path_to_get_account_data);
 
-        rest_client::send_get_request(&full_url, &self.settings.api_key, full_parameters).await;
+        rest_client::send_get_request(&full_url, &self.settings.api_key, &full_parameters).await;
     }
 
     // TODO not implemented correctly
@@ -233,17 +233,17 @@ impl CommonInteraction for Binance {
         ));
         parameters.push(("orderId".to_owned(), order.order_id.as_str().to_owned()));
 
-        let mut full_url = self.settings.rest_host.clone();
-        if self.settings.is_marging_trading {
-            full_url.push_str("/fapi/v1/order");
+        let url_path = if self.settings.is_marging_trading {
+            "/fapi/v1/order"
         } else {
-            full_url.push_str("/api/v3/order");
-        }
+            "/api/v3/order"
+        };
+        let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
         let full_parameters = self.add_autentification_headers(parameters);
 
         let outcome =
-            rest_client::send_delete_request(&full_url, &self.settings.api_key, full_parameters)
+            rest_client::send_delete_request(&full_url, &self.settings.api_key, &full_parameters)
                 .await;
 
         dbg!(&outcome);
@@ -263,7 +263,7 @@ impl CommonInteraction for Binance {
         let full_parameters = self.add_autentification_headers(parameters);
 
         let cancel_order_outcome =
-            rest_client::send_delete_request(&full_url, &self.settings.api_key, full_parameters)
+            rest_client::send_delete_request(&full_url, &self.settings.api_key, &full_parameters)
                 .await;
 
         dbg!(&cancel_order_outcome);

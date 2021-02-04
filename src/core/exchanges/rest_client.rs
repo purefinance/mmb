@@ -5,7 +5,7 @@ pub type HttpParams = Vec<(String, String)>;
 pub async fn send_post_request(
     url: &str,
     api_key: &str,
-    parameters: HttpParams,
+    parameters: &HttpParams,
 ) -> RestRequestOutcome {
     let client = awc::Client::default();
     let response = client
@@ -26,7 +26,7 @@ pub async fn send_post_request(
 pub async fn send_delete_request(
     url: &str,
     api_key: &str,
-    parameters: HttpParams,
+    parameters: &HttpParams,
 ) -> RestRequestOutcome {
     let client = awc::Client::default();
     let response = client
@@ -45,9 +45,9 @@ pub async fn send_delete_request(
 }
 
 // TODO not implemented correctly
-pub async fn send_get_request(url: &str, api_key: &str, parameters: HttpParams) {
+pub async fn send_get_request(url: &str, api_key: &str, parameters: &HttpParams) {
     let client = awc::Client::default();
-    let response = client
+    let _response = client
         .get(url)
         .header("X-MBX-APIKEY", api_key)
         //.send_form(&parameters)
@@ -55,6 +55,4 @@ pub async fn send_get_request(url: &str, api_key: &str, parameters: HttpParams) 
         .unwrap()
         .send()
         .await;
-
-    dbg!(&response.unwrap().body().await);
 }
