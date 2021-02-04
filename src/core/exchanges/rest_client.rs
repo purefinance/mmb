@@ -44,7 +44,7 @@ pub async fn send_delete_request(
     }
 }
 
-// FIXME not implemented correctly
+// TODO not implemented correctly
 pub async fn send_get_request(url: &str, api_key: &str, parameters: HttpParams) {
     let client = awc::Client::default();
     let response = client

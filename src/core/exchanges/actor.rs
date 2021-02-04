@@ -4,7 +4,7 @@ use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
-use crate::core::orders::order::{DataToCancelOrder, DataToCreateOrder, ExchangeOrderId};
+use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating};
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
 };
@@ -30,16 +30,14 @@ pub struct CreateOrderResult {
 }
 
 impl CreateOrderResult {
-    pub fn new_succesed(
-        exchange_order_id: ExchangeOrderId, /*source_type: EventSourceType*/
-    ) -> Self {
+    pub fn succesed(exchange_order_id: ExchangeOrderId, /*source_type: EventSourceType*/) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Success(exchange_order_id),
             //source_type
         }
     }
 
-    pub fn new_failed(error: i64 /*source_type: EventSourceType*/) -> Self {
+    pub fn failed(error: i64 /*source_type: EventSourceType*/) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Error(error),
             //source_type
@@ -47,7 +45,6 @@ impl CreateOrderResult {
     }
 }
 
-// TODO implement Common_interaction for ExchangeActor? Just redirect there
 pub struct ExchangeActor {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
@@ -84,17 +81,17 @@ impl ExchangeActor {
     fn handle_response(request_outcome: &RestRequestOutcome) -> CreateOrderResult {
         if request_outcome.status == StatusCode::OK {
             let response: Value = serde_json::from_str(&request_outcome.content).unwrap();
-            CreateOrderResult::new_succesed(response["orderId"].to_string().as_str().into())
+            CreateOrderResult::succesed(response["orderId"].to_string().as_str().into())
         } else {
             let error_description =
                 Binance::get_error_description(&request_outcome.content).unwrap();
-            CreateOrderResult::new_failed(error_description.code)
+            CreateOrderResult::failed(error_description.code)
         }
     }
 
-    pub async fn create_order(&self, order: &DataToCreateOrder) -> CreateOrderResult {
+    pub async fn create_order(&self, order: &OrderCreating) -> CreateOrderResult {
         let order_create_task = self.exchange_interaction.create_order(&order);
-        let cancellation_token_stub = cancellation_token::CancellationToken::when_cancelled_stub();
+        let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
 
         tokio::select! {
             rest_request_outcome = order_create_task => {
@@ -103,13 +100,13 @@ impl ExchangeActor {
                 create_order_result
 
             }
-            _ = cancellation_token_stub => {
+            _ = cancellation_token => {
                 unimplemented!();
             }
         }
     }
 
-    pub async fn cancel_order(&self, order: &DataToCancelOrder) {
+    pub async fn cancel_order(&self, order: &OrderCancelling) {
         self.exchange_interaction.cancel_order(&order).await;
     }
 

@@ -5,7 +5,7 @@ use crate::core::exchanges::common::{
     ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
 };
 use crate::core::orders::order::{
-    DataToCancelOrder, DataToCreateOrder, OrderExecutionType, OrderSide, OrderType,
+    OrderCancelling, OrderCreating, OrderExecutionType, OrderSide, OrderType,
 }; //TODO first word in each type can be replaced just using module name
 use crate::core::settings::ExchangeSettings;
 use async_trait::async_trait;
@@ -122,8 +122,7 @@ impl Binance {
         match order_type {
             OrderType::Limit => "LIMIT".to_owned(),
             OrderType::Market => "MARKET".to_owned(),
-            // TODO How to handle over types?
-            _ => String::new(),
+            _ => panic!("Other options are not expected"),
         }
     }
 
@@ -172,7 +171,7 @@ impl Binance {
 
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
-    async fn create_order(&self, order: &DataToCreateOrder) -> RestRequestOutcome {
+    async fn create_order(&self, order: &OrderCreating) -> RestRequestOutcome {
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
@@ -211,7 +210,7 @@ impl CommonInteraction for Binance {
         rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await
     }
 
-    // FIXME not implemented correctly
+    // TODO not implemented correctly
     async fn get_account_info(&self) {
         let parameters = rest_client::HttpParams::new();
 
@@ -224,8 +223,8 @@ impl CommonInteraction for Binance {
         rest_client::send_get_request(&full_url, &self.settings.api_key, full_parameters).await;
     }
 
-    // FIXME not implemented correctly
-    async fn cancel_order(&self, order: &DataToCancelOrder) -> RestRequestOutcome {
+    // TODO not implemented correctly
+    async fn cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
@@ -251,7 +250,7 @@ impl CommonInteraction for Binance {
         outcome
     }
 
-    // FIXME not implemented correctly
+    // TODO not implemented correctly
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
         let path_to_delete = "/api/v3/openOrders";
         let mut full_url = self.settings.rest_host.clone();

@@ -44,7 +44,7 @@ async fn test_add() {
 
     let test_currency_pair = CurrencyPair::new("TNBBTC".into());
 
-    let order_to_create = DataToCreateOrder {
+    let order_to_create = OrderCreating {
         side: OrderSide::Buy,
         order_type: OrderType::Limit,
         // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
@@ -60,7 +60,7 @@ async fn test_add() {
 
     match create_order_result.outcome {
         RequestResult::Success(order_id) => {
-            let order_to_cancel = DataToCancelOrder {
+            let order_to_cancel = OrderCancelling {
                 currency_pair: test_currency_pair,
                 order_id,
             };
@@ -110,7 +110,7 @@ async fn should_fail() {
         Box::new(binance),
     );
 
-    let order_to_create = DataToCreateOrder {
+    let order_to_create = OrderCreating {
         side: OrderSide::Buy,
         order_type: OrderType::Limit,
         // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)

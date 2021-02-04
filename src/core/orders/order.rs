@@ -338,7 +338,7 @@ pub struct SystemInternalOrderProps {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataToCreateOrder {
+pub struct OrderCreating {
     pub side: OrderSide,
     pub order_type: OrderType,
     pub price: Price,
@@ -349,7 +349,7 @@ pub struct DataToCreateOrder {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataToCancelOrder {
+pub struct OrderCancelling {
     pub currency_pair: CurrencyPair,
     pub order_id: ExchangeOrderId,
 }
