@@ -9,7 +9,6 @@ use std::env;
 
 // TODO Why does it don't work with tokio test?
 #[actix_rt::test]
-#[ignore]
 async fn test_add() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");
@@ -43,32 +42,48 @@ async fn test_add() {
         Box::new(binance),
     );
 
+    let test_currency_pair = CurrencyPair::new("TNBBTC".into());
+
     let order_to_create = DataToCreateOrder {
         side: OrderSide::Buy,
         order_type: OrderType::Limit,
         // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.0000001),
+        price: dec!(0.00000002),
         execution_type: OrderExecutionType::None,
-        currency_pair: CurrencyPair::new("DENTETH".into()),
+        currency_pair: test_currency_pair.clone(),
         client_order_id: "test".into(),
-        amount: dec!(100000),
+        amount: dec!(10000),
     };
 
-    //exchange_actor.create_order(&order_to_create).await;
     //exchange_actor.get_account_info().await;
-    //exchange_actor.cancel_all_orders().await;
+    //let cancel_all_result = exchange_actor
+    //    .cancel_all_orders(CurrencyPair::new("TNBBTC".into()))
+    //    .await;
+    //dbg!(&cancel_all_result);
 
-    //let order_to_cancel = DataToCancelOrder {
-    //    currency_pair: CurrencyPair::new("DENTETH".into()),
-    //    order_id: "30".into(),
-    //};
+    let create_order_result = exchange_actor.create_order(&order_to_create).await;
+    dbg!(&create_order_result);
 
-    //exchange_actor.cancel_order(&order_to_cancel).await;
+    match create_order_result.outcome {
+        RequestResult::Success(order_id) => {
+            let order_to_cancel = DataToCancelOrder {
+                currency_pair: test_currency_pair,
+                order_id,
+            };
 
-    assert!(true);
+            // Cancel last order
+            let _cancel_outcome = exchange_actor.cancel_order(&order_to_cancel).await;
+        }
+
+        // Create order failed
+        RequestResult::Error(_) => {
+            assert!(false)
+        }
+    }
 }
 
 #[actix_rt::test]
+#[ignore]
 async fn should_fail() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");

@@ -149,10 +149,10 @@ impl Binance {
         parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
 
         let message_to_sign = Self::to_http_string(parameters.clone());
-        dbg!(&message_to_sign);
         let signature = self.get_hmac(message_to_sign);
         parameters.push(("signature".to_owned(), signature));
 
+        dbg!(&parameters);
         parameters
     }
 
@@ -209,29 +209,14 @@ impl CommonInteraction for Binance {
         }
 
         let full_parameters = self.add_autentification_headers(parameters);
-        dbg!(&full_parameters);
 
         rest_client::send_post_request(&full_url, &self.settings.api_key, full_parameters).await
-    }
-
-    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
-        let path_to_delete = "/api/v3/openOrders";
-        let mut full_url = self.settings.rest_host.clone();
-        full_url.push_str(path_to_delete);
-
-        let mut parameters = rest_client::HttpParams::new();
-        parameters.push(("symbol".to_owned(), "DENTETH".to_owned()));
-
-        let full_parameters = self.add_autentification_headers(parameters);
-
-        rest_client::send_delete_request(&full_url, &self.settings.api_key, full_parameters).await;
     }
 
     async fn get_account_info(&self) {
         let parameters = rest_client::HttpParams::new();
 
         let full_parameters = self.add_autentification_headers(parameters);
-        dbg!(&full_parameters);
 
         let path_to_get_account_data = "/api/v3/account";
         let mut full_url = self.settings.rest_host.clone();
@@ -240,7 +225,7 @@ impl CommonInteraction for Binance {
         rest_client::send_get_request(&full_url, &self.settings.api_key, full_parameters).await;
     }
 
-    async fn cancel_order(&self, order: &DataToCancelOrder) {
+    async fn cancel_order(&self, order: &DataToCancelOrder) -> RestRequestOutcome {
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
@@ -256,9 +241,31 @@ impl CommonInteraction for Binance {
         }
 
         let full_parameters = self.add_autentification_headers(parameters);
-        dbg!(&full_parameters);
 
-        rest_client::send_delete_request(&full_url, &self.settings.api_key, full_parameters).await;
+        let outcome =
+            rest_client::send_delete_request(&full_url, &self.settings.api_key, full_parameters)
+                .await;
+
+        dbg!(&outcome);
+
+        outcome
+    }
+
+    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
+        let path_to_delete = "/api/v3/openOrders";
+        let mut full_url = self.settings.rest_host.clone();
+        full_url.push_str(path_to_delete);
+
+        let mut parameters = rest_client::HttpParams::new();
+        parameters.push(("symbol".to_owned(), currency_pair.as_str().to_owned()));
+
+        let full_parameters = self.add_autentification_headers(parameters);
+
+        let cancel_order_outcome =
+            rest_client::send_delete_request(&full_url, &self.settings.api_key, full_parameters)
+                .await;
+
+        dbg!(&cancel_order_outcome);
     }
 }
 

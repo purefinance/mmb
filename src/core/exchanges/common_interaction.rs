@@ -12,7 +12,7 @@ pub trait CommonInteraction {
         unimplemented!("It's generic trait and has no implementations");
     }
 
-    async fn cancel_order(&self, _order: &DataToCancelOrder) {
+    async fn cancel_order(&self, _order: &DataToCancelOrder) -> RestRequestOutcome {
         unimplemented!("It's generic trait and has no implementations");
     }
 

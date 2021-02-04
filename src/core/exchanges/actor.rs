@@ -11,6 +11,7 @@ use crate::core::{
 use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
 use log::trace;
+use serde_json::Value;
 
 // TODO change name cause ResetRequsetResult already exists
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -81,9 +82,9 @@ impl ExchangeActor {
     }
 
     fn handle_response(request_outcome: &RestRequestOutcome) -> CreateOrderResult {
-        // It is is_rest_error() first if all
         if request_outcome.status == StatusCode::OK {
-            CreateOrderResult::new_succesed("".into())
+            let response: Value = serde_json::from_str(&request_outcome.content).unwrap();
+            CreateOrderResult::new_succesed(response["orderId"].to_string().as_str().into())
         } else {
             let error_description =
                 Binance::get_error_description(&request_outcome.content).unwrap();
@@ -96,7 +97,6 @@ impl ExchangeActor {
 
         tokio::select! {
             rest_request_outcome = order_create_task => {
-                dbg!(&rest_request_outcome);
 
                 let create_order_result = Self::handle_response(&rest_request_outcome);
                 create_order_result
@@ -110,9 +110,9 @@ impl ExchangeActor {
         self.exchange_interaction.cancel_order(&order).await;
     }
 
-    pub async fn cancel_all_orders(&self) {
+    pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
         self.exchange_interaction
-            .cancel_all_orders(CurrencyPair::new("".into()))
+            .cancel_all_orders(currency_pair)
             .await;
     }
 
