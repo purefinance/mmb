@@ -8,6 +8,7 @@ use crate::core::{
         common::ExchangeAccountId,
     },
 };
+
 use actix::Addr;
 use log::{error, info, log, trace, Level};
 use parking_lot::Mutex;
@@ -383,75 +384,71 @@ async fn try_get_websocket_params(
     exchange_actor.send(GetWebSocketParams(role)).await.unwrap()
 }
 
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//    use crate::core::logger::init_logger;
-//    use actix::{Arbiter, Actor};
-//    use std::{
-//        cell::RefCell,
-//        rc::Rc,
-//        time::Duration,
-//        ops::Deref
-//    };
-//    use tokio::{
-//        sync::oneshot,
-//        time::sleep
-//    };
-//
-//    #[actix_rt::test]
-//    pub async fn should_connect_and_reconnect_normally() {
-//        const EXPECTED_CONNECTED_COUNT: u32 = 3;
-//
-//        init_logger();
-//
-//        let (finish_sender, finish_receiver) = oneshot::channel::<()>();
-//
-//        Arbiter::spawn(async {
-//            let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
-//            let websocket_host = "wss://stream.binance.com:9443".into();
-//            let currency_pairs = vec![
-//                "bnbbtc".into(),
-//                "btcusdt".into()
-//            ];
-//            let channels = vec![
-//                "depth".into(),
-//                "aggTrade".into()
-//            ];
-//
-//            let exchange_actor = ExchangeActor::new(
-//                exchange_account_id.clone(),
-//                websocket_host,
-//                currency_pairs,
-//                channels
-//            ).start();
-//
-//            let connectivity_manager = ConnectivityManager::new(
-//                exchange_account_id.clone(),
-//                exchange_actor
-//            );
-//
-//            let connected_count = Rc::new(RefCell::new(0));
-//            {
-//                let connected_count = connected_count.clone();
-//                connectivity_manager.clone().set_callback_connected(Box::new(move || { connected_count.replace_with(|x| *x + 1); }));
-//            }
-//
-//            for _ in 0..EXPECTED_CONNECTED_COUNT {
-//                let connect_result = connectivity_manager.clone().connect(false).await;
-//                assert_eq!(connect_result, true, "websocket should connect successfully");
-//
-//                connectivity_manager.clone().disconnect().await;
-//            }
-//
-//            assert_eq!(connected_count.deref().replace(0), EXPECTED_CONNECTED_COUNT, "we should reconnect expected count times");
-//
-//            let _ = finish_sender.send(());
-//        });
-//
-//        tokio::select! {
-//            _ = finish_receiver => info!("Test finished successfully"),
-//            _ = sleep(Duration::from_secs(10)) => panic!("Test time is gone!")
-//        }
-//    }
-//}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::logger::init_logger;
+    use actix::{Actor, Arbiter};
+    use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
+    use tokio::{sync::oneshot, time::sleep};
+
+    #[actix_rt::test]
+    pub async fn should_connect_and_reconnect_normally() {
+        const EXPECTED_CONNECTED_COUNT: u32 = 3;
+
+        init_logger();
+
+        let (finish_sender, finish_receiver) = oneshot::channel::<()>();
+
+        Arbiter::spawn(async {
+            let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+            let websocket_host = "wss://stream.binance.com:9443".into();
+            let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
+            let channels = vec!["depth".into(), "aggTrade".into()];
+
+            let exchange_actor = ExchangeActor::new(
+                exchange_account_id.clone(),
+                websocket_host,
+                currency_pairs,
+                channels,
+            )
+            .start();
+
+            let connectivity_manager =
+                ConnectivityManager::new(exchange_account_id.clone(), exchange_actor);
+
+            let connected_count = Rc::new(RefCell::new(0));
+            {
+                let connected_count = connected_count.clone();
+                connectivity_manager
+                    .clone()
+                    .set_callback_connected(Box::new(move || {
+                        connected_count.replace_with(|x| *x + 1);
+                    }));
+            }
+
+            for _ in 0..EXPECTED_CONNECTED_COUNT {
+                let connect_result = connectivity_manager.clone().connect(false).await;
+                assert_eq!(
+                    connect_result, true,
+                    "websocket should connect successfully"
+                );
+
+                connectivity_manager.clone().disconnect().await;
+            }
+
+            assert_eq!(
+                connected_count.deref().replace(0),
+                EXPECTED_CONNECTED_COUNT,
+                "we should reconnect expected count times"
+            );
+
+            let _ = finish_sender.send(());
+        });
+
+        tokio::select! {
+            _ = finish_receiver => info!("Test finished successfully"),
+            _ = sleep(Duration::from_secs(10)) => panic!("Test time is gone!")
+        }
+    }
+}
