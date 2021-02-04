@@ -83,7 +83,6 @@ async fn test_add() {
 }
 
 #[actix_rt::test]
-#[ignore]
 async fn should_fail() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");

@@ -1,3 +1,4 @@
+#[derive(Debug, Default, Clone)]
 pub struct ExchangeSettings {
     // TODO add other settings
     pub api_key: String,

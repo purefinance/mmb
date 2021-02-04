@@ -1,5 +1,4 @@
-use super::binance; //< TODO It shouldn't be here. Maybe some generic handling in CommonInteraction?
-use super::common::{CurrencyPair, ExchangeErrorType};
+use super::common::CurrencyPair;
 use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;

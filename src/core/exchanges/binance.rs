@@ -2,8 +2,7 @@ use super::common::CurrencyPair;
 use super::common_interaction::CommonInteraction;
 use super::rest_client;
 use crate::core::exchanges::common::{
-    ExchangeErrorType, RestErrorDescription, RestRequestOutcome, RestRequestResult,
-    SpecificCurrencyPair,
+    ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
 };
 use crate::core::orders::order::{
     DataToCancelOrder, DataToCreateOrder, OrderExecutionType, OrderSide, OrderType,
@@ -17,6 +16,7 @@ use serde_json::Value;
 use sha2::Sha256;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[derive(Debug, Default, Clone)]
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: String,
@@ -136,7 +136,6 @@ impl Binance {
         return result;
     }
 
-    // TODO produce here new hashmap?
     fn add_autentification_headers(
         &self,
         mut parameters: rest_client::HttpParams,
@@ -152,7 +151,6 @@ impl Binance {
         let signature = self.get_hmac(message_to_sign);
         parameters.push(("signature".to_owned(), signature));
 
-        dbg!(&parameters);
         parameters
     }
 
