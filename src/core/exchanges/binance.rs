@@ -126,7 +126,7 @@ impl Binance {
         }
     }
 
-    fn get_hmac(&self, data: String) -> String {
+    fn generate_signature(&self, data: String) -> String {
         // TODO fix that unwrap But dunno how
         let mut hmac = Hmac::<Sha256>::new_varkey(self.settings.secret_key.as_bytes()).unwrap();
         hmac.update(data.as_bytes());
@@ -146,15 +146,15 @@ impl Binance {
             .as_millis();
         parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
 
-        let message_to_sign = Self::to_http_string(parameters.clone());
-        let signature = self.get_hmac(message_to_sign);
+        let message_to_sign = Self::to_http_string(&parameters);
+        let signature = self.generate_signature(message_to_sign);
         parameters.push(("signature".to_owned(), signature));
 
         parameters
     }
 
     // TODO excract to utils?
-    fn to_http_string(parameters: rest_client::HttpParams) -> String {
+    fn to_http_string(parameters: &rest_client::HttpParams) -> String {
         let mut http_string = String::new();
         for (key, value) in parameters.into_iter() {
             if !http_string.is_empty() {
@@ -274,7 +274,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_hmac() {
+    fn generate_signature() {
         // All values and strings gotten from binane API example
         let right_value = "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71";
 
@@ -289,7 +289,7 @@ mod tests {
 
         let binance = Binance::new(settings, "some_id".into());
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
-        let result = binance.get_hmac(params);
+        let result = binance.generate_signature(params);
         assert_eq!(result, right_value);
     }
 
@@ -305,7 +305,7 @@ mod tests {
         parameters.push(("recvWindow".to_owned(), "5000".to_owned()));
         parameters.push(("timestamp".to_owned(), "1499827319559".to_owned()));
 
-        let http_string = Binance::to_http_string(parameters);
+        let http_string = Binance::to_http_string(&parameters);
 
         let right_value = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
         assert_eq!(http_string, right_value);
