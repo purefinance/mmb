@@ -90,7 +90,7 @@ impl ExchangeActor {
 
         if request_outcome.status == StatusCode::OK {
             let response: Value = serde_json::from_str(&request_outcome.content).unwrap();
-            CreateOrderResult::succesed(response["orderId"].to_string().as_str().into())
+            CreateOrderResult::successed(response["orderId"].to_string().as_str().into())
         } else {
             let error_description =
                 Binance::get_error_description(&request_outcome.content).unwrap();
