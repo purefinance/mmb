@@ -14,7 +14,6 @@ use log::info;
 use log::trace;
 use serde_json::Value;
 
-// TODO change name cause RestRequsetResult already exists
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult {
     Success(ExchangeOrderId),
@@ -88,6 +87,7 @@ impl ExchangeActor {
             order.client_order_id, order.client_order_id, order.client_order_id, request_outcome
         );
 
+        // TODO Here has to be more complete HTTP code handling
         if request_outcome.status == StatusCode::OK {
             let response: Value = serde_json::from_str(&request_outcome.content).unwrap();
             CreateOrderResult::successed(response["orderId"].to_string().as_str().into())

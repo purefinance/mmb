@@ -1,6 +1,7 @@
 use super::common::CurrencyPair;
 use super::common_interaction::CommonInteraction;
 use super::rest_client;
+use super::utils;
 use crate::core::exchanges::common::{
     ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
 };
@@ -14,7 +15,6 @@ use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use serde_json::Value;
 use sha2::Sha256;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Default, Clone)]
 pub struct Binance {
@@ -122,7 +122,7 @@ impl Binance {
         match order_type {
             OrderType::Limit => "LIMIT".to_owned(),
             OrderType::Market => "MARKET".to_owned(),
-            _ => panic!("Other options are not expected"),
+            unexpected_variant => panic!("{:?} are not expected", unexpected_variant),
         }
     }
 
@@ -139,33 +139,14 @@ impl Binance {
         &self,
         mut parameters: rest_client::HttpParams,
     ) -> rest_client::HttpParams {
-        // TODO extract to utils?
-        let time_stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
+        let time_stamp = utils::get_current_milliseconds();
         parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
 
-        let message_to_sign = Self::to_http_string(&parameters);
+        let message_to_sign = rest_client::to_http_string(&parameters);
         let signature = self.generate_signature(message_to_sign);
         parameters.push(("signature".to_owned(), signature));
 
         parameters
-    }
-
-    // TODO excract to utils?
-    fn to_http_string(parameters: &rest_client::HttpParams) -> String {
-        let mut http_string = String::new();
-        for (key, value) in parameters.into_iter() {
-            if !http_string.is_empty() {
-                http_string.push('&');
-            }
-            http_string.push_str(&key);
-            http_string.push('=');
-            http_string.push_str(&value);
-        }
-
-        http_string
     }
 }
 
@@ -218,8 +199,7 @@ impl CommonInteraction for Binance {
         let full_parameters = self.add_autentification_headers(parameters);
 
         let path_to_get_account_data = "/api/v3/account";
-        let mut full_url = self.settings.rest_host.clone();
-        full_url.push_str(path_to_get_account_data);
+        let full_url = format! {"{}{}", self.settings.rest_host, path_to_get_account_data};
 
         rest_client::send_get_request(&full_url, &self.settings.api_key, &full_parameters).await;
     }
@@ -296,7 +276,7 @@ mod tests {
 
     #[test]
     fn to_http_string() {
-        let parameters = vec![
+        let parameters: rest_client::HttpParams = vec![
             ("symbol".to_owned(), "LTCBTC".to_owned()),
             ("side".to_owned(), "BUY".to_owned()),
             ("type".to_owned(), "LIMIT".to_owned()),
@@ -307,7 +287,7 @@ mod tests {
             ("timestamp".to_owned(), "1499827319559".to_owned()),
         ];
 
-        let http_string = Binance::to_http_string(&parameters);
+        let http_string = rest_client::to_http_string(&parameters);
 
         let right_value = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
         assert_eq!(http_string, right_value);

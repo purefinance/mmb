@@ -2,6 +2,20 @@ use super::common::*;
 
 pub type HttpParams = Vec<(String, String)>;
 
+pub fn to_http_string(parameters: &HttpParams) -> String {
+    let mut http_string = String::new();
+    for (key, value) in parameters.into_iter() {
+        if !http_string.is_empty() {
+            http_string.push('&');
+        }
+        http_string.push_str(&key);
+        http_string.push('=');
+        http_string.push_str(&value);
+    }
+
+    http_string
+}
+
 pub async fn send_post_request(
     url: &str,
     api_key: &str,
