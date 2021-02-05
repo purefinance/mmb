@@ -103,44 +103,49 @@ impl ExchangeActor {
         response: &RestRequestOutcome,
         _order: &OrderCreating,
     ) -> Option<ExchangeError> {
-        if response.status == StatusCode::UNAUTHORIZED {
-            return Some(ExchangeError::new(
-                ExchangeErrorType::Authentication,
-                response.content.clone(),
-                None,
-            ));
-        } else if response.status == StatusCode::GATEWAY_TIMEOUT
-            || response.status == StatusCode::SERVICE_UNAVAILABLE
-        {
-            return Some(ExchangeError::new(
-                ExchangeErrorType::Authentication,
-                response.content.clone(),
-                None,
-            ));
-        } else if response.status == StatusCode::TOO_MANY_REQUESTS {
-            return Some(ExchangeError::new(
-                ExchangeErrorType::RateLimit,
-                response.content.clone(),
-                None,
-            ));
-        } else if !response.content.is_empty() {
-            if let Some(error) = self.exchange_interaction.is_rest_error_code(&response) {
-                let error_type = self.exchange_interaction.get_error_type(&error);
-
+        match response.status {
+            StatusCode::UNAUTHORIZED => {
                 return Some(ExchangeError::new(
-                    error_type,
-                    error.message,
-                    Some(error.code),
+                    ExchangeErrorType::Authentication,
+                    response.content.clone(),
+                    None,
                 ));
-            } else {
-                return None;
             }
-        } else {
-            return Some(ExchangeError::new(
-                ExchangeErrorType::Unknown,
-                "Empty response".to_owned(),
-                None,
-            ));
+            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => {
+                return Some(ExchangeError::new(
+                    ExchangeErrorType::Authentication,
+                    response.content.clone(),
+                    None,
+                ));
+            }
+            StatusCode::TOO_MANY_REQUESTS => {
+                return Some(ExchangeError::new(
+                    ExchangeErrorType::RateLimit,
+                    response.content.clone(),
+                    None,
+                ));
+            }
+            _ => {
+                if response.content.is_empty() {
+                    return Some(ExchangeError::new(
+                        ExchangeErrorType::Unknown,
+                        "Empty response".to_owned(),
+                        None,
+                    ));
+                }
+
+                if let Some(error) = self.exchange_interaction.is_rest_error_code(&response) {
+                    let error_type = self.exchange_interaction.get_error_type(&error);
+
+                    return Some(ExchangeError::new(
+                        error_type,
+                        error.message,
+                        Some(error.code),
+                    ));
+                }
+
+                None
+            }
         }
     }
 
