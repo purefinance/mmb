@@ -1,3 +1,4 @@
+use chrono::Utc;
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::actor::*;
 use mmb_lib::core::exchanges::binance::*;
@@ -7,7 +8,6 @@ use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
 
-// TODO Why does it don't work with tokio test?
 #[actix_rt::test]
 async fn test_add() {
     // Get data to access binance account
@@ -43,16 +43,25 @@ async fn test_add() {
     );
 
     let test_currency_pair = CurrencyPair::new("TNBBTC".into());
+    let order_header = OrderHeader::new(
+        0,
+        "test".into(),
+        Utc::now(),
+        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        test_currency_pair.clone(),
+        OrderType::Limit,
+        OrderSide::Buy,
+        dec!(10000),
+        ReservationId::gen_new(),
+        None,
+        "".into(),
+    );
 
     let order_to_create = OrderCreating {
-        side: OrderSide::Buy,
-        order_type: OrderType::Limit,
-        // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
+        header: order_header,
+        // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
         price: dec!(0.00000002),
         execution_type: OrderExecutionType::None,
-        currency_pair: test_currency_pair.clone(),
-        client_order_id: "test".into(),
-        amount: dec!(10000),
     };
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
@@ -110,15 +119,26 @@ async fn should_fail() {
         Box::new(binance),
     );
 
+    let test_currency_pair = CurrencyPair::new("TNBBTC".into());
+    let order_header = OrderHeader::new(
+        0,
+        "test".into(),
+        Utc::now(),
+        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        test_currency_pair.clone(),
+        OrderType::Limit,
+        OrderSide::Buy,
+        dec!(1),
+        ReservationId::gen_new(),
+        None,
+        "".into(),
+    );
+
     let order_to_create = OrderCreating {
-        side: OrderSide::Buy,
-        order_type: OrderType::Limit,
+        header: order_header,
         // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
         price: dec!(0.00000005),
         execution_type: OrderExecutionType::None,
-        currency_pair: CurrencyPair::new("TNBBTC".into()),
-        client_order_id: "test".into(),
-        amount: dec!(1),
     };
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;

@@ -135,18 +135,13 @@ impl Binance {
         return result;
     }
 
-    fn add_autentification_headers(
-        &self,
-        mut parameters: rest_client::HttpParams,
-    ) -> rest_client::HttpParams {
+    fn add_authentification_headers(&self, parameters: &mut rest_client::HttpParams) {
         let time_stamp = utils::get_current_milliseconds();
         parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
 
         let message_to_sign = rest_client::to_http_string(&parameters);
         let signature = self.generate_signature(message_to_sign);
         parameters.push(("signature".to_owned(), signature));
-
-        parameters
     }
 }
 
@@ -156,21 +151,24 @@ impl CommonInteraction for Binance {
         let mut parameters = vec![
             (
                 "symbol".to_owned(),
-                order.currency_pair.as_str().to_uppercase(),
+                order.header.currency_pair.as_str().to_uppercase(),
             ),
-            ("side".to_owned(), Self::to_server_order_side(order.side)),
+            (
+                "side".to_owned(),
+                Self::to_server_order_side(order.header.side),
+            ),
             (
                 "type".to_owned(),
-                Self::to_server_order_type(order.order_type),
+                Self::to_server_order_type(order.header.order_type),
             ),
-            ("quantity".to_owned(), order.amount.to_string()),
+            ("quantity".to_owned(), order.header.amount.to_string()),
             (
                 "newClientOrderId".to_owned(),
-                order.client_order_id.as_str().to_owned(),
+                order.header.client_order_id.as_str().to_owned(),
             ),
         ];
 
-        if order.order_type != OrderType::Market {
+        if order.header.order_type != OrderType::Market {
             parameters.push(("timeInForce".to_owned(), "GTC".to_owned()));
             parameters.push(("price".to_owned(), order.price.to_string()));
         }
@@ -187,21 +185,21 @@ impl CommonInteraction for Binance {
         };
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
-        let full_parameters = self.add_autentification_headers(parameters);
+        self.add_authentification_headers(&mut parameters);
 
-        rest_client::send_post_request(&full_url, &self.settings.api_key, &full_parameters).await
+        rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
     }
 
     // TODO not implemented correctly
     async fn get_account_info(&self) {
-        let parameters = rest_client::HttpParams::new();
+        let mut parameters = rest_client::HttpParams::new();
 
-        let full_parameters = self.add_autentification_headers(parameters);
+        self.add_authentification_headers(&mut parameters);
 
         let path_to_get_account_data = "/api/v3/account";
         let full_url = format! {"{}{}", self.settings.rest_host, path_to_get_account_data};
 
-        rest_client::send_get_request(&full_url, &self.settings.api_key, &full_parameters).await;
+        rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
     }
 
     // TODO not implemented correctly
@@ -220,11 +218,10 @@ impl CommonInteraction for Binance {
         };
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
-        let full_parameters = self.add_autentification_headers(parameters);
+        self.add_authentification_headers(&mut parameters);
 
         let outcome =
-            rest_client::send_delete_request(&full_url, &self.settings.api_key, &full_parameters)
-                .await;
+            rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
 
         dbg!(&outcome);
 
@@ -240,11 +237,10 @@ impl CommonInteraction for Binance {
         let mut parameters = rest_client::HttpParams::new();
         parameters.push(("symbol".to_owned(), currency_pair.as_str().to_owned()));
 
-        let full_parameters = self.add_autentification_headers(parameters);
+        self.add_authentification_headers(&mut parameters);
 
         let cancel_order_outcome =
-            rest_client::send_delete_request(&full_url, &self.settings.api_key, &full_parameters)
-                .await;
+            rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
 
         dbg!(&cancel_order_outcome);
     }

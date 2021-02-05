@@ -29,15 +29,15 @@ pub struct ExchangeAccountId {
     pub exchange_id: ExchangeId,
 
     /// Exchange account number
-    pub number: u8,
+    pub account_number: u8,
 }
 
 impl ExchangeAccountId {
     #[inline]
-    pub fn new(exchange_id: ExchangeId, number: u8) -> Self {
+    pub fn new(exchange_id: ExchangeId, account_number: u8) -> Self {
         ExchangeAccountId {
             exchange_id,
-            number,
+            account_number,
         }
     }
 
@@ -76,7 +76,7 @@ impl FromStr for ExchangeAccountId {
 
 impl Display for ExchangeAccountId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.exchange_id.as_str(), self.number)
+        write!(f, "{}{}", self.exchange_id.as_str(), self.account_number)
     }
 }
 

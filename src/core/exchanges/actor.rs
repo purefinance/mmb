@@ -83,8 +83,12 @@ impl ExchangeActor {
         order: &OrderCreating,
     ) -> CreateOrderResult {
         info!(
-            "Create response for {}, {}, {}, {:?}",
-            order.client_order_id, order.client_order_id, order.client_order_id, request_outcome
+            "Create response for {}, {:?}, {}, {:?}",
+            // TODO other order_headers_field
+            order.header.client_order_id,
+            order.header.exchange_account_id.exchange_id,
+            order.header.exchange_account_id.account_number,
+            request_outcome
         );
 
         // TODO Here has to be more complete HTTP code handling

@@ -190,14 +190,12 @@ pub struct OrderHeader {
     pub init_time: DateTime,
 
     pub exchange_account_id: ExchangeAccountId,
-    pub exchange_id: ExchangeId,
 
-    pub specific_currency_pair: SpecificCurrencyPair,
     pub currency_pair: CurrencyPair,
 
     pub order_type: OrderType,
 
-    pub side: Option<OrderSide>,
+    pub side: OrderSide,
     pub amount: Amount,
 
     pub reservation_id: ReservationId,
@@ -207,6 +205,34 @@ pub struct OrderHeader {
 }
 
 impl OrderHeader {
+    pub fn new(
+        version: u32,
+        client_order_id: ClientOrderId,
+        init_time: DateTime,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        order_type: OrderType,
+        side: OrderSide,
+        amount: Amount,
+        reservation_id: ReservationId,
+        signal_id: Option<String>,
+        strategy_name: String,
+    ) -> Self {
+        Self {
+            version,
+            client_order_id,
+            init_time,
+            exchange_account_id,
+            currency_pair,
+            order_type,
+            side,
+            amount,
+            reservation_id,
+            signal_id,
+            strategy_name,
+        }
+    }
+
     pub fn get_version(&self) -> u32 {
         self.version
     }
@@ -339,13 +365,15 @@ pub struct SystemInternalOrderProps {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCreating {
-    pub side: OrderSide,
-    pub order_type: OrderType,
+    //pub side: OrderSide,
+    //pub order_type: OrderType,
+    //pub execution_type: OrderExecutionType,
+    //pub currency_pair: CurrencyPair,
+    //pub client_order_id: ClientOrderId,
+    //pub amount: Amount,
+    pub header: OrderHeader,
     pub price: Price,
     pub execution_type: OrderExecutionType,
-    pub currency_pair: CurrencyPair,
-    pub client_order_id: ClientOrderId,
-    pub amount: Amount,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
