@@ -103,6 +103,7 @@ impl ExchangeActor {
         response: &RestRequestOutcome,
         _order: &OrderCreating,
     ) -> Option<ExchangeError> {
+        // TODO add log with info about caller
         match response.status {
             StatusCode::UNAUTHORIZED => {
                 return Some(ExchangeError::new(

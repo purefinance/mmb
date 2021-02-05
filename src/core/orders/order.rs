@@ -179,6 +179,8 @@ impl ReservationId {
     }
 }
 
+pub const CURRENT_ORDER_VERSION: u32 = 1;
+
 /// Immutable part of order
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderHeader {
@@ -205,7 +207,6 @@ pub struct OrderHeader {
 
 impl OrderHeader {
     pub fn new(
-        version: u32,
         client_order_id: ClientOrderId,
         init_time: DateTime,
         exchange_account_id: ExchangeAccountId,
@@ -218,7 +219,7 @@ impl OrderHeader {
         strategy_name: String,
     ) -> Self {
         Self {
-            version,
+            version: CURRENT_ORDER_VERSION,
             client_order_id,
             init_time,
             exchange_account_id,
@@ -232,11 +233,8 @@ impl OrderHeader {
         }
     }
 
-    pub fn get_version(&self) -> u32 {
+    pub fn version(&self) -> u32 {
         self.version
-    }
-    pub fn increment_version(&mut self) {
-        self.version += 1;
     }
 }
 
@@ -364,12 +362,6 @@ pub struct SystemInternalOrderProps {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCreating {
-    //pub side: OrderSide,
-    //pub order_type: OrderType,
-    //pub execution_type: OrderExecutionType,
-    //pub currency_pair: CurrencyPair,
-    //pub client_order_id: ClientOrderId,
-    //pub amount: Amount,
     pub header: OrderHeader,
     pub price: Price,
     pub execution_type: OrderExecutionType,

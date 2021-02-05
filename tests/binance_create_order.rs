@@ -44,7 +44,6 @@ async fn test_add() {
 
     let test_currency_pair = CurrencyPair::new("TNBBTC".into());
     let order_header = OrderHeader::new(
-        0,
         "test".into(),
         Utc::now(),
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
@@ -120,7 +119,6 @@ async fn should_fail() {
 
     let test_currency_pair = CurrencyPair::new("TNBBTC".into());
     let order_header = OrderHeader::new(
-        0,
         "test".into(),
         Utc::now(),
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
