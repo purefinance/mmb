@@ -1,5 +1,5 @@
 use crate::core::exchanges::common::{
-    CurrencyPair, ExchangeAccountId, ExchangeErrorType, ExchangeId, SpecificCurrencyPair,
+    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
@@ -179,6 +179,8 @@ impl ReservationId {
     }
 }
 
+pub const CURRENT_ORDER_VERSION: u32 = 1;
+
 /// Immutable part of order
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderHeader {
@@ -189,15 +191,13 @@ pub struct OrderHeader {
     pub init_time: DateTime,
 
     pub exchange_account_id: ExchangeAccountId,
-    pub exchange_id: ExchangeId,
 
-    pub specific_currency_pair: SpecificCurrencyPair,
     pub currency_pair: CurrencyPair,
 
     pub order_type: OrderType,
 
-    pub side: Option<OrderSide>,
-    pub amount: Decimal,
+    pub side: OrderSide,
+    pub amount: Amount,
 
     pub reservation_id: ReservationId,
 
@@ -206,18 +206,42 @@ pub struct OrderHeader {
 }
 
 impl OrderHeader {
-    pub fn get_version(&self) -> u32 {
-        self.version
+    pub fn new(
+        client_order_id: ClientOrderId,
+        init_time: DateTime,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        order_type: OrderType,
+        side: OrderSide,
+        amount: Amount,
+        reservation_id: ReservationId,
+        signal_id: Option<String>,
+        strategy_name: String,
+    ) -> Self {
+        Self {
+            version: CURRENT_ORDER_VERSION,
+            client_order_id,
+            init_time,
+            exchange_account_id,
+            currency_pair,
+            order_type,
+            side,
+            amount,
+            reservation_id,
+            signal_id,
+            strategy_name,
+        }
     }
-    pub fn increment_version(&mut self) {
-        self.version += 1;
+
+    pub fn version(&self) -> u32 {
+        self.version
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSimpleProps {
     client_order_id: ClientOrderId,
-    pub raw_price: Option<Decimal>,
+    pub raw_price: Option<Price>,
     pub role: Option<OrderRole>,
     pub execution_type: Option<OrderExecutionType>,
     pub exchange_order_id: Option<ExchangeOrderId>,
@@ -230,7 +254,7 @@ pub struct OrderSimpleProps {
 }
 
 impl OrderSimpleProps {
-    pub fn new(client_order_id: ClientOrderId, price: Option<Decimal>) -> OrderSimpleProps {
+    pub fn new(client_order_id: ClientOrderId, price: Option<Price>) -> OrderSimpleProps {
         Self {
             client_order_id,
             raw_price: price,
@@ -334,6 +358,19 @@ pub struct SystemInternalOrderProps {
 
     pub handled_by_balance_recovery: bool,
     pub filled_amount_after_cancellation: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreating {
+    pub header: OrderHeader,
+    pub price: Price,
+    pub execution_type: OrderExecutionType,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelling {
+    pub currency_pair: CurrencyPair,
+    pub order_id: ExchangeOrderId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

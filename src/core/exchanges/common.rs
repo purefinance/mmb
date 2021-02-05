@@ -1,3 +1,4 @@
+use awc::http::StatusCode;
 use itertools::Itertools;
 use regex::Regex;
 use rust_decimal::*;
@@ -28,15 +29,15 @@ pub struct ExchangeAccountId {
     pub exchange_id: ExchangeId,
 
     /// Exchange account number
-    pub number: u8,
+    pub account_number: u8,
 }
 
 impl ExchangeAccountId {
     #[inline]
-    pub fn new(exchange_id: ExchangeId, number: u8) -> Self {
+    pub fn new(exchange_id: ExchangeId, account_number: u8) -> Self {
         ExchangeAccountId {
             exchange_id,
-            number,
+            account_number,
         }
     }
 
@@ -75,7 +76,7 @@ impl FromStr for ExchangeAccountId {
 
 impl Display for ExchangeAccountId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.exchange_id.as_str(), self.number)
+        write!(f, "{}{}", self.exchange_id.as_str(), self.account_number)
     }
 }
 
@@ -228,6 +229,23 @@ impl ExchangeIdCurrencyPair {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct ExchangeError {
+    pub error_type: ExchangeErrorType,
+    pub message: String,
+    pub code: Option<i64>,
+}
+
+impl ExchangeError {
+    pub fn new(error_type: ExchangeErrorType, message: String, code: Option<i64>) -> Self {
+        Self {
+            error_type,
+            message,
+            code,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ExchangeErrorType {
     Unknown,
     RateLimit,
@@ -241,20 +259,27 @@ pub enum ExchangeErrorType {
     ServiceUnavailable,
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RestRequestError {
     IsInProgress,
-    HttpStatusCode(u32),
+    Status(StatusCode),
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct RestRequestOutcome {
+    pub content: String,
+    pub status: StatusCode,
 }
 
 pub type RestRequestResult = Result<String, RestRequestError>;
 
 pub struct RestErrorDescription {
-    message: String,
-    code: u32,
+    pub message: String,
+    pub code: i64,
 }
 
 impl RestErrorDescription {
-    pub fn new(message: String, code: u32) -> Self {
+    pub fn new(message: String, code: i64) -> Self {
         RestErrorDescription { message, code }
     }
 }

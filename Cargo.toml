@@ -42,6 +42,15 @@ rust_decimal = "1.10.0"
 rust_decimal_macros = "1.10.1"
 derive-getters = "0.2.0"
 
+async-trait = "0.1.42"
+hmac = "0.10.1"
+sha2 = "0.9.3"
+hex = "0.4.2"
+
 [dev-dependencies]
 actix-rt = "2.0.0-beta.2"
 pretty_assertions = "0.6"
+
+[lib]
+name = "mmb_lib"
+path = "src/lib.rs"

@@ -8,6 +8,7 @@ use crate::core::{
         common::ExchangeAccountId,
     },
 };
+
 use actix::Addr;
 use log::{error, info, log, trace, Level};
 use parking_lot::Mutex;
@@ -380,6 +381,7 @@ async fn try_get_websocket_params(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::exchanges::binance::Binance;
     use crate::core::logger::init_logger;
     use actix::{Actor, Arbiter};
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
@@ -398,12 +400,14 @@ mod tests {
             let websocket_host = "wss://stream.binance.com:9443".into();
             let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
             let channels = vec!["depth".into(), "aggTrade".into()];
+            let exchange_interaction = Box::new(Binance::default());
 
             let exchange_actor = ExchangeActor::new(
                 exchange_account_id.clone(),
                 websocket_host,
                 currency_pairs,
                 channels,
+                exchange_interaction,
             )
             .start();
 
