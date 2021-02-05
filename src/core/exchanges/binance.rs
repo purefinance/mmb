@@ -1,12 +1,11 @@
-use super::common::CurrencyPair;
 use super::common_interaction::CommonInteraction;
 use super::rest_client;
 use super::utils;
 use crate::core::exchanges::common::{
-    ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
+    CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
 };
 use crate::core::orders::order::{
-    OrderCancelling, OrderCreating, OrderExecutionType, OrderSide, OrderType,
+    ExchangeOrderId, OrderCancelling, OrderCreating, OrderExecutionType, OrderSide, OrderType,
 }; //TODO first word in each type can be replaced just using module name
 use crate::core::settings::ExchangeSettings;
 use async_trait::async_trait;
@@ -36,46 +35,6 @@ impl Binance {
             settings.web_socket_host = "wss://stream.binance.com:9443".to_string();
             settings.web_socket2_host = "wss://stream.binance.com:9443".to_string();
             settings.rest_host = "https://api.binance.com".to_string();
-        }
-    }
-
-    // TODO Optional here, really? It means we have HTTP error code, but Binance says everything is great
-    pub fn get_error_description(binance_error_msg: &str) -> Option<RestErrorDescription> {
-        //Binance is a little inconsistent: for failed responses sometimes they include
-        //only code or only success:false but sometimes both
-        if binance_error_msg.contains(r#""success":false"#)
-            || binance_error_msg.contains(r#""code""#)
-        {
-            let data: Value = serde_json::from_str(binance_error_msg).unwrap();
-            return Some(RestErrorDescription::new(
-                data["msg"].to_string(),
-                data["code"].as_i64().unwrap() as i64,
-            ));
-        } else {
-            None
-        }
-    }
-
-    fn get_error_type(message: &str, _code: Option<u32>) -> ExchangeErrorType {
-        // -1010 ERROR_MSG_RECEIVED
-        // -2010 NEW_ORDER_REJECTED
-        // -2011 CANCEL_REJECTED
-        match message {
-            "Unknown order sent." | "Order does not exist." => ExchangeErrorType::OrderNotFound,
-            "Account has insufficient balance for requested action." => {
-                ExchangeErrorType::InsufficientFunds
-            }
-            "Invalid quantity."
-            | "Filter failure: MIN_NOTIONAL"
-            | "Filter failure: LOT_SIZE"
-            | "Filter failure: PRICE_FILTER"
-            | "Filter failure: PERCENT_PRICE"
-            | "Quantity less than zero."
-            | "Precision is over the maximum defined for this asset." => {
-                ExchangeErrorType::InvalidOrder
-            }
-            msg if msg.contains("Too many requests;") => ExchangeErrorType::RateLimit,
-            _ => ExchangeErrorType::Unknown,
         }
     }
 
@@ -190,6 +149,50 @@ impl CommonInteraction for Binance {
         rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
     }
 
+    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
+        //Binance is a little inconsistent: for failed responses sometimes they include
+        //only code or only success:false but sometimes both
+        if response.content.contains(r#""success":false"#) || response.content.contains(r#""code""#)
+        {
+            let data: Value = serde_json::from_str(&response.content).unwrap();
+            return Some(RestErrorDescription::new(
+                data["msg"].to_string().replace("\"", ""),
+                data["code"].as_i64().unwrap() as i64,
+            ));
+        }
+
+        None
+    }
+
+    fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId {
+        let response: Value = serde_json::from_str(&response.content).unwrap();
+        let id = response["orderId"].to_string();
+        ExchangeOrderId::new(id.into())
+    }
+
+    fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType {
+        // -1010 ERROR_MSG_RECEIVED
+        // -2010 NEW_ORDER_REJECTED
+        // -2011 CANCEL_REJECTED
+        match error.message.as_str() {
+            "Unknown order sent." | "Order does not exist." => ExchangeErrorType::OrderNotFound,
+            "Account has insufficient balance for requested action." => {
+                ExchangeErrorType::InsufficientFunds
+            }
+            "Invalid quantity."
+            | "Filter failure: MIN_NOTIONAL"
+            | "Filter failure: LOT_SIZE"
+            | "Filter failure: PRICE_FILTER"
+            | "Filter failure: PERCENT_PRICE"
+            | "Quantity less than zero."
+            | "Precision is over the maximum defined for this asset." => {
+                ExchangeErrorType::InvalidOrder
+            }
+            msg if msg.contains("Too many requests;") => ExchangeErrorType::RateLimit,
+            _ => ExchangeErrorType::Unknown,
+        }
+    }
+
     // TODO not implemented correctly
     async fn get_account_info(&self) {
         let mut parameters = rest_client::HttpParams::new();
@@ -222,8 +225,6 @@ impl CommonInteraction for Binance {
 
         let outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
-
-        dbg!(&outcome);
 
         outcome
     }

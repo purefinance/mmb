@@ -1,5 +1,5 @@
 use super::cancellation_token;
-use super::common::CurrencyPair;
+use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
@@ -10,16 +10,14 @@ use crate::core::{
 };
 use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
-use log::info;
-use log::trace;
-use serde_json::Value;
+use log::{info, trace};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult {
     Success(ExchangeOrderId),
     // TODO for that we need match binance_error_code as number with ExchangeErrorType
     //Error(ExchangeErrorType),
-    Error(i64),
+    Error(ExchangeError),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -37,7 +35,7 @@ impl CreateOrderResult {
         }
     }
 
-    pub fn failed(error: i64 /*source_type: EventSourceType*/) -> Self {
+    pub fn failed(error: ExchangeError /*source_type: EventSourceType*/) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Error(error),
             //source_type
@@ -79,6 +77,7 @@ impl ExchangeActor {
     }
 
     fn handle_response(
+        &self,
         request_outcome: &RestRequestOutcome,
         order: &OrderCreating,
     ) -> CreateOrderResult {
@@ -91,14 +90,57 @@ impl ExchangeActor {
             request_outcome
         );
 
-        // TODO Here has to be more complete HTTP code handling
-        if request_outcome.status == StatusCode::OK {
-            let response: Value = serde_json::from_str(&request_outcome.content).unwrap();
-            CreateOrderResult::successed(response["orderId"].to_string().as_str().into())
+        if let Some(rest_error) = self.is_rest_error_order(request_outcome, order) {
+            return CreateOrderResult::failed(rest_error);
+        }
+
+        let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
+        CreateOrderResult::successed(created_order_id)
+    }
+
+    pub fn is_rest_error_order(
+        &self,
+        response: &RestRequestOutcome,
+        _order: &OrderCreating,
+    ) -> Option<ExchangeError> {
+        if response.status == StatusCode::UNAUTHORIZED {
+            return Some(ExchangeError::new(
+                ExchangeErrorType::Authentication,
+                response.content.clone(),
+                None,
+            ));
+        } else if response.status == StatusCode::GATEWAY_TIMEOUT
+            || response.status == StatusCode::SERVICE_UNAVAILABLE
+        {
+            return Some(ExchangeError::new(
+                ExchangeErrorType::Authentication,
+                response.content.clone(),
+                None,
+            ));
+        } else if response.status == StatusCode::TOO_MANY_REQUESTS {
+            return Some(ExchangeError::new(
+                ExchangeErrorType::RateLimit,
+                response.content.clone(),
+                None,
+            ));
+        } else if !response.content.is_empty() {
+            if let Some(error) = self.exchange_interaction.is_rest_error_code(&response) {
+                let error_type = self.exchange_interaction.get_error_type(&error);
+
+                return Some(ExchangeError::new(
+                    error_type,
+                    error.message,
+                    Some(error.code),
+                ));
+            } else {
+                return None;
+            }
         } else {
-            let error_description =
-                Binance::get_error_description(&request_outcome.content).unwrap();
-            CreateOrderResult::failed(error_description.code)
+            return Some(ExchangeError::new(
+                ExchangeErrorType::Unknown,
+                "Empty response".to_owned(),
+                None,
+            ));
         }
     }
 
@@ -109,7 +151,7 @@ impl ExchangeActor {
         tokio::select! {
             rest_request_outcome = order_create_task => {
 
-                let create_order_result = Self::handle_response(&rest_request_outcome, &order);
+                let create_order_result = self.handle_response(&rest_request_outcome, &order);
                 create_order_result
 
             }

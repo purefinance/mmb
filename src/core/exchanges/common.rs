@@ -229,6 +229,23 @@ impl ExchangeIdCurrencyPair {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct ExchangeError {
+    pub error_type: ExchangeErrorType,
+    pub message: String,
+    pub code: Option<i64>,
+}
+
+impl ExchangeError {
+    pub fn new(error_type: ExchangeErrorType, message: String, code: Option<i64>) -> Self {
+        Self {
+            error_type,
+            message,
+            code,
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ExchangeErrorType {
     Unknown,
     RateLimit,
@@ -242,10 +259,10 @@ pub enum ExchangeErrorType {
     ServiceUnavailable,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RestRequestError {
     IsInProgress,
-    HttpStatusCode(u32),
+    Status(StatusCode),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -256,7 +273,6 @@ pub struct RestRequestOutcome {
 
 pub type RestRequestResult = Result<String, RestRequestError>;
 
-// TODO Bad name, this is specific business error description, not REST
 pub struct RestErrorDescription {
     pub message: String,
     pub code: i64,

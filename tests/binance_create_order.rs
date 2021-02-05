@@ -65,7 +65,6 @@ async fn test_add() {
     };
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
-    dbg!(&create_order_result);
 
     match create_order_result.outcome {
         RequestResult::Success(order_id) => {
@@ -142,8 +141,13 @@ async fn should_fail() {
     };
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
-    dbg!(&create_order_result);
+
+    let expected_error = RequestResult::Error(ExchangeError::new(
+        ExchangeErrorType::InvalidOrder,
+        "Filter failure: MIN_NOTIONAL".to_owned(),
+        Some(-1013),
+    ));
 
     // It's MIN_NOTIONAL error code
-    assert_eq!(create_order_result.outcome, RequestResult::Error(-1013));
+    assert_eq!(create_order_result.outcome, expected_error);
 }

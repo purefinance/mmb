@@ -4,13 +4,13 @@ pub type HttpParams = Vec<(String, String)>;
 
 pub fn to_http_string(parameters: &HttpParams) -> String {
     let mut http_string = String::new();
-    for (key, value) in parameters.into_iter() {
+    for (key, value) in parameters {
         if !http_string.is_empty() {
             http_string.push('&');
         }
-        http_string.push_str(&key);
+        http_string.push_str(key);
         http_string.push('=');
-        http_string.push_str(&value);
+        http_string.push_str(value);
     }
 
     http_string
