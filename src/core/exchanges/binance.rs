@@ -156,7 +156,7 @@ impl CommonInteraction for Binance {
         {
             let data: Value = serde_json::from_str(&response.content).unwrap();
             return Some(RestErrorDescription::new(
-                data["msg"].to_string().replace("\"", ""),
+                data["msg"].as_str().unwrap().to_owned(),
                 data["code"].as_i64().unwrap() as i64,
             ));
         }
