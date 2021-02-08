@@ -14,6 +14,7 @@ use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use serde_json::Value;
 use sha2::Sha256;
+use std::collections::HashMap;
 
 #[derive(Debug, Default, Clone)]
 pub struct Binance {
@@ -107,10 +108,12 @@ impl Binance {
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
     async fn create_order(&self, order: &OrderCreating) -> RestRequestOutcome {
+        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
+
         let mut parameters = vec![
             (
                 "symbol".to_owned(),
-                order.header.currency_pair.as_str().to_uppercase(),
+                specific_currency_pair.as_str().to_owned(),
             ),
             (
                 "side".to_owned(),
@@ -147,6 +150,14 @@ impl CommonInteraction for Binance {
         self.add_authentification_headers(&mut parameters);
 
         rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
+    }
+
+    fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
+        let mut mapping = HashMap::new();
+        mapping.insert("tnb/btc", "TNBBTC");
+
+        let specific_currency_pair = mapping[&currency_pair.as_str()];
+        specific_currency_pair.into()
     }
 
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
@@ -207,10 +218,11 @@ impl CommonInteraction for Binance {
 
     // TODO not implemented correctly
     async fn cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
+        let specific_currency_pair = self.get_specific_currency_pair(&order.currency_pair);
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
-            order.currency_pair.as_str().to_uppercase(),
+            specific_currency_pair.as_str().to_owned(),
         ));
         parameters.push(("orderId".to_owned(), order.order_id.as_str().to_owned()));
 
@@ -231,12 +243,16 @@ impl CommonInteraction for Binance {
 
     // TODO not implemented correctly
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
+        let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
         let path_to_delete = "/api/v3/openOrders";
         let mut full_url = self.settings.rest_host.clone();
         full_url.push_str(path_to_delete);
 
         let mut parameters = rest_client::HttpParams::new();
-        parameters.push(("symbol".to_owned(), currency_pair.as_str().to_owned()));
+        parameters.push((
+            "symbol".to_owned(),
+            specific_currency_pair.as_str().to_owned(),
+        ));
 
         self.add_authentification_headers(&mut parameters);
 
