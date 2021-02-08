@@ -59,14 +59,26 @@ pub async fn send_delete_request(
 }
 
 // TODO not implemented correctly
-pub async fn send_get_request(url: &str, api_key: &str, parameters: &HttpParams) {
+pub async fn send_get_request(
+    url: &str,
+    api_key: &str,
+    parameters: &HttpParams,
+) -> RestRequestOutcome {
     let client = awc::Client::default();
-    let _response = client
+    let response = client
         .get(url)
         .header("X-MBX-APIKEY", api_key)
-        //.send_form(&parameters)
         .query(&parameters)
         .unwrap()
         .send()
         .await;
+    let mut response = response.unwrap();
+
+    // TODO move all of it to the constructor
+    RestRequestOutcome {
+        content: std::str::from_utf8(&response.body().await.unwrap())
+            .unwrap()
+            .to_owned(),
+        status: response.status(),
+    }
 }

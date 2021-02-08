@@ -184,6 +184,10 @@ impl ExchangeActor {
     pub async fn get_account_info(&self) {
         self.exchange_interaction.get_account_info().await;
     }
+
+    pub async fn get_open_orders(&self) {
+        self.exchange_interaction.get_open_orders().await
+    }
 }
 
 impl Actor for ExchangeActor {

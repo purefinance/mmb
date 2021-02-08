@@ -1,7 +1,7 @@
 use super::common::{
     CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
 };
-use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating};
+use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
 use async_trait::async_trait;
 
 #[async_trait(?Send)]
@@ -15,6 +15,9 @@ pub trait CommonInteraction {
     fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType;
 
     async fn get_account_info(&self);
+
+    async fn get_open_orders(&self);
+    fn parse_get_open_orders(&self) -> OrderInfo;
 
     async fn cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;
 

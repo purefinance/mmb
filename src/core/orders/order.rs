@@ -1,5 +1,5 @@
 use crate::core::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price,
+    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price, SpecificCurrencyPair,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
@@ -361,6 +361,51 @@ pub struct SystemInternalOrderProps {
     pub handled_by_balance_recovery: bool,
     pub filled_amount_after_cancellation: Option<Decimal>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderInfo {
+    //pub exchange_order_id: ExchangeOrderId,
+//pub client_order_id: ClientOrderId,
+//// FIXME SpecificCurrencyPair, is that right? Why not just CurrencyPair
+//pub specific_currency_pair: SpecificCurrencyPair,
+//pub order_side: OrderSide,
+//pub order_status: OrderStatus,
+//pub price: Price,
+//pub amount: Amount,
+//pub average_fill_price: Decimal,
+//pub filled_amount: Decimal,
+//// FIXME what is it?
+//pub commission_currency_code: String,
+//// TODO lots of other fields, not sure is it required now
+}
+
+//impl OrderInfo {
+//    pub fn new(
+//        exchange_order_id: ExchangeOrderId,
+//        client_order_id: ClientOrderId,
+//        specific_currency_pair: SpecificCurrencyPair,
+//        order_side: OrderSide,
+//        order_status: OrderStatus,
+//        price: Price,
+//        amount: Amount,
+//        average_fill_price: Decimal,
+//        filled_amount: Decimal,
+//        commission_currency_code: String,
+//    ) -> Self {
+//        Self {
+//            exchange_order_id,
+//            client_order_id,
+//            specific_currency_pair,
+//            order_side,
+//            order_status,
+//            price,
+//            amount,
+//            average_fill_price,
+//            filled_amount,
+//            commission_currency_code,
+//        }
+//    }
+//}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCreating {

@@ -5,9 +5,7 @@ use crate::core::exchanges::common::{
     CurrencyPair, ExchangeAccountId, ExchangeErrorType, RestErrorDescription, RestRequestOutcome,
     SpecificCurrencyPair,
 };
-use crate::core::orders::order::{
-    ExchangeOrderId, OrderCancelling, OrderCreating, OrderExecutionType, OrderSide, OrderType,
-}; //TODO first word in each type can be replaced just using module name
+use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
 use async_trait::async_trait;
 use hex;
@@ -249,6 +247,25 @@ impl CommonInteraction for Binance {
         outcome
     }
 
+    async fn get_open_orders(&self) {
+        let mut parameters = rest_client::HttpParams::new();
+        let url_path = if self.settings.is_marging_trading {
+            "/fapi/v1/openOrders"
+        } else {
+            "/api/v3/openOrders"
+        };
+        let full_url = format!("{}{}", self.settings.rest_host, url_path);
+
+        self.add_authentification_headers(&mut parameters);
+        let orders =
+            rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
+        dbg!(&orders);
+    }
+
+    fn parse_get_open_orders(&self) -> OrderInfo {
+        OrderInfo {}
+    }
+
     // TODO not implemented correctly
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
         let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
@@ -267,7 +284,7 @@ impl CommonInteraction for Binance {
         let cancel_order_outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
 
-        dbg!(&cancel_order_outcome);
+        //dbg!(&cancel_order_outcome);
     }
 }
 
