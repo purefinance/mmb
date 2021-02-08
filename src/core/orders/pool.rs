@@ -1,5 +1,7 @@
 use crate::core::exchanges::common::TradePlaceAccount;
-use crate::core::orders::order::{ClientOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus, ExchangeOrderId};
+use crate::core::orders::order::{
+    ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
+};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use rust_decimal::Decimal;
@@ -66,7 +68,9 @@ impl OrdersPool {
     pub fn add_snapshot_initial(&self, snapshot: Arc<RwLock<OrderSnapshot>>) {
         let client_order_id = snapshot.read().header.client_order_id.clone();
         let order_ref = OrderRef(snapshot.clone());
-        let _ = self.orders_by_client_id.insert(client_order_id.clone(), order_ref.clone());
+        let _ = self
+            .orders_by_client_id
+            .insert(client_order_id.clone(), order_ref.clone());
         let _ = self.not_finished_orders.insert(client_order_id, order_ref);
     }
 
