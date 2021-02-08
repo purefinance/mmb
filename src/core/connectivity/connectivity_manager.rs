@@ -383,6 +383,7 @@ mod tests {
     use super::*;
     use crate::core::exchanges::binance::Binance;
     use crate::core::logger::init_logger;
+    use crate::core::settings::ExchangeSettings;
     use actix::{Actor, Arbiter};
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
     use tokio::{sync::oneshot, time::sleep};
@@ -400,7 +401,10 @@ mod tests {
             let websocket_host = "wss://stream.binance.com:9443".into();
             let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
             let channels = vec!["depth".into(), "aggTrade".into()];
-            let exchange_interaction = Box::new(Binance::default());
+            let exchange_interaction = Box::new(Binance::new(
+                ExchangeSettings::default(),
+                exchange_account_id.clone(),
+            ));
 
             let exchange_actor = ExchangeActor::new(
                 exchange_account_id.clone(),

@@ -366,7 +366,6 @@ pub struct SystemInternalOrderProps {
 pub struct OrderCreating {
     pub header: OrderHeader,
     pub price: Price,
-    pub execution_type: OrderExecutionType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

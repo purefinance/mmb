@@ -2,7 +2,8 @@ use super::common_interaction::CommonInteraction;
 use super::rest_client;
 use super::utils;
 use crate::core::exchanges::common::{
-    CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
+    CurrencyPair, ExchangeAccountId, ExchangeErrorType, RestErrorDescription, RestRequestOutcome,
+    SpecificCurrencyPair,
 };
 use crate::core::orders::order::{
     ExchangeOrderId, OrderCancelling, OrderCreating, OrderExecutionType, OrderSide, OrderType,
@@ -15,14 +16,14 @@ use itertools::Itertools;
 use serde_json::Value;
 use sha2::Sha256;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug)]
 pub struct Binance {
     pub settings: ExchangeSettings,
-    pub id: String,
+    pub id: ExchangeAccountId,
 }
 
 impl Binance {
-    pub fn new(settings: ExchangeSettings, id: String) -> Self {
+    pub fn new(settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
         Self { settings, id }
     }
 
@@ -132,7 +133,7 @@ impl CommonInteraction for Binance {
             parameters.push(("price".to_owned(), order.price.to_string()));
         }
 
-        if order.execution_type == OrderExecutionType::MakerOnly {
+        if order.header.execution_type == OrderExecutionType::MakerOnly {
             parameters.push(("timeInForce".to_owned(), "GTX".to_owned()));
         }
 
@@ -265,7 +266,7 @@ mod tests {
             rest_host: "https://api.binance.com".into(),
         };
 
-        let binance = Binance::new(settings, "some_id".into());
+        let binance = Binance::new(settings, "Binance0".parse().unwrap());
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.generate_signature(params);
         assert_eq!(result, right_value);
