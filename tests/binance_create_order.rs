@@ -63,17 +63,16 @@ async fn test_add() {
         price: dec!(0.00000002),
     };
 
-    //exchange_actor
-    //    .cancel_all_orders(test_currency_pair.clone())
-    //    .await;
+    exchange_actor
+        .cancel_all_orders(test_currency_pair.clone())
+        .await;
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
+    dbg!(&create_order_result);
 
     dbg!(&"before sleep");
-    thread::sleep(time::Duration::from_secs(10));
+    thread::sleep(time::Duration::from_secs(1));
     dbg!(&"after sleep");
-
-    let open_orders = exchange_actor.get_open_orders().await;
 
     match create_order_result.outcome {
         RequestResult::Success(order_id) => {
@@ -82,6 +81,9 @@ async fn test_add() {
                 order_id,
             };
             dbg!(&order_to_cancel);
+
+            let open_orders = exchange_actor.get_open_orders().await;
+            dbg!(&open_orders);
 
             // Cancel last order
             let _cancel_outcome = exchange_actor.cancel_order(&order_to_cancel).await;
