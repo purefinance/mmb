@@ -3,9 +3,7 @@ use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use crate::core::order_book::*;
 use std::collections::HashMap;
 
-/// Main local snapshot controller.
-/// Allows create, update and view existing snapshots
-// Формирует актуальный снэпшот ордербука
+/// Produce and actualize current logical state of order book snapshot according to logical time of handled order book events
 pub struct LocalSnapshotsService {
     local_snapshots: HashMap<ExchangeIdCurrencyPair, LocalOrderBookSnapshot>,
 }
