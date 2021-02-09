@@ -2,8 +2,8 @@ use super::common_interaction::CommonInteraction;
 use super::rest_client;
 use super::utils;
 use crate::core::exchanges::common::{
-    CurrencyPair, ExchangeAccountId, ExchangeErrorType, RestErrorDescription, RestRequestOutcome, Amount, Price,
-    SpecificCurrencyPair,
+    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price, RestErrorDescription,
+    RestRequestOutcome, SpecificCurrencyPair,
 };
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
