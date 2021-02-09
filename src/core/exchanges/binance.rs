@@ -20,11 +20,19 @@ use std::collections::HashMap;
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: String,
+    pub currency_mapping: HashMap<String, String>,
 }
 
 impl Binance {
     pub fn new(settings: ExchangeSettings, id: String) -> Self {
-        Self { settings, id }
+        let mut currency_mapping = HashMap::new();
+        currency_mapping.insert("tnb/btc".to_owned(), "TNBBTC".to_owned());
+
+        Self {
+            settings,
+            id,
+            currency_mapping,
+        }
     }
 
     pub fn extend_settings(settings: &mut ExchangeSettings) {
@@ -153,11 +161,8 @@ impl CommonInteraction for Binance {
     }
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
-        let mut mapping = HashMap::new();
-        mapping.insert("tnb/btc", "TNBBTC");
-
-        let specific_currency_pair = mapping[&currency_pair.as_str()];
-        specific_currency_pair.into()
+        let specific_currency_pair = &self.currency_mapping[currency_pair.as_str()];
+        specific_currency_pair.as_str().into()
     }
 
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
