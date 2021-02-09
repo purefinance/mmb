@@ -199,6 +199,8 @@ pub struct OrderHeader {
     pub side: OrderSide,
     pub amount: Amount,
 
+    pub execution_type: OrderExecutionType,
+
     pub reservation_id: ReservationId,
 
     pub signal_id: Option<String>,
@@ -214,6 +216,7 @@ impl OrderHeader {
         order_type: OrderType,
         side: OrderSide,
         amount: Amount,
+        execution_type: OrderExecutionType,
         reservation_id: ReservationId,
         signal_id: Option<String>,
         strategy_name: String,
@@ -227,6 +230,7 @@ impl OrderHeader {
             order_type,
             side,
             amount,
+            execution_type,
             reservation_id,
             signal_id,
             strategy_name,
@@ -243,7 +247,6 @@ pub struct OrderSimpleProps {
     client_order_id: ClientOrderId,
     pub raw_price: Option<Price>,
     pub role: Option<OrderRole>,
-    pub execution_type: Option<OrderExecutionType>,
     pub exchange_order_id: Option<ExchangeOrderId>,
     pub stop_loss_price: Decimal,
     pub trailing_stop_delta: Decimal,
@@ -259,7 +262,6 @@ impl OrderSimpleProps {
             client_order_id,
             raw_price: price,
             role: None,
-            execution_type: None,
             exchange_order_id: None,
             stop_loss_price: Default::default(),
             trailing_stop_delta: Default::default(),
@@ -364,7 +366,6 @@ pub struct SystemInternalOrderProps {
 pub struct OrderCreating {
     pub header: OrderHeader,
     pub price: Price,
-    pub execution_type: OrderExecutionType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

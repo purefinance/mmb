@@ -5,12 +5,14 @@ use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating};
+use crate::core::orders::pool::OrdersPool;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
 };
 use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
 use log::{info, trace};
+use std::sync::Arc;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult {
@@ -49,6 +51,7 @@ pub struct ExchangeActor {
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
     websocket_channels: Vec<String>,
     exchange_interaction: Box<dyn CommonInteraction>,
+    orders: Arc<OrdersPool>,
 }
 
 impl ExchangeActor {
@@ -65,6 +68,7 @@ impl ExchangeActor {
             specific_currency_pairs,
             websocket_channels,
             exchange_interaction,
+            orders: OrdersPool::new(),
         }
     }
 

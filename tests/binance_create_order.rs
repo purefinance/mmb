@@ -32,7 +32,7 @@ async fn test_add() {
         rest_host: "https://api.binance.com".into(),
     };
 
-    let binance = Binance::new(settings, "some_id".into());
+    let binance = Binance::new(settings, "Binance0".parse().unwrap());
 
     let exchange_actor = ExchangeActor::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
@@ -51,6 +51,7 @@ async fn test_add() {
         OrderType::Limit,
         OrderSide::Buy,
         dec!(10000),
+        OrderExecutionType::None,
         ReservationId::gen_new(),
         None,
         "".into(),
@@ -60,7 +61,6 @@ async fn test_add() {
         header: order_header,
         // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
         price: dec!(0.00000002),
-        execution_type: OrderExecutionType::None,
     };
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
@@ -107,7 +107,7 @@ async fn should_fail() {
         rest_host: "https://api.binance.com".into(),
     };
 
-    let binance = Binance::new(settings, "some_id".into());
+    let binance = Binance::new(settings, "Binance0".parse().unwrap());
 
     let exchange_actor = ExchangeActor::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
@@ -126,6 +126,7 @@ async fn should_fail() {
         OrderType::Limit,
         OrderSide::Buy,
         dec!(1),
+        OrderExecutionType::None,
         ReservationId::gen_new(),
         None,
         "".into(),
@@ -135,7 +136,6 @@ async fn should_fail() {
         header: order_header,
         // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
         price: dec!(0.00000005),
-        execution_type: OrderExecutionType::None,
     };
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
