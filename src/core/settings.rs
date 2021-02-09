@@ -1,4 +1,7 @@
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
+pub struct CoreSettings {}
+
+#[derive(Debug, Default)]
 pub struct ExchangeSettings {
     // TODO add other settings
     pub api_key: String,
