@@ -320,7 +320,7 @@ impl CommonInteraction for Binance {
 
         self.add_authentification_headers(&mut parameters);
 
-        let cancel_order_outcome =
+        let _cancel_order_outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
 
         //dbg!(&cancel_order_outcome);

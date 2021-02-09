@@ -186,9 +186,13 @@ impl ExchangeActor {
     }
 
     pub async fn get_open_orders(&self) -> Vec<OrderInfo> {
-        // TODO add logging
+        // TODO some timer metric has to be here
+
         let response = self.exchange_interaction.get_open_orders().await;
+        info!("GetOpenOrders response is {:?}", response);
+
         // TODO IsRestError(response) with Result?? Prolly just log error
+        // TODO Result propagate and handling
 
         let orders = self.exchange_interaction.parse_open_orders(&response);
 

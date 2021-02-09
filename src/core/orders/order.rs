@@ -1,8 +1,5 @@
-use crate::core::exchanges::{
-    binance::BinanceOrderInfo,
-    common::{
-        Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price, SpecificCurrencyPair,
-    },
+use crate::core::exchanges::common::{
+    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
