@@ -364,17 +364,16 @@ pub struct SystemInternalOrderProps {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderInfo {
+    // FIXME Why in sharp code here are CurrencyPair?
     pub currency_pair: CurrencyPair,
     pub exchange_order_id: ExchangeOrderId,
     pub client_order_id: ClientOrderId,
-    // FIXME Why in sharp code here are CurrencyPair?
     pub order_side: OrderSide,
     pub order_status: OrderStatus,
     pub price: Price,
     pub amount: Amount,
     pub average_fill_price: Decimal,
     pub filled_amount: Decimal,
-    // FIXME what is it?
     pub commission_currency_code: Option<String>,
     pub commission_rate: Option<Price>,
     pub commission_amount: Option<Amount>,

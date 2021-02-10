@@ -20,21 +20,26 @@ use std::collections::HashMap;
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
-    pub currency_mapping: HashMap<CurrencyPair, SpecificCurrencyPair>,
+    pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
+    pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
 }
 
 impl Binance {
     pub fn new(settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
-        let mut currency_mapping = HashMap::new();
-        currency_mapping.insert(
-            CurrencyPair::from_currency_codes("tnb".into(), "btc".into()),
-            SpecificCurrencyPair::new("TNBBTC".into()),
-        );
+        let unified_tnbbtc = CurrencyPair::from_currency_codes("tnb".into(), "btc".into());
+        let specific_tnbbtc = SpecificCurrencyPair::new("TNBBTC".into());
+
+        let mut unified_to_specific = HashMap::new();
+        unified_to_specific.insert(unified_tnbbtc.clone(), specific_tnbbtc.clone());
+
+        let mut specific_to_unified = HashMap::new();
+        specific_to_unified.insert(specific_tnbbtc, unified_tnbbtc);
 
         Self {
             settings,
             id,
-            currency_mapping,
+            unified_to_specific,
+            specific_to_unified,
         }
     }
 
@@ -143,6 +148,23 @@ impl Binance {
         let currency_codes: Vec<&str> = unified_currency_pair.split('/').collect();
         CurrencyPair::from_currency_codes(currency_codes[0].into(), currency_codes[1].into())
     }
+
+    fn specific_order_info_to_unified(&self, specific: &BinanceOrderInfo) -> OrderInfo {
+        OrderInfo::new(
+            Self::get_unified_currency_pair(&specific.specific_currency_pair),
+            specific.exchange_order_id.to_string().as_str().into(),
+            specific.client_order_id.clone(),
+            Self::to_local_order_side(&specific.side),
+            Self::to_local_order_status(&specific.status),
+            specific.price,
+            specific.orig_quantity,
+            specific.price,
+            specific.executed_quantity,
+            None,
+            None,
+            None,
+        )
+    }
 }
 
 #[async_trait(?Send)]
@@ -193,7 +215,7 @@ impl CommonInteraction for Binance {
     }
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
-        self.currency_mapping[currency_pair].clone()
+        self.unified_to_specific[currency_pair].clone()
     }
 
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
@@ -297,9 +319,10 @@ impl CommonInteraction for Binance {
         // TODO that unwrap has to be just logging
         let binance_orders: Vec<BinanceOrderInfo> =
             serde_json::from_str(&response.content).unwrap();
+
         let orders_info: Vec<OrderInfo> = binance_orders
             .iter()
-            .map(|order| order.to_order_info())
+            .map(|order| self.specific_order_info_to_unified(order))
             .collect();
 
         orders_info
@@ -327,7 +350,6 @@ impl CommonInteraction for Binance {
     }
 }
 
-// FIXME Didn't add unused fields. Hope that's OK
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BinanceOrderInfo {
     #[serde(rename = "symbol")]
@@ -337,32 +359,12 @@ pub struct BinanceOrderInfo {
     #[serde(rename = "clientOrderId")]
     pub client_order_id: ClientOrderId,
     pub price: Price,
-    // FIXME is that really Amount?
     #[serde(rename = "origQty")]
     pub orig_quantity: Amount,
     #[serde(rename = "executedQty")]
     pub executed_quantity: Amount,
     pub status: String,
     pub side: String,
-}
-
-impl BinanceOrderInfo {
-    pub fn to_order_info(&self) -> OrderInfo {
-        OrderInfo::new(
-            Binance::get_unified_currency_pair(&self.specific_currency_pair),
-            self.exchange_order_id.to_string().as_str().into(),
-            self.client_order_id.clone(),
-            Binance::to_local_order_side(&self.side),
-            Binance::to_local_order_status(&self.status),
-            self.price,
-            self.orig_quantity,
-            self.price,
-            self.executed_quantity,
-            None,
-            None,
-            None,
-        )
-    }
 }
 
 #[cfg(test)]
