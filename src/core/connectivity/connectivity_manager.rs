@@ -137,6 +137,8 @@ impl ConnectivityManager {
                 .open_websocket_connection(WebSocketRole::Secondary)
                 .await
         } else {
+            // TODO missing
+            // self.callback_connected.lock().as_mut()()
             true
         };
 
