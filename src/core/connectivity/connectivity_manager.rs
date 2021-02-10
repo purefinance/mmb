@@ -71,11 +71,13 @@ impl WebSockets {
     }
 }
 
+// FIXME What a strange names
 type Callback0 = Box<dyn FnMut()>;
 type Callback1<T> = Box<dyn FnMut(T)>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
+    // FIXME Why is composition reversed?
     exchange_actor: Addr<ExchangeActor>,
 
     websockets: WebSockets,
