@@ -158,11 +158,6 @@ pub struct CurrencyPair(String12);
 
 impl CurrencyPair {
     #[inline]
-    pub fn new(currency_code: String12) -> Self {
-        CurrencyPair(currency_code)
-    }
-
-    #[inline]
     pub fn from_currency_codes(base: CurrencyCode, quote: CurrencyCode) -> Self {
         CurrencyPair([base.as_str(), quote.as_str()].join("/").into()) // convention from ccxt
     }

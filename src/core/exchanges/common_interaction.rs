@@ -1,10 +1,14 @@
-use super::common::{CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestOutcome};
+use super::common::{
+    CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
+};
 use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating};
 use async_trait::async_trait;
 
 #[async_trait(?Send)]
 pub trait CommonInteraction {
     async fn create_order(&self, _order: &OrderCreating) -> RestRequestOutcome;
+
+    fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
 
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription>;
     fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId;
