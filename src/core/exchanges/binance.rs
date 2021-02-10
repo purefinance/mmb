@@ -165,8 +165,7 @@ impl CommonInteraction for Binance {
     }
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
-        let specific_currency_pair = &self.currency_mapping[currency_pair];
-        specific_currency_pair.clone()
+        self.currency_mapping[currency_pair].clone()
     }
 
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
