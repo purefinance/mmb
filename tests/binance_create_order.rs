@@ -9,6 +9,7 @@ use rust_decimal_macros::*;
 use std::env;
 
 #[actix_rt::test]
+#[ignore]
 async fn test_add() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");

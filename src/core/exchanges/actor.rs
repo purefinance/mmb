@@ -11,6 +11,7 @@ use crate::core::{
 };
 use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
+use dashmap::DashMap;
 use log::{info, trace};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -56,8 +57,13 @@ pub struct ExchangeActor {
     websocket_channels: Vec<String>,
     exchange_interaction: Box<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
-    websocket_events:
-        HashMap<String, (oneshot::Sender<WSEventType>, oneshot::Receiver<WSEventType>)>,
+    websocket_events: DashMap<
+        String,
+        (
+            oneshot::Sender<WSEventType>,
+            Option<oneshot::Receiver<WSEventType>>,
+        ),
+    >,
 }
 
 impl ExchangeActor {
@@ -76,7 +82,7 @@ impl ExchangeActor {
             websocket_channels,
             exchange_interaction,
             orders: OrdersPool::new(),
-            websocket_events: HashMap::new(),
+            websocket_events: DashMap::new(),
         }
     }
 
@@ -162,42 +168,43 @@ impl ExchangeActor {
         }
     }
 
-    pub async fn create_order(&mut self, order: &OrderCreating) -> CreateOrderResult {
+    pub async fn create_order(&self, order: &OrderCreating) -> CreateOrderResult {
         let test_client_order_id = "test_id".to_string();
-        self.websocket_events
-            .insert(test_client_order_id.clone(), oneshot::channel());
-
-        let (_, websocket_event_receiver) =
-            &self.websocket_events.remove(&test_client_order_id).unwrap();
-
         let (tx, rx) = oneshot::channel();
-        tx.send("wow");
 
-        let order_create_task = self.exchange_interaction.create_order(&order);
-        //let order_create_task = cancellation_token::CancellationToken::when_cancelled();
+        self.websocket_events
+            .insert(test_client_order_id.clone(), (tx, Some(rx)));
+
+        let (_, (tx, websocket_event_receiver)) =
+            self.websocket_events.remove(&test_client_order_id).unwrap();
+        tx.send(3);
+
+        //let order_create_task = self.exchange_interaction.create_order(&order);
+        let order_create_task = cancellation_token::CancellationToken::when_cancelled();
         let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
 
         tokio::select! {
-            rest_request_outcome = order_create_task => {
+            //rest_request_outcome = order_create_task => {
 
-                let create_order_result = self.handle_response(&rest_request_outcome, &order);
-                create_order_result
+            //    let create_order_result = self.handle_response(&rest_request_outcome, &order);
+            //    create_order_result
 
-            }
-
-            //_ = order_create_task => {
-            //    unimplemented!();
             //}
+
+            _ = order_create_task => {
+                unimplemented!();
+            }
 
             _ = cancellation_token => {
                 unimplemented!();
             }
 
-            //_ = rx => {
-            //    dbg!(&"WOOO");
-            //    CreateOrderResult::successed("some_order_id".into())
+            websocket_outcome = websocket_event_receiver.unwrap() => {
+                dbg!(&"WOOO");
+                dbg!(&websocket_outcome);
+                CreateOrderResult::successed("some_order_id".into())
 
-            //}
+            }
         }
     }
 
