@@ -12,7 +12,9 @@ use crate::core::{
 use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
 use log::{info, trace};
+use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::oneshot;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult {
@@ -45,6 +47,8 @@ impl CreateOrderResult {
     }
 }
 
+type WSEventType = u32;
+
 pub struct ExchangeActor {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
@@ -52,6 +56,8 @@ pub struct ExchangeActor {
     websocket_channels: Vec<String>,
     exchange_interaction: Box<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
+    websocket_events:
+        HashMap<String, (oneshot::Sender<WSEventType>, oneshot::Receiver<WSEventType>)>,
 }
 
 impl ExchangeActor {
@@ -59,6 +65,7 @@ impl ExchangeActor {
         exchange_account_id: ExchangeAccountId,
         websocket_host: String,
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
+        // TODO why? For what?
         websocket_channels: Vec<String>,
         exchange_interaction: Box<dyn CommonInteraction>,
     ) -> Self {
@@ -69,6 +76,7 @@ impl ExchangeActor {
             websocket_channels,
             exchange_interaction,
             orders: OrdersPool::new(),
+            websocket_events: HashMap::new(),
         }
     }
 
@@ -154,19 +162,40 @@ impl ExchangeActor {
         }
     }
 
-    pub async fn create_order(&self, order: &OrderCreating) -> CreateOrderResult {
-        let order_create_task = self.exchange_interaction.create_order(&order);
+    pub async fn create_order(&mut self, order: &OrderCreating) -> CreateOrderResult {
+        let test_client_order_id = "test_id".to_string();
+        self.websocket_events
+            .insert(test_client_order_id.clone(), oneshot::channel());
+
+        let (_, websocket_event_receiver) =
+            &self.websocket_events.remove(&test_client_order_id).unwrap();
+
+        let (_, test) = oneshot::channel();
+
+        //let order_create_task = self.exchange_interaction.create_order(&order);
+        let order_create_task = cancellation_token::CancellationToken::when_cancelled();
         let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
 
         tokio::select! {
-            rest_request_outcome = order_create_task => {
+            //rest_request_outcome = order_create_task => {
 
-                let create_order_result = self.handle_response(&rest_request_outcome, &order);
-                create_order_result
+            //    let create_order_result = self.handle_response(&rest_request_outcome, &order);
+            //    create_order_result
+
+            //}
+
+            _ = order_create_task => {
+                unimplemented!();
 
             }
             _ = cancellation_token => {
                 unimplemented!();
+            }
+
+            _ = test => {
+                dbg!(&"WOOO");
+                CreateOrderResult::successed("some_order_id".into())
+
             }
         }
     }

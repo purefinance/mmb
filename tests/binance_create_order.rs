@@ -34,7 +34,7 @@ async fn test_add() {
 
     let binance = Binance::new(settings, "Binance0".parse().unwrap());
 
-    let exchange_actor = ExchangeActor::new(
+    let mut exchange_actor = ExchangeActor::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
         vec![],
@@ -109,7 +109,7 @@ async fn should_fail() {
 
     let binance = Binance::new(settings, "Binance0".parse().unwrap());
 
-    let exchange_actor = ExchangeActor::new(
+    let mut exchange_actor = ExchangeActor::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
         vec![],

@@ -52,6 +52,7 @@ impl WebSocketActor {
     pub async fn open_connection(
         exchange_account_id: ExchangeAccountId,
         params: WebSocketParams,
+        // TODO why not just callbacks?
         connectivity_manager_notifier: ConnectivityManagerNotifier,
     ) -> Option<Addr<WebSocketActor>> {
         let (response, framed) = Client::builder()
