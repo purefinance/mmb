@@ -170,33 +170,34 @@ impl ExchangeActor {
         let (_, websocket_event_receiver) =
             &self.websocket_events.remove(&test_client_order_id).unwrap();
 
-        let (_, test) = oneshot::channel();
+        let (tx, rx) = oneshot::channel();
+        tx.send("wow");
 
-        //let order_create_task = self.exchange_interaction.create_order(&order);
-        let order_create_task = cancellation_token::CancellationToken::when_cancelled();
+        let order_create_task = self.exchange_interaction.create_order(&order);
+        //let order_create_task = cancellation_token::CancellationToken::when_cancelled();
         let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
 
         tokio::select! {
-            //rest_request_outcome = order_create_task => {
+            rest_request_outcome = order_create_task => {
 
-            //    let create_order_result = self.handle_response(&rest_request_outcome, &order);
-            //    create_order_result
-
-            //}
-
-            _ = order_create_task => {
-                unimplemented!();
+                let create_order_result = self.handle_response(&rest_request_outcome, &order);
+                create_order_result
 
             }
+
+            //_ = order_create_task => {
+            //    unimplemented!();
+            //}
+
             _ = cancellation_token => {
                 unimplemented!();
             }
 
-            _ = test => {
-                dbg!(&"WOOO");
-                CreateOrderResult::successed("some_order_id".into())
+            //_ = rx => {
+            //    dbg!(&"WOOO");
+            //    CreateOrderResult::successed("some_order_id".into())
 
-            }
+            //}
         }
     }
 

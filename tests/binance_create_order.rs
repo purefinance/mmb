@@ -42,7 +42,7 @@ async fn test_add() {
         Box::new(binance),
     );
 
-    let test_currency_pair = CurrencyPair::from_currency_codes("tnb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         "test".into(),
         Utc::now(),
@@ -60,7 +60,7 @@ async fn test_add() {
     let order_to_create = OrderCreating {
         header: order_header,
         // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000002),
+        price: dec!(0.00000003),
     };
 
     let create_order_result = exchange_actor.create_order(&order_to_create).await;
@@ -117,7 +117,7 @@ async fn should_fail() {
         Box::new(binance),
     );
 
-    let test_currency_pair = CurrencyPair::from_currency_codes("tnb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         "test".into(),
         Utc::now(),

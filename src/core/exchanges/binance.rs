@@ -28,8 +28,8 @@ impl Binance {
     pub fn new(settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
         let mut currency_mapping = HashMap::new();
         currency_mapping.insert(
-            CurrencyPair::from_currency_codes("tnb".into(), "btc".into()),
-            SpecificCurrencyPair::new("TNBBTC".into()),
+            CurrencyPair::from_currency_codes("phb".into(), "btc".into()),
+            SpecificCurrencyPair::new("PHBBTC".into()),
         );
 
         Self {
