@@ -15,16 +15,28 @@ use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use serde_json::Value;
 use sha2::Sha256;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
+    pub currency_mapping: HashMap<CurrencyPair, SpecificCurrencyPair>,
 }
 
 impl Binance {
     pub fn new(settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
-        Self { settings, id }
+        let mut currency_mapping = HashMap::new();
+        currency_mapping.insert(
+            CurrencyPair::from_currency_codes("tnb".into(), "btc".into()),
+            SpecificCurrencyPair::new("TNBBTC".into()),
+        );
+
+        Self {
+            settings,
+            id,
+            currency_mapping,
+        }
     }
 
     pub fn extend_settings(settings: &mut ExchangeSettings) {
@@ -108,10 +120,12 @@ impl Binance {
 #[async_trait(?Send)]
 impl CommonInteraction for Binance {
     async fn create_order(&self, order: &OrderCreating) -> RestRequestOutcome {
+        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
+
         let mut parameters = vec![
             (
                 "symbol".to_owned(),
-                order.header.currency_pair.as_str().to_uppercase(),
+                specific_currency_pair.as_str().to_owned(),
             ),
             (
                 "side".to_owned(),
@@ -150,6 +164,10 @@ impl CommonInteraction for Binance {
         rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
     }
 
+    fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
+        self.currency_mapping[currency_pair].clone()
+    }
+
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
         //Binance is a little inconsistent: for failed responses sometimes they include
         //only code or only success:false but sometimes both
@@ -157,7 +175,7 @@ impl CommonInteraction for Binance {
         {
             let data: Value = serde_json::from_str(&response.content).unwrap();
             return Some(RestErrorDescription::new(
-                data["msg"].to_string().replace("\"", ""),
+                data["msg"].as_str().unwrap().to_owned(),
                 data["code"].as_i64().unwrap() as i64,
             ));
         }
@@ -208,10 +226,11 @@ impl CommonInteraction for Binance {
 
     // TODO not implemented correctly
     async fn cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
+        let specific_currency_pair = self.get_specific_currency_pair(&order.currency_pair);
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
-            order.currency_pair.as_str().to_uppercase(),
+            specific_currency_pair.as_str().to_owned(),
         ));
         parameters.push(("orderId".to_owned(), order.order_id.as_str().to_owned()));
 
@@ -232,12 +251,16 @@ impl CommonInteraction for Binance {
 
     // TODO not implemented correctly
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
+        let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
         let path_to_delete = "/api/v3/openOrders";
         let mut full_url = self.settings.rest_host.clone();
         full_url.push_str(path_to_delete);
 
         let mut parameters = rest_client::HttpParams::new();
-        parameters.push(("symbol".to_owned(), currency_pair.as_str().to_owned()));
+        parameters.push((
+            "symbol".to_owned(),
+            specific_currency_pair.as_str().to_owned(),
+        ));
 
         self.add_authentification_headers(&mut parameters);
 

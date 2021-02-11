@@ -42,7 +42,7 @@ async fn test_add() {
         Box::new(binance),
     );
 
-    let test_currency_pair = CurrencyPair::new("TNBBTC".into());
+    let test_currency_pair = CurrencyPair::from_currency_codes("tnb".into(), "btc".into());
     let order_header = OrderHeader::new(
         "test".into(),
         Utc::now(),
@@ -117,7 +117,7 @@ async fn should_fail() {
         Box::new(binance),
     );
 
-    let test_currency_pair = CurrencyPair::new("TNBBTC".into());
+    let test_currency_pair = CurrencyPair::from_currency_codes("tnb".into(), "btc".into());
     let order_header = OrderHeader::new(
         "test".into(),
         Utc::now(),
