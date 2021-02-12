@@ -77,8 +77,7 @@ type Callback1<T> = Box<dyn FnMut(T)>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
-    exchange_actor: Addr<ExchangeActor>,
-
+    //exchange_actor: Addr<ExchangeActor>,
     websockets: WebSockets,
 
     callback_connecting: Mutex<Callback0>,
@@ -89,11 +88,12 @@ pub struct ConnectivityManager {
 impl ConnectivityManager {
     pub fn new(
         exchange_account_id: ExchangeAccountId,
-        exchange_actor: Addr<ExchangeActor>,
+        // TODO Dicided it's not an actor anymore
+        //exchange_actor: Addr<ExchangeActor>,
     ) -> Arc<ConnectivityManager> {
         Arc::new(Self {
             exchange_account_id,
-            exchange_actor,
+            //exchange_actor,
             websockets: WebSockets {
                 websocket_main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
                 websocket_secondary: Mutex::new(WebSocketConnectivity::new(
@@ -118,37 +118,42 @@ impl ConnectivityManager {
         *self.callback_disconnected.lock() = disconnected;
     }
 
-    pub async fn connect(self: Arc<Self>, is_enabled_secondary_websocket: bool) -> bool {
-        trace!(
-            "ConnectivityManager '{}' connecting",
-            self.exchange_account_id
-        );
-
-        self.callback_connecting.lock().as_mut()();
-
-        let main_websocket_connection_opened = self
-            .clone()
-            .open_websocket_connection(WebSocketRole::Main)
-            .await;
-
-        let secondary_websocket_connection_opened = if is_enabled_secondary_websocket {
-            self.clone()
-                .open_websocket_connection(WebSocketRole::Secondary)
-                .await
-        } else {
-            // TODO missing
-            // self.callback_connected.lock().as_mut()()
-            true
-        };
-
-        let is_connected =
-            main_websocket_connection_opened && secondary_websocket_connection_opened;
-        if is_connected {
-            self.callback_connected.lock().as_mut()();
-        }
-
-        is_connected
+    pub async fn connect(&self) -> bool {
+        true
     }
+
+    // FIXME websocket will work thru it
+    //pub async fn connect(self: Arc<Self>, is_enabled_secondary_websocket: bool) -> bool {
+    //    trace!(
+    //        "ConnectivityManager '{}' connecting",
+    //        self.exchange_account_id
+    //    );
+
+    //    self.callback_connecting.lock().as_mut()();
+
+    //    let main_websocket_connection_opened = self
+    //        .clone()
+    //        .open_websocket_connection(WebSocketRole::Main)
+    //        .await;
+
+    //    let secondary_websocket_connection_opened = if is_enabled_secondary_websocket {
+    //        self.clone()
+    //            .open_websocket_connection(WebSocketRole::Secondary)
+    //            .await
+    //    } else {
+    //        // TODO missing
+    //        // self.callback_connected.lock().as_mut()()
+    //        true
+    //    };
+
+    //    let is_connected =
+    //        main_websocket_connection_opened && secondary_websocket_connection_opened;
+    //    if is_connected {
+    //        self.callback_connected.lock().as_mut()();
+    //    }
+
+    //    is_connected
+    //}
 
     pub async fn disconnect(self: Arc<Self>) {
         Self::disconnect_for_websocket(&self.websockets.websocket_main).await;
@@ -244,94 +249,94 @@ impl ConnectivityManager {
         self.callback_disconnected.lock().as_mut()(false);
     }
 
-    pub async fn open_websocket_connection(self: Arc<Self>, role: WebSocketRole) -> bool {
-        let (finished_sender, finished_receiver) = async_channel::bounded(1);
+    //pub async fn open_websocket_connection(self: Arc<Self>, role: WebSocketRole) -> bool {
+    //    let (finished_sender, finished_receiver) = async_channel::bounded(1);
 
-        let (cancellation_sender, cancellation_receiver) = mpsc::channel();
+    //    let (cancellation_sender, cancellation_receiver) = mpsc::channel();
 
-        let websocket_connectivity = self.websockets.get_websocket_state(role);
+    //    let websocket_connectivity = self.websockets.get_websocket_state(role);
 
-        {
-            websocket_connectivity.lock().deref_mut().state = WebSocketState::Connecting {
-                finished_receiver: finished_receiver.clone(),
-                cancellation_sender,
-            };
-        }
+    //    {
+    //        websocket_connectivity.lock().deref_mut().state = WebSocketState::Connecting {
+    //            finished_receiver: finished_receiver.clone(),
+    //            cancellation_sender,
+    //        };
+    //    }
 
-        let mut attempt = 0;
+    //    let mut attempt = 0;
 
-        while let Err(TryRecvError::Empty) = cancellation_receiver.try_recv() {
-            trace!(
-                "Getting WebSocket parameters for {}",
-                self.exchange_account_id.clone()
-            );
-            let params = try_get_websocket_params(self.exchange_actor.clone(), role).await;
-            if let Some(params) = params {
-                if let Ok(()) = cancellation_receiver.try_recv() {
-                    return false;
-                }
+    //    while let Err(TryRecvError::Empty) = cancellation_receiver.try_recv() {
+    //        trace!(
+    //            "Getting WebSocket parameters for {}",
+    //            self.exchange_account_id.clone()
+    //        );
+    //        let params = try_get_websocket_params(self.exchange_actor.clone(), role).await;
+    //        if let Some(params) = params {
+    //            if let Ok(()) = cancellation_receiver.try_recv() {
+    //                return false;
+    //            }
 
-                let notifier = ConnectivityManagerNotifier::new(role, self.clone());
+    //            let notifier = ConnectivityManagerNotifier::new(role, self.clone());
 
-                let websocket_actor = WebSocketActor::open_connection(
-                    self.exchange_account_id.clone(),
-                    params.clone(),
-                    notifier,
-                )
-                .await;
-                if let Some(websocket_actor) = websocket_actor {
-                    websocket_connectivity.lock().deref_mut().state = WebSocketState::Connected {
-                        websocket_actor,
-                        finished_sender: finished_sender.clone(),
-                        finished_receiver: finished_receiver.clone(),
-                    };
+    //            let websocket_actor = WebSocketActor::open_connection(
+    //                self.exchange_account_id.clone(),
+    //                params.clone(),
+    //                notifier,
+    //            )
+    //            .await;
+    //            if let Some(websocket_actor) = websocket_actor {
+    //                websocket_connectivity.lock().deref_mut().state = WebSocketState::Connected {
+    //                    websocket_actor,
+    //                    finished_sender: finished_sender.clone(),
+    //                    finished_receiver: finished_receiver.clone(),
+    //                };
 
-                    if attempt > 0 {
-                        info!(
-                            "Opened websocket connection for {} after {} attempts",
-                            self.exchange_account_id, attempt
-                        );
-                    }
+    //                if attempt > 0 {
+    //                    info!(
+    //                        "Opened websocket connection for {} after {} attempts",
+    //                        self.exchange_account_id, attempt
+    //                    );
+    //                }
 
-                    if let Ok(()) = cancellation_receiver.try_recv() {
-                        if let WebSocketState::Connected {
-                            websocket_actor, ..
-                        } = &websocket_connectivity.lock().borrow().state
-                        {
-                            let _ = websocket_actor.try_send(ForceClose);
-                        }
-                    }
+    //                if let Ok(()) = cancellation_receiver.try_recv() {
+    //                    if let WebSocketState::Connected {
+    //                        websocket_actor, ..
+    //                    } = &websocket_connectivity.lock().borrow().state
+    //                    {
+    //                        let _ = websocket_actor.try_send(ForceClose);
+    //                    }
+    //                }
 
-                    return true;
-                }
+    //                return true;
+    //            }
 
-                attempt += 1;
+    //            attempt += 1;
 
-                let log_level = if attempt < MAX_RETRY_CONNECT_COUNT {
-                    Level::Warn
-                } else {
-                    Level::Error
-                };
-                log!(
-                    log_level,
-                    "Can't open websocket connection for {} {:?}",
-                    self.exchange_account_id,
-                    params
-                );
+    //            let log_level = if attempt < MAX_RETRY_CONNECT_COUNT {
+    //                Level::Warn
+    //            } else {
+    //                Level::Error
+    //            };
+    //            log!(
+    //                log_level,
+    //                "Can't open websocket connection for {} {:?}",
+    //                self.exchange_account_id,
+    //                params
+    //            );
 
-                if attempt == MAX_RETRY_CONNECT_COUNT {
-                    panic!(
-                        "Can't open websocket connection on {}",
-                        self.exchange_account_id
-                    );
-                }
-            }
-        }
+    //            if attempt == MAX_RETRY_CONNECT_COUNT {
+    //                panic!(
+    //                    "Can't open websocket connection on {}",
+    //                    self.exchange_account_id
+    //                );
+    //            }
+    //        }
+    //    }
 
-        Self::set_disconnected_state(finished_sender, &websocket_connectivity);
+    //    Self::set_disconnected_state(finished_sender, &websocket_connectivity);
 
-        false
-    }
+    //    false
+    //}
 }
 
 #[derive(Clone)]

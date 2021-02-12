@@ -1,7 +1,9 @@
 use super::cancellation_token;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
-use crate::core::connectivity::websocket_actor::WebSocketParams;
+use crate::core::connectivity::{
+    connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams,
+};
 use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating};
@@ -50,6 +52,7 @@ impl CreateOrderResult {
 
 type WSEventType = u32;
 
+// TODO Dicided it's not an actor anymore
 pub struct ExchangeActor {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
@@ -57,6 +60,7 @@ pub struct ExchangeActor {
     websocket_channels: Vec<String>,
     exchange_interaction: Box<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
+    connectivity_manager: Arc<ConnectivityManager>,
     websocket_events: DashMap<
         String,
         (
@@ -75,6 +79,8 @@ impl ExchangeActor {
         websocket_channels: Vec<String>,
         exchange_interaction: Box<dyn CommonInteraction>,
     ) -> Self {
+        // TODO make it via DI to easier tests
+        let connectivity_manager = Self::setup_connectivity_manager();
         ExchangeActor {
             exchange_account_id,
             websocket_host,
@@ -82,8 +88,14 @@ impl ExchangeActor {
             websocket_channels,
             exchange_interaction,
             orders: OrdersPool::new(),
+            connectivity_manager,
             websocket_events: DashMap::new(),
         }
+    }
+
+    fn setup_connectivity_manager() -> Arc<ConnectivityManager> {
+        // TODO set callbacks
+        ConnectivityManager::new(ExchangeAccountId::new("test_exchange_id".into(), 1))
     }
 
     pub fn create_websocket_params(&mut self, ws_path: &str) -> WebSocketParams {
@@ -92,6 +104,27 @@ impl ExchangeActor {
                 .parse()
                 .expect("should be valid url"),
         )
+    }
+
+    pub async fn connect(&self) {
+        self.try_connect().await;
+        // TODO Reconnect
+    }
+
+    async fn try_connect(&self) {
+        // TODO IsWebSocketConnecting()
+        info!("Websocket: Connecting on {}", "test_exchange_id");
+
+        // TODO if UsingWebsocket
+        // TODO handle results
+        // TODO handle secondarywebsocket
+
+        let is_connected = self.connectivity_manager.connect().await;
+
+        if !is_connected {
+            // TODO finish_connected
+        }
+        // TODO all other logs and finish_connected
     }
 
     fn handle_response(
