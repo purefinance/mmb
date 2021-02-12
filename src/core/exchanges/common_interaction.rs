@@ -14,7 +14,6 @@ pub trait CommonInteraction {
 
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
-    //fn get_unified_currency_pair(&self, currency_pair: &SpecificCurrencyPair) -> CurrencyPair;
 
     async fn get_account_info(&self);
 

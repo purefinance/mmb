@@ -140,18 +140,13 @@ impl Binance {
         parameters.push(("signature".to_owned(), signature));
     }
 
-    pub fn get_unified_currency_pair(currency_pair: &SpecificCurrencyPair) -> CurrencyPair {
-        let mut mapping = HashMap::new();
-        mapping.insert("TNBBTC", "tnb/btc");
-
-        let unified_currency_pair = mapping[&currency_pair.as_str()];
-        let currency_codes: Vec<&str> = unified_currency_pair.split('/').collect();
-        CurrencyPair::from_currency_codes(currency_codes[0].into(), currency_codes[1].into())
+    pub fn get_unified_currency_pair(&self, currency_pair: &SpecificCurrencyPair) -> CurrencyPair {
+        self.specific_to_unified[&currency_pair].clone()
     }
 
     fn specific_order_info_to_unified(&self, specific: &BinanceOrderInfo) -> OrderInfo {
         OrderInfo::new(
-            Self::get_unified_currency_pair(&specific.specific_currency_pair),
+            self.get_unified_currency_pair(&specific.specific_currency_pair),
             specific.exchange_order_id.to_string().as_str().into(),
             specific.client_order_id.clone(),
             Self::to_local_order_side(&specific.side),
@@ -345,8 +340,6 @@ impl CommonInteraction for Binance {
 
         let _cancel_order_outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
-
-        //dbg!(&cancel_order_outcome);
     }
 }
 
