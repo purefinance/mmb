@@ -363,6 +363,54 @@ pub struct SystemInternalOrderProps {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderInfo {
+    pub currency_pair: CurrencyPair,
+    pub exchange_order_id: ExchangeOrderId,
+    pub client_order_id: ClientOrderId,
+    pub order_side: OrderSide,
+    pub order_status: OrderStatus,
+    pub price: Price,
+    pub amount: Amount,
+    pub average_fill_price: Decimal,
+    pub filled_amount: Decimal,
+    pub commission_currency_code: Option<String>,
+    pub commission_rate: Option<Price>,
+    pub commission_amount: Option<Amount>,
+}
+
+impl OrderInfo {
+    pub fn new(
+        currency_pair: CurrencyPair,
+        exchange_order_id: ExchangeOrderId,
+        client_order_id: ClientOrderId,
+        order_side: OrderSide,
+        order_status: OrderStatus,
+        price: Price,
+        amount: Amount,
+        average_fill_price: Decimal,
+        filled_amount: Decimal,
+        commission_currency_code: Option<String>,
+        commission_rate: Option<Price>,
+        commission_amount: Option<Amount>,
+    ) -> Self {
+        Self {
+            currency_pair,
+            exchange_order_id,
+            client_order_id,
+            order_side,
+            order_status,
+            price,
+            amount,
+            average_fill_price,
+            filled_amount,
+            commission_currency_code,
+            commission_rate,
+            commission_amount,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCreating {
     pub header: OrderHeader,
     pub price: Price,
