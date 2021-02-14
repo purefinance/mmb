@@ -6,7 +6,7 @@ use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::{env, thread, time};
+use std::env;
 
 #[actix_rt::test]
 async fn test_add() {
@@ -34,7 +34,7 @@ async fn test_add() {
 
     let binance = Binance::new(settings, "Binance0".parse().unwrap());
 
-    let exchange_actor = ExchangeActor::new(
+    let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
         vec![],
@@ -63,7 +63,7 @@ async fn test_add() {
         price: dec!(0.00000002),
     };
 
-    let create_order_result = exchange_actor.create_order(&order_to_create).await;
+    let create_order_result = exchange.create_order(&order_to_create).await;
 
     match create_order_result.outcome {
         RequestResult::Success(order_id) => {
@@ -73,7 +73,7 @@ async fn test_add() {
             };
 
             // Cancel last order
-            let _cancel_outcome = exchange_actor.cancel_order(&order_to_cancel).await;
+            let _cancel_outcome = exchange.cancel_order(&order_to_cancel).await;
         }
 
         // Create order failed
@@ -109,7 +109,7 @@ async fn should_fail() {
 
     let binance = Binance::new(settings, "Binance0".parse().unwrap());
 
-    let exchange_actor = ExchangeActor::new(
+    let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
         vec![],
@@ -138,7 +138,7 @@ async fn should_fail() {
         price: dec!(0.00000005),
     };
 
-    let create_order_result = exchange_actor.create_order(&order_to_create).await;
+    let create_order_result = exchange.create_order(&order_to_create).await;
 
     let expected_error = RequestResult::Error(ExchangeError::new(
         ExchangeErrorType::InvalidOrder,

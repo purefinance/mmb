@@ -4,7 +4,7 @@ use crate::core::{
         websocket_actor::{self, ForceClose, WebSocketActor, WebSocketParams},
     },
     exchanges::{
-        actor::{ExchangeActor, GetWebSocketParams},
+        actor::{Exchange, GetWebSocketParams},
         common::ExchangeAccountId,
     },
 };
@@ -76,7 +76,7 @@ type Callback1<T> = Box<dyn FnMut(T)>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
-    exchange_actor: Addr<ExchangeActor>,
+    exchange: Arc<Exchange>,
 
     websockets: WebSockets,
 
@@ -88,11 +88,11 @@ pub struct ConnectivityManager {
 impl ConnectivityManager {
     pub fn new(
         exchange_account_id: ExchangeAccountId,
-        exchange_actor: Addr<ExchangeActor>,
+        exchange: Arc<Exchange>,
     ) -> Arc<ConnectivityManager> {
         Arc::new(Self {
             exchange_account_id,
-            exchange_actor,
+            exchange,
             websockets: WebSockets {
                 websocket_main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
                 websocket_secondary: Mutex::new(WebSocketConnectivity::new(
@@ -262,7 +262,7 @@ impl ConnectivityManager {
                 "Getting WebSocket parameters for {}",
                 self.exchange_account_id.clone()
             );
-            let params = try_get_websocket_params(self.exchange_actor.clone(), role).await;
+            let params = try_get_websocket_params(self.exchange.clone(), role).await;
             if let Some(params) = params {
                 if let Ok(()) = cancellation_receiver.try_recv() {
                     return false;
@@ -372,10 +372,12 @@ impl Default for ConnectivityManagerNotifier {
 }
 
 async fn try_get_websocket_params(
-    exchange_actor: Addr<ExchangeActor>,
+    mut exchange: Arc<Exchange>,
     role: WebSocketRole,
 ) -> Option<WebSocketParams> {
-    exchange_actor.send(GetWebSocketParams(role)).await.unwrap()
+    Arc::get_mut(&mut exchange)
+        .unwrap()
+        .get_websocket_params(GetWebSocketParams(role))
 }
 
 #[cfg(test)]
@@ -384,7 +386,7 @@ mod tests {
     use crate::core::exchanges::binance::Binance;
     use crate::core::logger::init_logger;
     use crate::core::settings::ExchangeSettings;
-    use actix::{Actor, Arbiter};
+    use actix::Arbiter;
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
     use tokio::{sync::oneshot, time::sleep};
 
@@ -406,17 +408,16 @@ mod tests {
                 exchange_account_id.clone(),
             ));
 
-            let exchange_actor = ExchangeActor::new(
+            let exchange = Arc::new(Exchange::new(
                 exchange_account_id.clone(),
                 websocket_host,
                 currency_pairs,
                 channels,
                 exchange_interaction,
-            )
-            .start();
+            ));
 
             let connectivity_manager =
-                ConnectivityManager::new(exchange_account_id.clone(), exchange_actor);
+                ConnectivityManager::new(exchange_account_id.clone(), exchange);
 
             let connected_count = Rc::new(RefCell::new(0));
             {
