@@ -94,16 +94,16 @@ impl ExchangeActor {
         }
     }
 
-    fn setup_connectivity_manager(&self) -> Arc<ConnectivityManager> {
+    fn setup_connectivity_manager() -> Arc<ConnectivityManager> {
         // TODO set callbacks
         let connectivity_manager =
             ConnectivityManager::new(ExchangeAccountId::new("test_exchange_id".into(), 1));
-        connectivity_manager.set_callback_msg_received(Box::new(self.on_websocket_message));
+        connectivity_manager.set_callback_msg_received(Box::new(Self::on_websocket_message));
 
         connectivity_manager
     }
 
-    fn on_websocket_message(&self, msg: String) {
+    fn on_websocket_message(msg: String) {
         // FIXME check cancellation token
         // FIXME check logging
         //exchange_interaction.on_websocket_message
@@ -131,7 +131,7 @@ impl ExchangeActor {
         // TODO handle results
         // TODO handle secondarywebsocket
 
-        let is_connected = self.connectivity_manager.connect().await;
+        let is_connected = self.connectivity_manager.connect(true).await;
 
         if !is_connected {
             // TODO finish_connected

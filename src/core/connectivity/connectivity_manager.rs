@@ -124,7 +124,7 @@ impl ConnectivityManager {
         *self.callback_msg_received.lock() = data_received;
     }
 
-    pub async fn connect(&self) -> bool {
+    pub async fn connect(&self, _: bool) -> bool {
         true
     }
 
@@ -429,8 +429,7 @@ mod tests {
             )
             .start();
 
-            let connectivity_manager =
-                ConnectivityManager::new(exchange_account_id.clone(), exchange_actor);
+            let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
             let connected_count = Rc::new(RefCell::new(0));
             {
