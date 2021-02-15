@@ -3,10 +3,7 @@ use crate::core::{
         connectivity_manager::WebSocketState::Disconnected,
         websocket_actor::{self, ForceClose, WebSocketActor, WebSocketParams},
     },
-    exchanges::{
-        common::ExchangeAccountId,
-        exchange::{Exchange, GetWebSocketParams},
-    },
+    exchanges::common::ExchangeAccountId,
 };
 
 use actix::Addr;
@@ -77,7 +74,7 @@ type Callback2<T> = Box<dyn FnMut(T) -> Option<WebSocketParams>>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
-    callback_get_ws_params: Mutex<Callback2<GetWebSocketParams>>,
+    callback_get_ws_params: Mutex<Callback2<WebSocketRole>>,
 
     websockets: WebSockets,
 
@@ -108,7 +105,6 @@ impl ConnectivityManager {
     }
 
     pub fn set_callback_connected(&self, connected: Callback0) {
-        (*self.callback_get_ws_params.lock())(GetWebSocketParams(WebSocketRole::Main));
         *self.callback_connected.lock() = connected;
     }
 
@@ -116,7 +112,7 @@ impl ConnectivityManager {
         *self.callback_disconnected.lock() = disconnected;
     }
 
-    pub fn set_callback_ws_params(&self, get_websocket_params: Callback2<GetWebSocketParams>) {
+    pub fn set_callback_ws_params(&self, get_websocket_params: Callback2<WebSocketRole>) {
         *self.callback_get_ws_params.lock() = get_websocket_params;
     }
 
@@ -334,7 +330,7 @@ impl ConnectivityManager {
     }
 
     async fn try_get_websocket_params(&self, role: WebSocketRole) -> Option<WebSocketParams> {
-        (self.callback_get_ws_params).lock()(GetWebSocketParams(role))
+        (self.callback_get_ws_params).lock()(role)
     }
 }
 
@@ -382,6 +378,7 @@ impl Default for ConnectivityManagerNotifier {
 mod tests {
     use super::*;
     use crate::core::exchanges::binance::Binance;
+    use crate::core::exchanges::exchange::Exchange;
     use crate::core::logger::init_logger;
     use crate::core::settings::ExchangeSettings;
     use actix::Arbiter;
@@ -414,11 +411,15 @@ mod tests {
                 exchange_interaction,
             ));
 
+            let exchange_weak = Arc::downgrade(&exchange);
             let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
             connectivity_manager
                 .clone()
                 .set_callback_ws_params(Box::new(move |params| {
-                    exchange.clone().get_websocket_params(params)
+                    exchange_weak
+                        .upgrade()
+                        .unwrap()
+                        .get_websocket_params(params)
                 }));
 
             let connected_count = Rc::new(RefCell::new(0));

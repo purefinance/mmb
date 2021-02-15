@@ -200,9 +200,8 @@ impl Exchange {
 
     pub fn get_websocket_params(
         mut self: Arc<Self>,
-        params: GetWebSocketParams,
+        websocket_role: WebSocketRole,
     ) -> Option<WebSocketParams> {
-        let websocket_role = params.0;
         match websocket_role {
             WebSocketRole::Main => {
                 // TODO remove hardcode
@@ -220,5 +219,3 @@ impl Exchange {
         }
     }
 }
-
-pub struct GetWebSocketParams(pub WebSocketRole);
