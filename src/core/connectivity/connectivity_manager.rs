@@ -69,18 +69,17 @@ impl WebSockets {
 }
 
 type Callback0 = Box<dyn FnMut()>;
-type Callback1<T> = Box<dyn FnMut(T)>;
-type Callback2<T> = Box<dyn FnMut(T) -> Option<WebSocketParams>>;
+type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
-    callback_get_ws_params: Mutex<Callback2<WebSocketRole>>,
+    callback_get_ws_params: Mutex<Callback1<WebSocketRole, Option<WebSocketParams>>>,
 
     websockets: WebSockets,
 
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
-    callback_disconnected: Mutex<Callback1<bool>>,
+    callback_disconnected: Mutex<Callback1<bool, ()>>,
 }
 
 impl ConnectivityManager {
@@ -108,11 +107,14 @@ impl ConnectivityManager {
         *self.callback_connected.lock() = connected;
     }
 
-    pub fn set_callback_disconnected(&self, disconnected: Callback1<bool>) {
+    pub fn set_callback_disconnected(&self, disconnected: Callback1<bool, ()>) {
         *self.callback_disconnected.lock() = disconnected;
     }
 
-    pub fn set_callback_ws_params(&self, get_websocket_params: Callback2<WebSocketRole>) {
+    pub fn set_callback_ws_params(
+        &self,
+        get_websocket_params: Callback1<WebSocketRole, Option<WebSocketParams>>,
+    ) {
         *self.callback_get_ws_params.lock() = get_websocket_params;
     }
 
