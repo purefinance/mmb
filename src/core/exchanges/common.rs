@@ -105,7 +105,7 @@ impl From<&str> for ExchangeId {
 }
 
 /// Currency pair specific for exchange
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SpecificCurrencyPair(String12);
 

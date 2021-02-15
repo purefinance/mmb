@@ -7,7 +7,7 @@ use crate::core::connectivity::{
 };
 use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
-use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating};
+use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
@@ -93,9 +93,9 @@ impl ExchangeActor {
             websocket_events: DashMap::new(),
         };
 
-        connectivity_manager.set_callback_msg_received(Box::new(move |data| {
-            Arc::new(exchange).clone().on_websocket_message(data)
-        }));
+        //connectivity_manager.set_callback_msg_received(Box::new(move |data| {
+        //    Arc::new(exchange).clone().on_websocket_message(data)
+        //}));
 
         exchange
     }
@@ -269,6 +269,20 @@ impl ExchangeActor {
 
     pub async fn get_account_info(&self) {
         self.exchange_interaction.get_account_info().await;
+    }
+
+    pub async fn get_open_orders(&self) -> Vec<OrderInfo> {
+        // TODO some timer metric has to be here
+
+        let response = self.exchange_interaction.get_open_orders().await;
+        info!("GetOpenOrders response is {:?}", response);
+
+        // TODO IsRestError(response) with Result?? Prolly just log error
+        // TODO Result propagate and handling
+
+        let orders = self.exchange_interaction.parse_open_orders(&response);
+
+        orders
     }
 }
 
