@@ -82,28 +82,33 @@ impl ExchangeActor {
     ) -> Self {
         // TODO make it via DI to easier tests
         let connectivity_manager = Self::setup_connectivity_manager();
-        ExchangeActor {
+        let exchange = ExchangeActor {
             exchange_account_id,
             websocket_host,
             specific_currency_pairs,
             websocket_channels,
             exchange_interaction,
             orders: OrdersPool::new(),
-            connectivity_manager,
+            connectivity_manager: connectivity_manager.clone(),
             websocket_events: DashMap::new(),
-        }
+        };
+
+        connectivity_manager.set_callback_msg_received(Box::new(move |data| {
+            Arc::new(exchange).clone().on_websocket_message(data)
+        }));
+
+        exchange
     }
 
     fn setup_connectivity_manager() -> Arc<ConnectivityManager> {
         // TODO set callbacks
         let connectivity_manager =
             ConnectivityManager::new(ExchangeAccountId::new("test_exchange_id".into(), 1));
-        connectivity_manager.set_callback_msg_received(Box::new(Self::on_websocket_message));
 
         connectivity_manager
     }
 
-    fn on_websocket_message(msg: String) {
+    fn on_websocket_message(&self, msg: String) {
         // FIXME check cancellation token
         // FIXME check logging
         //exchange_interaction.on_websocket_message
