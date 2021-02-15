@@ -4,8 +4,8 @@ use crate::core::{
         websocket_actor::{self, ForceClose, WebSocketActor, WebSocketParams},
     },
     exchanges::{
-        actor::{Exchange, GetWebSocketParams},
         common::ExchangeAccountId,
+        exchange::{Exchange, GetWebSocketParams},
     },
 };
 
@@ -73,10 +73,11 @@ impl WebSockets {
 
 type Callback0 = Box<dyn FnMut()>;
 type Callback1<T> = Box<dyn FnMut(T)>;
+type Callback2<T> = Box<dyn FnMut(T) -> Option<WebSocketParams>>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
-    exchange: Arc<Exchange>,
+    callback_get_ws_params: Mutex<Callback2<GetWebSocketParams>>,
 
     websockets: WebSockets,
 
@@ -86,13 +87,9 @@ pub struct ConnectivityManager {
 }
 
 impl ConnectivityManager {
-    pub fn new(
-        exchange_account_id: ExchangeAccountId,
-        exchange: Arc<Exchange>,
-    ) -> Arc<ConnectivityManager> {
+    pub fn new(exchange_account_id: ExchangeAccountId) -> Arc<ConnectivityManager> {
         Arc::new(Self {
             exchange_account_id,
-            exchange,
             websockets: WebSockets {
                 websocket_main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
                 websocket_secondary: Mutex::new(WebSocketConnectivity::new(
@@ -102,6 +99,7 @@ impl ConnectivityManager {
             callback_connecting: Mutex::new(Box::new(|| {})),
             callback_connected: Mutex::new(Box::new(|| {})),
             callback_disconnected: Mutex::new(Box::new(|_| {})),
+            callback_get_ws_params: Mutex::new(Box::new(|_| None)),
         })
     }
 
@@ -110,11 +108,16 @@ impl ConnectivityManager {
     }
 
     pub fn set_callback_connected(&self, connected: Callback0) {
+        (*self.callback_get_ws_params.lock())(GetWebSocketParams(WebSocketRole::Main));
         *self.callback_connected.lock() = connected;
     }
 
     pub fn set_callback_disconnected(&self, disconnected: Callback1<bool>) {
         *self.callback_disconnected.lock() = disconnected;
+    }
+
+    pub fn set_callback_ws_params(&self, get_websocket_params: Callback2<GetWebSocketParams>) {
+        *self.callback_get_ws_params.lock() = get_websocket_params;
     }
 
     pub async fn connect(self: Arc<Self>, is_enabled_secondary_websocket: bool) -> bool {
@@ -262,7 +265,7 @@ impl ConnectivityManager {
                 "Getting WebSocket parameters for {}",
                 self.exchange_account_id.clone()
             );
-            let params = try_get_websocket_params(self.exchange.clone(), role).await;
+            let params = self.try_get_websocket_params(role).await;
             if let Some(params) = params {
                 if let Ok(()) = cancellation_receiver.try_recv() {
                     return false;
@@ -329,6 +332,10 @@ impl ConnectivityManager {
 
         false
     }
+
+    async fn try_get_websocket_params(&self, role: WebSocketRole) -> Option<WebSocketParams> {
+        (self.callback_get_ws_params).lock()(GetWebSocketParams(role))
+    }
 }
 
 #[derive(Clone)]
@@ -371,15 +378,6 @@ impl Default for ConnectivityManagerNotifier {
     }
 }
 
-async fn try_get_websocket_params(
-    mut exchange: Arc<Exchange>,
-    role: WebSocketRole,
-) -> Option<WebSocketParams> {
-    Arc::get_mut(&mut exchange)
-        .unwrap()
-        .get_websocket_params(GetWebSocketParams(role))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,8 +414,12 @@ mod tests {
                 exchange_interaction,
             ));
 
-            let connectivity_manager =
-                ConnectivityManager::new(exchange_account_id.clone(), exchange);
+            let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+            connectivity_manager
+                .clone()
+                .set_callback_ws_params(Box::new(move |params| {
+                    exchange.clone().get_websocket_params(params)
+                }));
 
             let connected_count = Rc::new(RefCell::new(0));
             {

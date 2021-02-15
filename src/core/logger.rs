@@ -19,8 +19,8 @@ pub fn init_logger() {
             .chain(
                 fern::Dispatch::new()
                     .level(LevelFilter::Warn)
-                    .level_for("mmb", LevelFilter::Trace)
-                    .level_for("mmb_lib", LevelFilter::Trace)
+                    .level_for("mmb", LevelFilter::Warn)
+                    .level_for("mmb_lib", LevelFilter::Warn)
                     .chain(std::io::stdout()),
             )
             .chain(

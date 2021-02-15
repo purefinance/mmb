@@ -198,7 +198,10 @@ impl Exchange {
         orders
     }
 
-    pub fn get_websocket_params(&mut self, params: GetWebSocketParams) -> Option<WebSocketParams> {
+    pub fn get_websocket_params(
+        mut self: Arc<Self>,
+        params: GetWebSocketParams,
+    ) -> Option<WebSocketParams> {
         let websocket_role = params.0;
         match websocket_role {
             WebSocketRole::Main => {
@@ -207,12 +210,15 @@ impl Exchange {
                     &self.specific_currency_pairs[..],
                     &self.websocket_channels[..],
                 );
-                Some(self.create_websocket_params(&ws_path))
+                Some(
+                    Arc::get_mut(&mut self)
+                        .unwrap()
+                        .create_websocket_params(&ws_path),
+                )
             }
             WebSocketRole::Secondary => None,
         }
     }
 }
 
-// TODO What a strange name
 pub struct GetWebSocketParams(pub WebSocketRole);
