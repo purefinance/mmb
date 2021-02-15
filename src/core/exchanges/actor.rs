@@ -1,4 +1,3 @@
-// TODO rename file
 use super::cancellation_token;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
@@ -16,8 +15,7 @@ use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use log::{info, trace};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use tokio::sync::oneshot;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -79,10 +77,10 @@ impl ExchangeActor {
         // TODO why? For what?
         websocket_channels: Vec<String>,
         exchange_interaction: Box<dyn CommonInteraction>,
-    ) -> Self {
+    ) -> Arc<Self> {
         // TODO make it via DI to easier tests
         let connectivity_manager = Self::setup_connectivity_manager();
-        let exchange = ExchangeActor {
+        let exchange = Arc::new(ExchangeActor {
             exchange_account_id,
             websocket_host,
             specific_currency_pairs,
@@ -91,11 +89,12 @@ impl ExchangeActor {
             orders: OrdersPool::new(),
             connectivity_manager: connectivity_manager.clone(),
             websocket_events: DashMap::new(),
-        };
+        });
 
-        //connectivity_manager.set_callback_msg_received(Box::new(move |data| {
-        //    Arc::new(exchange).clone().on_websocket_message(data)
-        //}));
+        let exchange_weak = Arc::downgrade(&Arc::new(exchange.clone()));
+        connectivity_manager.set_callback_msg_received(Box::new(move |data| {
+            exchange_weak.upgrade().unwrap().on_websocket_message(data)
+        }));
 
         exchange
     }

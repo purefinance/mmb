@@ -431,8 +431,7 @@ mod tests {
                 currency_pairs,
                 channels,
                 exchange_interaction,
-            )
-            .start();
+            );
 
             let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
