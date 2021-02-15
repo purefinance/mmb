@@ -245,7 +245,6 @@ impl ExchangeActor {
             }
 
             websocket_outcome = websocket_event_receiver.unwrap() => {
-                dbg!(&"WOOO");
                 dbg!(&websocket_outcome);
                 CreateOrderResult::successed("some_order_id".into())
 
@@ -302,5 +301,33 @@ impl Handler<GetWebSocketParams> for ExchangeActor {
             }
             WebSocketRole::Secondary => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::settings::ExchangeSettings;
+
+    #[actix_rt::test]
+    async fn callback() {
+        let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+        let websocket_host = "wss://stream.binance.com:9443".into();
+        let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
+        let channels = vec!["depth".into(), "aggTrade".into()];
+        let exchange_interaction = Box::new(Binance::new(
+            ExchangeSettings::default(),
+            exchange_account_id.clone(),
+        ));
+
+        let exchange_actor = ExchangeActor::new(
+            exchange_account_id.clone(),
+            websocket_host,
+            currency_pairs,
+            channels,
+            exchange_interaction,
+        );
+
+        exchange_actor.connect().await;
     }
 }

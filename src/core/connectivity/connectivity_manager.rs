@@ -125,6 +125,7 @@ impl ConnectivityManager {
     }
 
     pub async fn connect(&self, _: bool) -> bool {
+        dbg!(&"Connect in ConnectivityManager!");
         true
     }
 
