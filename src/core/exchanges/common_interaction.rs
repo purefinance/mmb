@@ -14,6 +14,8 @@ pub trait CommonInteraction {
     fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId;
     fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType;
 
+    fn on_websocket_message(&self, msg: String);
+
     async fn get_account_info(&self);
 
     async fn cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;

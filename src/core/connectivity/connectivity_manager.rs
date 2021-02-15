@@ -83,6 +83,7 @@ pub struct ConnectivityManager {
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
     callback_disconnected: Mutex<Callback1<bool>>,
+    callback_msg_received: Mutex<Callback1<String>>,
 }
 
 impl ConnectivityManager {
@@ -103,6 +104,7 @@ impl ConnectivityManager {
             callback_connecting: Mutex::new(Box::new(|| {})),
             callback_connected: Mutex::new(Box::new(|| {})),
             callback_disconnected: Mutex::new(Box::new(|_| {})),
+            callback_msg_received: Mutex::new(Box::new(|_| {})),
         })
     }
 
@@ -116,6 +118,10 @@ impl ConnectivityManager {
 
     pub fn set_callback_disconnected(&self, disconnected: Callback1<bool>) {
         *self.callback_disconnected.lock() = disconnected;
+    }
+
+    pub fn set_callback_msg_received(&self, data_received: Callback1<String>) {
+        *self.callback_msg_received.lock() = data_received;
     }
 
     pub async fn connect(&self) -> bool {

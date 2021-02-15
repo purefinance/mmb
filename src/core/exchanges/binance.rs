@@ -168,6 +168,11 @@ impl CommonInteraction for Binance {
         self.currency_mapping[currency_pair].clone()
     }
 
+    fn on_websocket_message(&self, msg: String) {
+        dbg!(&msg);
+        dbg!(&"on websocket_message form binance!");
+    }
+
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
         //Binance is a little inconsistent: for failed responses sometimes they include
         //only code or only success:false but sometimes both

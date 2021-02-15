@@ -1,3 +1,4 @@
+// TODO rename file
 use super::cancellation_token;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
@@ -93,9 +94,20 @@ impl ExchangeActor {
         }
     }
 
-    fn setup_connectivity_manager() -> Arc<ConnectivityManager> {
+    fn setup_connectivity_manager(&self) -> Arc<ConnectivityManager> {
         // TODO set callbacks
-        ConnectivityManager::new(ExchangeAccountId::new("test_exchange_id".into(), 1))
+        let connectivity_manager =
+            ConnectivityManager::new(ExchangeAccountId::new("test_exchange_id".into(), 1));
+        connectivity_manager.set_callback_msg_received(Box::new(self.on_websocket_message));
+
+        connectivity_manager
+    }
+
+    fn on_websocket_message(&self, msg: String) {
+        // FIXME check cancellation token
+        // FIXME check logging
+        //exchange_interaction.on_websocket_message
+        dbg!(&msg);
     }
 
     pub fn create_websocket_params(&mut self, ws_path: &str) -> WebSocketParams {
