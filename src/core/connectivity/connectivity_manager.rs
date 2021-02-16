@@ -77,7 +77,6 @@ type Callback1<T> = Box<dyn FnMut(T)>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
-    //exchange_actor: Addr<ExchangeActor>,
     websockets: WebSockets,
 
     callback_connecting: Mutex<Callback0>,
@@ -420,7 +419,7 @@ mod tests {
             let websocket_host = "wss://stream.binance.com:9443".into();
             let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
             let channels = vec!["depth".into(), "aggTrade".into()];
-            let exchange_interaction = Box::new(Binance::new(
+            let exchange_interaction = Arc::new(Binance::new(
                 ExchangeSettings::default(),
                 exchange_account_id.clone(),
             ));

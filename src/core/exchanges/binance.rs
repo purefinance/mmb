@@ -5,21 +5,25 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price, RestErrorDescription,
     RestRequestOutcome, SpecificCurrencyPair,
 };
+use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
 use async_trait::async_trait;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
 use std::collections::HashMap;
+use std::sync::Arc;
 
-#[derive(Debug)]
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
+    pub cb_websocket_msg_received: Mutex<Box<dyn FnMut(String)>>,
+
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
 }
@@ -38,9 +42,14 @@ impl Binance {
         Self {
             settings,
             id,
+            cb_websocket_msg_received: Mutex::new(Box::new(|_| {})),
             unified_to_specific,
             specific_to_unified,
         }
+    }
+
+    pub fn set_cb_websocket_msg_received(&self, callback: Box<dyn FnMut(String)>) {
+        *self.cb_websocket_msg_received.lock() = callback;
     }
 
     pub fn extend_settings(settings: &mut ExchangeSettings) {
@@ -161,7 +170,9 @@ impl Binance {
         )
     }
 
-    fn handle_trade(&self, msg_to_log: &str, json_req: &str) {}
+    fn handle_trade(&self, msg_to_log: &str, json_req: &str) {
+        dbg!("handle trade in Binance!!");
+    }
 }
 
 #[async_trait(?Send)]
@@ -351,6 +362,12 @@ impl CommonInteraction for Binance {
 
         let _cancel_order_outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
+    }
+
+    fn set_websocket_msg_received(
+        self: Arc<Self>,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    ) {
     }
 }
 

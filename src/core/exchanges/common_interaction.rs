@@ -1,8 +1,13 @@
 use super::common::{
     CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
 };
-use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
+
+use crate::core::orders::fill::EventSourceType;
+use crate::core::orders::order::{
+    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
+};
 use async_trait::async_trait;
+use std::sync::Arc;
 
 #[async_trait(?Send)]
 pub trait CommonInteraction {
@@ -16,6 +21,11 @@ pub trait CommonInteraction {
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
 
     fn on_websocket_message(&self, msg: String);
+
+    fn set_websocket_msg_received(
+        self: Arc<Self>,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    );
 
     async fn get_account_info(&self);
 

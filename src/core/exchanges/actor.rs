@@ -1,16 +1,17 @@
 use super::cancellation_token;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
-use crate::core::connectivity::{
-    connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams,
-};
-use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
 };
+use crate::core::{
+    connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
+    orders::order::ClientOrderId,
+};
+use crate::core::{exchanges::binance::Binance, orders::fill::EventSourceType};
 use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
 use dashmap::DashMap;
@@ -57,7 +58,7 @@ pub struct ExchangeActor {
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
     websocket_channels: Vec<String>,
-    exchange_interaction: Box<dyn CommonInteraction>,
+    exchange_interaction: Arc<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
     websocket_events: DashMap<
@@ -76,7 +77,7 @@ impl ExchangeActor {
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
         // TODO why? For what?
         websocket_channels: Vec<String>,
-        exchange_interaction: Box<dyn CommonInteraction>,
+        exchange_interaction: Arc<dyn CommonInteraction>,
     ) -> Arc<Self> {
         // TODO make it via DI to easier tests
         let connectivity_manager = Self::setup_connectivity_manager();
@@ -85,7 +86,7 @@ impl ExchangeActor {
             websocket_host,
             specific_currency_pairs,
             websocket_channels,
-            exchange_interaction,
+            exchange_interaction: exchange_interaction.clone(),
             orders: OrdersPool::new(),
             connectivity_manager: connectivity_manager.clone(),
             websocket_events: DashMap::new(),
@@ -96,7 +97,26 @@ impl ExchangeActor {
             exchange_weak.upgrade().unwrap().on_websocket_message(data)
         }));
 
+        let exchange_weak = Arc::downgrade(&exchange);
+        exchange_interaction.set_websocket_msg_received(Box::new(
+            move |client_order_id, exchange_order_id, source_type| {
+                exchange_weak.upgrade().unwrap().raise_order_created(
+                    client_order_id,
+                    exchange_order_id,
+                    source_type,
+                );
+            },
+        ));
+
         exchange
+    }
+
+    fn raise_order_created(
+        &self,
+        client_order_id: ClientOrderId,
+        exchange_order_id: ExchangeOrderId,
+        source_type: EventSourceType,
+    ) {
     }
 
     fn setup_connectivity_manager() -> Arc<ConnectivityManager> {
@@ -332,7 +352,7 @@ mod tests {
         let websocket_host = "wss://stream.binance.com:9443".into();
         let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
         let channels = vec!["depth".into(), "aggTrade".into()];
-        let exchange_interaction = Box::new(Binance::new(
+        let exchange_interaction = Arc::new(Binance::new(
             ExchangeSettings::default(),
             exchange_account_id.clone(),
         ));

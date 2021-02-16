@@ -6,6 +6,7 @@ use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
+use std::sync::Arc;
 use std::{env, thread, time};
 
 #[actix_rt::test]
@@ -40,7 +41,7 @@ async fn test_add() {
         "host".into(),
         vec![],
         vec![],
-        Box::new(binance),
+        Arc::new(binance),
     );
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
@@ -115,7 +116,7 @@ async fn should_fail() {
         "host".into(),
         vec![],
         vec![],
-        Box::new(binance),
+        Arc::new(binance),
     );
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
