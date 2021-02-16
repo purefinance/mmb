@@ -71,7 +71,7 @@ impl Exchange {
         }
     }
 
-    pub fn create_websocket_params(&mut self, ws_path: &str) -> WebSocketParams {
+    pub fn create_websocket_params(&self, ws_path: &str) -> WebSocketParams {
         WebSocketParams::new(
             format!("{}{}", self.websocket_host, ws_path)
                 .parse()
@@ -199,7 +199,7 @@ impl Exchange {
     }
 
     pub fn get_websocket_params(
-        mut self: Arc<Self>,
+        self: Arc<Self>,
         websocket_role: WebSocketRole,
     ) -> Option<WebSocketParams> {
         match websocket_role {
@@ -209,11 +209,7 @@ impl Exchange {
                     &self.specific_currency_pairs[..],
                     &self.websocket_channels[..],
                 );
-                Some(
-                    Arc::get_mut(&mut self)
-                        .unwrap()
-                        .create_websocket_params(&ws_path),
-                )
+                Some(self.create_websocket_params(&ws_path))
             }
             WebSocketRole::Secondary => None,
         }
