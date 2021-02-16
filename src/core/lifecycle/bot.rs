@@ -1,7 +1,6 @@
-use crate::core::exchanges::actor::ExchangeActor;
 use crate::core::exchanges::common::ExchangeAccountId;
+use crate::core::exchanges::exchange::Exchange;
 use crate::core::settings::CoreSettings;
-use actix::Addr;
 use dashmap::DashMap;
 use std::sync::Arc;
 use tokio::sync::oneshot::Sender;
@@ -16,7 +15,7 @@ pub trait Service {
 
 pub struct BotContext {
     pub app_settings: CoreSettings,
-    pub exchanges: DashMap<ExchangeAccountId, Addr<ExchangeActor>>,
+    pub exchanges: DashMap<ExchangeAccountId, Exchange>,
 }
 
 impl BotContext {
