@@ -22,7 +22,8 @@ use std::sync::Arc;
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
-    pub cb_websocket_msg_received: Mutex<Box<dyn FnMut(String)>>,
+    pub cb_websocket_msg_received:
+        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>>,
 
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
@@ -42,13 +43,16 @@ impl Binance {
         Self {
             settings,
             id,
-            cb_websocket_msg_received: Mutex::new(Box::new(|_| {})),
+            cb_websocket_msg_received: Mutex::new(Box::new(|_, _, _| {})),
             unified_to_specific,
             specific_to_unified,
         }
     }
 
-    pub fn set_cb_websocket_msg_received(&self, callback: Box<dyn FnMut(String)>) {
+    pub fn set_cb_websocket_msg_received(
+        &self,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    ) {
         *self.cb_websocket_msg_received.lock() = callback;
     }
 
@@ -170,8 +174,13 @@ impl Binance {
         )
     }
 
-    fn handle_trade(&self, msg_to_log: &str, json_req: &str) {
-        dbg!("handle trade in Binance!!");
+    fn handle_trade(&self, msg_to_log: &str, json_response: &str) {
+        // TODO parse json_response
+        (&self.cb_websocket_msg_received).lock()(
+            "some client_order_id".into(),
+            "some exchange_order_id".into(),
+            EventSourceType::WebSocket,
+        );
     }
 }
 
@@ -368,6 +377,7 @@ impl CommonInteraction for Binance {
         self: Arc<Self>,
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
     ) {
+        *self.cb_websocket_msg_received.lock() = callback;
     }
 }
 
