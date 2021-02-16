@@ -160,6 +160,8 @@ impl Binance {
             None,
         )
     }
+
+    fn handle_trade(&self, msg_to_log: &str, json_req: &str) {}
 }
 
 #[async_trait(?Send)]
@@ -216,6 +218,10 @@ impl CommonInteraction for Binance {
     fn on_websocket_message(&self, msg: String) {
         dbg!(&msg);
         dbg!(&"on websocket_message form binance!");
+        // TODO a lot of other stuff
+        // FIXME decerealize data
+        let json_req = "some json";
+        self.handle_trade(&msg, json_req);
     }
 
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {

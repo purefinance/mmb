@@ -91,7 +91,7 @@ impl ExchangeActor {
             websocket_events: DashMap::new(),
         });
 
-        let exchange_weak = Arc::downgrade(&Arc::new(exchange.clone()));
+        let exchange_weak = Arc::downgrade(&exchange);
         connectivity_manager.set_callback_msg_received(Box::new(move |data| {
             exchange_weak.upgrade().unwrap().on_websocket_message(data)
         }));
@@ -110,8 +110,7 @@ impl ExchangeActor {
     fn on_websocket_message(&self, msg: String) {
         // FIXME check cancellation token
         // FIXME check logging
-        //exchange_interaction.on_websocket_message
-        dbg!(&msg);
+        self.exchange_interaction.on_websocket_message(msg);
     }
 
     pub fn create_websocket_params(&mut self, ws_path: &str) -> WebSocketParams {

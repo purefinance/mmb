@@ -125,11 +125,11 @@ impl ConnectivityManager {
     }
 
     pub async fn connect(&self, _: bool) -> bool {
-        dbg!(&"Connect in ConnectivityManager!");
         // TODO build_websocket_params
         // TODO build_second_websocket_params
 
-        (self.callback_connecting).lock()();
+        (self.callback_msg_received).lock()("CALLBACK WORKS!".to_owned());
+
         true
     }
 
