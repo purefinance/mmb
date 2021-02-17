@@ -17,6 +17,8 @@ use awc::http::StatusCode;
 use dashmap::DashMap;
 use log::{info, trace};
 use std::sync::{Arc, Weak};
+use std::thread;
+use std::time::Duration;
 use tokio::sync::oneshot;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -118,6 +120,10 @@ impl ExchangeActor {
         source_type: EventSourceType,
     ) {
         dbg!(&"RAISE_ORDER IN EXCHANGE CORE");
+        let test_client_order_id = "test_id".to_string();
+        let (_, (tx, websocket_event_receiver)) =
+            self.websocket_events.remove(&test_client_order_id).unwrap();
+        tx.send(3);
     }
 
     fn setup_connectivity_manager() -> Arc<ConnectivityManager> {
@@ -246,7 +252,9 @@ impl ExchangeActor {
 
         let (_, (tx, websocket_event_receiver)) =
             self.websocket_events.remove(&test_client_order_id).unwrap();
-        tx.send(3);
+
+        self.websocket_events
+            .insert(test_client_order_id.clone(), (tx, None));
 
         //let order_create_task = self.exchange_interaction.create_order(&order);
         let order_create_task = cancellation_token::CancellationToken::when_cancelled();
@@ -344,8 +352,12 @@ impl Handler<GetWebSocketParams> for ExchangeActor {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
+    use rust_decimal_macros::dec;
+
     use super::*;
-    use crate::core::settings::ExchangeSettings;
+    use crate::core::{orders::order::*, settings::ExchangeSettings};
+    use futures::join;
 
     #[actix_rt::test]
     async fn callback() {
@@ -366,6 +378,30 @@ mod tests {
             exchange_interaction,
         );
 
-        exchange_actor.connect().await;
+        let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let order_header = OrderHeader::new(
+            "test".into(),
+            Utc::now(),
+            ExchangeAccountId::new("".into(), 0),
+            test_currency_pair.clone(),
+            OrderType::Limit,
+            OrderSide::Buy,
+            dec!(10000),
+            OrderExecutionType::None,
+            ReservationId::gen_new(),
+            None,
+            "".into(),
+        );
+
+        let order_to_create = OrderCreating {
+            header: order_header,
+            // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
+            price: dec!(0.00000003),
+        };
+
+        let websocket_event = exchange_actor.connect();
+        let create_order_event = exchange_actor.create_order(&order_to_create);
+
+        join!(create_order_event, websocket_event);
     }
 }
