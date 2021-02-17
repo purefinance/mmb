@@ -12,10 +12,9 @@ use crate::core::{
     orders::order::ClientOrderId,
 };
 use crate::core::{exchanges::binance::Binance, orders::fill::EventSourceType};
-use actix::{Actor, Context, Handler, Message};
 use awc::http::StatusCode;
 use dashmap::DashMap;
-use log::{info, trace};
+use log::info;
 use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::Duration;
@@ -53,9 +52,7 @@ impl CreateOrderResult {
 }
 
 type WSEventType = u32;
-
-// TODO Dicided it's not an actor anymore
-pub struct ExchangeActor {
+pub struct Exchange {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
@@ -72,7 +69,7 @@ pub struct ExchangeActor {
     >,
 }
 
-impl ExchangeActor {
+impl Exchange {
     pub fn new(
         exchange_account_id: ExchangeAccountId,
         websocket_host: String,
@@ -81,9 +78,8 @@ impl ExchangeActor {
         websocket_channels: Vec<String>,
         exchange_interaction: Arc<dyn CommonInteraction>,
     ) -> Arc<Self> {
-        // TODO make it via DI to easier tests
         let connectivity_manager = Self::setup_connectivity_manager();
-        let exchange = Arc::new(ExchangeActor {
+        let exchange = Arc::new(Self {
             exchange_account_id,
             websocket_host,
             specific_currency_pairs,
@@ -140,7 +136,7 @@ impl ExchangeActor {
         self.exchange_interaction.on_websocket_message(msg);
     }
 
-    pub fn create_websocket_params(&mut self, ws_path: &str) -> WebSocketParams {
+    pub fn create_websocket_params(&self, ws_path: &str) -> WebSocketParams {
         WebSocketParams::new(
             format!("{}{}", self.websocket_host, ws_path)
                 .parse()
@@ -161,7 +157,7 @@ impl ExchangeActor {
         // TODO handle results
         // TODO handle secondarywebsocket
 
-        let is_connected = self.connectivity_manager.connect(true).await;
+        let is_connected = self.connectivity_manager.clone().connect(true).await;
 
         if !is_connected {
             // TODO finish_connected
@@ -311,31 +307,11 @@ impl ExchangeActor {
 
         orders
     }
-}
 
-impl Actor for ExchangeActor {
-    type Context = Context<Self>;
-
-    fn started(&mut self, _ctx: &mut Self::Context) {
-        trace!("ExchangeActor '{}' started", self.exchange_account_id);
-    }
-
-    fn stopped(&mut self, _ctx: &mut Self::Context) {
-        trace!("ExchangeActor '{}' stopped", self.exchange_account_id);
-    }
-}
-
-pub struct GetWebSocketParams(pub WebSocketRole);
-
-impl Message for GetWebSocketParams {
-    type Result = Option<WebSocketParams>;
-}
-
-impl Handler<GetWebSocketParams> for ExchangeActor {
-    type Result = Option<WebSocketParams>;
-
-    fn handle(&mut self, msg: GetWebSocketParams, _ctx: &mut Self::Context) -> Self::Result {
-        let websocket_role = msg.0;
+    pub fn get_websocket_params(
+        self: Arc<Self>,
+        websocket_role: WebSocketRole,
+    ) -> Option<WebSocketParams> {
         match websocket_role {
             WebSocketRole::Main => {
                 // TODO remove hardcode
@@ -370,7 +346,7 @@ mod tests {
             exchange_account_id.clone(),
         ));
 
-        let exchange_actor = ExchangeActor::new(
+        let exchange_actor = Exchange::new(
             exchange_account_id.clone(),
             websocket_host,
             currency_pairs,
