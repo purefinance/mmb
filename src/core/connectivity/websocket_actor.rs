@@ -49,7 +49,7 @@ pub struct WebSocketActor {
     last_heartbeat_time: Instant,
     connectivity_manager_notifier: ConnectivityManagerNotifier,
     // TODO all other callbacks
-    callback_msg_received: Arc<Mutex<MsgReceivedCallback>>,
+    callback_msg_received: Mutex<MsgReceivedCallback>,
 }
 
 impl WebSocketActor {
@@ -105,9 +105,9 @@ impl WebSocketActor {
             writer,
             last_heartbeat_time: Instant::now(),
             connectivity_manager_notifier,
-            callback_msg_received: Arc::new(Mutex::new(Box::new(|_| {
+            callback_msg_received: Mutex::new(Box::new(|_| {
                 panic!("This callback has to be set externally")
-            }))),
+            })),
         }
     }
 
@@ -177,12 +177,12 @@ pub struct SendText(pub String);
 #[rtype(result = "()")]
 pub struct ForceClose;
 
-pub type MsgReceivedCallback = Box<dyn FnMut(String) + Send + Sync>;
+pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct TextReceivedCallback {
-    pub callback_msg_received: Arc<Mutex<MsgReceivedCallback>>,
+    pub callback_msg_received: MsgReceivedCallback,
 }
 
 impl Handler<SendText> for WebSocketActor {
@@ -214,14 +214,13 @@ impl Handler<ForceClose> for WebSocketActor {
 impl Handler<TextReceivedCallback> for WebSocketActor {
     type Result = ();
 
-    fn handle(&mut self, cb: TextReceivedCallback, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, message: TextReceivedCallback, _ctx: &mut Self::Context) -> Self::Result {
         info!(
             "WebsocketActor '{}' received callback for new text message",
             self.exchange_account_id
         );
 
-        let _ = *cb.callback_msg_received.into_inner();
-        //*self.callback_msg_received.lock() = cb.callback_msg_received;
+        *self.callback_msg_received.lock() = message.callback_msg_received;
     }
 }
 

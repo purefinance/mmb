@@ -84,7 +84,7 @@ pub struct ConnectivityManager {
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
     callback_disconnected: Mutex<Callback1<bool, ()>>,
-    callback_msg_received: Arc<Mutex<MsgReceivedCallback>>,
+    callback_msg_received: Mutex<MsgReceivedCallback>,
 }
 
 impl ConnectivityManager {
@@ -107,9 +107,9 @@ impl ConnectivityManager {
                 panic!("This callback has to be set externally")
             })),
 
-            callback_msg_received: Arc::new(Mutex::new(Box::new(|_| {
+            callback_msg_received: Mutex::new(Box::new(|_| {
                 panic!("This callback has to be set externally")
-            }))),
+            })),
         })
     }
 
@@ -316,10 +316,10 @@ impl ConnectivityManager {
                         websocket_actor, ..
                     } = &websocket_connectivity.lock().borrow().state
                     {
-                        let callback_weak = Arc::downgrade(&self.callback_msg_received);
+                        //let callback_weak = Arc::downgrade(&self.callback_msg_received);
+                        let callback = Box::new(|_| {});
                         let callback = TextReceivedCallback {
-                            //callback_msg_received: callback_weak.upgrade().unwrap(),
-                            callback_msg_received: self.callback_msg_received.clone(),
+                            callback_msg_received: callback,
                         };
 
                         let _ = websocket_actor.try_send(callback);
