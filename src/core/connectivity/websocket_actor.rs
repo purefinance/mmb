@@ -13,6 +13,7 @@ use awc::{
 };
 use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
+use futures::SinkExt;
 use log::{error, info, trace};
 use std::time::{Duration, Instant};
 
@@ -67,6 +68,7 @@ impl WebSocketActor {
             })
             .unwrap();
 
+        dbg!(&response.status());
         trace!(
             "WebsocketActor '{}' connecting status: {}",
             exchange_account_id,
@@ -197,6 +199,7 @@ impl Handler<ForceClose> for WebSocketActor {
 
 impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
     fn handle(&mut self, msg: Result<Frame, ProtocolError>, ctx: &mut Self::Context) {
+        dbg!(&"NEW MESSAGE");
         match msg {
             Ok(msg) => match msg {
                 Frame::Text(ref text) => self.handle_websocket_message(text),
@@ -247,7 +250,9 @@ mod tests {
     use crate::core::logger::init_logger;
     use actix::Arbiter;
 
+    // TODO It is not UNIT test
     #[actix_rt::test]
+    #[ignore]
     pub async fn connect_and_send_msg() {
         use tokio::sync::oneshot;
 

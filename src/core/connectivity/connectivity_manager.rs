@@ -94,10 +94,14 @@ impl ConnectivityManager {
                     WebSocketRole::Secondary,
                 )),
             },
+
+            // TODO this is bad approach
             callback_connecting: Mutex::new(Box::new(|| {})),
             callback_connected: Mutex::new(Box::new(|| {})),
             callback_disconnected: Mutex::new(Box::new(|_| {})),
-            callback_get_ws_params: Mutex::new(Box::new(|_| None)),
+            callback_get_ws_params: Mutex::new(Box::new(|_| {
+                panic!("This callback has to be set externally")
+            })),
             callback_msg_received: Mutex::new(Box::new(|_| {})),
         })
     }
@@ -151,7 +155,7 @@ impl ConnectivityManager {
                 .open_websocket_connection(WebSocketRole::Secondary)
                 .await
         } else {
-            self.callback_connected.lock().as_mut()();
+            // TODO callback_connected()?
             true
         };
 
@@ -176,6 +180,7 @@ impl ConnectivityManager {
             Disconnected => {
                 return;
             }
+
             WebSocketState::Connecting {
                 cancellation_sender,
                 finished_receiver,
@@ -293,6 +298,7 @@ impl ConnectivityManager {
                     notifier,
                 )
                 .await;
+
                 if let Some(websocket_actor) = websocket_actor {
                     websocket_connectivity.lock().deref_mut().state = WebSocketState::Connected {
                         websocket_actor,
@@ -307,14 +313,15 @@ impl ConnectivityManager {
                         );
                     }
 
-                    if let Ok(()) = cancellation_receiver.try_recv() {
-                        if let WebSocketState::Connected {
-                            websocket_actor, ..
-                        } = &websocket_connectivity.lock().borrow().state
-                        {
-                            let _ = websocket_actor.try_send(ForceClose);
-                        }
-                    }
+                    // TODO Why????
+                    //if let Ok(()) = cancellation_receiver.try_recv() {
+                    //    if let WebSocketState::Connected {
+                    //        websocket_actor, ..
+                    //    } = &websocket_connectivity.lock().borrow().state
+                    //    {
+                    //        let _ = websocket_actor.try_send(ForceClose);
+                    //    }
+                    //}
 
                     return true;
                 }
@@ -411,61 +418,59 @@ mod tests {
 
         let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
-        Arbiter::spawn(async {
-            let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
-            let websocket_host = "wss://stream.binance.com:9443".into();
-            let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
-            let channels = vec!["depth".into(), "aggTrade".into()];
-            let exchange_interaction = Arc::new(Binance::new(
-                ExchangeSettings::default(),
-                exchange_account_id.clone(),
-            ));
+        let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+        let websocket_host = "wss://stream.binance.com:9443".into();
+        let currency_pairs = vec!["phbbtc".into(), "btcusdt".into()];
+        let channels = vec!["depth".into(), "aggTrade".into()];
+        let exchange_interaction = Arc::new(Binance::new(
+            ExchangeSettings::default(),
+            exchange_account_id.clone(),
+        ));
 
-            let exchange = Exchange::new(
-                exchange_account_id.clone(),
-                websocket_host,
-                currency_pairs,
-                channels,
-                exchange_interaction,
-            );
+        let exchange = Exchange::new(
+            exchange_account_id.clone(),
+            websocket_host,
+            currency_pairs,
+            channels,
+            exchange_interaction,
+        );
 
-            let exchange_weak = Arc::downgrade(&exchange);
-            let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+        let exchange_weak = Arc::downgrade(&exchange);
+        let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+        connectivity_manager
+            .clone()
+            .set_callback_ws_params(Box::new(move |params| {
+                let exchange = exchange_weak.upgrade().unwrap();
+                exchange.get_websocket_params(params)
+            }));
+
+        let connected_count = Rc::new(RefCell::new(0));
+        {
+            let connected_count = connected_count.clone();
             connectivity_manager
                 .clone()
-                .set_callback_ws_params(Box::new(move |params| {
-                    let get_arc_exchange = exchange_weak.upgrade().unwrap().clone();
-                    get_arc_exchange.get_websocket_params(params)
+                .set_callback_connected(Box::new(move || {
+                    connected_count.replace_with(|x| *x + 1);
                 }));
+        }
 
-            let connected_count = Rc::new(RefCell::new(0));
-            {
-                let connected_count = connected_count.clone();
-                connectivity_manager
-                    .clone()
-                    .set_callback_connected(Box::new(move || {
-                        connected_count.replace_with(|x| *x + 1);
-                    }));
-            }
-
-            for _ in 0..EXPECTED_CONNECTED_COUNT {
-                let connect_result = connectivity_manager.clone().connect(false).await;
-                assert_eq!(
-                    connect_result, true,
-                    "websocket should connect successfully"
-                );
-
-                connectivity_manager.clone().disconnect().await;
-            }
-
+        for _ in 0..EXPECTED_CONNECTED_COUNT {
+            let connect_result = connectivity_manager.clone().connect(false).await;
             assert_eq!(
-                connected_count.deref().replace(0),
-                EXPECTED_CONNECTED_COUNT,
-                "we should reconnect expected count times"
+                connect_result, true,
+                "websocket should connect successfully"
             );
 
-            let _ = finish_sender.send(());
-        });
+            connectivity_manager.clone().disconnect().await;
+        }
+
+        assert_eq!(
+            connected_count.deref().replace(0),
+            EXPECTED_CONNECTED_COUNT,
+            "we should reconnect expected count times"
+        );
+
+        let _ = finish_sender.send(());
 
         tokio::select! {
             _ = finish_receiver => info!("Test finished successfully"),

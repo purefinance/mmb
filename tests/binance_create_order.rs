@@ -6,11 +6,10 @@ use mmb_lib::core::exchanges::exchange::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::sync::Arc;
 use std::env;
+use std::sync::Arc;
 
 #[actix_rt::test]
-#[ignore]
 async fn test_add() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");
@@ -36,13 +35,20 @@ async fn test_add() {
 
     let binance = Binance::new(settings, "Binance0".parse().unwrap());
 
+    let websocket_host = "wss://stream.binance.com:9443".into();
+    let currency_pairs = vec!["PHBBTC".into(), "BTCUSDT".into()];
+    let channels = vec!["depth".into(), "aggTrade".into()];
+
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
-        "host".into(),
-        vec![],
-        vec![],
+        websocket_host,
+        currency_pairs,
+        channels,
         Arc::new(binance),
     );
+
+    let connect_outcome = exchange.connect().await;
+    dbg!(&connect_outcome);
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
@@ -66,6 +72,9 @@ async fn test_add() {
     };
 
     let create_order_result = exchange.create_order(&order_to_create).await;
+    let all_orders = exchange.get_open_orders().await;
+    dbg!(&create_order_result);
+    dbg!(&all_orders);
 
     match create_order_result.outcome {
         RequestResult::Success(order_id) => {
@@ -86,6 +95,7 @@ async fn test_add() {
 }
 
 #[actix_rt::test]
+#[ignore]
 async fn should_fail() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");

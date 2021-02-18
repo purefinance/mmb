@@ -96,6 +96,14 @@ impl Exchange {
         }));
 
         let exchange_weak = Arc::downgrade(&exchange);
+        connectivity_manager.set_callback_ws_params(Box::new(move |websocket_role| {
+            exchange_weak
+                .upgrade()
+                .unwrap()
+                .get_websocket_params(websocket_role)
+        }));
+
+        let exchange_weak = Arc::downgrade(&exchange);
         exchange_interaction.set_websocket_msg_received(Box::new(
             move |client_order_id, exchange_order_id, source_type| {
                 exchange_weak.upgrade().unwrap().raise_order_created(
@@ -137,11 +145,14 @@ impl Exchange {
     }
 
     pub fn create_websocket_params(&self, ws_path: &str) -> WebSocketParams {
-        WebSocketParams::new(
+        let params = WebSocketParams::new(
             format!("{}{}", self.websocket_host, ws_path)
                 .parse()
                 .expect("should be valid url"),
-        )
+        );
+        dbg!(&params);
+
+        params
     }
 
     pub async fn connect(&self) {
@@ -157,7 +168,7 @@ impl Exchange {
         // TODO handle results
         // TODO handle secondarywebsocket
 
-        let is_connected = self.connectivity_manager.clone().connect(true).await;
+        let is_connected = self.connectivity_manager.clone().connect(false).await;
 
         if !is_connected {
             // TODO finish_connected
@@ -252,27 +263,29 @@ impl Exchange {
         self.websocket_events
             .insert(test_client_order_id.clone(), (tx, None));
 
-        //let order_create_task = self.exchange_interaction.create_order(&order);
-        let order_create_task = cancellation_token::CancellationToken::when_cancelled();
+        let order_create_task = self.exchange_interaction.create_order(&order);
+        //let order_create_task = cancellation_token::CancellationToken::when_cancelled();
         let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
 
         tokio::select! {
-            //rest_request_outcome = order_create_task => {
+            rest_request_outcome = order_create_task => {
 
-            //    let create_order_result = self.handle_response(&rest_request_outcome, &order);
-            //    create_order_result
+                dbg!(&"REST FIRST");
+                let create_order_result = self.handle_response(&rest_request_outcome, &order);
+                create_order_result
 
-            //}
-
-            _ = order_create_task => {
-                unimplemented!();
             }
+
+            //_ = order_create_task => {
+            //    unimplemented!();
+            //}
 
             _ = cancellation_token => {
                 unimplemented!();
             }
 
             websocket_outcome = websocket_event_receiver.unwrap() => {
+                dbg!(&"WEBSOCKET FIRST");
                 dbg!(&websocket_outcome);
                 CreateOrderResult::successed("some_order_id".into())
 
@@ -326,58 +339,58 @@ impl Exchange {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use chrono::Utc;
-    use rust_decimal_macros::dec;
-
-    use super::*;
-    use crate::core::{orders::order::*, settings::ExchangeSettings};
-    use futures::join;
-
-    #[actix_rt::test]
-    async fn callback() {
-        let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
-        let websocket_host = "wss://stream.binance.com:9443".into();
-        let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
-        let channels = vec!["depth".into(), "aggTrade".into()];
-        let exchange_interaction = Arc::new(Binance::new(
-            ExchangeSettings::default(),
-            exchange_account_id.clone(),
-        ));
-
-        let exchange_actor = Exchange::new(
-            exchange_account_id.clone(),
-            websocket_host,
-            currency_pairs,
-            channels,
-            exchange_interaction,
-        );
-
-        let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
-        let order_header = OrderHeader::new(
-            "test".into(),
-            Utc::now(),
-            ExchangeAccountId::new("".into(), 0),
-            test_currency_pair.clone(),
-            OrderType::Limit,
-            OrderSide::Buy,
-            dec!(10000),
-            OrderExecutionType::None,
-            ReservationId::gen_new(),
-            None,
-            "".into(),
-        );
-
-        let order_to_create = OrderCreating {
-            header: order_header,
-            // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-            price: dec!(0.00000003),
-        };
-
-        let websocket_event = exchange_actor.connect();
-        let create_order_event = exchange_actor.create_order(&order_to_create);
-
-        join!(create_order_event, websocket_event);
-    }
-}
+//#[cfg(test)]
+//mod tests {
+//    use chrono::Utc;
+//    use rust_decimal_macros::dec;
+//
+//    use super::*;
+//    use crate::core::{orders::order::*, settings::ExchangeSettings};
+//    use futures::join;
+//
+//    #[actix_rt::test]
+//    async fn callback() {
+//        let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+//        let websocket_host = "wss://stream.binance.com:9443".into();
+//        let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
+//        let channels = vec!["depth".into(), "aggTrade".into()];
+//        let exchange_interaction = Arc::new(Binance::new(
+//            ExchangeSettings::default(),
+//            exchange_account_id.clone(),
+//        ));
+//
+//        let exchange_actor = Exchange::new(
+//            exchange_account_id.clone(),
+//            websocket_host,
+//            currency_pairs,
+//            channels,
+//            exchange_interaction,
+//        );
+//
+//        let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+//        let order_header = OrderHeader::new(
+//            "test".into(),
+//            Utc::now(),
+//            ExchangeAccountId::new("".into(), 0),
+//            test_currency_pair.clone(),
+//            OrderType::Limit,
+//            OrderSide::Buy,
+//            dec!(10000),
+//            OrderExecutionType::None,
+//            ReservationId::gen_new(),
+//            None,
+//            "".into(),
+//        );
+//
+//        let order_to_create = OrderCreating {
+//            header: order_header,
+//            // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
+//            price: dec!(0.00000003),
+//        };
+//
+//        let websocket_event = exchange_actor.connect();
+//        let create_order_event = exchange_actor.create_order(&order_to_create);
+//
+//        join!(create_order_event, websocket_event);
+//    }
+//}
