@@ -2,7 +2,8 @@ use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
         websocket_actor::{
-            self, ForceClose, TextReceivedCallback, WebSocketActor, WebSocketParams,
+            self, ForceClose, MsgReceivedCallback, TextReceivedCallback, WebSocketActor,
+            WebSocketParams,
         },
     },
     exchanges::common::ExchangeAccountId,
@@ -83,7 +84,7 @@ pub struct ConnectivityManager {
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
     callback_disconnected: Mutex<Callback1<bool, ()>>,
-    callback_msg_received: Mutex<Callback1<String, ()>>,
+    callback_msg_received: Arc<Mutex<MsgReceivedCallback>>,
 }
 
 impl ConnectivityManager {
@@ -105,7 +106,10 @@ impl ConnectivityManager {
             callback_get_ws_params: Mutex::new(Box::new(|_| {
                 panic!("This callback has to be set externally")
             })),
-            callback_msg_received: Mutex::new(Box::new(|_| {})),
+
+            callback_msg_received: Arc::new(Mutex::new(Box::new(|_| {
+                panic!("This callback has to be set externally")
+            }))),
         })
     }
 
@@ -121,23 +125,9 @@ impl ConnectivityManager {
         *self.callback_disconnected.lock() = disconnected;
     }
 
-    pub fn set_callback_msg_received(&self, data_received: Callback1<String, ()>) {
-        *self.callback_msg_received.lock() = data_received;
-
-        if let WebSocketState::Connected {
-            ref websocket_actor,
-            ..
-        } = self.websockets.websocket_main.lock().borrow().state
-        {}
+    pub fn set_callback_msg_received(&self, msg_received: MsgReceivedCallback) {
+        *self.callback_msg_received.lock() = msg_received;
     }
-
-    //pub async fn connect(&self, _: bool) -> bool {
-    //    // TODO build_websocket_params
-    //    // TODO build_second_websocket_params
-    //    (self.callback_msg_received).lock()("CALLBACK WORKS!".to_owned());
-
-    //    true
-    //}
 
     pub fn set_callback_ws_params(
         &self,
@@ -326,12 +316,12 @@ impl ConnectivityManager {
                         websocket_actor, ..
                     } = &websocket_connectivity.lock().borrow().state
                     {
-                        let callback_msg_received = self.callback_msg_received.lock();
+                        let callback_weak = Arc::downgrade(&self.callback_msg_received);
                         let callback = TextReceivedCallback {
-                            callback_msg_received: Arc::new(Mutex::new(|msg| {
-                                dbg!(&msg);
-                            })),
+                            //callback_msg_received: callback_weak.upgrade().unwrap(),
+                            callback_msg_received: self.callback_msg_received.clone(),
                         };
+
                         let _ = websocket_actor.try_send(callback);
                     }
 

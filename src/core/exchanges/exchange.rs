@@ -15,6 +15,7 @@ use crate::core::{exchanges::binance::Binance, orders::fill::EventSourceType};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use log::info;
+use parking_lot::Mutex;
 use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::Duration;
@@ -90,10 +91,11 @@ impl Exchange {
             websocket_events: DashMap::new(),
         });
 
-        //let exchange_weak = Arc::downgrade(&exchange);
-        //connectivity_manager.set_callback_msg_received(Box::new(move |data| {
-        //    exchange_weak.upgrade().unwrap().on_websocket_message(data)
-        //}));
+        let exchange_weak = Arc::downgrade(&exchange);
+        connectivity_manager.set_callback_msg_received(Box::new(move |data| {
+            dbg!(&"data");
+            //exchange_weak.upgrade().unwrap().on_websocket_message(data)
+        }));
 
         let exchange_weak = Arc::downgrade(&exchange);
         connectivity_manager.set_callback_ws_params(Box::new(move |websocket_role| {
