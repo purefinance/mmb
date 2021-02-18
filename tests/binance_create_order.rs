@@ -68,7 +68,7 @@ async fn test_add() {
     let order_to_create = OrderCreating {
         header: order_header,
         // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000003),
+        price: dec!(0.00000004),
     };
 
     let create_order_result = exchange.create_order(&order_to_create).await;
