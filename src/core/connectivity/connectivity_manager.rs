@@ -1,7 +1,9 @@
 use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
-        websocket_actor::{self, ForceClose, WebSocketActor, WebSocketParams},
+        websocket_actor::{
+            self, ForceClose, TextReceivedCallback, WebSocketActor, WebSocketParams,
+        },
     },
     exchanges::common::ExchangeAccountId,
 };
@@ -320,20 +322,18 @@ impl ConnectivityManager {
                         );
                     }
 
-                    //if let Ok(()) = cancellation_receiver.try_recv() {
-                    //    if let WebSocketState::Connected {
-                    //        websocket_actor, ..
-                    //    } = &websocket_connectivity.lock().borrow().state
-                    //    {
-                    //        let callback_msg_received = self.callback_msg_received.lock();
-                    //        let callback = TextReceivedCallback {
-                    //            callback_msg_received,
-                    //        };
-                    //        //let _ = websocket_actor.try_send(TextReceivedCallback {
-                    //        //    callback_msg_received,
-                    //        //});
-                    //    }
-                    //}
+                    if let WebSocketState::Connected {
+                        websocket_actor, ..
+                    } = &websocket_connectivity.lock().borrow().state
+                    {
+                        let callback_msg_received = self.callback_msg_received.lock();
+                        let callback = TextReceivedCallback {
+                            callback_msg_received: Arc::new(Mutex::new(|msg| {
+                                dbg!(&msg);
+                            })),
+                        };
+                        let _ = websocket_actor.try_send(callback);
+                    }
 
                     // TODO Why????
                     //if let Ok(()) = cancellation_receiver.try_recv() {

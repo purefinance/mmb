@@ -71,7 +71,6 @@ impl WebSocketActor {
             })
             .unwrap();
 
-        dbg!(&response.status());
         trace!(
             "WebsocketActor '{}' connecting status: {}",
             exchange_account_id,
@@ -149,8 +148,7 @@ impl WebSocketActor {
 
     fn handle_websocket_message(&self, text: &Bytes) {
         info!("ws text {:?}", text);
-        dbg!(&text);
-        (self.callback_msg_received.lock())("WOOOOOOY IT WORKS".into());
+        //(self.callback_msg_received.lock())("WOOOOOOY IT WORKS".into());
         // TODO
     }
 }
@@ -223,6 +221,7 @@ impl Handler<TextReceivedCallback> for WebSocketActor {
         );
 
         self.callback_msg_received = cb.callback_msg_received.clone();
+        (*self.callback_msg_received.lock())("Now it is really inside a websocket".to_owned());
     }
 }
 
