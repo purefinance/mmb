@@ -90,10 +90,10 @@ impl Exchange {
             websocket_events: DashMap::new(),
         });
 
-        let exchange_weak = Arc::downgrade(&exchange);
-        connectivity_manager.set_callback_msg_received(Box::new(move |data| {
-            exchange_weak.upgrade().unwrap().on_websocket_message(data)
-        }));
+        //let exchange_weak = Arc::downgrade(&exchange);
+        //connectivity_manager.set_callback_msg_received(Box::new(move |data| {
+        //    exchange_weak.upgrade().unwrap().on_websocket_message(data)
+        //}));
 
         let exchange_weak = Arc::downgrade(&exchange);
         connectivity_manager.set_callback_ws_params(Box::new(move |websocket_role| {

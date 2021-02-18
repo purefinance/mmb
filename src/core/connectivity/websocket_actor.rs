@@ -13,8 +13,9 @@ use awc::{
 };
 use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
-use futures::SinkExt;
 use log::{error, info, trace};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::core::connectivity::connectivity_manager::ConnectivityManagerNotifier;
@@ -47,6 +48,8 @@ pub struct WebSocketActor {
     writer: WebsocketWriter,
     last_heartbeat_time: Instant,
     connectivity_manager_notifier: ConnectivityManagerNotifier,
+    // TODO all other callbacks
+    callback_msg_received: MsgReceivedCallback,
 }
 
 impl WebSocketActor {
@@ -103,6 +106,9 @@ impl WebSocketActor {
             writer,
             last_heartbeat_time: Instant::now(),
             connectivity_manager_notifier,
+            callback_msg_received: Arc::new(Mutex::new(|_| {
+                panic!("This callback has to be set externally")
+            })),
         }
     }
 
@@ -143,6 +149,8 @@ impl WebSocketActor {
 
     fn handle_websocket_message(&self, text: &Bytes) {
         info!("ws text {:?}", text);
+        dbg!(&text);
+        (self.callback_msg_received.lock())("WOOOOOOY IT WORKS".into());
         // TODO
     }
 }
@@ -165,16 +173,24 @@ impl Actor for WebSocketActor {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct Send(pub String);
+pub struct SendText(pub String);
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct ForceClose;
 
-impl Handler<Send> for WebSocketActor {
+pub type MsgReceivedCallback = Arc<Mutex<dyn FnMut(String) + Send + Sync>>;
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct TextReceivedCallback {
+    pub callback_msg_received: MsgReceivedCallback,
+}
+
+impl Handler<SendText> for WebSocketActor {
     type Result = ();
 
-    fn handle(&mut self, msg: Send, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: SendText, _ctx: &mut Self::Context) -> Self::Result {
         info!(
             "WebsocketActor '{}' send msg: {}",
             self.exchange_account_id, msg.0
@@ -197,9 +213,21 @@ impl Handler<ForceClose> for WebSocketActor {
     }
 }
 
+impl Handler<TextReceivedCallback> for WebSocketActor {
+    type Result = ();
+
+    fn handle(&mut self, cb: TextReceivedCallback, _ctx: &mut Self::Context) -> Self::Result {
+        info!(
+            "WebsocketActor '{}' received callback for new text message",
+            self.exchange_account_id
+        );
+
+        self.callback_msg_received = cb.callback_msg_received.clone();
+    }
+}
+
 impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
     fn handle(&mut self, msg: Result<Frame, ProtocolError>, ctx: &mut Self::Context) {
-        dbg!(&"NEW MESSAGE");
         match msg {
             Ok(msg) => match msg {
                 Frame::Text(ref text) => self.handle_websocket_message(text),
@@ -270,7 +298,7 @@ mod tests {
 
             tokio::time::sleep(Duration::from_secs(1)).await;
 
-            websocket_addr.do_send(Send(
+            websocket_addr.do_send(SendText(
                 r#"{
    "method": "SUBSCRIBE",
    "params": [

@@ -55,6 +55,7 @@ enum WebSocketState {
 }
 
 struct WebSockets {
+    // FIXME fust main and secondary
     websocket_main: Mutex<WebSocketConnectivity>,
     websocket_secondary: Mutex<WebSocketConnectivity>,
 }
@@ -120,6 +121,12 @@ impl ConnectivityManager {
 
     pub fn set_callback_msg_received(&self, data_received: Callback1<String, ()>) {
         *self.callback_msg_received.lock() = data_received;
+
+        if let WebSocketState::Connected {
+            ref websocket_actor,
+            ..
+        } = self.websockets.websocket_main.lock().borrow().state
+        {}
     }
 
     //pub async fn connect(&self, _: bool) -> bool {
@@ -219,7 +226,7 @@ impl ConnectivityManager {
             .state
         {
             let sending_result =
-                websocket_actor.try_send(websocket_actor::Send(message.to_owned()));
+                websocket_actor.try_send(websocket_actor::SendText(message.to_owned()));
             if let Err(ref err) = sending_result {
                 error!(
                     "Error {} happened when sending to websocket {} message: {}",
@@ -312,6 +319,21 @@ impl ConnectivityManager {
                             self.exchange_account_id, attempt
                         );
                     }
+
+                    //if let Ok(()) = cancellation_receiver.try_recv() {
+                    //    if let WebSocketState::Connected {
+                    //        websocket_actor, ..
+                    //    } = &websocket_connectivity.lock().borrow().state
+                    //    {
+                    //        let callback_msg_received = self.callback_msg_received.lock();
+                    //        let callback = TextReceivedCallback {
+                    //            callback_msg_received,
+                    //        };
+                    //        //let _ = websocket_actor.try_send(TextReceivedCallback {
+                    //        //    callback_msg_received,
+                    //        //});
+                    //    }
+                    //}
 
                     // TODO Why????
                     //if let Ok(()) = cancellation_receiver.try_recv() {
