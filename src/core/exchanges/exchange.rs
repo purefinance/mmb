@@ -94,7 +94,7 @@ impl Exchange {
         let exchange_weak = Arc::downgrade(&exchange);
         connectivity_manager.set_callback_msg_received(Box::new(move |data| {
             dbg!(&"data");
-            //exchange_weak.upgrade().unwrap().on_websocket_message(data)
+            exchange_weak.upgrade().unwrap().on_websocket_message(data)
         }));
 
         let exchange_weak = Arc::downgrade(&exchange);

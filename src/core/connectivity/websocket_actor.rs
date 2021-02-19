@@ -177,7 +177,7 @@ pub struct SendText(pub String);
 #[rtype(result = "()")]
 pub struct ForceClose;
 
-pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
+pub type MsgReceivedCallback = Box<dyn FnMut(String) + Send + Sync>;
 
 #[derive(Message)]
 #[rtype(result = "()")]

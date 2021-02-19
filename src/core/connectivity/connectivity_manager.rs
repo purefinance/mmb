@@ -84,12 +84,11 @@ pub struct ConnectivityManager {
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
     callback_disconnected: Mutex<Callback1<bool, ()>>,
-    callback_msg_received: Mutex<MsgReceivedCallback>,
+    callback_msg_received: Mutex<Box<dyn FnMut(String)>>,
 }
 
 impl ConnectivityManager {
     pub fn new(exchange_account_id: ExchangeAccountId) -> Arc<ConnectivityManager> {
-        //exchange_actor: Addr<ExchangeActor>,
         Arc::new(Self {
             exchange_account_id,
             websockets: WebSockets {
@@ -125,7 +124,7 @@ impl ConnectivityManager {
         *self.callback_disconnected.lock() = disconnected;
     }
 
-    pub fn set_callback_msg_received(&self, msg_received: MsgReceivedCallback) {
+    pub fn set_callback_msg_received(&self, msg_received: Box<dyn FnMut(String)>) {
         *self.callback_msg_received.lock() = msg_received;
     }
 
@@ -316,8 +315,15 @@ impl ConnectivityManager {
                         websocket_actor, ..
                     } = &websocket_connectivity.lock().borrow().state
                     {
-                        //let callback_weak = Arc::downgrade(&self.callback_msg_received);
-                        let callback = Box::new(|_| {});
+                        let connectivity_manager = Arc::downgrade(&self);
+                        let callback = Box::new(|data| {
+                            (connectivity_manager
+                                .upgrade()
+                                .unwrap()
+                                .callback_msg_received
+                                .lock())(data)
+                        });
+
                         let callback = TextReceivedCallback {
                             callback_msg_received: callback,
                         };
