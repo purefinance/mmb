@@ -93,7 +93,6 @@ impl Exchange {
 
         let exchange_weak = Arc::downgrade(&exchange);
         connectivity_manager.set_callback_msg_received(Box::new(move |data| {
-            dbg!(&"data");
             exchange_weak.upgrade().unwrap().on_websocket_message(data)
         }));
 
@@ -125,7 +124,6 @@ impl Exchange {
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
     ) {
-        dbg!(&"RAISE_ORDER IN EXCHANGE CORE");
         let test_client_order_id = "test_id".to_string();
         let (_, (tx, websocket_event_receiver)) =
             self.websocket_events.remove(&test_client_order_id).unwrap();
@@ -152,7 +150,6 @@ impl Exchange {
                 .parse()
                 .expect("should be valid url"),
         );
-        dbg!(&params);
 
         params
     }
@@ -272,7 +269,6 @@ impl Exchange {
         tokio::select! {
             rest_request_outcome = order_create_task => {
 
-                dbg!(&"REST FIRST");
                 let create_order_result = self.handle_response(&rest_request_outcome, &order);
                 create_order_result
 
@@ -287,7 +283,6 @@ impl Exchange {
             }
 
             websocket_outcome = websocket_event_receiver.unwrap() => {
-                dbg!(&"WEBSOCKET FIRST");
                 dbg!(&websocket_outcome);
                 CreateOrderResult::successed("some_order_id".into())
 

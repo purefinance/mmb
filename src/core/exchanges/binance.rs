@@ -237,7 +237,6 @@ impl CommonInteraction for Binance {
 
     fn on_websocket_message(&self, msg: String) {
         dbg!(&msg);
-        dbg!(&"on websocket_message form binance!");
         // TODO a lot of other stuff
         // FIXME decerealize data
         let json_req = "some json";

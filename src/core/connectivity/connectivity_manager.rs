@@ -2,8 +2,8 @@ use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
         websocket_actor::{
-            self, ForceClose, MsgReceivedCallback, TextReceivedCallback, WebSocketActor,
-            WebSocketParams,
+            self, ForceClose, MsgReceivedCallback, WebSocketActor, WebSocketParams,
+            WebsocketCallbacks,
         },
     },
     exchanges::common::ExchangeAccountId,
@@ -84,7 +84,7 @@ pub struct ConnectivityManager {
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
     callback_disconnected: Mutex<Callback1<bool, ()>>,
-    callback_msg_received: Mutex<Box<dyn FnMut(String)>>,
+    pub callback_msg_received: Mutex<Box<dyn FnMut(String)>>,
 }
 
 impl ConnectivityManager {
@@ -311,25 +311,25 @@ impl ConnectivityManager {
                         );
                     }
 
-                    if let WebSocketState::Connected {
-                        websocket_actor, ..
-                    } = &websocket_connectivity.lock().borrow().state
-                    {
-                        let connectivity_manager = Arc::downgrade(&self);
-                        let callback = Box::new(|data| {
-                            (connectivity_manager
-                                .upgrade()
-                                .unwrap()
-                                .callback_msg_received
-                                .lock())(data)
-                        });
+                    //if let WebSocketState::Connected {
+                    //    websocket_actor, ..
+                    //} = &websocket_connectivity.lock().borrow().state
+                    //{
+                    //    let connectivity_manager = Arc::downgrade(&self);
+                    //    let callback = Box::new(|data| {
+                    //        (connectivity_manager
+                    //            .upgrade()
+                    //            .unwrap()
+                    //            .callback_msg_received
+                    //            .lock())(data)
+                    //    });
 
-                        let callback = TextReceivedCallback {
-                            callback_msg_received: callback,
-                        };
+                    //    let callback = TextReceivedCallback {
+                    //        callback_msg_received: callback,
+                    //    };
 
-                        let _ = websocket_actor.try_send(callback);
-                    }
+                    //    let _ = websocket_actor.try_send(callback);
+                    //}
 
                     // TODO Why????
                     //if let Ok(()) = cancellation_receiver.try_recv() {
@@ -382,6 +382,7 @@ pub struct ConnectivityManagerNotifier {
     websocket_role: WebSocketRole,
 
     // option just for testing simplification
+    // FIXME it has to be weak
     connectivity_manager: Option<Arc<ConnectivityManager>>,
 }
 
@@ -406,6 +407,17 @@ impl ConnectivityManagerNotifier {
             )
         }
     }
+
+    pub fn message_received(&self, data: &str) {
+        if let Some(connectivity_manager) = &self.connectivity_manager {
+            (connectivity_manager.callback_msg_received).lock()(data.to_owned())
+        } else {
+            info!(
+                "WebsocketActor '{}' notify that new text message accepted",
+                data
+            )
+        }
+    }
 }
 
 impl Default for ConnectivityManagerNotifier {
@@ -424,7 +436,6 @@ mod tests {
     use crate::core::exchanges::exchange::Exchange;
     use crate::core::logger::init_logger;
     use crate::core::settings::ExchangeSettings;
-    use actix::Arbiter;
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
     use tokio::{sync::oneshot, time::sleep};
 

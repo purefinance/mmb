@@ -121,6 +121,7 @@ impl WebSocketActor {
         }
     }
 
+    // TODO Bad function name!
     fn hb(&self, ctx: &mut <Self as Actor>::Context) {
         let notifier = self.connectivity_manager_notifier.clone();
         let exchange_id = self.exchange_account_id.clone();
@@ -148,7 +149,10 @@ impl WebSocketActor {
 
     fn handle_websocket_message(&self, text: &Bytes) {
         info!("ws text {:?}", text);
-        (*self.callback_msg_received.lock())("Now it is really inside a websocket".to_owned());
+        dbg!(&text);
+        self.connectivity_manager_notifier
+            .clone()
+            .message_received("Now it is really inside a websocket");
         // TODO
     }
 }
@@ -177,11 +181,11 @@ pub struct SendText(pub String);
 #[rtype(result = "()")]
 pub struct ForceClose;
 
-pub type MsgReceivedCallback = Box<dyn FnMut(String) + Send + Sync>;
+pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct TextReceivedCallback {
+pub struct WebsocketCallbacks {
     pub callback_msg_received: MsgReceivedCallback,
 }
 
@@ -211,18 +215,18 @@ impl Handler<ForceClose> for WebSocketActor {
     }
 }
 
-impl Handler<TextReceivedCallback> for WebSocketActor {
-    type Result = ();
-
-    fn handle(&mut self, message: TextReceivedCallback, _ctx: &mut Self::Context) -> Self::Result {
-        info!(
-            "WebsocketActor '{}' received callback for new text message",
-            self.exchange_account_id
-        );
-
-        *self.callback_msg_received.lock() = message.callback_msg_received;
-    }
-}
+//impl Handler<TextReceivedCallback> for WebSocketActor {
+//    type Result = ();
+//
+//    fn handle(&mut self, message: TextReceivedCallback, _ctx: &mut Self::Context) -> Self::Result {
+//        info!(
+//            "WebsocketActor '{}' received callback for new text message",
+//            self.exchange_account_id
+//        );
+//
+//        *self.callback_msg_received.lock() = message.callback_msg_received;
+//    }
+//}
 
 impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
     fn handle(&mut self, msg: Result<Frame, ProtocolError>, ctx: &mut Self::Context) {

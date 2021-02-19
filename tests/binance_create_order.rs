@@ -36,8 +36,8 @@ async fn test_add() {
     let binance = Binance::new(settings, "Binance0".parse().unwrap());
 
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into(), "BTCUSDT".into()];
-    let channels = vec!["depth".into(), "aggTrade".into()];
+    let currency_pairs = vec!["PHBBTC".into()];
+    let channels = vec!["depth".into(), "trade".into()];
 
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
@@ -71,6 +71,8 @@ async fn test_add() {
         price: dec!(0.00000004),
     };
 
+    let delet_orders = exchange.cancel_all_orders(test_currency_pair.clone()).await;
+    dbg!(&delet_orders);
     let create_order_result = exchange.create_order(&order_to_create).await;
     let all_orders = exchange.get_open_orders().await;
     dbg!(&create_order_result);
