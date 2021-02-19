@@ -166,8 +166,10 @@ impl Exchange {
         // TODO if UsingWebsocket
         // TODO handle results
         // TODO handle secondarywebsocket
+        //let build_secondary_websocket_params = build_secondary_websocket_params();
 
-        let is_connected = self.connectivity_manager.clone().connect(false).await;
+        // FIXME send callback to build ws params in connect
+        let is_connected = self.connectivity_manager.clone().connect(true).await;
 
         if !is_connected {
             // TODO finish_connected
@@ -324,14 +326,18 @@ impl Exchange {
     ) -> Option<WebSocketParams> {
         match websocket_role {
             WebSocketRole::Main => {
-                // TODO remove hardcode
+                // TODO remove hardcode or probably extract to common_interaction trait
                 let ws_path = Binance::build_ws1_path(
                     &self.specific_currency_pairs[..],
                     &self.websocket_channels[..],
                 );
                 Some(self.create_websocket_params(&ws_path))
             }
-            WebSocketRole::Secondary => None,
+            WebSocketRole::Secondary => {
+                // FIXME Here get_websocket_params
+                let ws_path = self.exchange_interaction.build_ws2_path();
+                Some(self.create_websocket_params(&ws_path))
+            }
         }
     }
 }

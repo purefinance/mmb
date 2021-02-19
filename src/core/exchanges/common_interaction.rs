@@ -20,6 +20,7 @@ pub trait CommonInteraction {
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
 
+    fn build_ws2_path(&self) -> String;
     fn on_websocket_message(&self, msg: String);
 
     fn set_websocket_msg_received(

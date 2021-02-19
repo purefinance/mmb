@@ -311,26 +311,6 @@ impl ConnectivityManager {
                         );
                     }
 
-                    //if let WebSocketState::Connected {
-                    //    websocket_actor, ..
-                    //} = &websocket_connectivity.lock().borrow().state
-                    //{
-                    //    let connectivity_manager = Arc::downgrade(&self);
-                    //    let callback = Box::new(|data| {
-                    //        (connectivity_manager
-                    //            .upgrade()
-                    //            .unwrap()
-                    //            .callback_msg_received
-                    //            .lock())(data)
-                    //    });
-
-                    //    let callback = TextReceivedCallback {
-                    //        callback_msg_received: callback,
-                    //    };
-
-                    //    let _ = websocket_actor.try_send(callback);
-                    //}
-
                     // TODO Why????
                     //if let Ok(()) = cancellation_receiver.try_recv() {
                     //    if let WebSocketState::Connected {

@@ -378,6 +378,11 @@ impl CommonInteraction for Binance {
     ) {
         *self.cb_websocket_msg_received.lock() = callback;
     }
+
+    fn build_ws2_path(&self) -> String {
+        dbg!(&"build_ws2_path!");
+        String::new()
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
