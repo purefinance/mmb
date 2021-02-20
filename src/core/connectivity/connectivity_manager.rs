@@ -8,10 +8,11 @@ use crate::core::{
     },
     exchanges::common::ExchangeAccountId,
 };
-
 use actix::Addr;
+use futures::Future;
 use log::{error, info, log, trace, Level};
 use parking_lot::Mutex;
+use std::pin::Pin;
 use std::{
     borrow::Borrow,
     ops::DerefMut,
@@ -75,10 +76,12 @@ impl WebSockets {
 // FIXME What a strange names
 type Callback0 = Box<dyn FnMut()>;
 type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
+type GetWSParamsCallback =
+    Box<dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
-    callback_get_ws_params: Mutex<Callback1<WebSocketRole, Option<WebSocketParams>>>,
+    callback_get_ws_params: Mutex<GetWSParamsCallback>,
     websockets: WebSockets,
 
     callback_connecting: Mutex<Callback0>,
@@ -128,18 +131,23 @@ impl ConnectivityManager {
         *self.callback_msg_received.lock() = msg_received;
     }
 
-    pub fn set_callback_ws_params(
-        &self,
-        get_websocket_params: Callback1<WebSocketRole, Option<WebSocketParams>>,
-    ) {
+    fn set_callback_ws_params(&self, get_websocket_params: GetWSParamsCallback) {
         *self.callback_get_ws_params.lock() = get_websocket_params;
     }
 
-    pub async fn connect(self: Arc<Self>, is_enabled_secondary_websocket: bool) -> bool {
+    pub async fn connect(
+        self: Arc<Self>,
+        is_enabled_secondary_websocket: bool,
+        get_websocket_params: Box<
+            dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>,
+        >,
+    ) -> bool {
         trace!(
             "ConnectivityManager '{}' connecting",
             self.exchange_account_id
         );
+
+        self.set_callback_ws_params(get_websocket_params);
 
         self.callback_connecting.lock().as_mut()();
 
@@ -353,7 +361,7 @@ impl ConnectivityManager {
     }
 
     async fn try_get_websocket_params(&self, role: WebSocketRole) -> Option<WebSocketParams> {
-        (self.callback_get_ws_params).lock()(role)
+        (self.callback_get_ws_params).lock()(role).await
     }
 }
 

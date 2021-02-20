@@ -14,8 +14,10 @@ use crate::core::{
 use crate::core::{exchanges::binance::Binance, orders::fill::EventSourceType};
 use awc::http::StatusCode;
 use dashmap::DashMap;
+use futures::Future;
 use log::info;
 use parking_lot::Mutex;
+use std::pin::Pin;
 use std::sync::{Arc, Weak};
 use std::thread;
 use std::time::Duration;
@@ -96,13 +98,20 @@ impl Exchange {
             exchange_weak.upgrade().unwrap().on_websocket_message(data)
         }));
 
-        let exchange_weak = Arc::downgrade(&exchange);
-        connectivity_manager.set_callback_ws_params(Box::new(move |websocket_role| {
-            exchange_weak
-                .upgrade()
-                .unwrap()
-                .get_websocket_params(websocket_role)
-        }));
+        //let exchange_weak = Arc::downgrade(&exchange);
+        //let callback: () = Box::new(move |websocket_role| async move {
+        //    let exchange = exchange_weak.upgrade().unwrap();
+        //    let params = exchange.get_websocket_params(websocket_role);
+        //    params
+        //});
+
+        //connectivity_manager.set_callback_ws_params(callback);
+
+        //connectivity_manager.set_callback_ws_params(Box::new(move |websocket_role| async move {
+        //    let exchange = exchange_weak.upgrade().unwrap();
+        //    let params = exchange.get_websocket_params(websocket_role);
+        //    params
+        //}));
 
         let exchange_weak = Arc::downgrade(&exchange);
         exchange_interaction.set_websocket_msg_received(Box::new(
@@ -154,12 +163,12 @@ impl Exchange {
         params
     }
 
-    pub async fn connect(&self) {
+    pub async fn connect(self: Arc<Self>) {
         self.try_connect().await;
         // TODO Reconnect
     }
 
-    async fn try_connect(&self) {
+    async fn try_connect(self: Arc<Self>) {
         // TODO IsWebSocketConnecting()
         info!("Websocket: Connecting on {}", "test_exchange_id");
 
@@ -168,8 +177,20 @@ impl Exchange {
         // TODO handle secondarywebsocket
         //let build_secondary_websocket_params = build_secondary_websocket_params();
 
+        let exchange_weak = Arc::downgrade(&self);
+        let get_websocket_params = Box::new(move |websocket_role| {
+            let exchange = exchange_weak.upgrade().unwrap();
+            let params = exchange.get_websocket_params(websocket_role);
+            // TODO Evgeniy, look at this. It works but also scares me a little
+            Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
+        });
+
         // FIXME send callback to build ws params in connect
-        let is_connected = self.connectivity_manager.clone().connect(true).await;
+        let is_connected = self
+            .connectivity_manager
+            .clone()
+            .connect(true, get_websocket_params)
+            .await;
 
         if !is_connected {
             // TODO finish_connected
@@ -320,7 +341,7 @@ impl Exchange {
         orders
     }
 
-    pub fn get_websocket_params(
+    pub async fn get_websocket_params(
         self: Arc<Self>,
         websocket_role: WebSocketRole,
     ) -> Option<WebSocketParams> {
@@ -334,7 +355,7 @@ impl Exchange {
                 Some(self.create_websocket_params(&ws_path))
             }
             WebSocketRole::Secondary => {
-                let ws_path = self.exchange_interaction.build_ws2_path();
+                let ws_path = self.exchange_interaction.build_ws2_path().await;
                 Some(self.create_websocket_params(&ws_path))
             }
         }

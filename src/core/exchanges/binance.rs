@@ -27,11 +27,10 @@ pub struct Binance {
 
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
-    pub listen_key: String,
 }
 
 impl Binance {
-    pub async fn new(settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
+    pub fn new(settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
         let unified_phbbtc = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
         let specific_phbbtc = SpecificCurrencyPair::new("PHBBTC".into());
 
@@ -41,30 +40,25 @@ impl Binance {
         let mut specific_to_unified = HashMap::new();
         specific_to_unified.insert(specific_phbbtc, unified_phbbtc);
 
-        let request_outcome = Self::get_listen_key(&settings).await;
-        let data: Value = serde_json::from_str(&request_outcome.content).unwrap();
-        let listen_key = data["listenKey"].as_str().unwrap().to_owned();
-
         Self {
             settings,
             id,
             cb_websocket_msg_received: Mutex::new(Box::new(|_, _, _| {})),
             unified_to_specific,
             specific_to_unified,
-            listen_key,
         }
     }
 
-    pub async fn get_listen_key(settings: &ExchangeSettings) -> RestRequestOutcome {
-        let url_path = if settings.is_marging_trading {
+    pub async fn get_listen_key(&self) -> RestRequestOutcome {
+        let url_path = if self.settings.is_marging_trading {
             "/fapi/v3/listenKey"
         } else {
             "/api/v3/userDataStream"
         };
 
-        let full_url = format!("{}{}", settings.rest_host, url_path);
+        let full_url = format!("{}{}", self.settings.rest_host, url_path);
         let parameters = rest_client::HttpParams::new();
-        rest_client::send_post_request(&full_url, &settings.api_key, &parameters).await
+        rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
     }
 
     pub fn set_cb_websocket_msg_received(
@@ -397,8 +391,12 @@ impl CommonInteraction for Binance {
         *self.cb_websocket_msg_received.lock() = callback;
     }
 
-    fn build_ws2_path(&self) -> String {
-        let ws_path = format!("{}{}", "/ws/", self.listen_key);
+    async fn build_ws2_path(&self) -> String {
+        let request_outcome = self.get_listen_key().await;
+        let data: Value = serde_json::from_str(&request_outcome.content).unwrap();
+        let listen_key = data["listenKey"].as_str().unwrap().to_owned();
+
+        let ws_path = format!("{}{}", "/ws/", listen_key);
         ws_path
     }
 }
