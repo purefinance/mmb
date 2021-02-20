@@ -100,7 +100,7 @@ impl Exchange {
         }));
 
         let exchange_weak = Arc::downgrade(&exchange);
-        exchange_interaction.set_websocket_msg_received(Box::new(
+        exchange_interaction.set_order_created_callback(Box::new(
             move |client_order_id, exchange_order_id, source_type| {
                 exchange_weak.upgrade().unwrap().raise_order_created(
                     client_order_id,
@@ -119,6 +119,7 @@ impl Exchange {
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
     ) {
+        dbg!(&client_order_id);
         let test_client_order_id = "test_id".to_string();
         let (_, (tx, websocket_event_receiver)) =
             self.websocket_events.remove(&test_client_order_id).unwrap();
@@ -292,7 +293,6 @@ impl Exchange {
             }
 
             websocket_outcome = websocket_event_receiver.unwrap() => {
-                dbg!(&websocket_outcome);
                 CreateOrderResult::successed("some_order_id".into())
 
             }

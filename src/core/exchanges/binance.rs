@@ -12,6 +12,7 @@ use async_trait::async_trait;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
+use log::error;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -22,7 +23,7 @@ use std::sync::Arc;
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
-    pub cb_websocket_msg_received:
+    pub order_created_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>>,
 
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
@@ -43,7 +44,7 @@ impl Binance {
         Self {
             settings,
             id,
-            cb_websocket_msg_received: Mutex::new(Box::new(|_, _, _| {})),
+            order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             unified_to_specific,
             specific_to_unified,
         }
@@ -59,13 +60,6 @@ impl Binance {
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
         let parameters = rest_client::HttpParams::new();
         rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
-    }
-
-    pub fn set_cb_websocket_msg_received(
-        &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
-    ) {
-        *self.cb_websocket_msg_received.lock() = callback;
     }
 
     pub fn extend_settings(settings: &mut ExchangeSettings) {
@@ -186,13 +180,51 @@ impl Binance {
         )
     }
 
-    fn handle_trade(&self, msg_to_log: &str, json_response: &str) {
-        // TODO parse json_response
-        (&self.cb_websocket_msg_received).lock()(
-            "some client_order_id".into(),
-            "some exchange_order_id".into(),
-            EventSourceType::WebSocket,
-        );
+    fn handle_trade(&self, msg_to_log: &str, json_response: Value) {
+        let client_order_id = json_response["c"].as_str().unwrap();
+        let exchange_order_id = json_response["i"].to_string();
+        let execution_type = json_response["x"].as_str().unwrap();
+        let order_status = json_response["X"].as_str().unwrap();
+        let time_in_force = json_response["f"].as_str().unwrap();
+
+        match execution_type {
+            "NEW" => match order_status {
+                "NEW" => {
+                    (&self.order_created_callback).lock()(
+                        client_order_id.into(),
+                        exchange_order_id.as_str().into(),
+                        EventSourceType::WebSocket,
+                    );
+                }
+                _ => error!(
+                    "execution_type is NEW but order_status is {} for message {}",
+                    order_status, msg_to_log
+                ),
+            },
+            "CANCELED" => match order_status {
+                "CANCELED" => {} // order_canceled_callback
+                _ => error!(
+                    "execution_type is CANCELED but order_status is {} for message {}",
+                    order_status, msg_to_log
+                ),
+            },
+            "REJECTED" => {
+                // C# copy past
+                // TODO: May be not handle error in Rest but move it here to make it unified?
+                // We get notification of rejected orders from the rest responses
+            }
+            "EXPIRED" => {
+                match time_in_force {
+                    "GTX" => {} // order_canceled_calback
+                    _ => error!(
+                        "Order {} was expired, message: {}",
+                        client_order_id, msg_to_log
+                    ),
+                }
+            }
+            "TRADE" | "CALCULATED" => {} // TODO handle it,
+            _ => error!("Impossible execution type"),
+        }
     }
 }
 
@@ -248,11 +280,25 @@ impl CommonInteraction for Binance {
     }
 
     fn on_websocket_message(&self, msg: &str) {
-        dbg!(&msg);
-        // TODO a lot of other stuff
-        // FIXME decerealize data
-        let json_req = "some json";
-        self.handle_trade(&msg, json_req);
+        let data: Value = serde_json::from_str(msg).unwrap();
+        // Public stream
+        if let Some(stream) = data.get("stream") {
+            if stream.as_str().unwrap().contains('@') {
+                // TODO handle public stream
+            }
+
+            return;
+        }
+
+        // so it is userData stream
+        let event_type = data["e"].as_str().unwrap();
+        if event_type == "executionReport" {
+            self.handle_trade(msg, data);
+        } else if false {
+            // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
+        } else {
+            // TODO LOG unknown message
+        }
     }
 
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
@@ -384,11 +430,11 @@ impl CommonInteraction for Binance {
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
     }
 
-    fn set_websocket_msg_received(
+    fn set_order_created_callback(
         self: Arc<Self>,
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
     ) {
-        *self.cb_websocket_msg_received.lock() = callback;
+        *self.order_created_callback.lock() = callback;
     }
 
     async fn build_ws2_path(&self) -> String {

@@ -23,7 +23,7 @@ pub trait CommonInteraction {
     async fn build_ws2_path(&self) -> String;
     fn on_websocket_message(&self, msg: &str);
 
-    fn set_websocket_msg_received(
+    fn set_order_created_callback(
         self: Arc<Self>,
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
     );

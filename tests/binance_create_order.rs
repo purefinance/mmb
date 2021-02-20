@@ -51,7 +51,7 @@ async fn test_add() {
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
-        "test".into(),
+        "my_test_order_id".into(),
         Utc::now(),
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         test_currency_pair.clone(),
@@ -70,8 +70,7 @@ async fn test_add() {
         price: dec!(0.00000004),
     };
 
-    let delet_orders = exchange.cancel_all_orders(test_currency_pair.clone()).await;
-    dbg!(&delet_orders);
+    let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
     let create_order_result = exchange.create_order(&order_to_create).await;
     let all_orders = exchange.get_open_orders().await;
     dbg!(&create_order_result);

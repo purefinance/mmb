@@ -15,8 +15,6 @@ use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
 use log::{error, info, trace};
 use parking_lot::Mutex;
-use serde_json::Value;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::core::connectivity::connectivity_manager::ConnectivityManagerNotifier;
