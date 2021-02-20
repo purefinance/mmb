@@ -13,6 +13,7 @@ use crate::core::{
 };
 use crate::core::{exchanges::binance::Binance, orders::fill::EventSourceType};
 use awc::http::StatusCode;
+use bytes::Bytes;
 use dashmap::DashMap;
 use futures::Future;
 use log::info;
@@ -98,21 +99,6 @@ impl Exchange {
             exchange_weak.upgrade().unwrap().on_websocket_message(data)
         }));
 
-        //let exchange_weak = Arc::downgrade(&exchange);
-        //let callback: () = Box::new(move |websocket_role| async move {
-        //    let exchange = exchange_weak.upgrade().unwrap();
-        //    let params = exchange.get_websocket_params(websocket_role);
-        //    params
-        //});
-
-        //connectivity_manager.set_callback_ws_params(callback);
-
-        //connectivity_manager.set_callback_ws_params(Box::new(move |websocket_role| async move {
-        //    let exchange = exchange_weak.upgrade().unwrap();
-        //    let params = exchange.get_websocket_params(websocket_role);
-        //    params
-        //}));
-
         let exchange_weak = Arc::downgrade(&exchange);
         exchange_interaction.set_websocket_msg_received(Box::new(
             move |client_order_id, exchange_order_id, source_type| {
@@ -147,7 +133,7 @@ impl Exchange {
         connectivity_manager
     }
 
-    fn on_websocket_message(&self, msg: String) {
+    fn on_websocket_message(&self, msg: &str) {
         // FIXME check cancellation token
         // FIXME check logging
         self.exchange_interaction.on_websocket_message(msg);
@@ -361,59 +347,3 @@ impl Exchange {
         }
     }
 }
-
-//#[cfg(test)]
-//mod tests {
-//    use chrono::Utc;
-//    use rust_decimal_macros::dec;
-//
-//    use super::*;
-//    use crate::core::{orders::order::*, settings::ExchangeSettings};
-//    use futures::join;
-//
-//    #[actix_rt::test]
-//    async fn callback() {
-//        let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
-//        let websocket_host = "wss://stream.binance.com:9443".into();
-//        let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
-//        let channels = vec!["depth".into(), "aggTrade".into()];
-//        let exchange_interaction = Arc::new(Binance::new(
-//            ExchangeSettings::default(),
-//            exchange_account_id.clone(),
-//        ));
-//
-//        let exchange_actor = Exchange::new(
-//            exchange_account_id.clone(),
-//            websocket_host,
-//            currency_pairs,
-//            channels,
-//            exchange_interaction,
-//        );
-//
-//        let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
-//        let order_header = OrderHeader::new(
-//            "test".into(),
-//            Utc::now(),
-//            ExchangeAccountId::new("".into(), 0),
-//            test_currency_pair.clone(),
-//            OrderType::Limit,
-//            OrderSide::Buy,
-//            dec!(10000),
-//            OrderExecutionType::None,
-//            ReservationId::gen_new(),
-//            None,
-//            "".into(),
-//        );
-//
-//        let order_to_create = OrderCreating {
-//            header: order_header,
-//            // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-//            price: dec!(0.00000003),
-//        };
-//
-//        let websocket_event = exchange_actor.connect();
-//        let create_order_event = exchange_actor.create_order(&order_to_create);
-//
-//        join!(create_order_event, websocket_event);
-//    }
-//}

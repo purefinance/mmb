@@ -9,6 +9,7 @@ use crate::core::{
     exchanges::common::ExchangeAccountId,
 };
 use actix::Addr;
+use bytes::Bytes;
 use futures::Future;
 use log::{error, info, log, trace, Level};
 use parking_lot::Mutex;
@@ -78,6 +79,7 @@ type Callback0 = Box<dyn FnMut()>;
 type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
 type GetWSParamsCallback =
     Box<dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>>;
+type WSMessageReceived = Box<dyn FnMut(&str)>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
@@ -87,7 +89,7 @@ pub struct ConnectivityManager {
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
     callback_disconnected: Mutex<Callback1<bool, ()>>,
-    pub callback_msg_received: Mutex<Box<dyn FnMut(String)>>,
+    pub callback_msg_received: Mutex<WSMessageReceived>,
 }
 
 impl ConnectivityManager {
@@ -106,7 +108,7 @@ impl ConnectivityManager {
             callback_connected: Mutex::new(Box::new(|| {})),
             callback_disconnected: Mutex::new(Box::new(|_| {})),
             callback_get_ws_params: Mutex::new(Box::new(|_| {
-                panic!("This callback has to be set externally")
+                panic!("This callback has to be set during ConnectivityManager::connect()")
             })),
 
             callback_msg_received: Mutex::new(Box::new(|_| {
@@ -127,7 +129,7 @@ impl ConnectivityManager {
         *self.callback_disconnected.lock() = disconnected;
     }
 
-    pub fn set_callback_msg_received(&self, msg_received: Box<dyn FnMut(String)>) {
+    pub fn set_callback_msg_received(&self, msg_received: WSMessageReceived) {
         *self.callback_msg_received.lock() = msg_received;
     }
 
@@ -398,10 +400,10 @@ impl ConnectivityManagerNotifier {
 
     pub fn message_received(&self, data: &str) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
-            (connectivity_manager.callback_msg_received).lock()(data.to_owned())
+            (connectivity_manager.callback_msg_received).lock()(data)
         } else {
             info!(
-                "WebsocketActor '{}' notify that new text message accepted",
+                "WebsocketActor '{:?}' notify that new text message accepted",
                 data
             )
         }

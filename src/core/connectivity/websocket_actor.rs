@@ -150,16 +150,9 @@ impl WebSocketActor {
 
     fn handle_websocket_message(&self, bytes: &Bytes) {
         let text = std::str::from_utf8(bytes).unwrap();
-        let data: Value = serde_json::from_str(&text).unwrap();
-        //let client_order_id = data["c"].as_str().unwrap().to_owned();
-        //dbg!(&client_order_id);
-        let specific_currency_pair = data["s"].as_str().unwrap().to_owned();
-        dbg!(&specific_currency_pair);
-
         self.connectivity_manager_notifier
             .clone()
-            .message_received("Now it is really inside a websocket");
-        // TODO
+            .message_received(text);
     }
 }
 

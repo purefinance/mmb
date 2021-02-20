@@ -247,7 +247,7 @@ impl CommonInteraction for Binance {
         self.unified_to_specific[currency_pair].clone()
     }
 
-    fn on_websocket_message(&self, msg: String) {
+    fn on_websocket_message(&self, msg: &str) {
         dbg!(&msg);
         // TODO a lot of other stuff
         // FIXME decerealize data

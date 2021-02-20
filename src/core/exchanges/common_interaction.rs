@@ -21,7 +21,7 @@ pub trait CommonInteraction {
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
 
     async fn build_ws2_path(&self) -> String;
-    fn on_websocket_message(&self, msg: String);
+    fn on_websocket_message(&self, msg: &str);
 
     fn set_websocket_msg_received(
         self: Arc<Self>,
