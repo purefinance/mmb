@@ -15,6 +15,7 @@ use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
 use log::{error, info, trace};
 use parking_lot::Mutex;
+use serde_json::Value;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -147,9 +148,14 @@ impl WebSocketActor {
         ctx.stop();
     }
 
-    fn handle_websocket_message(&self, text: &Bytes) {
-        info!("ws text {:?}", text);
-        dbg!(&text);
+    fn handle_websocket_message(&self, bytes: &Bytes) {
+        let text = std::str::from_utf8(bytes).unwrap();
+        let data: Value = serde_json::from_str(&text).unwrap();
+        //let client_order_id = data["c"].as_str().unwrap().to_owned();
+        //dbg!(&client_order_id);
+        let specific_currency_pair = data["s"].as_str().unwrap().to_owned();
+        dbg!(&specific_currency_pair);
+
         self.connectivity_manager_notifier
             .clone()
             .message_received("Now it is really inside a websocket");

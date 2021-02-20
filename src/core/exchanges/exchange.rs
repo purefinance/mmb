@@ -334,7 +334,6 @@ impl Exchange {
                 Some(self.create_websocket_params(&ws_path))
             }
             WebSocketRole::Secondary => {
-                // FIXME Here get_websocket_params
                 let ws_path = self.exchange_interaction.build_ws2_path();
                 Some(self.create_websocket_params(&ws_path))
             }

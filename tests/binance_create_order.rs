@@ -33,7 +33,7 @@ async fn test_add() {
         rest_host: "https://api.binance.com".into(),
     };
 
-    let binance = Binance::new(settings, "Binance0".parse().unwrap());
+    let binance = Binance::new(settings, "Binance0".parse().unwrap()).await;
 
     let websocket_host = "wss://stream.binance.com:9443".into();
     let currency_pairs = vec!["PHBBTC".into()];
@@ -48,7 +48,6 @@ async fn test_add() {
     );
 
     let connect_outcome = exchange.connect().await;
-    dbg!(&connect_outcome);
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
@@ -121,7 +120,7 @@ async fn should_fail() {
         rest_host: "https://api.binance.com".into(),
     };
 
-    let binance = Binance::new(settings, "Binance0".parse().unwrap());
+    let binance = Binance::new(settings, "Binance0".parse().unwrap()).await;
 
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
