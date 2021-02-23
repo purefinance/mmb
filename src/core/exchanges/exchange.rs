@@ -1,8 +1,8 @@
-use super::cancellation_token;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
 use crate::core::connectivity::websocket_actor::WebSocketParams;
 use crate::core::exchanges::binance::Binance;
+use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
 use crate::core::orders::pool::OrdersPool;
@@ -153,9 +153,13 @@ impl Exchange {
         }
     }
 
-    pub async fn create_order(&self, order: &OrderCreating) -> CreateOrderResult {
+    pub async fn create_order(
+        &self,
+        order: &OrderCreating,
+        cancellation_token: CancellationToken,
+    ) -> CreateOrderResult {
         let order_create_task = self.exchange_interaction.create_order(&order);
-        let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
+        let cancellation_token = cancellation_token.when_cancelled();
 
         tokio::select! {
             rest_request_outcome = order_create_task => {
