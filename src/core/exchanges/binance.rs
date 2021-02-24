@@ -18,7 +18,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -52,7 +51,7 @@ impl Binance {
 
     pub async fn get_listen_key(&self) -> RestRequestOutcome {
         let url_path = if self.settings.is_marging_trading {
-            "/fapi/v3/listenKey"
+            "/sapi/v1/userDataStream"
         } else {
             "/api/v3/userDataStream"
         };
@@ -215,7 +214,7 @@ impl Binance {
             }
             "EXPIRED" => {
                 match time_in_force {
-                    "GTX" => {} // order_canceled_calback
+                    "GTX" => {} // TODO order_canceled_calback
                     _ => error!(
                         "Order {} was expired, message: {}",
                         client_order_id, msg_to_log
@@ -431,7 +430,7 @@ impl CommonInteraction for Binance {
     }
 
     fn set_order_created_callback(
-        self: Arc<Self>,
+        &self,
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
     ) {
         *self.order_created_callback.lock() = callback;

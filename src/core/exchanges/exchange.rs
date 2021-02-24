@@ -62,6 +62,7 @@ pub struct Exchange {
     connectivity_manager: Arc<ConnectivityManager>,
 
     // It's just replacement for C# TaskCompletionSource
+    // It allows to send and receive notification about event in websocket channel
     websocket_events: DashMap<
         ClientOrderId,
         (
@@ -89,7 +90,7 @@ impl Exchange {
             websocket_channels,
             exchange_interaction: exchange_interaction.clone(),
             orders: OrdersPool::new(),
-            connectivity_manager: connectivity_manager.clone(),
+            connectivity_manager,
             websocket_events: DashMap::new(),
         });
 
@@ -148,13 +149,11 @@ impl Exchange {
     }
 
     pub fn create_websocket_params(&self, ws_path: &str) -> WebSocketParams {
-        let params = WebSocketParams::new(
+        WebSocketParams::new(
             format!("{}{}", self.websocket_host, ws_path)
                 .parse()
                 .expect("should be valid url"),
-        );
-
-        params
+        )
     }
 
     pub async fn connect(self: Arc<Self>) {
@@ -282,15 +281,15 @@ impl Exchange {
         self.websocket_events
             .insert(client_order_id.clone(), (tx, None));
 
-        let order_create_task = self.exchange_interaction.create_order(&order);
+        let order_create_future = self.exchange_interaction.create_order(&order);
         let cancellation_token = cancellation_token.when_cancelled();
 
-        pin_mut!(order_create_task);
+        pin_mut!(order_create_future);
         pin_mut!(cancellation_token);
         pin_mut!(websocket_event_receiver);
 
         tokio::select! {
-            rest_request_outcome = &mut order_create_task => {
+            rest_request_outcome = &mut order_create_future => {
 
                 let create_order_result = self.handle_response(&rest_request_outcome, &order);
                 match create_order_result.outcome {

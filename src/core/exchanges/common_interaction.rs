@@ -7,7 +7,6 @@ use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
 use async_trait::async_trait;
-use std::sync::Arc;
 
 #[async_trait(?Send)]
 pub trait CommonInteraction {
@@ -24,7 +23,7 @@ pub trait CommonInteraction {
     fn on_websocket_message(&self, msg: &str);
 
     fn set_order_created_callback(
-        self: Arc<Self>,
+        &self,
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
     );
 

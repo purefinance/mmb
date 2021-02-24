@@ -135,9 +135,7 @@ impl ConnectivityManager {
     pub async fn connect(
         self: Arc<Self>,
         is_enabled_secondary_websocket: bool,
-        get_websocket_params: Box<
-            dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>,
-        >,
+        get_websocket_params: GetWSParamsCallback,
     ) -> bool {
         trace!(
             "ConnectivityManager '{}' connecting",
@@ -266,7 +264,7 @@ impl ConnectivityManager {
         self.callback_disconnected.lock().as_mut()(false);
     }
 
-    pub async fn open_websocket_connection(self: Arc<Self>, role: WebSocketRole) -> bool {
+    pub async fn open_websocket_connection(self: &Arc<Self>, role: WebSocketRole) -> bool {
         let (finished_sender, finished_receiver) = async_channel::bounded(1);
 
         let (cancellation_sender, cancellation_receiver) = mpsc::channel();
@@ -293,7 +291,7 @@ impl ConnectivityManager {
                     return false;
                 }
 
-                let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(&self));
+                let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(self));
 
                 let websocket_actor = WebSocketActor::open_connection(
                     self.exchange_account_id.clone(),
@@ -316,15 +314,14 @@ impl ConnectivityManager {
                         );
                     }
 
-                    // TODO Why we need this here????
-                    //if let Ok(()) = cancellation_receiver.try_recv() {
-                    //    if let WebSocketState::Connected {
-                    //        websocket_actor, ..
-                    //    } = &websocket_connectivity.lock().borrow().state
-                    //    {
-                    //        let _ = websocket_actor.try_send(ForceClose);
-                    //    }
-                    //}
+                    if let Ok(()) = cancellation_receiver.try_recv() {
+                        if let WebSocketState::Connected {
+                            websocket_actor, ..
+                        } = &websocket_connectivity.lock().borrow().state
+                        {
+                            let _ = websocket_actor.try_send(ForceClose);
+                        }
+                    }
 
                     return true;
                 }
@@ -430,7 +427,7 @@ mod tests {
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
     use tokio::{sync::oneshot, time::sleep};
 
-    // TODO Not a unit test
+    // TODO Not a unit test. Should be moved to integration tests
     #[actix_rt::test]
     pub async fn should_connect_and_reconnect_normally() {
         const EXPECTED_CONNECTED_COUNT: u32 = 3;
