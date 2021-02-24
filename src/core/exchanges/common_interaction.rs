@@ -28,6 +28,8 @@ pub trait CommonInteraction {
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
     );
 
+    fn should_log_message(&self, message: &str) -> bool;
+
     async fn get_account_info(&self);
 
     async fn get_open_orders(&self) -> RestRequestOutcome;

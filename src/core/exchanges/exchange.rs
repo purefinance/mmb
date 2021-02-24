@@ -131,9 +131,21 @@ impl Exchange {
     }
 
     fn on_websocket_message(&self, msg: &str) {
-        // FIXME check cancellation token
-        // FIXME check logging
+        // TODO check cancellation token
+        if self.exchange_interaction.should_log_message(msg) {
+            Self::log_websocket_message(msg);
+        }
         self.exchange_interaction.on_websocket_message(msg);
+    }
+
+    fn log_websocket_message(msg: &str) {
+        // TODO That variables have to be taken from some exchange properties
+        let exchange_id = "test_exchange_id";
+        let exchange_name = "test_exchange_name";
+        info!(
+            "Websocket message from {}:{}: {}",
+            exchange_id, exchange_name, msg
+        );
     }
 
     pub fn create_websocket_params(&self, ws_path: &str) -> WebSocketParams {
@@ -157,8 +169,6 @@ impl Exchange {
 
         // TODO if UsingWebsocket
         // TODO handle results
-        // TODO handle secondarywebsocket
-        //let build_secondary_websocket_params = build_secondary_websocket_params();
 
         let exchange_weak = Arc::downgrade(&self);
         let get_websocket_params = Box::new(move |websocket_role| {
@@ -168,7 +178,6 @@ impl Exchange {
             Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
         });
 
-        // FIXME send callback to build ws params in connect
         let is_connected = self
             .connectivity_manager
             .clone()

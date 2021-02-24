@@ -1,16 +1,12 @@
 use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
-        websocket_actor::{
-            self, ForceClose, MsgReceivedCallback, WebSocketActor, WebSocketParams,
-            WebsocketCallbacks,
-        },
+        websocket_actor::{self, ForceClose, WebSocketActor, WebSocketParams},
     },
     exchanges::common::ExchangeAccountId,
 };
 use actix::Addr;
-use bytes::Bytes;
-use futures::{future, Future};
+use futures::Future;
 use log::{error, info, log, trace, Level};
 use parking_lot::Mutex;
 use std::pin::Pin;
@@ -21,6 +17,7 @@ use std::{
         mpsc, // TODO change std::sync::mpsc to tokio::mpsc when it implement method try_recv()
         mpsc::TryRecvError,
         Arc,
+        Weak,
     },
 };
 
@@ -100,7 +97,6 @@ impl ConnectivityManager {
                 secondary: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Secondary)),
             },
 
-            // TODO this is bad approach
             callback_connecting: Mutex::new(Box::new(|| {})),
             callback_connected: Mutex::new(Box::new(|| {})),
             callback_disconnected: Mutex::new(Box::new(|_| {})),
@@ -295,7 +291,7 @@ impl ConnectivityManager {
                     return false;
                 }
 
-                let notifier = ConnectivityManagerNotifier::new(role, self.clone());
+                let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(&self));
 
                 let websocket_actor = WebSocketActor::open_connection(
                     self.exchange_account_id.clone(),
@@ -318,7 +314,7 @@ impl ConnectivityManager {
                         );
                     }
 
-                    // TODO Why????
+                    // TODO Why we need this here????
                     //if let Ok(()) = cancellation_receiver.try_recv() {
                     //    if let WebSocketState::Connected {
                     //        websocket_actor, ..
@@ -369,14 +365,13 @@ pub struct ConnectivityManagerNotifier {
     websocket_role: WebSocketRole,
 
     // option just for testing simplification
-    // FIXME it has to be weak
-    connectivity_manager: Option<Arc<ConnectivityManager>>,
+    connectivity_manager: Option<Weak<ConnectivityManager>>,
 }
 
 impl ConnectivityManagerNotifier {
     pub fn new(
         websocket_role: WebSocketRole,
-        connectivity_manager: Arc<ConnectivityManager>,
+        connectivity_manager: Weak<ConnectivityManager>,
     ) -> ConnectivityManagerNotifier {
         ConnectivityManagerNotifier {
             websocket_role,
@@ -386,7 +381,10 @@ impl ConnectivityManagerNotifier {
 
     pub fn notify_websocket_connection_closed(&self, exchange_account_id: &ExchangeAccountId) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
-            connectivity_manager.notify_connection_closed(self.websocket_role)
+            connectivity_manager
+                .upgrade()
+                .unwrap()
+                .notify_connection_closed(self.websocket_role)
         } else {
             info!(
                 "WebsocketActor '{}' notify about connection closed (in tests)",
@@ -397,7 +395,11 @@ impl ConnectivityManagerNotifier {
 
     pub fn message_received(&self, data: &str) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
-            (connectivity_manager.callback_msg_received).lock()(data)
+            (connectivity_manager
+                .upgrade()
+                .unwrap()
+                .callback_msg_received)
+                .lock()(data)
         } else {
             info!(
                 "WebsocketActor '{:?}' notify that new text message accepted",

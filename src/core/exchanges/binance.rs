@@ -445,6 +445,10 @@ impl CommonInteraction for Binance {
         let ws_path = format!("{}{}", "/ws/", listen_key);
         ws_path
     }
+
+    fn should_log_message(&self, message: &str) -> bool {
+        message.contains("executionReporn")
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
