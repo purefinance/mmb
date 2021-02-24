@@ -47,7 +47,7 @@ pub struct WebSocketActor {
     writer: WebsocketWriter,
     last_heartbeat_time: Instant,
     connectivity_manager_notifier: ConnectivityManagerNotifier,
-    // TODO all other callbacks
+    // TODO add all other callbacks
     callback_msg_received: Mutex<MsgReceivedCallback>,
 }
 
@@ -55,7 +55,6 @@ impl WebSocketActor {
     pub async fn open_connection(
         exchange_account_id: ExchangeAccountId,
         params: WebSocketParams,
-        // TODO why not just callbacks?
         connectivity_manager_notifier: ConnectivityManagerNotifier,
     ) -> Option<Addr<WebSocketActor>> {
         let (response, framed) = Client::builder()
@@ -120,8 +119,7 @@ impl WebSocketActor {
         }
     }
 
-    // TODO Bad function name!
-    fn hb(&self, ctx: &mut <Self as Actor>::Context) {
+    fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
         let notifier = self.connectivity_manager_notifier.clone();
         let exchange_id = self.exchange_account_id.clone();
         ctx.run_interval(HEARTBEAT_INTERVAL, move |act, _ctx| {
@@ -159,7 +157,7 @@ impl Actor for WebSocketActor {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         trace!("WebSocketActor '{}' started", self.exchange_account_id);
-        self.hb(ctx);
+        self.heartbeat(ctx);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -279,7 +277,6 @@ mod tests {
 
     // TODO It is not UNIT test
     #[actix_rt::test]
-    #[ignore]
     pub async fn connect_and_send_msg() {
         use tokio::sync::oneshot;
 

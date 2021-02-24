@@ -23,9 +23,9 @@ use tokio::sync::oneshot;
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult {
     Success(ExchangeOrderId),
+    Error(ExchangeError),
     // TODO for that we need match binance_error_code as number with ExchangeErrorType
     //Error(ExchangeErrorType),
-    Error(ExchangeError),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -55,6 +55,7 @@ pub struct Exchange {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
+    // TODO Why not inside exchange_interaction?
     websocket_channels: Vec<String>,
     exchange_interaction: Arc<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
@@ -75,11 +76,12 @@ impl Exchange {
         exchange_account_id: ExchangeAccountId,
         websocket_host: String,
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
-        // TODO why? For what?
         websocket_channels: Vec<String>,
         exchange_interaction: Arc<dyn CommonInteraction>,
     ) -> Arc<Self> {
-        let connectivity_manager = Self::setup_connectivity_manager();
+        // TODO Fix hardcode via some exchange properties
+        let connectivity_manager =
+            ConnectivityManager::new(ExchangeAccountId::new("test_exchange_id".into(), 1));
         let exchange = Arc::new(Self {
             exchange_account_id,
             websocket_host,
@@ -91,10 +93,7 @@ impl Exchange {
             websocket_events: DashMap::new(),
         });
 
-        let exchange_weak = Arc::downgrade(&exchange);
-        connectivity_manager.set_callback_msg_received(Box::new(move |data| {
-            exchange_weak.upgrade().unwrap().on_websocket_message(data)
-        }));
+        exchange.clone().setup_connectivity_manager();
 
         let exchange_weak = Arc::downgrade(&exchange);
         exchange_interaction.set_order_created_callback(Box::new(
@@ -122,16 +121,16 @@ impl Exchange {
         }
     }
 
-    fn setup_connectivity_manager() -> Arc<ConnectivityManager> {
-        // TODO set callbacks
-        let connectivity_manager =
-            ConnectivityManager::new(ExchangeAccountId::new("test_exchange_id".into(), 1));
-
-        connectivity_manager
+    fn setup_connectivity_manager(self: Arc<Self>) {
+        let exchange_weak = Arc::downgrade(&self);
+        self.connectivity_manager
+            .set_callback_msg_received(Box::new(move |data| {
+                exchange_weak.upgrade().unwrap().on_websocket_message(data)
+            }));
     }
 
     fn on_websocket_message(&self, msg: &str) {
-        // TODO check cancellation token
+        // TODO check cancellation token via Exchange properties
         if self.exchange_interaction.should_log_message(msg) {
             Self::log_websocket_message(msg);
         }
@@ -321,8 +320,8 @@ impl Exchange {
 
             websocket_outcome = &mut websocket_event_receiver => {
                 return websocket_outcome.unwrap();
-
             }
+
         };
     }
 

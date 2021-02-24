@@ -74,11 +74,10 @@ pub async fn send_get_request(
         .await;
     let mut response = response.unwrap();
 
-    // TODO move all of it to the constructor
-    RestRequestOutcome {
-        content: std::str::from_utf8(&response.body().await.unwrap())
+    RestRequestOutcome::new(
+        std::str::from_utf8(&response.body().await.unwrap())
             .unwrap()
             .to_owned(),
-        status: response.status(),
-    }
+        response.status(),
+    )
 }

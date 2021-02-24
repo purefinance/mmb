@@ -70,7 +70,7 @@ impl WebSockets {
     }
 }
 
-// FIXME What a strange names
+// TODO What a strange names
 type Callback0 = Box<dyn FnMut()>;
 type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
 type GetWSParamsCallback =
@@ -156,7 +156,7 @@ impl ConnectivityManager {
                 .open_websocket_connection(WebSocketRole::Secondary)
                 .await
         } else {
-            // TODO callback_connected()?
+            // TODO callback_connected() missed?
             true
         };
 
@@ -470,7 +470,6 @@ mod tests {
         let get_websocket_params = Box::new(move |websocket_role| {
             let exchange = exchange_weak.upgrade().unwrap();
             let params = exchange.get_websocket_params(websocket_role);
-            // TODO Evgeniy, look at this. It works but also scares me a little
             Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
         });
 

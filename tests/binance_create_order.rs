@@ -48,7 +48,7 @@ async fn test_add() {
         Arc::new(binance),
     );
 
-    let connect_outcome = exchange.clone().connect().await;
+    exchange.clone().connect().await;
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
