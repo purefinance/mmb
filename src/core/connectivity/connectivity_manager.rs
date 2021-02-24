@@ -10,7 +10,7 @@ use crate::core::{
 };
 use actix::Addr;
 use bytes::Bytes;
-use futures::Future;
+use futures::{future, Future};
 use log::{error, info, log, trace, Level};
 use parking_lot::Mutex;
 use std::pin::Pin;
@@ -429,6 +429,7 @@ mod tests {
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
     use tokio::{sync::oneshot, time::sleep};
 
+    // TODO Not a unit test
     #[actix_rt::test]
     pub async fn should_connect_and_reconnect_normally() {
         const EXPECTED_CONNECTED_COUNT: u32 = 3;
@@ -456,12 +457,6 @@ mod tests {
 
         let exchange_weak = Arc::downgrade(&exchange);
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
-        connectivity_manager
-            .clone()
-            .set_callback_ws_params(Box::new(move |params| {
-                let exchange = exchange_weak.upgrade().unwrap();
-                exchange.get_websocket_params(params)
-            }));
 
         let connected_count = Rc::new(RefCell::new(0));
         {
@@ -473,8 +468,25 @@ mod tests {
                 }));
         }
 
+        //let get_websocket_params = Box::new(move |_| {
+        //    let params = future::ready(Some(WebSocketParams::new(actix_web::http::Uri::new(
+        //        "test",
+        //    ))));
+        //    Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
+        //});
+
+        let get_websocket_params = Box::new(move |websocket_role| {
+            let exchange = exchange_weak.upgrade().unwrap();
+            let params = exchange.get_websocket_params(websocket_role);
+            // TODO Evgeniy, look at this. It works but also scares me a little
+            Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
+        });
+
         for _ in 0..EXPECTED_CONNECTED_COUNT {
-            let connect_result = connectivity_manager.clone().connect(false).await;
+            let connect_result = connectivity_manager
+                .clone()
+                .connect(false, get_websocket_params.clone())
+                .await;
             assert_eq!(
                 connect_result, true,
                 "websocket should connect successfully"
