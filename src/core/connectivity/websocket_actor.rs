@@ -14,7 +14,6 @@ use awc::{
 use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
 use log::{error, info, trace};
-use parking_lot::Mutex;
 use std::time::{Duration, Instant};
 
 use crate::core::connectivity::connectivity_manager::ConnectivityManagerNotifier;
@@ -47,8 +46,6 @@ pub struct WebSocketActor {
     writer: WebsocketWriter,
     last_heartbeat_time: Instant,
     connectivity_manager_notifier: ConnectivityManagerNotifier,
-    // TODO add all other callbacks
-    callback_msg_received: Mutex<MsgReceivedCallback>,
 }
 
 impl WebSocketActor {
@@ -103,9 +100,6 @@ impl WebSocketActor {
             writer,
             last_heartbeat_time: Instant::now(),
             connectivity_manager_notifier,
-            callback_msg_received: Mutex::new(Box::new(|_| {
-                panic!("This callback has to be set externally")
-            })),
         }
     }
 
@@ -176,14 +170,6 @@ pub struct SendText(pub String);
 #[rtype(result = "()")]
 pub struct ForceClose;
 
-pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct WebsocketCallbacks {
-    pub callback_msg_received: MsgReceivedCallback,
-}
-
 impl Handler<SendText> for WebSocketActor {
     type Result = ();
 
@@ -209,19 +195,6 @@ impl Handler<ForceClose> for WebSocketActor {
         ))))
     }
 }
-
-//impl Handler<TextReceivedCallback> for WebSocketActor {
-//    type Result = ();
-//
-//    fn handle(&mut self, message: TextReceivedCallback, _ctx: &mut Self::Context) -> Self::Result {
-//        info!(
-//            "WebsocketActor '{}' received callback for new text message",
-//            self.exchange_account_id
-//        );
-//
-//        *self.callback_msg_received.lock() = message.callback_msg_received;
-//    }
-//}
 
 impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
     fn handle(&mut self, msg: Result<Frame, ProtocolError>, ctx: &mut Self::Context) {

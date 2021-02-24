@@ -77,6 +77,8 @@ type GetWSParamsCallback =
     Box<dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>>;
 type WSMessageReceived = Box<dyn FnMut(&str)>;
 
+pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
+
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
     callback_get_ws_params: Mutex<GetWSParamsCallback>,
