@@ -3,5 +3,6 @@ pub mod cancellation_token;
 pub mod common;
 pub mod common_interaction;
 pub mod exchange;
+pub mod exchange_blocker;
 pub mod rest_client;
 pub mod utils;
