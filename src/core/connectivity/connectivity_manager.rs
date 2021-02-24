@@ -468,13 +468,6 @@ mod tests {
                 }));
         }
 
-        //let get_websocket_params = Box::new(move |_| {
-        //    let params = future::ready(Some(WebSocketParams::new(actix_web::http::Uri::new(
-        //        "test",
-        //    ))));
-        //    Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
-        //});
-
         let get_websocket_params = Box::new(move |websocket_role| {
             let exchange = exchange_weak.upgrade().unwrap();
             let params = exchange.get_websocket_params(websocket_role);

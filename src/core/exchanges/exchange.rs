@@ -13,15 +13,11 @@ use crate::core::{
 };
 use crate::core::{exchanges::binance::Binance, orders::fill::EventSourceType};
 use awc::http::StatusCode;
-use bytes::Bytes;
 use dashmap::DashMap;
 use futures::Future;
 use log::info;
-use parking_lot::Mutex;
 use std::pin::Pin;
-use std::sync::{Arc, Weak};
-use std::thread;
-use std::time::Duration;
+use std::sync::Arc;
 use tokio::sync::oneshot;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -35,27 +31,26 @@ pub enum RequestResult {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CreateOrderResult {
     pub outcome: RequestResult,
-    // Do not needed yet
-    // pub source_type: EventSourceType
+    pub source_type: EventSourceType,
 }
 
 impl CreateOrderResult {
-    pub fn successed(exchange_order_id: ExchangeOrderId, /*source_type: EventSourceType*/) -> Self {
+    pub fn successed(exchange_order_id: ExchangeOrderId, source_type: EventSourceType) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Success(exchange_order_id),
-            //source_type
+            source_type,
         }
     }
 
-    pub fn failed(error: ExchangeError /*source_type: EventSourceType*/) -> Self {
+    pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Error(error),
-            //source_type
+            source_type,
         }
     }
 }
 
-type WSEventType = u32;
+type WSEventType = CreateOrderResult;
 pub struct Exchange {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
@@ -64,8 +59,10 @@ pub struct Exchange {
     exchange_interaction: Arc<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
+
+    // It's just replacement for C# TaskCompletionSource
     websocket_events: DashMap<
-        String,
+        ClientOrderId,
         (
             oneshot::Sender<WSEventType>,
             Option<oneshot::Receiver<WSEventType>>,
@@ -119,11 +116,10 @@ impl Exchange {
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
     ) {
-        dbg!(&client_order_id);
-        let test_client_order_id = "test_id".to_string();
-        let (_, (tx, websocket_event_receiver)) =
-            self.websocket_events.remove(&test_client_order_id).unwrap();
-        tx.send(3);
+        if let Some((_, (tx, _))) = self.websocket_events.remove(&client_order_id) {
+            tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
+                .unwrap();
+        }
     }
 
     fn setup_connectivity_manager() -> Arc<ConnectivityManager> {
@@ -200,11 +196,11 @@ impl Exchange {
         );
 
         if let Some(rest_error) = self.is_rest_error_order(request_outcome, order) {
-            return CreateOrderResult::failed(rest_error);
+            return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
         }
 
         let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
-        CreateOrderResult::successed(created_order_id)
+        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
     }
 
     pub fn is_rest_error_order(
@@ -260,20 +256,19 @@ impl Exchange {
     }
 
     pub async fn create_order(&self, order: &OrderCreating) -> CreateOrderResult {
-        let test_client_order_id = "test_id".to_string();
+        let client_order_id = order.header.client_order_id.clone();
         let (tx, rx) = oneshot::channel();
 
         self.websocket_events
-            .insert(test_client_order_id.clone(), (tx, Some(rx)));
+            .insert(client_order_id.clone(), (tx, Some(rx)));
 
         let (_, (tx, websocket_event_receiver)) =
-            self.websocket_events.remove(&test_client_order_id).unwrap();
+            self.websocket_events.remove(&client_order_id).unwrap();
 
         self.websocket_events
-            .insert(test_client_order_id.clone(), (tx, None));
+            .insert(client_order_id.clone(), (tx, None));
 
         let order_create_task = self.exchange_interaction.create_order(&order);
-        //let order_create_task = cancellation_token::CancellationToken::when_cancelled();
         let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
 
         tokio::select! {
@@ -284,16 +279,12 @@ impl Exchange {
 
             }
 
-            //_ = order_create_task => {
-            //    unimplemented!();
-            //}
-
             _ = cancellation_token => {
                 unimplemented!();
             }
 
             websocket_outcome = websocket_event_receiver.unwrap() => {
-                CreateOrderResult::successed("some_order_id".into())
+                websocket_outcome.unwrap()
 
             }
         }
