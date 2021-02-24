@@ -14,7 +14,7 @@ use crate::core::{
 use crate::core::{exchanges::binance::Binance, orders::fill::EventSourceType};
 use awc::http::StatusCode;
 use dashmap::DashMap;
-use futures::Future;
+use futures::{pin_mut, Future};
 use log::info;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -265,29 +265,53 @@ impl Exchange {
         let (_, (tx, websocket_event_receiver)) =
             self.websocket_events.remove(&client_order_id).unwrap();
 
+        let websocket_event_receiver = websocket_event_receiver.unwrap();
+
         self.websocket_events
             .insert(client_order_id.clone(), (tx, None));
 
         let order_create_task = self.exchange_interaction.create_order(&order);
         let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
 
+        pin_mut!(order_create_task);
+        pin_mut!(cancellation_token);
+        pin_mut!(websocket_event_receiver);
+
         tokio::select! {
-            rest_request_outcome = order_create_task => {
+            rest_request_outcome = &mut order_create_task => {
 
                 let create_order_result = self.handle_response(&rest_request_outcome, &order);
-                create_order_result
+                match create_order_result.outcome {
+                    RequestResult::Error(_) => {
+                        // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
+                        return create_order_result;
+                    }
 
+                    RequestResult::Success(_) => {
+                        tokio::select! {
+                            websocket_outcome = &mut websocket_event_receiver => {
+                                return websocket_outcome.unwrap()
+                            }
+
+                            _ = &mut cancellation_token => {
+                                unimplemented!();
+                            }
+
+                        }
+                    }
+                }
             }
 
-            _ = cancellation_token => {
+            _ = &mut cancellation_token => {
                 unimplemented!();
             }
 
-            websocket_outcome = websocket_event_receiver.unwrap() => {
-                websocket_outcome.unwrap()
+            websocket_outcome = &mut websocket_event_receiver => {
+                dbg!(&"WEBSOCKET");
+                return websocket_outcome.unwrap();
 
             }
-        }
+        };
     }
 
     pub async fn cancel_order(&self, order: &OrderCancelling) {

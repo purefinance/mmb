@@ -60,16 +60,15 @@ enum WebSocketState {
 }
 
 struct WebSockets {
-    // FIXME fust main and secondary
-    websocket_main: Mutex<WebSocketConnectivity>,
-    websocket_secondary: Mutex<WebSocketConnectivity>,
+    main: Mutex<WebSocketConnectivity>,
+    secondary: Mutex<WebSocketConnectivity>,
 }
 
 impl WebSockets {
     fn get_websocket_state(&self, role: WebSocketRole) -> &Mutex<WebSocketConnectivity> {
         match role {
-            WebSocketRole::Main => &self.websocket_main,
-            WebSocketRole::Secondary => &self.websocket_secondary,
+            WebSocketRole::Main => &self.main,
+            WebSocketRole::Secondary => &self.secondary,
         }
     }
 }
@@ -97,10 +96,8 @@ impl ConnectivityManager {
         Arc::new(Self {
             exchange_account_id,
             websockets: WebSockets {
-                websocket_main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
-                websocket_secondary: Mutex::new(WebSocketConnectivity::new(
-                    WebSocketRole::Secondary,
-                )),
+                main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
+                secondary: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Secondary)),
             },
 
             // TODO this is bad approach
@@ -177,8 +174,8 @@ impl ConnectivityManager {
     }
 
     pub async fn disconnect(self: Arc<Self>) {
-        Self::disconnect_for_websocket(&self.websockets.websocket_main).await;
-        Self::disconnect_for_websocket(&self.websockets.websocket_secondary).await;
+        Self::disconnect_for_websocket(&self.websockets.main).await;
+        Self::disconnect_for_websocket(&self.websockets.secondary).await;
     }
 
     async fn disconnect_for_websocket(websocket_connectivity: &Mutex<WebSocketConnectivity>) {
