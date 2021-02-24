@@ -1,6 +1,7 @@
 use chrono::Utc;
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::*;
+use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::exchange::*;
 use mmb_lib::core::orders::order::*;
@@ -71,7 +72,9 @@ async fn test_add() {
     };
 
     let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
-    let create_order_result = exchange.create_order(&order_to_create).await;
+    let create_order_result = exchange
+        .create_order(&order_to_create, CancellationToken::default())
+        .await;
     let all_orders = exchange.get_open_orders().await;
     dbg!(&create_order_result);
     dbg!(&all_orders);
@@ -150,7 +153,9 @@ async fn should_fail() {
         price: dec!(0.00000005),
     };
 
-    let create_order_result = exchange.create_order(&order_to_create).await;
+    let create_order_result = exchange
+        .create_order(&order_to_create, CancellationToken::default())
+        .await;
 
     let expected_error = RequestResult::Error(ExchangeError::new(
         ExchangeErrorType::InvalidOrder,

@@ -1,6 +1,6 @@
-use super::cancellation_token;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
+use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
 use crate::core::orders::pool::OrdersPool;
@@ -255,7 +255,11 @@ impl Exchange {
         }
     }
 
-    pub async fn create_order(&self, order: &OrderCreating) -> CreateOrderResult {
+    pub async fn create_order(
+        &self,
+        order: &OrderCreating,
+        cancellation_token: CancellationToken,
+    ) -> CreateOrderResult {
         let client_order_id = order.header.client_order_id.clone();
         let (tx, rx) = oneshot::channel();
 
@@ -271,7 +275,7 @@ impl Exchange {
             .insert(client_order_id.clone(), (tx, None));
 
         let order_create_task = self.exchange_interaction.create_order(&order);
-        let cancellation_token = cancellation_token::CancellationToken::when_cancelled();
+        let cancellation_token = cancellation_token.when_cancelled();
 
         pin_mut!(order_create_task);
         pin_mut!(cancellation_token);
