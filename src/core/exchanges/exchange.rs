@@ -307,7 +307,6 @@ impl Exchange {
             }
 
             websocket_outcome = &mut websocket_event_receiver => {
-                dbg!(&"WEBSOCKET");
                 return websocket_outcome.unwrap();
 
             }
