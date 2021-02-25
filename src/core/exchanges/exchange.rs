@@ -61,8 +61,10 @@ pub struct Exchange {
     orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
 
-    // It's just replacement for C# TaskCompletionSource
     // It allows to send and receive notification about event in websocket channel
+    // Current codebase relies on notification thru websocket channel instead
+    // E.g. that new order was succesfully created
+    // Rest response using only for unsuccsessful operations as error
     websocket_events: DashMap<
         ClientOrderId,
         (
@@ -270,15 +272,7 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Option<CreateOrderResult> {
         let client_order_id = order.header.client_order_id.clone();
-        let (tx, rx) = oneshot::channel();
-
-        self.websocket_events
-            .insert(client_order_id.clone(), (tx, Some(rx)));
-
-        let (_, (tx, websocket_event_receiver)) =
-            self.websocket_events.remove(&client_order_id).unwrap();
-
-        let websocket_event_receiver = websocket_event_receiver.unwrap();
+        let (tx, websocket_event_receiver) = oneshot::channel();
 
         self.websocket_events
             .insert(client_order_id.clone(), (tx, None));

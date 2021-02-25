@@ -13,16 +13,13 @@ use hex;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use log::error;
-use log::info;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
 use std::collections::HashMap;
-use std::sync::RwLock;
 
 pub struct Binance {
-    pub exchange_account_id: RwLock<Option<ExchangeAccountId>>,
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
     pub order_created_callback:
@@ -44,7 +41,6 @@ impl Binance {
         specific_to_unified.insert(specific_phbbtc, unified_phbbtc);
 
         Self {
-            exchange_account_id: RwLock::new(None),
             settings,
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),

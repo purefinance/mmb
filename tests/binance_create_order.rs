@@ -34,14 +34,15 @@ async fn test_add() {
         rest_host: "https://api.binance.com".into(),
     };
 
-    let binance = Binance::new(settings, "Binance0".parse().unwrap());
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+    let binance = Binance::new(settings, exchange_account_id.clone());
 
     let websocket_host = "wss://stream.binance.com:9443".into();
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
     let exchange = Exchange::new(
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        exchange_account_id,
         websocket_host,
         currency_pairs,
         channels,
