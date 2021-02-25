@@ -379,10 +379,12 @@ impl ConnectivityManagerNotifier {
 
     pub fn notify_websocket_connection_closed(&self, exchange_account_id: &ExchangeAccountId) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
-            connectivity_manager
-                .upgrade()
-                .unwrap()
-                .notify_connection_closed(self.websocket_role)
+            match connectivity_manager.upgrade() {
+                Some(connectivity_manager) => connectivity_manager.notify_connection_closed(self.websocket_role),
+                None => info!(
+                    "Unable to upgrade weak referene to ConnectivityManager instance. Probably it's dead",
+                ),
+            }
         } else {
             info!(
                 "WebsocketActor '{}' notify about connection closed (in tests)",
@@ -393,11 +395,12 @@ impl ConnectivityManagerNotifier {
 
     pub fn message_received(&self, data: &str) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
-            (connectivity_manager
-                .upgrade()
-                .unwrap()
-                .callback_msg_received)
-                .lock()(data)
+            match connectivity_manager.upgrade() {
+                Some(connectivity_manager) => connectivity_manager.callback_msg_received.lock()(data),
+                None => info!(
+                    "Unable to upgrade weak referene to ConnectivityManager instance. Probably it's dead",
+                ),
+            }
         } else {
             info!(
                 "WebsocketActor '{:?}' notify that new text message accepted",

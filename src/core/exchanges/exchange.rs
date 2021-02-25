@@ -1,3 +1,4 @@
+use super::application_manager::ApplicationManager;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
 use crate::core::exchanges::cancellation_token::CancellationToken;
@@ -72,6 +73,7 @@ pub struct Exchange {
             Option<oneshot::Receiver<WSEventType>>,
         ),
     >,
+    application_manager: ApplicationManager,
 }
 
 impl Exchange {
@@ -83,6 +85,7 @@ impl Exchange {
         exchange_interaction: Box<dyn CommonInteraction>,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+
         let exchange = Arc::new(Self {
             exchange_account_id: exchange_account_id.clone(),
             websocket_host,
@@ -92,6 +95,8 @@ impl Exchange {
             orders: OrdersPool::new(),
             connectivity_manager,
             websocket_events: DashMap::new(),
+            // TODO in the future application_manager have to be passed as parameter
+            application_manager: ApplicationManager::default(),
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -115,8 +120,11 @@ impl Exchange {
     fn setup_connectivity_manager(self: Arc<Self>) {
         let exchange_weak = Arc::downgrade(&self);
         self.connectivity_manager
-            .set_callback_msg_received(Box::new(move |data| {
-                exchange_weak.upgrade().unwrap().on_websocket_message(data)
+            .set_callback_msg_received(Box::new(move |data| match exchange_weak.upgrade() {
+                Some(exchange) => exchange.on_websocket_message(data),
+                None => info!(
+                    "Unable to upgrade weak referene to Exchange instance. Probably it's dead"
+                ),
             }));
     }
 
@@ -124,18 +132,29 @@ impl Exchange {
         let exchange_weak = Arc::downgrade(&self);
         self.exchange_interaction
             .set_order_created_callback(Box::new(
-                move |client_order_id, exchange_order_id, source_type| {
-                    exchange_weak.upgrade().unwrap().raise_order_created(
+                move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade()
+                {
+                    Some(exchange) => exchange.raise_order_created(
                         client_order_id,
                         exchange_order_id,
                         source_type,
-                    );
+                    ),
+                    None => info!(
+                        "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
+                    ),
                 },
             ));
     }
 
     fn on_websocket_message(&self, msg: &str) {
-        // TODO check cancellation token via Exchange properties
+        if self
+            .application_manager
+            .cancellation_token
+            .check_cancellation_requested()
+        {
+            return;
+        }
+
         if self.exchange_interaction.should_log_message(msg) {
             self.log_websocket_message(msg);
         }
@@ -143,7 +162,6 @@ impl Exchange {
     }
 
     fn log_websocket_message(&self, msg: &str) {
-        // TODO That variables have to be taken from some exchange properties
         info!(
             "Websocket message from {}:{}: {}",
             self.exchange_account_id.exchange_id.as_str(),

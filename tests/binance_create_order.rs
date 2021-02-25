@@ -8,7 +8,6 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
-use std::sync::Arc;
 
 #[actix_rt::test]
 async fn test_add() {
