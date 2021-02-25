@@ -432,7 +432,6 @@ impl CommonInteraction for Binance {
         let stream_names = specific_currency_pairs
             .iter()
             .flat_map(|currency_pair| {
-                //websocket_channels.iter().map(|channel| format!("{}@{}", currency_pair.as_str(), channel))
                 let mut results = Vec::new();
                 for channel in websocket_channels {
                     let result = Self::get_stream_name(currency_pair, channel);
