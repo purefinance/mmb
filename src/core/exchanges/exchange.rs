@@ -57,7 +57,7 @@ pub struct Exchange {
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
     // TODO Why not inside exchange_interaction?
     websocket_channels: Vec<String>,
-    exchange_interaction: Arc<dyn CommonInteraction>,
+    exchange_interaction: Box<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
 
@@ -78,7 +78,7 @@ impl Exchange {
         websocket_host: String,
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
         websocket_channels: Vec<String>,
-        exchange_interaction: Arc<dyn CommonInteraction>,
+        exchange_interaction: Box<dyn CommonInteraction>,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
         let exchange = Arc::new(Self {
@@ -86,24 +86,14 @@ impl Exchange {
             websocket_host,
             specific_currency_pairs,
             websocket_channels,
-            exchange_interaction: exchange_interaction.clone(),
+            exchange_interaction,
             orders: OrdersPool::new(),
             connectivity_manager,
             websocket_events: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();
-
-        let exchange_weak = Arc::downgrade(&exchange);
-        exchange_interaction.set_order_created_callback(Box::new(
-            move |client_order_id, exchange_order_id, source_type| {
-                exchange_weak.upgrade().unwrap().raise_order_created(
-                    client_order_id,
-                    exchange_order_id,
-                    source_type,
-                );
-            },
-        ));
+        exchange.clone().setup_exchange_interaction();
 
         exchange
     }
@@ -128,21 +118,35 @@ impl Exchange {
             }));
     }
 
+    fn setup_exchange_interaction(self: Arc<Self>) {
+        let exchange_weak = Arc::downgrade(&self);
+        self.exchange_interaction
+            .set_order_created_callback(Box::new(
+                move |client_order_id, exchange_order_id, source_type| {
+                    exchange_weak.upgrade().unwrap().raise_order_created(
+                        client_order_id,
+                        exchange_order_id,
+                        source_type,
+                    );
+                },
+            ));
+    }
+
     fn on_websocket_message(&self, msg: &str) {
         // TODO check cancellation token via Exchange properties
         if self.exchange_interaction.should_log_message(msg) {
-            Self::log_websocket_message(msg);
+            self.log_websocket_message(msg);
         }
         self.exchange_interaction.on_websocket_message(msg);
     }
 
-    fn log_websocket_message(msg: &str) {
+    fn log_websocket_message(&self, msg: &str) {
         // TODO That variables have to be taken from some exchange properties
-        let exchange_id = "test_exchange_id";
-        let exchange_name = "test_exchange_name";
         info!(
             "Websocket message from {}:{}: {}",
-            exchange_id, exchange_name, msg
+            self.exchange_account_id.exchange_id.as_str(),
+            self.exchange_account_id.account_number,
+            msg
         );
     }
 
@@ -264,7 +268,7 @@ impl Exchange {
         &self,
         order: &OrderCreating,
         cancellation_token: CancellationToken,
-    ) -> CreateOrderResult {
+    ) -> Option<CreateOrderResult> {
         let client_order_id = order.header.client_order_id.clone();
         let (tx, rx) = oneshot::channel();
 
@@ -293,17 +297,17 @@ impl Exchange {
                 match create_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
-                        return create_order_result;
+                        return Some(create_order_result);
                     }
 
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return websocket_outcome.unwrap()
+                                return Some(websocket_outcome.unwrap())
                             }
 
                             _ = &mut cancellation_token => {
-                                unimplemented!();
+                                return None;
                             }
 
                         }
@@ -312,11 +316,11 @@ impl Exchange {
             }
 
             _ = &mut cancellation_token => {
-                unimplemented!();
+                return None;
             }
 
             websocket_outcome = &mut websocket_event_receiver => {
-                return websocket_outcome.unwrap();
+                return Some(websocket_outcome.unwrap());
             }
 
         };

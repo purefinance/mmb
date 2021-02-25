@@ -45,7 +45,7 @@ async fn test_add() {
         websocket_host,
         currency_pairs,
         channels,
-        Arc::new(binance),
+        Box::new(binance),
     );
 
     exchange.clone().connect().await;
@@ -74,7 +74,8 @@ async fn test_add() {
     let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
-        .await;
+        .await
+        .unwrap();
     let all_orders = exchange.get_open_orders().await;
     dbg!(&create_order_result);
     dbg!(&all_orders);
@@ -128,7 +129,7 @@ async fn should_fail() {
         "host".into(),
         vec![],
         vec![],
-        Arc::new(binance),
+        Box::new(binance),
     );
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
@@ -154,7 +155,8 @@ async fn should_fail() {
 
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
-        .await;
+        .await
+        .unwrap();
 
     let expected_error = RequestResult::Error(ExchangeError::new(
         ExchangeErrorType::InvalidOrder,
