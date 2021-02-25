@@ -70,7 +70,7 @@ impl WebSockets {
     }
 }
 
-// TODO What a strange names
+// TODO Find more clear names in the future
 type Callback0 = Box<dyn FnMut()>;
 type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
 type GetWSParamsCallback =
@@ -156,7 +156,6 @@ impl ConnectivityManager {
                 .open_websocket_connection(WebSocketRole::Secondary)
                 .await
         } else {
-            // TODO callback_connected() missed?
             true
         };
 

@@ -2,6 +2,7 @@ use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
+use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::{
@@ -11,7 +12,6 @@ use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
 };
-use crate::core::{exchanges::binance::Binance, orders::fill::EventSourceType};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::{pin_mut, Future};
@@ -352,19 +352,20 @@ impl Exchange {
         self: Arc<Self>,
         websocket_role: WebSocketRole,
     ) -> Option<WebSocketParams> {
+        let ws_path;
         match websocket_role {
             WebSocketRole::Main => {
                 // TODO remove hardcode or probably extract to common_interaction trait
-                let ws_path = Binance::build_ws1_path(
+                ws_path = self.exchange_interaction.build_ws_main_path(
                     &self.specific_currency_pairs[..],
                     &self.websocket_channels[..],
                 );
-                Some(self.create_websocket_params(&ws_path))
             }
             WebSocketRole::Secondary => {
-                let ws_path = self.exchange_interaction.build_ws2_path().await;
-                Some(self.create_websocket_params(&ws_path))
+                ws_path = self.exchange_interaction.build_ws_secondary_path().await;
             }
         }
+
+        Some(self.create_websocket_params(&ws_path))
     }
 }

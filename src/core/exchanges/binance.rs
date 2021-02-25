@@ -77,26 +77,6 @@ impl Binance {
         todo!("reconnect")
     }
 
-    pub fn build_ws1_path(
-        specific_currency_pairs: &[SpecificCurrencyPair],
-        websocket_channels: &[String],
-    ) -> String {
-        let stream_names = specific_currency_pairs
-            .iter()
-            .flat_map(|currency_pair| {
-                //websocket_channels.iter().map(|channel| format!("{}@{}", currency_pair.as_str(), channel))
-                let mut results = Vec::new();
-                for channel in websocket_channels {
-                    let result = Self::get_stream_name(currency_pair, channel);
-                    results.push(result);
-                }
-                results
-            })
-            .join("/");
-        let ws_path = format!("/stream?streams={}", stream_names);
-        ws_path.to_lowercase()
-    }
-
     fn get_stream_name(specific_currency_pair: &SpecificCurrencyPair, channel: &str) -> String {
         format!("{}@{}", specific_currency_pair.as_str(), channel)
     }
@@ -295,7 +275,7 @@ impl CommonInteraction for Binance {
         } else if false {
             // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
         } else {
-            // TODO LOG unknown message
+            self.log_websocket_unknown_message(self.id.clone(), msg);
         }
     }
 
@@ -435,13 +415,34 @@ impl CommonInteraction for Binance {
         *self.order_created_callback.lock() = callback;
     }
 
-    async fn build_ws2_path(&self) -> String {
+    async fn build_ws_secondary_path(&self) -> String {
         let request_outcome = self.get_listen_key().await;
         let data: Value = serde_json::from_str(&request_outcome.content).unwrap();
         let listen_key = data["listenKey"].as_str().unwrap().to_owned();
 
         let ws_path = format!("{}{}", "/ws/", listen_key);
         ws_path
+    }
+
+    fn build_ws_main_path(
+        &self,
+        specific_currency_pairs: &[SpecificCurrencyPair],
+        websocket_channels: &[String],
+    ) -> String {
+        let stream_names = specific_currency_pairs
+            .iter()
+            .flat_map(|currency_pair| {
+                //websocket_channels.iter().map(|channel| format!("{}@{}", currency_pair.as_str(), channel))
+                let mut results = Vec::new();
+                for channel in websocket_channels {
+                    let result = Self::get_stream_name(currency_pair, channel);
+                    results.push(result);
+                }
+                results
+            })
+            .join("/");
+        let ws_path = format!("/stream?streams={}", stream_names);
+        ws_path.to_lowercase()
     }
 
     fn should_log_message(&self, message: &str) -> bool {
