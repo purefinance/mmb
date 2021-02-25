@@ -36,12 +36,7 @@ pub trait CommonInteraction {
 
     fn should_log_message(&self, message: &str) -> bool;
     fn log_websocket_unknown_message(&self, exchange_account_id: ExchangeAccountId, message: &str) {
-        info!(
-            "Unknown message for {},{},: {}",
-            exchange_account_id.exchange_id.as_str(),
-            exchange_account_id.account_number,
-            message
-        );
+        info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
     async fn get_account_info(&self);

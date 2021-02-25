@@ -163,10 +163,8 @@ impl Exchange {
 
     fn log_websocket_message(&self, msg: &str) {
         info!(
-            "Websocket message from {}:{}: {}",
-            self.exchange_account_id.exchange_id.as_str(),
-            self.exchange_account_id.account_number,
-            msg
+            "Websocket message from {}: {}",
+            self.exchange_account_id, msg
         );
     }
 
