@@ -80,11 +80,9 @@ impl Exchange {
         websocket_channels: Vec<String>,
         exchange_interaction: Arc<dyn CommonInteraction>,
     ) -> Arc<Self> {
-        // TODO Fix hardcode via some exchange properties
-        let connectivity_manager =
-            ConnectivityManager::new(ExchangeAccountId::new("test_exchange_id".into(), 1));
+        let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
         let exchange = Arc::new(Self {
-            exchange_account_id,
+            exchange_account_id: exchange_account_id.clone(),
             websocket_host,
             specific_currency_pairs,
             websocket_channels,

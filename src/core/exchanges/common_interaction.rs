@@ -1,5 +1,6 @@
 use super::common::{
-    CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
+    CurrencyPair, ExchangeAccountId, ExchangeErrorType, RestErrorDescription, RestRequestOutcome,
+    SpecificCurrencyPair,
 };
 
 use crate::core::orders::fill::EventSourceType;
