@@ -33,19 +33,26 @@ async fn test_add() {
         rest_host: "https://api.binance.com".into(),
     };
 
-    let binance = Binance::new(settings, "Binance0".parse().unwrap());
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+    let binance = Binance::new(settings, exchange_account_id.clone());
+
+    let websocket_host = "wss://stream.binance.com:9443".into();
+    let currency_pairs = vec!["PHBBTC".into()];
+    let channels = vec!["depth".into(), "trade".into()];
 
     let exchange = Exchange::new(
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
-        "host".into(),
-        vec![],
-        vec![],
+        exchange_account_id,
+        websocket_host,
+        currency_pairs,
+        channels,
         Box::new(binance),
     );
 
-    let test_currency_pair = CurrencyPair::from_currency_codes("tnb".into(), "btc".into());
+    exchange.clone().connect().await;
+
+    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
-        "test".into(),
+        "my_test_order_id".into(),
         Utc::now(),
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         test_currency_pair.clone(),
@@ -61,12 +68,17 @@ async fn test_add() {
     let order_to_create = OrderCreating {
         header: order_header,
         // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000002),
+        price: dec!(0.00000004),
     };
 
+    let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
-        .await;
+        .await
+        .unwrap();
+    let all_orders = exchange.get_open_orders().await;
+    dbg!(&create_order_result);
+    dbg!(&all_orders);
 
     match create_order_result.outcome {
         RequestResult::Success(order_id) => {
@@ -120,7 +132,7 @@ async fn should_fail() {
         Box::new(binance),
     );
 
-    let test_currency_pair = CurrencyPair::from_currency_codes("tnb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         "test".into(),
         Utc::now(),
@@ -143,7 +155,8 @@ async fn should_fail() {
 
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
-        .await;
+        .await
+        .unwrap();
 
     let expected_error = RequestResult::Error(ExchangeError::new(
         ExchangeErrorType::InvalidOrder,

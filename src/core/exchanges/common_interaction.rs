@@ -1,8 +1,13 @@
 use super::common::{
-    CurrencyPair, ExchangeErrorType, RestErrorDescription, RestRequestOutcome, SpecificCurrencyPair,
+    CurrencyPair, ExchangeAccountId, ExchangeErrorType, RestErrorDescription, RestRequestOutcome,
+    SpecificCurrencyPair,
 };
-use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
+use crate::core::orders::fill::EventSourceType;
+use crate::core::orders::order::{
+    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
+};
 use async_trait::async_trait;
+use log::info;
 
 #[async_trait(?Send)]
 pub trait CommonInteraction {
@@ -14,6 +19,25 @@ pub trait CommonInteraction {
 
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
+
+    fn build_ws_main_path(
+        &self,
+        specific_currency_pairs: &[SpecificCurrencyPair],
+        websocket_channels: &[String],
+    ) -> String;
+    async fn build_ws_secondary_path(&self) -> String;
+
+    fn on_websocket_message(&self, msg: &str);
+
+    fn set_order_created_callback(
+        &self,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    );
+
+    fn should_log_message(&self, message: &str) -> bool;
+    fn log_websocket_unknown_message(&self, exchange_account_id: ExchangeAccountId, message: &str) {
+        info!("Unknown message for {}: {}", exchange_account_id, message);
+    }
 
     async fn get_account_info(&self);
 

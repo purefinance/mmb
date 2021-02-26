@@ -5,42 +5,60 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price, RestErrorDescription,
     RestRequestOutcome, SpecificCurrencyPair,
 };
+use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
 use async_trait::async_trait;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
+use log::error;
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
 use std::collections::HashMap;
 
-#[derive(Debug)]
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
+    pub order_created_callback:
+        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>>,
+
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
 }
 
 impl Binance {
     pub fn new(settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
-        let unified_tnbbtc = CurrencyPair::from_currency_codes("tnb".into(), "btc".into());
-        let specific_tnbbtc = SpecificCurrencyPair::new("TNBBTC".into());
+        let unified_phbbtc = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let specific_phbbtc = SpecificCurrencyPair::new("PHBBTC".into());
 
         let mut unified_to_specific = HashMap::new();
-        unified_to_specific.insert(unified_tnbbtc.clone(), specific_tnbbtc.clone());
+        unified_to_specific.insert(unified_phbbtc.clone(), specific_phbbtc.clone());
 
         let mut specific_to_unified = HashMap::new();
-        specific_to_unified.insert(specific_tnbbtc, unified_tnbbtc);
+        specific_to_unified.insert(specific_phbbtc, unified_phbbtc);
 
         Self {
             settings,
             id,
+            order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             unified_to_specific,
             specific_to_unified,
         }
+    }
+
+    pub async fn get_listen_key(&self) -> RestRequestOutcome {
+        let url_path = if self.settings.is_marging_trading {
+            "/sapi/v1/userDataStream"
+        } else {
+            "/api/v3/userDataStream"
+        };
+
+        let full_url = format!("{}{}", self.settings.rest_host, url_path);
+        let parameters = rest_client::HttpParams::new();
+        rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
     }
 
     pub fn extend_settings(settings: &mut ExchangeSettings) {
@@ -57,26 +75,6 @@ impl Binance {
 
     pub async fn reconnect(&mut self) {
         todo!("reconnect")
-    }
-
-    pub fn build_ws1_path(
-        specific_currency_pairs: &[SpecificCurrencyPair],
-        websocket_channels: &[String],
-    ) -> String {
-        let stream_names = specific_currency_pairs
-            .iter()
-            .flat_map(|currency_pair| {
-                //websocket_channels.iter().map(|channel| format!("{}@{}", currency_pair.as_str(), channel))
-                let mut results = Vec::new();
-                for channel in websocket_channels {
-                    let result = Self::get_stream_name(currency_pair, channel);
-                    results.push(result);
-                }
-                results
-            })
-            .join("/");
-        let ws_path = format!("/stream?streams={}", stream_names);
-        ws_path.to_lowercase()
     }
 
     fn get_stream_name(specific_currency_pair: &SpecificCurrencyPair, channel: &str) -> String {
@@ -160,6 +158,52 @@ impl Binance {
             None,
         )
     }
+
+    fn handle_trade(&self, msg_to_log: &str, json_response: Value) {
+        let client_order_id = json_response["c"].as_str().unwrap();
+        let exchange_order_id = json_response["i"].to_string();
+        let execution_type = json_response["x"].as_str().unwrap();
+        let order_status = json_response["X"].as_str().unwrap();
+        let time_in_force = json_response["f"].as_str().unwrap();
+
+        match execution_type {
+            "NEW" => match order_status {
+                "NEW" => {
+                    (&self.order_created_callback).lock()(
+                        client_order_id.into(),
+                        exchange_order_id.as_str().into(),
+                        EventSourceType::WebSocket,
+                    );
+                }
+                _ => error!(
+                    "execution_type is NEW but order_status is {} for message {}",
+                    order_status, msg_to_log
+                ),
+            },
+            "CANCELED" => match order_status {
+                "CANCELED" => {} // order_canceled_callback
+                _ => error!(
+                    "execution_type is CANCELED but order_status is {} for message {}",
+                    order_status, msg_to_log
+                ),
+            },
+            "REJECTED" => {
+                // TODO: May be not handle error in Rest but move it here to make it unified?
+                // We get notification of rejected orders from the rest responses
+            }
+            "EXPIRED" => {
+                match time_in_force {
+                    "GTX" => {} // TODO order_canceled_calback
+                    _ => error!(
+                        "Order {} was expired, message: {}",
+                        client_order_id, msg_to_log
+                    ),
+                }
+            }
+            "TRADE" | "CALCULATED" => {} // TODO handle it,
+            _ => error!("Impossible execution type"),
+        }
+    }
 }
 
 #[async_trait(?Send)]
@@ -211,6 +255,28 @@ impl CommonInteraction for Binance {
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
         self.unified_to_specific[currency_pair].clone()
+    }
+
+    fn on_websocket_message(&self, msg: &str) {
+        let data: Value = serde_json::from_str(msg).unwrap();
+        // Public stream
+        if let Some(stream) = data.get("stream") {
+            if stream.as_str().unwrap().contains('@') {
+                // TODO handle public stream
+            }
+
+            return;
+        }
+
+        // so it is userData stream
+        let event_type = data["e"].as_str().unwrap();
+        if event_type == "executionReport" {
+            self.handle_trade(msg, data);
+        } else if false {
+            // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
+        } else {
+            self.log_websocket_unknown_message(self.id.clone(), msg);
+        }
     }
 
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
@@ -340,6 +406,46 @@ impl CommonInteraction for Binance {
 
         let _cancel_order_outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
+    }
+
+    fn set_order_created_callback(
+        &self,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    ) {
+        *self.order_created_callback.lock() = callback;
+    }
+
+    async fn build_ws_secondary_path(&self) -> String {
+        let request_outcome = self.get_listen_key().await;
+        let data: Value = serde_json::from_str(&request_outcome.content).unwrap();
+        let listen_key = data["listenKey"].as_str().unwrap().to_owned();
+
+        let ws_path = format!("{}{}", "/ws/", listen_key);
+        ws_path
+    }
+
+    fn build_ws_main_path(
+        &self,
+        specific_currency_pairs: &[SpecificCurrencyPair],
+        websocket_channels: &[String],
+    ) -> String {
+        let stream_names = specific_currency_pairs
+            .iter()
+            .flat_map(|currency_pair| {
+                let mut results = Vec::new();
+                for channel in websocket_channels {
+                    let result = Self::get_stream_name(currency_pair, channel);
+                    results.push(result);
+                }
+                results
+            })
+            .join("/");
+        let ws_path = format!("/stream?streams={}", stream_names);
+        ws_path.to_lowercase()
+    }
+
+    fn should_log_message(&self, message: &str) -> bool {
+        message.contains("executionReporn")
     }
 }
 

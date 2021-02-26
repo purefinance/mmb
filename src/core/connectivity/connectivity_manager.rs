@@ -5,10 +5,11 @@ use crate::core::{
     },
     exchanges::common::ExchangeAccountId,
 };
-
 use actix::Addr;
+use futures::Future;
 use log::{error, info, log, trace, Level};
 use parking_lot::Mutex;
+use std::pin::Pin;
 use std::{
     borrow::Borrow,
     ops::DerefMut,
@@ -16,6 +17,7 @@ use std::{
         mpsc, // TODO change std::sync::mpsc to tokio::mpsc when it implement method try_recv()
         mpsc::TryRecvError,
         Arc,
+        Weak,
     },
 };
 
@@ -55,31 +57,37 @@ enum WebSocketState {
 }
 
 struct WebSockets {
-    websocket_main: Mutex<WebSocketConnectivity>,
-    websocket_secondary: Mutex<WebSocketConnectivity>,
+    main: Mutex<WebSocketConnectivity>,
+    secondary: Mutex<WebSocketConnectivity>,
 }
 
 impl WebSockets {
     fn get_websocket_state(&self, role: WebSocketRole) -> &Mutex<WebSocketConnectivity> {
         match role {
-            WebSocketRole::Main => &self.websocket_main,
-            WebSocketRole::Secondary => &self.websocket_secondary,
+            WebSocketRole::Main => &self.main,
+            WebSocketRole::Secondary => &self.secondary,
         }
     }
 }
 
+// TODO Find more clear names in the future
 type Callback0 = Box<dyn FnMut()>;
 type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
+type GetWSParamsCallback =
+    Box<dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>>;
+type WSMessageReceived = Box<dyn FnMut(&str)>;
+
+pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
-    callback_get_ws_params: Mutex<Callback1<WebSocketRole, Option<WebSocketParams>>>,
-
+    callback_get_ws_params: Mutex<GetWSParamsCallback>,
     websockets: WebSockets,
 
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
     callback_disconnected: Mutex<Callback1<bool, ()>>,
+    pub callback_msg_received: Mutex<WSMessageReceived>,
 }
 
 impl ConnectivityManager {
@@ -87,15 +95,20 @@ impl ConnectivityManager {
         Arc::new(Self {
             exchange_account_id,
             websockets: WebSockets {
-                websocket_main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
-                websocket_secondary: Mutex::new(WebSocketConnectivity::new(
-                    WebSocketRole::Secondary,
-                )),
+                main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
+                secondary: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Secondary)),
             },
+
             callback_connecting: Mutex::new(Box::new(|| {})),
             callback_connected: Mutex::new(Box::new(|| {})),
             callback_disconnected: Mutex::new(Box::new(|_| {})),
-            callback_get_ws_params: Mutex::new(Box::new(|_| None)),
+            callback_get_ws_params: Mutex::new(Box::new(|_| {
+                panic!("This callback has to be set during ConnectivityManager::connect()")
+            })),
+
+            callback_msg_received: Mutex::new(Box::new(|_| {
+                panic!("This callback has to be set externally")
+            })),
         })
     }
 
@@ -111,18 +124,25 @@ impl ConnectivityManager {
         *self.callback_disconnected.lock() = disconnected;
     }
 
-    pub fn set_callback_ws_params(
-        &self,
-        get_websocket_params: Callback1<WebSocketRole, Option<WebSocketParams>>,
-    ) {
+    pub fn set_callback_msg_received(&self, msg_received: WSMessageReceived) {
+        *self.callback_msg_received.lock() = msg_received;
+    }
+
+    fn set_callback_ws_params(&self, get_websocket_params: GetWSParamsCallback) {
         *self.callback_get_ws_params.lock() = get_websocket_params;
     }
 
-    pub async fn connect(self: Arc<Self>, is_enabled_secondary_websocket: bool) -> bool {
+    pub async fn connect(
+        self: Arc<Self>,
+        is_enabled_secondary_websocket: bool,
+        get_websocket_params: GetWSParamsCallback,
+    ) -> bool {
         trace!(
             "ConnectivityManager '{}' connecting",
             self.exchange_account_id
         );
+
+        self.set_callback_ws_params(get_websocket_params);
 
         self.callback_connecting.lock().as_mut()();
 
@@ -149,8 +169,8 @@ impl ConnectivityManager {
     }
 
     pub async fn disconnect(self: Arc<Self>) {
-        Self::disconnect_for_websocket(&self.websockets.websocket_main).await;
-        Self::disconnect_for_websocket(&self.websockets.websocket_secondary).await;
+        Self::disconnect_for_websocket(&self.websockets.main).await;
+        Self::disconnect_for_websocket(&self.websockets.secondary).await;
     }
 
     async fn disconnect_for_websocket(websocket_connectivity: &Mutex<WebSocketConnectivity>) {
@@ -160,6 +180,7 @@ impl ConnectivityManager {
             Disconnected => {
                 return;
             }
+
             WebSocketState::Connecting {
                 cancellation_sender,
                 finished_receiver,
@@ -198,7 +219,7 @@ impl ConnectivityManager {
             .state
         {
             let sending_result =
-                websocket_actor.try_send(websocket_actor::Send(message.to_owned()));
+                websocket_actor.try_send(websocket_actor::SendText(message.to_owned()));
             if let Err(ref err) = sending_result {
                 error!(
                     "Error {} happened when sending to websocket {} message: {}",
@@ -242,7 +263,7 @@ impl ConnectivityManager {
         self.callback_disconnected.lock().as_mut()(false);
     }
 
-    pub async fn open_websocket_connection(self: Arc<Self>, role: WebSocketRole) -> bool {
+    pub async fn open_websocket_connection(self: &Arc<Self>, role: WebSocketRole) -> bool {
         let (finished_sender, finished_receiver) = async_channel::bounded(1);
 
         let (cancellation_sender, cancellation_receiver) = mpsc::channel();
@@ -269,7 +290,7 @@ impl ConnectivityManager {
                     return false;
                 }
 
-                let notifier = ConnectivityManagerNotifier::new(role, self.clone());
+                let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(self));
 
                 let websocket_actor = WebSocketActor::open_connection(
                     self.exchange_account_id.clone(),
@@ -277,6 +298,7 @@ impl ConnectivityManager {
                     notifier,
                 )
                 .await;
+
                 if let Some(websocket_actor) = websocket_actor {
                     websocket_connectivity.lock().deref_mut().state = WebSocketState::Connected {
                         websocket_actor,
@@ -332,7 +354,7 @@ impl ConnectivityManager {
     }
 
     async fn try_get_websocket_params(&self, role: WebSocketRole) -> Option<WebSocketParams> {
-        (self.callback_get_ws_params).lock()(role)
+        (self.callback_get_ws_params).lock()(role).await
     }
 }
 
@@ -341,13 +363,13 @@ pub struct ConnectivityManagerNotifier {
     websocket_role: WebSocketRole,
 
     // option just for testing simplification
-    connectivity_manager: Option<Arc<ConnectivityManager>>,
+    connectivity_manager: Option<Weak<ConnectivityManager>>,
 }
 
 impl ConnectivityManagerNotifier {
     pub fn new(
         websocket_role: WebSocketRole,
-        connectivity_manager: Arc<ConnectivityManager>,
+        connectivity_manager: Weak<ConnectivityManager>,
     ) -> ConnectivityManagerNotifier {
         ConnectivityManagerNotifier {
             websocket_role,
@@ -357,11 +379,32 @@ impl ConnectivityManagerNotifier {
 
     pub fn notify_websocket_connection_closed(&self, exchange_account_id: &ExchangeAccountId) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
-            connectivity_manager.notify_connection_closed(self.websocket_role)
+            match connectivity_manager.upgrade() {
+                Some(connectivity_manager) => connectivity_manager.notify_connection_closed(self.websocket_role),
+                None => info!(
+                    "Unable to upgrade weak referene to ConnectivityManager instance. Probably it's dead",
+                ),
+            }
         } else {
             info!(
                 "WebsocketActor '{}' notify about connection closed (in tests)",
                 exchange_account_id
+            )
+        }
+    }
+
+    pub fn message_received(&self, data: &str) {
+        if let Some(connectivity_manager) = &self.connectivity_manager {
+            match connectivity_manager.upgrade() {
+                Some(connectivity_manager) => connectivity_manager.callback_msg_received.lock()(data),
+                None => info!(
+                    "Unable to upgrade weak referene to ConnectivityManager instance. Probably it's dead",
+                ),
+            }
+        } else {
+            info!(
+                "WebsocketActor '{:?}' notify that new text message accepted",
+                data
             )
         }
     }
@@ -383,10 +426,10 @@ mod tests {
     use crate::core::exchanges::exchange::Exchange;
     use crate::core::logger::init_logger;
     use crate::core::settings::ExchangeSettings;
-    use actix::Arbiter;
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
     use tokio::{sync::oneshot, time::sleep};
 
+    // TODO Not a unit test. Should be moved to integration tests
     #[actix_rt::test]
     pub async fn should_connect_and_reconnect_normally() {
         const EXPECTED_CONNECTED_COUNT: u32 = 3;
@@ -395,63 +438,62 @@ mod tests {
 
         let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
-        Arbiter::spawn(async {
-            let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
-            let websocket_host = "wss://stream.binance.com:9443".into();
-            let currency_pairs = vec!["bnbbtc".into(), "btcusdt".into()];
-            let channels = vec!["depth".into(), "aggTrade".into()];
-            let exchange_interaction = Box::new(Binance::new(
-                ExchangeSettings::default(),
-                exchange_account_id.clone(),
-            ));
+        let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+        let websocket_host = "wss://stream.binance.com:9443".into();
+        let currency_pairs = vec!["phbbtc".into(), "btcusdt".into()];
+        let channels = vec!["depth".into(), "aggTrade".into()];
+        let exchange_interaction = Box::new(Binance::new(
+            ExchangeSettings::default(),
+            exchange_account_id.clone(),
+        ));
 
-            let exchange = Arc::new(Exchange::new(
-                exchange_account_id.clone(),
-                websocket_host,
-                currency_pairs,
-                channels,
-                exchange_interaction,
-            ));
+        let exchange = Exchange::new(
+            exchange_account_id.clone(),
+            websocket_host,
+            currency_pairs,
+            channels,
+            exchange_interaction,
+        );
 
-            let exchange_weak = Arc::downgrade(&exchange);
-            let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+        let exchange_weak = Arc::downgrade(&exchange);
+        let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+
+        let connected_count = Rc::new(RefCell::new(0));
+        {
+            let connected_count = connected_count.clone();
             connectivity_manager
                 .clone()
-                .set_callback_ws_params(Box::new(move |params| {
-                    exchange_weak
-                        .upgrade()
-                        .unwrap()
-                        .get_websocket_params(params)
+                .set_callback_connected(Box::new(move || {
+                    connected_count.replace_with(|x| *x + 1);
                 }));
+        }
 
-            let connected_count = Rc::new(RefCell::new(0));
-            {
-                let connected_count = connected_count.clone();
-                connectivity_manager
-                    .clone()
-                    .set_callback_connected(Box::new(move || {
-                        connected_count.replace_with(|x| *x + 1);
-                    }));
-            }
+        let get_websocket_params = Box::new(move |websocket_role| {
+            let exchange = exchange_weak.upgrade().unwrap();
+            let params = exchange.get_websocket_params(websocket_role);
+            Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
+        });
 
-            for _ in 0..EXPECTED_CONNECTED_COUNT {
-                let connect_result = connectivity_manager.clone().connect(false).await;
-                assert_eq!(
-                    connect_result, true,
-                    "websocket should connect successfully"
-                );
-
-                connectivity_manager.clone().disconnect().await;
-            }
-
+        for _ in 0..EXPECTED_CONNECTED_COUNT {
+            let connect_result = connectivity_manager
+                .clone()
+                .connect(false, get_websocket_params.clone())
+                .await;
             assert_eq!(
-                connected_count.deref().replace(0),
-                EXPECTED_CONNECTED_COUNT,
-                "we should reconnect expected count times"
+                connect_result, true,
+                "websocket should connect successfully"
             );
 
-            let _ = finish_sender.send(());
-        });
+            connectivity_manager.clone().disconnect().await;
+        }
+
+        assert_eq!(
+            connected_count.deref().replace(0),
+            EXPECTED_CONNECTED_COUNT,
+            "we should reconnect expected count times"
+        );
+
+        let _ = finish_sender.send(());
 
         tokio::select! {
             _ = finish_receiver => info!("Test finished successfully"),

@@ -1,3 +1,4 @@
+pub mod application_manager;
 pub mod binance;
 pub mod cancellation_token;
 pub mod common;
