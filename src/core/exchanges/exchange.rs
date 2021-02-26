@@ -64,7 +64,7 @@ pub struct Exchange {
     // It allows to send and receive notification about event in websocket channel
     // Websocket event is main source detecting order creation result
     // Rest response using only for unsuccsessful operations as error
-    order_creation_event: DashMap<
+    order_creation_events: DashMap<
         ClientOrderId,
         (
             oneshot::Sender<WSEventType>,
@@ -92,7 +92,7 @@ impl Exchange {
             exchange_interaction,
             orders: OrdersPool::new(),
             connectivity_manager,
-            order_creation_event: DashMap::new(),
+            order_creation_events: DashMap::new(),
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
         });
@@ -109,7 +109,7 @@ impl Exchange {
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
     ) {
-        if let Some((_, (tx, _))) = self.order_creation_event.remove(&client_order_id) {
+        if let Some((_, (tx, _))) = self.order_creation_events.remove(&client_order_id) {
             tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
                 .unwrap();
         }
@@ -288,7 +288,7 @@ impl Exchange {
         let client_order_id = order.header.client_order_id.clone();
         let (tx, websocket_event_receiver) = oneshot::channel();
 
-        self.order_creation_event
+        self.order_creation_events
             .insert(client_order_id.clone(), (tx, None));
 
         let order_create_future = self.exchange_interaction.create_order(&order);
