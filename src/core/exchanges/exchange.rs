@@ -56,17 +56,15 @@ pub struct Exchange {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
-    // TODO Why not inside exchange_interaction?
     websocket_channels: Vec<String>,
     exchange_interaction: Box<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
 
     // It allows to send and receive notification about event in websocket channel
-    // Current codebase relies on notification thru websocket channel instead
-    // E.g. that new order was succesfully created
+    // Websocket event is main source detecting order creation result
     // Rest response using only for unsuccsessful operations as error
-    websocket_events: DashMap<
+    order_creation_event: DashMap<
         ClientOrderId,
         (
             oneshot::Sender<WSEventType>,
@@ -94,7 +92,7 @@ impl Exchange {
             exchange_interaction,
             orders: OrdersPool::new(),
             connectivity_manager,
-            websocket_events: DashMap::new(),
+            order_creation_event: DashMap::new(),
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
         });
@@ -111,7 +109,7 @@ impl Exchange {
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
     ) {
-        if let Some((_, (tx, _))) = self.websocket_events.remove(&client_order_id) {
+        if let Some((_, (tx, _))) = self.order_creation_event.remove(&client_order_id) {
             tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
                 .unwrap();
         }
@@ -290,7 +288,7 @@ impl Exchange {
         let client_order_id = order.header.client_order_id.clone();
         let (tx, websocket_event_receiver) = oneshot::channel();
 
-        self.websocket_events
+        self.order_creation_event
             .insert(client_order_id.clone(), (tx, None));
 
         let order_create_future = self.exchange_interaction.create_order(&order);
