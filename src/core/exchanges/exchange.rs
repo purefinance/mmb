@@ -1,49 +1,57 @@
+use super::application_manager::ApplicationManager;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
-use crate::core::connectivity::websocket_actor::WebSocketParams;
-use crate::core::exchanges::binance::Binance;
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
+use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
 };
+use crate::core::{
+    connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
+    orders::order::ClientOrderId,
+};
 use awc::http::StatusCode;
+use dashmap::DashMap;
+use futures::{pin_mut, Future};
 use log::info;
+use std::pin::Pin;
 use std::sync::Arc;
+use tokio::sync::oneshot;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult {
     Success(ExchangeOrderId),
+    Error(ExchangeError),
     // TODO for that we need match binance_error_code as number with ExchangeErrorType
     //Error(ExchangeErrorType),
-    Error(ExchangeError),
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CreateOrderResult {
     pub outcome: RequestResult,
-    // Do not needed yet
-    // pub source_type: EventSourceType
+    pub source_type: EventSourceType,
 }
 
 impl CreateOrderResult {
-    pub fn successed(exchange_order_id: ExchangeOrderId, /*source_type: EventSourceType*/) -> Self {
+    pub fn successed(exchange_order_id: ExchangeOrderId, source_type: EventSourceType) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Success(exchange_order_id),
-            //source_type
+            source_type,
         }
     }
 
-    pub fn failed(error: ExchangeError /*source_type: EventSourceType*/) -> Self {
+    pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
         CreateOrderResult {
             outcome: RequestResult::Error(error),
-            //source_type
+            source_type,
         }
     }
 }
 
+type WSEventType = CreateOrderResult;
 pub struct Exchange {
     exchange_account_id: ExchangeAccountId,
     websocket_host: String,
@@ -51,6 +59,19 @@ pub struct Exchange {
     websocket_channels: Vec<String>,
     exchange_interaction: Box<dyn CommonInteraction>,
     orders: Arc<OrdersPool>,
+    connectivity_manager: Arc<ConnectivityManager>,
+
+    // It allows to send and receive notification about event in websocket channel
+    // Websocket event is main source detecting order creation result
+    // Rest response using only for unsuccsessful operations as error
+    order_creation_events: DashMap<
+        ClientOrderId,
+        (
+            oneshot::Sender<WSEventType>,
+            Option<oneshot::Receiver<WSEventType>>,
+        ),
+    >,
+    application_manager: ApplicationManager,
 }
 
 impl Exchange {
@@ -60,15 +81,89 @@ impl Exchange {
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
         websocket_channels: Vec<String>,
         exchange_interaction: Box<dyn CommonInteraction>,
-    ) -> Self {
-        Exchange {
-            exchange_account_id,
+    ) -> Arc<Self> {
+        let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+
+        let exchange = Arc::new(Self {
+            exchange_account_id: exchange_account_id.clone(),
             websocket_host,
             specific_currency_pairs,
             websocket_channels,
             exchange_interaction,
             orders: OrdersPool::new(),
+            connectivity_manager,
+            order_creation_events: DashMap::new(),
+            // TODO in the future application_manager have to be passed as parameter
+            application_manager: ApplicationManager::default(),
+        });
+
+        exchange.clone().setup_connectivity_manager();
+        exchange.clone().setup_exchange_interaction();
+
+        exchange
+    }
+
+    fn raise_order_created(
+        &self,
+        client_order_id: ClientOrderId,
+        exchange_order_id: ExchangeOrderId,
+        source_type: EventSourceType,
+    ) {
+        if let Some((_, (tx, _))) = self.order_creation_events.remove(&client_order_id) {
+            tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
+                .unwrap();
         }
+    }
+
+    fn setup_connectivity_manager(self: Arc<Self>) {
+        let exchange_weak = Arc::downgrade(&self);
+        self.connectivity_manager
+            .set_callback_msg_received(Box::new(move |data| match exchange_weak.upgrade() {
+                Some(exchange) => exchange.on_websocket_message(data),
+                None => info!(
+                    "Unable to upgrade weak referene to Exchange instance. Probably it's dead"
+                ),
+            }));
+    }
+
+    fn setup_exchange_interaction(self: Arc<Self>) {
+        let exchange_weak = Arc::downgrade(&self);
+        self.exchange_interaction
+            .set_order_created_callback(Box::new(
+                move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade()
+                {
+                    Some(exchange) => exchange.raise_order_created(
+                        client_order_id,
+                        exchange_order_id,
+                        source_type,
+                    ),
+                    None => info!(
+                        "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
+                    ),
+                },
+            ));
+    }
+
+    fn on_websocket_message(&self, msg: &str) {
+        if self
+            .application_manager
+            .cancellation_token
+            .check_cancellation_requested()
+        {
+            return;
+        }
+
+        if self.exchange_interaction.should_log_message(msg) {
+            self.log_websocket_message(msg);
+        }
+        self.exchange_interaction.on_websocket_message(msg);
+    }
+
+    fn log_websocket_message(&self, msg: &str) {
+        info!(
+            "Websocket message from {}: {}",
+            self.exchange_account_id, msg
+        );
     }
 
     pub fn create_websocket_params(&self, ws_path: &str) -> WebSocketParams {
@@ -77,6 +172,38 @@ impl Exchange {
                 .parse()
                 .expect("should be valid url"),
         )
+    }
+
+    pub async fn connect(self: Arc<Self>) {
+        self.try_connect().await;
+        // TODO Reconnect
+    }
+
+    async fn try_connect(self: Arc<Self>) {
+        // TODO IsWebSocketConnecting()
+        info!("Websocket: Connecting on {}", "test_exchange_id");
+
+        // TODO if UsingWebsocket
+        // TODO handle results
+
+        let exchange_weak = Arc::downgrade(&self);
+        let get_websocket_params = Box::new(move |websocket_role| {
+            let exchange = exchange_weak.upgrade().unwrap();
+            let params = exchange.get_websocket_params(websocket_role);
+            // TODO Evgeniy, look at this. It works but also scares me a little
+            Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
+        });
+
+        let is_connected = self
+            .connectivity_manager
+            .clone()
+            .connect(true, get_websocket_params)
+            .await;
+
+        if !is_connected {
+            // TODO finish_connected
+        }
+        // TODO all other logs and finish_connected
     }
 
     fn handle_response(
@@ -94,11 +221,11 @@ impl Exchange {
         );
 
         if let Some(rest_error) = self.is_rest_error_order(request_outcome, order) {
-            return CreateOrderResult::failed(rest_error);
+            return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
         }
 
         let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
-        CreateOrderResult::successed(created_order_id)
+        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
     }
 
     pub fn is_rest_error_order(
@@ -157,21 +284,54 @@ impl Exchange {
         &self,
         order: &OrderCreating,
         cancellation_token: CancellationToken,
-    ) -> CreateOrderResult {
-        let order_create_task = self.exchange_interaction.create_order(&order);
+    ) -> Option<CreateOrderResult> {
+        let client_order_id = order.header.client_order_id.clone();
+        let (tx, websocket_event_receiver) = oneshot::channel();
+
+        self.order_creation_events
+            .insert(client_order_id.clone(), (tx, None));
+
+        let order_create_future = self.exchange_interaction.create_order(&order);
         let cancellation_token = cancellation_token.when_cancelled();
 
+        pin_mut!(order_create_future);
+        pin_mut!(cancellation_token);
+        pin_mut!(websocket_event_receiver);
+
         tokio::select! {
-            rest_request_outcome = order_create_task => {
+            rest_request_outcome = &mut order_create_future => {
 
                 let create_order_result = self.handle_response(&rest_request_outcome, &order);
-                create_order_result
+                match create_order_result.outcome {
+                    RequestResult::Error(_) => {
+                        // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
+                        return Some(create_order_result);
+                    }
 
+                    RequestResult::Success(_) => {
+                        tokio::select! {
+                            websocket_outcome = &mut websocket_event_receiver => {
+                                return Some(websocket_outcome.unwrap())
+                            }
+
+                            _ = &mut cancellation_token => {
+                                return None;
+                            }
+
+                        }
+                    }
+                }
             }
-            _ = cancellation_token => {
-                unimplemented!();
+
+            _ = &mut cancellation_token => {
+                return None;
             }
-        }
+
+            websocket_outcome = &mut websocket_event_receiver => {
+                return Some(websocket_outcome.unwrap());
+            }
+
+        };
     }
 
     pub async fn cancel_order(&self, order: &OrderCancelling) {
@@ -202,20 +362,24 @@ impl Exchange {
         orders
     }
 
-    pub fn get_websocket_params(
+    pub async fn get_websocket_params(
         self: Arc<Self>,
         websocket_role: WebSocketRole,
     ) -> Option<WebSocketParams> {
+        let ws_path;
         match websocket_role {
             WebSocketRole::Main => {
-                // TODO remove hardcode
-                let ws_path = Binance::build_ws1_path(
+                // TODO remove hardcode or probably extract to common_interaction trait
+                ws_path = self.exchange_interaction.build_ws_main_path(
                     &self.specific_currency_pairs[..],
                     &self.websocket_channels[..],
                 );
-                Some(self.create_websocket_params(&ws_path))
             }
-            WebSocketRole::Secondary => None,
+            WebSocketRole::Secondary => {
+                ws_path = self.exchange_interaction.build_ws_secondary_path().await;
+            }
         }
+
+        Some(self.create_websocket_params(&ws_path))
     }
 }

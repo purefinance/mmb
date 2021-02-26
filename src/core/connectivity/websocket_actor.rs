@@ -113,7 +113,7 @@ impl WebSocketActor {
         }
     }
 
-    fn hb(&self, ctx: &mut <Self as Actor>::Context) {
+    fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
         let notifier = self.connectivity_manager_notifier.clone();
         let exchange_id = self.exchange_account_id.clone();
         ctx.run_interval(HEARTBEAT_INTERVAL, move |act, _ctx| {
@@ -138,9 +138,11 @@ impl WebSocketActor {
         ctx.stop();
     }
 
-    fn handle_websocket_message(&self, text: &Bytes) {
-        info!("ws text {:?}", text);
-        // TODO
+    fn handle_websocket_message(&self, bytes: &Bytes) {
+        let text = std::str::from_utf8(bytes).unwrap();
+        self.connectivity_manager_notifier
+            .clone()
+            .message_received(text);
     }
 }
 
@@ -149,7 +151,7 @@ impl Actor for WebSocketActor {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         trace!("WebSocketActor '{}' started", self.exchange_account_id);
-        self.hb(ctx);
+        self.heartbeat(ctx);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
@@ -162,16 +164,16 @@ impl Actor for WebSocketActor {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct Send(pub String);
+pub struct SendText(pub String);
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct ForceClose;
 
-impl Handler<Send> for WebSocketActor {
+impl Handler<SendText> for WebSocketActor {
     type Result = ();
 
-    fn handle(&mut self, msg: Send, _ctx: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: SendText, _ctx: &mut Self::Context) -> Self::Result {
         info!(
             "WebsocketActor '{}' send msg: {}",
             self.exchange_account_id, msg.0
@@ -246,6 +248,7 @@ mod tests {
     use crate::core::logger::init_logger;
     use actix::Arbiter;
 
+    // TODO It is not UNIT test
     #[actix_rt::test]
     pub async fn connect_and_send_msg() {
         use tokio::sync::oneshot;
@@ -264,7 +267,7 @@ mod tests {
 
             tokio::time::sleep(Duration::from_secs(1)).await;
 
-            websocket_addr.do_send(Send(
+            websocket_addr.do_send(SendText(
                 r#"{
    "method": "SUBSCRIBE",
    "params": [

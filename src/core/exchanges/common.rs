@@ -268,6 +268,12 @@ pub struct RestRequestOutcome {
     pub status: StatusCode,
 }
 
+impl RestRequestOutcome {
+    pub fn new(content: String, status: StatusCode) -> Self {
+        Self { content, status }
+    }
+}
+
 pub type RestRequestResult = Result<String, RestRequestError>;
 
 pub struct RestErrorDescription {
