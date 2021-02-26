@@ -8,10 +8,6 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
-use chrono::Utc;
-
-pub type DateTime = chrono::DateTime<Utc>;
-
 pub type Price = Decimal;
 pub type Amount = Decimal;
 pub type SortedOrderData = BTreeMap<Price, Amount>;
@@ -101,6 +97,12 @@ impl From<&str> for ExchangeId {
     #[inline]
     fn from(value: &str) -> Self {
         ExchangeId(String15::from_str(value))
+    }
+}
+
+impl Display for ExchangeId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        self.as_str().fmt(f)
     }
 }
 

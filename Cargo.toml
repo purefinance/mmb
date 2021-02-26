@@ -33,7 +33,6 @@ actix-web-actors = "4.0.0-beta.1"
 awc = "3.0.0-beta.1"
 
 futures = "0.3"
-futures-util = "0.3"
 async-channel = "1.5.1"
 
 smallstr = { version = "0.2.0", features = ["serde"]}
@@ -51,6 +50,7 @@ hex = "0.4.2"
 enum-map = "0.6.4"
 
 [dev-dependencies]
+rand = "0.8"
 actix-rt = "2.0.0-beta.2"
 pretty_assertions = "0.6"
 
