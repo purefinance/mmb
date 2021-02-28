@@ -1,6 +1,7 @@
-use super::application_manager::ApplicationManager;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
+use super::exchange_features::ExchangeFeatures;
+use super::{application_manager::ApplicationManager, exchange_features::OpenOrdersType};
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::fill::EventSourceType;
@@ -13,6 +14,7 @@ use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
 };
+use anyhow::*;
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::{pin_mut, Future};
@@ -72,6 +74,7 @@ pub struct Exchange {
         ),
     >,
     application_manager: ApplicationManager,
+    features: ExchangeFeatures,
 }
 
 impl Exchange {
@@ -81,6 +84,7 @@ impl Exchange {
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
         websocket_channels: Vec<String>,
         exchange_interaction: Box<dyn CommonInteraction>,
+        features: ExchangeFeatures,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
@@ -95,6 +99,7 @@ impl Exchange {
             order_creation_events: DashMap::new(),
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
+            features,
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -348,8 +353,19 @@ impl Exchange {
         self.exchange_interaction.get_account_info().await;
     }
 
-    pub async fn get_open_orders(&self) -> Vec<OrderInfo> {
+    pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
         // TODO some timer metric has to be here
+        match self.features.open_orders_type {
+            OpenOrdersType::AllCurrencyPair => {
+                //reserve_when_acailable().await
+                let all_open_orders = self.exchange_interaction.get_open_orders().await;
+            }
+            OpenOrdersType::OneCurrencyPair => {}
+            _ => bail!(
+                "Unsupported open_orders_type: {:?}",
+                self.features.open_orders_type
+            ),
+        }
 
         let response = self.exchange_interaction.get_open_orders().await;
         info!("GetOpenOrders response is {:?}", response);
@@ -359,7 +375,7 @@ impl Exchange {
 
         let orders = self.exchange_interaction.parse_open_orders(&response);
 
-        orders
+        Ok(orders)
     }
 
     pub async fn get_websocket_params(

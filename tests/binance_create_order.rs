@@ -4,6 +4,7 @@ use mmb_lib::core::exchanges::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::exchange::*;
+use mmb_lib::core::exchanges::exchange_features::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
@@ -46,6 +47,7 @@ async fn test_add() {
         currency_pairs,
         channels,
         Box::new(binance),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair),
     );
 
     exchange.clone().connect().await;
@@ -99,6 +101,7 @@ async fn test_add() {
 }
 
 #[actix_rt::test]
+#[ignore]
 async fn should_fail() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");
@@ -130,6 +133,7 @@ async fn should_fail() {
         vec![],
         vec![],
         Box::new(binance),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair),
     );
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());

@@ -5,5 +5,6 @@ pub mod common;
 pub mod common_interaction;
 pub mod exchange;
 pub mod exchange_blocker;
+pub mod exchange_features;
 pub mod rest_client;
 pub mod utils;
