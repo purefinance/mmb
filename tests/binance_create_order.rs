@@ -54,7 +54,7 @@ async fn test_add() {
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
-        "my_test_order_id".into(),
+        ClientOrderId::unique_id(),
         Utc::now(),
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         test_currency_pair.clone(),
@@ -81,7 +81,7 @@ async fn test_add() {
     dbg!(&create_order_result);
 
     let second_order_header = OrderHeader::new(
-        "my_second_test_order_id".into(),
+        ClientOrderId::unique_id(),
         Utc::now(),
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         test_currency_pair.clone(),

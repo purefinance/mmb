@@ -3,6 +3,7 @@ use crate::core::exchanges::common::{
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
+use nanoid::nanoid;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
@@ -78,6 +79,11 @@ pub enum OrderExecutionType {
 pub struct ClientOrderId(String16);
 
 impl ClientOrderId {
+    pub fn unique_id() -> Self {
+        let generated = nanoid!();
+        ClientOrderId(generated.into())
+    }
+
     #[inline]
     pub fn new(client_order_id: String16) -> Self {
         ClientOrderId(client_order_id)
