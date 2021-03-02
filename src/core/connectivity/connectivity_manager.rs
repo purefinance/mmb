@@ -453,7 +453,7 @@ mod tests {
             currency_pairs,
             channels,
             exchange_interaction,
-            ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair),
+            ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
         );
 
         let exchange_weak = Arc::downgrade(&exchange);
