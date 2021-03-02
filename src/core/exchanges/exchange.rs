@@ -19,8 +19,11 @@ use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::{pin_mut, Future};
 use log::info;
+use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use tokio::sync::oneshot;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -195,7 +198,6 @@ impl Exchange {
         let get_websocket_params = Box::new(move |websocket_role| {
             let exchange = exchange_weak.upgrade().unwrap();
             let params = exchange.get_websocket_params(websocket_role);
-            // TODO Evgeniy, look at this. It works but also scares me a little
             Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
         });
 
@@ -225,7 +227,9 @@ impl Exchange {
             request_outcome
         );
 
-        if let Some(rest_error) = self.is_rest_error_order(request_outcome, order) {
+        if let Some(rest_error) =
+            self.get_rest_error_order(request_outcome, order, "handle_response() inside exhange")
+        {
             return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
         }
 
@@ -233,10 +237,51 @@ impl Exchange {
         CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
     }
 
-    pub fn is_rest_error_order(
+    // TODO Should be part of BotBase? /*Exchange exchange,*/ as first parameter
+    pub async fn cancel_open_orders(&self, check_order_fills: bool, add_missing_open_orders: bool) {
+        let open_orders;
+
+        // Binance can process new orders close to 10 seconds
+        thread::sleep(Duration::from_secs(10));
+        loop {
+            if let Ok(gotten_orders) = self.get_open_orders().await {
+                open_orders = gotten_orders;
+                break;
+            }
+        }
+        // TODO
+        //self.cancel_open_orders(open_orders)
+    }
+
+    fn get_rest_error(
         &self,
         response: &RestRequestOutcome,
-        _order: &OrderCreating,
+        // TODO Why do we need this
+        caller_name: &str,
+    ) -> Option<ExchangeError> {
+        self.get_rest_error_main(response, None, caller_name)
+    }
+
+    fn get_rest_error_order(
+        &self,
+        response: &RestRequestOutcome,
+        order: &OrderCreating,
+        caller_name: &str,
+    ) -> Option<ExchangeError> {
+        let client_order_id = order.header.client_order_id.to_string();
+        let exchange_account_id = order.header.exchange_account_id.to_string();
+        let args_to_log = Some(vec![client_order_id, exchange_account_id]);
+
+        self.get_rest_error_main(response, args_to_log, caller_name)
+    }
+
+    pub fn get_rest_error_main(
+        &self,
+        response: &RestRequestOutcome,
+        // TODO why do we need this template?
+        //log_template: Option<String>,
+        args_to_log: Option<Vec<String>>,
+        caller_name: &str,
     ) -> Option<ExchangeError> {
         // TODO add log with info about caller
         match response.status {
@@ -262,7 +307,11 @@ impl Exchange {
                 ));
             }
             _ => {
-                if response.content.is_empty() {
+                if Self::is_content_empty(&response.content) {
+                    if self.features.empty_response_is_ok {
+                        return None;
+                    }
+
                     return Some(ExchangeError::new(
                         ExchangeErrorType::Unknown,
                         "Empty response".to_owned(),
@@ -283,6 +332,18 @@ impl Exchange {
                 None
             }
         }
+
+        // FIXME log all that errors
+    }
+
+    fn is_content_empty(content: &str) -> bool {
+        let data: Value = serde_json::from_str(&content).unwrap();
+        // All other Value varians
+        if let Some(data_array) = data.as_array() {
+            return data_array.is_empty();
+        }
+
+        false
     }
 
     pub async fn create_order(
@@ -353,29 +414,48 @@ impl Exchange {
         self.exchange_interaction.get_account_info().await;
     }
 
+    // Bugs on exchange server can lead to Err even if order was opened
+    // FIXME Prolly (?) method should be executed in cycle to wait Ok() result
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
-        // TODO some timer metric has to be here
+        let open_orders;
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
+                // FIXME is it required now?
                 //reserve_when_acailable().await
-                let all_open_orders = self.exchange_interaction.get_open_orders().await;
+                let response = self.exchange_interaction.request_open_orders().await;
+
+                info!(
+                    "get_open_orders() response on {}: {:?}",
+                    self.exchange_account_id, response
+                );
+
+                if let Some(error) =
+                    self.get_rest_error(&response, "get_open_orders(), inside exchange")
+                {
+                    bail!("Rest error appeared during request: {}", error.message)
+                }
+
+                open_orders = self.exchange_interaction.parse_open_orders(&response);
+
+                return Ok(open_orders);
             }
-            OpenOrdersType::OneCurrencyPair => {}
+            OpenOrdersType::OneCurrencyPair => {
+                // FIXME is it required now?
+                //reserve_when_acailable().await
+                // FIXME other actions here have to be written after build_metadata() implementation
+
+                return Err(anyhow!(""));
+            }
             _ => bail!(
                 "Unsupported open_orders_type: {:?}",
                 self.features.open_orders_type
             ),
         }
 
-        let response = self.exchange_interaction.get_open_orders().await;
-        info!("GetOpenOrders response is {:?}", response);
-
-        // TODO IsRestError(response) with Result?? Prolly just log error
-        // TODO Result propagate and handling
-
-        let orders = self.exchange_interaction.parse_open_orders(&response);
-
-        Ok(orders)
+        // TODO Prolly should to be moved in first and second branches in match above
+        //if (add_missing_open_orders) {
+        //    add_missing_open_orders(openOrders);
+        //}
     }
 
     pub async fn get_websocket_params(

@@ -47,7 +47,7 @@ async fn test_add() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
     );
 
     exchange.clone().connect().await;
@@ -78,8 +78,35 @@ async fn test_add() {
         .create_order(&order_to_create, CancellationToken::default())
         .await
         .unwrap();
-    let all_orders = exchange.get_open_orders().await;
     dbg!(&create_order_result);
+
+    let second_order_header = OrderHeader::new(
+        "my_second_test_order_id".into(),
+        Utc::now(),
+        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        test_currency_pair.clone(),
+        OrderType::Limit,
+        OrderSide::Buy,
+        dec!(10000),
+        OrderExecutionType::None,
+        ReservationId::gen_new(),
+        None,
+        "".into(),
+    );
+
+    let second_order_to_create = OrderCreating {
+        header: second_order_header,
+        // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
+        price: dec!(0.00000004),
+    };
+    let create_order_result = exchange
+        .create_order(&second_order_to_create, CancellationToken::default())
+        .await
+        .unwrap();
+    dbg!(&create_order_result);
+
+    exchange.cancel_open_orders(true, true).await;
+    let all_orders = exchange.get_open_orders().await;
     dbg!(&all_orders);
 
     match create_order_result.outcome {
@@ -133,7 +160,7 @@ async fn should_fail() {
         vec![],
         vec![],
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
     );
 
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
