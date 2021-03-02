@@ -15,12 +15,12 @@ pub struct OrderRef(Arc<RwLock<OrderSnapshot>>);
 
 impl OrderRef {
     /// Lock order for read and provide copy properties or check some conditions
-    pub fn fn_ref<T>(&self, f: impl FnOnce(&OrderSnapshot) -> T) -> T {
+    pub fn fn_ref<T: 'static>(&self, f: impl FnOnce(&OrderSnapshot) -> T) -> T {
         f(self.0.read().borrow())
     }
 
     /// Lock order for write and provide mutate state of order
-    pub fn fn_mut<T>(&self, mut f: impl FnMut(&mut OrderSnapshot) -> T) -> T {
+    pub fn fn_mut<T: 'static>(&self, mut f: impl FnMut(&mut OrderSnapshot) -> T) -> T {
         f(self.0.write().borrow_mut())
     }
 
