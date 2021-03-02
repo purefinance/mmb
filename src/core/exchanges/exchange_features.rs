@@ -1,6 +1,5 @@
 #[derive(Debug)]
 pub enum OpenOrdersType {
-    // FIXME do we really need this?
     None,
     OneCurrencyPair,
     AllCurrencyPair,

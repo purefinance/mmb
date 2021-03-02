@@ -107,7 +107,6 @@ async fn open_orders_exists() {
     // Binance can process new orders close to 10 seconds
     thread::sleep(Duration::from_secs(10));
     let all_orders = exchange.get_open_orders().await.unwrap();
-    dbg!(&all_orders);
 
     assert!(!all_orders.is_empty())
 }

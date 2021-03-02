@@ -233,22 +233,6 @@ impl Exchange {
         CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
     }
 
-    // TODO Should be part of BotBase? /*Exchange exchange,*/ as first parameter
-    pub async fn cancel_open_orders(
-        &self,
-        _check_order_fills: bool,
-        _add_missing_open_orders: bool,
-    ) {
-        loop {
-            if let Ok(gotten_orders) = self.get_open_orders().await {
-                let _open_orders = gotten_orders;
-                break;
-            }
-        }
-        // TODO
-        //self.cancel_open_orders(open_orders)
-    }
-
     fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
         self.get_rest_error_main(response, None)
     }
@@ -326,10 +310,15 @@ impl Exchange {
         }
 
         // TODO Why is this phrase exactly like that?
-        let msg_to_log = format!(
+        let mut msg_to_log = format!(
             "Callback got an error {:?}, on {}: {:?} {:?}",
             result_error.error_type, self.exchange_account_id, result_error, response
         );
+
+        if args_to_log.is_some() {
+            let args = args_to_log.unwrap();
+            msg_to_log = format!("{} with args: {:?}", msg_to_log, args);
+        }
 
         match result_error.error_type {
             ExchangeErrorType::RateLimit
@@ -426,9 +415,8 @@ impl Exchange {
         self.exchange_interaction.get_account_info().await;
     }
 
-    // Bugs on exchange server can lead to Err even if order was opened
-    // FIXME Prolly (?) method should be executed in cycle to wait Ok() result
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
+        // Bugs on exchange server can lead to Err even if order was opened
         loop {
             match self.get_open_orders_impl().await {
                 Ok(gotten_orders) => return Ok(gotten_orders),
@@ -442,7 +430,7 @@ impl Exchange {
         let open_orders;
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
-                // FIXME is it required now?
+                // TODO implement in the future
                 //reserve_when_acailable().await
                 let response = self.exchange_interaction.request_open_orders().await;
 
@@ -460,7 +448,7 @@ impl Exchange {
                 return Ok(open_orders);
             }
             OpenOrdersType::OneCurrencyPair => {
-                // FIXME is it required now?
+                // TODO implement in the future
                 //reserve_when_acailable().await
                 // TODO other actions here have to be written after build_metadata() implementation
 
