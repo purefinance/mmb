@@ -18,7 +18,7 @@ use anyhow::*;
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::{pin_mut, Future};
-use log::info;
+use log::{error, info, warn};
 use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -227,9 +227,7 @@ impl Exchange {
             request_outcome
         );
 
-        if let Some(rest_error) =
-            self.get_rest_error_order(request_outcome, order, "handle_response() inside exhange")
-        {
+        if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
             return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
         }
 
@@ -253,26 +251,20 @@ impl Exchange {
         //self.cancel_open_orders(open_orders)
     }
 
-    fn get_rest_error(
-        &self,
-        response: &RestRequestOutcome,
-        // TODO Why do we need this
-        caller_name: &str,
-    ) -> Option<ExchangeError> {
-        self.get_rest_error_main(response, None, caller_name)
+    fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
+        self.get_rest_error_main(response, None)
     }
 
     fn get_rest_error_order(
         &self,
         response: &RestRequestOutcome,
         order: &OrderCreating,
-        caller_name: &str,
     ) -> Option<ExchangeError> {
         let client_order_id = order.header.client_order_id.to_string();
         let exchange_account_id = order.header.exchange_account_id.to_string();
         let args_to_log = Some(vec![client_order_id, exchange_account_id]);
 
-        self.get_rest_error_main(response, args_to_log, caller_name)
+        self.get_rest_error_main(response, args_to_log)
     }
 
     pub fn get_rest_error_main(
@@ -281,30 +273,30 @@ impl Exchange {
         // TODO why do we need this template?
         //log_template: Option<String>,
         args_to_log: Option<Vec<String>>,
-        caller_name: &str,
     ) -> Option<ExchangeError> {
-        // TODO add log with info about caller
+        let result_error;
+
         match response.status {
             StatusCode::UNAUTHORIZED => {
-                return Some(ExchangeError::new(
+                result_error = ExchangeError::new(
                     ExchangeErrorType::Authentication,
                     response.content.clone(),
                     None,
-                ));
+                );
             }
             StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => {
-                return Some(ExchangeError::new(
+                result_error = ExchangeError::new(
                     ExchangeErrorType::Authentication,
                     response.content.clone(),
                     None,
-                ));
+                );
             }
             StatusCode::TOO_MANY_REQUESTS => {
-                return Some(ExchangeError::new(
+                result_error = ExchangeError::new(
                     ExchangeErrorType::RateLimit,
                     response.content.clone(),
                     None,
-                ));
+                );
             }
             _ => {
                 if Self::is_content_empty(&response.content) {
@@ -312,28 +304,51 @@ impl Exchange {
                         return None;
                     }
 
-                    return Some(ExchangeError::new(
+                    result_error = ExchangeError::new(
                         ExchangeErrorType::Unknown,
                         "Empty response".to_owned(),
                         None,
-                    ));
+                    );
+                } else {
+                    if let Some(rest_error) =
+                        self.exchange_interaction.is_rest_error_code(&response)
+                    {
+                        let error_type = self.exchange_interaction.get_error_type(&rest_error);
+
+                        result_error = ExchangeError::new(
+                            error_type,
+                            rest_error.message,
+                            Some(rest_error.code),
+                        );
+                    } else {
+                        return None;
+                    }
                 }
-
-                if let Some(error) = self.exchange_interaction.is_rest_error_code(&response) {
-                    let error_type = self.exchange_interaction.get_error_type(&error);
-
-                    return Some(ExchangeError::new(
-                        error_type,
-                        error.message,
-                        Some(error.code),
-                    ));
-                }
-
-                None
             }
         }
 
-        // FIXME log all that errors
+        // TODO Why is this phrase exactly like that?
+        let msg_to_log = format!(
+            "Callback got an error {:?}, on {}: {:?} {:?}",
+            result_error.error_type, self.exchange_account_id, result_error, response
+        );
+
+        //let msg_to_log;
+        match result_error.error_type {
+            ExchangeErrorType::RateLimit
+            | ExchangeErrorType::Authentication
+            | ExchangeErrorType::InsufficientFunds
+            | ExchangeErrorType::InvalidOrder => {
+                error!("{}", msg_to_log)
+            }
+            _ => {
+                warn!("{}", msg_to_log)
+            }
+        }
+
+        // TODO some HandleRestError via BotBase
+
+        Some(result_error)
     }
 
     fn is_content_empty(content: &str) -> bool {
@@ -429,9 +444,7 @@ impl Exchange {
                     self.exchange_account_id, response
                 );
 
-                if let Some(error) =
-                    self.get_rest_error(&response, "get_open_orders(), inside exchange")
-                {
+                if let Some(error) = self.get_rest_error(&response) {
                     bail!("Rest error appeared during request: {}", error.message)
                 }
 
