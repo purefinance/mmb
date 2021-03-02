@@ -22,8 +22,6 @@ use log::{error, info, warn};
 use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::thread;
-use std::time::Duration;
 use tokio::sync::oneshot;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -236,14 +234,14 @@ impl Exchange {
     }
 
     // TODO Should be part of BotBase? /*Exchange exchange,*/ as first parameter
-    pub async fn cancel_open_orders(&self, check_order_fills: bool, add_missing_open_orders: bool) {
-        let open_orders;
-
-        // Binance can process new orders close to 10 seconds
-        thread::sleep(Duration::from_secs(10));
+    pub async fn cancel_open_orders(
+        &self,
+        _check_order_fills: bool,
+        _add_missing_open_orders: bool,
+    ) {
         loop {
             if let Ok(gotten_orders) = self.get_open_orders().await {
-                open_orders = gotten_orders;
+                let _open_orders = gotten_orders;
                 break;
             }
         }
@@ -431,6 +429,16 @@ impl Exchange {
     // Bugs on exchange server can lead to Err even if order was opened
     // FIXME Prolly (?) method should be executed in cycle to wait Ok() result
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
+        loop {
+            match self.get_open_orders_impl().await {
+                Ok(gotten_orders) => return Ok(gotten_orders),
+                Err(error) => warn!("{}", error),
+            }
+        }
+    }
+
+    // Bugs on exchange server can lead to Err even if order was opened
+    async fn get_open_orders_impl(&self) -> anyhow::Result<Vec<OrderInfo>> {
         let open_orders;
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
