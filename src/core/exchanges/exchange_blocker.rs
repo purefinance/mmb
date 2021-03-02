@@ -394,7 +394,7 @@ impl ExchangeBlockerEventsProcessor {
     }
 }
 
-fn blocker_progress_apply_fn<F: FnMut(&mut ProgressState) -> R, R>(
+fn blocker_progress_apply_fn<F: FnMut(&mut ProgressState) -> R, R: 'static>(
     blockers: &Blockers,
     blocker_id: &BlockerId,
     mut f: F,
