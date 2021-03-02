@@ -74,8 +74,6 @@ pub async fn send_get_request(
         .await;
     let mut response = response.unwrap();
     let body = &response.body().await.unwrap();
-    let body_str = std::str::from_utf8(body);
-    //dbg!(&body_str);
 
     RestRequestOutcome::new(
         std::str::from_utf8(body).unwrap().to_owned(),

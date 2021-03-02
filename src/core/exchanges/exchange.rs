@@ -333,7 +333,6 @@ impl Exchange {
             result_error.error_type, self.exchange_account_id, result_error, response
         );
 
-        //let msg_to_log;
         match result_error.error_type {
             ExchangeErrorType::RateLimit
             | ExchangeErrorType::Authentication
@@ -353,7 +352,7 @@ impl Exchange {
 
     fn is_content_empty(content: &str) -> bool {
         let data: Value = serde_json::from_str(&content).unwrap();
-        // All other Value varians
+        // TODO Handle all other Value varians: bool, null etc.
         if let Some(data_array) = data.as_array() {
             return data_array.is_empty();
         }
@@ -455,7 +454,7 @@ impl Exchange {
             OpenOrdersType::OneCurrencyPair => {
                 // FIXME is it required now?
                 //reserve_when_acailable().await
-                // FIXME other actions here have to be written after build_metadata() implementation
+                // TODO other actions here have to be written after build_metadata() implementation
 
                 return Err(anyhow!(""));
             }
