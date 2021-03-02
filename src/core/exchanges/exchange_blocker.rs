@@ -13,7 +13,7 @@ use std::iter::FromIterator;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{fmt, iter};
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{mpsc, oneshot, Notify};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep_until, Duration, Instant};
 
@@ -178,9 +178,10 @@ pub struct ExchangeBlockerEvent {
 }
 
 type Blockers = Arc<RwLock<HashMap<ExchangeAccountId, HashMap<BlockReason, Blocker>>>>;
-type BlockerEventHandler =
-    Box<dyn FnMut(Arc<ExchangeBlockerEvent>, CancellationToken) -> BoxFuture<'static, ()> + Send>;
-type BlockerEventHandlerVec = Arc<Mutex<Vec<BlockerEventHandler>>>;
+type BlockerEventHandler = Box<
+    dyn Fn(Arc<ExchangeBlockerEvent>, CancellationToken) -> BoxFuture<'static, ()> + Send + Sync,
+>;
+type BlockerEventHandlerVec = Arc<RwLock<Vec<BlockerEventHandler>>>;
 
 #[derive(Clone)]
 struct ProcessingCtx {
@@ -191,7 +192,7 @@ struct ProcessingCtx {
 }
 
 struct ExchangeBlockerEventsProcessor {
-    processing: Mutex<JoinHandle<()>>,
+    finished: Mutex<Option<oneshot::Receiver<()>>>,
     handlers: BlockerEventHandlerVec,
     cancellation_token: CancellationToken,
 }
@@ -199,7 +200,7 @@ struct ExchangeBlockerEventsProcessor {
 impl ExchangeBlockerEventsProcessor {
     fn start(blockers: Blockers) -> (Self, mpsc::Sender<ExchangeBlockerInternalEvent>) {
         let cancellation_token = CancellationToken::new();
-        let handlers: BlockerEventHandlerVec = Default::default();
+        let handlers = BlockerEventHandlerVec::default();
 
         let (events_sender, events_receiver) = mpsc::channel(20_000);
 
@@ -210,10 +211,11 @@ impl ExchangeBlockerEventsProcessor {
             cancellation_token: cancellation_token.clone(),
         };
 
-        let processing = tokio::spawn(Self::processing(events_receiver, ctx));
+        let (finish_sender, finish_receiver) = oneshot::channel();
+        let _ = tokio::spawn(Self::processing(events_receiver, finish_sender, ctx));
 
         let events_processor = ExchangeBlockerEventsProcessor {
-            processing: Mutex::new(processing),
+            finished: Mutex::new(Some(finish_receiver)),
             handlers,
             cancellation_token,
         };
@@ -222,7 +224,7 @@ impl ExchangeBlockerEventsProcessor {
     }
 
     pub fn register_handler(&self, handler: BlockerEventHandler) {
-        self.handlers.lock().push(handler);
+        self.handlers.write().push(handler);
     }
 
     fn add_event(
@@ -247,6 +249,7 @@ impl ExchangeBlockerEventsProcessor {
 
     async fn processing(
         mut events_receiver: mpsc::Receiver<ExchangeBlockerInternalEvent>,
+        finish_sender: oneshot::Sender<()>,
         mut ctx: ProcessingCtx,
     ) {
         while !ctx.cancellation_token.check_cancellation_requested() {
@@ -261,6 +264,11 @@ impl ExchangeBlockerEventsProcessor {
 
             Self::move_next_blocker_state_if_can(&event, &mut ctx);
         }
+
+        events_receiver.close();
+
+        trace!("ExchangeBlocker event processing is cancelled");
+        let _ = finish_sender.send(());
     }
 
     fn move_next_blocker_state_if_can(
@@ -339,8 +347,8 @@ impl ExchangeBlockerEventsProcessor {
         let repeat_iter = iter::repeat((pub_event.clone(), ctx.cancellation_token.clone()));
         let handlers_futures = ctx
             .handlers
-            .lock()
-            .iter_mut()
+            .read()
+            .iter()
             .zip(repeat_iter)
             .map(|(handler, (e, ct))| handler(e, ct))
             .collect_vec();
@@ -376,21 +384,18 @@ impl ExchangeBlockerEventsProcessor {
         }
     }
 
-    async fn stop(&self) {
+    async fn stop_processing(&self) {
         self.cancellation_token.cancel();
-
-        let mut processing_guard = self.processing.lock();
-        let processing_join_handle = processing_guard.deref_mut();
-        processing_join_handle.abort();
-        let res = processing_join_handle.await;
-        if let Err(join_err) = res {
-            if join_err.is_panic() {
-                error!(
-                    "We get panic in ExchangeBlockerEventsProcessor::processing(): {}",
-                    join_err
-                )
+        let finished_rx = match self.finished.lock().take() {
+            None => {
+                trace!("ExchangeBlocker::stop_processing() called more then 1 time");
+                return;
             }
-        }
+            Some(rx) => rx,
+        };
+
+        trace!("ExchangeBlocker::stop_processing waiting for completion of processing");
+        let _ = finished_rx.await;
     }
 }
 
@@ -498,7 +503,6 @@ impl ExchangeBlocker {
                 let blocker_id = BlockerId::new(exchange_account_id.clone(), reason);
                 let blocker = self.create_blocker(block_type, blocker_id.clone());
                 vacant_entry.insert(blocker);
-
                 let event = ExchangeBlockerInternalEvent {
                     blocker_id,
                     event_type: ExchangeBlockerEventType::MoveToBlocked,
@@ -640,16 +644,27 @@ impl ExchangeBlocker {
             exchange_account_id
         );
 
-        let unblocked_notifies = self
-            .blockers
-            .read()
-            .get(&exchange_account_id)
-            .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
-            .values()
-            .map(|blocker| blocker.unblocked_notify.clone())
-            .collect_vec();
+        loop {
+            let unblocked_notifies = self
+                .blockers
+                .read()
+                .get(&exchange_account_id)
+                .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
+                .values()
+                .map(|blocker| blocker.unblocked_notify.clone())
+                .collect_vec();
 
-        join_all(unblocked_notifies.iter().map(|x| x.notified())).await;
+            if unblocked_notifies.is_empty() {
+                return;
+            }
+
+            join_all(unblocked_notifies.iter().map(|x| x.notified())).await;
+
+            // we can reblock some reasons while waiting others
+            if !self.is_blocked(&exchange_account_id) {
+                break;
+            }
+        }
 
         trace!(
             "ExchangeBlocker::wait_unblock() finished {}",
@@ -677,15 +692,13 @@ impl ExchangeBlocker {
                 .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
                 .get(&reason);
             if let Some(blocker) = blocker {
-                Some(blocker.unblocked_notify.clone())
+                blocker.unblocked_notify.clone()
             } else {
-                None
+                return;
             }
         };
 
-        if let Some(notify) = unblocked_notify {
-            notify.notified().await;
-        }
+        unblocked_notify.notified().await;
 
         trace!(
             "ExchangeBlocker::wait_unblock_with_reason finished {} {}",
@@ -700,7 +713,7 @@ impl ExchangeBlocker {
 
     pub async fn stop_blocker(&self) {
         trace!("ExchangeBlocker::stop_blocker() started");
-        self.events_processor.stop().await;
+        self.events_processor.stop_processing().await;
     }
 }
 
@@ -720,12 +733,15 @@ mod tests {
     use std::ops::DerefMut;
     use std::sync::Arc;
     use std::time::Instant;
+    use tokio::sync::oneshot;
     use tokio::time::{sleep, Duration};
 
     type Signal<T> = Arc<Mutex<T>>;
 
     fn exchange_account_id() -> ExchangeAccountId {
-        "ExchangeId0".parse().expect("test")
+        // TODO Make const way to create ExchangeAccountId
+        //"ExchangeId0".parse().expect("test")
+        ExchangeAccountId::new("ExchangeId".into(), 0)
     }
 
     fn exchange_blocker() -> Arc<ExchangeBlocker> {
@@ -985,7 +1001,7 @@ mod tests {
         let reason = "reason".into();
         exchange_blocker.block(&exchange_account_id(), reason, Manual);
         exchange_blocker.unblock(&exchange_account_id(), reason);
-        sleep(Duration::from_millis(100)).await;
+        sleep(Duration::from_millis(1)).await;
 
         assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
 
@@ -994,9 +1010,65 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn block_many_times() {
+        async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
+            let reason = gen_reason(index);
+
+            exchange_blocker.block(&exchange_account_id(), reason, Manual);
+            tokio::task::yield_now().await;
+            exchange_blocker.unblock(&exchange_account_id(), reason);
+            exchange_blocker
+                .wait_unblock_with_reason(
+                    exchange_account_id().clone(),
+                    reason,
+                    CancellationToken::new(),
+                )
+                .await;
+        }
+
+        let cancellation_token = CancellationToken::new();
+        let exchange_blocker = &exchange_blocker();
+        let times_count = &Signal::<u32>::default();
+
+        {
+            let times_count = times_count.clone();
+            exchange_blocker.register_handler(Box::new(move |event, _| {
+                let times_count = times_count.clone();
+                Box::pin(async move {
+                    if event.moment == ExchangeBlockerMoment::Blocked
+                        && event.exchange_account_id == exchange_account_id()
+                    {
+                        *times_count.lock().deref_mut() += 1;
+                    }
+                })
+            }));
+        }
+
+        const TIMES_COUNT: u32 = 200;
+        const REASONS_COUNT: u32 = 20;
+        for _ in 0..(TIMES_COUNT / REASONS_COUNT) {
+            let jobs = (0..REASONS_COUNT)
+                .zip(repeat_with(|| exchange_blocker.clone()))
+                .map(|(i, b)| tokio::spawn(do_action(i, b)));
+            join_all(jobs).await;
+        }
+
+        let max_timeout = Duration::from_secs(2);
+        tokio::select! {
+            _ = exchange_blocker.wait_unblock(exchange_account_id(), cancellation_token) => {
+                assert_eq!(*times_count.lock(), TIMES_COUNT);
+            },
+            _ = sleep(max_timeout) => {
+                print_blocked_reasons(exchange_blocker, REASONS_COUNT);
+                panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis());
+            }
+        }
+    }
+
+    #[tokio::test]
     async fn block_many_times_with_random_reasons() {
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
-            let reason = (&*Box::leak(format!("reason{}", index).into_boxed_str())).into();
+            let reason = gen_reason(index);
 
             exchange_blocker.block(&exchange_account_id(), reason, Manual);
             tokio::task::yield_now().await;
@@ -1006,13 +1078,30 @@ mod tests {
         let mut rng = rand::thread_rng();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
+        let times_count = &Signal::<usize>::default();
 
+        {
+            let times_count = times_count.clone();
+            exchange_blocker.register_handler(Box::new(move |event, _| {
+                let times_count = times_count.clone();
+                Box::pin(async move {
+                    if event.moment == ExchangeBlockerMoment::Blocked
+                        && event.exchange_account_id == exchange_account_id()
+                    {
+                        *times_count.lock().deref_mut() += 1;
+                    }
+                })
+            }));
+        }
+
+        const TIMES_COUNT: usize = 200;
         let jobs = repeat_with(|| rng.gen_range(0..10u32))
-            .take(200)
+            .take(TIMES_COUNT)
             .zip(repeat_with(|| exchange_blocker.clone()))
             .map(|(i, b)| tokio::spawn(do_action(i, b)));
         join_all(jobs).await;
 
+        // exchange blocker should be successfully unblocked
         let max_timeout = Duration::from_secs(2);
         tokio::select! {
             _ = exchange_blocker.wait_unblock(exchange_account_id(), cancellation_token) => nothing_to_do(),
@@ -1023,28 +1112,38 @@ mod tests {
     #[tokio::test]
     async fn block_many_times_with_stop_exchange_blocker() {
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
-            let reason = (&*Box::leak(format!("reason{}", index).into_boxed_str())).into();
+            let reason = gen_reason(index);
 
             exchange_blocker.block(&exchange_account_id(), reason, Manual);
             tokio::task::yield_now().await;
             exchange_blocker.unblock(&exchange_account_id(), reason);
         }
 
-        let mut rng = rand::thread_rng();
-        let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
+        let (stop_blocker_tx, stop_blocker_rx) = oneshot::channel();
 
-        let _ = repeat_with(|| rng.gen_range(0..10u32))
-            .take(200)
-            .zip(repeat_with(|| exchange_blocker.clone()))
-            .map(|(i, b)| tokio::spawn(do_action(i, b)));
+        {
+            let exchange_blocker = exchange_blocker.clone();
+            let _ = tokio::spawn(async move {
+                sleep(Duration::from_millis(10)).await;
+                exchange_blocker.stop_blocker().await;
+                stop_blocker_tx.send(())
+            });
+        }
 
-        sleep(Duration::from_millis(30)).await;
-        exchange_blocker.stop_blocker().await;
+        const TIMES_COUNT: u32 = 200;
+        const REASONS_COUNT: u32 = 10;
+        for i in 0..TIMES_COUNT {
+            tokio::spawn(do_action(i % REASONS_COUNT, exchange_blocker.clone()));
+            if i % REASONS_COUNT == 0 {
+                tokio::task::yield_now().await;
+            }
+        }
+        tokio::task::yield_now().await;
 
         let max_timeout = Duration::from_secs(2);
         tokio::select! {
-            _ = exchange_blocker.wait_unblock(exchange_account_id(), cancellation_token) => nothing_to_do(),
+            _ = stop_blocker_rx => nothing_to_do(),
             _ = sleep(max_timeout) => panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis()),
         }
     }
@@ -1102,5 +1201,21 @@ mod tests {
             exchange_blocker.is_blocked_except_reason(&exchange_account_id(), reason2),
             expected_is_blocked_by_reason2
         );
+    }
+
+    fn gen_reason(index: u32) -> BlockReason {
+        // Memory leak just in tests for simple creation different reasons. In production code it should be static string
+        (&*Box::leak(format!("reason{}", index).into_boxed_str())).into()
+    }
+
+    fn print_blocked_reasons(exchange_blocker: &Arc<ExchangeBlocker>, reasons_count: u32) {
+        for i in 0..reasons_count {
+            let reason = gen_reason(i);
+            println!(
+                "reason{} is blocked: {}",
+                i,
+                exchange_blocker.is_blocked_by_reason(&exchange_account_id(), reason),
+            )
+        }
     }
 }
