@@ -10,22 +10,12 @@ use async_trait::async_trait;
 use log::info;
 
 #[async_trait(?Send)]
-pub trait CommonInteraction {
+pub trait CommonInteraction: Support {
     async fn create_order(&self, _order: &OrderCreating) -> RestRequestOutcome;
 
-    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription>;
-    fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId;
-    fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType;
+    async fn cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;
 
-    // TODO has to be rewritten. Probably after getting metadata feature
-    fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
-
-    fn build_ws_main_path(
-        &self,
-        specific_currency_pairs: &[SpecificCurrencyPair],
-        websocket_channels: &[String],
-    ) -> String;
-    async fn build_ws_secondary_path(&self) -> String;
+    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair);
 
     fn on_websocket_message(&self, msg: &str);
 
@@ -34,17 +24,32 @@ pub trait CommonInteraction {
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
     );
 
+    async fn get_account_info(&self);
+
+    async fn request_open_orders(&self) -> RestRequestOutcome;
+}
+
+#[async_trait(?Send)]
+pub trait Support {
+    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription>;
+    fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId;
+    fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType;
+
+    fn build_ws_main_path(
+        &self,
+        specific_currency_pairs: &[SpecificCurrencyPair],
+        websocket_channels: &[String],
+    ) -> String;
+    async fn build_ws_secondary_path(&self) -> String;
+
+    // TODO has to be rewritten. Probably after getting metadata feature
+    fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
+
     fn should_log_message(&self, message: &str) -> bool;
+
     fn log_websocket_unknown_message(&self, exchange_account_id: ExchangeAccountId, message: &str) {
         info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    async fn get_account_info(&self);
-
-    async fn request_open_orders(&self) -> RestRequestOutcome;
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo>;
-
-    async fn cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;
-
-    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair);
 }

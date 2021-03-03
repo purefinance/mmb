@@ -1,5 +1,5 @@
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
-use super::common_interaction::*;
+use super::common_interaction::CommonInteraction;
 use super::exchange_features::ExchangeFeatures;
 use super::{application_manager::ApplicationManager, exchange_features::OpenOrdersType};
 use crate::core::exchanges::cancellation_token::CancellationToken;
