@@ -2,7 +2,7 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price, RestErrorDescription,
     RestRequestOutcome, SpecificCurrencyPair,
 };
-use crate::core::exchanges::common_interaction::{CommonInteraction, Support};
+use crate::core::exchanges::common_interaction::Support;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::utils;
 use crate::core::orders::fill::EventSourceType;
@@ -18,6 +18,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
 use std::collections::HashMap;
+
+//mod interaction_impl;
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -85,14 +87,14 @@ impl Binance {
         todo!("is_websocket_reconnecting")
     }
 
-    fn to_server_order_side(side: OrderSide) -> String {
+    pub(super) fn to_server_order_side(side: OrderSide) -> String {
         match side {
             OrderSide::Buy => "BUY".to_owned(),
             OrderSide::Sell => "SELL".to_owned(),
         }
     }
 
-    fn to_local_order_side(side: &str) -> OrderSide {
+    pub(super) fn to_local_order_side(side: &str) -> OrderSide {
         match side {
             "BUY" => OrderSide::Buy,
             "SELL" => OrderSide::Sell,
@@ -112,7 +114,7 @@ impl Binance {
         }
     }
 
-    fn to_server_order_type(order_type: OrderType) -> String {
+    pub(super) fn to_server_order_type(order_type: OrderType) -> String {
         match order_type {
             OrderType::Limit => "LIMIT".to_owned(),
             OrderType::Market => "MARKET".to_owned(),
@@ -129,7 +131,7 @@ impl Binance {
         return result;
     }
 
-    fn add_authentification_headers(&self, parameters: &mut rest_client::HttpParams) {
+    pub(super) fn add_authentification_headers(&self, parameters: &mut rest_client::HttpParams) {
         let time_stamp = utils::get_current_milliseconds();
         parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
 
@@ -159,7 +161,7 @@ impl Binance {
         )
     }
 
-    fn handle_trade(&self, msg_to_log: &str, json_response: Value) {
+    pub(super) fn handle_trade(&self, msg_to_log: &str, json_response: Value) {
         let client_order_id = json_response["c"].as_str().unwrap();
         let exchange_order_id = json_response["i"].to_string();
         let execution_type = json_response["x"].as_str().unwrap();
@@ -300,155 +302,6 @@ impl Support for Binance {
             .collect();
 
         orders_info
-    }
-}
-
-#[async_trait(?Send)]
-impl CommonInteraction for Binance {
-    async fn create_order(&self, order: &OrderCreating) -> RestRequestOutcome {
-        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
-
-        let mut parameters = vec![
-            (
-                "symbol".to_owned(),
-                specific_currency_pair.as_str().to_owned(),
-            ),
-            (
-                "side".to_owned(),
-                Self::to_server_order_side(order.header.side),
-            ),
-            (
-                "type".to_owned(),
-                Self::to_server_order_type(order.header.order_type),
-            ),
-            ("quantity".to_owned(), order.header.amount.to_string()),
-            (
-                "newClientOrderId".to_owned(),
-                order.header.client_order_id.as_str().to_owned(),
-            ),
-        ];
-
-        if order.header.order_type != OrderType::Market {
-            parameters.push(("timeInForce".to_owned(), "GTC".to_owned()));
-            parameters.push(("price".to_owned(), order.price.to_string()));
-        }
-
-        if order.header.execution_type == OrderExecutionType::MakerOnly {
-            parameters.push(("timeInForce".to_owned(), "GTX".to_owned()));
-        }
-
-        // TODO What is marging trading?
-        let url_path = if self.settings.is_marging_trading {
-            "/fapi/v1/order"
-        } else {
-            "/api/v3/order"
-        };
-        let full_url = format!("{}{}", self.settings.rest_host, url_path);
-
-        self.add_authentification_headers(&mut parameters);
-
-        rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
-    }
-
-    fn on_websocket_message(&self, msg: &str) {
-        let data: Value = serde_json::from_str(msg).unwrap();
-        // Public stream
-        if let Some(stream) = data.get("stream") {
-            if stream.as_str().unwrap().contains('@') {
-                // TODO handle public stream
-            }
-
-            return;
-        }
-
-        // so it is userData stream
-        let event_type = data["e"].as_str().unwrap();
-        if event_type == "executionReport" {
-            self.handle_trade(msg, data);
-        } else if false {
-            // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
-        } else {
-            self.log_websocket_unknown_message(self.id.clone(), msg);
-        }
-    }
-
-    // TODO not implemented correctly
-    async fn get_account_info(&self) {
-        let mut parameters = rest_client::HttpParams::new();
-
-        self.add_authentification_headers(&mut parameters);
-
-        let path_to_get_account_data = "/api/v3/account";
-        let full_url = format! {"{}{}", self.settings.rest_host, path_to_get_account_data};
-
-        rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
-    }
-
-    // TODO not implemented correctly
-    async fn cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
-        let specific_currency_pair = self.get_specific_currency_pair(&order.currency_pair);
-        let mut parameters = rest_client::HttpParams::new();
-        parameters.push((
-            "symbol".to_owned(),
-            specific_currency_pair.as_str().to_owned(),
-        ));
-        parameters.push(("orderId".to_owned(), order.order_id.as_str().to_owned()));
-
-        let url_path = if self.settings.is_marging_trading {
-            "/fapi/v1/order"
-        } else {
-            "/api/v3/order"
-        };
-        let full_url = format!("{}{}", self.settings.rest_host, url_path);
-
-        self.add_authentification_headers(&mut parameters);
-
-        let outcome =
-            rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
-
-        outcome
-    }
-
-    async fn request_open_orders(&self) -> RestRequestOutcome {
-        let mut parameters = rest_client::HttpParams::new();
-        let url_path = if self.settings.is_marging_trading {
-            "/fapi/v1/openOrders"
-        } else {
-            "/api/v3/openOrders"
-        };
-        let full_url = format!("{}{}", self.settings.rest_host, url_path);
-
-        self.add_authentification_headers(&mut parameters);
-        let orders =
-            rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
-
-        orders
-    }
-
-    // TODO not implemented correctly
-    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
-        let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
-        let path_to_delete = "/api/v3/openOrders";
-        let mut full_url = self.settings.rest_host.clone();
-        full_url.push_str(path_to_delete);
-
-        let mut parameters = rest_client::HttpParams::new();
-        parameters.push((
-            "symbol".to_owned(),
-            specific_currency_pair.as_str().to_owned(),
-        ));
-
-        self.add_authentification_headers(&mut parameters);
-
-        let _cancel_order_outcome =
-            rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
-    }
-
-    fn set_order_created_callback(
-        &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
-    ) {
-        *self.order_created_callback.lock() = callback;
     }
 }
 
