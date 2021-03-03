@@ -1,25 +1,19 @@
+use super::support_impl::BinanceOrderInfo;
 use crate::core::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price, RestErrorDescription,
-    RestRequestOutcome, SpecificCurrencyPair,
+    CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair,
 };
-use crate::core::exchanges::common_interaction::Support;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::utils;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
-use async_trait::async_trait;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
-use itertools::Itertools;
 use log::error;
 use parking_lot::Mutex;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::Sha256;
 use std::collections::HashMap;
-
-//mod interaction_impl;
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -79,7 +73,10 @@ impl Binance {
         todo!("reconnect")
     }
 
-    fn get_stream_name(specific_currency_pair: &SpecificCurrencyPair, channel: &str) -> String {
+    pub(super) fn get_stream_name(
+        specific_currency_pair: &SpecificCurrencyPair,
+        channel: &str,
+    ) -> String {
         format!("{}@{}", specific_currency_pair.as_str(), channel)
     }
 
@@ -144,7 +141,7 @@ impl Binance {
         self.specific_to_unified[&currency_pair].clone()
     }
 
-    fn specific_order_info_to_unified(&self, specific: &BinanceOrderInfo) -> OrderInfo {
+    pub(super) fn specific_order_info_to_unified(&self, specific: &BinanceOrderInfo) -> OrderInfo {
         OrderInfo::new(
             self.get_unified_currency_pair(&specific.specific_currency_pair),
             specific.exchange_order_id.to_string().as_str().into(),
@@ -206,120 +203,6 @@ impl Binance {
             _ => error!("Impossible execution type"),
         }
     }
-}
-
-#[async_trait(?Send)]
-impl Support for Binance {
-    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
-        //Binance is a little inconsistent: for failed responses sometimes they include
-        //only code or only success:false but sometimes both
-        if response.content.contains(r#""success":false"#) || response.content.contains(r#""code""#)
-        {
-            let data: Value = serde_json::from_str(&response.content).unwrap();
-            return Some(RestErrorDescription::new(
-                data["msg"].as_str().unwrap().to_owned(),
-                data["code"].as_i64().unwrap() as i64,
-            ));
-        }
-
-        None
-    }
-
-    fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId {
-        let response: Value = serde_json::from_str(&response.content).unwrap();
-        let id = response["orderId"].to_string();
-        ExchangeOrderId::new(id.into())
-    }
-
-    fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType {
-        // -1010 ERROR_MSG_RECEIVED
-        // -2010 NEW_ORDER_REJECTED
-        // -2011 CANCEL_REJECTED
-        match error.message.as_str() {
-            "Unknown order sent." | "Order does not exist." => ExchangeErrorType::OrderNotFound,
-            "Account has insufficient balance for requested action." => {
-                ExchangeErrorType::InsufficientFunds
-            }
-            "Invalid quantity."
-            | "Filter failure: MIN_NOTIONAL"
-            | "Filter failure: LOT_SIZE"
-            | "Filter failure: PRICE_FILTER"
-            | "Filter failure: PERCENT_PRICE"
-            | "Quantity less than zero."
-            | "Precision is over the maximum defined for this asset." => {
-                ExchangeErrorType::InvalidOrder
-            }
-            msg if msg.contains("Too many requests;") => ExchangeErrorType::RateLimit,
-            _ => ExchangeErrorType::Unknown,
-        }
-    }
-
-    fn build_ws_main_path(
-        &self,
-        specific_currency_pairs: &[SpecificCurrencyPair],
-        websocket_channels: &[String],
-    ) -> String {
-        let stream_names = specific_currency_pairs
-            .iter()
-            .flat_map(|currency_pair| {
-                let mut results = Vec::new();
-                for channel in websocket_channels {
-                    let result = Self::get_stream_name(currency_pair, channel);
-                    results.push(result);
-                }
-                results
-            })
-            .join("/");
-        let ws_path = format!("/stream?streams={}", stream_names);
-        ws_path.to_lowercase()
-    }
-
-    async fn build_ws_secondary_path(&self) -> String {
-        let request_outcome = self.get_listen_key().await;
-        let data: Value = serde_json::from_str(&request_outcome.content).unwrap();
-        let listen_key = data["listenKey"].as_str().unwrap().to_owned();
-
-        let ws_path = format!("{}{}", "/ws/", listen_key);
-        ws_path
-    }
-
-    fn should_log_message(&self, message: &str) -> bool {
-        message.contains("executionReporn")
-    }
-
-    fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
-        self.unified_to_specific[currency_pair].clone()
-    }
-
-    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo> {
-        // TODO that unwrap has to be just logging
-        let binance_orders: Vec<BinanceOrderInfo> =
-            serde_json::from_str(&response.content).unwrap();
-
-        let orders_info: Vec<OrderInfo> = binance_orders
-            .iter()
-            .map(|order| self.specific_order_info_to_unified(order))
-            .collect();
-
-        orders_info
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct BinanceOrderInfo {
-    #[serde(rename = "symbol")]
-    pub specific_currency_pair: SpecificCurrencyPair,
-    #[serde(rename = "orderId")]
-    pub exchange_order_id: i64, //< local type is ExchangeOrderId
-    #[serde(rename = "clientOrderId")]
-    pub client_order_id: ClientOrderId,
-    pub price: Price,
-    #[serde(rename = "origQty")]
-    pub orig_quantity: Amount,
-    #[serde(rename = "executedQty")]
-    pub executed_quantity: Amount,
-    pub status: String,
-    pub side: String,
 }
 
 #[cfg(test)]
