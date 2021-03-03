@@ -80,7 +80,8 @@ pub struct ClientOrderId(String16);
 
 impl ClientOrderId {
     pub fn unique_id() -> Self {
-        let generated = nanoid!();
+        let client_order_id_length = 15;
+        let generated = nanoid!(client_order_id_length);
         ClientOrderId(generated.into())
     }
 

@@ -44,7 +44,7 @@ async fn open_orders_exists() {
     let channels = vec!["depth".into(), "trade".into()];
 
     let exchange = Exchange::new(
-        exchange_account_id,
+        exchange_account_id.clone(),
         websocket_host,
         currency_pairs,
         channels,
@@ -58,7 +58,7 @@ async fn open_orders_exists() {
     let order_header = OrderHeader::new(
         ClientOrderId::unique_id(),
         Utc::now(),
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        exchange_account_id.clone(),
         test_currency_pair.clone(),
         OrderType::Limit,
         OrderSide::Buy,
@@ -83,7 +83,7 @@ async fn open_orders_exists() {
     let second_order_header = OrderHeader::new(
         ClientOrderId::unique_id(),
         Utc::now(),
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        exchange_account_id.clone(),
         test_currency_pair.clone(),
         OrderType::Limit,
         OrderSide::Buy,

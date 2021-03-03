@@ -18,7 +18,7 @@ use anyhow::*;
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::{pin_mut, Future};
-use log::{error, info, warn};
+use log::{info, warn, Level};
 use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -256,29 +256,19 @@ impl Exchange {
         //log_template: Option<String>,
         args_to_log: Option<Vec<String>>,
     ) -> Option<ExchangeError> {
-        let result_error;
-
-        match response.status {
-            StatusCode::UNAUTHORIZED => {
-                result_error = ExchangeError::new(
-                    ExchangeErrorType::Authentication,
-                    response.content.clone(),
-                    None,
-                );
-            }
-            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => {
-                result_error = ExchangeError::new(
-                    ExchangeErrorType::Authentication,
-                    response.content.clone(),
-                    None,
-                );
-            }
+        let result_error = match response.status {
+            StatusCode::UNAUTHORIZED => ExchangeError::new(
+                ExchangeErrorType::Authentication,
+                response.content.clone(),
+                None,
+            ),
+            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => ExchangeError::new(
+                ExchangeErrorType::Authentication,
+                response.content.clone(),
+                None,
+            ),
             StatusCode::TOO_MANY_REQUESTS => {
-                result_error = ExchangeError::new(
-                    ExchangeErrorType::RateLimit,
-                    response.content.clone(),
-                    None,
-                );
+                ExchangeError::new(ExchangeErrorType::RateLimit, response.content.clone(), None)
             }
             _ => {
                 if Self::is_content_empty(&response.content) {
@@ -286,28 +276,24 @@ impl Exchange {
                         return None;
                     }
 
-                    result_error = ExchangeError::new(
+                    ExchangeError::new(
                         ExchangeErrorType::Unknown,
                         "Empty response".to_owned(),
                         None,
-                    );
+                    )
                 } else {
                     if let Some(rest_error) =
                         self.exchange_interaction.is_rest_error_code(&response)
                     {
                         let error_type = self.exchange_interaction.get_error_type(&rest_error);
 
-                        result_error = ExchangeError::new(
-                            error_type,
-                            rest_error.message,
-                            Some(rest_error.code),
-                        );
+                        ExchangeError::new(error_type, rest_error.message, Some(rest_error.code))
                     } else {
                         return None;
                     }
                 }
             }
-        }
+        };
 
         // TODO Why is this phrase exactly like that?
         let mut msg_to_log = format!(
@@ -320,17 +306,15 @@ impl Exchange {
             msg_to_log = format!("{} with args: {:?}", msg_to_log, args);
         }
 
-        match result_error.error_type {
+        let log_level = match result_error.error_type {
             ExchangeErrorType::RateLimit
             | ExchangeErrorType::Authentication
             | ExchangeErrorType::InsufficientFunds
-            | ExchangeErrorType::InvalidOrder => {
-                error!("{}", msg_to_log)
-            }
-            _ => {
-                warn!("{}", msg_to_log)
-            }
-        }
+            | ExchangeErrorType::InvalidOrder => Level::Error,
+            _ => Level::Warn,
+        };
+
+        log::log!(log_level, "{}", &msg_to_log);
 
         // TODO some HandleRestError via BotBase
 
