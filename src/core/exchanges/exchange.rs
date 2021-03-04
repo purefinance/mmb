@@ -298,9 +298,8 @@ impl Exchange {
             }
         };
 
-        // TODO Why is this phrase exactly like that?
         let mut msg_to_log = format!(
-            "Callback got an error {:?}, on {}: {:?} {:?}",
+            "Response has an error {:?}, on {}: {:?} {:?}",
             result_error.error_type, self.exchange_account_id, result_error, response
         );
 
