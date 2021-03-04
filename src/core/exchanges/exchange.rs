@@ -215,7 +215,7 @@ impl Exchange {
         &self,
         request_outcome: &RestRequestOutcome,
         order: &OrderCreating,
-    ) -> CreateOrderResult {
+    ) -> Result<CreateOrderResult> {
         info!(
             "Create response for {}, {:?}, {}, {:?}",
             // TODO other order_headers_field
@@ -225,15 +225,18 @@ impl Exchange {
             request_outcome
         );
 
-        if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
-            return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
+        if let Some(rest_error) = self.get_rest_error_order(request_outcome, order)? {
+            return Ok(CreateOrderResult::failed(rest_error, EventSourceType::Rest));
         }
 
         let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
-        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
+        Ok(CreateOrderResult::successed(
+            created_order_id,
+            EventSourceType::Rest,
+        ))
     }
 
-    fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
+    fn get_rest_error(&self, response: &RestRequestOutcome) -> Result<Option<ExchangeError>> {
         self.get_rest_error_main(response, None)
     }
 
@@ -241,7 +244,7 @@ impl Exchange {
         &self,
         response: &RestRequestOutcome,
         order: &OrderCreating,
-    ) -> Option<ExchangeError> {
+    ) -> Result<Option<ExchangeError>> {
         let client_order_id = order.header.client_order_id.to_string();
         let exchange_account_id = order.header.exchange_account_id.to_string();
         let args_to_log = Some(vec![client_order_id, exchange_account_id]);
@@ -255,7 +258,7 @@ impl Exchange {
         // TODO why do we need this template?
         //log_template: Option<String>,
         args_to_log: Option<Vec<String>>,
-    ) -> Option<ExchangeError> {
+    ) -> Result<Option<ExchangeError>> {
         let result_error = match response.status {
             StatusCode::UNAUTHORIZED => ExchangeError::new(
                 ExchangeErrorType::Authentication,
@@ -271,9 +274,9 @@ impl Exchange {
                 ExchangeError::new(ExchangeErrorType::RateLimit, response.content.clone(), None)
             }
             _ => {
-                if Self::is_content_empty(&response.content) {
+                if Self::is_content_empty(&response.content)? {
                     if self.features.empty_response_is_ok {
-                        return None;
+                        return Ok(None);
                     }
 
                     ExchangeError::new(
@@ -289,7 +292,7 @@ impl Exchange {
 
                         ExchangeError::new(error_type, rest_error.message, Some(rest_error.code))
                     } else {
-                        return None;
+                        return Ok(None);
                     }
                 }
             }
@@ -318,24 +321,24 @@ impl Exchange {
 
         // TODO some HandleRestError via BotBase
 
-        Some(result_error)
+        Ok(Some(result_error))
     }
 
-    fn is_content_empty(content: &str) -> bool {
-        let data: Value = serde_json::from_str(&content).unwrap();
+    fn is_content_empty(content: &str) -> Result<bool> {
+        let data: Value = serde_json::from_str(&content).context("Unable to parse content")?;
         // TODO Handle all other Value varians: bool, null etc.
         if let Some(data_array) = data.as_array() {
-            return data_array.is_empty();
+            return Ok(data_array.is_empty());
         }
 
-        false
+        Ok(false)
     }
 
     pub async fn create_order(
         &self,
         order: &OrderCreating,
         cancellation_token: CancellationToken,
-    ) -> Option<CreateOrderResult> {
+    ) -> Result<Option<CreateOrderResult>> {
         let client_order_id = order.header.client_order_id.clone();
         let (tx, websocket_event_receiver) = oneshot::channel();
 
@@ -352,21 +355,21 @@ impl Exchange {
         tokio::select! {
             rest_request_outcome = &mut order_create_future => {
 
-                let create_order_result = self.handle_response(&rest_request_outcome, &order);
+                let create_order_result = self.handle_response(&rest_request_outcome, &order)?;
                 match create_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
-                        return Some(create_order_result);
+                        return Ok(Some(create_order_result));
                     }
 
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return Some(websocket_outcome.unwrap())
+                                return Ok(Some(websocket_outcome.unwrap()))
                             }
 
                             _ = &mut cancellation_token => {
-                                return None;
+                                return Ok(None);
                             }
 
                         }
@@ -375,11 +378,11 @@ impl Exchange {
             }
 
             _ = &mut cancellation_token => {
-                return None;
+                return Ok(None);
             }
 
             websocket_outcome = &mut websocket_event_receiver => {
-                return Some(websocket_outcome.unwrap());
+                return Ok(Some(websocket_outcome.unwrap()));
             }
 
         };
@@ -423,7 +426,7 @@ impl Exchange {
                     self.exchange_account_id, response
                 );
 
-                if let Some(error) = self.get_rest_error(&response) {
+                if let Some(error) = self.get_rest_error(&response)? {
                     bail!("Rest error appeared during request: {}", error.message)
                 }
 

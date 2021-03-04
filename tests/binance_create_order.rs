@@ -47,6 +47,7 @@ async fn create_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
+        // TODO this is part of certain exchange - Binance in this case
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
     );
 
@@ -77,6 +78,7 @@ async fn create_successfully() {
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
+        .unwrap()
         .unwrap();
 
     match create_order_result.outcome {
@@ -156,6 +158,7 @@ async fn should_fail() {
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
+        .unwrap()
         .unwrap();
 
     let expected_error = RequestResult::Error(ExchangeError::new(

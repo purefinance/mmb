@@ -1,8 +1,10 @@
 #[derive(Debug)]
 pub enum OpenOrdersType {
     None,
-    OneCurrencyPair,
     AllCurrencyPair,
+    // Some exchanges does not allow to get all open orders
+    // So we should extract orders for each currency pair
+    OneCurrencyPair,
 }
 
 pub struct ExchangeFeatures {
