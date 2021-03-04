@@ -54,6 +54,12 @@ impl CreateOrderResult {
     }
 }
 
+enum CheckContent {
+    Empty,
+    Err(ExchangeError),
+    Usable,
+}
+
 type WSEventType = CreateOrderResult;
 pub struct Exchange {
     exchange_account_id: ExchangeAccountId,
@@ -215,7 +221,7 @@ impl Exchange {
         &self,
         request_outcome: &RestRequestOutcome,
         order: &OrderCreating,
-    ) -> Result<CreateOrderResult> {
+    ) -> CreateOrderResult {
         info!(
             "Create response for {}, {:?}, {}, {:?}",
             // TODO other order_headers_field
@@ -225,40 +231,37 @@ impl Exchange {
             request_outcome
         );
 
-        if let Some(rest_error) = self.get_rest_error_order(request_outcome, order)? {
-            return Ok(CreateOrderResult::failed(rest_error, EventSourceType::Rest));
+        if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
+            return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
         }
 
         let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
-        Ok(CreateOrderResult::successed(
-            created_order_id,
-            EventSourceType::Rest,
-        ))
+        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
     }
 
-    fn get_rest_error(&self, response: &RestRequestOutcome) -> Result<Option<ExchangeError>> {
-        self.get_rest_error_main(response, None)
+    fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
+        self.get_rest_error_main(response, None, None)
     }
 
     fn get_rest_error_order(
         &self,
         response: &RestRequestOutcome,
         order: &OrderCreating,
-    ) -> Result<Option<ExchangeError>> {
+    ) -> Option<ExchangeError> {
         let client_order_id = order.header.client_order_id.to_string();
         let exchange_account_id = order.header.exchange_account_id.to_string();
+        let log_template = format!("order {} {}", client_order_id, exchange_account_id);
         let args_to_log = Some(vec![client_order_id, exchange_account_id]);
 
-        self.get_rest_error_main(response, args_to_log)
+        self.get_rest_error_main(response, Some(log_template), args_to_log)
     }
 
     pub fn get_rest_error_main(
         &self,
         response: &RestRequestOutcome,
-        // TODO why do we need this template?
-        //log_template: Option<String>,
+        log_template: Option<String>,
         args_to_log: Option<Vec<String>>,
-    ) -> Result<Option<ExchangeError>> {
+    ) -> Option<ExchangeError> {
         let result_error = match response.status {
             StatusCode::UNAUTHORIZED => ExchangeError::new(
                 ExchangeErrorType::Authentication,
@@ -266,17 +269,17 @@ impl Exchange {
                 None,
             ),
             StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => ExchangeError::new(
-                ExchangeErrorType::Authentication,
+                ExchangeErrorType::ServiceUnavailable,
                 response.content.clone(),
                 None,
             ),
             StatusCode::TOO_MANY_REQUESTS => {
                 ExchangeError::new(ExchangeErrorType::RateLimit, response.content.clone(), None)
             }
-            _ => {
-                if Self::is_content_empty(&response.content)? {
+            _ => match Self::check_content(&response.content) {
+                CheckContent::Empty => {
                     if self.features.empty_response_is_ok {
-                        return Ok(None);
+                        return None;
                     }
 
                     ExchangeError::new(
@@ -284,7 +287,9 @@ impl Exchange {
                         "Empty response".to_owned(),
                         None,
                     )
-                } else {
+                }
+                CheckContent::Err(error) => error,
+                CheckContent::Usable => {
                     if let Some(rest_error) =
                         self.exchange_interaction.is_rest_error_code(&response)
                     {
@@ -292,20 +297,25 @@ impl Exchange {
 
                         ExchangeError::new(error_type, rest_error.message, Some(rest_error.code))
                     } else {
-                        return Ok(None);
+                        return None;
                     }
                 }
-            }
+            },
         };
 
         let mut msg_to_log = format!(
-            "Response has an error {:?}, on {}: {:?} {:?}",
-            result_error.error_type, self.exchange_account_id, result_error, response
+            "Response has an error {:?}, on {}: {:?}",
+            result_error.error_type, self.exchange_account_id, result_error
         );
 
         if args_to_log.is_some() {
             let args = args_to_log.unwrap();
-            msg_to_log = format!("{} with args: {:?}", msg_to_log, args);
+            msg_to_log = format!(" {} with args: {:?}", msg_to_log, args);
+        }
+
+        if log_template.is_some() {
+            let template = log_template.unwrap();
+            msg_to_log = format!(" {}", template);
         }
 
         let log_level = match result_error.error_type {
@@ -316,28 +326,51 @@ impl Exchange {
             _ => Level::Warn,
         };
 
-        log::log!(log_level, "{}", &msg_to_log);
+        log::log!(log_level, "{}. Response: {:?}", &msg_to_log, &response);
 
         // TODO some HandleRestError via BotBase
 
-        Ok(Some(result_error))
+        Some(result_error)
     }
 
-    fn is_content_empty(content: &str) -> Result<bool> {
-        let data: Value = serde_json::from_str(&content).context("Unable to parse content")?;
-        // TODO Handle all other Value varians: bool, null etc.
-        if let Some(data_array) = data.as_array() {
-            return Ok(data_array.is_empty());
-        }
+    fn check_content(content: &str) -> CheckContent {
+        // TODO is that OK to deserialize it each time here?
+        match serde_json::from_str::<Value>(&content) {
+            Ok(data) => {
+                match data {
+                    Value::Null => return CheckContent::Empty,
+                    Value::Array(array) => {
+                        if array.is_empty() {
+                            return CheckContent::Empty;
+                        }
+                    }
+                    Value::Object(val) => {
+                        if val.is_empty() {
+                            return CheckContent::Empty;
+                        }
+                    }
+                    Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                        return CheckContent::Usable
+                    }
+                };
 
-        Ok(false)
+                return CheckContent::Usable;
+            }
+            Err(_) => {
+                return CheckContent::Err(ExchangeError::new(
+                    ExchangeErrorType::Unknown,
+                    "Unable to parse response".to_owned(),
+                    None,
+                ));
+            }
+        }
     }
 
     pub async fn create_order(
         &self,
         order: &OrderCreating,
         cancellation_token: CancellationToken,
-    ) -> Result<Option<CreateOrderResult>> {
+    ) -> Option<CreateOrderResult> {
         let client_order_id = order.header.client_order_id.clone();
         let (tx, websocket_event_receiver) = oneshot::channel();
 
@@ -354,21 +387,21 @@ impl Exchange {
         tokio::select! {
             rest_request_outcome = &mut order_create_future => {
 
-                let create_order_result = self.handle_response(&rest_request_outcome, &order)?;
+                let create_order_result = self.handle_response(&rest_request_outcome, &order);
                 match create_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
-                        return Ok(Some(create_order_result));
+                        return Some(create_order_result);
                     }
 
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return Ok(Some(websocket_outcome.unwrap()))
+                                return Some(websocket_outcome.unwrap())
                             }
 
                             _ = &mut cancellation_token => {
-                                return Ok(None);
+                                return None;
                             }
 
                         }
@@ -377,11 +410,11 @@ impl Exchange {
             }
 
             _ = &mut cancellation_token => {
-                return Ok(None);
+                return None;
             }
 
             websocket_outcome = &mut websocket_event_receiver => {
-                return Ok(Some(websocket_outcome.unwrap()));
+                return Some(websocket_outcome.unwrap());
             }
 
         };
@@ -425,7 +458,7 @@ impl Exchange {
                     self.exchange_account_id, response
                 );
 
-                if let Some(error) = self.get_rest_error(&response)? {
+                if let Some(error) = self.get_rest_error(&response) {
                     bail!("Rest error appeared during request: {}", error.message)
                 }
 
