@@ -106,6 +106,13 @@ impl Support for Binance {
         *self.order_created_callback.lock() = callback;
     }
 
+    fn set_order_cancelled_callback(
+        &self,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    ) {
+        *self.order_cancelled_callback.lock() = callback;
+    }
+
     fn build_ws_main_path(
         &self,
         specific_currency_pairs: &[SpecificCurrencyPair],

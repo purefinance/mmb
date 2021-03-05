@@ -36,6 +36,11 @@ pub trait Support {
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
     );
 
+    fn set_order_cancelled_callback(
+        &self,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    );
+
     fn build_ws_main_path(
         &self,
         specific_currency_pairs: &[SpecificCurrencyPair],
@@ -45,11 +50,6 @@ pub trait Support {
 
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
-
-    fn set_order_cancelled_callback(
-        &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
-    );
 
     fn should_log_message(&self, message: &str) -> bool;
 

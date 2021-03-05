@@ -20,6 +20,8 @@ pub struct Binance {
     pub id: ExchangeAccountId,
     pub order_created_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>>,
+    pub order_cancelled_callback:
+        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>>,
 
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
@@ -40,6 +42,7 @@ impl Binance {
             settings,
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
+            order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
             unified_to_specific,
             specific_to_unified,
         }

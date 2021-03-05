@@ -88,7 +88,9 @@ async fn create_successfully() {
             };
 
             // Cancel last order
-            let _cancel_outcome = exchange.cancel_order(&order_to_cancel).await;
+            let _cancel_outcome = exchange
+                .cancel_order(&order_to_cancel, CancellationToken::default())
+                .await;
         }
 
         // Create order failed
