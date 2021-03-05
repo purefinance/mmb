@@ -1,6 +1,6 @@
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
-use super::common_interaction::CommonInteraction;
 use super::exchange_features::ExchangeFeatures;
+use super::traits::ExchangeClient;
 use super::{application_manager::ApplicationManager, exchange_features::OpenOrdersType};
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
@@ -66,7 +66,7 @@ pub struct Exchange {
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
     websocket_channels: Vec<String>,
-    exchange_interaction: Box<dyn CommonInteraction>,
+    exchange_interaction: Box<dyn ExchangeClient>,
     orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
 
@@ -90,7 +90,7 @@ impl Exchange {
         websocket_host: String,
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
         websocket_channels: Vec<String>,
-        exchange_interaction: Box<dyn CommonInteraction>,
+        exchange_interaction: Box<dyn ExchangeClient>,
         features: ExchangeFeatures,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());

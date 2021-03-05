@@ -1,10 +1,13 @@
 use super::binance::Binance;
-use crate::core::exchanges::common::{
-    Amount, CurrencyPair, ExchangeErrorType, Price, RestErrorDescription, RestRequestOutcome,
-    SpecificCurrencyPair,
-};
-use crate::core::exchanges::common_interaction::Support;
+use crate::core::exchanges::traits::Support;
 use crate::core::orders::order::*;
+use crate::core::{
+    exchanges::common::{
+        Amount, CurrencyPair, ExchangeErrorType, Price, RestErrorDescription, RestRequestOutcome,
+        SpecificCurrencyPair,
+    },
+    orders::fill::EventSourceType,
+};
 use async_trait::async_trait;
 use itertools::Itertools;
 use log::info;
@@ -74,6 +77,35 @@ impl Support for Binance {
         }
     }
 
+    fn on_websocket_message(&self, msg: &str) {
+        let data: Value = serde_json::from_str(msg).unwrap();
+        // Public stream
+        if let Some(stream) = data.get("stream") {
+            if stream.as_str().unwrap().contains('@') {
+                // TODO handle public stream
+            }
+
+            return;
+        }
+
+        // so it is userData stream
+        let event_type = data["e"].as_str().unwrap();
+        if event_type == "executionReport" {
+            self.handle_trade(msg, data);
+        } else if false {
+            // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
+        } else {
+            self.log_unknown_message(self.id.clone(), msg);
+        }
+    }
+
+    fn set_order_created_callback(
+        &self,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    ) {
+        *self.order_created_callback.lock() = callback;
+    }
+
     fn build_ws_main_path(
         &self,
         specific_currency_pairs: &[SpecificCurrencyPair],
@@ -124,7 +156,7 @@ impl Support for Binance {
         orders_info
     }
 
-    fn log_websocket_unknown_message(
+    fn log_unknown_message(
         &self,
         exchange_account_id: crate::core::exchanges::common::ExchangeAccountId,
         message: &str,

@@ -1,14 +1,12 @@
 use super::binance::Binance;
 use crate::core::exchanges::common::{CurrencyPair, RestRequestOutcome};
-use crate::core::exchanges::common_interaction::{CommonInteraction, Support};
 use crate::core::exchanges::rest_client;
-use crate::core::orders::fill::EventSourceType;
+use crate::core::exchanges::traits::{ExchangeClient, Support};
 use crate::core::orders::order::*;
 use async_trait::async_trait;
-use serde_json::Value;
 
 #[async_trait(?Send)]
-impl CommonInteraction for Binance {
+impl ExchangeClient for Binance {
     async fn create_order(&self, order: &OrderCreating) -> RestRequestOutcome {
         let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
 
@@ -52,28 +50,6 @@ impl CommonInteraction for Binance {
         self.add_authentification_headers(&mut parameters);
 
         rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
-    }
-
-    fn on_websocket_message(&self, msg: &str) {
-        let data: Value = serde_json::from_str(msg).unwrap();
-        // Public stream
-        if let Some(stream) = data.get("stream") {
-            if stream.as_str().unwrap().contains('@') {
-                // TODO handle public stream
-            }
-
-            return;
-        }
-
-        // so it is userData stream
-        let event_type = data["e"].as_str().unwrap();
-        if event_type == "executionReport" {
-            self.handle_trade(msg, data);
-        } else if false {
-            // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
-        } else {
-            self.log_websocket_unknown_message(self.id.clone(), msg);
-        }
     }
 
     // TODO not implemented correctly
@@ -146,12 +122,5 @@ impl CommonInteraction for Binance {
 
         let _cancel_order_outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
-    }
-
-    fn set_order_created_callback(
-        &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
-    ) {
-        *self.order_created_callback.lock() = callback;
     }
 }

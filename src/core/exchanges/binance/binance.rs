@@ -1,4 +1,4 @@
-use super::support_impl::BinanceOrderInfo;
+use super::support::BinanceOrderInfo;
 use crate::core::exchanges::common::{
     CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair,
 };
