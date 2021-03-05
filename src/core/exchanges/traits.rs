@@ -46,6 +46,11 @@ pub trait Support {
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
 
+    fn set_order_cancelled_callback(
+        &self,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+    );
+
     fn should_log_message(&self, message: &str) -> bool;
 
     fn log_unknown_message(&self, exchange_account_id: ExchangeAccountId, message: &str) {
