@@ -47,7 +47,6 @@ async fn create_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
-        // TODO this is part of certain exchange - Binance in this case
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
     );
 

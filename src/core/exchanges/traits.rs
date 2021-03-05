@@ -14,7 +14,7 @@ use log::info;
 pub trait ExchangeClient: Support {
     async fn create_order(&self, _order: &OrderCreating) -> RestRequestOutcome;
 
-    async fn cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;
+    async fn request_cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;
 
     async fn cancel_all_orders(&self, _currency_pair: CurrencyPair);
 
