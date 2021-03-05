@@ -1,6 +1,7 @@
-use super::application_manager::ApplicationManager;
 use super::common::{CurrencyPair, ExchangeError, ExchangeErrorType};
 use super::common_interaction::*;
+use super::exchange_features::ExchangeFeatures;
+use super::{application_manager::ApplicationManager, exchange_features::OpenOrdersType};
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::fill::EventSourceType;
@@ -13,10 +14,12 @@ use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
 };
+use anyhow::*;
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::{pin_mut, Future};
-use log::info;
+use log::{info, warn, Level};
+use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -51,6 +54,12 @@ impl CreateOrderResult {
     }
 }
 
+enum CheckContent {
+    Empty,
+    Err(ExchangeError),
+    Usable,
+}
+
 type WSEventType = CreateOrderResult;
 pub struct Exchange {
     exchange_account_id: ExchangeAccountId,
@@ -72,6 +81,7 @@ pub struct Exchange {
         ),
     >,
     application_manager: ApplicationManager,
+    features: ExchangeFeatures,
 }
 
 impl Exchange {
@@ -81,6 +91,7 @@ impl Exchange {
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
         websocket_channels: Vec<String>,
         exchange_interaction: Box<dyn CommonInteraction>,
+        features: ExchangeFeatures,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
@@ -95,6 +106,7 @@ impl Exchange {
             order_creation_events: DashMap::new(),
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
+            features,
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -190,7 +202,6 @@ impl Exchange {
         let get_websocket_params = Box::new(move |websocket_role| {
             let exchange = exchange_weak.upgrade().unwrap();
             let params = exchange.get_websocket_params(websocket_role);
-            // TODO Evgeniy, look at this. It works but also scares me a little
             Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
         });
 
@@ -220,7 +231,7 @@ impl Exchange {
             request_outcome
         );
 
-        if let Some(rest_error) = self.is_rest_error_order(request_outcome, order) {
+        if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
             return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
         }
 
@@ -228,54 +239,129 @@ impl Exchange {
         CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
     }
 
-    pub fn is_rest_error_order(
+    fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
+        self.get_rest_error_main(response, None, None)
+    }
+
+    fn get_rest_error_order(
         &self,
         response: &RestRequestOutcome,
-        _order: &OrderCreating,
+        order: &OrderCreating,
     ) -> Option<ExchangeError> {
-        // TODO add log with info about caller
-        match response.status {
-            StatusCode::UNAUTHORIZED => {
-                return Some(ExchangeError::new(
-                    ExchangeErrorType::Authentication,
-                    response.content.clone(),
-                    None,
-                ));
-            }
-            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => {
-                return Some(ExchangeError::new(
-                    ExchangeErrorType::Authentication,
-                    response.content.clone(),
-                    None,
-                ));
-            }
+        let client_order_id = order.header.client_order_id.to_string();
+        let exchange_account_id = order.header.exchange_account_id.to_string();
+        let log_template = format!("order {} {}", client_order_id, exchange_account_id);
+        let args_to_log = Some(vec![client_order_id, exchange_account_id]);
+
+        self.get_rest_error_main(response, Some(log_template), args_to_log)
+    }
+
+    pub fn get_rest_error_main(
+        &self,
+        response: &RestRequestOutcome,
+        log_template: Option<String>,
+        args_to_log: Option<Vec<String>>,
+    ) -> Option<ExchangeError> {
+        let result_error = match response.status {
+            StatusCode::UNAUTHORIZED => ExchangeError::new(
+                ExchangeErrorType::Authentication,
+                response.content.clone(),
+                None,
+            ),
+            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => ExchangeError::new(
+                ExchangeErrorType::ServiceUnavailable,
+                response.content.clone(),
+                None,
+            ),
             StatusCode::TOO_MANY_REQUESTS => {
-                return Some(ExchangeError::new(
-                    ExchangeErrorType::RateLimit,
-                    response.content.clone(),
-                    None,
-                ));
+                ExchangeError::new(ExchangeErrorType::RateLimit, response.content.clone(), None)
             }
-            _ => {
-                if response.content.is_empty() {
-                    return Some(ExchangeError::new(
+            _ => match Self::check_content(&response.content) {
+                CheckContent::Empty => {
+                    if self.features.empty_response_is_ok {
+                        return None;
+                    }
+
+                    ExchangeError::new(
                         ExchangeErrorType::Unknown,
                         "Empty response".to_owned(),
                         None,
-                    ));
+                    )
                 }
+                CheckContent::Err(error) => error,
+                CheckContent::Usable => {
+                    if let Some(rest_error) =
+                        self.exchange_interaction.is_rest_error_code(&response)
+                    {
+                        let error_type = self.exchange_interaction.get_error_type(&rest_error);
 
-                if let Some(error) = self.exchange_interaction.is_rest_error_code(&response) {
-                    let error_type = self.exchange_interaction.get_error_type(&error);
-
-                    return Some(ExchangeError::new(
-                        error_type,
-                        error.message,
-                        Some(error.code),
-                    ));
+                        ExchangeError::new(error_type, rest_error.message, Some(rest_error.code))
+                    } else {
+                        return None;
+                    }
                 }
+            },
+        };
 
-                None
+        let mut msg_to_log = format!(
+            "Response has an error {:?}, on {}: {:?}",
+            result_error.error_type, self.exchange_account_id, result_error
+        );
+
+        if args_to_log.is_some() {
+            let args = args_to_log.unwrap();
+            msg_to_log = format!(" {} with args: {:?}", msg_to_log, args);
+        }
+
+        if log_template.is_some() {
+            let template = log_template.unwrap();
+            msg_to_log = format!(" {}", template);
+        }
+
+        let log_level = match result_error.error_type {
+            ExchangeErrorType::RateLimit
+            | ExchangeErrorType::Authentication
+            | ExchangeErrorType::InsufficientFunds
+            | ExchangeErrorType::InvalidOrder => Level::Error,
+            _ => Level::Warn,
+        };
+
+        log::log!(log_level, "{}. Response: {:?}", &msg_to_log, &response);
+
+        // TODO some HandleRestError via BotBase
+
+        Some(result_error)
+    }
+
+    fn check_content(content: &str) -> CheckContent {
+        // TODO is that OK to deserialize it each time here?
+        match serde_json::from_str::<Value>(&content) {
+            Ok(data) => {
+                match data {
+                    Value::Null => return CheckContent::Empty,
+                    Value::Array(array) => {
+                        if array.is_empty() {
+                            return CheckContent::Empty;
+                        }
+                    }
+                    Value::Object(val) => {
+                        if val.is_empty() {
+                            return CheckContent::Empty;
+                        }
+                    }
+                    Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+                        return CheckContent::Usable
+                    }
+                };
+
+                return CheckContent::Usable;
+            }
+            Err(_) => {
+                return CheckContent::Err(ExchangeError::new(
+                    ExchangeErrorType::Unknown,
+                    "Unable to parse response".to_owned(),
+                    None,
+                ));
             }
         }
     }
@@ -348,18 +434,55 @@ impl Exchange {
         self.exchange_interaction.get_account_info().await;
     }
 
-    pub async fn get_open_orders(&self) -> Vec<OrderInfo> {
-        // TODO some timer metric has to be here
+    pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
+        // Bugs on exchange server can lead to Err even if order was opened
+        loop {
+            match self.get_open_orders_impl().await {
+                Ok(gotten_orders) => return Ok(gotten_orders),
+                Err(error) => warn!("{}", error),
+            }
+        }
+    }
 
-        let response = self.exchange_interaction.get_open_orders().await;
-        info!("GetOpenOrders response is {:?}", response);
+    // Bugs on exchange server can lead to Err even if order was opened
+    async fn get_open_orders_impl(&self) -> anyhow::Result<Vec<OrderInfo>> {
+        let open_orders;
+        match self.features.open_orders_type {
+            OpenOrdersType::AllCurrencyPair => {
+                // TODO implement in the future
+                //reserve_when_acailable().await
+                let response = self.exchange_interaction.request_open_orders().await;
 
-        // TODO IsRestError(response) with Result?? Prolly just log error
-        // TODO Result propagate and handling
+                info!(
+                    "get_open_orders() response on {}: {:?}",
+                    self.exchange_account_id, response
+                );
 
-        let orders = self.exchange_interaction.parse_open_orders(&response);
+                if let Some(error) = self.get_rest_error(&response) {
+                    bail!("Rest error appeared during request: {}", error.message)
+                }
 
-        orders
+                open_orders = self.exchange_interaction.parse_open_orders(&response);
+
+                return Ok(open_orders);
+            }
+            OpenOrdersType::OneCurrencyPair => {
+                // TODO implement in the future
+                //reserve_when_acailable().await
+                // TODO other actions here have to be written after build_metadata() implementation
+
+                return Err(anyhow!(""));
+            }
+            _ => bail!(
+                "Unsupported open_orders_type: {:?}",
+                self.features.open_orders_type
+            ),
+        }
+
+        // TODO Prolly should to be moved in first and second branches in match above
+        //if (add_missing_open_orders) {
+        //    add_missing_open_orders(openOrders);
+        //}
     }
 
     pub async fn get_websocket_params(

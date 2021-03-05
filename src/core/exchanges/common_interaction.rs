@@ -41,7 +41,7 @@ pub trait CommonInteraction {
 
     async fn get_account_info(&self);
 
-    async fn get_open_orders(&self) -> RestRequestOutcome;
+    async fn request_open_orders(&self) -> RestRequestOutcome;
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo>;
 
     async fn cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;

@@ -73,11 +73,10 @@ pub async fn send_get_request(
         .send()
         .await;
     let mut response = response.unwrap();
+    let body = &response.body().await.unwrap();
 
     RestRequestOutcome::new(
-        std::str::from_utf8(&response.body().await.unwrap())
-            .unwrap()
-            .to_owned(),
+        std::str::from_utf8(body).unwrap().to_owned(),
         response.status(),
     )
 }

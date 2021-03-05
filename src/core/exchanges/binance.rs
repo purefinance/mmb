@@ -360,7 +360,7 @@ impl CommonInteraction for Binance {
         outcome
     }
 
-    async fn get_open_orders(&self) -> RestRequestOutcome {
+    async fn request_open_orders(&self) -> RestRequestOutcome {
         let mut parameters = rest_client::HttpParams::new();
         let url_path = if self.settings.is_marging_trading {
             "/fapi/v1/openOrders"

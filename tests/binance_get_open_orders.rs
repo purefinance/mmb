@@ -1,5 +1,4 @@
 use chrono::Utc;
-use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
@@ -9,9 +8,11 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
+use std::thread;
+use std::time::Duration;
 
 #[actix_rt::test]
-async fn create_successfully() {
+async fn open_orders_exists() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");
     if api_key.is_err() {
@@ -47,7 +48,6 @@ async fn create_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
-        // TODO this is part of certain exchange - Binance in this case
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
     );
 
@@ -74,97 +74,38 @@ async fn create_successfully() {
         price: dec!(0.00000004),
     };
 
-    let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
-    let create_order_result = exchange
+    exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
         .unwrap();
 
-    match create_order_result.outcome {
-        RequestResult::Success(order_id) => {
-            let order_to_cancel = OrderCancelling {
-                currency_pair: test_currency_pair,
-                order_id,
-            };
-
-            // Cancel last order
-            let _cancel_outcome = exchange.cancel_order(&order_to_cancel).await;
-        }
-
-        // Create order failed
-        RequestResult::Error(_) => {
-            assert!(false)
-        }
-    }
-}
-
-#[actix_rt::test]
-async fn should_fail() {
-    // Get data to access binance account
-    let api_key = env::var("BINANCE_API_KEY");
-    if api_key.is_err() {
-        dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
-        return;
-    }
-
-    let secret_key = env::var("BINANCE_SECRET_KEY");
-    if secret_key.is_err() {
-        dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
-        return;
-    }
-
-    let settings = settings::ExchangeSettings {
-        api_key: api_key.unwrap(),
-        secret_key: secret_key.unwrap(),
-        is_marging_trading: false,
-        web_socket_host: "".into(),
-        web_socket2_host: "".into(),
-        rest_host: "https://api.binance.com".into(),
-    };
-
-    let binance = Binance::new(settings, "Binance0".parse().unwrap());
-
-    let exchange = Exchange::new(
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
-        "host".into(),
-        vec![],
-        vec![],
-        Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
-    );
-
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
-    let order_header = OrderHeader::new(
-        "test".into(),
+    let second_order_header = OrderHeader::new(
+        ClientOrderId::unique_id(),
         Utc::now(),
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        exchange_account_id.clone(),
         test_currency_pair.clone(),
         OrderType::Limit,
         OrderSide::Buy,
-        dec!(1),
+        dec!(10000),
         OrderExecutionType::None,
         ReservationId::gen_new(),
         None,
         "".into(),
     );
 
-    let order_to_create = OrderCreating {
-        header: order_header,
-        // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000005),
+    let second_order_to_create = OrderCreating {
+        header: second_order_header,
+        // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
+        price: dec!(0.00000004),
     };
-
-    let create_order_result = exchange
-        .create_order(&order_to_create, CancellationToken::default())
+    exchange
+        .create_order(&second_order_to_create, CancellationToken::default())
         .await
         .unwrap();
 
-    let expected_error = RequestResult::Error(ExchangeError::new(
-        ExchangeErrorType::InvalidOrder,
-        "Filter failure: MIN_NOTIONAL".to_owned(),
-        Some(-1013),
-    ));
+    // Binance can process new orders close to 10 seconds
+    thread::sleep(Duration::from_secs(10));
+    let all_orders = exchange.get_open_orders().await.unwrap();
 
-    // It's MIN_NOTIONAL error code
-    assert_eq!(create_order_result.outcome, expected_error);
+    assert!(!all_orders.is_empty())
 }

@@ -422,8 +422,8 @@ impl Default for ConnectivityManagerNotifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::exchanges::binance::Binance;
     use crate::core::exchanges::exchange::Exchange;
+    use crate::core::exchanges::{binance::Binance, exchange_features::*};
     use crate::core::logger::init_logger;
     use crate::core::settings::ExchangeSettings;
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
@@ -453,6 +453,7 @@ mod tests {
             currency_pairs,
             channels,
             exchange_interaction,
+            ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
         );
 
         let exchange_weak = Arc::downgrade(&exchange);
