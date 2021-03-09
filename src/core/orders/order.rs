@@ -417,15 +417,41 @@ impl OrderInfo {
     }
 }
 
+pub trait HasOrderHeader {
+    fn get_client_order_id(&self) -> String;
+    fn get_exchange_account_id(&self) -> String;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCreating {
     pub header: OrderHeader,
     pub price: Price,
 }
 
+impl HasOrderHeader for OrderCreating {
+    fn get_client_order_id(&self) -> String {
+        self.header.client_order_id.to_string()
+    }
+
+    fn get_exchange_account_id(&self) -> String {
+        self.header.exchange_account_id.to_string()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCancelling {
     pub header: OrderHeader,
+    pub exchange_order_id: ExchangeOrderId,
+}
+
+impl HasOrderHeader for OrderCancelling {
+    fn get_client_order_id(&self) -> String {
+        self.header.client_order_id.to_string()
+    }
+
+    fn get_exchange_account_id(&self) -> String {
+        self.header.exchange_account_id.to_string()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

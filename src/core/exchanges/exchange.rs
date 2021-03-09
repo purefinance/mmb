@@ -5,7 +5,9 @@ use super::{application_manager::ApplicationManager, exchange_features::OpenOrde
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
 use crate::core::orders::fill::EventSourceType;
-use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo};
+use crate::core::orders::order::{
+    ExchangeOrderId, HasOrderHeader, OrderCancelling, OrderCreating, OrderInfo,
+};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
@@ -59,7 +61,7 @@ impl CreateOrderResult {
 pub struct CancelOrderResult {
     pub outcome: RequestResult<ClientOrderId>,
     pub source_type: EventSourceType,
-    // TODO Use in in the future
+    // TODO Use it in the future
     pub filled_amount: Option<Amount>,
 }
 
@@ -317,7 +319,7 @@ impl Exchange {
         &self,
         request_outcome: &RestRequestOutcome,
         order: &OrderCancelling,
-    ) -> CreateOrderResult {
+    ) -> CancelOrderResult {
         info!(
             "Cancel response for {}, {:?}, {:?}",
             // TODO other order_headers_field
@@ -327,11 +329,14 @@ impl Exchange {
         );
 
         if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
-            return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
+            return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
         }
-
-        let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
-        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
+        // TODO Parse requrst_outcome.content similarly to the handle_create_order_response
+        CancelOrderResult::successed(
+            order.header.client_order_id.clone(),
+            EventSourceType::Rest,
+            None,
+        )
     }
 
     fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
@@ -341,10 +346,10 @@ impl Exchange {
     fn get_rest_error_order(
         &self,
         response: &RestRequestOutcome,
-        order: &OrderCreating,
+        order: &impl HasOrderHeader,
     ) -> Option<ExchangeError> {
-        let client_order_id = order.header.client_order_id.to_string();
-        let exchange_account_id = order.header.exchange_account_id.to_string();
+        let client_order_id = order.get_client_order_id();
+        let exchange_account_id = order.get_exchange_account_id();
         let log_template = format!("order {} {}", client_order_id, exchange_account_id);
         let args_to_log = Some(vec![client_order_id, exchange_account_id]);
 

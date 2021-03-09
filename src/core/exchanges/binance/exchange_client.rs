@@ -65,7 +65,7 @@ impl ExchangeClient for Binance {
     }
 
     async fn request_cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
-        let specific_currency_pair = self.get_specific_currency_pair(&order.currency_pair);
+        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
