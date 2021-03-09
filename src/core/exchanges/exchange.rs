@@ -314,7 +314,6 @@ impl Exchange {
         CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
     }
 
-    // FIXME implement it!
     fn handle_cancel_order_response(
         &self,
         request_outcome: &RestRequestOutcome,
@@ -331,6 +330,7 @@ impl Exchange {
         if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
             return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
         }
+
         // TODO Parse requrst_outcome.content similarly to the handle_create_order_response
         CancelOrderResult::successed(
             order.header.client_order_id.clone(),
@@ -538,14 +538,15 @@ impl Exchange {
         pin_mut!(cancellation_token);
         pin_mut!(websocket_event_receiver);
 
+        // FIXME Check it!!
         tokio::select! {
             rest_request_outcome = &mut order_cancel_future => {
 
-                let create_order_result = self.handle_cancel_order_response(&rest_request_outcome, &order);
-                match create_order_result.outcome {
+                let cancel_order_result = self.handle_cancel_order_response(&rest_request_outcome, &order);
+                match cancel_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
-                        return Some(create_order_result);
+                        return Some(cancel_order_result);
                     }
 
                     RequestResult::Success(_) => {
@@ -570,11 +571,7 @@ impl Exchange {
             websocket_outcome = &mut websocket_event_receiver => {
                 return Some(websocket_outcome.unwrap());
             }
-
         };
-
-        // FIXME delete last None
-        None
     }
 
     pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {

@@ -68,7 +68,7 @@ async fn create_successfully() {
     );
 
     let order_to_create = OrderCreating {
-        header: order_header,
+        header: order_header.clone(),
         // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
         price: dec!(0.00000004),
     };
@@ -80,16 +80,17 @@ async fn create_successfully() {
         .unwrap();
 
     match create_order_result.outcome {
-        RequestResult::Success(order_id) => {
+        RequestResult::Success(exchange_order_id) => {
             let order_to_cancel = OrderCancelling {
-                currency_pair: test_currency_pair,
-                order_id,
+                header: order_header,
+                exchange_order_id,
             };
 
             // Cancel last order
-            let _cancel_outcome = exchange
+            let cancel_outcome = exchange
                 .cancel_order(&order_to_cancel, CancellationToken::default())
                 .await;
+            dbg!(&cancel_outcome);
         }
 
         // Create order failed
