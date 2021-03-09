@@ -183,7 +183,14 @@ impl Binance {
                 ),
             },
             "CANCELED" => match order_status {
-                "CANCELED" => {} // order_canceled_callback
+                "CANCELED" => {
+                    let client_order_id = json_response["C"].as_str().unwrap();
+                    (&self.order_cancelled_callback).lock()(
+                        client_order_id.into(),
+                        exchange_order_id.as_str().into(),
+                        EventSourceType::WebSocket,
+                    );
+                }
                 _ => error!(
                     "execution_type is CANCELED but order_status is {} for message {}",
                     order_status, msg_to_log
@@ -193,15 +200,19 @@ impl Binance {
                 // TODO: May be not handle error in Rest but move it here to make it unified?
                 // We get notification of rejected orders from the rest responses
             }
-            "EXPIRED" => {
-                match time_in_force {
-                    "GTX" => {} // TODO order_canceled_calback
-                    _ => error!(
-                        "Order {} was expired, message: {}",
-                        client_order_id, msg_to_log
-                    ),
+            "EXPIRED" => match time_in_force {
+                "GTX" => {
+                    (&self.order_cancelled_callback).lock()(
+                        client_order_id.into(),
+                        exchange_order_id.as_str().into(),
+                        EventSourceType::WebSocket,
+                    );
                 }
-            }
+                _ => error!(
+                    "Order {} was expired, message: {}",
+                    client_order_id, msg_to_log
+                ),
+            },
             "TRADE" | "CALCULATED" => {} // TODO handle it,
             _ => error!("Impossible execution type"),
         }

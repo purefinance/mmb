@@ -176,7 +176,6 @@ impl Exchange {
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
     ) {
-        dbg!(&"DAAAAA");
         if let Some((_, (tx, _))) = self.order_cancellation_events.remove(&exchange_order_id) {
             tx.send(CancelOrderResult::successed(
                 client_order_id,
@@ -217,7 +216,7 @@ impl Exchange {
 
         let exchange_weak = Arc::downgrade(&self);
         self.exchange_interaction
-            .set_order_created_callback(Box::new(
+            .set_order_cancelled_callback(Box::new(
                 move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade()
                 {
                     Some(exchange) => exchange.raise_order_cancelled(
@@ -541,7 +540,6 @@ impl Exchange {
         // FIXME Check it!!
         tokio::select! {
             rest_request_outcome = &mut order_cancel_future => {
-
                 let cancel_order_result = self.handle_cancel_order_response(&rest_request_outcome, &order);
                 match cancel_order_result.outcome {
                     RequestResult::Error(_) => {
