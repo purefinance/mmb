@@ -18,7 +18,7 @@ use anyhow::*;
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::{pin_mut, Future};
-use log::{info, warn, Level};
+use log::{error, info, warn, Level};
 use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -162,8 +162,14 @@ impl Exchange {
         source_type: EventSourceType,
     ) {
         if let Some((_, (tx, _))) = self.order_creation_events.remove(&client_order_id) {
-            tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
-                .unwrap();
+            if let Err(error) =
+                tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
+            {
+                error!(
+                    "Unable to sent CreateOrderResult thru oneshot channel: {:?}",
+                    error
+                );
+            }
         }
     }
 
@@ -174,12 +180,16 @@ impl Exchange {
         source_type: EventSourceType,
     ) {
         if let Some((_, (tx, _))) = self.order_cancellation_events.remove(&exchange_order_id) {
-            tx.send(CancelOrderResult::successed(
+            if let Err(error) = tx.send(CancelOrderResult::successed(
                 client_order_id,
                 source_type,
                 None,
-            ))
-            .unwrap();
+            )) {
+                error!(
+                    "Unable to sent CreateOrderResult thru oneshot channel: {:?}",
+                    error
+                );
+            }
         }
     }
 
@@ -272,7 +282,9 @@ impl Exchange {
 
         let exchange_weak = Arc::downgrade(&self);
         let get_websocket_params = Box::new(move |websocket_role| {
-            let exchange = exchange_weak.upgrade().unwrap();
+            let exchange = exchange_weak.upgrade().expect(
+                "Unable to upgrade reference to Exchange. So unable to get websocket parameters",
+            );
             let params = exchange.get_websocket_params(websocket_role);
             Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
         });
@@ -401,13 +413,11 @@ impl Exchange {
             result_error.error_type, self.exchange_account_id, result_error
         );
 
-        if args_to_log.is_some() {
-            let args = args_to_log.unwrap();
+        if let Some(args) = args_to_log {
             msg_to_log = format!(" {} with args: {:?}", msg_to_log, args);
         }
 
-        if log_template.is_some() {
-            let template = log_template.unwrap();
+        if let Some(template) = log_template {
             msg_to_log = format!(" {}", template);
         }
 
@@ -490,7 +500,7 @@ impl Exchange {
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return Some(websocket_outcome.unwrap())
+                                return websocket_outcome.ok()
                             }
 
                             _ = &mut cancellation_token => {
@@ -507,7 +517,7 @@ impl Exchange {
             }
 
             websocket_outcome = &mut websocket_event_receiver => {
-                return Some(websocket_outcome.unwrap());
+                return websocket_outcome.ok();
             }
 
         };
@@ -545,7 +555,7 @@ impl Exchange {
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return Some(websocket_outcome.unwrap())
+                                return websocket_outcome.ok()
                             }
 
                             _ = &mut cancellation_token => {
@@ -562,7 +572,7 @@ impl Exchange {
             }
 
             websocket_outcome = &mut websocket_event_receiver => {
-                return Some(websocket_outcome.unwrap());
+                return websocket_outcome.ok()
             }
         };
     }
