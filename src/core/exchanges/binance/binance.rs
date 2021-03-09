@@ -202,6 +202,7 @@ impl Binance {
             }
             "EXPIRED" => match time_in_force {
                 "GTX" => {
+                    let client_order_id = json_response["C"].as_str().unwrap();
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.as_str().into(),

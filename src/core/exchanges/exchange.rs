@@ -42,9 +42,8 @@ pub struct CreateOrderResult {
 
 impl CreateOrderResult {
     pub fn successed(order_id: ExchangeOrderId, source_type: EventSourceType) -> Self {
-        let test = RequestResult::Success(order_id);
         CreateOrderResult {
-            outcome: test,
+            outcome: RequestResult::Success(order_id),
             source_type,
         }
     }
@@ -320,10 +319,7 @@ impl Exchange {
     ) -> CancelOrderResult {
         info!(
             "Cancel response for {}, {:?}, {:?}",
-            // TODO other order_headers_field
-            order.header.client_order_id,
-            order.header.exchange_account_id,
-            request_outcome
+            order.header.client_order_id, order.header.exchange_account_id, request_outcome
         );
 
         if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
@@ -537,7 +533,6 @@ impl Exchange {
         pin_mut!(cancellation_token);
         pin_mut!(websocket_event_receiver);
 
-        // FIXME Check it!!
         tokio::select! {
             rest_request_outcome = &mut order_cancel_future => {
                 let cancel_order_result = self.handle_cancel_order_response(&rest_request_outcome, &order);
