@@ -282,6 +282,7 @@ impl Exchange {
 
         let exchange_weak = Arc::downgrade(&self);
         let get_websocket_params = Box::new(move |websocket_role| {
+            // FIXME is that OK? Or need to be handled other way
             let exchange = exchange_weak.upgrade().expect(
                 "Unable to upgrade reference to Exchange. So unable to get websocket parameters",
             );

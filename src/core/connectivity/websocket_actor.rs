@@ -13,7 +13,7 @@ use awc::{
 };
 use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use std::time::{Duration, Instant};
 
 use crate::core::connectivity::connectivity_manager::ConnectivityManagerNotifier;
@@ -61,10 +61,7 @@ impl WebSocketActor {
             .header("Accept-Encoding", "gzip")
             .connect()
             .await
-            .map_err(|e| {
-                trace!("Error: {}", e.to_string());
-            })
-            .unwrap();
+            .expect("Unable to establish websocket connection");
 
         trace!(
             "WebsocketActor '{}' connecting status: {}",
@@ -139,10 +136,16 @@ impl WebSocketActor {
     }
 
     fn handle_websocket_message(&self, bytes: &Bytes) {
-        let text = std::str::from_utf8(bytes).unwrap();
-        self.connectivity_manager_notifier
-            .clone()
-            .message_received(text);
+        match std::str::from_utf8(bytes) {
+            Ok(text) => {
+                self.connectivity_manager_notifier
+                    .clone()
+                    .message_received(text);
+            }
+            Err(error) => {
+                warn!("Unable to parse websoket message: {:?}", error)
+            }
+        }
     }
 }
 
