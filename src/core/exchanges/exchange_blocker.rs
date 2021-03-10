@@ -13,7 +13,7 @@ use std::iter::FromIterator;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{fmt, iter};
-use tokio::sync::{mpsc, oneshot, Notify};
+use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep_until, Duration, Instant};
 
@@ -192,7 +192,7 @@ struct ProcessingCtx {
 }
 
 struct ExchangeBlockerEventsProcessor {
-    finished: Mutex<Option<oneshot::Receiver<()>>>,
+    processing_handle: Mutex<Option<JoinHandle<()>>>,
     handlers: BlockerEventHandlerVec,
     cancellation_token: CancellationToken,
 }
@@ -211,11 +211,10 @@ impl ExchangeBlockerEventsProcessor {
             cancellation_token: cancellation_token.clone(),
         };
 
-        let (finish_sender, finish_receiver) = oneshot::channel();
-        let _ = tokio::spawn(Self::processing(events_receiver, finish_sender, ctx));
+        let processing_handle = tokio::spawn(Self::processing(events_receiver, ctx));
 
         let events_processor = ExchangeBlockerEventsProcessor {
-            finished: Mutex::new(Some(finish_receiver)),
+            processing_handle: Mutex::new(Some(processing_handle)),
             handlers,
             cancellation_token,
         };
@@ -249,7 +248,6 @@ impl ExchangeBlockerEventsProcessor {
 
     async fn processing(
         mut events_receiver: mpsc::Receiver<ExchangeBlockerInternalEvent>,
-        finish_sender: oneshot::Sender<()>,
         mut ctx: ProcessingCtx,
     ) {
         while !ctx.cancellation_token.check_cancellation_requested() {
@@ -268,7 +266,6 @@ impl ExchangeBlockerEventsProcessor {
         events_receiver.close();
 
         trace!("ExchangeBlocker event processing is cancelled");
-        let _ = finish_sender.send(());
     }
 
     fn move_next_blocker_state_if_can(
@@ -386,7 +383,9 @@ impl ExchangeBlockerEventsProcessor {
 
     async fn stop_processing(&self) {
         self.cancellation_token.cancel();
-        let finished_rx = match self.finished.lock().take() {
+        tokio::task::yield_now().await;
+
+        let processing_handle = match self.processing_handle.lock().take() {
             None => {
                 trace!("ExchangeBlocker::stop_processing() called more then 1 time");
                 return;
@@ -395,7 +394,16 @@ impl ExchangeBlockerEventsProcessor {
         };
 
         trace!("ExchangeBlocker::stop_processing waiting for completion of processing");
-        let _ = finished_rx.await;
+        processing_handle.abort();
+        let res = processing_handle.await;
+        if let Err(join_err) = res {
+            if join_err.is_panic() {
+                error!(
+                    "We get panic in ExchangeBlockerEventsProcessor::processing(): {}",
+                    join_err
+                )
+            }
+        }
     }
 }
 
@@ -620,9 +628,22 @@ impl ExchangeBlocker {
         trace!("Unblock started {} {}", exchange_account_id, reason);
 
         let blocker_id = BlockerId::new(exchange_account_id.clone(), reason);
-        blocker_progress_apply_fn(&self.blockers, &blocker_id, |statuses| {
-            statuses.is_unblock_requested = true;
-        });
+
+        {
+            let read_guard = self.blockers.read();
+            let blocker = match read_guard
+                .get(&blocker_id.exchange_account_id)
+                .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
+                .get(&blocker_id.reason)
+            {
+                Some(blocker) => blocker,
+                None => return,
+            };
+
+            let mut lock_guard = blocker.progress_state.lock();
+            let progress_state = lock_guard.deref_mut();
+            progress_state.is_unblock_requested = true;
+        }
 
         let event = ExchangeBlockerInternalEvent {
             blocker_id,
@@ -726,14 +747,15 @@ mod tests {
         BlockReason, ExchangeBlocker, ExchangeBlockerMoment,
     };
     use crate::core::nothing_to_do;
-    use futures::future::join_all;
+    use futures::future::{join, join_all};
+    use futures::FutureExt;
     use parking_lot::Mutex;
     use rand::Rng;
     use std::iter::repeat_with;
     use std::ops::DerefMut;
     use std::sync::Arc;
     use std::time::Instant;
-    use tokio::sync::oneshot;
+    use tokio::sync::{oneshot, Notify};
     use tokio::time::{sleep, Duration};
 
     type Signal<T> = Arc<Mutex<T>>;
@@ -920,13 +942,14 @@ mod tests {
             let times_count = times_count.clone();
             exchange_blocker.register_handler(Box::new(move |event, _| {
                 let times_count = times_count.clone();
-                Box::pin(async move {
+                async move {
                     if event.moment == ExchangeBlockerMoment::Blocked
                         && event.exchange_account_id == exchange_account_id()
                     {
                         *times_count.lock().deref_mut() += 1;
                     }
-                })
+                }
+                .boxed()
             }));
         }
         let reason = "reason".into();
@@ -951,7 +974,7 @@ mod tests {
             let times_count = times_count.clone();
             exchange_blocker.register_handler(Box::new(move |event, _| {
                 let times_count = times_count.clone();
-                Box::pin(async move {
+                async move {
                     match event.moment {
                         ExchangeBlockerMoment::Blocked => {
                             sleep(Duration::from_millis(40)).await;
@@ -962,7 +985,8 @@ mod tests {
                         }
                         _ => nothing_to_do(),
                     }
-                })
+                }
+                .boxed()
             }));
         }
         let reason = "reason".into();
@@ -978,6 +1002,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn stop_blocker() {
+        let exchange_blocker = exchange_blocker();
+
+        let max_timeout = Duration::from_millis(100);
+        tokio::select! {
+            _ = exchange_blocker.stop_blocker() => nothing_to_do(),
+            _ = sleep(max_timeout) => panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis()),
+        }
+    }
+
+    #[tokio::test]
     async fn block_with_handler_after_stop() {
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
@@ -986,13 +1021,14 @@ mod tests {
             let times_count = times_count.clone();
             exchange_blocker.register_handler(Box::new(move |event, _| {
                 let times_count = times_count.clone();
-                Box::pin(async move {
+                async move {
                     if event.moment == ExchangeBlockerMoment::Blocked
                         && event.exchange_account_id == exchange_account_id()
                     {
                         *times_count.lock().deref_mut() += 1;
                     }
-                })
+                }
+                .boxed()
             }));
         }
 
@@ -1034,13 +1070,14 @@ mod tests {
             let times_count = times_count.clone();
             exchange_blocker.register_handler(Box::new(move |event, _| {
                 let times_count = times_count.clone();
-                Box::pin(async move {
+                async move {
                     if event.moment == ExchangeBlockerMoment::Blocked
                         && event.exchange_account_id == exchange_account_id()
                     {
                         *times_count.lock().deref_mut() += 1;
                     }
-                })
+                }
+                .boxed()
             }));
         }
 
@@ -1084,13 +1121,14 @@ mod tests {
             let times_count = times_count.clone();
             exchange_blocker.register_handler(Box::new(move |event, _| {
                 let times_count = times_count.clone();
-                Box::pin(async move {
+                async move {
                     if event.moment == ExchangeBlockerMoment::Blocked
                         && event.exchange_account_id == exchange_account_id()
                     {
                         *times_count.lock().deref_mut() += 1;
                     }
-                })
+                }
+                .boxed()
             }));
         }
 
@@ -1120,30 +1158,50 @@ mod tests {
         }
 
         let exchange_blocker = &exchange_blocker();
-        let (stop_blocker_tx, stop_blocker_rx) = oneshot::channel();
+        let (blocker_stop_started_tx, blocker_stop_started_rx) = oneshot::channel();
+        let (blocker_stopped_tx, blocker_stopped_rx) = oneshot::channel();
+        let spawn_actions_notify = Arc::new(Notify::new());
 
         {
             let exchange_blocker = exchange_blocker.clone();
             let _ = tokio::spawn(async move {
-                sleep(Duration::from_millis(10)).await;
+                sleep(Duration::from_millis(1)).await;
+                let _ = blocker_stop_started_tx.send(());
                 exchange_blocker.stop_blocker().await;
-                stop_blocker_tx.send(())
+                let _ = blocker_stopped_tx.send(());
             });
         }
 
-        const TIMES_COUNT: u32 = 200;
-        const REASONS_COUNT: u32 = 10;
-        for i in 0..TIMES_COUNT {
-            tokio::spawn(do_action(i % REASONS_COUNT, exchange_blocker.clone()));
-            if i % REASONS_COUNT == 0 {
-                tokio::task::yield_now().await;
-            }
+        {
+            let exchange_blocker = exchange_blocker.clone();
+            let spawn_actions_notify = spawn_actions_notify.clone();
+            let _ = tokio::spawn(async move {
+                const TIMES_COUNT: u32 = 1000;
+                const REASONS_COUNT: u32 = 10;
+                for i in 0..TIMES_COUNT {
+                    tokio::spawn(do_action(i % REASONS_COUNT, exchange_blocker.clone()));
+                    if i % REASONS_COUNT == 0 {
+                        tokio::task::yield_now().await;
+                    }
+                }
+
+                spawn_actions_notify.notify_waiters();
+            });
+        };
+
+        {
+            let spawn_actions_notify = spawn_actions_notify.clone();
+            let _ = tokio::spawn(async move {
+                tokio::select! {
+                    _ = spawn_actions_notify.notified() => panic!("spawn_actions finished before exchange blocker_block() started. It does not meet test case."),
+                    _ = blocker_stop_started_rx => nothing_to_do(),
+                }
+            });
         }
-        tokio::task::yield_now().await;
 
         let max_timeout = Duration::from_secs(2);
         tokio::select! {
-            _ = stop_blocker_rx => nothing_to_do(),
+            _ = join(spawn_actions_notify.notified(), blocker_stopped_rx) => nothing_to_do(),
             _ = sleep(max_timeout) => panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis()),
         }
     }
@@ -1184,6 +1242,65 @@ mod tests {
             .await;
         // no blocked
         assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, false);
+    }
+
+    #[tokio::test]
+    async fn wait_unblock_if_not_blocked() {
+        let cancellation_token = CancellationToken::new();
+        let exchange_blocker = &exchange_blocker();
+
+        // no blocked
+        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), false);
+
+        exchange_blocker
+            .wait_unblock(exchange_account_id(), cancellation_token)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn wait_unblock_when_reblock_1_of_2_reasons() {
+        let exchange_blocker = &exchange_blocker();
+        let wait_completed = Signal::<bool>::default();
+
+        let reason1 = "reason1".into();
+        let reason2 = "reason2".into();
+
+        exchange_blocker.block(&exchange_account_id(), reason1, Manual);
+        exchange_blocker.block(&exchange_account_id(), reason2, Manual);
+
+        {
+            let exchange_blocker = exchange_blocker.clone();
+            let wait_completed = wait_completed.clone();
+            let _ = tokio::spawn(async move {
+                exchange_blocker
+                    .wait_unblock(exchange_account_id(), CancellationToken::new())
+                    .await;
+                *wait_completed.lock() = true;
+            });
+        }
+
+        tokio::task::yield_now().await;
+        assert_eq!(*wait_completed.lock(), false);
+
+        // reblock reason1
+        exchange_blocker.unblock(&exchange_account_id(), reason1);
+        exchange_blocker
+            .wait_unblock_with_reason(exchange_account_id(), reason1, CancellationToken::new())
+            .await;
+        exchange_blocker.block(&exchange_account_id(), reason1, Manual);
+
+        exchange_blocker.unblock(&exchange_account_id(), reason2);
+
+        exchange_blocker
+            .wait_unblock_with_reason(exchange_account_id(), reason2, CancellationToken::new())
+            .await;
+        assert_eq!(*wait_completed.lock(), false);
+
+        exchange_blocker.unblock(&exchange_account_id(), reason1);
+        exchange_blocker
+            .wait_unblock(exchange_account_id(), CancellationToken::new())
+            .await;
+        assert_eq!(*wait_completed.lock(), true);
     }
 
     fn assert_is_blocking_except_reason(
