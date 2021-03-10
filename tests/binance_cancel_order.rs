@@ -73,6 +73,7 @@ async fn cancelled_successfully() {
         price: dec!(0.00000004),
     };
 
+    let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
