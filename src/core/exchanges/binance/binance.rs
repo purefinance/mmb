@@ -7,6 +7,7 @@ use crate::core::exchanges::utils;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
+use anyhow::Result;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use log::error;
@@ -50,7 +51,7 @@ impl Binance {
         }
     }
 
-    pub async fn get_listen_key(&self) -> RestRequestOutcome {
+    pub async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
         let url_path = if self.settings.is_marging_trading {
             "/sapi/v1/userDataStream"
         } else {

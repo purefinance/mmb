@@ -1,4 +1,5 @@
 use super::common::*;
+use anyhow::{bail, Result};
 
 pub type HttpParams = Vec<(String, String)>;
 
@@ -20,20 +21,24 @@ pub async fn send_post_request(
     url: &str,
     api_key: &str,
     parameters: &HttpParams,
-) -> RestRequestOutcome {
+) -> Result<RestRequestOutcome> {
     let client = awc::Client::default();
     let response = client
         .post(url)
         .header("X-MBX-APIKEY", api_key)
         .send_form(&parameters)
         .await;
-    let mut response = response.unwrap();
 
-    RestRequestOutcome {
-        content: std::str::from_utf8(&response.body().await.unwrap())
-            .unwrap()
-            .to_owned(),
-        status: response.status(),
+    match response {
+        Ok(mut response) => Ok(RestRequestOutcome {
+            content: std::str::from_utf8(&response.body().await.unwrap())
+                .unwrap()
+                .to_owned(),
+            status: response.status(),
+        }),
+        Err(error) => {
+            bail!("Unable to send POST request: {}", error)
+        }
     }
 }
 

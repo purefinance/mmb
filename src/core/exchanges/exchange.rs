@@ -287,7 +287,7 @@ impl Exchange {
                 "Unable to upgrade reference to Exchange. So unable to get websocket parameters",
             );
             let params = exchange.get_websocket_params(websocket_role);
-            Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
+            Box::pin(params) as Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
         });
 
         let is_connected = self
@@ -304,7 +304,7 @@ impl Exchange {
 
     fn handle_create_order_response(
         &self,
-        request_outcome: &RestRequestOutcome,
+        request_outcome: &Result<RestRequestOutcome>,
         order: &OrderCreating,
     ) -> CreateOrderResult {
         info!(
@@ -315,12 +315,23 @@ impl Exchange {
             request_outcome
         );
 
-        if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header) {
-            return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
-        }
+        let event_sourse_type = EventSourceType::Rest;
 
-        let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
-        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
+        match request_outcome {
+            Ok(request_outcome) => {
+                if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
+                    return CreateOrderResult::failed(rest_error, event_sourse_type);
+                }
+
+                let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
+                CreateOrderResult::successed(created_order_id, event_sourse_type)
+            }
+            Err(error) => {
+                let exchange_error =
+                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
+                return CreateOrderResult::failed(exchange_error, event_sourse_type);
+            }
+        }
     }
 
     fn handle_cancel_order_response(
@@ -490,7 +501,6 @@ impl Exchange {
 
         tokio::select! {
             rest_request_outcome = &mut order_create_future => {
-
                 let create_order_result = self.handle_create_order_response(&rest_request_outcome, &order);
                 match create_order_result.outcome {
                     RequestResult::Error(_) => {
@@ -642,7 +652,7 @@ impl Exchange {
     pub async fn get_websocket_params(
         self: Arc<Self>,
         websocket_role: WebSocketRole,
-    ) -> Option<WebSocketParams> {
+    ) -> Result<WebSocketParams> {
         let ws_path;
         match websocket_role {
             WebSocketRole::Main => {
@@ -653,10 +663,10 @@ impl Exchange {
                 );
             }
             WebSocketRole::Secondary => {
-                ws_path = self.exchange_interaction.build_ws_secondary_path().await;
+                ws_path = self.exchange_interaction.build_ws_secondary_path().await?;
             }
         }
 
-        Some(self.create_websocket_params(&ws_path))
+        Ok(self.create_websocket_params(&ws_path))
     }
 }

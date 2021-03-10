@@ -245,6 +245,7 @@ impl ExchangeError {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ExchangeErrorType {
     Unknown,
+    SendError,
     RateLimit,
     OrderNotFound,
     OrderCompleted,

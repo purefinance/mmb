@@ -3,11 +3,12 @@ use crate::core::exchanges::common::{CurrencyPair, RestRequestOutcome};
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
 use crate::core::orders::order::*;
+use anyhow::Result;
 use async_trait::async_trait;
 
 #[async_trait(?Send)]
 impl ExchangeClient for Binance {
-    async fn create_order(&self, order: &OrderCreating) -> RestRequestOutcome {
+    async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome> {
         let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
 
         let mut parameters = vec![

@@ -6,13 +6,14 @@ use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
+use anyhow::Result;
 use async_trait::async_trait;
 use log::info;
 
 // Implementation of rest API client
 #[async_trait(?Send)]
 pub trait ExchangeClient: Support {
-    async fn create_order(&self, _order: &OrderCreating) -> RestRequestOutcome;
+    async fn create_order(&self, _order: &OrderCreating) -> Result<RestRequestOutcome>;
 
     async fn request_cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;
 
@@ -46,7 +47,7 @@ pub trait Support {
         specific_currency_pairs: &[SpecificCurrencyPair],
         websocket_channels: &[String],
     ) -> String;
-    async fn build_ws_secondary_path(&self) -> String;
+    async fn build_ws_secondary_path(&self) -> Result<String>;
 
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;

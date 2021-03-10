@@ -8,6 +8,7 @@ use crate::core::{
     },
     orders::fill::EventSourceType,
 };
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use itertools::Itertools;
 use log::info;
@@ -133,13 +134,20 @@ impl Support for Binance {
         ws_path.to_lowercase()
     }
 
-    async fn build_ws_secondary_path(&self) -> String {
-        let request_outcome = self.get_listen_key().await;
-        let data: Value = serde_json::from_str(&request_outcome.content).unwrap();
-        let listen_key = data["listenKey"].as_str().unwrap().to_owned();
+    async fn build_ws_secondary_path(&self) -> Result<String> {
+        let request_outcome = self
+            .get_listen_key()
+            .await
+            .context("Unable to get listen key")?;
+        let data: Value = serde_json::from_str(&request_outcome.content)
+            .context("Unable to parse listen key response")?;
+        let listen_key = data["listenKey"]
+            .as_str()
+            .context("Unable to get listen key")?
+            .to_owned();
 
         let ws_path = format!("{}{}", "/ws/", listen_key);
-        ws_path
+        Ok(ws_path)
     }
 
     fn should_log_message(&self, message: &str) -> bool {

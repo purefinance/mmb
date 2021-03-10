@@ -7,6 +7,7 @@ use crate::core::{
     exchanges::common::ExchangeAccountId,
 };
 use actix::Addr;
+use anyhow::Result;
 use futures::Future;
 use log::{error, info, log, trace, Level};
 use parking_lot::Mutex;
@@ -70,7 +71,7 @@ impl WebSockets {
 type Callback0 = Box<dyn FnMut()>;
 type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
 type GetWSParamsCallback =
-    Box<dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>>;
+    Box<dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>>;
 type WSMessageReceived = Box<dyn FnMut(&str)>;
 
 pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
@@ -280,7 +281,7 @@ impl ConnectivityManager {
                 self.exchange_account_id.clone()
             );
             let params = self.try_get_websocket_params(role).await;
-            if let Some(params) = params {
+            if let Ok(params) = params {
                 if cancel_websocket_connecting.check_cancellation_requested() {
                     return false;
                 }
@@ -346,7 +347,7 @@ impl ConnectivityManager {
         false
     }
 
-    async fn try_get_websocket_params(&self, role: WebSocketRole) -> Option<WebSocketParams> {
+    async fn try_get_websocket_params(&self, role: WebSocketRole) -> Result<WebSocketParams> {
         (self.callback_get_ws_params).lock()(role).await
     }
 }
@@ -465,7 +466,7 @@ mod tests {
         let get_websocket_params = Box::new(move |websocket_role| {
             let exchange = exchange_weak.upgrade().unwrap();
             let params = exchange.get_websocket_params(websocket_role);
-            Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
+            Box::pin(params) as Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
         });
 
         for _ in 0..EXPECTED_CONNECTED_COUNT {
