@@ -65,7 +65,7 @@ impl ExchangeClient for Binance {
         rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
     }
 
-    async fn request_cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
+    async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome> {
         let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
@@ -87,9 +87,10 @@ impl ExchangeClient for Binance {
         self.add_authentification_headers(&mut parameters);
 
         let outcome =
-            rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
+            rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters)
+                .await?;
 
-        outcome
+        Ok(outcome)
     }
 
     async fn request_open_orders(&self) -> RestRequestOutcome {

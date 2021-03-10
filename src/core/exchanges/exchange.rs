@@ -336,7 +336,7 @@ impl Exchange {
 
     fn handle_cancel_order_response(
         &self,
-        request_outcome: &RestRequestOutcome,
+        request_outcome: &Result<RestRequestOutcome>,
         order: &OrderCancelling,
     ) -> CancelOrderResult {
         info!(
@@ -344,16 +344,27 @@ impl Exchange {
             order.header.client_order_id, order.header.exchange_account_id, request_outcome
         );
 
-        if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header) {
-            return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
-        }
+        let event_sourse_type = EventSourceType::Rest;
 
-        // TODO Parse requrst_outcome.content similarly to the handle_create_order_response
-        CancelOrderResult::successed(
-            order.header.client_order_id.clone(),
-            EventSourceType::Rest,
-            None,
-        )
+        match request_outcome {
+            Ok(request_outcome) => {
+                if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
+                    return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
+                }
+
+                // TODO Parse request_outcome.content similarly to the handle_create_order_response
+                CancelOrderResult::successed(
+                    order.header.client_order_id.clone(),
+                    EventSourceType::Rest,
+                    None,
+                )
+            }
+            Err(error) => {
+                let exchange_error =
+                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
+                return CancelOrderResult::failed(exchange_error, event_sourse_type);
+            }
+        }
     }
 
     fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
