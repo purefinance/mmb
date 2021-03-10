@@ -626,7 +626,7 @@ impl Exchange {
             OpenOrdersType::AllCurrencyPair => {
                 // TODO implement in the future
                 //reserve_when_acailable().await
-                let response = self.exchange_interaction.request_open_orders().await;
+                let response = self.exchange_interaction.request_open_orders().await?;
 
                 info!(
                     "get_open_orders() response on {}: {:?}",

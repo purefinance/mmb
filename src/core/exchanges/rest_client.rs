@@ -89,20 +89,15 @@ pub async fn send_get_request(
     url: &str,
     api_key: &str,
     parameters: &HttpParams,
-) -> RestRequestOutcome {
+) -> Result<RestRequestOutcome> {
     let client = awc::Client::default();
     let response = client
         .get(url)
         .header("X-MBX-APIKEY", api_key)
         .query(&parameters)
-        .unwrap()
+        .context("Unable to add query")?
         .send()
         .await;
-    let mut response = response.unwrap();
-    let body = &response.body().await.unwrap();
 
-    RestRequestOutcome::new(
-        std::str::from_utf8(body).unwrap().to_owned(),
-        response.status(),
-    )
+    handle_response(response, "GET").await
 }

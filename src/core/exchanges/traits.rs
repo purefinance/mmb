@@ -21,7 +21,7 @@ pub trait ExchangeClient: Support {
 
     async fn get_account_info(&self);
 
-    async fn request_open_orders(&self) -> RestRequestOutcome;
+    async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait(?Send)]

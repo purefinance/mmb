@@ -62,7 +62,10 @@ impl ExchangeClient for Binance {
         let path_to_get_account_data = "/api/v3/account";
         let full_url = format! {"{}{}", self.settings.rest_host, path_to_get_account_data};
 
-        rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
+        // TODO Handle this unwrap when there will be correct implementation
+        rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters)
+            .await
+            .unwrap();
     }
 
     async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome> {
@@ -93,7 +96,7 @@ impl ExchangeClient for Binance {
         Ok(outcome)
     }
 
-    async fn request_open_orders(&self) -> RestRequestOutcome {
+    async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
         let mut parameters = rest_client::HttpParams::new();
         let url_path = if self.settings.is_marging_trading {
             "/fapi/v1/openOrders"
