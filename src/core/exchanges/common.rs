@@ -46,8 +46,8 @@ impl FromStr for ExchangeAccountId {
     type Err = ExchangeIdParseError;
 
     fn from_str(text: &str) -> Result<Self, Self::Err> {
-        // FIXME handle it
-        let regex = Regex::new(r"(^[[:alpha:]]+)(\d+$)").unwrap();
+        let regex = Regex::new(r"(^[[:alpha:]]+)(\d+$)")
+            .map_err(|err| ExchangeIdParseError(err.to_string()))?;
         let captures = regex
             .captures(text)
             .ok_or(ExchangeIdParseError("Invalid format".into()))?
