@@ -425,8 +425,8 @@ pub struct OrderCreating {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCancelling {
-    pub currency_pair: CurrencyPair,
-    pub order_id: ExchangeOrderId,
+    pub header: OrderHeader,
+    pub exchange_order_id: ExchangeOrderId,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

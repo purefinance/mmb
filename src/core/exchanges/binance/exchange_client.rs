@@ -64,15 +64,17 @@ impl ExchangeClient for Binance {
         rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
     }
 
-    // TODO not implemented correctly
-    async fn cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
-        let specific_currency_pair = self.get_specific_currency_pair(&order.currency_pair);
+    async fn request_cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
+        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
             "symbol".to_owned(),
             specific_currency_pair.as_str().to_owned(),
         ));
-        parameters.push(("orderId".to_owned(), order.order_id.as_str().to_owned()));
+        parameters.push((
+            "orderId".to_owned(),
+            order.exchange_order_id.as_str().to_owned(),
+        ));
 
         let url_path = if self.settings.is_marging_trading {
             "/fapi/v1/order"
