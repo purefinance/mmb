@@ -7,7 +7,7 @@ use crate::core::exchanges::utils;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use log::error;
@@ -125,22 +125,27 @@ impl Binance {
         }
     }
 
-    fn generate_signature(&self, data: String) -> String {
-        // TODO fix that unwrap But dunno how
-        let mut hmac = Hmac::<Sha256>::new_varkey(self.settings.secret_key.as_bytes()).unwrap();
+    fn generate_signature(&self, data: String) -> Result<String> {
+        let mut hmac = Hmac::<Sha256>::new_varkey(self.settings.secret_key.as_bytes())
+            .context("Unable to calculate hmac")?;
         hmac.update(data.as_bytes());
         let result = hex::encode(&hmac.finalize().into_bytes());
 
-        return result;
+        return Ok(result);
     }
 
-    pub(super) fn add_authentification_headers(&self, parameters: &mut rest_client::HttpParams) {
+    pub(super) fn add_authentification_headers(
+        &self,
+        parameters: &mut rest_client::HttpParams,
+    ) -> Result<()> {
         let time_stamp = utils::get_current_milliseconds();
         parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
 
         let message_to_sign = rest_client::to_http_string(&parameters);
-        let signature = self.generate_signature(message_to_sign);
+        let signature = self.generate_signature(message_to_sign)?;
         parameters.push(("signature".to_owned(), signature));
+
+        Ok(())
     }
 
     pub fn get_unified_currency_pair(&self, currency_pair: &SpecificCurrencyPair) -> CurrencyPair {
@@ -164,12 +169,20 @@ impl Binance {
         )
     }
 
-    pub(super) fn handle_trade(&self, msg_to_log: &str, json_response: Value) {
-        let client_order_id = json_response["c"].as_str().unwrap();
+    pub(super) fn handle_trade(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
+        let client_order_id = json_response["c"]
+            .as_str()
+            .ok_or(anyhow!("Uanble to parse client order id"))?;
         let exchange_order_id = json_response["i"].to_string();
-        let execution_type = json_response["x"].as_str().unwrap();
-        let order_status = json_response["X"].as_str().unwrap();
-        let time_in_force = json_response["f"].as_str().unwrap();
+        let execution_type = json_response["x"]
+            .as_str()
+            .ok_or(anyhow!("Uanble to parse execution type"))?;
+        let order_status = json_response["X"]
+            .as_str()
+            .ok_or(anyhow!("Uanble to parse order status"))?;
+        let time_in_force = json_response["f"]
+            .as_str()
+            .ok_or(anyhow!("Uanble to parse time in force"))?;
 
         match execution_type {
             "NEW" => match order_status {
@@ -187,7 +200,9 @@ impl Binance {
             },
             "CANCELED" => match order_status {
                 "CANCELED" => {
-                    let client_order_id = json_response["C"].as_str().unwrap();
+                    let client_order_id = json_response["C"]
+                        .as_str()
+                        .ok_or(anyhow!("Uanble to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.as_str().into(),
@@ -205,7 +220,9 @@ impl Binance {
             }
             "EXPIRED" => match time_in_force {
                 "GTX" => {
-                    let client_order_id = json_response["C"].as_str().unwrap();
+                    let client_order_id = json_response["C"]
+                        .as_str()
+                        .ok_or(anyhow!("Uanble to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.as_str().into(),
@@ -220,6 +237,8 @@ impl Binance {
             "TRADE" | "CALCULATED" => {} // TODO handle it,
             _ => error!("Impossible execution type"),
         }
+
+        Ok(())
     }
 }
 
@@ -240,7 +259,7 @@ mod tests {
 
         let binance = Binance::new(settings, "Binance0".parse().unwrap());
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
-        let result = binance.generate_signature(params);
+        let result = binance.generate_signature(params).unwrap();
         assert_eq!(result, right_value);
     }
 

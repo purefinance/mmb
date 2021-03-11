@@ -250,7 +250,14 @@ impl Exchange {
         if self.exchange_interaction.should_log_message(msg) {
             self.log_websocket_message(msg);
         }
-        self.exchange_interaction.on_websocket_message(msg);
+
+        let callback_outcome = self.exchange_interaction.on_websocket_message(msg);
+        if let Err(error) = callback_outcome {
+            warn!(
+                "Error occured while websocket message processing: {}",
+                error
+            );
+        }
     }
 
     fn log_websocket_message(&self, msg: &str) {
@@ -599,14 +606,20 @@ impl Exchange {
         };
     }
 
-    pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
+    // TODO not implemented correctly. Fix signature and Result
+    pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> anyhow::Result<()> {
         self.exchange_interaction
             .cancel_all_orders(currency_pair)
-            .await;
+            .await?;
+
+        Ok(())
     }
 
-    pub async fn get_account_info(&self) {
-        self.exchange_interaction.get_account_info().await;
+    // TODO not implemented correctly. Fix signature and Result
+    pub async fn get_account_info(&self) -> Result<()> {
+        self.exchange_interaction.get_account_info().await?;
+
+        Ok(())
     }
 
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {

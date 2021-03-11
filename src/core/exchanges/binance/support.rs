@@ -8,7 +8,7 @@ use crate::core::{
     },
     orders::fill::EventSourceType,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use itertools::Itertools;
 use log::info;
@@ -78,26 +78,34 @@ impl Support for Binance {
         }
     }
 
-    fn on_websocket_message(&self, msg: &str) {
+    fn on_websocket_message(&self, msg: &str) -> Result<()> {
         let data: Value = serde_json::from_str(msg).unwrap();
         // Public stream
         if let Some(stream) = data.get("stream") {
-            if stream.as_str().unwrap().contains('@') {
+            if stream
+                .as_str()
+                .ok_or(anyhow!("Uanble to parse stream data"))?
+                .contains('@')
+            {
                 // TODO handle public stream
             }
 
-            return;
+            return Ok(());
         }
 
         // so it is userData stream
-        let event_type = data["e"].as_str().unwrap();
+        let event_type = data["e"]
+            .as_str()
+            .ok_or(anyhow!("Uanble to parse event_type"))?;
         if event_type == "executionReport" {
-            self.handle_trade(msg, data);
+            self.handle_trade(msg, data)?;
         } else if false {
             // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
         } else {
             self.log_unknown_message(self.id.clone(), msg);
         }
+
+        Ok(())
     }
 
     fn set_order_created_callback(

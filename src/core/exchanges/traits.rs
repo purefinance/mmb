@@ -17,9 +17,9 @@ pub trait ExchangeClient: Support {
 
     async fn request_cancel_order(&self, _order: &OrderCancelling) -> Result<RestRequestOutcome>;
 
-    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair);
+    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()>;
 
-    async fn get_account_info(&self);
+    async fn get_account_info(&self) -> Result<()>;
 
     async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
 }
@@ -30,7 +30,7 @@ pub trait Support {
     fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId;
     fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType;
 
-    fn on_websocket_message(&self, msg: &str);
+    fn on_websocket_message(&self, msg: &str) -> Result<()>;
 
     fn set_order_created_callback(
         &self,

@@ -40,6 +40,7 @@ async fn create_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
+        // TODO this is part of certain exchange - Binance in this case
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
     );
 
@@ -66,6 +67,7 @@ async fn create_successfully() {
         price: dec!(0.00000004),
     };
 
+    let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await

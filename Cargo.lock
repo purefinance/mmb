@@ -1166,6 +1166,7 @@ dependencies = [
  "awc",
  "bytes",
  "chrono",
+ "crypto-mac",
  "dashmap",
  "derive-getters",
  "enum-map",

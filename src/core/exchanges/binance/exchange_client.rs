@@ -48,24 +48,23 @@ impl ExchangeClient for Binance {
         };
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
 
         rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
     }
 
-    // TODO not implemented correctly
-    async fn get_account_info(&self) {
+    // TODO not implemented correctly. Fix signature and Result
+    async fn get_account_info(&self) -> Result<()> {
         let mut parameters = rest_client::HttpParams::new();
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
 
         let path_to_get_account_data = "/api/v3/account";
         let full_url = format! {"{}{}", self.settings.rest_host, path_to_get_account_data};
 
-        // TODO Handle this unwrap when there will be correct implementation
-        rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters)
-            .await
-            .unwrap();
+        rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await?;
+
+        Ok(())
     }
 
     async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome> {
@@ -87,7 +86,7 @@ impl ExchangeClient for Binance {
         };
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
 
         let outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters)
@@ -105,15 +104,15 @@ impl ExchangeClient for Binance {
         };
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
         let orders =
             rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
 
         orders
     }
 
-    // TODO not implemented correctly
-    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
+    // TODO not implemented correctly. Fix signature and result
+    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
         let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
         let path_to_delete = "/api/v3/openOrders";
         let mut full_url = self.settings.rest_host.clone();
@@ -125,9 +124,11 @@ impl ExchangeClient for Binance {
             specific_currency_pair.as_str().to_owned(),
         ));
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
 
         let _cancel_order_outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
+
+        Ok(())
     }
 }

@@ -43,6 +43,7 @@ derive-getters = "0.2.0"
 
 async-trait = "0.1.42"
 hmac = "0.10.1"
+crypto-mac = { version = "0.10.0", features = ["std"]}
 sha2 = "0.9.3"
 hex = "0.4.2"
 
