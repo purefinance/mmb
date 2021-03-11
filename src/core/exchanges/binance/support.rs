@@ -49,10 +49,11 @@ impl Support for Binance {
         None
     }
 
-    fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId {
-        let response: Value = serde_json::from_str(&response.content).unwrap();
+    fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
+        let response: Value =
+            serde_json::from_str(&response.content).context("Unable to parse response content")?;
         let id = response["orderId"].to_string();
-        ExchangeOrderId::new(id.into())
+        Ok(ExchangeOrderId::new(id.into()))
     }
 
     fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType {
@@ -79,7 +80,7 @@ impl Support for Binance {
     }
 
     fn on_websocket_message(&self, msg: &str) -> Result<()> {
-        let data: Value = serde_json::from_str(msg).unwrap();
+        let data: Value = serde_json::from_str(msg).context("Unable to parse websocket message")?;
         // Public stream
         if let Some(stream) = data.get("stream") {
             if stream
@@ -166,17 +167,16 @@ impl Support for Binance {
         self.unified_to_specific[currency_pair].clone()
     }
 
-    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo> {
-        // TODO that unwrap has to be just logging
+    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
         let binance_orders: Vec<BinanceOrderInfo> =
-            serde_json::from_str(&response.content).unwrap();
+            serde_json::from_str(&response.content).context("Unable to parse response content")?;
 
         let orders_info: Vec<OrderInfo> = binance_orders
             .iter()
             .map(|order| self.specific_order_info_to_unified(order))
             .collect();
 
-        orders_info
+        Ok(orders_info)
     }
 
     fn log_unknown_message(

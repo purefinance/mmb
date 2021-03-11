@@ -27,7 +27,7 @@ pub trait ExchangeClient: Support {
 #[async_trait(?Send)]
 pub trait Support {
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription>;
-    fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId;
+    fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId>;
     fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType;
 
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
@@ -58,5 +58,5 @@ pub trait Support {
         info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo>;
+    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;
 }

@@ -326,12 +326,25 @@ impl Exchange {
 
         match request_outcome {
             Ok(request_outcome) => {
-                if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
+                if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header)
+                {
                     return CreateOrderResult::failed(rest_error, event_sourse_type);
                 }
 
-                let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
-                CreateOrderResult::successed(created_order_id, event_sourse_type)
+                //let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
+                match self.exchange_interaction.get_order_id(&request_outcome) {
+                    Ok(created_order_id) => {
+                        CreateOrderResult::successed(created_order_id, event_sourse_type)
+                    }
+                    Err(error) => {
+                        let exchange_error = ExchangeError::new(
+                            ExchangeErrorType::ParsingError,
+                            error.to_string(),
+                            None,
+                        );
+                        CreateOrderResult::failed(exchange_error, event_sourse_type)
+                    }
+                }
             }
             Err(error) => {
                 let exchange_error =
@@ -355,7 +368,8 @@ impl Exchange {
 
         match request_outcome {
             Ok(request_outcome) => {
-                if let Some(rest_error) = self.get_rest_error_order(request_outcome, order) {
+                if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header)
+                {
                     return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
                 }
 
@@ -650,7 +664,8 @@ impl Exchange {
                     bail!("Rest error appeared during request: {}", error.message)
                 }
 
-                open_orders = self.exchange_interaction.parse_open_orders(&response);
+                open_orders = self.exchange_interaction.parse_open_orders(&response)?;
+                // FIXME HandleParseError
 
                 return Ok(open_orders);
             }
