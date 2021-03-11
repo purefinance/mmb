@@ -28,7 +28,7 @@ pub struct Binance {
 }
 
 impl Binance {
-    pub fn new(settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
+    pub fn new(mut settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
         let unified_phbbtc = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
         let specific_phbbtc = SpecificCurrencyPair::new("PHBBTC".into());
 
@@ -37,6 +37,8 @@ impl Binance {
 
         let mut specific_to_unified = HashMap::new();
         specific_to_unified.insert(specific_phbbtc, unified_phbbtc);
+
+        Self::extend_settings(&mut settings);
 
         Self {
             settings,
@@ -229,14 +231,11 @@ mod tests {
         // All values and strings gotten from binane API example
         let right_value = "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71";
 
-        let settings = ExchangeSettings {
-            api_key: "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".into(),
-            secret_key: "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".into(),
-            is_marging_trading: false,
-            web_socket_host: "".into(),
-            web_socket2_host: "".into(),
-            rest_host: "https://api.binance.com".into(),
-        };
+        let settings = ExchangeSettings::new(
+            "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".into(),
+            "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".into(),
+            false,
+        );
 
         let binance = Binance::new(settings, "Binance0".parse().unwrap());
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();

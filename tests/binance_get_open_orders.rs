@@ -26,14 +26,7 @@ async fn open_orders_exists() {
         return;
     }
 
-    let settings = settings::ExchangeSettings {
-        api_key: api_key.unwrap(),
-        secret_key: secret_key.unwrap(),
-        is_marging_trading: false,
-        web_socket_host: "".into(),
-        web_socket2_host: "".into(),
-        rest_host: "https://api.binance.com".into(),
-    };
+    let settings = settings::ExchangeSettings::new(api_key.unwrap(), secret_key.unwrap(), false);
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
     let binance = Binance::new(settings, exchange_account_id.clone());

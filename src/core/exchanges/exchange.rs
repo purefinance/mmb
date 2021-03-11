@@ -515,6 +515,8 @@ impl Exchange {
 
     pub async fn cancel_order(
         &self,
+        // TODO Here has to be common Order (or ORderRef) cause it's more natural way:
+        // When user whant to cancle_order he already has that order data somewhere
         order: &OrderCancelling,
         cancellation_token: CancellationToken,
     ) -> Option<CancelOrderResult> {
