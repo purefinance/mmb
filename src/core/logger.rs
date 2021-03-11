@@ -19,7 +19,7 @@ pub fn init_logger() {
             .chain(
                 fern::Dispatch::new()
                     .level(LevelFilter::Warn)
-                    .level_for("mmb", LevelFilter::Warn)
+                    //.level_for("mmb", LevelFilter::Warn)
                     .level_for("mmb_lib", LevelFilter::Warn)
                     .chain(std::io::stdout()),
             )
@@ -30,10 +30,10 @@ pub fn init_logger() {
                         .create(true)
                         .truncate(true)
                         .open("log.txt")
-                        .unwrap(),
+                        .expect("Unable to open log file"),
                 ),
             )
             .apply()
-            .unwrap();
+            .expect("Unable to set up logger");
     })
 }

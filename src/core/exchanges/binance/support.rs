@@ -39,10 +39,10 @@ impl Support for Binance {
         //only code or only success:false but sometimes both
         if response.content.contains(r#""success":false"#) || response.content.contains(r#""code""#)
         {
-            let data: Value = serde_json::from_str(&response.content).unwrap();
+            let data: Value = serde_json::from_str(&response.content).ok()?;
             return Some(RestErrorDescription::new(
-                data["msg"].as_str().unwrap().to_owned(),
-                data["code"].as_i64().unwrap() as i64,
+                data["msg"].as_str()?.to_owned(),
+                data["code"].as_i64()? as i64,
             ));
         }
 
