@@ -26,9 +26,13 @@ async fn open_orders_exists() {
         return;
     }
 
-    let settings = settings::ExchangeSettings::new(api_key.unwrap(), secret_key.unwrap(), false);
+    let settings = settings::ExchangeSettings::new(
+        api_key.expect("in test"),
+        secret_key.expect("in test"),
+        false,
+    );
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance = Binance::new(settings, exchange_account_id.clone());
 
     let websocket_host = "wss://stream.binance.com:9443".into();
@@ -70,7 +74,7 @@ async fn open_orders_exists() {
     exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
-        .unwrap();
+        .expect("in test");
 
     let second_order_header = OrderHeader::new(
         ClientOrderId::unique_id(),
@@ -94,11 +98,11 @@ async fn open_orders_exists() {
     exchange
         .create_order(&second_order_to_create, CancellationToken::default())
         .await
-        .unwrap();
+        .expect("in test");
 
     // Binance can process new orders close to 10 seconds
     thread::sleep(Duration::from_secs(10));
-    let all_orders = exchange.get_open_orders().await.unwrap();
+    let all_orders = exchange.get_open_orders().await.expect("in test");
 
     assert!(!all_orders.is_empty())
 }

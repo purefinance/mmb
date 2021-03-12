@@ -35,7 +35,7 @@ type ResponseType = std::result::Result<
     >,
     SendRequestError,
 >;
-async fn handle_response(response: ResponseType, log_template: &str) -> Result<RestRequestOutcome> {
+async fn handle_response(response: ResponseType, rest_action: &str) -> Result<RestRequestOutcome> {
     match response {
         Ok(mut response) => Ok(RestRequestOutcome {
             content: std::str::from_utf8(
@@ -49,7 +49,7 @@ async fn handle_response(response: ResponseType, log_template: &str) -> Result<R
             status: response.status(),
         }),
         Err(error) => {
-            bail!("Unable to send {} request: {}", log_template, error)
+            bail!("Unable to send {} request: {}", rest_action, error)
         }
     }
 }

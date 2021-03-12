@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     pub fn exchange_id_to_string() {
-        let exchange_account_id = "Binance1".parse::<ExchangeAccountId>().unwrap();
+        let exchange_account_id = "Binance1".parse::<ExchangeAccountId>().expect("in test");
         let result = exchange_account_id.to_string();
         assert_eq!(result, "Binance1".to_string())
     }

@@ -432,7 +432,7 @@ mod tests {
 
         let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
-        let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+        let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
         let websocket_host = "wss://stream.binance.com:9443".into();
         let currency_pairs = vec!["phbbtc".into(), "btcusdt".into()];
         let channels = vec!["depth".into(), "aggTrade".into()];
@@ -464,7 +464,7 @@ mod tests {
         }
 
         let get_websocket_params = Box::new(move |websocket_role| {
-            let exchange = exchange_weak.upgrade().unwrap();
+            let exchange = exchange_weak.upgrade().expect("in test");
             let params = exchange.get_websocket_params(websocket_role);
             Box::pin(params) as Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
         });

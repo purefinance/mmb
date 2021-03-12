@@ -315,18 +315,16 @@ impl Exchange {
             request_outcome
         );
 
-        let event_sourse_type = EventSourceType::Rest;
-
         match request_outcome {
             Ok(request_outcome) => {
                 if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header)
                 {
-                    return CreateOrderResult::failed(rest_error, event_sourse_type);
+                    return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
                 }
 
                 match self.exchange_interaction.get_order_id(&request_outcome) {
                     Ok(created_order_id) => {
-                        CreateOrderResult::successed(created_order_id, event_sourse_type)
+                        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
                     }
                     Err(error) => {
                         let exchange_error = ExchangeError::new(
@@ -334,14 +332,14 @@ impl Exchange {
                             error.to_string(),
                             None,
                         );
-                        CreateOrderResult::failed(exchange_error, event_sourse_type)
+                        CreateOrderResult::failed(exchange_error, EventSourceType::Rest)
                     }
                 }
             }
             Err(error) => {
                 let exchange_error =
                     ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
-                return CreateOrderResult::failed(exchange_error, event_sourse_type);
+                return CreateOrderResult::failed(exchange_error, EventSourceType::Rest);
             }
         }
     }
@@ -355,8 +353,6 @@ impl Exchange {
             "Cancel response for {}, {:?}, {:?}",
             order.header.client_order_id, order.header.exchange_account_id, request_outcome
         );
-
-        let event_sourse_type = EventSourceType::Rest;
 
         match request_outcome {
             Ok(request_outcome) => {
@@ -375,7 +371,7 @@ impl Exchange {
             Err(error) => {
                 let exchange_error =
                     ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
-                return CancelOrderResult::failed(exchange_error, event_sourse_type);
+                return CancelOrderResult::failed(exchange_error, EventSourceType::Rest);
             }
         }
     }
@@ -612,18 +608,10 @@ impl Exchange {
         };
     }
 
-    // TODO not implemented correctly. Fix signature and Result
     pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> anyhow::Result<()> {
         self.exchange_interaction
             .cancel_all_orders(currency_pair)
             .await?;
-
-        Ok(())
-    }
-
-    // TODO not implemented correctly. Fix signature and Result
-    pub async fn get_account_info(&self) -> Result<()> {
-        self.exchange_interaction.get_account_info().await?;
 
         Ok(())
     }
@@ -691,8 +679,8 @@ impl Exchange {
                 }
 
                 match self.exchange_interaction.parse_open_orders(&response) {
-                    Ok(open_orders) => {
-                        return Ok(open_orders);
+                    open_orders @ Ok(_) => {
+                        return open_orders;
                     }
                     Err(error) => {
                         self.handle_parse_error(error, response, "".into(), None)?;

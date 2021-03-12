@@ -260,13 +260,13 @@ mod tests {
 
         let url: Uri = "wss://stream.binance.com:9443/stream?streams=bnbbtc@depth"
             .parse()
-            .unwrap();
+            .expect("in test");
 
         let (websocket_sender, websocket_receiver) = oneshot::channel::<Addr<_>>();
         let (finish_sender, finish_receiver) = oneshot::channel();
 
         Arbiter::spawn(async {
-            let websocket_addr = websocket_receiver.await.unwrap();
+            let websocket_addr = websocket_receiver.await.expect("in test");
 
             tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -297,7 +297,7 @@ mod tests {
         });
 
         Arbiter::spawn(async {
-            let exchange_id = "Binance0".parse().unwrap();
+            let exchange_id = "Binance0".parse().expect("in test");
             let websocket_addr = WebSocketActor::open_connection(
                 exchange_id,
                 WebSocketParams { url },
@@ -305,7 +305,7 @@ mod tests {
             )
             .await;
             assert_eq!(
-                websocket_addr.clone().unwrap().connected(),
+                websocket_addr.clone().expect("in test").connected(),
                 true,
                 "websocket should be connected"
             );

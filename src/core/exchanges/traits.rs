@@ -19,8 +19,6 @@ pub trait ExchangeClient: Support {
 
     async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()>;
 
-    async fn get_account_info(&self) -> Result<()>;
-
     async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
 }
 

@@ -222,7 +222,7 @@ impl Binance {
                 "GTX" => {
                     let client_order_id = json_response["C"]
                         .as_str()
-                        .ok_or(anyhow!("Unable to parse client order id"))?;
+                        .ok_or(anyhow!("Uanble to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.as_str().into(),
@@ -257,9 +257,9 @@ mod tests {
             false,
         );
 
-        let binance = Binance::new(settings, "Binance0".parse().unwrap());
+        let binance = Binance::new(settings, "Binance0".parse().expect("in test"));
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
-        let result = binance.generate_signature(params).unwrap();
+        let result = binance.generate_signature(params).expect("in test");
         assert_eq!(result, right_value);
     }
 

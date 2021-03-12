@@ -25,9 +25,13 @@ async fn create_successfully() {
         return;
     }
 
-    let settings = settings::ExchangeSettings::new(api_key.unwrap(), secret_key.unwrap(), false);
+    let settings = settings::ExchangeSettings::new(
+        api_key.expect("in test"),
+        secret_key.expect("in test"),
+        false,
+    );
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance = Binance::new(settings, exchange_account_id.clone());
 
     let websocket_host = "wss://stream.binance.com:9443".into();
@@ -40,7 +44,6 @@ async fn create_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
-        // TODO this is part of certain exchange - Binance in this case
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
     );
 
@@ -71,7 +74,7 @@ async fn create_successfully() {
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
-        .unwrap();
+        .expect("in test");
 
     match create_order_result.outcome {
         RequestResult::Success(exchange_order_id) => {
@@ -108,9 +111,13 @@ async fn should_fail() {
         return;
     }
 
-    let settings = settings::ExchangeSettings::new(api_key.unwrap(), secret_key.unwrap(), false);
+    let settings = settings::ExchangeSettings::new(
+        api_key.expect("in test"),
+        secret_key.expect("in test"),
+        false,
+    );
 
-    let binance = Binance::new(settings, "Binance0".parse().unwrap());
+    let binance = Binance::new(settings, "Binance0".parse().expect("in test"));
 
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
@@ -145,7 +152,7 @@ async fn should_fail() {
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
-        .unwrap();
+        .expect("in test");
 
     let expected_error = RequestResult::Error(ExchangeError::new(
         ExchangeErrorType::InvalidOrder,
