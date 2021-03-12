@@ -289,10 +289,9 @@ impl Exchange {
 
         let exchange_weak = Arc::downgrade(&self);
         let get_websocket_params = Box::new(move |websocket_role| {
-            // FIXME is that OK? Or need to be handled other way
-            let exchange = exchange_weak.upgrade().expect(
-                "Unable to upgrade reference to Exchange. So unable to get websocket parameters",
-            );
+            let exchange = exchange_weak
+                .upgrade()
+                .expect("Unable to upgrade reference to Exchange");
             let params = exchange.get_websocket_params(websocket_role);
             Box::pin(params) as Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
         });
@@ -646,9 +645,43 @@ impl Exchange {
         }
     }
 
+    fn handle_parse_error(
+        &self,
+        error: Error,
+        response: RestRequestOutcome,
+        log_template: String,
+        args_to_log: Option<Vec<String>>,
+    ) -> anyhow::Result<()> {
+        let content = response.content;
+        let log_event_level = match serde_json::from_str::<Value>(&content) {
+            Ok(_) => Level::Error,
+            Err(_) => Level::Warn,
+        };
+
+        let mut msg_to_log = format!(
+            "Error parsing response {}, on {}: {}. Error: {}",
+            log_template,
+            self.exchange_account_id,
+            content,
+            error.to_string()
+        );
+
+        if let Some(args) = args_to_log {
+            msg_to_log = format!(" {} with args: {:?}", msg_to_log, args);
+        }
+
+        // TODO Add some other fields as Exchange::Id, Exchange::Name
+        log::log!(log_event_level, "{}.", msg_to_log,);
+
+        if log_event_level == Level::Error {
+            bail!("{}", msg_to_log);
+        }
+
+        Ok(())
+    }
+
     // Bugs on exchange server can lead to Err even if order was opened
     async fn get_open_orders_impl(&self) -> anyhow::Result<Vec<OrderInfo>> {
-        let open_orders;
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
                 // TODO implement in the future
@@ -664,10 +697,15 @@ impl Exchange {
                     bail!("Rest error appeared during request: {}", error.message)
                 }
 
-                open_orders = self.exchange_interaction.parse_open_orders(&response)?;
-                // FIXME HandleParseError
-
-                return Ok(open_orders);
+                match self.exchange_interaction.parse_open_orders(&response) {
+                    Ok(open_orders) => {
+                        return Ok(open_orders);
+                    }
+                    Err(error) => {
+                        self.handle_parse_error(error, response, "".into(), None)?;
+                        return Ok(Vec::new());
+                    }
+                }
             }
             OpenOrdersType::OneCurrencyPair => {
                 // TODO implement in the future
