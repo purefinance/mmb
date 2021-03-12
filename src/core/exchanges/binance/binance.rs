@@ -172,17 +172,17 @@ impl Binance {
     pub(super) fn handle_trade(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
         let client_order_id = json_response["c"]
             .as_str()
-            .ok_or(anyhow!("Uanble to parse client order id"))?;
+            .ok_or(anyhow!("Unable to parse client order id"))?;
         let exchange_order_id = json_response["i"].to_string();
         let execution_type = json_response["x"]
             .as_str()
-            .ok_or(anyhow!("Uanble to parse execution type"))?;
+            .ok_or(anyhow!("Unable to parse execution type"))?;
         let order_status = json_response["X"]
             .as_str()
-            .ok_or(anyhow!("Uanble to parse order status"))?;
+            .ok_or(anyhow!("Unable to parse order status"))?;
         let time_in_force = json_response["f"]
             .as_str()
-            .ok_or(anyhow!("Uanble to parse time in force"))?;
+            .ok_or(anyhow!("Unable to parse time in force"))?;
 
         match execution_type {
             "NEW" => match order_status {
@@ -202,7 +202,7 @@ impl Binance {
                 "CANCELED" => {
                     let client_order_id = json_response["C"]
                         .as_str()
-                        .ok_or(anyhow!("Uanble to parse client order id"))?;
+                        .ok_or(anyhow!("Unable to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.as_str().into(),
@@ -222,7 +222,7 @@ impl Binance {
                 "GTX" => {
                     let client_order_id = json_response["C"]
                         .as_str()
-                        .ok_or(anyhow!("Uanble to parse client order id"))?;
+                        .ok_or(anyhow!("Unable to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.as_str().into(),

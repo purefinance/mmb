@@ -85,7 +85,7 @@ impl Support for Binance {
         if let Some(stream) = data.get("stream") {
             if stream
                 .as_str()
-                .ok_or(anyhow!("Uanble to parse stream data"))?
+                .ok_or(anyhow!("Unable to parse stream data"))?
                 .contains('@')
             {
                 // TODO handle public stream
@@ -97,7 +97,7 @@ impl Support for Binance {
         // so it is userData stream
         let event_type = data["e"]
             .as_str()
-            .ok_or(anyhow!("Uanble to parse event_type"))?;
+            .ok_or(anyhow!("Unable to parse event_type"))?;
         if event_type == "executionReport" {
             self.handle_trade(msg, data)?;
         } else if false {
@@ -152,8 +152,7 @@ impl Support for Binance {
             .context("Unable to parse listen key response")?;
         let listen_key = data["listenKey"]
             .as_str()
-            .context("Unable to get listen key")?
-            .to_owned();
+            .context("Unable to get listen key")?;
 
         let ws_path = format!("{}{}", "/ws/", listen_key);
         Ok(ws_path)

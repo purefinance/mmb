@@ -165,10 +165,7 @@ impl Exchange {
             if let Err(error) =
                 tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
             {
-                error!(
-                    "Unable to sent CreateOrderResult thru oneshot channel: {:?}",
-                    error
-                );
+                error!("Unable to send thru oneshot channel: {:?}", error);
             }
         }
     }
@@ -185,10 +182,7 @@ impl Exchange {
                 source_type,
                 None,
             )) {
-                error!(
-                    "Unable to sent CreateOrderResult thru oneshot channel: {:?}",
-                    error
-                );
+                error!("Unable to send thru oneshot channel: {:?}", error);
             }
         }
     }
@@ -330,7 +324,6 @@ impl Exchange {
                     return CreateOrderResult::failed(rest_error, event_sourse_type);
                 }
 
-                //let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
                 match self.exchange_interaction.get_order_id(&request_outcome) {
                     Ok(created_order_id) => {
                         CreateOrderResult::successed(created_order_id, event_sourse_type)
