@@ -1,3 +1,4 @@
+use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
@@ -13,13 +14,9 @@ use std::pin::Pin;
 use std::{
     borrow::Borrow,
     ops::DerefMut,
-    sync::{
-        Arc,
-        Weak,
-    },
+    sync::{Arc, Weak},
 };
-use tokio::sync::{broadcast};
-use crate::core::exchanges::cancellation_token::CancellationToken;
+use tokio::sync::broadcast;
 
 pub const MAX_RETRY_CONNECT_COUNT: u32 = 3;
 
@@ -325,7 +322,7 @@ impl ConnectivityManager {
                 attempt += 1;
 
                 let log_level = match attempt < MAX_RETRY_CONNECT_COUNT {
-                    true  => Level::Warn,
+                    true => Level::Warn,
                     false => Level::Error,
                 };
                 log!(
