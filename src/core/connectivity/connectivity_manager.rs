@@ -1,3 +1,4 @@
+use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
@@ -13,13 +14,9 @@ use std::pin::Pin;
 use std::{
     borrow::Borrow,
     ops::DerefMut,
-    sync::{
-        mpsc, // TODO change std::sync::mpsc to tokio::mpsc when it implement method try_recv()
-        mpsc::TryRecvError,
-        Arc,
-        Weak,
-    },
+    sync::{Arc, Weak},
 };
+use tokio::sync::broadcast;
 
 pub const MAX_RETRY_CONNECT_COUNT: u32 = 3;
 
@@ -46,13 +43,12 @@ impl WebSocketConnectivity {
 enum WebSocketState {
     Disconnected,
     Connecting {
-        finished_receiver: async_channel::Receiver<()>,
-        cancellation_sender: mpsc::Sender<()>,
+        finished_sender: broadcast::Sender<()>,
+        cancel_websocket_connecting: CancellationToken,
     },
     Connected {
         websocket_actor: Addr<WebSocketActor>,
-        finished_sender: async_channel::Sender<()>,
-        finished_receiver: async_channel::Receiver<()>,
+        finished_sender: broadcast::Sender<()>,
     },
 }
 
@@ -176,26 +172,25 @@ impl ConnectivityManager {
     async fn disconnect_for_websocket(websocket_connectivity: &Mutex<WebSocketConnectivity>) {
         let guard = websocket_connectivity.lock();
 
-        let finished_receiver = match &guard.state {
+        let mut finished_receiver = match &guard.state {
             Disconnected => {
                 return;
             }
 
             WebSocketState::Connecting {
-                cancellation_sender,
-                finished_receiver,
+                cancel_websocket_connecting,
+                finished_sender,
             } => {
-                let _ = cancellation_sender.clone().send(());
-                finished_receiver.clone()
+                cancel_websocket_connecting.cancel();
+                finished_sender.subscribe()
             }
             WebSocketState::Connected {
                 websocket_actor,
-                finished_receiver,
-                ..
+                finished_sender,
             } => {
                 if websocket_actor.connected() {
                     let _ = websocket_actor.try_send(ForceClose);
-                    finished_receiver.clone()
+                    finished_sender.subscribe()
                 } else {
                     return;
                 }
@@ -235,11 +230,11 @@ impl ConnectivityManager {
     }
 
     fn set_disconnected_state(
-        finished_sender: async_channel::Sender<()>,
+        finished_sender: broadcast::Sender<()>,
         websocket_connectivity: &Mutex<WebSocketConnectivity>,
     ) {
         websocket_connectivity.lock().deref_mut().state = WebSocketState::Disconnected;
-        let _ = finished_sender.try_send(());
+        let _ = finished_sender.send(());
     }
 
     pub fn notify_connection_closed(&self, websocket_role: WebSocketRole) {
@@ -253,7 +248,7 @@ impl ConnectivityManager {
                     ..
                 } = websocket_state_guard.borrow().state
                 {
-                    let _ = finished_sender.try_send(());
+                    let _ = finished_sender.send(()).expect("Can't send finish message in ConnectivityManager::notify_connection_closed");
                 }
             }
 
@@ -264,29 +259,29 @@ impl ConnectivityManager {
     }
 
     pub async fn open_websocket_connection(self: &Arc<Self>, role: WebSocketRole) -> bool {
-        let (finished_sender, finished_receiver) = async_channel::bounded(1);
+        let (finished_sender, _) = broadcast::channel(50);
 
-        let (cancellation_sender, cancellation_receiver) = mpsc::channel();
+        let cancel_websocket_connecting = CancellationToken::new();
 
         let websocket_connectivity = self.websockets.get_websocket_state(role);
 
         {
             websocket_connectivity.lock().deref_mut().state = WebSocketState::Connecting {
-                finished_receiver: finished_receiver.clone(),
-                cancellation_sender,
+                finished_sender: finished_sender.clone(),
+                cancel_websocket_connecting: cancel_websocket_connecting.clone(),
             };
         }
 
         let mut attempt = 0;
 
-        while let Err(TryRecvError::Empty) = cancellation_receiver.try_recv() {
+        while !cancel_websocket_connecting.check_cancellation_requested() {
             trace!(
                 "Getting WebSocket parameters for {}",
                 self.exchange_account_id.clone()
             );
             let params = self.try_get_websocket_params(role).await;
             if let Some(params) = params {
-                if let Ok(()) = cancellation_receiver.try_recv() {
+                if cancel_websocket_connecting.check_cancellation_requested() {
                     return false;
                 }
 
@@ -303,7 +298,6 @@ impl ConnectivityManager {
                     websocket_connectivity.lock().deref_mut().state = WebSocketState::Connected {
                         websocket_actor,
                         finished_sender: finished_sender.clone(),
-                        finished_receiver: finished_receiver.clone(),
                     };
 
                     if attempt > 0 {
@@ -313,7 +307,7 @@ impl ConnectivityManager {
                         );
                     }
 
-                    if let Ok(()) = cancellation_receiver.try_recv() {
+                    if cancel_websocket_connecting.check_cancellation_requested() {
                         if let WebSocketState::Connected {
                             websocket_actor, ..
                         } = &websocket_connectivity.lock().borrow().state
@@ -327,10 +321,9 @@ impl ConnectivityManager {
 
                 attempt += 1;
 
-                let log_level = if attempt < MAX_RETRY_CONNECT_COUNT {
-                    Level::Warn
-                } else {
-                    Level::Error
+                let log_level = match attempt < MAX_RETRY_CONNECT_COUNT {
+                    true => Level::Warn,
+                    false => Level::Error,
                 };
                 log!(
                     log_level,
@@ -494,7 +487,7 @@ mod tests {
             "we should reconnect expected count times"
         );
 
-        let _ = finish_sender.send(());
+        let _ = finish_sender.send(()).expect("in test");
 
         tokio::select! {
             _ = finish_receiver => info!("Test finished successfully"),

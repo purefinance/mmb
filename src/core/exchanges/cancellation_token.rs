@@ -28,6 +28,7 @@ impl CancellationToken {
         state.signal.notify_waiters();
     }
 
+    /// Returns true if cancellation requested, otherwise false
     pub fn check_cancellation_requested(&self) -> bool {
         self.state.is_cancellation_requested.load(Ordering::SeqCst)
     }
