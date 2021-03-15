@@ -21,18 +21,11 @@ pub fn to_http_string(parameters: &HttpParams) -> String {
     http_string
 }
 
+// Inner awc types. Needed just for unified response handling in hande_response()
+type PinnedStream =
+    Pin<Box<dyn futures::Stream<Item = std::result::Result<bytes::Bytes, PayloadError>>>>;
 type ResponseType = std::result::Result<
-    ClientResponse<
-        Decompress<
-            actix_web::dev::Payload<
-                Pin<
-                    Box<
-                        dyn futures::Stream<Item = std::result::Result<bytes::Bytes, PayloadError>>,
-                    >,
-                >,
-            >,
-        >,
-    >,
+    ClientResponse<Decompress<actix_web::dev::Payload<PinnedStream>>>,
     SendRequestError,
 >;
 async fn handle_response(response: ResponseType, rest_action: &str) -> Result<RestRequestOutcome> {

@@ -67,10 +67,13 @@ async fn create_successfully() {
     let order_to_create = OrderCreating {
         header: order_header.clone(),
         // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000004),
+        price: dec!(0.0000001),
     };
 
-    let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
+    let _ = exchange
+        .cancel_all_orders(test_currency_pair.clone())
+        .await
+        .expect("in test");
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await

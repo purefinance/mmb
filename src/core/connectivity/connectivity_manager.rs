@@ -9,7 +9,7 @@ use crate::core::{
 use actix::Addr;
 use anyhow::Result;
 use futures::Future;
-use log::{error, info, log, trace, Level};
+use log::{error, info, log, trace, warn, Level};
 use parking_lot::Mutex;
 use std::pin::Pin;
 use std::{
@@ -295,30 +295,36 @@ impl ConnectivityManager {
                 )
                 .await;
 
-                if let Some(websocket_actor) = websocket_actor {
-                    websocket_connectivity.lock().deref_mut().state = WebSocketState::Connected {
-                        websocket_actor,
-                        finished_sender: finished_sender.clone(),
-                    };
+                match websocket_actor {
+                    Ok(websocket_actor) => {
+                        websocket_connectivity.lock().deref_mut().state =
+                            WebSocketState::Connected {
+                                websocket_actor,
+                                finished_sender: finished_sender.clone(),
+                            };
 
-                    if attempt > 0 {
-                        info!(
-                            "Opened websocket connection for {} after {} attempts",
-                            self.exchange_account_id, attempt
-                        );
-                    }
+                        if attempt > 0 {
+                            info!(
+                                "Opened websocket connection for {} after {} attempts",
+                                self.exchange_account_id, attempt
+                            );
+                        }
 
                     if cancel_websocket_connecting.check_cancellation_requested() {
-                        if let WebSocketState::Connected {
-                            websocket_actor, ..
-                        } = &websocket_connectivity.lock().borrow().state
-                        {
-                            let _ = websocket_actor.try_send(ForceClose);
+                            if let WebSocketState::Connected {
+                                websocket_actor, ..
+                            } = &websocket_connectivity.lock().borrow().state
+                            {
+                                let _ = websocket_actor.try_send(ForceClose);
+                            }
                         }
-                    }
 
-                    return true;
-                }
+                        return true;
+                    }
+                    Err(error) => {
+                        warn!("Attempt to connect failed: {}", error);
+                    }
+                };
 
                 attempt += 1;
 
