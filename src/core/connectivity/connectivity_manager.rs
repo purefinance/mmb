@@ -310,7 +310,7 @@ impl ConnectivityManager {
                             );
                         }
 
-                    if cancel_websocket_connecting.check_cancellation_requested() {
+                        if cancel_websocket_connecting.check_cancellation_requested() {
                             if let WebSocketState::Connected {
                                 websocket_actor, ..
                             } = &websocket_connectivity.lock().borrow().state
