@@ -1,6 +1,5 @@
 use super::common::{
-    CurrencyPair, ExchangeAccountId, ExchangeErrorType, RestErrorDescription, RestRequestOutcome,
-    SpecificCurrencyPair,
+    CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
 };
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{
@@ -24,9 +23,9 @@ pub trait ExchangeClient: Support {
 
 #[async_trait(?Send)]
 pub trait Support {
-    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription>;
+    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError>;
     fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId>;
-    fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType;
+    fn clarify_error_type(&self, error: &mut ExchangeError);
 
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
 

@@ -278,17 +278,6 @@ impl RestRequestOutcome {
 
 pub type RestRequestResult = Result<String, RestRequestError>;
 
-pub struct RestErrorDescription {
-    pub message: String,
-    pub code: i64,
-}
-
-impl RestErrorDescription {
-    pub fn new(message: String, code: i64) -> Self {
-        RestErrorDescription { message, code }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

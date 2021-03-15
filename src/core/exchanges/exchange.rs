@@ -427,15 +427,26 @@ impl Exchange {
                 }
                 CheckContent::Err(error) => error,
                 CheckContent::Usable => {
-                    if let Some(rest_error) =
-                        self.exchange_interaction.is_rest_error_code(&response)
-                    {
-                        let error_type = self.exchange_interaction.get_error_type(&rest_error);
-
-                        ExchangeError::new(error_type, rest_error.message, Some(rest_error.code))
-                    } else {
-                        return None;
+                    match self.exchange_interaction.is_rest_error_code(&response) {
+                        Ok(_) => return None,
+                        Err(mut error) => match error.error_type {
+                            ExchangeErrorType::ParsingError => error,
+                            _ => {
+                                self.exchange_interaction.clarify_error_type(&mut error);
+                                error
+                            }
+                        },
                     }
+
+                    //if let Some(rest_error) =
+                    //    self.exchange_interaction.is_rest_error_code(&response)
+                    //{
+                    //    let error_type = self.exchange_interaction.get_error_type(&rest_error);
+
+                    //    ExchangeError::new(error_type, rest_error.message, Some(rest_error.code))
+                    //} else {
+                    //    return None;
+                    //}
                 }
             },
         };

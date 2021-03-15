@@ -3,7 +3,7 @@ use crate::core::exchanges::traits::Support;
 use crate::core::orders::order::*;
 use crate::core::{
     exchanges::common::{
-        Amount, CurrencyPair, ExchangeErrorType, Price, RestErrorDescription, RestRequestOutcome,
+        Amount, CurrencyPair, ExchangeError, ExchangeErrorType, Price, RestRequestOutcome,
         SpecificCurrencyPair,
     },
     orders::fill::EventSourceType,
@@ -34,19 +34,54 @@ pub struct BinanceOrderInfo {
 
 #[async_trait(?Send)]
 impl Support for Binance {
-    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
+    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
         //Binance is a little inconsistent: for failed responses sometimes they include
         //only code or only success:false but sometimes both
         if response.content.contains(r#""success":false"#) || response.content.contains(r#""code""#)
         {
-            let data: Value = serde_json::from_str(&response.content).ok()?;
-            return Some(RestErrorDescription::new(
-                data["msg"].as_str()?.to_owned(),
-                data["code"].as_i64()? as i64,
-            ));
+            match serde_json::from_str::<Value>(&response.content) {
+                Ok(data) => {
+                    let message = data["msg"].as_str();
+                    let code = data["code"].as_i64();
+
+                    match message {
+                        None => {
+                            return Err(ExchangeError::new(
+                                ExchangeErrorType::ParsingError,
+                                "Unable to parse msg field".into(),
+                                None,
+                            ))
+                        }
+                        Some(message) => match code {
+                            None => {
+                                return Err(ExchangeError::new(
+                                    ExchangeErrorType::ParsingError,
+                                    "Unable to parse code field".into(),
+                                    None,
+                                ))
+                            }
+                            Some(code) => {
+                                return Err(ExchangeError::new(
+                                    ExchangeErrorType::Unknown,
+                                    message.to_string(),
+                                    Some(code),
+                                ));
+                            }
+                        },
+                    }
+                }
+                Err(error) => {
+                    let error_message = format!("Unable to parse response.content: {}", error);
+                    return Err(ExchangeError::new(
+                        ExchangeErrorType::ParsingError,
+                        error_message,
+                        None,
+                    ));
+                }
+            }
         }
 
-        None
+        Ok(())
     }
 
     fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
@@ -56,11 +91,11 @@ impl Support for Binance {
         Ok(ExchangeOrderId::new(id.into()))
     }
 
-    fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType {
+    fn clarify_error_type(&self, error: &mut ExchangeError) {
         // -1010 ERROR_MSG_RECEIVED
         // -2010 NEW_ORDER_REJECTED
         // -2011 CANCEL_REJECTED
-        match error.message.as_str() {
+        let error_type = match error.message.as_str() {
             "Unknown order sent." | "Order does not exist." => ExchangeErrorType::OrderNotFound,
             "Account has insufficient balance for requested action." => {
                 ExchangeErrorType::InsufficientFunds
@@ -76,7 +111,9 @@ impl Support for Binance {
             }
             msg if msg.contains("Too many requests;") => ExchangeErrorType::RateLimit,
             _ => ExchangeErrorType::Unknown,
-        }
+        };
+
+        error.error_type = error_type;
     }
 
     fn on_websocket_message(&self, msg: &str) -> Result<()> {

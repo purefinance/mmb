@@ -149,7 +149,7 @@ async fn should_fail() {
     let order_to_create = OrderCreating {
         header: order_header,
         // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000005),
+        price: dec!(0.0000001),
     };
 
     let create_order_result = exchange
