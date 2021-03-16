@@ -4,6 +4,7 @@ pub mod cancellation_token;
 pub mod common;
 pub mod exchange;
 pub mod exchange_blocker;
+pub mod exchange_create_order;
 pub mod exchange_features;
 pub mod rest_client;
 pub mod traits;
