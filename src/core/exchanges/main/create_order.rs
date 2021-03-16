@@ -1,15 +1,19 @@
 use anyhow::Result;
 use futures::pin_mut;
-use log::info;
+use log::{error, info};
 use tokio::sync::oneshot;
 
-use crate::core::orders::{fill::EventSourceType, order::OrderCreating};
-
-use super::{
-    cancellation_token::CancellationToken, common::ExchangeError, common::ExchangeErrorType,
-    common::RestRequestOutcome, exchange::CreateOrderResult, exchange::Exchange,
-    exchange::RequestResult,
+use crate::core::{
+    exchanges::cancellation_token::CancellationToken,
+    exchanges::common::ExchangeError,
+    exchanges::common::ExchangeErrorType,
+    exchanges::common::RestRequestOutcome,
+    orders::order::ClientOrderId,
+    orders::order::ExchangeOrderId,
+    orders::{fill::EventSourceType, order::OrderCreating},
 };
+
+use super::{exchange::CreateOrderResult, exchange::Exchange, exchange::RequestResult};
 
 impl Exchange {
     pub async fn create_order(
@@ -103,6 +107,21 @@ impl Exchange {
                 let exchange_error =
                     ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
                 return CreateOrderResult::failed(exchange_error, EventSourceType::Rest);
+            }
+        }
+    }
+
+    pub(super) fn raise_order_created(
+        &self,
+        client_order_id: ClientOrderId,
+        exchange_order_id: ExchangeOrderId,
+        source_type: EventSourceType,
+    ) {
+        if let Some((_, (tx, _))) = self.order_creation_events.remove(&client_order_id) {
+            if let Err(error) =
+                tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
+            {
+                error!("Unable to send thru oneshot channel: {:?}", error);
             }
         }
     }

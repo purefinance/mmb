@@ -1,10 +1,13 @@
-use super::common::{Amount, CurrencyPair, ExchangeError, ExchangeErrorType};
-use super::exchange_features::ExchangeFeatures;
-use super::traits::ExchangeClient;
-use super::{application_manager::ApplicationManager, exchange_features::OpenOrdersType};
-use crate::core::exchanges::common::{RestRequestOutcome, SpecificCurrencyPair};
+use super::{features::ExchangeFeatures, features::OpenOrdersType};
+use crate::core::exchanges::{
+    application_manager::ApplicationManager,
+    common::CurrencyPair,
+    common::{Amount, ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
+    traits::ExchangeClient,
+};
 use crate::core::orders::fill::EventSourceType;
-use crate::core::orders::order::{ExchangeOrderId, OrderCancelling, OrderInfo};
+use crate::core::orders::order::OrderHeader;
+use crate::core::orders::order::{ExchangeOrderId, OrderInfo};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
@@ -13,12 +16,11 @@ use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
 };
-use crate::core::{exchanges::cancellation_token::CancellationToken, orders::order::OrderHeader};
 use anyhow::*;
 use awc::http::StatusCode;
 use dashmap::DashMap;
-use futures::{pin_mut, Future};
-use log::{error, info, warn, Level};
+use futures::Future;
+use log::{info, warn, Level};
 use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -112,7 +114,7 @@ pub struct Exchange {
         ),
     >,
 
-    order_cancellation_events: DashMap<
+    pub(super) order_cancellation_events: DashMap<
         ExchangeOrderId,
         (
             oneshot::Sender<CancelaltionEventType>,
@@ -153,38 +155,6 @@ impl Exchange {
         exchange.clone().setup_exchange_interaction();
 
         exchange
-    }
-
-    fn raise_order_created(
-        &self,
-        client_order_id: ClientOrderId,
-        exchange_order_id: ExchangeOrderId,
-        source_type: EventSourceType,
-    ) {
-        if let Some((_, (tx, _))) = self.order_creation_events.remove(&client_order_id) {
-            if let Err(error) =
-                tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
-            {
-                error!("Unable to send thru oneshot channel: {:?}", error);
-            }
-        }
-    }
-
-    fn raise_order_cancelled(
-        &self,
-        client_order_id: ClientOrderId,
-        exchange_order_id: ExchangeOrderId,
-        source_type: EventSourceType,
-    ) {
-        if let Some((_, (tx, _))) = self.order_cancellation_events.remove(&exchange_order_id) {
-            if let Err(error) = tx.send(CancelOrderResult::successed(
-                client_order_id,
-                source_type,
-                None,
-            )) {
-                error!("Unable to send thru oneshot channel: {:?}", error);
-            }
-        }
     }
 
     fn setup_connectivity_manager(self: Arc<Self>) {
@@ -300,38 +270,6 @@ impl Exchange {
             // TODO finish_connected
         }
         // TODO all other logs and finish_connected
-    }
-
-    fn handle_cancel_order_response(
-        &self,
-        request_outcome: &Result<RestRequestOutcome>,
-        order: &OrderCancelling,
-    ) -> CancelOrderResult {
-        info!(
-            "Cancel response for {}, {:?}, {:?}",
-            order.header.client_order_id, order.header.exchange_account_id, request_outcome
-        );
-
-        match request_outcome {
-            Ok(request_outcome) => {
-                if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header)
-                {
-                    return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
-                }
-
-                // TODO Parse request_outcome.content similarly to the handle_create_order_response
-                CancelOrderResult::successed(
-                    order.header.client_order_id.clone(),
-                    EventSourceType::Rest,
-                    None,
-                )
-            }
-            Err(error) => {
-                let exchange_error =
-                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
-                return CancelOrderResult::failed(exchange_error, EventSourceType::Rest);
-            }
-        }
     }
 
     fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
@@ -458,60 +396,6 @@ impl Exchange {
                 ));
             }
         }
-    }
-
-    pub async fn cancel_order(
-        &self,
-        // TODO Here has to be common Order (or ORderRef) cause it's more natural way:
-        // When user whant to cancle_order he already has that order data somewhere
-        order: &OrderCancelling,
-        cancellation_token: CancellationToken,
-    ) -> Option<CancelOrderResult> {
-        let exchange_order_id = order.exchange_order_id.clone();
-        let (tx, websocket_event_receiver) = oneshot::channel();
-
-        self.order_cancellation_events
-            .insert(exchange_order_id.clone(), (tx, None));
-
-        let order_cancel_future = self.exchange_interaction.request_cancel_order(&order);
-        let cancellation_token = cancellation_token.when_cancelled();
-
-        pin_mut!(order_cancel_future);
-        pin_mut!(cancellation_token);
-        pin_mut!(websocket_event_receiver);
-
-        tokio::select! {
-            rest_request_outcome = &mut order_cancel_future => {
-                let cancel_order_result = self.handle_cancel_order_response(&rest_request_outcome, &order);
-                match cancel_order_result.outcome {
-                    RequestResult::Error(_) => {
-                        // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
-                        return Some(cancel_order_result);
-                    }
-
-                    RequestResult::Success(_) => {
-                        tokio::select! {
-                            websocket_outcome = &mut websocket_event_receiver => {
-                                return websocket_outcome.ok()
-                            }
-
-                            _ = &mut cancellation_token => {
-                                return None;
-                            }
-
-                        }
-                    }
-                }
-            }
-
-            _ = &mut cancellation_token => {
-                return None;
-            }
-
-            websocket_outcome = &mut websocket_event_receiver => {
-                return websocket_outcome.ok()
-            }
-        };
     }
 
     pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> anyhow::Result<()> {
