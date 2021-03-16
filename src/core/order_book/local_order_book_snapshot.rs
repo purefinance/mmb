@@ -136,7 +136,7 @@ mod tests {
 
         let order_book_snapshot = LocalOrderBookSnapshot::new(asks, bids, Utc::now());
 
-        let top_ask = order_book_snapshot.get_top_ask().unwrap();
+        let top_ask = order_book_snapshot.get_top_ask().expect("in test");
 
         assert_eq!(top_ask, (dec!(1.0), dec!(0.1)))
     }
@@ -152,8 +152,8 @@ mod tests {
 
         let mut iter = order_book_snapshot.get_asks_price_levels();
 
-        assert_eq!(iter.next().unwrap(), (&dec!(1.0), &dec!(0.1)));
-        assert_eq!(iter.next().unwrap(), (&dec!(3.0), &dec!(4.2)));
+        assert_eq!(iter.next().expect("in test"), (&dec!(1.0), &dec!(0.1)));
+        assert_eq!(iter.next().expect("in test"), (&dec!(3.0), &dec!(4.2)));
     }
 
     #[test]
@@ -165,7 +165,7 @@ mod tests {
 
         let order_book_snapshot = LocalOrderBookSnapshot::new(asks, bids, Utc::now());
 
-        let top_bid = order_book_snapshot.get_top_bid().unwrap();
+        let top_bid = order_book_snapshot.get_top_bid().expect("in test");
 
         assert_eq!(top_bid, (dec!(3.0), dec!(4.2)))
     }
@@ -181,8 +181,8 @@ mod tests {
 
         let mut iter = order_book_snapshot.get_bids_price_levels();
 
-        assert_eq!(iter.next().unwrap(), (&dec!(3.0), &dec!(4.2)));
-        assert_eq!(iter.next().unwrap(), (&dec!(1.0), &dec!(0.1)));
+        assert_eq!(iter.next().expect("in test"), (&dec!(3.0), &dec!(4.2)));
+        assert_eq!(iter.next().expect("in test"), (&dec!(1.0), &dec!(0.1)));
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
 
         let mut bids = order_book_snapshot.get_bids_price_levels();
         // Still exists
-        assert_eq!(bids.next().unwrap(), (&dec!(3.0), &dec!(4.2)));
+        assert_eq!(bids.next().expect("in test"), (&dec!(3.0), &dec!(4.2)));
         // Was removed cause amount became <= 0
         assert_eq!(bids.next(), None);
     }
@@ -238,9 +238,9 @@ mod tests {
 
         let mut bids = order_book_snapshot.get_bids_price_levels();
         // Still exists
-        assert_eq!(bids.next().unwrap(), (&dec!(3.0), &dec!(4.2)));
+        assert_eq!(bids.next().expect("in test"), (&dec!(3.0), &dec!(4.2)));
         // Amount value was updated
-        assert_eq!(bids.next().unwrap(), (&dec!(1.0), &dec!(0.2)));
+        assert_eq!(bids.next().expect("in test"), (&dec!(1.0), &dec!(0.2)));
     }
 
     #[test]
@@ -261,7 +261,7 @@ mod tests {
 
         let mut asks = order_book_snapshot.get_asks_price_levels();
         // Still exists
-        assert_eq!(asks.next().unwrap(), (&dec!(3.0), &dec!(4.2)));
+        assert_eq!(asks.next().expect("in test"), (&dec!(3.0), &dec!(4.2)));
         // Was removed cause amount became <= 0
         assert_eq!(asks.next(), None);
     }
@@ -284,8 +284,8 @@ mod tests {
 
         let mut asks = order_book_snapshot.get_asks_price_levels();
         // Amount value was updated
-        assert_eq!(asks.next().unwrap(), (&dec!(1.0), &dec!(0.6)));
+        assert_eq!(asks.next().expect("in test"), (&dec!(1.0), &dec!(0.6)));
         // Still exists
-        assert_eq!(asks.next().unwrap(), (&dec!(3.0), &dec!(4.2)));
+        assert_eq!(asks.next().expect("in test"), (&dec!(3.0), &dec!(4.2)));
     }
 }

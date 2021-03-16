@@ -18,7 +18,7 @@ use anyhow::*;
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::{pin_mut, Future};
-use log::{info, warn, Level};
+use log::{error, info, warn, Level};
 use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -162,8 +162,11 @@ impl Exchange {
         source_type: EventSourceType,
     ) {
         if let Some((_, (tx, _))) = self.order_creation_events.remove(&client_order_id) {
-            tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
-                .unwrap();
+            if let Err(error) =
+                tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
+            {
+                error!("Unable to send thru oneshot channel: {:?}", error);
+            }
         }
     }
 
@@ -174,12 +177,13 @@ impl Exchange {
         source_type: EventSourceType,
     ) {
         if let Some((_, (tx, _))) = self.order_cancellation_events.remove(&exchange_order_id) {
-            tx.send(CancelOrderResult::successed(
+            if let Err(error) = tx.send(CancelOrderResult::successed(
                 client_order_id,
                 source_type,
                 None,
-            ))
-            .unwrap();
+            )) {
+                error!("Unable to send thru oneshot channel: {:?}", error);
+            }
         }
     }
 
@@ -240,7 +244,14 @@ impl Exchange {
         if self.exchange_interaction.should_log_message(msg) {
             self.log_websocket_message(msg);
         }
-        self.exchange_interaction.on_websocket_message(msg);
+
+        let callback_outcome = self.exchange_interaction.on_websocket_message(msg);
+        if let Err(error) = callback_outcome {
+            warn!(
+                "Error occured while websocket message processing: {}",
+                error
+            );
+        }
     }
 
     fn log_websocket_message(&self, msg: &str) {
@@ -272,9 +283,11 @@ impl Exchange {
 
         let exchange_weak = Arc::downgrade(&self);
         let get_websocket_params = Box::new(move |websocket_role| {
-            let exchange = exchange_weak.upgrade().unwrap();
+            let exchange = exchange_weak
+                .upgrade()
+                .expect("Unable to upgrade reference to Exchange");
             let params = exchange.get_websocket_params(websocket_role);
-            Box::pin(params) as Pin<Box<dyn Future<Output = Option<WebSocketParams>>>>
+            Box::pin(params) as Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
         });
 
         let is_connected = self
@@ -291,7 +304,7 @@ impl Exchange {
 
     fn handle_create_order_response(
         &self,
-        request_outcome: &RestRequestOutcome,
+        request_outcome: &Result<RestRequestOutcome>,
         order: &OrderCreating,
     ) -> CreateOrderResult {
         info!(
@@ -302,17 +315,38 @@ impl Exchange {
             request_outcome
         );
 
-        if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header) {
-            return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
-        }
+        match request_outcome {
+            Ok(request_outcome) => {
+                if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header)
+                {
+                    return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
+                }
 
-        let created_order_id = self.exchange_interaction.get_order_id(&request_outcome);
-        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
+                match self.exchange_interaction.get_order_id(&request_outcome) {
+                    Ok(created_order_id) => {
+                        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
+                    }
+                    Err(error) => {
+                        let exchange_error = ExchangeError::new(
+                            ExchangeErrorType::ParsingError,
+                            error.to_string(),
+                            None,
+                        );
+                        CreateOrderResult::failed(exchange_error, EventSourceType::Rest)
+                    }
+                }
+            }
+            Err(error) => {
+                let exchange_error =
+                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
+                return CreateOrderResult::failed(exchange_error, EventSourceType::Rest);
+            }
+        }
     }
 
     fn handle_cancel_order_response(
         &self,
-        request_outcome: &RestRequestOutcome,
+        request_outcome: &Result<RestRequestOutcome>,
         order: &OrderCancelling,
     ) -> CancelOrderResult {
         info!(
@@ -320,16 +354,26 @@ impl Exchange {
             order.header.client_order_id, order.header.exchange_account_id, request_outcome
         );
 
-        if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header) {
-            return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
-        }
+        match request_outcome {
+            Ok(request_outcome) => {
+                if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header)
+                {
+                    return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
+                }
 
-        // TODO Parse requrst_outcome.content similarly to the handle_create_order_response
-        CancelOrderResult::successed(
-            order.header.client_order_id.clone(),
-            EventSourceType::Rest,
-            None,
-        )
+                // TODO Parse request_outcome.content similarly to the handle_create_order_response
+                CancelOrderResult::successed(
+                    order.header.client_order_id.clone(),
+                    EventSourceType::Rest,
+                    None,
+                )
+            }
+            Err(error) => {
+                let exchange_error =
+                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
+                return CancelOrderResult::failed(exchange_error, EventSourceType::Rest);
+            }
+        }
     }
 
     fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
@@ -383,14 +427,15 @@ impl Exchange {
                 }
                 CheckContent::Err(error) => error,
                 CheckContent::Usable => {
-                    if let Some(rest_error) =
-                        self.exchange_interaction.is_rest_error_code(&response)
-                    {
-                        let error_type = self.exchange_interaction.get_error_type(&rest_error);
-
-                        ExchangeError::new(error_type, rest_error.message, Some(rest_error.code))
-                    } else {
-                        return None;
+                    match self.exchange_interaction.is_rest_error_code(&response) {
+                        Ok(_) => return None,
+                        Err(mut error) => match error.error_type {
+                            ExchangeErrorType::ParsingError => error,
+                            _ => {
+                                self.exchange_interaction.clarify_error_type(&mut error);
+                                error
+                            }
+                        },
                     }
                 }
             },
@@ -401,13 +446,11 @@ impl Exchange {
             result_error.error_type, self.exchange_account_id, result_error
         );
 
-        if args_to_log.is_some() {
-            let args = args_to_log.unwrap();
+        if let Some(args) = args_to_log {
             msg_to_log = format!(" {} with args: {:?}", msg_to_log, args);
         }
 
-        if log_template.is_some() {
-            let template = log_template.unwrap();
+        if let Some(template) = log_template {
             msg_to_log = format!(" {}", template);
         }
 
@@ -479,7 +522,6 @@ impl Exchange {
 
         tokio::select! {
             rest_request_outcome = &mut order_create_future => {
-
                 let create_order_result = self.handle_create_order_response(&rest_request_outcome, &order);
                 match create_order_result.outcome {
                     RequestResult::Error(_) => {
@@ -490,7 +532,7 @@ impl Exchange {
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return Some(websocket_outcome.unwrap())
+                                return websocket_outcome.ok()
                             }
 
                             _ = &mut cancellation_token => {
@@ -507,7 +549,7 @@ impl Exchange {
             }
 
             websocket_outcome = &mut websocket_event_receiver => {
-                return Some(websocket_outcome.unwrap());
+                return websocket_outcome.ok();
             }
 
         };
@@ -545,7 +587,7 @@ impl Exchange {
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return Some(websocket_outcome.unwrap())
+                                return websocket_outcome.ok()
                             }
 
                             _ = &mut cancellation_token => {
@@ -562,19 +604,17 @@ impl Exchange {
             }
 
             websocket_outcome = &mut websocket_event_receiver => {
-                return Some(websocket_outcome.unwrap());
+                return websocket_outcome.ok()
             }
         };
     }
 
-    pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
+    pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> anyhow::Result<()> {
         self.exchange_interaction
             .cancel_all_orders(currency_pair)
-            .await;
-    }
+            .await?;
 
-    pub async fn get_account_info(&self) {
-        self.exchange_interaction.get_account_info().await;
+        Ok(())
     }
 
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
@@ -587,14 +627,48 @@ impl Exchange {
         }
     }
 
+    fn handle_parse_error(
+        &self,
+        error: Error,
+        response: RestRequestOutcome,
+        log_template: String,
+        args_to_log: Option<Vec<String>>,
+    ) -> anyhow::Result<()> {
+        let content = response.content;
+        let log_event_level = match serde_json::from_str::<Value>(&content) {
+            Ok(_) => Level::Error,
+            Err(_) => Level::Warn,
+        };
+
+        let mut msg_to_log = format!(
+            "Error parsing response {}, on {}: {}. Error: {}",
+            log_template,
+            self.exchange_account_id,
+            content,
+            error.to_string()
+        );
+
+        if let Some(args) = args_to_log {
+            msg_to_log = format!(" {} with args: {:?}", msg_to_log, args);
+        }
+
+        // TODO Add some other fields as Exchange::Id, Exchange::Name
+        log::log!(log_event_level, "{}.", msg_to_log,);
+
+        if log_event_level == Level::Error {
+            bail!("{}", msg_to_log);
+        }
+
+        Ok(())
+    }
+
     // Bugs on exchange server can lead to Err even if order was opened
     async fn get_open_orders_impl(&self) -> anyhow::Result<Vec<OrderInfo>> {
-        let open_orders;
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
                 // TODO implement in the future
                 //reserve_when_acailable().await
-                let response = self.exchange_interaction.request_open_orders().await;
+                let response = self.exchange_interaction.request_open_orders().await?;
 
                 info!(
                     "get_open_orders() response on {}: {:?}",
@@ -605,9 +679,15 @@ impl Exchange {
                     bail!("Rest error appeared during request: {}", error.message)
                 }
 
-                open_orders = self.exchange_interaction.parse_open_orders(&response);
-
-                return Ok(open_orders);
+                match self.exchange_interaction.parse_open_orders(&response) {
+                    open_orders @ Ok(_) => {
+                        return open_orders;
+                    }
+                    Err(error) => {
+                        self.handle_parse_error(error, response, "".into(), None)?;
+                        return Ok(Vec::new());
+                    }
+                }
             }
             OpenOrdersType::OneCurrencyPair => {
                 // TODO implement in the future
@@ -631,7 +711,7 @@ impl Exchange {
     pub async fn get_websocket_params(
         self: Arc<Self>,
         websocket_role: WebSocketRole,
-    ) -> Option<WebSocketParams> {
+    ) -> Result<WebSocketParams> {
         let ws_path;
         match websocket_role {
             WebSocketRole::Main => {
@@ -642,10 +722,10 @@ impl Exchange {
                 );
             }
             WebSocketRole::Secondary => {
-                ws_path = self.exchange_interaction.build_ws_secondary_path().await;
+                ws_path = self.exchange_interaction.build_ws_secondary_path().await?;
             }
         }
 
-        Some(self.create_websocket_params(&ws_path))
+        Ok(self.create_websocket_params(&ws_path))
     }
 }

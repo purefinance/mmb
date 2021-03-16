@@ -46,7 +46,8 @@ impl FromStr for ExchangeAccountId {
     type Err = ExchangeIdParseError;
 
     fn from_str(text: &str) -> Result<Self, Self::Err> {
-        let regex = Regex::new(r"(^[[:alpha:]]+)(\d+$)").unwrap();
+        let regex = Regex::new(r"(^[[:alpha:]]+)(\d+$)")
+            .map_err(|err| ExchangeIdParseError(err.to_string()))?;
         let captures = regex
             .captures(text)
             .ok_or(ExchangeIdParseError("Invalid format".into()))?
@@ -245,6 +246,7 @@ impl ExchangeError {
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ExchangeErrorType {
     Unknown,
+    SendError,
     RateLimit,
     OrderNotFound,
     OrderCompleted,
@@ -275,17 +277,6 @@ impl RestRequestOutcome {
 }
 
 pub type RestRequestResult = Result<String, RestRequestError>;
-
-pub struct RestErrorDescription {
-    pub message: String,
-    pub code: i64,
-}
-
-impl RestErrorDescription {
-    pub fn new(message: String, code: i64) -> Self {
-        RestErrorDescription { message, code }
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -333,7 +324,7 @@ mod tests {
 
     #[test]
     pub fn exchange_id_to_string() {
-        let exchange_account_id = "Binance1".parse::<ExchangeAccountId>().unwrap();
+        let exchange_account_id = "Binance1".parse::<ExchangeAccountId>().expect("in test");
         let result = exchange_account_id.to_string();
         assert_eq!(result, "Binance1".to_string())
     }

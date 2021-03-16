@@ -30,10 +30,10 @@ pub fn init_logger() {
                         .create(true)
                         .truncate(true)
                         .open("log.txt")
-                        .unwrap(),
+                        .expect("Unable to open log file"),
                 ),
             )
             .apply()
-            .unwrap();
+            .expect("Unable to set up logger");
     })
 }

@@ -3,11 +3,12 @@ use crate::core::exchanges::common::{CurrencyPair, RestRequestOutcome};
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
 use crate::core::orders::order::*;
+use anyhow::Result;
 use async_trait::async_trait;
 
 #[async_trait(?Send)]
 impl ExchangeClient for Binance {
-    async fn create_order(&self, order: &OrderCreating) -> RestRequestOutcome {
+    async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome> {
         let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
 
         let mut parameters = vec![
@@ -47,24 +48,12 @@ impl ExchangeClient for Binance {
         };
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
 
         rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
     }
 
-    // TODO not implemented correctly
-    async fn get_account_info(&self) {
-        let mut parameters = rest_client::HttpParams::new();
-
-        self.add_authentification_headers(&mut parameters);
-
-        let path_to_get_account_data = "/api/v3/account";
-        let full_url = format! {"{}{}", self.settings.rest_host, path_to_get_account_data};
-
-        rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
-    }
-
-    async fn request_cancel_order(&self, order: &OrderCancelling) -> RestRequestOutcome {
+    async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome> {
         let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
         let mut parameters = rest_client::HttpParams::new();
         parameters.push((
@@ -83,15 +72,16 @@ impl ExchangeClient for Binance {
         };
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
 
         let outcome =
-            rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
+            rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters)
+                .await?;
 
-        outcome
+        Ok(outcome)
     }
 
-    async fn request_open_orders(&self) -> RestRequestOutcome {
+    async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
         let mut parameters = rest_client::HttpParams::new();
         let url_path = if self.settings.is_marging_trading {
             "/fapi/v1/openOrders"
@@ -100,15 +90,14 @@ impl ExchangeClient for Binance {
         };
         let full_url = format!("{}{}", self.settings.rest_host, url_path);
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
         let orders =
             rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await;
 
         orders
     }
 
-    // TODO not implemented correctly
-    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) {
+    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
         let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
         let path_to_delete = "/api/v3/openOrders";
         let mut full_url = self.settings.rest_host.clone();
@@ -120,9 +109,11 @@ impl ExchangeClient for Binance {
             specific_currency_pair.as_str().to_owned(),
         ));
 
-        self.add_authentification_headers(&mut parameters);
+        self.add_authentification_headers(&mut parameters)?;
 
         let _cancel_order_outcome =
             rest_client::send_delete_request(&full_url, &self.settings.api_key, &parameters).await;
+
+        Ok(())
     }
 }

@@ -3,11 +3,12 @@ use crate::core::exchanges::traits::Support;
 use crate::core::orders::order::*;
 use crate::core::{
     exchanges::common::{
-        Amount, CurrencyPair, ExchangeErrorType, Price, RestErrorDescription, RestRequestOutcome,
+        Amount, CurrencyPair, ExchangeError, ExchangeErrorType, Price, RestRequestOutcome,
         SpecificCurrencyPair,
     },
     orders::fill::EventSourceType,
 };
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use itertools::Itertools;
 use log::info;
@@ -33,32 +34,63 @@ pub struct BinanceOrderInfo {
 
 #[async_trait(?Send)]
 impl Support for Binance {
-    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription> {
+    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
         //Binance is a little inconsistent: for failed responses sometimes they include
         //only code or only success:false but sometimes both
-        if response.content.contains(r#""success":false"#) || response.content.contains(r#""code""#)
+        if !(response.content.contains(r#""success":false"#)
+            || response.content.contains(r#""code""#))
         {
-            let data: Value = serde_json::from_str(&response.content).unwrap();
-            return Some(RestErrorDescription::new(
-                data["msg"].as_str().unwrap().to_owned(),
-                data["code"].as_i64().unwrap() as i64,
-            ));
+            return Ok(());
         }
 
-        None
+        match serde_json::from_str::<Value>(&response.content) {
+            Ok(data) => {
+                let message = data["msg"].as_str();
+                let code = data["code"].as_i64();
+
+                match message {
+                    None => Err(ExchangeError::new(
+                        ExchangeErrorType::ParsingError,
+                        "Unable to parse msg field".into(),
+                        None,
+                    )),
+                    Some(message) => match code {
+                        None => Err(ExchangeError::new(
+                            ExchangeErrorType::ParsingError,
+                            "Unable to parse code field".into(),
+                            None,
+                        )),
+                        Some(code) => Err(ExchangeError::new(
+                            ExchangeErrorType::Unknown,
+                            message.to_string(),
+                            Some(code),
+                        )),
+                    },
+                }
+            }
+            Err(error) => {
+                let error_message = format!("Unable to parse response.content: {}", error);
+                Err(ExchangeError::new(
+                    ExchangeErrorType::ParsingError,
+                    error_message,
+                    None,
+                ))
+            }
+        }
     }
 
-    fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId {
-        let response: Value = serde_json::from_str(&response.content).unwrap();
+    fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
+        let response: Value =
+            serde_json::from_str(&response.content).context("Unable to parse response content")?;
         let id = response["orderId"].to_string();
-        ExchangeOrderId::new(id.into())
+        Ok(ExchangeOrderId::new(id.into()))
     }
 
-    fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType {
+    fn clarify_error_type(&self, error: &mut ExchangeError) {
         // -1010 ERROR_MSG_RECEIVED
         // -2010 NEW_ORDER_REJECTED
         // -2011 CANCEL_REJECTED
-        match error.message.as_str() {
+        let error_type = match error.message.as_str() {
             "Unknown order sent." | "Order does not exist." => ExchangeErrorType::OrderNotFound,
             "Account has insufficient balance for requested action." => {
                 ExchangeErrorType::InsufficientFunds
@@ -74,29 +106,39 @@ impl Support for Binance {
             }
             msg if msg.contains("Too many requests;") => ExchangeErrorType::RateLimit,
             _ => ExchangeErrorType::Unknown,
-        }
+        };
+
+        error.error_type = error_type;
     }
 
-    fn on_websocket_message(&self, msg: &str) {
-        let data: Value = serde_json::from_str(msg).unwrap();
+    fn on_websocket_message(&self, msg: &str) -> Result<()> {
+        let data: Value = serde_json::from_str(msg).context("Unable to parse websocket message")?;
         // Public stream
         if let Some(stream) = data.get("stream") {
-            if stream.as_str().unwrap().contains('@') {
+            if stream
+                .as_str()
+                .ok_or(anyhow!("Unable to parse stream data"))?
+                .contains('@')
+            {
                 // TODO handle public stream
             }
 
-            return;
+            return Ok(());
         }
 
         // so it is userData stream
-        let event_type = data["e"].as_str().unwrap();
+        let event_type = data["e"]
+            .as_str()
+            .ok_or(anyhow!("Unable to parse event_type"))?;
         if event_type == "executionReport" {
-            self.handle_trade(msg, data);
+            self.handle_trade(msg, data)?;
         } else if false {
             // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
         } else {
             self.log_unknown_message(self.id.clone(), msg);
         }
+
+        Ok(())
     }
 
     fn set_order_created_callback(
@@ -133,13 +175,19 @@ impl Support for Binance {
         ws_path.to_lowercase()
     }
 
-    async fn build_ws_secondary_path(&self) -> String {
-        let request_outcome = self.get_listen_key().await;
-        let data: Value = serde_json::from_str(&request_outcome.content).unwrap();
-        let listen_key = data["listenKey"].as_str().unwrap().to_owned();
+    async fn build_ws_secondary_path(&self) -> Result<String> {
+        let request_outcome = self
+            .get_listen_key()
+            .await
+            .context("Unable to get listen key")?;
+        let data: Value = serde_json::from_str(&request_outcome.content)
+            .context("Unable to parse listen key response")?;
+        let listen_key = data["listenKey"]
+            .as_str()
+            .context("Unable to get listen key")?;
 
         let ws_path = format!("{}{}", "/ws/", listen_key);
-        ws_path
+        Ok(ws_path)
     }
 
     fn should_log_message(&self, message: &str) -> bool {
@@ -150,17 +198,16 @@ impl Support for Binance {
         self.unified_to_specific[currency_pair].clone()
     }
 
-    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo> {
-        // TODO that unwrap has to be just logging
+    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
         let binance_orders: Vec<BinanceOrderInfo> =
-            serde_json::from_str(&response.content).unwrap();
+            serde_json::from_str(&response.content).context("Unable to parse response content")?;
 
         let orders_info: Vec<OrderInfo> = binance_orders
             .iter()
             .map(|order| self.specific_order_info_to_unified(order))
             .collect();
 
-        orders_info
+        Ok(orders_info)
     }
 
     fn log_unknown_message(

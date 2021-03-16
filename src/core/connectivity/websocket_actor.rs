@@ -1,9 +1,12 @@
+use crate::core::connectivity::connectivity_manager::ConnectivityManagerNotifier;
 use crate::core::exchanges::common::ExchangeAccountId;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, StreamHandler};
 use actix_codec::Framed;
 use actix_web::web::Buf;
 use actix_web_actors::ws::ProtocolError;
+use anyhow::{bail, Result};
+use awc::http::StatusCode;
 use awc::{
     error::WsProtocolError,
     http,
@@ -13,11 +16,8 @@ use awc::{
 };
 use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use std::time::{Duration, Instant};
-
-use crate::core::connectivity::connectivity_manager::ConnectivityManagerNotifier;
-use awc::http::StatusCode;
 
 /// Time interval between heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -53,41 +53,46 @@ impl WebSocketActor {
         exchange_account_id: ExchangeAccountId,
         params: WebSocketParams,
         connectivity_manager_notifier: ConnectivityManagerNotifier,
-    ) -> Option<Addr<WebSocketActor>> {
-        let (response, framed) = Client::builder()
+    ) -> Result<Addr<WebSocketActor>> {
+        let connected_client = Client::builder()
             .max_http_version(http::Version::HTTP_11)
             .finish()
             .ws(params.url.clone())
             .header("Accept-Encoding", "gzip")
             .connect()
-            .await
-            .map_err(|e| {
-                trace!("Error: {}", e.to_string());
-            })
-            .unwrap();
+            .await;
 
-        trace!(
-            "WebsocketActor '{}' connecting status: {}",
-            exchange_account_id,
-            response.status()
-        );
-        if !(response.status() == StatusCode::SWITCHING_PROTOCOLS) {
-            return None;
+        match connected_client {
+            Err(error) => {
+                bail!("Error occured during websocket connect: {}", error);
+            }
+            Ok(connected_client) => {
+                let (response, framed) = connected_client;
+
+                trace!(
+                    "WebsocketActor '{}' connecting status: {}",
+                    exchange_account_id,
+                    response.status()
+                );
+                if !(response.status() == StatusCode::SWITCHING_PROTOCOLS) {
+                    bail!("Status code is SWITCHING_PROTOCOLS so unable to communicate")
+                }
+
+                let (sink, stream) = framed.split();
+
+                let addr = WebSocketActor::create(|ctx| {
+                    WebSocketActor::add_stream(stream, ctx);
+
+                    WebSocketActor::new(
+                        exchange_account_id,
+                        SinkWrite::new(sink, ctx),
+                        connectivity_manager_notifier,
+                    )
+                });
+
+                Ok(addr)
+            }
         }
-
-        let (sink, stream) = framed.split();
-
-        let addr = WebSocketActor::create(|ctx| {
-            WebSocketActor::add_stream(stream, ctx);
-
-            WebSocketActor::new(
-                exchange_account_id,
-                SinkWrite::new(sink, ctx),
-                connectivity_manager_notifier,
-            )
-        });
-
-        Some(addr)
     }
 
     fn new(
@@ -139,10 +144,16 @@ impl WebSocketActor {
     }
 
     fn handle_websocket_message(&self, bytes: &Bytes) {
-        let text = std::str::from_utf8(bytes).unwrap();
-        self.connectivity_manager_notifier
-            .clone()
-            .message_received(text);
+        match std::str::from_utf8(bytes) {
+            Ok(text) => {
+                self.connectivity_manager_notifier
+                    .clone()
+                    .message_received(text);
+            }
+            Err(error) => {
+                warn!("Unable to parse websoket message: {:?}", error)
+            }
+        }
     }
 }
 
@@ -257,13 +268,13 @@ mod tests {
 
         let url: Uri = "wss://stream.binance.com:9443/stream?streams=bnbbtc@depth"
             .parse()
-            .unwrap();
+            .expect("in test");
 
         let (websocket_sender, websocket_receiver) = oneshot::channel::<Addr<_>>();
         let (finish_sender, finish_receiver) = oneshot::channel();
 
         Arbiter::spawn(async {
-            let websocket_addr = websocket_receiver.await.unwrap();
+            let websocket_addr = websocket_receiver.await.expect("in test");
 
             tokio::time::sleep(Duration::from_secs(1)).await;
 
@@ -294,21 +305,22 @@ mod tests {
         });
 
         Arbiter::spawn(async {
-            let exchange_id = "Binance0".parse().unwrap();
+            let exchange_id = "Binance0".parse().expect("in test");
             let websocket_addr = WebSocketActor::open_connection(
                 exchange_id,
                 WebSocketParams { url },
                 Default::default(),
             )
-            .await;
+            .await
+            .expect("in test");
+
             assert_eq!(
-                websocket_addr.clone().unwrap().connected(),
+                websocket_addr.clone().connected(),
                 true,
                 "websocket should be connected"
             );
-            if let Some(addr) = websocket_addr {
-                let _ = websocket_sender.send(addr);
-            }
+
+            let _ = websocket_sender.send(websocket_addr);
         });
 
         // Test timeout

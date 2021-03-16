@@ -1,35 +1,33 @@
 use super::common::{
-    CurrencyPair, ExchangeAccountId, ExchangeErrorType, RestErrorDescription, RestRequestOutcome,
-    SpecificCurrencyPair,
+    CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
 };
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
+use anyhow::Result;
 use async_trait::async_trait;
 use log::info;
 
 // Implementation of rest API client
 #[async_trait(?Send)]
 pub trait ExchangeClient: Support {
-    async fn create_order(&self, _order: &OrderCreating) -> RestRequestOutcome;
+    async fn create_order(&self, _order: &OrderCreating) -> Result<RestRequestOutcome>;
 
-    async fn request_cancel_order(&self, _order: &OrderCancelling) -> RestRequestOutcome;
+    async fn request_cancel_order(&self, _order: &OrderCancelling) -> Result<RestRequestOutcome>;
 
-    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair);
+    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()>;
 
-    async fn get_account_info(&self);
-
-    async fn request_open_orders(&self) -> RestRequestOutcome;
+    async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait(?Send)]
 pub trait Support {
-    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Option<RestErrorDescription>;
-    fn get_order_id(&self, response: &RestRequestOutcome) -> ExchangeOrderId;
-    fn get_error_type(&self, error: &RestErrorDescription) -> ExchangeErrorType;
+    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError>;
+    fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId>;
+    fn clarify_error_type(&self, error: &mut ExchangeError);
 
-    fn on_websocket_message(&self, msg: &str);
+    fn on_websocket_message(&self, msg: &str) -> Result<()>;
 
     fn set_order_created_callback(
         &self,
@@ -46,7 +44,7 @@ pub trait Support {
         specific_currency_pairs: &[SpecificCurrencyPair],
         websocket_channels: &[String],
     ) -> String;
-    async fn build_ws_secondary_path(&self) -> String;
+    async fn build_ws_secondary_path(&self) -> Result<String>;
 
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
@@ -57,5 +55,5 @@ pub trait Support {
         info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo>;
+    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;
 }

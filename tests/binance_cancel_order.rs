@@ -24,9 +24,13 @@ async fn cancelled_successfully() {
         return;
     }
 
-    let settings = settings::ExchangeSettings::new(api_key.unwrap(), secret_key.unwrap(), false);
+    let settings = settings::ExchangeSettings::new(
+        api_key.expect("in test"),
+        secret_key.expect("in test"),
+        false,
+    );
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance = Binance::new(settings, exchange_account_id.clone());
 
     let websocket_host = "wss://stream.binance.com:9443".into();
@@ -63,14 +67,18 @@ async fn cancelled_successfully() {
     let order_to_create = OrderCreating {
         header: order_header.clone(),
         // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000004),
+        price: dec!(0.0000001),
     };
 
-    let _ = exchange.cancel_all_orders(test_currency_pair.clone()).await;
+    let _ = exchange
+        .cancel_all_orders(test_currency_pair.clone())
+        .await
+        .expect("in test");
     let create_order_result = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
-        .unwrap();
+        .expect("in test");
+    dbg!(&create_order_result);
 
     match create_order_result.outcome {
         RequestResult::Success(exchange_order_id) => {
@@ -83,7 +91,7 @@ async fn cancelled_successfully() {
             let cancel_outcome = exchange
                 .cancel_order(&order_to_cancel, CancellationToken::default())
                 .await
-                .unwrap();
+                .expect("in test");
 
             if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
                 assert_eq!(gotten_client_order_id, generated_client_order_id);
@@ -113,9 +121,13 @@ async fn nothing_to_cancel() {
         return;
     }
 
-    let settings = settings::ExchangeSettings::new(api_key.unwrap(), secret_key.unwrap(), false);
+    let settings = settings::ExchangeSettings::new(
+        api_key.expect("in test"),
+        secret_key.expect("in test"),
+        false,
+    );
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().unwrap();
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance = Binance::new(settings, exchange_account_id.clone());
 
     let websocket_host = "wss://stream.binance.com:9443".into();
@@ -158,7 +170,7 @@ async fn nothing_to_cancel() {
     let cancel_outcome = exchange
         .cancel_order(&order_to_cancel, CancellationToken::default())
         .await
-        .unwrap();
+        .expect("in test");
 
     if let RequestResult::Error(error) = cancel_outcome.outcome {
         assert_eq!(error.error_type, ExchangeErrorType::OrderNotFound);

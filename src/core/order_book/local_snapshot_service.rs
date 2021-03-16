@@ -98,16 +98,18 @@ mod tests {
         );
 
         // Perform update
-        let exchange_id_symbol = snapshot_controller.update(order_book_event).unwrap();
+        let exchange_id_symbol = snapshot_controller
+            .update(order_book_event)
+            .expect("in test");
 
         let updated_asks = &snapshot_controller
             .get_snapshot(exchange_id_symbol.clone())
-            .unwrap()
+            .expect("in test")
             .asks;
 
         let updated_bids = &snapshot_controller
             .get_snapshot(exchange_id_symbol)
-            .unwrap()
+            .expect("in test")
             .bids;
 
         // Check all snapshot returned values
@@ -185,16 +187,18 @@ mod tests {
         );
 
         // Perform update
-        let exchange_id_symbol = snapshot_controller.update(order_book_event).unwrap();
+        let exchange_id_symbol = snapshot_controller
+            .update(order_book_event)
+            .expect("in test");
 
         let updated_asks = &snapshot_controller
             .get_snapshot(exchange_id_symbol.clone())
-            .unwrap()
+            .expect("in test")
             .asks;
 
         let updated_bids = &snapshot_controller
             .get_snapshot(exchange_id_symbol.clone())
-            .unwrap()
+            .expect("in test")
             .bids;
 
         // Check all snapshot returned values
