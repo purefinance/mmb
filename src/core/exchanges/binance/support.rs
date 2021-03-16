@@ -37,51 +37,46 @@ impl Support for Binance {
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
         //Binance is a little inconsistent: for failed responses sometimes they include
         //only code or only success:false but sometimes both
-        if response.content.contains(r#""success":false"#) || response.content.contains(r#""code""#)
+        if !(response.content.contains(r#""success":false"#)
+            || response.content.contains(r#""code""#))
         {
-            match serde_json::from_str::<Value>(&response.content) {
-                Ok(data) => {
-                    let message = data["msg"].as_str();
-                    let code = data["code"].as_i64();
-
-                    match message {
-                        None => {
-                            return Err(ExchangeError::new(
-                                ExchangeErrorType::ParsingError,
-                                "Unable to parse msg field".into(),
-                                None,
-                            ))
-                        }
-                        Some(message) => match code {
-                            None => {
-                                return Err(ExchangeError::new(
-                                    ExchangeErrorType::ParsingError,
-                                    "Unable to parse code field".into(),
-                                    None,
-                                ))
-                            }
-                            Some(code) => {
-                                return Err(ExchangeError::new(
-                                    ExchangeErrorType::Unknown,
-                                    message.to_string(),
-                                    Some(code),
-                                ));
-                            }
-                        },
-                    }
-                }
-                Err(error) => {
-                    let error_message = format!("Unable to parse response.content: {}", error);
-                    return Err(ExchangeError::new(
-                        ExchangeErrorType::ParsingError,
-                        error_message,
-                        None,
-                    ));
-                }
-            }
+            return Ok(());
         }
 
-        Ok(())
+        match serde_json::from_str::<Value>(&response.content) {
+            Ok(data) => {
+                let message = data["msg"].as_str();
+                let code = data["code"].as_i64();
+
+                match message {
+                    None => Err(ExchangeError::new(
+                        ExchangeErrorType::ParsingError,
+                        "Unable to parse msg field".into(),
+                        None,
+                    )),
+                    Some(message) => match code {
+                        None => Err(ExchangeError::new(
+                            ExchangeErrorType::ParsingError,
+                            "Unable to parse code field".into(),
+                            None,
+                        )),
+                        Some(code) => Err(ExchangeError::new(
+                            ExchangeErrorType::Unknown,
+                            message.to_string(),
+                            Some(code),
+                        )),
+                    },
+                }
+            }
+            Err(error) => {
+                let error_message = format!("Unable to parse response.content: {}", error);
+                Err(ExchangeError::new(
+                    ExchangeErrorType::ParsingError,
+                    error_message,
+                    None,
+                ))
+            }
+        }
     }
 
     fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
