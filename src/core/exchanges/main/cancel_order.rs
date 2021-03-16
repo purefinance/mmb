@@ -5,6 +5,7 @@ use tokio::sync::oneshot;
 
 use crate::core::{
     exchanges::cancellation_token::CancellationToken,
+    exchanges::common::Amount,
     exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType,
     exchanges::common::RestRequestOutcome,
@@ -13,7 +14,37 @@ use crate::core::{
     orders::{fill::EventSourceType, order::OrderCancelling},
 };
 
-use super::{exchange::CancelOrderResult, exchange::Exchange, exchange::RequestResult};
+use super::{exchange::Exchange, exchange::RequestResult};
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct CancelOrderResult {
+    pub outcome: RequestResult<ClientOrderId>,
+    pub source_type: EventSourceType,
+    // TODO Use it in the future
+    pub filled_amount: Option<Amount>,
+}
+
+impl CancelOrderResult {
+    pub fn successed(
+        client_order_id: ClientOrderId,
+        source_type: EventSourceType,
+        filled_amount: Option<Amount>,
+    ) -> Self {
+        CancelOrderResult {
+            outcome: RequestResult::Success(client_order_id),
+            source_type,
+            filled_amount,
+        }
+    }
+
+    pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
+        CancelOrderResult {
+            outcome: RequestResult::Error(error),
+            source_type,
+            filled_amount: None,
+        }
+    }
+}
 
 impl Exchange {
     pub async fn cancel_order(

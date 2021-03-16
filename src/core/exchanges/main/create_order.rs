@@ -13,7 +13,29 @@ use crate::core::{
     orders::{fill::EventSourceType, order::OrderCreating},
 };
 
-use super::{exchange::CreateOrderResult, exchange::Exchange, exchange::RequestResult};
+use super::{exchange::Exchange, exchange::RequestResult};
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct CreateOrderResult {
+    pub outcome: RequestResult<ExchangeOrderId>,
+    pub source_type: EventSourceType,
+}
+
+impl CreateOrderResult {
+    pub fn successed(order_id: ExchangeOrderId, source_type: EventSourceType) -> Self {
+        CreateOrderResult {
+            outcome: RequestResult::Success(order_id),
+            source_type,
+        }
+    }
+
+    pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
+        CreateOrderResult {
+            outcome: RequestResult::Error(error),
+            source_type,
+        }
+    }
+}
 
 impl Exchange {
     pub async fn create_order(

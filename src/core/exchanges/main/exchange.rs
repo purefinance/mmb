@@ -1,13 +1,14 @@
-use super::{features::ExchangeFeatures, features::OpenOrdersType};
+use super::cancel_order::CancelOrderResult;
+use super::create_order::CreateOrderResult;
+use super::features::ExchangeFeatures;
 use crate::core::exchanges::{
     application_manager::ApplicationManager,
     common::CurrencyPair,
-    common::{Amount, ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
+    common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
     traits::ExchangeClient,
 };
-use crate::core::orders::fill::EventSourceType;
+use crate::core::orders::order::ExchangeOrderId;
 use crate::core::orders::order::OrderHeader;
-use crate::core::orders::order::{ExchangeOrderId, OrderInfo};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
@@ -34,68 +35,14 @@ pub enum RequestResult<T> {
     //Error(ExchangeErrorType),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct CreateOrderResult {
-    pub outcome: RequestResult<ExchangeOrderId>,
-    pub source_type: EventSourceType,
-}
-
-impl CreateOrderResult {
-    pub fn successed(order_id: ExchangeOrderId, source_type: EventSourceType) -> Self {
-        CreateOrderResult {
-            outcome: RequestResult::Success(order_id),
-            source_type,
-        }
-    }
-
-    pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
-        CreateOrderResult {
-            outcome: RequestResult::Error(error),
-            source_type,
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct CancelOrderResult {
-    pub outcome: RequestResult<ClientOrderId>,
-    pub source_type: EventSourceType,
-    // TODO Use it in the future
-    pub filled_amount: Option<Amount>,
-}
-
-impl CancelOrderResult {
-    pub fn successed(
-        client_order_id: ClientOrderId,
-        source_type: EventSourceType,
-        filled_amount: Option<Amount>,
-    ) -> Self {
-        CancelOrderResult {
-            outcome: RequestResult::Success(client_order_id),
-            source_type,
-            filled_amount,
-        }
-    }
-
-    pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
-        CancelOrderResult {
-            outcome: RequestResult::Error(error),
-            source_type,
-            filled_amount: None,
-        }
-    }
-}
-
 enum CheckContent {
     Empty,
     Err(ExchangeError),
     Usable,
 }
 
-type CreationEventType = CreateOrderResult;
-type CancelaltionEventType = CancelOrderResult;
 pub struct Exchange {
-    exchange_account_id: ExchangeAccountId,
+    pub(super) exchange_account_id: ExchangeAccountId,
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
     websocket_channels: Vec<String>,
@@ -109,20 +56,20 @@ pub struct Exchange {
     pub(super) order_creation_events: DashMap<
         ClientOrderId,
         (
-            oneshot::Sender<CreationEventType>,
-            Option<oneshot::Receiver<CreationEventType>>,
+            oneshot::Sender<CreateOrderResult>,
+            Option<oneshot::Receiver<CreateOrderResult>>,
         ),
     >,
 
     pub(super) order_cancellation_events: DashMap<
         ExchangeOrderId,
         (
-            oneshot::Sender<CancelaltionEventType>,
-            Option<oneshot::Receiver<CancelaltionEventType>>,
+            oneshot::Sender<CancelOrderResult>,
+            Option<oneshot::Receiver<CancelOrderResult>>,
         ),
     >,
     application_manager: ApplicationManager,
-    features: ExchangeFeatures,
+    pub(super) features: ExchangeFeatures,
 }
 
 impl Exchange {
@@ -272,7 +219,7 @@ impl Exchange {
         // TODO all other logs and finish_connected
     }
 
-    fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
+    pub(super) fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
         self.get_rest_error_main(response, None, None)
     }
 
@@ -406,17 +353,7 @@ impl Exchange {
         Ok(())
     }
 
-    pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
-        // Bugs on exchange server can lead to Err even if order was opened
-        loop {
-            match self.get_open_orders_impl().await {
-                Ok(gotten_orders) => return Ok(gotten_orders),
-                Err(error) => warn!("{}", error),
-            }
-        }
-    }
-
-    fn handle_parse_error(
+    pub(super) fn handle_parse_error(
         &self,
         error: Error,
         response: RestRequestOutcome,
@@ -449,52 +386,6 @@ impl Exchange {
         }
 
         Ok(())
-    }
-
-    // Bugs on exchange server can lead to Err even if order was opened
-    async fn get_open_orders_impl(&self) -> anyhow::Result<Vec<OrderInfo>> {
-        match self.features.open_orders_type {
-            OpenOrdersType::AllCurrencyPair => {
-                // TODO implement in the future
-                //reserve_when_acailable().await
-                let response = self.exchange_interaction.request_open_orders().await?;
-
-                info!(
-                    "get_open_orders() response on {}: {:?}",
-                    self.exchange_account_id, response
-                );
-
-                if let Some(error) = self.get_rest_error(&response) {
-                    bail!("Rest error appeared during request: {}", error.message)
-                }
-
-                match self.exchange_interaction.parse_open_orders(&response) {
-                    open_orders @ Ok(_) => {
-                        return open_orders;
-                    }
-                    Err(error) => {
-                        self.handle_parse_error(error, response, "".into(), None)?;
-                        return Ok(Vec::new());
-                    }
-                }
-            }
-            OpenOrdersType::OneCurrencyPair => {
-                // TODO implement in the future
-                //reserve_when_acailable().await
-                // TODO other actions here have to be written after build_metadata() implementation
-
-                return Err(anyhow!(""));
-            }
-            _ => bail!(
-                "Unsupported open_orders_type: {:?}",
-                self.features.open_orders_type
-            ),
-        }
-
-        // TODO Prolly should to be moved in first and second branches in match above
-        //if (add_missing_open_orders) {
-        //    add_missing_open_orders(openOrders);
-        //}
     }
 
     pub async fn get_websocket_params(
