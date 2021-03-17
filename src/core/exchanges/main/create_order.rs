@@ -18,6 +18,7 @@ use crate::core::{
     orders::order::OrderSnapshot,
     orders::order::OrderStatus,
     orders::order::OrderType,
+    orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
 
@@ -150,6 +151,71 @@ impl Exchange {
         exchange_error: &ExchangeError,
         source_type: &EventSourceType,
     ) -> Result<()> {
+        // TODO some lock? Why should we?
+        // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
+
+        let args_to_log = (exchange_account_id, client_order_id);
+
+        if client_order_id.as_str().is_empty() {
+            let error_msg = format!(
+                "Order was created but client_order_id is empty. Order: {:?}",
+                args_to_log
+            );
+            error!("{}", error_msg);
+
+            bail!("{}", error_msg);
+        }
+
+        match self.orders.orders_by_client_id.get(client_order_id) {
+            None => {
+                let error_msg = format!(
+                "CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}",
+                args_to_log
+            );
+                error!("{}", error_msg);
+
+                bail!("{}", error_msg);
+            }
+            Some(order_ref) => order_ref.fn_mut(|order| {
+                let args_to_log = (
+                    exchange_account_id,
+                    client_order_id,
+                    &order.props.exchange_order_id,
+                );
+                self.react_on_status_when_failed(order, args_to_log, &order_ref, source_type)
+            }),
+        }
+    }
+
+    fn react_on_status_when_failed(
+        &self,
+        order: &OrderSnapshot,
+        args_to_log: (&ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
+        order_ref: &OrderRef,
+        source_type: &EventSourceType,
+    ) -> Result<()> {
+        let status = order.props.status;
+        match status {
+            OrderStatus::Created => {
+                let error_msg = format!(
+                    "CreateOrderFailed was received for a Created order {:?}",
+                    args_to_log
+                );
+
+                error!("{}", error_msg);
+                bail!("{}", error_msg)
+            }
+            OrderStatus::FailedToCreate => {
+                // FIXME continue here
+            }
+            OrderStatus::Canceling => {}
+            OrderStatus::Canceled => {}
+            OrderStatus::Completed => {}
+            OrderStatus::Creating => {}
+            OrderStatus::FailedToCancel => {}
+        }
+
+        // FIXME delete
         bail!("")
     }
 
@@ -171,7 +237,6 @@ impl Exchange {
                 "Order was created but client_order_id is empty. Order: {:?}",
                 args_to_log
             );
-            // FIXME do we really new log here, or it just wil be performed caller side?
             error!("{}", error_msg);
 
             bail!("{}", error_msg);
@@ -194,77 +259,106 @@ impl Exchange {
                 // FIXME why not exception/Result throw?
                 return Ok(());
             }
-            Some(order_ref) => {
-                order_ref.fn_mut(|order| {
-                    order.props.exchange_order_id = Some(exchange_order_id.clone());
+            Some(order_ref) => order_ref.fn_mut(|order| {
+                order.props.exchange_order_id = Some(exchange_order_id.clone());
 
-                    let status = order.props.status;
-                    // FIXME extract that match to function
-                    match status {
-                        OrderStatus::FailedToCreate => {
-                            let error_msg = format!(
+                self.react_on_status_when_succeed(order, args_to_log, &order_ref, source_type)
+            }),
+        }
+    }
+
+    fn react_on_status_when_succeed(
+        &self,
+        order: &OrderSnapshot,
+        args_to_log: (&ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
+        order_ref: &OrderRef,
+        source_type: &EventSourceType,
+    ) -> Result<()> {
+        let status = order.props.status;
+        let exchange_order_id = args_to_log.2;
+        match status {
+            OrderStatus::FailedToCreate => {
+                let error_msg = format!(
                                 "CreateOrderSucceeded was received for a FailedToCreate order.
                                 Probably FaildeToCreate fallbach was received before Creation Rresponse {:?}",
                                 args_to_log
                             );
 
-                            error!("{}", error_msg);
-                            bail!("{}", error_msg)
-                        }
-                        OrderStatus::Created => {
-                            warn!("CreateOrderSucceeded was received for a Created order {:?}", args_to_log);
-                            Ok(())
-                        }
-                        OrderStatus::Canceling => {
-                            warn!("CreateOrderSucceeded was received for a Canceling order {:?}", args_to_log);
-                            Ok(())
-                        }
-                        OrderStatus::Canceled => {
-                            warn!("CreateOrderSucceeded was received for a Canceled order {:?}", args_to_log);
-                            Ok(())
-                        }
-                        OrderStatus::Completed => {
-                            warn!("CreateOrderSucceeded was received for a Completed order {:?}", args_to_log);
-                            Ok(())
-                        }
-                        OrderStatus::Creating => {
-                            if self.orders.orders_by_exchange_id.contains_key(exchange_order_id) {
-                                info!("Order has already been added to the local orders pool {:?}", args_to_log);
+                error!("{}", error_msg);
+                bail!("{}", error_msg)
+            }
+            OrderStatus::Created => {
+                warn!(
+                    "CreateOrderSucceeded was received for a Created order {:?}",
+                    args_to_log
+                );
+                Ok(())
+            }
+            OrderStatus::Canceling => {
+                warn!(
+                    "CreateOrderSucceeded was received for a Canceling order {:?}",
+                    args_to_log
+                );
+                Ok(())
+            }
+            OrderStatus::Canceled => {
+                warn!(
+                    "CreateOrderSucceeded was received for a Canceled order {:?}",
+                    args_to_log
+                );
+                Ok(())
+            }
+            OrderStatus::Completed => {
+                warn!(
+                    "CreateOrderSucceeded was received for a Completed order {:?}",
+                    args_to_log
+                );
+                Ok(())
+            }
+            OrderStatus::Creating => {
+                if self
+                    .orders
+                    .orders_by_exchange_id
+                    .contains_key(exchange_order_id)
+                {
+                    info!(
+                        "Order has already been added to the local orders pool {:?}",
+                        args_to_log
+                    );
 
-                                return Ok(());
-                            }
+                    return Ok(());
+                }
 
-                            // TODO if type EventSourceType::RestFallback... And some metrics there
-                            order_ref.fn_mut(|order| {
-                                order.set_status(OrderStatus::Created, Utc::now());
-                                order.internal_props.creation_event_source_type = Some(source_type.clone());
-                            });
-                            self.orders.orders_by_exchange_id.insert(exchange_order_id.clone(), order_ref.clone());
+                // TODO if type EventSourceType::RestFallback... And some metrics there
+                order_ref.fn_mut(|order| {
+                    order.set_status(OrderStatus::Created, Utc::now());
+                    order.internal_props.creation_event_source_type = Some(source_type.clone());
+                });
+                self.orders
+                    .orders_by_exchange_id
+                    .insert(exchange_order_id.clone(), order_ref.clone());
 
-                            if order.header.order_type != OrderType::Liquidation{
-                                // TODO BalanceManager
-                            }
+                if order.header.order_type != OrderType::Liquidation {
+                    // TODO BalanceManager
+                }
 
-                            order_ref.fn_mut(|order| {
-                                self.add_event_on_order_change(order, OrderEventType::CreateOrderSucceeded);
-                            });
+                order_ref.fn_mut(|order| {
+                    self.add_event_on_order_change(order, OrderEventType::CreateOrderSucceeded);
+                });
 
-                            // TODO if BufferedFillsManager.TryGetFills(...)
-                            // TODO if BufferedCanceledORdersManager.TrygetOrder(...)
+                // TODO if BufferedFillsManager.TryGetFills(...)
+                // TODO if BufferedCanceledORdersManager.TrygetOrder(...)
 
-                            // TODO DataRecorder.Save(order); Do we really need it here?
-                            // Cause it's already performed in handle_create_order_succeeded
+                // TODO DataRecorder.Save(order); Do we really need it here?
+                // Cause it's already performed in handle_create_order_succeeded
 
-                            info!("Order was created: {:?}", args_to_log);
+                info!("Order was created: {:?}", args_to_log);
 
-                            Ok(())
-                        }
-                        OrderStatus::FailedToCancel => {
-                            // FIXME what about this option? Why it did not handled in C#?
-                            Ok(())
-                        }
-                    }
-                })
+                Ok(())
+            }
+            OrderStatus::FailedToCancel => {
+                // FIXME what about this option? Why it did not handled in C#?
+                Ok(())
             }
         }
     }
