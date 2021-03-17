@@ -1,6 +1,8 @@
 use anyhow::Result;
 use futures::pin_mut;
 use log::{error, info};
+use parking_lot::RwLock;
+use std::sync::Arc;
 use tokio::sync::oneshot;
 
 use crate::core::{
@@ -10,10 +12,13 @@ use crate::core::{
     exchanges::common::RestRequestOutcome,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
+    orders::order::OrderSnapshot,
+    orders::order::OrderStatus,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
 
 use super::{exchange::Exchange, exchange::RequestResult};
+use crate::core::exchanges::main::exchange::RequestResult::{Error, Success};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CreateOrderResult {
@@ -38,7 +43,72 @@ impl CreateOrderResult {
 }
 
 impl Exchange {
+    // FIXME think about better name
+    pub async fn create_order_base(
+        &self,
+        order: &OrderSnapshot,
+        cancellation_token: CancellationToken,
+    ) {
+        info!("Submitting order {:?}", order);
+        //let order_ref: OrderRef = OrderRef(Arc::new(RwLock::new(order)));
+        self.orders
+            .add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+
+        // FIXME handle cancellation_token
+
+        let create_order_future = self.create_order(order, cancellation_token);
+
+        pin_mut!(create_order_future);
+        // TODO if AllowedCreateEventSourceType != AllowedEventSourceType.OnlyFallback
+
+        tokio::select! {
+            created_order_outcome = create_order_future => {
+                if let Some(created_order_result) = created_order_outcome{
+                    if let Error(exchange_error) = created_order_result.outcome {
+                        if exchange_error.error_type == ExchangeErrorType::ParsingError {
+                            // FIXME self.check_order_creation()
+                        }
+                    }
+                }
+            }
+        }
+
+        // TODO check_order_fills(order...)
+
+        if order.props.status == OrderStatus::Creating {
+            error!(
+                "OrderStatus of order {} is Creating at the end of create order procedure",
+                order.header.client_order_id
+            );
+        }
+
+        // TODO DataRecorder.Save(order);
+
+        info!(
+            "Order was submitted {} {:?} {:?} on {}",
+            order.header.client_order_id,
+            order.props.exchange_order_id,
+            order.header.reservation_id,
+            order.header.exchange_account_id
+        );
+    }
+
     pub async fn create_order(
+        &self,
+        order: &OrderSnapshot,
+        cancellation_token: CancellationToken,
+    ) -> Option<CreateOrderResult> {
+        let order_to_create = OrderCreating {
+            header: (*order.header).clone(),
+            price: order.props.price(),
+        };
+        let create_order_result = self.create_order_core(&order_to_create, cancellation_token);
+
+        // FIXME return value
+        None
+    }
+
+    pub async fn create_order_core(
         &self,
         order: &OrderCreating,
         cancellation_token: CancellationToken,

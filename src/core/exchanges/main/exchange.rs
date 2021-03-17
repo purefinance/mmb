@@ -47,7 +47,7 @@ pub struct Exchange {
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
     websocket_channels: Vec<String>,
     pub(super) exchange_interaction: Box<dyn ExchangeClient>,
-    orders: Arc<OrdersPool>,
+    pub(super) orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
 
     // It allows to send and receive notification about event in websocket channel

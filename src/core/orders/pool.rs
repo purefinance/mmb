@@ -64,6 +64,7 @@ impl OrdersPool {
     }
 
     /// Insert specified `OrderSnapshot` in order pool.
+    // FIXME Return true?
     /// Return true if there is already order with specified client order id in pool (new order replace old order)
     pub fn add_snapshot_initial(&self, snapshot: Arc<RwLock<OrderSnapshot>>) {
         let client_order_id = snapshot.read().header.client_order_id.clone();
