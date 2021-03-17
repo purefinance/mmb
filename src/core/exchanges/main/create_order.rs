@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use futures::pin_mut;
 use log::{error, info};
 use parking_lot::RwLock;
@@ -7,6 +7,7 @@ use tokio::sync::oneshot;
 
 use crate::core::{
     exchanges::cancellation_token::CancellationToken,
+    exchanges::common::ExchangeAccountId,
     exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType,
     exchanges::common::RestRequestOutcome,
@@ -102,10 +103,56 @@ impl Exchange {
             header: (*order.header).clone(),
             price: order.props.price(),
         };
-        let create_order_result = self.create_order_core(&order_to_create, cancellation_token);
+        let create_order_result = self
+            .create_order_core(&order_to_create, cancellation_token)
+            .await;
+
+        if let Some(created_order) = create_order_result {
+            match created_order.outcome {
+                Success(exchange_order_id) => {
+                    Self::handle_create_order_succeeded(
+                        &self.exchange_account_id,
+                        &order.header.client_order_id,
+                        &exchange_order_id,
+                        &created_order.source_type,
+                    );
+                }
+                Error(exchange_error) => {
+                    if exchange_error.error_type != ExchangeErrorType::ParsingError {
+                        // FIXME handle_create_order_failed()
+                    }
+                }
+            }
+        }
 
         // FIXME return value
         None
+    }
+
+    // FIXME should be part of BotBase?
+    fn handle_create_order_succeeded(
+        exchange_account_id: &ExchangeAccountId,
+        client_order_id: &ClientOrderId,
+        exchange_order_id: &ExchangeOrderId,
+        source_type: &EventSourceType,
+    ) -> Result<()> {
+        // TODO some lock? Why should we?
+        // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
+
+        let args_to_log = (exchange_account_id, client_order_id, exchange_order_id);
+
+        if client_order_id.as_str().is_empty() {
+            let error_msg = format!(
+                "Order was created but client_order_id is empty. Order: {:?}",
+                args_to_log
+            );
+            // FIXME do we really new log here, or it just wil be performed caller side?
+            error!("{}", error_msg);
+
+            bail!("{}", error_msg);
+        }
+
+        bail!("delete this bail")
     }
 
     pub async fn create_order_core(
