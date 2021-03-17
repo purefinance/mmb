@@ -233,6 +233,7 @@ impl Exchange {
 
                                 return Ok(());
                             }
+
                             // TODO if type EventSourceType::RestFallback... And some metrics there
                             order_ref.fn_mut(|order| {
                                 order.set_status(OrderStatus::Created, Utc::now());
@@ -263,12 +264,9 @@ impl Exchange {
                             Ok(())
                         }
                     }
-                });
+                })
             }
         }
-
-        // FIXME
-        bail!("delete this bail")
     }
 
     // FIXME Should be in botBase?
