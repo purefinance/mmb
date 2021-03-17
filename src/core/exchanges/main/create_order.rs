@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
+use chrono::Utc;
 use futures::pin_mut;
-use log::{error, info};
+use log::{error, info, warn};
 use parking_lot::RwLock;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -13,8 +14,10 @@ use crate::core::{
     exchanges::common::RestRequestOutcome,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
+    orders::order::OrderEventType,
     orders::order::OrderSnapshot,
     orders::order::OrderStatus,
+    orders::order::OrderType,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
 
@@ -83,7 +86,8 @@ impl Exchange {
             );
         }
 
-        // TODO DataRecorder.Save(order);
+        // TODO DataRecorder.Save(order); Do we really need it here?
+        // Cause it's already performed in handle_create_order_succeeded
 
         info!(
             "Order was submitted {} {:?} {:?} on {}",
@@ -110,16 +114,25 @@ impl Exchange {
         if let Some(created_order) = create_order_result {
             match created_order.outcome {
                 Success(exchange_order_id) => {
-                    Self::handle_create_order_succeeded(
+                    self.handle_create_order_succeeded(
                         &self.exchange_account_id,
                         &order.header.client_order_id,
                         &exchange_order_id,
                         &created_order.source_type,
-                    );
+                    )
+                    // FIXME delete unwrap
+                    .unwrap();
                 }
                 Error(exchange_error) => {
                     if exchange_error.error_type != ExchangeErrorType::ParsingError {
-                        // FIXME handle_create_order_failed()
+                        self.handle_create_order_failed(
+                            &self.exchange_account_id,
+                            &order.header.client_order_id,
+                            &exchange_error,
+                            &created_order.source_type,
+                        )
+                        // FIXME delete unwrap
+                        .unwrap()
                     }
                 }
             }
@@ -130,7 +143,19 @@ impl Exchange {
     }
 
     // FIXME should be part of BotBase?
+    fn handle_create_order_failed(
+        &self,
+        exchange_account_id: &ExchangeAccountId,
+        client_order_id: &ClientOrderId,
+        exchange_error: &ExchangeError,
+        source_type: &EventSourceType,
+    ) -> Result<()> {
+        bail!("")
+    }
+
+    // FIXME should be part of BotBase?
     fn handle_create_order_succeeded(
+        &self,
         exchange_account_id: &ExchangeAccountId,
         client_order_id: &ClientOrderId,
         exchange_order_id: &ExchangeOrderId,
@@ -152,7 +177,114 @@ impl Exchange {
             bail!("{}", error_msg);
         }
 
+        if exchange_order_id.as_str().is_empty() {
+            let error_msg = format!(
+                "Order was created but exchange_order_id is empty. Order: {:?}",
+                args_to_log
+            );
+            error!("{}", error_msg);
+
+            bail!("{}", error_msg);
+        }
+
+        match self.orders.orders_by_client_id.get(client_order_id) {
+            None => {
+                error!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
+
+                // FIXME why not exception/Result throw?
+                return Ok(());
+            }
+            Some(order_ref) => {
+                order_ref.fn_mut(|order| {
+                    order.props.exchange_order_id = Some(exchange_order_id.clone());
+
+                    let status = order.props.status;
+                    // FIXME extract that match to function
+                    match status {
+                        OrderStatus::FailedToCreate => {
+                            let error_msg = format!(
+                                "CreateOrderSucceeded was received for a FailedToCreate order.
+                                Probably FaildeToCreate fallbach was received before Creation Rresponse {:?}",
+                                args_to_log
+                            );
+
+                            error!("{}", error_msg);
+                            bail!("{}", error_msg)
+                        }
+                        OrderStatus::Created => {
+                            warn!("CreateOrderSucceeded was received for a Created order {:?}", args_to_log);
+                            Ok(())
+                        }
+                        OrderStatus::Canceling => {
+                            warn!("CreateOrderSucceeded was received for a Canceling order {:?}", args_to_log);
+                            Ok(())
+                        }
+                        OrderStatus::Canceled => {
+                            warn!("CreateOrderSucceeded was received for a Canceled order {:?}", args_to_log);
+                            Ok(())
+                        }
+                        OrderStatus::Completed => {
+                            warn!("CreateOrderSucceeded was received for a Completed order {:?}", args_to_log);
+                            Ok(())
+                        }
+                        OrderStatus::Creating => {
+                            if self.orders.orders_by_exchange_id.contains_key(exchange_order_id) {
+                                info!("Order has already been added to the local orders pool {:?}", args_to_log);
+
+                                return Ok(());
+                            }
+                            // TODO if type EventSourceType::RestFallback... And some metrics there
+                            order_ref.fn_mut(|order| {
+                                order.set_status(OrderStatus::Created, Utc::now());
+                                order.internal_props.creation_event_source_type = Some(source_type.clone());
+                            });
+                            self.orders.orders_by_exchange_id.insert(exchange_order_id.clone(), order_ref.clone());
+
+                            if order.header.order_type != OrderType::Liquidation{
+                                // TODO BalanceManager
+                            }
+
+                            order_ref.fn_mut(|order| {
+                                self.add_event_on_order_change(order, OrderEventType::CreateOrderSucceeded);
+                            });
+
+                            // TODO if BufferedFillsManager.TryGetFills(...)
+                            // TODO if BufferedCanceledORdersManager.TrygetOrder(...)
+
+                            // TODO DataRecorder.Save(order); Do we really need it here?
+                            // Cause it's already performed in handle_create_order_succeeded
+
+                            info!("Order was created: {:?}", args_to_log);
+
+                            Ok(())
+                        }
+                        OrderStatus::FailedToCancel => {
+                            // FIXME what about this option? Why it did not handled in C#?
+                            Ok(())
+                        }
+                    }
+                });
+            }
+        }
+
+        // FIXME
         bail!("delete this bail")
+    }
+
+    // FIXME Should be in botBase?
+    fn add_event_on_order_change(&self, order: &mut OrderSnapshot, event_type: OrderEventType) {
+        if event_type == OrderEventType::CancelOrderSucceeded {
+            order.internal_props.cancellation_event_was_raised = true;
+        }
+
+        if order.props.is_finished() {
+            let _ = self
+                .orders
+                .not_finished_orders
+                .remove(&order.header.client_order_id);
+        }
+
+        // TODO events_channel.add_event(new ORderEvent);
     }
 
     pub async fn create_order_core(

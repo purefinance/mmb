@@ -69,6 +69,15 @@ pub enum OrderType {
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
+pub enum OrderEventType {
+    CreateOrderSucceeded,
+    CreateOrderFailed,
+    OrderFilled,
+    OrderCompleted,
+    CancelOrderSucceeded,
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderExecutionType {
     None = 0,
     MakerOnly = 1,
