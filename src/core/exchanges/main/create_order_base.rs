@@ -24,12 +24,7 @@ use super::{create_order::CreateOrderResult, exchange::Exchange};
 use crate::core::exchanges::main::exchange::RequestResult::{Error, Success};
 
 impl Exchange {
-    // FIXME think about better name
-    pub async fn create_order_base(
-        &self,
-        order: &OrderSnapshot,
-        cancellation_token: CancellationToken,
-    ) {
+    pub async fn create_order(&self, order: &OrderSnapshot, cancellation_token: CancellationToken) {
         info!("Submitting order {:?}", order);
         //let order_ref: OrderRef = OrderRef(Arc::new(RwLock::new(order)));
         self.orders
@@ -37,22 +32,24 @@ impl Exchange {
 
         // FIXME handle cancellation_token
 
-        let create_order_future = self.create_order(order, cancellation_token);
+        let create_order_future = self.create_order_base(order, cancellation_token);
 
         pin_mut!(create_order_future);
         // TODO if AllowedCreateEventSourceType != AllowedEventSourceType.OnlyFallback
 
         tokio::select! {
             created_order_outcome = create_order_future => {
-                if let Some(created_order_result) = created_order_outcome{
+                if let Some(created_order_result) = created_order_outcome {
                     if let Error(exchange_error) = created_order_result.outcome {
                         if exchange_error.error_type == ExchangeErrorType::ParsingError {
-                            // FIXME self.check_order_creation()
+                            // FIXME self.check_order_creation().await
                         }
                     }
                 }
             }
         }
+
+        // TODO create_order_cancellation_token_source.cancel();
 
         // TODO check_order_fills(order...)
 
@@ -75,7 +72,7 @@ impl Exchange {
         );
     }
 
-    pub async fn create_order(
+    async fn create_order_base(
         &self,
         order: &OrderSnapshot,
         cancellation_token: CancellationToken,
@@ -88,8 +85,8 @@ impl Exchange {
             .create_order_core(&order_to_create, cancellation_token)
             .await;
 
-        if let Some(created_order) = create_order_result {
-            match created_order.outcome {
+        if let Some(ref created_order) = create_order_result {
+            match &created_order.outcome {
                 Success(exchange_order_id) => {
                     self.handle_create_order_succeeded(
                         &self.exchange_account_id,
@@ -115,8 +112,7 @@ impl Exchange {
             }
         }
 
-        // FIXME return value
-        None
+        create_order_result
     }
 
     // FIXME should be part of BotBase?
@@ -363,7 +359,7 @@ impl Exchange {
         }
     }
 
-    // FIXME Should be in botBase?
+    // TODO Should be in botBase?
     fn add_event_on_order_change(&self, order: &mut OrderSnapshot, event_type: OrderEventType) {
         if event_type == OrderEventType::CancelOrderSucceeded {
             order.internal_props.cancellation_event_was_raised = true;

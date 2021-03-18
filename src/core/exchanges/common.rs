@@ -256,6 +256,7 @@ pub enum ExchangeErrorType {
     ParsingError,
     PendingError,
     ServiceUnavailable,
+    UnexpectedOrderStatus,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
