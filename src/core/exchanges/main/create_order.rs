@@ -182,7 +182,13 @@ impl Exchange {
                     client_order_id,
                     &order.props.exchange_order_id,
                 );
-                self.react_on_status_when_failed(order, args_to_log, &order_ref, source_type)
+                self.react_on_status_when_failed(
+                    order,
+                    args_to_log,
+                    &order_ref,
+                    source_type,
+                    exchange_error,
+                )
             }),
         }
     }
@@ -192,31 +198,62 @@ impl Exchange {
         order: &OrderSnapshot,
         args_to_log: (&ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
         order_ref: &OrderRef,
-        source_type: &EventSourceType,
+        _source_type: &EventSourceType,
+        exchange_error: &ExchangeError,
     ) -> Result<()> {
         let status = order.props.status;
         match status {
-            OrderStatus::Created => {
-                let error_msg = format!(
-                    "CreateOrderFailed was received for a Created order {:?}",
+            OrderStatus::Created => Self::log_error_and_propagate("Created", args_to_log),
+            OrderStatus::FailedToCreate => {
+                warn!(
+                    "CreateOrderSucceeded was received for a FaildeToCreate order {:?}",
                     args_to_log
                 );
+                Ok(())
+            }
+            OrderStatus::Canceling => Self::log_error_and_propagate("Canceling", args_to_log),
+            OrderStatus::Canceled => Self::log_error_and_propagate("Canceled", args_to_log),
+            OrderStatus::Completed => Self::log_error_and_propagate("Completed", args_to_log),
+            OrderStatus::FailedToCancel => {
+                // FIXME what about this option? Why it did not handled in C#?
+                Ok(())
+            }
+            OrderStatus::Creating => {
+                // TODO RestFallback and some metrics
 
-                error!("{}", error_msg);
-                bail!("{}", error_msg)
+                order_ref.fn_mut(|order| {
+                    order.set_status(OrderStatus::FailedToCreate, Utc::now());
+                    order.internal_props.last_creation_error_type =
+                        Some(exchange_error.error_type.clone());
+                    order.internal_props.last_creation_error_message =
+                        exchange_error.message.clone();
+
+                    self.add_event_on_order_change(order, OrderEventType::CreateOrderFailed);
+                });
+
+                // TODO DataRecorder.Save(order)
+
+                warn!(
+                    "Order creation failed {:?}, with error: {:?}",
+                    args_to_log, exchange_error
+                );
+
+                Ok(())
             }
-            OrderStatus::FailedToCreate => {
-                // FIXME continue here
-            }
-            OrderStatus::Canceling => {}
-            OrderStatus::Canceled => {}
-            OrderStatus::Completed => {}
-            OrderStatus::Creating => {}
-            OrderStatus::FailedToCancel => {}
         }
+    }
 
-        // FIXME delete
-        bail!("")
+    fn log_error_and_propagate(
+        template: &str,
+        args_to_log: (&ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
+    ) -> Result<()> {
+        let error_msg = format!(
+            "CreateOrderFailed was received for a {} order {:?}",
+            template, args_to_log
+        );
+
+        error!("{}", error_msg);
+        bail!("{}", error_msg)
     }
 
     // FIXME should be part of BotBase?
@@ -267,6 +304,17 @@ impl Exchange {
         }
     }
 
+    fn log_warn(
+        template: &str,
+        args_to_log: (&ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
+    ) -> Result<()> {
+        warn!(
+            "CreateOrderSucceeded was received for a {} order {:?}",
+            template, args_to_log
+        );
+        Ok(())
+    }
+
     fn react_on_status_when_succeed(
         &self,
         order: &OrderSnapshot,
@@ -287,32 +335,12 @@ impl Exchange {
                 error!("{}", error_msg);
                 bail!("{}", error_msg)
             }
-            OrderStatus::Created => {
-                warn!(
-                    "CreateOrderSucceeded was received for a Created order {:?}",
-                    args_to_log
-                );
-                Ok(())
-            }
-            OrderStatus::Canceling => {
-                warn!(
-                    "CreateOrderSucceeded was received for a Canceling order {:?}",
-                    args_to_log
-                );
-                Ok(())
-            }
-            OrderStatus::Canceled => {
-                warn!(
-                    "CreateOrderSucceeded was received for a Canceled order {:?}",
-                    args_to_log
-                );
-                Ok(())
-            }
-            OrderStatus::Completed => {
-                warn!(
-                    "CreateOrderSucceeded was received for a Completed order {:?}",
-                    args_to_log
-                );
+            OrderStatus::Created => Self::log_warn("Created", args_to_log),
+            OrderStatus::Canceling => Self::log_warn("Canceling", args_to_log),
+            OrderStatus::Canceled => Self::log_warn("Canceled", args_to_log),
+            OrderStatus::Completed => Self::log_warn("Completed", args_to_log),
+            OrderStatus::FailedToCancel => {
+                // FIXME what about this option? Why it did not handled in C#?
                 Ok(())
             }
             OrderStatus::Creating => {
@@ -329,7 +357,8 @@ impl Exchange {
                     return Ok(());
                 }
 
-                // TODO if type EventSourceType::RestFallback... And some metrics there
+                // TODO RestFallback and some metrics
+
                 order_ref.fn_mut(|order| {
                     order.set_status(OrderStatus::Created, Utc::now());
                     order.internal_props.creation_event_source_type = Some(source_type.clone());
@@ -354,10 +383,6 @@ impl Exchange {
 
                 info!("Order was created: {:?}", args_to_log);
 
-                Ok(())
-            }
-            OrderStatus::FailedToCancel => {
-                // FIXME what about this option? Why it did not handled in C#?
                 Ok(())
             }
         }
