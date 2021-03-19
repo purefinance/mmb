@@ -178,24 +178,17 @@ impl Exchange {
                 let args_to_log = (
                     exchange_account_id,
                     client_order_id,
-                    &order.props.exchange_order_id,
+                    &order.props.exchange_order_id.clone(),
                 );
-                self.react_on_status_when_failed(
-                    order,
-                    args_to_log,
-                    &order_ref,
-                    source_type,
-                    exchange_error,
-                )
+                self.react_on_status_when_failed(order, args_to_log, source_type, exchange_error)
             }),
         }
     }
 
     fn react_on_status_when_failed(
         &self,
-        order: &OrderSnapshot,
+        order: &mut OrderSnapshot,
         args_to_log: (&ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
-        order_ref: &OrderRef,
         _source_type: &EventSourceType,
         exchange_error: &ExchangeError,
     ) -> Result<()> {
@@ -219,15 +212,12 @@ impl Exchange {
             OrderStatus::Creating => {
                 // TODO RestFallback and some metrics
 
-                order_ref.fn_mut(|order| {
-                    order.set_status(OrderStatus::FailedToCreate, Utc::now());
-                    order.internal_props.last_creation_error_type =
-                        Some(exchange_error.error_type.clone());
-                    order.internal_props.last_creation_error_message =
-                        exchange_error.message.clone();
+                order.set_status(OrderStatus::FailedToCreate, Utc::now());
+                order.internal_props.last_creation_error_type =
+                    Some(exchange_error.error_type.clone());
+                order.internal_props.last_creation_error_message = exchange_error.message.clone();
 
-                    self.add_event_on_order_change(order, OrderEventType::CreateOrderFailed);
-                });
+                self.add_event_on_order_change(order, OrderEventType::CreateOrderFailed);
 
                 // TODO DataRecorder.Save(order)
 
@@ -313,8 +303,9 @@ impl Exchange {
 
     fn react_on_status_when_succeed(
         &self,
-        order: &OrderSnapshot,
+        order: &mut OrderSnapshot,
         args_to_log: (&ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
+        // Use it only for inserting in orders_pool
         order_ref: &OrderRef,
         source_type: &EventSourceType,
     ) -> Result<()> {
@@ -352,10 +343,8 @@ impl Exchange {
 
                 // TODO RestFallback and some metrics
 
-                order_ref.fn_mut(|order| {
-                    order.set_status(OrderStatus::Created, Utc::now());
-                    order.internal_props.creation_event_source_type = Some(source_type.clone());
-                });
+                order.set_status(OrderStatus::Created, Utc::now());
+                order.internal_props.creation_event_source_type = Some(source_type.clone());
                 self.orders
                     .orders_by_exchange_id
                     .insert(exchange_order_id.clone(), order_ref.clone());
@@ -364,9 +353,7 @@ impl Exchange {
                     // TODO BalanceManager
                 }
 
-                order_ref.fn_mut(|order| {
-                    self.add_event_on_order_change(order, OrderEventType::CreateOrderSucceeded);
-                });
+                self.add_event_on_order_change(order, OrderEventType::CreateOrderSucceeded);
 
                 // TODO if BufferedFillsManager.TryGetFills(...)
                 // TODO if BufferedCanceledORdersManager.TrygetOrder(...)

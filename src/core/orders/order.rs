@@ -260,6 +260,7 @@ impl OrderHeader {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSimpleProps {
+    // FIXME It is already existed in OrderHeader
     client_order_id: ClientOrderId,
     pub raw_price: Option<Price>,
     pub role: Option<OrderRole>,
