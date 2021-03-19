@@ -42,6 +42,9 @@ impl OrderRef {
     pub fn status(&self) -> OrderStatus {
         self.fn_ref(|x| x.props.status)
     }
+    pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
+        self.fn_ref(|x| x.props.exchange_order_id.clone())
+    }
 }
 
 pub struct OrdersPool {

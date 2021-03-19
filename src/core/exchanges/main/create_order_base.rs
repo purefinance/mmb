@@ -81,19 +81,17 @@ impl Exchange {
                             },
                             Error(exchange_error) => {
                                 if exchange_error.error_type == ExchangeErrorType::ParsingError {
-                                    // TODO self.check_order_creation().await?
+                                    // TODO Error handling should be placed in self.check_order_creation().await
                                 }
-                                // FIXME ?????
-                                bail!("What should we do in this situation?")
+                                bail!("Delete it in the future")
                             }
                         }
 
                     }
                     Err(exchange_error) => {
                         // FIXME ?????
-                        bail!("What should we do in this situation?")
+                        bail!("Some exchange error")
                     }
-
                 }
             }
         }
