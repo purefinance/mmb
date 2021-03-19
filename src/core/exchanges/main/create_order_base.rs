@@ -28,7 +28,7 @@ impl Exchange {
         &self,
         order: &OrderSnapshot,
         cancellation_token: CancellationToken,
-        // FIXME Evgeniy, look at this signature. Maybe it should be OrderRef?
+        // FIXME Evgeniy, look at this signature. Maybe it should be smth different?
     ) -> Result<OrderRef> {
         info!("Submitting order {:?}", order);
         self.orders
@@ -55,6 +55,7 @@ impl Exchange {
                     }
                 }
             }
+            // TODO other future to create order
         }
     }
 
@@ -68,7 +69,9 @@ impl Exchange {
                 let result_order = &*self
                     .orders
                     .orders_by_exchange_id
-                    .get(&exchange_order_id).ok_or_else(|| anyhow!("Impossible situation: order was created, but missing in local orders pool"))?;
+                    .get(&exchange_order_id).ok_or_else(||
+                        anyhow!("Impossible situation: order was created, but missing in local orders pool")
+                    )?;
 
                 // TODO create_order_cancellation_token_source.cancel();
 
@@ -98,7 +101,6 @@ impl Exchange {
                 if exchange_error.error_type == ExchangeErrorType::ParsingError {
                     // TODO Error handling should be placed in self.check_order_creation().await
                 }
-                dbg!(&exchange_error);
                 bail!("Delete it in the future")
             }
         }
@@ -154,7 +156,7 @@ impl Exchange {
         exchange_error: &ExchangeError,
         source_type: &EventSourceType,
     ) -> Result<()> {
-        // TODO some lock? Why should we?
+        // FIXME some lock? Why should we?
         // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
 
         let args_to_log = (exchange_account_id, client_order_id);
@@ -256,7 +258,7 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         source_type: &EventSourceType,
     ) -> Result<()> {
-        // TODO some lock? Why should we?
+        // FIXME some lock? Why should we?
         // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
 
         let args_to_log = (exchange_account_id, client_order_id, exchange_order_id);
@@ -319,10 +321,10 @@ impl Exchange {
         match status {
             OrderStatus::FailedToCreate => {
                 let error_msg = format!(
-                                "CreateOrderSucceeded was received for a FailedToCreate order.
+                    "CreateOrderSucceeded was received for a FailedToCreate order.
                                 Probably FaildeToCreate fallbach was received before Creation Rresponse {:?}",
                                 args_to_log
-                            );
+                );
 
                 error!("{}", error_msg);
                 bail!("{}", error_msg)
