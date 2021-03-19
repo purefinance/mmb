@@ -83,6 +83,7 @@ impl Exchange {
                                 if exchange_error.error_type == ExchangeErrorType::ParsingError {
                                     // TODO Error handling should be placed in self.check_order_creation().await
                                 }
+                                dbg!(&exchange_error);
                                 bail!("Delete it in the future")
                             }
                         }

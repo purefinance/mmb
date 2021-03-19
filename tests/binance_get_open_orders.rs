@@ -7,9 +7,9 @@ use mmb_lib::core::exchanges::main::features::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::env;
 use std::thread;
 use std::time::Duration;
+use std::{env, sync::Arc};
 
 #[actix_rt::test]
 async fn open_orders_exists() {
@@ -50,9 +50,10 @@ async fn open_orders_exists() {
 
     exchange.clone().connect().await;
 
+    let test_order_client_id = ClientOrderId::unique_id();
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
-        ClientOrderId::unique_id(),
+        test_order_client_id.clone(),
         Utc::now(),
         exchange_account_id.clone(),
         test_currency_pair.clone(),
@@ -65,19 +66,28 @@ async fn open_orders_exists() {
         "".into(),
     );
 
-    let order_to_create = OrderCreating {
-        header: order_header,
-        // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000004),
-    };
+    let simple_props = OrderSimpleProps::new(test_order_client_id, Some(dec!(0.00000007)));
 
+    let order_to_create = OrderSnapshot::new(
+        Arc::new(order_header.clone()),
+        simple_props,
+        OrderFills::default(),
+        OrderStatusHistory::default(),
+        SystemInternalOrderProps::default(),
+    );
+
+    let _ = exchange
+        .cancel_all_orders(test_currency_pair.clone())
+        .await
+        .expect("in test");
     exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
         .expect("in test");
 
+    let second_test_order_client_id = ClientOrderId::unique_id();
     let second_order_header = OrderHeader::new(
-        ClientOrderId::unique_id(),
+        second_test_order_client_id.clone(),
         Utc::now(),
         exchange_account_id.clone(),
         test_currency_pair.clone(),
@@ -90,11 +100,15 @@ async fn open_orders_exists() {
         "".into(),
     );
 
-    let second_order_to_create = OrderCreating {
-        header: second_order_header,
-        // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
-        price: dec!(0.00000004),
-    };
+    let simple_props = OrderSimpleProps::new(second_test_order_client_id, Some(dec!(0.00000007)));
+    let second_order_to_create = OrderSnapshot::new(
+        Arc::new(second_order_header.clone()),
+        simple_props,
+        OrderFills::default(),
+        OrderStatusHistory::default(),
+        SystemInternalOrderProps::default(),
+    );
+
     exchange
         .create_order(&second_order_to_create, CancellationToken::default())
         .await
