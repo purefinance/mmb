@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use futures::pin_mut;
 use log::{error, info, warn};
@@ -20,7 +20,7 @@ use crate::core::{
     orders::{fill::EventSourceType, order::OrderCreating},
 };
 
-use super::{create_order::CreateOrderResult, exchange::Exchange};
+use super::{create_order::CreateOrderResult, exchange::Exchange, exchange::RequestResult};
 use crate::core::exchanges::main::exchange::RequestResult::{Error, Success};
 
 impl Exchange {
@@ -31,7 +31,6 @@ impl Exchange {
         // FIXME Evgeniy, look at this signature. Maybe it should be OrderRef?
     ) -> Result<OrderRef> {
         info!("Submitting order {:?}", order);
-        //let order_ref: OrderRef = OrderRef(Arc::new(RwLock::new(order)));
         self.orders
             .add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
 
@@ -48,52 +47,59 @@ impl Exchange {
             created_order_outcome = create_order_future => {
                 match created_order_outcome {
                     Ok(created_order_result) => {
-                        match created_order_result.outcome {
-                            Success(exchange_order_id) => {
-                                let result_order = &*self
-                                    .orders
-                                    .orders_by_exchange_id
-                                    .get(&exchange_order_id).unwrap();
-
-                                // TODO create_order_cancellation_token_source.cancel();
-
-                                // TODO check_order_fills(order...)
-
-                                if order.props.status == OrderStatus::Creating {
-                                    error!(
-                                        "OrderStatus of order {} is Creating at the end of create order procedure",
-                                        order.header.client_order_id
-                                    );
-                                }
-
-                                // TODO DataRecorder.Save(order); Do we really need it here?
-                                // Cause it's already performed in handle_create_order_succeeded
-
-                                info!(
-                                    "Order was submitted {} {:?} {:?} on {}",
-                                    order.header.client_order_id,
-                                    order.props.exchange_order_id,
-                                    order.header.reservation_id,
-                                    order.header.exchange_account_id
-                                );
-
-                                return Ok(result_order.clone());
-                            },
-                            Error(exchange_error) => {
-                                if exchange_error.error_type == ExchangeErrorType::ParsingError {
-                                    // TODO Error handling should be placed in self.check_order_creation().await
-                                }
-                                dbg!(&exchange_error);
-                                bail!("Delete it in the future")
-                            }
-                        }
-
+                        self.match_created_order_outcome(&created_order_result.outcome, order)
                     }
-                    Err(exchange_error) => {
-                        // FIXME ?????
+                    Err(_exchange_error) => {
+                        // FIXME How to handle it?????
                         bail!("Some exchange error")
                     }
                 }
+            }
+        }
+    }
+
+    fn match_created_order_outcome(
+        &self,
+        outcome: &RequestResult<ExchangeOrderId>,
+        order: &OrderSnapshot,
+    ) -> Result<OrderRef> {
+        match outcome {
+            Success(exchange_order_id) => {
+                let result_order = &*self
+                    .orders
+                    .orders_by_exchange_id
+                    .get(&exchange_order_id).ok_or_else(|| anyhow!("Impossible situation: order was created, but missing in local orders pool"))?;
+
+                // TODO create_order_cancellation_token_source.cancel();
+
+                // TODO check_order_fills(order...)
+
+                if order.props.status == OrderStatus::Creating {
+                    error!(
+                        "OrderStatus of order {} is Creating at the end of create order procedure",
+                        order.header.client_order_id
+                    );
+                }
+
+                // TODO DataRecorder.Save(order); Do we really need it here?
+                // Cause it's already performed in handle_create_order_succeeded
+
+                info!(
+                    "Order was submitted {} {:?} {:?} on {}",
+                    order.header.client_order_id,
+                    order.props.exchange_order_id,
+                    order.header.reservation_id,
+                    order.header.exchange_account_id
+                );
+
+                return Ok(result_order.clone());
+            }
+            Error(exchange_error) => {
+                if exchange_error.error_type == ExchangeErrorType::ParsingError {
+                    // TODO Error handling should be placed in self.check_order_creation().await
+                }
+                dbg!(&exchange_error);
+                bail!("Delete it in the future")
             }
         }
     }
