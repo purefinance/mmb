@@ -24,59 +24,86 @@ use super::{create_order::CreateOrderResult, exchange::Exchange};
 use crate::core::exchanges::main::exchange::RequestResult::{Error, Success};
 
 impl Exchange {
-    pub async fn create_order(&self, order: &OrderSnapshot, cancellation_token: CancellationToken) {
+    pub async fn create_order(
+        &self,
+        order: &OrderSnapshot,
+        cancellation_token: CancellationToken,
+        // FIXME Evgeniy, look at this signature. Maybe it should be OrderRef?
+    ) -> Result<OrderRef> {
         info!("Submitting order {:?}", order);
         //let order_ref: OrderRef = OrderRef(Arc::new(RwLock::new(order)));
         self.orders
             .add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
 
-        // FIXME handle cancellation_token
+        let _linked_cancellation_token =
+            CancellationToken::create_linked_token(&cancellation_token);
 
         let create_order_future = self.create_order_base(order, cancellation_token);
 
         pin_mut!(create_order_future);
         // TODO if AllowedCreateEventSourceType != AllowedEventSourceType.OnlyFallback
+        // TODO self.poll_order_create(order, pre_reservation_group_id, _linked_cancellation_token)
 
         tokio::select! {
             created_order_outcome = create_order_future => {
-                if let Some(created_order_result) = created_order_outcome {
-                    if let Error(exchange_error) = created_order_result.outcome {
-                        if exchange_error.error_type == ExchangeErrorType::ParsingError {
-                            // FIXME self.check_order_creation().await
+                match created_order_outcome {
+                    Ok(created_order_result) => {
+                        match created_order_result.outcome {
+                            Success(exchange_order_id) => {
+                                let result_order = &*self
+                                    .orders
+                                    .orders_by_exchange_id
+                                    .get(&exchange_order_id).unwrap();
+
+                                // TODO create_order_cancellation_token_source.cancel();
+
+                                // TODO check_order_fills(order...)
+
+                                if order.props.status == OrderStatus::Creating {
+                                    error!(
+                                        "OrderStatus of order {} is Creating at the end of create order procedure",
+                                        order.header.client_order_id
+                                    );
+                                }
+
+                                // TODO DataRecorder.Save(order); Do we really need it here?
+                                // Cause it's already performed in handle_create_order_succeeded
+
+                                info!(
+                                    "Order was submitted {} {:?} {:?} on {}",
+                                    order.header.client_order_id,
+                                    order.props.exchange_order_id,
+                                    order.header.reservation_id,
+                                    order.header.exchange_account_id
+                                );
+
+                                return Ok(result_order.clone());
+                            },
+                            Error(exchange_error) => {
+                                if exchange_error.error_type == ExchangeErrorType::ParsingError {
+                                    // TODO self.check_order_creation().await?
+                                }
+                                // FIXME ?????
+                                bail!("What should we do in this situation?")
+                            }
                         }
+
                     }
+                    Err(exchange_error) => {
+                        // FIXME ?????
+                        bail!("What should we do in this situation?")
+                    }
+
                 }
             }
         }
-
-        // TODO create_order_cancellation_token_source.cancel();
-
-        // TODO check_order_fills(order...)
-
-        if order.props.status == OrderStatus::Creating {
-            error!(
-                "OrderStatus of order {} is Creating at the end of create order procedure",
-                order.header.client_order_id
-            );
-        }
-
-        // TODO DataRecorder.Save(order); Do we really need it here?
-        // Cause it's already performed in handle_create_order_succeeded
-
-        info!(
-            "Order was submitted {} {:?} {:?} on {}",
-            order.header.client_order_id,
-            order.props.exchange_order_id,
-            order.header.reservation_id,
-            order.header.exchange_account_id
-        );
     }
 
     async fn create_order_base(
         &self,
         order: &OrderSnapshot,
         cancellation_token: CancellationToken,
-    ) -> Option<CreateOrderResult> {
+    ) -> Result<CreateOrderResult> {
         let order_to_create = OrderCreating {
             header: (*order.header).clone(),
             price: order.props.price(),
@@ -85,7 +112,7 @@ impl Exchange {
             .create_order_core(&order_to_create, cancellation_token)
             .await;
 
-        if let Some(ref created_order) = create_order_result {
+        if let Some(created_order) = create_order_result {
             match &created_order.outcome {
                 Success(exchange_order_id) => {
                     self.handle_create_order_succeeded(
@@ -93,9 +120,7 @@ impl Exchange {
                         &order.header.client_order_id,
                         &exchange_order_id,
                         &created_order.source_type,
-                    )
-                    // FIXME delete unwrap
-                    .unwrap();
+                    )?;
                 }
                 Error(exchange_error) => {
                     if exchange_error.error_type != ExchangeErrorType::ParsingError {
@@ -104,15 +129,16 @@ impl Exchange {
                             &order.header.client_order_id,
                             &exchange_error,
                             &created_order.source_type,
-                        )
-                        // FIXME delete unwrap
-                        .unwrap()
+                        )?
                     }
                 }
             }
+
+            return Ok(created_order);
         }
 
-        create_order_result
+        // FIXME Hm, in practice order already can be created on exchange
+        bail!("Order wasn't created, task was stopped earlier")
     }
 
     // FIXME should be part of BotBase?
@@ -188,7 +214,7 @@ impl Exchange {
             OrderStatus::Completed => Self::log_error_and_propagate("Completed", args_to_log),
             OrderStatus::FailedToCancel => {
                 // FIXME what about this option? Why it did not handled in C#?
-                Ok(())
+                Self::log_error_and_propagate("FailedToCancel", args_to_log)
             }
             OrderStatus::Creating => {
                 // TODO RestFallback and some metrics
@@ -262,9 +288,8 @@ impl Exchange {
 
         match self.orders.orders_by_client_id.get(client_order_id) {
             None => {
-                error!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
+                warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
 
-                // FIXME why not exception/Result throw?
                 return Ok(());
             }
             Some(order_ref) => order_ref.fn_mut(|order| {
@@ -310,10 +335,7 @@ impl Exchange {
             OrderStatus::Canceling => Self::log_warn("Canceling", args_to_log),
             OrderStatus::Canceled => Self::log_warn("Canceled", args_to_log),
             OrderStatus::Completed => Self::log_warn("Completed", args_to_log),
-            OrderStatus::FailedToCancel => {
-                // FIXME what about this option? Why it did not handled in C#?
-                Ok(())
-            }
+            OrderStatus::FailedToCancel => Self::log_warn("FailedToCancel", args_to_log),
             OrderStatus::Creating => {
                 if self
                     .orders

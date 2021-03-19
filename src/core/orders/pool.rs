@@ -45,11 +45,11 @@ impl OrderRef {
 }
 
 pub struct OrdersPool {
-    // FIXME just by_client_id
+    // FIXME just by_client_id?
     pub orders_by_client_id: DashMap<ClientOrderId, OrderRef>,
-    // FIXME just by_exchange_id
+    // FIXME just by_exchange_id?
     pub orders_by_exchange_id: DashMap<ExchangeOrderId, OrderRef>,
-    // FIXME just not_finished
+    // FIXME just not_finished?
     pub not_finished_orders: DashMap<ClientOrderId, OrderRef>,
     _private: (), // field base constructor shouldn't be accessible from other modules
 }
