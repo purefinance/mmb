@@ -20,6 +20,7 @@ impl CancellationToken {
         Self::default()
     }
 
+    // TODO It's just a stub
     pub fn create_linked_token(token: &CancellationToken) -> Self {
         token.clone()
     }

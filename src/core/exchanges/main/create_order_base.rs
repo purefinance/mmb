@@ -1,6 +1,5 @@
 use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
-use futures::pin_mut;
 use log::{error, info, warn};
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -39,7 +38,6 @@ impl Exchange {
 
         let create_order_future = self.create_order_base(order, cancellation_token);
 
-        pin_mut!(create_order_future);
         // TODO if AllowedCreateEventSourceType != AllowedEventSourceType.OnlyFallback
         // TODO self.poll_order_create(order, pre_reservation_group_id, _linked_cancellation_token)
 
@@ -148,7 +146,6 @@ impl Exchange {
         bail!("Order wasn't created, task was stopped earlier")
     }
 
-    // FIXME should be part of BotBase?
     fn handle_create_order_failed(
         &self,
         exchange_account_id: &ExchangeAccountId,
@@ -156,7 +153,6 @@ impl Exchange {
         exchange_error: &ExchangeError,
         source_type: &EventSourceType,
     ) -> Result<()> {
-        // FIXME some lock? Why should we?
         // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
 
         let args_to_log = (exchange_account_id, client_order_id);
@@ -213,7 +209,6 @@ impl Exchange {
             OrderStatus::Canceled => Self::log_error_and_propagate("Canceled", args_to_log),
             OrderStatus::Completed => Self::log_error_and_propagate("Completed", args_to_log),
             OrderStatus::FailedToCancel => {
-                // FIXME what about this option? Why it did not handled in C#?
                 Self::log_error_and_propagate("FailedToCancel", args_to_log)
             }
             OrderStatus::Creating => {
@@ -375,7 +370,6 @@ impl Exchange {
         }
     }
 
-    // TODO Should be in botBase?
     fn add_event_on_order_change(&self, order: &mut OrderSnapshot, event_type: OrderEventType) {
         if event_type == OrderEventType::CancelOrderSucceeded {
             order.internal_props.cancellation_event_was_raised = true;

@@ -42,12 +42,12 @@ enum CheckContent {
 }
 
 pub struct Exchange {
-    pub(super) exchange_account_id: ExchangeAccountId,
+    pub exchange_account_id: ExchangeAccountId,
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
     websocket_channels: Vec<String>,
     pub(super) exchange_interaction: Box<dyn ExchangeClient>,
-    pub(super) orders: Arc<OrdersPool>,
+    pub orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
 
     // It allows to send and receive notification about event in websocket channel
