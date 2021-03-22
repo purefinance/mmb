@@ -8,7 +8,7 @@ use mmb_lib::core::exchanges::main::features::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::{env, sync::Arc};
+use std::env;
 
 #[actix_rt::test]
 async fn create_successfully() {
@@ -65,15 +65,10 @@ async fn create_successfully() {
         "".into(),
     );
 
-    let simple_props = OrderSimpleProps::new(test_order_client_id, Some(dec!(0.0000001)));
-
-    let order_to_create = OrderSnapshot::new(
-        Arc::new(order_header.clone()),
-        simple_props,
-        OrderFills::default(),
-        OrderStatusHistory::default(),
-        SystemInternalOrderProps::default(),
-    );
+    let order_to_create = OrderCreating {
+        header: order_header.clone(),
+        price: dec!(0.0000001),
+    };
 
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
@@ -152,15 +147,10 @@ async fn should_fail() {
         "".into(),
     );
 
-    let simple_props = OrderSimpleProps::new(test_order_client_id, Some(dec!(0.0000001)));
-
-    let order_to_create = OrderSnapshot::new(
-        Arc::new(order_header.clone()),
-        simple_props,
-        OrderFills::default(),
-        OrderStatusHistory::default(),
-        SystemInternalOrderProps::default(),
-    );
+    let order_to_create = OrderCreating {
+        header: order_header,
+        price: dec!(0.0000001),
+    };
 
     let created_order = exchange
         .create_order(&order_to_create, CancellationToken::default())
@@ -172,7 +162,10 @@ async fn should_fail() {
             assert!(false)
         }
         Err(error) => {
-            assert_eq!("Delete it in the future", error.to_string());
+            assert_eq!(
+                "Delete it in the future. Exchange error: Filter failure: MIN_NOTIONAL",
+                error.to_string()
+            );
         }
     }
 }

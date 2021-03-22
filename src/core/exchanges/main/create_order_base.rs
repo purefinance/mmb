@@ -1,9 +1,3 @@
-use anyhow::{anyhow, bail, Result};
-use chrono::Utc;
-use log::{error, info, warn};
-use parking_lot::RwLock;
-use std::sync::Arc;
-
 use crate::core::{
     exchanges::cancellation_token::CancellationToken,
     exchanges::common::ExchangeAccountId,
@@ -18,6 +12,10 @@ use crate::core::{
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
+use anyhow::{anyhow, bail, Result};
+use chrono::Utc;
+use log::{error, info, warn};
+use std::sync::Arc;
 
 use super::{create_order::CreateOrderResult, exchange::Exchange, exchange::RequestResult};
 use crate::core::exchanges::main::exchange::RequestResult::{Error, Success};
@@ -25,18 +23,19 @@ use crate::core::exchanges::main::exchange::RequestResult::{Error, Success};
 impl Exchange {
     pub async fn create_order(
         &self,
-        order: &OrderSnapshot,
+        order_to_create: &OrderCreating,
         cancellation_token: CancellationToken,
-        // FIXME Evgeniy, look at this signature. Maybe it should be smth different?
     ) -> Result<OrderRef> {
-        info!("Submitting order {:?}", order);
-        self.orders
-            .add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+        info!("Submitting order {:?}", order_to_create);
+        self.orders.add_simple_initial(
+            Arc::new(order_to_create.header.clone()),
+            Some(order_to_create.price),
+        );
 
         let _linked_cancellation_token =
             CancellationToken::create_linked_token(&cancellation_token);
 
-        let create_order_future = self.create_order_base(order, cancellation_token);
+        let create_order_future = self.create_order_base(order_to_create, cancellation_token);
 
         // TODO if AllowedCreateEventSourceType != AllowedEventSourceType.OnlyFallback
         // TODO self.poll_order_create(order, pre_reservation_group_id, _linked_cancellation_token)
@@ -45,11 +44,10 @@ impl Exchange {
             created_order_outcome = create_order_future => {
                 match created_order_outcome {
                     Ok(created_order_result) => {
-                        self.match_created_order_outcome(&created_order_result.outcome, order)
+                        self.match_created_order_outcome(&created_order_result.outcome)
                     }
-                    Err(_exchange_error) => {
-                        // FIXME How to handle it?????
-                        bail!("Some exchange error")
+                    Err(exchange_error) => {
+                        bail!("Exchange error: {}", exchange_error)
                     }
                 }
             }
@@ -60,7 +58,6 @@ impl Exchange {
     fn match_created_order_outcome(
         &self,
         outcome: &RequestResult<ExchangeOrderId>,
-        order: &OrderSnapshot,
     ) -> Result<OrderRef> {
         match outcome {
             Success(exchange_order_id) => {
@@ -75,10 +72,10 @@ impl Exchange {
 
                 // TODO check_order_fills(order...)
 
-                if order.props.status == OrderStatus::Creating {
+                if result_order.status() == OrderStatus::Creating {
                     error!(
                         "OrderStatus of order {} is Creating at the end of create order procedure",
-                        order.header.client_order_id
+                        result_order.client_order_id()
                     );
                 }
 
@@ -87,10 +84,10 @@ impl Exchange {
 
                 info!(
                     "Order was submitted {} {:?} {:?} on {}",
-                    order.header.client_order_id,
-                    order.props.exchange_order_id,
-                    order.header.reservation_id,
-                    order.header.exchange_account_id
+                    result_order.client_order_id(),
+                    result_order.exchange_order_id(),
+                    result_order.reservation_id(),
+                    result_order.exchange_account_id()
                 );
 
                 return Ok(result_order.clone());
@@ -99,20 +96,19 @@ impl Exchange {
                 if exchange_error.error_type == ExchangeErrorType::ParsingError {
                     // TODO Error handling should be placed in self.check_order_creation().await
                 }
-                bail!("Delete it in the future")
+                bail!(
+                    "Delete it in the future. Exchange error: {}",
+                    exchange_error.message
+                )
             }
         }
     }
 
     async fn create_order_base(
         &self,
-        order: &OrderSnapshot,
+        order_to_create: &OrderCreating,
         cancellation_token: CancellationToken,
     ) -> Result<CreateOrderResult> {
-        let order_to_create = OrderCreating {
-            header: (*order.header).clone(),
-            price: order.props.price(),
-        };
         let create_order_result = self
             .create_order_core(&order_to_create, cancellation_token)
             .await;
@@ -122,7 +118,7 @@ impl Exchange {
                 Success(exchange_order_id) => {
                     self.handle_create_order_succeeded(
                         &self.exchange_account_id,
-                        &order.header.client_order_id,
+                        &order_to_create.header.client_order_id,
                         &exchange_order_id,
                         &created_order.source_type,
                     )?;
@@ -131,7 +127,7 @@ impl Exchange {
                     if exchange_error.error_type != ExchangeErrorType::ParsingError {
                         self.handle_create_order_failed(
                             &self.exchange_account_id,
-                            &order.header.client_order_id,
+                            &order_to_create.header.client_order_id,
                             &exchange_error,
                             &created_order.source_type,
                         )?
@@ -199,7 +195,7 @@ impl Exchange {
             OrderStatus::Created => Self::log_error_and_propagate("Created", args_to_log),
             OrderStatus::FailedToCreate => {
                 warn!(
-                    "CreateOrderSucceeded was received for a FaildeToCreate order {:?}",
+                    "CreateOrderFailed was received for a FaildeToCreate order {:?}",
                     args_to_log
                 );
                 Ok(())

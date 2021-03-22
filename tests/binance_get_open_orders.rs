@@ -7,9 +7,9 @@ use mmb_lib::core::exchanges::main::features::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
+use std::env;
 use std::thread;
 use std::time::Duration;
-use std::{env, sync::Arc};
 
 #[actix_rt::test]
 async fn open_orders_exists() {
@@ -66,15 +66,10 @@ async fn open_orders_exists() {
         "".into(),
     );
 
-    let simple_props = OrderSimpleProps::new(test_order_client_id, Some(dec!(0.00000007)));
-
-    let order_to_create = OrderSnapshot::new(
-        Arc::new(order_header.clone()),
-        simple_props,
-        OrderFills::default(),
-        OrderStatusHistory::default(),
-        SystemInternalOrderProps::default(),
-    );
+    let order_to_create = OrderCreating {
+        header: order_header,
+        price: dec!(0.00000009),
+    };
 
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
@@ -100,14 +95,10 @@ async fn open_orders_exists() {
         "".into(),
     );
 
-    let simple_props = OrderSimpleProps::new(second_test_order_client_id, Some(dec!(0.00000007)));
-    let second_order_to_create = OrderSnapshot::new(
-        Arc::new(second_order_header.clone()),
-        simple_props,
-        OrderFills::default(),
-        OrderStatusHistory::default(),
-        SystemInternalOrderProps::default(),
-    );
+    let second_order_to_create = OrderCreating {
+        header: second_order_header,
+        price: dec!(0.00000009),
+    };
 
     exchange
         .create_order(&second_order_to_create, CancellationToken::default())

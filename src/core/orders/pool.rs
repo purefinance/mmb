@@ -1,4 +1,4 @@
-use crate::core::exchanges::common::TradePlaceAccount;
+use crate::core::exchanges::common::{ExchangeAccountId, TradePlaceAccount};
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
 };
@@ -8,6 +8,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut};
 use std::sync::Arc;
+
+use super::order::ReservationId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -34,7 +36,7 @@ impl OrderRef {
     }
 
     pub fn price(&self) -> Decimal {
-        self.fn_ref(|x| x.props.price())
+        self.fn_ref(|x| x.price())
     }
     pub fn amount(&self) -> Decimal {
         self.fn_ref(|x| x.header.amount)
@@ -44,6 +46,15 @@ impl OrderRef {
     }
     pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
         self.fn_ref(|x| x.props.exchange_order_id.clone())
+    }
+    pub fn client_order_id(&self) -> ClientOrderId {
+        self.fn_ref(|x| x.header.client_order_id.clone())
+    }
+    pub fn exchange_account_id(&self) -> ExchangeAccountId {
+        self.fn_ref(|x| x.header.exchange_account_id.clone())
+    }
+    pub fn reservation_id(&self) -> ReservationId {
+        self.fn_ref(|x| x.header.reservation_id.clone())
     }
 }
 
@@ -79,7 +90,7 @@ impl OrdersPool {
     /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
     pub fn add_simple_initial(&self, header: Arc<OrderHeader>, price: Option<Decimal>) {
         let snapshot = Arc::new(RwLock::new(OrderSnapshot {
-            props: OrderSimpleProps::new(header.client_order_id.clone(), price),
+            props: OrderSimpleProps::new(price),
             header,
             fills: Default::default(),
             status_history: Default::default(),
