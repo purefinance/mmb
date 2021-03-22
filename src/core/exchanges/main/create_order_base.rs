@@ -66,7 +66,7 @@ impl Exchange {
             Success(exchange_order_id) => {
                 let result_order = &*self
                     .orders
-                    .orders_by_exchange_id
+                    .by_exchange_id
                     .get(&exchange_order_id).ok_or_else(||
                         anyhow!("Impossible situation: order was created, but missing in local orders pool")
                     )?;
@@ -142,8 +142,7 @@ impl Exchange {
             return Ok(created_order);
         }
 
-        // FIXME Hm, in practice order already can be created on exchange
-        bail!("Order wasn't created, task was stopped earlier")
+        bail!("Task was cancelled")
     }
 
     fn handle_create_order_failed(
@@ -167,7 +166,7 @@ impl Exchange {
             bail!("{}", error_msg);
         }
 
-        match self.orders.orders_by_client_id.get(client_order_id) {
+        match self.orders.by_client_id.get(client_order_id) {
             None => {
                 let error_msg = format!(
                 "CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}",
@@ -253,7 +252,6 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         source_type: &EventSourceType,
     ) -> Result<()> {
-        // FIXME some lock? Why should we?
         // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
 
         let args_to_log = (exchange_account_id, client_order_id, exchange_order_id);
@@ -278,7 +276,7 @@ impl Exchange {
             bail!("{}", error_msg);
         }
 
-        match self.orders.orders_by_client_id.get(client_order_id) {
+        match self.orders.by_client_id.get(client_order_id) {
             None => {
                 warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
 
@@ -330,11 +328,7 @@ impl Exchange {
             OrderStatus::Completed => Self::log_warn("Completed", args_to_log),
             OrderStatus::FailedToCancel => Self::log_warn("FailedToCancel", args_to_log),
             OrderStatus::Creating => {
-                if self
-                    .orders
-                    .orders_by_exchange_id
-                    .contains_key(exchange_order_id)
-                {
+                if self.orders.by_exchange_id.contains_key(exchange_order_id) {
                     info!(
                         "Order has already been added to the local orders pool {:?}",
                         args_to_log
@@ -348,7 +342,7 @@ impl Exchange {
                 order.set_status(OrderStatus::Created, Utc::now());
                 order.internal_props.creation_event_source_type = Some(source_type.clone());
                 self.orders
-                    .orders_by_exchange_id
+                    .by_exchange_id
                     .insert(exchange_order_id.clone(), order_ref.clone());
 
                 if order.header.order_type != OrderType::Liquidation {
@@ -378,7 +372,7 @@ impl Exchange {
         if order.props.is_finished() {
             let _ = self
                 .orders
-                .not_finished_orders
+                .not_finished
                 .remove(&order.header.client_order_id);
         }
 
