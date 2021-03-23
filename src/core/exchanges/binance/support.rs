@@ -8,7 +8,7 @@ use crate::core::{
     },
     orders::fill::EventSourceType,
 };
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use itertools::Itertools;
 use log::info;
@@ -208,6 +208,14 @@ impl Support for Binance {
             .collect();
 
         Ok(orders_info)
+    }
+
+    fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo> {
+        let specific_order: BinanceOrderInfo =
+            serde_json::from_str(&response.content).context("Unable to parse response conten")?;
+        let unified_order = self.specific_order_info_to_unified(&specific_order);
+
+        Ok(unified_order)
     }
 
     fn log_unknown_message(

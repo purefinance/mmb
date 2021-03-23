@@ -1,10 +1,10 @@
 use super::common::{
     CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
 };
-use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
+use crate::core::orders::{fill::EventSourceType, order::OrderSnapshot};
 use anyhow::Result;
 use async_trait::async_trait;
 use log::info;
@@ -19,6 +19,8 @@ pub trait ExchangeClient: Support {
     async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()>;
 
     async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
+
+    async fn request_order_info(&self, order: &OrderSnapshot) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait(?Send)]
@@ -56,4 +58,5 @@ pub trait Support {
     }
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;
+    fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo>;
 }

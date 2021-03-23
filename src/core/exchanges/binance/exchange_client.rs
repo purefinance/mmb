@@ -116,4 +116,27 @@ impl ExchangeClient for Binance {
 
         Ok(())
     }
+
+    async fn request_order_info(&self, order: &OrderSnapshot) -> Result<RestRequestOutcome> {
+        let mut parameters = rest_client::HttpParams::new();
+        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
+        parameters.push((
+            "symbol".to_owned(),
+            specific_currency_pair.as_str().to_owned(),
+        ));
+        parameters.push((
+            "origClientOrderId".to_owned(),
+            order.header.client_order_id.as_str().to_owned(),
+        ));
+
+        let url_path = if self.settings.is_marging_trading {
+            "/fapi/v1/order"
+        } else {
+            "/api/v3/order"
+        };
+        let full_url = format!("{}{}", self.settings.rest_host, url_path);
+
+        self.add_authentification_headers(&mut parameters)?;
+        rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await
+    }
 }
