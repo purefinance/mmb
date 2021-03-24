@@ -3,6 +3,8 @@ use crate::core::{
     exchanges::common::ExchangeAccountId,
     exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType,
+    exchanges::general::exchange::Exchange,
+    exchanges::general::exchange::RequestResult,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
     orders::order::OrderEventType,
@@ -17,8 +19,29 @@ use chrono::Utc;
 use log::{error, info, warn};
 use std::sync::Arc;
 
-use super::{create_order::CreateOrderResult, exchange::Exchange, exchange::RequestResult};
-use crate::core::exchanges::main::exchange::RequestResult::{Error, Success};
+use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct CreateOrderResult {
+    pub outcome: RequestResult<ExchangeOrderId>,
+    pub source_type: EventSourceType,
+}
+
+impl CreateOrderResult {
+    pub fn successed(order_id: ExchangeOrderId, source_type: EventSourceType) -> Self {
+        CreateOrderResult {
+            outcome: RequestResult::Success(order_id),
+            source_type,
+        }
+    }
+
+    pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
+        CreateOrderResult {
+            outcome: RequestResult::Error(error),
+            source_type,
+        }
+    }
+}
 
 impl Exchange {
     pub async fn create_order(

@@ -2,8 +2,8 @@ use chrono::Utc;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
-use mmb_lib::core::exchanges::main::exchange::*;
-use mmb_lib::core::exchanges::main::features::*;
+use mmb_lib::core::exchanges::general::exchange::*;
+use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
@@ -52,6 +52,7 @@ async fn open_orders_exists() {
 
     let test_order_client_id = ClientOrderId::unique_id();
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_price = dec!(0.00000007);
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),
@@ -68,7 +69,7 @@ async fn open_orders_exists() {
 
     let order_to_create = OrderCreating {
         header: order_header,
-        price: dec!(0.00000009),
+        price: test_price,
     };
 
     let _ = exchange
@@ -97,7 +98,7 @@ async fn open_orders_exists() {
 
     let second_order_to_create = OrderCreating {
         header: second_order_header,
-        price: dec!(0.00000009),
+        price: test_price,
     };
 
     exchange

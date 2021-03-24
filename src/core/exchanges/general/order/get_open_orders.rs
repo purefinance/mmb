@@ -1,5 +1,7 @@
-use super::{exchange::Exchange, features::OpenOrdersType};
-use crate::core::orders::order::OrderInfo;
+use crate::core::{
+    exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType,
+    orders::order::OrderInfo,
+};
 use anyhow::{anyhow, bail};
 use log::{info, warn};
 
@@ -20,7 +22,7 @@ impl Exchange {
             OpenOrdersType::AllCurrencyPair => {
                 // TODO implement in the future
                 //reserve_when_acailable().await
-                let response = self.exchange_interaction.request_open_orders().await?;
+                let response = self.exchange_client.request_open_orders().await?;
 
                 info!(
                     "get_open_orders() response on {}: {:?}",
@@ -31,7 +33,7 @@ impl Exchange {
                     bail!("Rest error appeared during request: {}", error.message)
                 }
 
-                match self.exchange_interaction.parse_open_orders(&response) {
+                match self.exchange_client.parse_open_orders(&response) {
                     open_orders @ Ok(_) => {
                         return open_orders;
                     }

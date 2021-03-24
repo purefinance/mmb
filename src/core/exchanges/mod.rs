@@ -3,7 +3,7 @@ pub mod binance;
 pub mod cancellation_token;
 pub mod common;
 pub mod exchange_blocker;
-pub mod main;
+pub mod general;
 pub mod rest_client;
 pub mod traits;
 pub mod utils;

@@ -9,12 +9,12 @@ use crate::core::{
     exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType,
     exchanges::common::RestRequestOutcome,
+    exchanges::general::exchange::Exchange,
+    exchanges::general::exchange::RequestResult,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
     orders::{fill::EventSourceType, order::OrderCancelling},
 };
-
-use super::{exchange::Exchange, exchange::RequestResult};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CancelOrderResult {
@@ -60,7 +60,7 @@ impl Exchange {
         self.order_cancellation_events
             .insert(exchange_order_id.clone(), (tx, None));
 
-        let order_cancel_future = self.exchange_interaction.request_cancel_order(&order);
+        let order_cancel_future = self.exchange_client.request_cancel_order(&order);
         let cancellation_token = cancellation_token.when_cancelled();
 
         pin_mut!(order_cancel_future);
@@ -133,7 +133,7 @@ impl Exchange {
         }
     }
 
-    pub(super) fn raise_order_cancelled(
+    pub(crate) fn raise_order_cancelled(
         &self,
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,

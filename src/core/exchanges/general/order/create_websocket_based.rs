@@ -8,34 +8,14 @@ use crate::core::{
     exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType,
     exchanges::common::RestRequestOutcome,
+    exchanges::general::exchange::Exchange,
+    exchanges::general::exchange::RequestResult,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
 
-use super::{exchange::Exchange, exchange::RequestResult};
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct CreateOrderResult {
-    pub outcome: RequestResult<ExchangeOrderId>,
-    pub source_type: EventSourceType,
-}
-
-impl CreateOrderResult {
-    pub fn successed(order_id: ExchangeOrderId, source_type: EventSourceType) -> Self {
-        CreateOrderResult {
-            outcome: RequestResult::Success(order_id),
-            source_type,
-        }
-    }
-
-    pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
-        CreateOrderResult {
-            outcome: RequestResult::Error(error),
-            source_type,
-        }
-    }
-}
+use super::create::CreateOrderResult;
 
 impl Exchange {
     pub(super) async fn create_order_core(
@@ -49,7 +29,7 @@ impl Exchange {
         self.order_creation_events
             .insert(client_order_id.clone(), (tx, None));
 
-        let order_create_future = self.exchange_interaction.create_order(&order);
+        let order_create_future = self.exchange_client.create_order(&order);
         let cancellation_token = cancellation_token.when_cancelled();
 
         pin_mut!(order_create_future);
@@ -111,7 +91,7 @@ impl Exchange {
                     return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
                 }
 
-                match self.exchange_interaction.get_order_id(&request_outcome) {
+                match self.exchange_client.get_order_id(&request_outcome) {
                     Ok(created_order_id) => {
                         CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
                     }
@@ -133,7 +113,7 @@ impl Exchange {
         }
     }
 
-    pub(super) fn raise_order_created(
+    pub(crate) fn raise_order_created(
         &self,
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,

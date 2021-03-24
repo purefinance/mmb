@@ -1,6 +1,6 @@
-use super::cancel_order::CancelOrderResult;
-use super::create_order::CreateOrderResult;
 use super::features::ExchangeFeatures;
+use super::order::cancel::CancelOrderResult;
+use super::order::create::CreateOrderResult;
 use crate::core::exchanges::{
     application_manager::ApplicationManager,
     common::CurrencyPair,
@@ -46,7 +46,7 @@ pub struct Exchange {
     websocket_host: String,
     specific_currency_pairs: Vec<SpecificCurrencyPair>,
     websocket_channels: Vec<String>,
-    pub(super) exchange_interaction: Box<dyn ExchangeClient>,
+    pub(super) exchange_client: Box<dyn ExchangeClient>,
     pub orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
 
@@ -78,7 +78,7 @@ impl Exchange {
         websocket_host: String,
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
         websocket_channels: Vec<String>,
-        exchange_interaction: Box<dyn ExchangeClient>,
+        exchange_client: Box<dyn ExchangeClient>,
         features: ExchangeFeatures,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
@@ -88,7 +88,7 @@ impl Exchange {
             websocket_host,
             specific_currency_pairs,
             websocket_channels,
-            exchange_interaction,
+            exchange_client,
             orders: OrdersPool::new(),
             connectivity_manager,
             order_creation_events: DashMap::new(),
@@ -99,7 +99,7 @@ impl Exchange {
         });
 
         exchange.clone().setup_connectivity_manager();
-        exchange.clone().setup_exchange_interaction();
+        exchange.clone().setup_exchange_client();
 
         exchange
     }
@@ -115,38 +115,30 @@ impl Exchange {
             }));
     }
 
-    fn setup_exchange_interaction(self: Arc<Self>) {
+    fn setup_exchange_client(self: Arc<Self>) {
         let exchange_weak = Arc::downgrade(&self);
-        self.exchange_interaction
-            .set_order_created_callback(Box::new(
-                move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade()
-                {
-                    Some(exchange) => exchange.raise_order_created(
-                        client_order_id,
-                        exchange_order_id,
-                        source_type,
-                    ),
-                    None => info!(
-                        "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
-                    ),
-                },
-            ));
+        self.exchange_client.set_order_created_callback(Box::new(
+            move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
+                Some(exchange) => {
+                    exchange.raise_order_created(client_order_id, exchange_order_id, source_type)
+                }
+                None => info!(
+                    "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
+                ),
+            },
+        ));
 
         let exchange_weak = Arc::downgrade(&self);
-        self.exchange_interaction
-            .set_order_cancelled_callback(Box::new(
-                move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade()
-                {
-                    Some(exchange) => exchange.raise_order_cancelled(
-                        client_order_id,
-                        exchange_order_id,
-                        source_type,
-                    ),
-                    None => info!(
-                        "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
-                    ),
-                },
-            ));
+        self.exchange_client.set_order_cancelled_callback(Box::new(
+            move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
+                Some(exchange) => {
+                    exchange.raise_order_cancelled(client_order_id, exchange_order_id, source_type)
+                }
+                None => info!(
+                    "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
+                ),
+            },
+        ));
     }
 
     fn on_websocket_message(&self, msg: &str) {
@@ -158,11 +150,11 @@ impl Exchange {
             return;
         }
 
-        if self.exchange_interaction.should_log_message(msg) {
+        if self.exchange_client.should_log_message(msg) {
             self.log_websocket_message(msg);
         }
 
-        let callback_outcome = self.exchange_interaction.on_websocket_message(msg);
+        let callback_outcome = self.exchange_client.on_websocket_message(msg);
         if let Err(error) = callback_outcome {
             warn!(
                 "Error occured while websocket message processing: {}",
@@ -269,18 +261,16 @@ impl Exchange {
                     )
                 }
                 CheckContent::Err(error) => error,
-                CheckContent::Usable => {
-                    match self.exchange_interaction.is_rest_error_code(&response) {
-                        Ok(_) => return None,
-                        Err(mut error) => match error.error_type {
-                            ExchangeErrorType::ParsingError => error,
-                            _ => {
-                                self.exchange_interaction.clarify_error_type(&mut error);
-                                error
-                            }
-                        },
-                    }
-                }
+                CheckContent::Usable => match self.exchange_client.is_rest_error_code(&response) {
+                    Ok(_) => return None,
+                    Err(mut error) => match error.error_type {
+                        ExchangeErrorType::ParsingError => error,
+                        _ => {
+                            self.exchange_client.clarify_error_type(&mut error);
+                            error
+                        }
+                    },
+                },
             },
         };
 
@@ -346,7 +336,7 @@ impl Exchange {
     }
 
     pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> anyhow::Result<()> {
-        self.exchange_interaction
+        self.exchange_client
             .cancel_all_orders(currency_pair)
             .await?;
 
@@ -396,13 +386,13 @@ impl Exchange {
         match websocket_role {
             WebSocketRole::Main => {
                 // TODO remove hardcode or probably extract to common_interaction trait
-                ws_path = self.exchange_interaction.build_ws_main_path(
+                ws_path = self.exchange_client.build_ws_main_path(
                     &self.specific_currency_pairs[..],
                     &self.websocket_channels[..],
                 );
             }
             WebSocketRole::Secondary => {
-                ws_path = self.exchange_interaction.build_ws_secondary_path().await?;
+                ws_path = self.exchange_client.build_ws_secondary_path().await?;
             }
         }
 
