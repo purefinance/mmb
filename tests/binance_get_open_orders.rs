@@ -45,7 +45,7 @@ async fn open_orders_exists() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
     );
 
     exchange.clone().connect().await;

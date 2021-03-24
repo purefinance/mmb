@@ -44,7 +44,7 @@ async fn create_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
     );
 
     exchange.clone().connect().await;
@@ -128,7 +128,7 @@ async fn should_fail() {
         vec![],
         vec![],
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
     );
 
     let test_order_client_id = ClientOrderId::unique_id();

@@ -43,7 +43,7 @@ async fn cancelled_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
     );
 
     exchange.clone().connect().await;
@@ -138,7 +138,7 @@ async fn nothing_to_cancel() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
     );
 
     exchange.clone().connect().await;
