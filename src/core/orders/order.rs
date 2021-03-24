@@ -69,6 +69,15 @@ pub enum OrderType {
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
+pub enum OrderEventType {
+    CreateOrderSucceeded,
+    CreateOrderFailed,
+    OrderFilled,
+    OrderCompleted,
+    CancelOrderSucceeded,
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderExecutionType {
     None = 0,
     MakerOnly = 1,
@@ -251,7 +260,6 @@ impl OrderHeader {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSimpleProps {
-    client_order_id: ClientOrderId,
     pub raw_price: Option<Price>,
     pub role: Option<OrderRole>,
     pub exchange_order_id: Option<ExchangeOrderId>,
@@ -264,9 +272,8 @@ pub struct OrderSimpleProps {
 }
 
 impl OrderSimpleProps {
-    pub fn new(client_order_id: ClientOrderId, price: Option<Price>) -> OrderSimpleProps {
+    pub fn new(price: Option<Price>) -> OrderSimpleProps {
         Self {
-            client_order_id,
             raw_price: price,
             role: None,
             exchange_order_id: None,
@@ -277,21 +284,8 @@ impl OrderSimpleProps {
         }
     }
 
-    pub fn client_order_id(&self) -> &ClientOrderId {
-        &self.client_order_id
-    }
     pub fn is_finished(&self) -> bool {
         self.status.is_finished()
-    }
-    pub fn price(&self) -> Decimal {
-        if let Some(price) = self.raw_price {
-            price
-        } else {
-            panic!(
-                "Can't get price from order {}",
-                self.client_order_id.as_str()
-            )
-        }
     }
 }
 
@@ -467,5 +461,13 @@ impl OrderSnapshot {
             status: new_status,
             time,
         })
+    }
+
+    pub fn price(&self) -> Price {
+        let error_msg = format!(
+            "Cannot get price from order {}",
+            self.header.client_order_id.as_str()
+        );
+        self.props.raw_price.expect(&error_msg)
     }
 }

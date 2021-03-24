@@ -1,4 +1,4 @@
-use crate::core::exchanges::common::TradePlaceAccount;
+use crate::core::exchanges::common::{ExchangeAccountId, TradePlaceAccount};
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
 };
@@ -8,6 +8,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut};
 use std::sync::Arc;
+
+use super::order::ReservationId;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -34,7 +36,7 @@ impl OrderRef {
     }
 
     pub fn price(&self) -> Decimal {
-        self.fn_ref(|x| x.props.price())
+        self.fn_ref(|x| x.price())
     }
     pub fn amount(&self) -> Decimal {
         self.fn_ref(|x| x.header.amount)
@@ -42,12 +44,24 @@ impl OrderRef {
     pub fn status(&self) -> OrderStatus {
         self.fn_ref(|x| x.props.status)
     }
+    pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
+        self.fn_ref(|x| x.props.exchange_order_id.clone())
+    }
+    pub fn client_order_id(&self) -> ClientOrderId {
+        self.fn_ref(|x| x.header.client_order_id.clone())
+    }
+    pub fn exchange_account_id(&self) -> ExchangeAccountId {
+        self.fn_ref(|x| x.header.exchange_account_id.clone())
+    }
+    pub fn reservation_id(&self) -> ReservationId {
+        self.fn_ref(|x| x.header.reservation_id.clone())
+    }
 }
 
 pub struct OrdersPool {
-    pub orders_by_client_id: DashMap<ClientOrderId, OrderRef>,
-    pub orders_by_exchange_id: DashMap<ExchangeOrderId, OrderRef>,
-    pub not_finished_orders: DashMap<ClientOrderId, OrderRef>,
+    pub by_client_id: DashMap<ClientOrderId, OrderRef>,
+    pub by_exchange_id: DashMap<ExchangeOrderId, OrderRef>,
+    pub not_finished: DashMap<ClientOrderId, OrderRef>,
     _private: (), // field base constructor shouldn't be accessible from other modules
 }
 
@@ -56,29 +70,27 @@ impl OrdersPool {
         const ORDERS_INIT_CAPACITY: usize = 100;
 
         Arc::new(OrdersPool {
-            orders_by_client_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
-            orders_by_exchange_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
-            not_finished_orders: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
+            by_client_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
+            by_exchange_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
+            not_finished: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
             _private: (),
         })
     }
 
     /// Insert specified `OrderSnapshot` in order pool.
-    /// Return true if there is already order with specified client order id in pool (new order replace old order)
     pub fn add_snapshot_initial(&self, snapshot: Arc<RwLock<OrderSnapshot>>) {
         let client_order_id = snapshot.read().header.client_order_id.clone();
         let order_ref = OrderRef(snapshot.clone());
         let _ = self
-            .orders_by_client_id
+            .by_client_id
             .insert(client_order_id.clone(), order_ref.clone());
-        let _ = self.not_finished_orders.insert(client_order_id, order_ref);
+        let _ = self.not_finished.insert(client_order_id, order_ref);
     }
 
     /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
-    /// Return true if there is already order with specified client order id in pool (new order replace old order)
     pub fn add_simple_initial(&self, header: Arc<OrderHeader>, price: Option<Decimal>) {
         let snapshot = Arc::new(RwLock::new(OrderSnapshot {
-            props: OrderSimpleProps::new(header.client_order_id.clone(), price),
+            props: OrderSimpleProps::new(price),
             header,
             fills: Default::default(),
             status_history: Default::default(),

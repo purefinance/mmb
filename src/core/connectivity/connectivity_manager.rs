@@ -422,8 +422,8 @@ impl Default for ConnectivityManagerNotifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::exchanges::exchange::Exchange;
-    use crate::core::exchanges::{binance::binance::Binance, exchange_features::*};
+    use crate::core::exchanges::general::exchange::Exchange;
+    use crate::core::exchanges::{binance::binance::Binance, general::features::*};
     use crate::core::logger::init_logger;
     use crate::core::settings::ExchangeSettings;
     use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};

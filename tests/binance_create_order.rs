@@ -3,8 +3,8 @@ use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
-use mmb_lib::core::exchanges::exchange::*;
-use mmb_lib::core::exchanges::exchange_features::*;
+use mmb_lib::core::exchanges::general::exchange::*;
+use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
@@ -49,9 +49,10 @@ async fn create_successfully() {
 
     exchange.clone().connect().await;
 
+    let test_order_client_id = ClientOrderId::unique_id();
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
-        ClientOrderId::unique_id(),
+        test_order_client_id.clone(),
         Utc::now(),
         exchange_account_id.clone(),
         test_currency_pair.clone(),
@@ -66,7 +67,6 @@ async fn create_successfully() {
 
     let order_to_create = OrderCreating {
         header: order_header.clone(),
-        // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
         price: dec!(0.0000001),
     };
 
@@ -74,13 +74,13 @@ async fn create_successfully() {
         .cancel_all_orders(test_currency_pair.clone())
         .await
         .expect("in test");
-    let create_order_result = exchange
+    let created_order = exchange
         .create_order(&order_to_create, CancellationToken::default())
-        .await
-        .expect("in test");
+        .await;
 
-    match create_order_result.outcome {
-        RequestResult::Success(exchange_order_id) => {
+    match created_order {
+        Ok(order_ref) => {
+            let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
                 header: order_header,
                 exchange_order_id,
@@ -93,7 +93,7 @@ async fn create_successfully() {
         }
 
         // Create order failed
-        RequestResult::Error(_) => {
+        Err(_) => {
             assert!(false)
         }
     }
@@ -131,9 +131,10 @@ async fn should_fail() {
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
     );
 
+    let test_order_client_id = ClientOrderId::unique_id();
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
-        "test".into(),
+        test_order_client_id.clone(),
         Utc::now(),
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         test_currency_pair.clone(),
@@ -148,21 +149,23 @@ async fn should_fail() {
 
     let order_to_create = OrderCreating {
         header: order_header,
-        // It have to be between (current price on exchange * 0.2) and (current price on exchange * 5)
         price: dec!(0.0000001),
     };
 
-    let create_order_result = exchange
+    let created_order = exchange
         .create_order(&order_to_create, CancellationToken::default())
-        .await
-        .expect("in test");
+        .await;
 
-    let expected_error = RequestResult::Error(ExchangeError::new(
-        ExchangeErrorType::InvalidOrder,
-        "Filter failure: MIN_NOTIONAL".to_owned(),
-        Some(-1013),
-    ));
-
-    // It's MIN_NOTIONAL error code
-    assert_eq!(create_order_result.outcome, expected_error);
+    dbg!(&created_order);
+    match created_order {
+        Ok(_) => {
+            assert!(false)
+        }
+        Err(error) => {
+            assert_eq!(
+                "Delete it in the future. Exchange error: Filter failure: MIN_NOTIONAL",
+                error.to_string()
+            );
+        }
+    }
 }

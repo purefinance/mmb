@@ -1,5 +1,5 @@
 use crate::core::exchanges::common::ExchangeAccountId;
-use crate::core::exchanges::exchange::Exchange;
+use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::settings::CoreSettings;
 use dashmap::DashMap;
 use std::sync::Arc;

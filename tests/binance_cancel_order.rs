@@ -2,8 +2,8 @@ use chrono::Utc;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
-use mmb_lib::core::exchanges::exchange::*;
-use mmb_lib::core::exchanges::exchange_features::*;
+use mmb_lib::core::exchanges::general::exchange::*;
+use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
@@ -48,10 +48,10 @@ async fn cancelled_successfully() {
 
     exchange.clone().connect().await;
 
+    let test_order_client_id = ClientOrderId::unique_id();
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
-    let generated_client_order_id = ClientOrderId::unique_id();
     let order_header = OrderHeader::new(
-        generated_client_order_id.clone(),
+        test_order_client_id.clone(),
         Utc::now(),
         exchange_account_id.clone(),
         test_currency_pair.clone(),
@@ -66,7 +66,6 @@ async fn cancelled_successfully() {
 
     let order_to_create = OrderCreating {
         header: order_header.clone(),
-        // It has to be between (current price on exchange * 0.2) and (current price on exchange * 5)
         price: dec!(0.0000001),
     };
 
@@ -74,14 +73,14 @@ async fn cancelled_successfully() {
         .cancel_all_orders(test_currency_pair.clone())
         .await
         .expect("in test");
-    let create_order_result = exchange
+    let created_order = exchange
         .create_order(&order_to_create, CancellationToken::default())
-        .await
-        .expect("in test");
-    dbg!(&create_order_result);
+        .await;
+    dbg!(&created_order);
 
-    match create_order_result.outcome {
-        RequestResult::Success(exchange_order_id) => {
+    match created_order {
+        Ok(order_ref) => {
+            let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
                 header: order_header,
                 exchange_order_id,
@@ -94,13 +93,12 @@ async fn cancelled_successfully() {
                 .expect("in test");
 
             if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
-                assert_eq!(gotten_client_order_id, generated_client_order_id);
-                return;
+                assert_eq!(gotten_client_order_id, test_order_client_id);
             }
         }
 
         // Create order failed
-        RequestResult::Error(_) => {
+        Err(_) => {
             assert!(false)
         }
     }
