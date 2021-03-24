@@ -42,7 +42,9 @@ impl Exchange {
                 let unified_order_info = self.exchange_client.parse_order_info(&request_outcome);
 
                 match unified_order_info {
-                    Ok(_) => {}
+                    Ok(order_info) => {
+                        return Ok(order_info);
+                    }
                     Err(error) => {
                         return Err(ExchangeError::new(
                             ExchangeErrorType::OrderNotFound,
@@ -52,16 +54,11 @@ impl Exchange {
                     }
                 }
             }
-            Err(error) => {
-                ExchangeError::new(ExchangeErrorType::Unknown, error.to_string(), None);
-            }
+            Err(error) => Err(ExchangeError::new(
+                ExchangeErrorType::Unknown,
+                error.to_string(),
+                None,
+            )),
         }
-
-        // FIXME delete
-        Err(ExchangeError::new(
-            ExchangeErrorType::Unknown,
-            "test".to_owned(),
-            None,
-        ))
     }
 }
