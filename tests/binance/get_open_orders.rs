@@ -12,6 +12,7 @@ use std::thread;
 use std::time::Duration;
 
 #[actix_rt::test]
+#[ignore]
 async fn open_orders_exists() {
     // Get data to access binance account
     let api_key = env::var("BINANCE_API_KEY");
