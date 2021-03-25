@@ -67,7 +67,7 @@ impl Exchange {
             created_order_outcome = create_order_future => {
                 match created_order_outcome {
                     Ok(created_order_result) => {
-                        self.match_created_order_outcome(&created_order_result.outcome).await
+                        self.match_created_order_outcome(&created_order_result.outcome)
                     }
                     Err(exchange_error) => {
                         bail!("Exchange error: {}", exchange_error)
@@ -78,7 +78,7 @@ impl Exchange {
         }
     }
 
-    async fn match_created_order_outcome(
+    fn match_created_order_outcome(
         &self,
         outcome: &RequestResult<ExchangeOrderId>,
     ) -> Result<OrderRef> {
