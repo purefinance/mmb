@@ -67,7 +67,7 @@ impl Exchange {
             created_order_outcome = create_order_future => {
                 match created_order_outcome {
                     Ok(created_order_result) => {
-                        self.match_created_order_outcome(&created_order_result.outcome)
+                        self.match_created_order_outcome(&created_order_result.outcome).await
                     }
                     Err(exchange_error) => {
                         bail!("Exchange error: {}", exchange_error)
@@ -78,7 +78,7 @@ impl Exchange {
         }
     }
 
-    fn match_created_order_outcome(
+    async fn match_created_order_outcome(
         &self,
         outcome: &RequestResult<ExchangeOrderId>,
     ) -> Result<OrderRef> {
@@ -118,6 +118,8 @@ impl Exchange {
             Error(exchange_error) => {
                 if exchange_error.error_type == ExchangeErrorType::ParsingError {
                     // TODO Error handling should be placed in self.check_order_creation().await
+                    // Wrong workflow! Success branch above shoule execute if check_order_creation
+                    self.check_order_creation().await?;
                 }
                 bail!(
                     "Delete it in the future. Exchange error: {}",
@@ -125,6 +127,10 @@ impl Exchange {
                 )
             }
         }
+    }
+
+    async fn check_order_creation(&self) -> Result<()> {
+        Ok(())
     }
 
     async fn create_order_base(
