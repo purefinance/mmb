@@ -118,8 +118,8 @@ impl Exchange {
             Error(exchange_error) => {
                 if exchange_error.error_type == ExchangeErrorType::ParsingError {
                     // TODO Error handling should be placed in self.check_order_creation().await
-                    // Wrong workflow! Success branch above shoule execute if check_order_creation
-                    self.check_order_creation().await?;
+                    // TODO strange order handling there
+                    // self.check_order_creation().await?;
                 }
                 bail!(
                     "Delete it in the future. Exchange error: {}",
@@ -127,10 +127,6 @@ impl Exchange {
                 )
             }
         }
-    }
-
-    async fn check_order_creation(&self) -> Result<()> {
-        Ok(())
     }
 
     async fn create_order_base(
