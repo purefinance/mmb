@@ -199,8 +199,8 @@ impl Support for Binance {
     }
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
-        let binance_orders: Vec<BinanceOrderInfo> =
-            serde_json::from_str(&response.content).context("Unable to parse response content")?;
+        let binance_orders: Vec<BinanceOrderInfo> = serde_json::from_str(&response.content)
+            .context("Unable to parse response content for get_open_orders request")?;
 
         let orders_info: Vec<OrderInfo> = binance_orders
             .iter()
@@ -211,8 +211,8 @@ impl Support for Binance {
     }
 
     fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo> {
-        let specific_order: BinanceOrderInfo =
-            serde_json::from_str(&response.content).context("Unable to parse response content")?;
+        let specific_order: BinanceOrderInfo = serde_json::from_str(&response.content)
+            .context("Unable to parse response content for get_order_info request")?;
         let unified_order = self.specific_order_info_to_unified(&specific_order);
 
         Ok(unified_order)

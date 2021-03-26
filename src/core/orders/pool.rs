@@ -56,6 +56,10 @@ impl OrderRef {
     pub fn reservation_id(&self) -> ReservationId {
         self.fn_ref(|x| x.header.reservation_id.clone())
     }
+
+    pub fn deep_clone(&self) -> OrderSnapshot {
+        self.fn_ref(|order| order.clone())
+    }
 }
 
 pub struct OrdersPool {

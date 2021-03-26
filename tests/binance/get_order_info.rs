@@ -79,14 +79,14 @@ async fn get_order_info() {
         .await
         .expect("in test");
 
-    let order = created_order.fn_ref(|order| order.clone());
+    let order = created_order.deep_clone();
 
     let order_info = exchange
         .get_order_info(&order.clone())
         .await
         .expect("in test");
 
-    let created_exchange_order_id = created_order.exchange_order_id().unwrap();
+    let created_exchange_order_id = created_order.exchange_order_id().expect("in test");
     let gotten_info_exchange_order_id = order_info.exchange_order_id;
 
     assert_eq!(created_exchange_order_id, gotten_info_exchange_order_id);
