@@ -267,7 +267,7 @@ impl Exchange {
         bail!("{}", error_msg)
     }
 
-    fn handle_create_order_succeeded(
+    pub(crate) fn handle_create_order_succeeded(
         &self,
         exchange_account_id: &ExchangeAccountId,
         client_order_id: &ClientOrderId,

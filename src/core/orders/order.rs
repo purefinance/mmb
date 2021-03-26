@@ -290,14 +290,6 @@ impl OrderSimpleProps {
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
-pub enum OrderFillType {
-    UserTrade = 1,
-    Liquidation = 2,
-    Funding = 3,
-    ClosePosition = 4,
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderFillRole {
     Maker = 1,
     Taker = 2,

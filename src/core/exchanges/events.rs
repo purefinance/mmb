@@ -3,6 +3,13 @@ use crate::core::orders::{
     order::{OrderEventType, OrderSnapshot},
 };
 
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum AllowedEventSourceType {
+    All,
+    FallbackOnly,
+    NonFallback,
+}
+
 #[derive(Debug, Clone)]
 pub struct OrderEvent {
     pub order: OrderSnapshot,
