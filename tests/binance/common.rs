@@ -1,6 +1,6 @@
 // Get data to access binance account
 #[macro_export]
-macro_rules! get_binance_credentials {
+macro_rules! get_binance_credentials_or_exit {
     () => {{
         let api_key = env::var("BINANCE_API_KEY");
         if api_key.is_err() {

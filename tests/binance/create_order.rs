@@ -1,4 +1,4 @@
-use crate::get_binance_credentials;
+use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
@@ -13,7 +13,7 @@ use std::env;
 
 #[actix_rt::test]
 async fn create_successfully() {
-    let (api_key, secret_key) = get_binance_credentials!();
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let settings = settings::ExchangeSettings::new(
         api_key.expect("in test"),
@@ -91,7 +91,7 @@ async fn create_successfully() {
 
 #[actix_rt::test]
 async fn should_fail() {
-    let (api_key, secret_key) = get_binance_credentials!();
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let settings = settings::ExchangeSettings::new(
         api_key.expect("in test"),

@@ -1,4 +1,4 @@
-use crate::get_binance_credentials;
+use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
@@ -12,7 +12,7 @@ use std::env;
 
 #[actix_rt::test]
 async fn get_order_info() {
-    let (api_key, secret_key) = get_binance_credentials!();
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let settings = settings::ExchangeSettings::new(
         api_key.expect("in test"),
