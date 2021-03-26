@@ -9,6 +9,7 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
+use std::sync::mpsc::channel;
 
 #[actix_rt::test]
 async fn get_order_info() {
@@ -29,6 +30,7 @@ async fn get_order_info() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
+    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
@@ -36,6 +38,7 @@ async fn get_order_info() {
         channels,
         Box::new(binance),
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        tx,
     );
 
     exchange.clone().connect().await;

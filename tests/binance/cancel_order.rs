@@ -9,6 +9,7 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
+use std::sync::mpsc::channel;
 
 #[actix_rt::test]
 async fn cancelled_successfully() {
@@ -28,6 +29,7 @@ async fn cancelled_successfully() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
+    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
@@ -35,6 +37,7 @@ async fn cancelled_successfully() {
         channels,
         Box::new(binance),
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        tx,
     );
 
     exchange.clone().connect().await;
@@ -68,6 +71,7 @@ async fn cancelled_successfully() {
         .create_order(&order_to_create, CancellationToken::default())
         .await;
 
+    dbg!(&created_order);
     match created_order {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
@@ -112,6 +116,7 @@ async fn nothing_to_cancel() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
+    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
@@ -119,6 +124,7 @@ async fn nothing_to_cancel() {
         channels,
         Box::new(binance),
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        tx,
     );
 
     exchange.clone().connect().await;

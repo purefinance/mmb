@@ -3,6 +3,7 @@ use crate::core::{
     exchanges::common::ExchangeAccountId,
     exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType,
+    exchanges::events::OrderEvent,
     exchanges::general::exchange::Exchange,
     exchanges::general::exchange::RequestResult,
     orders::order::ClientOrderId,
@@ -14,7 +15,7 @@ use crate::core::{
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use std::sync::Arc;
@@ -239,7 +240,7 @@ impl Exchange {
                     Some(exchange_error.error_type.clone());
                 order.internal_props.last_creation_error_message = exchange_error.message.clone();
 
-                self.add_event_on_order_change(order, OrderEventType::CreateOrderFailed);
+                self.add_event_on_order_change(order, OrderEventType::CreateOrderFailed)?;
 
                 // TODO DataRecorder.Save(order)
 
@@ -370,7 +371,7 @@ impl Exchange {
                     // TODO BalanceManager
                 }
 
-                self.add_event_on_order_change(order, OrderEventType::CreateOrderSucceeded);
+                self.add_event_on_order_change(order, OrderEventType::CreateOrderSucceeded)?;
 
                 // TODO if BufferedFillsManager.TryGetFills(...)
                 // TODO if BufferedCanceledORdersManager.TrygetOrder(...)
@@ -385,7 +386,11 @@ impl Exchange {
         }
     }
 
-    fn add_event_on_order_change(&self, order: &mut OrderSnapshot, event_type: OrderEventType) {
+    fn add_event_on_order_change(
+        &self,
+        order: &mut OrderSnapshot,
+        event_type: OrderEventType,
+    ) -> Result<()> {
         if event_type == OrderEventType::CancelOrderSucceeded {
             order.internal_props.cancellation_event_was_raised = true;
         }
@@ -397,6 +402,11 @@ impl Exchange {
                 .remove(&order.header.client_order_id);
         }
 
-        // TODO events_channel.add_event(new ORderEvent);
+        let order_event = OrderEvent::new(order.clone(), event_type, None);
+        self.event_channel
+            .send(order_event)
+            .context("Unable to send event. Probably receiver is already dead")?;
+
+        Ok(())
     }
 }

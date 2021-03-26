@@ -9,6 +9,7 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
+use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
 
@@ -32,6 +33,7 @@ async fn open_orders_exists() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
+    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
@@ -39,6 +41,7 @@ async fn open_orders_exists() {
         channels,
         Box::new(binance),
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        tx,
     );
 
     exchange.clone().connect().await;

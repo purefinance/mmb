@@ -6,6 +6,7 @@ use crate::core::exchanges::{
     application_manager::ApplicationManager,
     common::CurrencyPair,
     common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
+    events::OrderEvent,
     traits::ExchangeClient,
 };
 use crate::core::orders::order::ExchangeOrderId;
@@ -26,6 +27,7 @@ use log::{info, warn, Level};
 use parking_lot::Mutex;
 use serde_json::Value;
 use std::pin::Pin;
+use std::sync::mpsc;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
@@ -74,6 +76,7 @@ pub struct Exchange {
     pub(super) supported_symbols: Mutex<Vec<Arc<Symbol>>>,
     application_manager: ApplicationManager,
     pub(super) features: ExchangeFeatures,
+    pub(super) event_channel: mpsc::Sender<OrderEvent>,
     pub(super) symbols: Mutex<Vec<Arc<Symbol>>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
 }
@@ -86,6 +89,7 @@ impl Exchange {
         websocket_channels: Vec<String>,
         exchange_client: Box<dyn ExchangeClient>,
         features: ExchangeFeatures,
+        event_channel: mpsc::Sender<OrderEvent>,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
@@ -104,6 +108,7 @@ impl Exchange {
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
             features,
+            event_channel,
             symbols: Default::default(),
             currencies: Default::default(),
         });

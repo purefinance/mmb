@@ -10,6 +10,7 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
+use std::sync::mpsc::channel;
 
 #[actix_rt::test]
 async fn create_successfully() {
@@ -29,6 +30,7 @@ async fn create_successfully() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
+    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
@@ -36,6 +38,7 @@ async fn create_successfully() {
         channels,
         Box::new(binance),
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        tx,
     );
 
     exchange.clone().connect().await;
@@ -71,6 +74,13 @@ async fn create_successfully() {
 
     match created_order {
         Ok(order_ref) => {
+            let event = rx
+                .recv()
+                .expect("CreateOrderSucceeded event had to be occured");
+            if event.event_type != OrderEventType::CreateOrderSucceeded {
+                assert!(false)
+            }
+
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
                 header: order_header,
@@ -105,6 +115,7 @@ async fn should_fail() {
 
     let binance = Binance::new(settings, exchange_account_id);
 
+    let (tx, rx) = channel();
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
@@ -112,6 +123,7 @@ async fn should_fail() {
         vec![],
         Box::new(binance),
         ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        tx,
     );
 
     let test_order_client_id = ClientOrderId::unique_id();
@@ -139,7 +151,6 @@ async fn should_fail() {
         .create_order(&order_to_create, CancellationToken::default())
         .await;
 
-    dbg!(&created_order);
     match created_order {
         Ok(_) => {
             assert!(false)
