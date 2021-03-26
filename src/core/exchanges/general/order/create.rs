@@ -118,6 +118,8 @@ impl Exchange {
             Error(exchange_error) => {
                 if exchange_error.error_type == ExchangeErrorType::ParsingError {
                     // TODO Error handling should be placed in self.check_order_creation().await
+                    // TODO strange order handling there
+                    // self.check_order_creation().await?;
                 }
                 bail!(
                     "Delete it in the future. Exchange error: {}",

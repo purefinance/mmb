@@ -442,7 +442,7 @@ mod tests {
         let websocket_host = "wss://stream.binance.com:9443".into();
         let currency_pairs = vec!["phbbtc".into(), "btcusdt".into()];
         let channels = vec!["depth".into(), "aggTrade".into()];
-        let exchange_interaction = Box::new(Binance::new(
+        let exchange_client = Box::new(Binance::new(
             ExchangeSettings::default(),
             exchange_account_id.clone(),
         ));
@@ -452,8 +452,8 @@ mod tests {
             websocket_host,
             currency_pairs,
             channels,
-            exchange_interaction,
-            ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+            exchange_client,
+            ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
         );
 
         let exchange_weak = Arc::downgrade(&exchange);

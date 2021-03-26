@@ -1,3 +1,4 @@
+use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
@@ -8,23 +9,10 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
-use std::thread;
-use std::time::Duration;
 
 #[actix_rt::test]
-async fn open_orders_exists() {
-    // Get data to access binance account
-    let api_key = env::var("BINANCE_API_KEY");
-    if api_key.is_err() {
-        dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
-        return;
-    }
-
-    let secret_key = env::var("BINANCE_SECRET_KEY");
-    if secret_key.is_err() {
-        dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
-        return;
-    }
+async fn get_order_info() {
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let settings = settings::ExchangeSettings::new(
         api_key.expect("in test"),
@@ -45,14 +33,13 @@ async fn open_orders_exists() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
     );
 
     exchange.clone().connect().await;
 
     let test_order_client_id = ClientOrderId::unique_id();
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
-    let test_price = dec!(0.00000007);
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),
@@ -68,47 +55,28 @@ async fn open_orders_exists() {
     );
 
     let order_to_create = OrderCreating {
-        header: order_header,
-        price: test_price,
+        header: order_header.clone(),
+        price: dec!(0.0000001),
     };
 
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
         .expect("in test");
-    exchange
+    let created_order = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await
         .expect("in test");
 
-    let second_test_order_client_id = ClientOrderId::unique_id();
-    let second_order_header = OrderHeader::new(
-        second_test_order_client_id.clone(),
-        Utc::now(),
-        exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(10000),
-        OrderExecutionType::None,
-        ReservationId::gen_new(),
-        None,
-        "".into(),
-    );
+    let order = created_order.deep_clone();
 
-    let second_order_to_create = OrderCreating {
-        header: second_order_header,
-        price: test_price,
-    };
-
-    exchange
-        .create_order(&second_order_to_create, CancellationToken::default())
+    let order_info = exchange
+        .get_order_info(&order.clone())
         .await
         .expect("in test");
 
-    // Binance can process new orders close to 10 seconds
-    thread::sleep(Duration::from_secs(10));
-    let all_orders = exchange.get_open_orders().await.expect("in test");
+    let created_exchange_order_id = created_order.exchange_order_id().expect("in test");
+    let gotten_info_exchange_order_id = order_info.exchange_order_id;
 
-    assert!(!all_orders.is_empty())
+    assert_eq!(created_exchange_order_id, gotten_info_exchange_order_id);
 }

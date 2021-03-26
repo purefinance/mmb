@@ -1,5 +1,5 @@
+use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
-use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
@@ -11,19 +11,8 @@ use rust_decimal_macros::*;
 use std::env;
 
 #[actix_rt::test]
-async fn create_successfully() {
-    // Get data to access binance account
-    let api_key = env::var("BINANCE_API_KEY");
-    if api_key.is_err() {
-        dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
-        return;
-    }
-
-    let secret_key = env::var("BINANCE_SECRET_KEY");
-    if secret_key.is_err() {
-        dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
-        return;
-    }
+async fn cancelled_successfully() {
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let settings = settings::ExchangeSettings::new(
         api_key.expect("in test"),
@@ -44,7 +33,7 @@ async fn create_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
     );
 
     exchange.clone().connect().await;
@@ -87,9 +76,14 @@ async fn create_successfully() {
             };
 
             // Cancel last order
-            let _cancel_outcome = exchange
+            let cancel_outcome = exchange
                 .cancel_order(&order_to_cancel, CancellationToken::default())
-                .await;
+                .await
+                .expect("in test");
+
+            if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
+                assert_eq!(gotten_client_order_id, test_order_client_id);
+            }
         }
 
         // Create order failed
@@ -100,19 +94,8 @@ async fn create_successfully() {
 }
 
 #[actix_rt::test]
-async fn should_fail() {
-    // Get data to access binance account
-    let api_key = env::var("BINANCE_API_KEY");
-    if api_key.is_err() {
-        dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
-        return;
-    }
-
-    let secret_key = env::var("BINANCE_SECRET_KEY");
-    if secret_key.is_err() {
-        dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
-        return;
-    }
+async fn nothing_to_cancel() {
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let settings = settings::ExchangeSettings::new(
         api_key.expect("in test"),
@@ -120,52 +103,52 @@ async fn should_fail() {
         false,
     );
 
-    let binance = Binance::new(settings, "Binance0".parse().expect("in test"));
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let binance = Binance::new(settings, exchange_account_id.clone());
+
+    let websocket_host = "wss://stream.binance.com:9443".into();
+    let currency_pairs = vec!["PHBBTC".into()];
+    let channels = vec!["depth".into(), "trade".into()];
 
     let exchange = Exchange::new(
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
-        "host".into(),
-        vec![],
-        vec![],
+        exchange_account_id.clone(),
+        websocket_host,
+        currency_pairs,
+        channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false),
+        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
     );
 
-    let test_order_client_id = ClientOrderId::unique_id();
+    exchange.clone().connect().await;
+
     let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let generated_client_order_id = ClientOrderId::unique_id();
     let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
+        generated_client_order_id.clone(),
         Utc::now(),
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        exchange_account_id.clone(),
         test_currency_pair.clone(),
         OrderType::Limit,
         OrderSide::Buy,
-        dec!(1),
+        dec!(10000),
         OrderExecutionType::None,
         ReservationId::gen_new(),
         None,
         "".into(),
     );
 
-    let order_to_create = OrderCreating {
+    let order_to_cancel = OrderCancelling {
         header: order_header,
-        price: dec!(0.0000001),
+        exchange_order_id: "1234567890".into(),
     };
 
-    let created_order = exchange
-        .create_order(&order_to_create, CancellationToken::default())
-        .await;
+    // Cancel last order
+    let cancel_outcome = exchange
+        .cancel_order(&order_to_cancel, CancellationToken::default())
+        .await
+        .expect("in test");
 
-    dbg!(&created_order);
-    match created_order {
-        Ok(_) => {
-            assert!(false)
-        }
-        Err(error) => {
-            assert_eq!(
-                "Delete it in the future. Exchange error: Filter failure: MIN_NOTIONAL",
-                error.to_string()
-            );
-        }
+    if let RequestResult::Error(error) = cancel_outcome.outcome {
+        assert_eq!(error.error_type, ExchangeErrorType::OrderNotFound);
     }
 }
