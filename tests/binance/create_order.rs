@@ -1,3 +1,4 @@
+use crate::get_binance_credentials;
 use chrono::Utc;
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
@@ -12,18 +13,7 @@ use std::env;
 
 #[actix_rt::test]
 async fn create_successfully() {
-    // Get data to access binance account
-    let api_key = env::var("BINANCE_API_KEY");
-    if api_key.is_err() {
-        dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
-        return;
-    }
-
-    let secret_key = env::var("BINANCE_SECRET_KEY");
-    if secret_key.is_err() {
-        dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
-        return;
-    }
+    let (api_key, secret_key) = get_binance_credentials!();
 
     let settings = settings::ExchangeSettings::new(
         api_key.expect("in test"),
@@ -101,18 +91,7 @@ async fn create_successfully() {
 
 #[actix_rt::test]
 async fn should_fail() {
-    // Get data to access binance account
-    let api_key = env::var("BINANCE_API_KEY");
-    if api_key.is_err() {
-        dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
-        return;
-    }
-
-    let secret_key = env::var("BINANCE_SECRET_KEY");
-    if secret_key.is_err() {
-        dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
-        return;
-    }
+    let (api_key, secret_key) = get_binance_credentials!();
 
     let settings = settings::ExchangeSettings::new(
         api_key.expect("in test"),
