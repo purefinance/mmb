@@ -217,7 +217,7 @@ pub struct OrderHeader {
 
     pub execution_type: OrderExecutionType,
 
-    pub reservation_id: ReservationId,
+    pub reservation_id: Option<ReservationId>,
 
     pub signal_id: Option<String>,
     pub strategy_name: String,
@@ -233,7 +233,7 @@ impl OrderHeader {
         side: OrderSide,
         amount: Amount,
         execution_type: OrderExecutionType,
-        reservation_id: ReservationId,
+        reservation_id: Option<ReservationId>,
         signal_id: Option<String>,
         strategy_name: String,
     ) -> Self {
@@ -439,6 +439,27 @@ impl OrderSnapshot {
             status_history,
             internal_props,
         }
+    }
+
+    pub fn with_params(
+        order_type: OrderType,
+        is_maker: bool,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        price: Price,
+        amount: Amount,
+        side: OrderSide,
+        reservation_id: Option<ReservationId>,
+    ) -> Self {
+        let header = OrderHeader {};
+        Self::new(
+            header,
+            props,
+            OrderFills::default(),
+            OrderStatusHistory::default(),
+            SystemInternalOrderProps::default(),
+            SystemInternalOrderProps::default(),
+        )
     }
 
     pub fn add_fill(&mut self, fill: OrderFill) {

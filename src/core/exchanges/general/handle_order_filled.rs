@@ -1,12 +1,18 @@
+use std::sync::Arc;
+
 use super::exchange::Exchange;
 use crate::core::{
-    exchanges::common::Amount, exchanges::common::ExchangeAccountId,
+    exchanges::common::Amount, exchanges::common::CurrencyPair,
+    exchanges::common::ExchangeAccountId, exchanges::common::Price,
     exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
     orders::fill::OrderFillType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
-    orders::order::OrderSide,
+    orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderType,
+    orders::order::ReservationId,
 };
 use anyhow::{bail, Result};
+use chrono::Utc;
 use log::{error, info, warn};
+use parking_lot::RwLock;
 
 type ArgsToLog = (
     ExchangeAccountId,
@@ -22,9 +28,9 @@ pub struct FillEventData {
     trade_id: String,
     client_order_id: Option<ClientOrderId>,
     exchange_order_id: ExchangeOrderId,
+    fill_price: Price,
     fill_type: OrderFillType,
-    // FIXME Different type? Option<CurrencyPair> maybe?
-    trade_currency_pair: String,
+    trade_currency_pair: Option<CurrencyPair>,
     order_side: Option<OrderSide>,
     order_amount: Option<Amount>,
 }
@@ -61,7 +67,9 @@ impl Exchange {
         if event_data.fill_type == OrderFillType::Liquidation
             || event_data.fill_type == OrderFillType::ClosePosition
         {
-            if event_data.fill_type == OrderFillType::Liquidation {
+            if event_data.fill_type == OrderFillType::Liquidation
+                && event_data.trade_currency_pair.is_none()
+            {
                 Self::log_fill_handling_error_and_propagate(
                     "Currency pair should be set for liquidation trade",
                     &args_to_log,
@@ -100,8 +108,8 @@ impl Exchange {
                     event_data.client_order_id = Some(order.client_order_id());
                 }
                 None => {
-                    // FIXME continue from here
-                    //let order_instance = create_order_instance();
+                    let order_instance = self.create_order_instance(event_data);
+
                     //event_data.client_order_id = Some(order_instance.client_order_id);
                     //self.handle_create_order_succeeded(
                     //    &self.exchange_account_id,
@@ -114,6 +122,37 @@ impl Exchange {
         }
 
         Ok(())
+    }
+
+    fn create_order_instance(&self, event_data: &FillEventData) -> ClientOrderId {
+        let currency_pair = event_data
+            .trade_currency_pair
+            .clone()
+            .expect("Impossible situation: currency pair are checked above already");
+        let order_amount = event_data
+            .order_amount
+            .clone()
+            .expect("Impossible situation: amount are checked above already");
+        let order_side = event_data
+            .order_side
+            .clone()
+            .expect("Impossible situation: order_side are checked above already");
+
+        let order_instance = OrderSnapshot::with_params(
+            OrderType::Liquidation,
+            false,
+            self.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        self.orders
+            .add_snapshot_initial(Arc::new(RwLock::new(order_instance)));
+
+        order_instance.header.client_order_id.clone()
     }
 
     fn log_fill_handling_error_and_propagate(
