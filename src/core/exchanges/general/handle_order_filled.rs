@@ -7,10 +7,8 @@ use crate::core::{
     exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
     orders::fill::OrderFillType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
     orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderType,
-    orders::order::ReservationId,
 };
 use anyhow::{bail, Result};
-use chrono::Utc;
 use log::{error, info, warn};
 use parking_lot::RwLock;
 
@@ -110,13 +108,14 @@ impl Exchange {
                 None => {
                     let order_instance = self.create_order_instance(event_data);
 
-                    //event_data.client_order_id = Some(order_instance.client_order_id);
-                    //self.handle_create_order_succeeded(
-                    //    &self.exchange_account_id,
-                    //    order_instance.client_order_id,
-                    //    &event_data.exchange_order_id,
-                    //    &event_data.source_type,
-                    //);
+                    event_data.client_order_id =
+                        Some(order_instance.header.client_order_id.clone());
+                    self.handle_create_order_succeeded(
+                        &self.exchange_account_id,
+                        &order_instance.header.client_order_id,
+                        &event_data.exchange_order_id,
+                        &event_data.source_type,
+                    )?;
                 }
             }
         }
@@ -124,7 +123,7 @@ impl Exchange {
         Ok(())
     }
 
-    fn create_order_instance(&self, event_data: &FillEventData) -> ClientOrderId {
+    fn create_order_instance(&self, event_data: &FillEventData) -> OrderSnapshot {
         let currency_pair = event_data
             .trade_currency_pair
             .clone()
@@ -138,7 +137,10 @@ impl Exchange {
             .clone()
             .expect("Impossible situation: order_side are checked above already");
 
+        let client_order_id = ClientOrderId::unique_id();
+
         let order_instance = OrderSnapshot::with_params(
+            client_order_id.clone(),
             OrderType::Liquidation,
             false,
             self.exchange_account_id.clone(),
@@ -150,9 +152,9 @@ impl Exchange {
         );
 
         self.orders
-            .add_snapshot_initial(Arc::new(RwLock::new(order_instance)));
+            .add_snapshot_initial(Arc::new(RwLock::new(order_instance.clone())));
 
-        order_instance.header.client_order_id.clone()
+        order_instance
     }
 
     fn log_fill_handling_error_and_propagate(

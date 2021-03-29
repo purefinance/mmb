@@ -53,7 +53,7 @@ impl OrderRef {
     pub fn exchange_account_id(&self) -> ExchangeAccountId {
         self.fn_ref(|x| x.header.exchange_account_id.clone())
     }
-    pub fn reservation_id(&self) -> ReservationId {
+    pub fn reservation_id(&self) -> Option<ReservationId> {
         self.fn_ref(|x| x.header.reservation_id.clone())
     }
 

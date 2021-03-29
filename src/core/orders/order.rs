@@ -3,6 +3,7 @@ use crate::core::exchanges::common::{
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
+use chrono::Utc;
 use nanoid::nanoid;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -220,7 +221,7 @@ pub struct OrderHeader {
     pub reservation_id: Option<ReservationId>,
 
     pub signal_id: Option<String>,
-    pub strategy_name: String,
+    pub strategy_name: Option<String>,
 }
 
 impl OrderHeader {
@@ -235,7 +236,7 @@ impl OrderHeader {
         execution_type: OrderExecutionType,
         reservation_id: Option<ReservationId>,
         signal_id: Option<String>,
-        strategy_name: String,
+        strategy_name: Option<String>,
     ) -> Self {
         Self {
             version: CURRENT_ORDER_VERSION,
@@ -442,22 +443,38 @@ impl OrderSnapshot {
     }
 
     pub fn with_params(
+        client_order_id: ClientOrderId,
         order_type: OrderType,
-        is_maker: bool,
+        // FIXME How to use it?
+        _is_maker: bool,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
         price: Price,
         amount: Amount,
-        side: OrderSide,
+        order_side: OrderSide,
         reservation_id: Option<ReservationId>,
     ) -> Self {
-        let header = OrderHeader {};
+        let header = OrderHeader::new(
+            client_order_id,
+            Utc::now(),
+            exchange_account_id,
+            currency_pair,
+            order_type,
+            order_side,
+            amount,
+            OrderExecutionType::None,
+            reservation_id,
+            None,
+            None,
+        );
+
+        let props = OrderSimpleProps::new(Some(price));
+
         Self::new(
-            header,
+            Arc::new(header),
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
-            SystemInternalOrderProps::default(),
             SystemInternalOrderProps::default(),
         )
     }
