@@ -307,8 +307,8 @@ impl From<OrderRole> for OrderFillRole {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrderFills {
-    fills: Vec<OrderFill>,
-    filled_amount: Decimal,
+    pub fills: Vec<OrderFill>,
+    pub filled_amount: Decimal,
 }
 
 impl OrderFills {

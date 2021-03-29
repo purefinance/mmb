@@ -7,10 +7,12 @@ use crate::core::{
     exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
     orders::fill::OrderFillType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
     orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderType,
+    orders::pool::OrderRef,
 };
 use anyhow::{bail, Result};
 use log::{error, info, warn};
 use parking_lot::RwLock;
+use rust_decimal_macros::dec;
 
 type ArgsToLog = (
     ExchangeAccountId,
@@ -27,6 +29,8 @@ pub struct FillEventData {
     client_order_id: Option<ClientOrderId>,
     exchange_order_id: ExchangeOrderId,
     fill_price: Price,
+    fill_amount: Amount,
+    is_diff: bool,
     fill_type: OrderFillType,
     trade_currency_pair: Option<CurrencyPair>,
     order_side: Option<OrderSide>,
@@ -54,6 +58,97 @@ impl Exchange {
 
         self.check_based_on_fill_type(&mut event_data, &args_to_log)?;
 
+        if event_data.exchange_order_id.as_str().is_empty() {
+            Self::log_fill_handling_error_and_propagate(
+                "Received HandleOrderFilled with an empty exchangeOrderId",
+                &args_to_log,
+            )?;
+        }
+
+        match self
+            .orders
+            .by_exchange_id
+            .get(&event_data.exchange_order_id)
+        {
+            None => {
+                info!("Received a fill for not existing order {:?}", &args_to_log);
+                // TODO BufferedFillsManager.add_fill()
+
+                if let Some(client_order_id) = event_data.client_order_id {
+                    self.raise_order_created(
+                        client_order_id,
+                        event_data.exchange_order_id,
+                        event_data.source_type,
+                    );
+                }
+
+                return Ok(());
+            }
+            Some(order) => {
+                self.local_order_exist(&mut event_data, &*order)?;
+            }
+        }
+
+        //FIXME handle it in the end
+        Ok(())
+    }
+
+    fn local_order_exist(&self, event_data: &mut FillEventData, order: &OrderRef) -> Result<()> {
+        let (order_fills, order_filled_amound) = order.get_fills();
+
+        if !event_data.trade_id.is_empty()
+            && order_fills.iter().any(|fill| {
+                std::str::from_utf8(fill.id().as_bytes()).expect("Unable to convert Uuid to &str")
+                    == event_data.trade_id
+            })
+        {
+            info!(
+                "Trade with {} was received already for order {:?}",
+                event_data.trade_id, order
+            );
+
+            return Ok(());
+        }
+
+        if event_data.is_diff && order_fills.iter().any(|fill| !fill.is_diff()) {
+            // Most likely we received a trade update (diff), then received a non-diff fill via fallback and then again received a diff trade update
+            // It happens when WebSocket is glitchy and we miss update and the problem is we have no idea how to handle diff updates
+            // after applying a non-diff one as there's no TradeId, so we have to ignore all the diff updates afterwards
+            // relying only on fallbacks
+            warn!(
+                "Unable to process a diff fill after a non-diff one {:?}",
+                order
+            );
+
+            return Ok(());
+        }
+
+        if event_data.is_diff && order_filled_amound >= event_data.fill_amount {
+            warn!(
+                        "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
+                        order_filled_amound,
+                        event_data.fill_amount,
+                        order.client_order_id(),
+                        order.exchange_order_id(),
+                    );
+
+            return Ok(());
+        }
+
+        let last_fill_amount = event_data.fill_amount;
+        let last_fill_price = event_data.fill_price;
+        // TODO What about symbol here?
+        // let symbol CurrencyPairToSymbolConverter.GetSymbol(exchange_account_id, order.currency_pair)
+
+        if !event_data.is_diff && order_fills.len() > 0 {
+            // Diff should be calculated only if it is not the first fill
+            let mut total_filled_cost = dec!(0);
+            order_fills
+                .iter()
+                .for_each(|fill| total_filled_cost += fill.cost());
+        }
+
+        // FIXME handle it in the end
         Ok(())
     }
 
@@ -91,7 +186,6 @@ impl Exchange {
 
             if event_data.order_amount.is_none() {
                 Self::log_fill_handling_error_and_propagate(
-                    // FIXME there are not "should" in C#
                     "Order amount should be set for liquidation or close position trade",
                     &args_to_log,
                 )?;

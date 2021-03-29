@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut};
 use std::sync::Arc;
 
-use super::order::ReservationId;
+use super::{fill::OrderFill, order::ReservationId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -59,6 +59,11 @@ impl OrderRef {
 
     pub fn deep_clone(&self) -> OrderSnapshot {
         self.fn_ref(|order| order.clone())
+    }
+
+    pub fn get_fills(&self) -> (Vec<OrderFill>, Decimal) {
+        // FIXME is that OK to clone it here?
+        self.fn_ref(|order| (order.fills.fills.clone(), order.fills.filled_amount))
     }
 }
 
