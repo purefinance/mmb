@@ -6,12 +6,13 @@ use crate::core::{
     exchanges::common::ExchangeAccountId, exchanges::common::Price,
     exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
     orders::fill::OrderFillType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
-    orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderType,
-    orders::pool::OrderRef,
+    orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
+    orders::order::OrderStatus, orders::order::OrderType, orders::pool::OrderRef,
 };
 use anyhow::{bail, Result};
 use log::{error, info, warn};
 use parking_lot::RwLock;
+use rust_decimal::prelude::Zero;
 use rust_decimal_macros::dec;
 
 type ArgsToLog = (
@@ -23,6 +24,7 @@ type ArgsToLog = (
     EventSourceType,
 );
 
+#[derive(Debug, Clone)]
 pub struct FillEventData {
     source_type: EventSourceType,
     trade_id: String,
@@ -31,6 +33,11 @@ pub struct FillEventData {
     fill_price: Price,
     fill_amount: Amount,
     is_diff: bool,
+    total_filled_amount: Option<Amount>,
+    order_role: Option<OrderRole>,
+    commission_currency_code: Option<String>,
+    commission_rate: Option<Amount>,
+    commission_amount: Option<Amount>,
     fill_type: OrderFillType,
     trade_currency_pair: Option<CurrencyPair>,
     order_side: Option<OrderSide>,
@@ -137,8 +144,7 @@ impl Exchange {
 
         let last_fill_amount = event_data.fill_amount;
         let last_fill_price = event_data.fill_price;
-        // TODO What about symbol here?
-        // let symbol CurrencyPairToSymbolConverter.GetSymbol(exchange_account_id, order.currency_pair)
+        // TODO FIXME implement part connected with symbol
 
         if !event_data.is_diff && order_fills.len() > 0 {
             // Diff should be calculated only if it is not the first fill
@@ -146,7 +152,82 @@ impl Exchange {
             order_fills
                 .iter()
                 .for_each(|fill| total_filled_cost += fill.cost());
+            // TODO FIXME implement part connected with symbol
         }
+
+        if last_fill_amount.is_zero() {
+            warn!(
+                "last_fill_amount was received for 0 for {}, {:?}",
+                order.client_order_id(),
+                order.exchange_order_id()
+            );
+
+            return Ok(());
+        }
+
+        if let Some(total_filled_amount) = event_data.total_filled_amount {
+            if order_filled_amound + last_fill_amount != total_filled_amount {
+                warn!(
+                    "Fill was missed because {} != {} for {:?}",
+                    order_filled_amound, total_filled_amount, order
+                );
+
+                return Ok(());
+            }
+        }
+
+        if order.status() == OrderStatus::FailedToCreate
+            || order.status() == OrderStatus::Completed
+            || order.was_cancellation_event_raised()
+        {
+            let error_msg = format!(
+                "Fill was received for a {:?} {} {:?}",
+                order.status(),
+                order.was_cancellation_event_raised(),
+                event_data
+            );
+
+            error!("{}", error_msg);
+            bail!("{}", error_msg)
+        }
+
+        info!("Received fill {:?}", event_data);
+
+        if event_data.commission_currency_code.is_none() {
+            // TODO event_data.commission_currency_code = symbol.get_commision_currency_code(order.side());
+        }
+
+        if event_data.order_role.is_none() {
+            if event_data.commission_amount.is_none()
+                && event_data.commission_rate.is_none()
+                && order.role().is_none()
+            {
+                let error_msg = format!(
+                    "Fill has neither commission nor comission rate. Order role in order was set too",
+                );
+
+                error!("{}", error_msg);
+                bail!("{}", error_msg)
+            }
+
+            event_data.order_role = order.role();
+        }
+
+        // FIXME What is this?
+        let some_magical_number = dec!(0.01);
+        let expected_commission_rate =
+            self.commission.get_commission(event_data.order_role)?.fee * some_magical_number;
+        if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
+            event_data.commission_rate = Some(expected_commission_rate);
+        }
+
+        if event_data.commission_amount.is_none() {
+            // TODO let last_fill_amount_in_cuurency_code = ...
+            // TODO commission_amount = last_fill_amount_in_currency_code * commission_rate;
+        }
+
+        let converted_commission_currency_code = event_data.commission_currency_code.clone();
+        let converted_commission_amount = event_data.commission_amount;
 
         // FIXME handle it in the end
         Ok(())
@@ -169,7 +250,6 @@ impl Exchange {
                 )?;
             }
 
-            // FIXME What about order_side == OrderSide::Unknown?
             if event_data.order_side.is_none() {
                 Self::log_fill_handling_error_and_propagate(
                     "Side should be set for liquidatioin or close position trade",
@@ -236,7 +316,7 @@ impl Exchange {
         let order_instance = OrderSnapshot::with_params(
             client_order_id.clone(),
             OrderType::Liquidation,
-            false,
+            None,
             self.exchange_account_id.clone(),
             currency_pair,
             event_data.fill_price,

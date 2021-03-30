@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut};
 use std::sync::Arc;
 
-use super::{fill::OrderFill, order::ReservationId};
+use super::{fill::OrderFill, order::OrderRole, order::ReservationId};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -43,6 +43,12 @@ impl OrderRef {
     }
     pub fn status(&self) -> OrderStatus {
         self.fn_ref(|x| x.props.status)
+    }
+    pub fn role(&self) -> Option<OrderRole> {
+        self.fn_ref(|x| x.props.role)
+    }
+    pub fn was_cancellation_event_raised(&self) -> bool {
+        self.fn_ref(|x| x.internal_props.cancellation_event_was_raised)
     }
     pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
         self.fn_ref(|x| x.props.exchange_order_id.clone())

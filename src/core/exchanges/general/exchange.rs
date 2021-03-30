@@ -1,7 +1,7 @@
-use super::features::ExchangeFeatures;
 use super::order::cancel::CancelOrderResult;
 use super::order::create::CreateOrderResult;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol};
+use super::{commission::Commission, features::ExchangeFeatures};
 use crate::core::exchanges::{
     application_manager::ApplicationManager,
     common::CurrencyPair,
@@ -77,6 +77,7 @@ pub struct Exchange {
     application_manager: ApplicationManager,
     pub(super) features: ExchangeFeatures,
     pub(super) event_channel: mpsc::Sender<OrderEvent>,
+    pub(super) commission: Commission,
     pub(super) symbols: Mutex<Vec<Arc<Symbol>>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
 }
@@ -90,6 +91,7 @@ impl Exchange {
         exchange_client: Box<dyn ExchangeClient>,
         features: ExchangeFeatures,
         event_channel: mpsc::Sender<OrderEvent>,
+        commission: Commission,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
@@ -109,6 +111,7 @@ impl Exchange {
             application_manager: ApplicationManager::default(),
             features,
             event_channel,
+            commission,
             symbols: Default::default(),
             currencies: Default::default(),
         });

@@ -1,3 +1,4 @@
+pub mod commission;
 pub mod exchange;
 pub mod exchange_creation;
 pub mod exchange_metadata;
