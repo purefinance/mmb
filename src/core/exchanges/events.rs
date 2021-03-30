@@ -10,6 +10,12 @@ pub enum AllowedEventSourceType {
     NonFallback,
 }
 
+impl Default for AllowedEventSourceType {
+    fn default() -> Self {
+        AllowedEventSourceType::All
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct OrderEvent {
     pub order: OrderSnapshot,

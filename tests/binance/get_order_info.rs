@@ -37,8 +37,14 @@ async fn get_order_info() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        ExchangeFeatures::new(
+            OpenOrdersType::AllCurrencyPair,
+            false,
+            true,
+            AllowedEventSourceType::default(),
+        ),
         tx,
+        Commission::default(),
     );
 
     exchange.clone().connect().await;

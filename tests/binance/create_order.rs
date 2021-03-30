@@ -1,5 +1,6 @@
 use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
+use mmb::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
@@ -37,8 +38,14 @@ async fn create_successfully() {
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        ExchangeFeatures::new(
+            OpenOrdersType::AllCurrencyPair,
+            false,
+            true,
+            AllowedEventSourceType::default(),
+        ),
         tx,
+        Commission::default(),
     );
 
     exchange.clone().connect().await;
@@ -54,9 +61,9 @@ async fn create_successfully() {
         OrderSide::Buy,
         dec!(10000),
         OrderExecutionType::None,
-        ReservationId::gen_new(),
         None,
-        "".into(),
+        None,
+        None,
     );
 
     let order_to_create = OrderCreating {
@@ -115,15 +122,21 @@ async fn should_fail() {
 
     let binance = Binance::new(settings, exchange_account_id);
 
-    let (tx, rx) = channel();
+    let (tx, _) = channel();
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
         vec![],
         vec![],
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        ExchangeFeatures::new(
+            OpenOrdersType::AllCurrencyPair,
+            false,
+            true,
+            AllowedEventSourceType::default(),
+        ),
         tx,
+        Commission::default(),
     );
 
     let test_order_client_id = ClientOrderId::unique_id();
@@ -137,9 +150,9 @@ async fn should_fail() {
         OrderSide::Buy,
         dec!(1),
         OrderExecutionType::None,
-        ReservationId::gen_new(),
         None,
-        "".into(),
+        None,
+        None,
     );
 
     let order_to_create = OrderCreating {

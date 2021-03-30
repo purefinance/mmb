@@ -26,22 +26,22 @@ type ArgsToLog = (
 
 #[derive(Debug, Clone)]
 pub struct FillEventData {
-    source_type: EventSourceType,
-    trade_id: String,
-    client_order_id: Option<ClientOrderId>,
-    exchange_order_id: ExchangeOrderId,
-    fill_price: Price,
-    fill_amount: Amount,
-    is_diff: bool,
-    total_filled_amount: Option<Amount>,
-    order_role: Option<OrderRole>,
-    commission_currency_code: Option<String>,
-    commission_rate: Option<Amount>,
-    commission_amount: Option<Amount>,
-    fill_type: OrderFillType,
-    trade_currency_pair: Option<CurrencyPair>,
-    order_side: Option<OrderSide>,
-    order_amount: Option<Amount>,
+    pub source_type: EventSourceType,
+    pub trade_id: String,
+    pub client_order_id: Option<ClientOrderId>,
+    pub exchange_order_id: ExchangeOrderId,
+    pub fill_price: Price,
+    pub fill_amount: Amount,
+    pub is_diff: bool,
+    pub total_filled_amount: Option<Amount>,
+    pub order_role: Option<OrderRole>,
+    pub commission_currency_code: Option<String>,
+    pub commission_rate: Option<Amount>,
+    pub commission_amount: Option<Amount>,
+    pub fill_type: OrderFillType,
+    pub trade_currency_pair: Option<CurrencyPair>,
+    pub order_side: Option<OrderSide>,
+    pub order_amount: Option<Amount>,
 }
 
 impl Exchange {
@@ -229,6 +229,8 @@ impl Exchange {
         let converted_commission_currency_code = event_data.commission_currency_code.clone();
         let converted_commission_amount = event_data.commission_amount;
 
+        // TODO if all about symbol's data
+
         // FIXME handle it in the end
         Ok(())
     }
@@ -366,5 +368,32 @@ impl Exchange {
         }
 
         return false;
+    }
+}
+
+#[cfg(test)]
+mod liquidation {
+    use super::*;
+
+    #[test]
+    fn empty_currency_pair() {
+        let event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: String::new(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("test".into()),
+            fill_price: dec!(0),
+            fill_amount: dec!(0),
+            is_diff: false,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: None,
+            order_side: None,
+            order_amount: None,
+        };
     }
 }

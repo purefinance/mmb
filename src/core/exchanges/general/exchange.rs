@@ -77,6 +77,7 @@ pub struct Exchange {
     application_manager: ApplicationManager,
     pub(super) features: ExchangeFeatures,
     pub(super) event_channel: mpsc::Sender<OrderEvent>,
+    // FIXME think about it. Maybe it should be part of specific exchange?
     pub(super) commission: Commission,
     pub(super) symbols: Mutex<Vec<Arc<Symbol>>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,

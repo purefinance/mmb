@@ -132,8 +132,8 @@ pub struct ExchangeOrderId(String16);
 
 impl ExchangeOrderId {
     #[inline]
-    pub fn new(client_order_id: String16) -> Self {
-        ExchangeOrderId(client_order_id)
+    pub fn new(exchange_order_id: String16) -> Self {
+        ExchangeOrderId(exchange_order_id)
     }
 
     /// Extracts a string slice containing the entire string.

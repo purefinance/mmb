@@ -2,13 +2,13 @@ use anyhow::{bail, Result};
 
 use crate::core::{exchanges::common::Price, orders::order::OrderRole};
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct CommissionForType {
     pub fee: Price,
     pub referral_reward: Price,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct Commission {
     pub maker: CommissionForType,
     pub taker: CommissionForType,
