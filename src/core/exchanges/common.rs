@@ -1,3 +1,4 @@
+use crate::core::orders::order::OrderSide;
 use awc::http::StatusCode;
 use itertools::Itertools;
 use regex::Regex;
@@ -46,8 +47,9 @@ impl FromStr for ExchangeAccountId {
     type Err = ExchangeIdParseError;
 
     fn from_str(text: &str) -> Result<Self, Self::Err> {
-        let regex = Regex::new(r"(^[[:alpha:]]+)(\d+$)")
+        let regex = Regex::new(r"(^[A-Za-z]+)(\d+$)")
             .map_err(|err| ExchangeIdParseError(err.to_string()))?;
+
         let captures = regex
             .captures(text)
             .ok_or(ExchangeIdParseError("Invalid format".into()))?
@@ -133,6 +135,28 @@ impl From<&str> for SpecificCurrencyPair {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
+pub struct CurrencyId(String4);
+
+impl CurrencyId {
+    #[inline]
+    pub fn new(currency_id: String4) -> Self {
+        CurrencyId(currency_id)
+    }
+
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl From<&str> for CurrencyId {
+    fn from(value: &str) -> Self {
+        CurrencyId(String4::from_str(value))
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
+#[serde(transparent)]
 pub struct CurrencyCode(String4);
 
 impl CurrencyCode {
@@ -169,6 +193,67 @@ impl CurrencyPair {
     #[inline]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum PrecisionType {
+    ByFraction,
+    ByMantissa,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum BeforeAfter {
+    Before,
+    After,
+}
+
+pub const SYMBOL_DEFAULT_PRECISION: i8 = i8::MAX;
+
+#[derive(Debug, Clone)]
+pub struct Symbol {
+    pub is_active: bool,
+    pub is_derivative: bool,
+    pub base_currency_id: CurrencyId,
+    pub base_currency_code: CurrencyCode,
+    pub quote_currency_id: CurrencyId,
+    pub quote_currency_code: CurrencyCode,
+    // Currency pair in specific for exchange (which related to symbol)
+    pub specific_currency_pair: SpecificCurrencyPair,
+    pub min_price: Option<Decimal>,
+    pub max_price: Option<Decimal>,
+    pub price_precision: i8,
+    pub price_precision_type: PrecisionType,
+    pub price_tick: Option<Decimal>,
+    pub amount_currency_code: CurrencyCode,
+    pub min_amount: Option<Decimal>,
+    pub max_amount: Option<Decimal>,
+    pub amount_precision: i8,
+    pub amount_precision_type: PrecisionType,
+    pub amount_tick: Option<Decimal>,
+    pub min_cost: Option<Decimal>,
+    pub balance_currency_code: Option<CurrencyCode>,
+}
+
+impl Symbol {
+    // Currency pair in unified for crate format
+    pub fn currency_pair(&self) -> CurrencyPair {
+        CurrencyPair::from_currency_codes(
+            self.base_currency_code.clone(),
+            self.quote_currency_code.clone(),
+        )
+    }
+
+    pub fn get_trade_code(&self, side: OrderSide, before_after: BeforeAfter) -> CurrencyCode {
+        use BeforeAfter::*;
+        use OrderSide::*;
+
+        match (before_after, side) {
+            (Before, Buy) => self.quote_currency_code.clone(),
+            (Before, Sell) => self.base_currency_code.clone(),
+            (After, Buy) => self.base_currency_code.clone(),
+            (After, Sell) => self.quote_currency_code.clone(),
+        }
     }
 }
 

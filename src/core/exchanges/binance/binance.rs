@@ -2,7 +2,9 @@ use super::support::BinanceOrderInfo;
 use crate::core::exchanges::common::{
     CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair,
 };
+use crate::core::exchanges::general::features::{ExchangeFeatures, OpenOrdersType};
 use crate::core::exchanges::rest_client;
+use crate::core::exchanges::traits::{ExchangeClient, ExchangeClientBuilder};
 use crate::core::exchanges::utils;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
@@ -242,6 +244,23 @@ impl Binance {
     }
 }
 
+pub struct BinanceBuilder;
+
+impl ExchangeClientBuilder for BinanceBuilder {
+    fn create_exchange_client(
+        &self,
+        exchange_settings: ExchangeSettings,
+    ) -> (Box<dyn ExchangeClient>, ExchangeFeatures) {
+        let exchange_account_id = exchange_settings.exchange_account_id.clone();
+
+        (
+            Box::new(Binance::new(exchange_settings, exchange_account_id))
+                as Box<dyn ExchangeClient>,
+            ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, false),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,13 +270,16 @@ mod tests {
         // All values and strings gotten from binane API example
         let right_value = "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71";
 
+        let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+
         let settings = ExchangeSettings::new(
+            exchange_account_id.clone(),
             "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".into(),
             "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".into(),
             false,
         );
 
-        let binance = Binance::new(settings, "Binance0".parse().expect("in test"));
+        let binance = Binance::new(settings, exchange_account_id);
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.generate_signature(params).expect("in test");
         assert_eq!(result, right_value);

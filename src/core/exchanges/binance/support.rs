@@ -1,4 +1,5 @@
 use super::binance::Binance;
+use crate::core::exchanges::common::Symbol;
 use crate::core::exchanges::traits::Support;
 use crate::core::orders::order::*;
 use crate::core::{
@@ -14,6 +15,7 @@ use itertools::Itertools;
 use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BinanceOrderInfo {
@@ -224,5 +226,10 @@ impl Support for Binance {
         message: &str,
     ) {
         info!("Unknown message for {}: {}", exchange_account_id, message);
+    }
+
+    fn parse_metadata(&self, _response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
+        // TODO parse metadata
+        Ok(vec![])
     }
 }

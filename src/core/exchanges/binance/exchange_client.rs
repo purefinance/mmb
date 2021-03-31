@@ -139,4 +139,12 @@ impl ExchangeClient for Binance {
         self.add_authentification_headers(&mut parameters)?;
         rest_client::send_get_request(&full_url, &self.settings.api_key, &parameters).await
     }
+
+    async fn request_metadata(&self) -> Result<RestRequestOutcome> {
+        // TODO implement request metadata
+        Ok(RestRequestOutcome::new(
+            "".into(),
+            awc::http::StatusCode::OK,
+        ))
+    }
 }

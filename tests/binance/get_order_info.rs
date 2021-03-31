@@ -14,13 +14,15 @@ use std::env;
 async fn get_order_info() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+
     let settings = settings::ExchangeSettings::new(
+        exchange_account_id.clone(),
         api_key.expect("in test"),
         secret_key.expect("in test"),
         false,
     );
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance = Binance::new(settings, exchange_account_id.clone());
 
     let websocket_host = "wss://stream.binance.com:9443".into();

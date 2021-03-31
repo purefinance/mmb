@@ -30,7 +30,10 @@ impl Exchange {
                 );
 
                 if let Some(error) = self.get_rest_error(&response) {
-                    bail!("Rest error appeared during request: {}", error.message)
+                    bail!(
+                        "Rest error appeared during request get_open_orders: {}",
+                        error.message
+                    )
                 }
 
                 match self.exchange_client.parse_open_orders(&response) {

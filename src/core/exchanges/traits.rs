@@ -1,13 +1,17 @@
 use super::common::{
     CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
 };
+use crate::core::exchanges::common::Symbol;
+use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
 use crate::core::orders::{fill::EventSourceType, order::OrderSnapshot};
+use crate::core::settings::ExchangeSettings;
 use anyhow::Result;
 use async_trait::async_trait;
 use log::info;
+use std::sync::Arc;
 
 // Implementation of rest API client
 #[async_trait(?Send)]
@@ -21,6 +25,8 @@ pub trait ExchangeClient: Support {
     async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
 
     async fn request_order_info(&self, order: &OrderSnapshot) -> Result<RestRequestOutcome>;
+
+    async fn request_metadata(&self) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait(?Send)]
@@ -59,4 +65,12 @@ pub trait Support {
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;
     fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo>;
+    fn parse_metadata(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>>;
+}
+
+pub trait ExchangeClientBuilder {
+    fn create_exchange_client(
+        &self,
+        exchange_settings: ExchangeSettings,
+    ) -> (Box<dyn ExchangeClient>, ExchangeFeatures);
 }
