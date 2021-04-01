@@ -1,6 +1,7 @@
 use super::features::ExchangeFeatures;
 use super::order::cancel::CancelOrderResult;
 use super::order::create::CreateOrderResult;
+use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol};
 use crate::core::exchanges::{
     application_manager::ApplicationManager,
     common::CurrencyPair,
@@ -17,11 +18,12 @@ use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
 };
-use anyhow::*;
+use anyhow::{bail, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::Future;
 use log::{info, warn, Level};
+use parking_lot::Mutex;
 use serde_json::Value;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -68,8 +70,12 @@ pub struct Exchange {
             Option<oneshot::Receiver<CancelOrderResult>>,
         ),
     >,
+    pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
+    pub(super) supported_symbols: Mutex<Vec<Arc<Symbol>>>,
     application_manager: ApplicationManager,
     pub(super) features: ExchangeFeatures,
+    pub(super) symbols: Mutex<Vec<Arc<Symbol>>>,
+    pub(super) currencies: Mutex<Vec<CurrencyCode>>,
 }
 
 impl Exchange {
@@ -93,9 +99,13 @@ impl Exchange {
             connectivity_manager,
             order_creation_events: DashMap::new(),
             order_cancellation_events: DashMap::new(),
+            supported_currencies: Default::default(),
+            supported_symbols: Default::default(),
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
             features,
+            symbols: Default::default(),
+            currencies: Default::default(),
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -382,19 +392,16 @@ impl Exchange {
         self: Arc<Self>,
         websocket_role: WebSocketRole,
     ) -> Result<WebSocketParams> {
-        let ws_path;
-        match websocket_role {
+        let ws_path = match websocket_role {
             WebSocketRole::Main => {
                 // TODO remove hardcode or probably extract to common_interaction trait
-                ws_path = self.exchange_client.build_ws_main_path(
+                self.exchange_client.build_ws_main_path(
                     &self.specific_currency_pairs[..],
                     &self.websocket_channels[..],
-                );
+                )
             }
-            WebSocketRole::Secondary => {
-                ws_path = self.exchange_client.build_ws_secondary_path().await?;
-            }
-        }
+            WebSocketRole::Secondary => self.exchange_client.build_ws_secondary_path().await?,
+        };
 
         Ok(self.create_websocket_params(&ws_path))
     }
