@@ -1,4 +1,4 @@
-use crate::core::exchanges::common::{ExchangeAccountId, TradePlaceAccount};
+use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, TradePlaceAccount};
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
 };
@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use std::borrow::{Borrow, BorrowMut};
 use std::sync::Arc;
 
-use super::{fill::OrderFill, order::OrderRole, order::ReservationId};
+use super::{
+    fill::OrderFill, order::OrderRole, order::OrderSide, order::OrderType, order::ReservationId,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -62,12 +64,21 @@ impl OrderRef {
     pub fn reservation_id(&self) -> Option<ReservationId> {
         self.fn_ref(|x| x.header.reservation_id.clone())
     }
+    pub fn order_type(&self) -> OrderType {
+        self.fn_ref(|x| x.header.order_type.clone())
+    }
+    pub fn currency_pair(&self) -> CurrencyPair {
+        self.fn_ref(|x| x.header.currency_pair.clone())
+    }
+    pub fn side(&self) -> OrderSide {
+        self.fn_ref(|x| x.header.side.clone())
+    }
 
     pub fn deep_clone(&self) -> OrderSnapshot {
         self.fn_ref(|order| order.clone())
     }
 
-    pub fn get_fills(&self) -> (Vec<OrderFill>, Decimal) {
+    pub fn get_fills(&self) -> (Vec<OrderFill>, Amount) {
         // FIXME is that OK to clone it here?
         self.fn_ref(|order| (order.fills.fills.clone(), order.fills.filled_amount))
     }

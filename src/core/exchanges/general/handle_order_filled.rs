@@ -105,8 +105,11 @@ impl Exchange {
 
         if !event_data.trade_id.is_empty()
             && order_fills.iter().any(|fill| {
-                std::str::from_utf8(fill.id().as_bytes()).expect("Unable to convert Uuid to &str")
-                    == event_data.trade_id
+                if let Some(fill_trade_id) = fill.trade_id() {
+                    return fill_trade_id == &event_data.trade_id;
+                }
+
+                false
             })
         {
             info!(
@@ -372,12 +375,17 @@ impl Exchange {
 }
 
 #[cfg(test)]
-mod liquidation {
+mod test {
+    use chrono::Utc;
+    use uuid::Uuid;
+
     use super::*;
     use crate::core::{
-        exchanges::binance::binance::Binance, exchanges::events::OrderEvent,
-        exchanges::general::commission::Commission, exchanges::general::features::ExchangeFeatures,
-        exchanges::general::features::OpenOrdersType, settings,
+        exchanges::binance::binance::Binance, exchanges::common::CurrencyCode,
+        exchanges::events::OrderEvent, exchanges::general::commission::Commission,
+        exchanges::general::features::ExchangeFeatures,
+        exchanges::general::features::OpenOrdersType, orders::fill::OrderFill,
+        orders::order::OrderFillRole, orders::pool::OrdersPool, settings,
     };
     use std::sync::mpsc::{channel, Receiver};
 
@@ -389,7 +397,7 @@ mod liquidation {
 
         let (tx, rx) = channel();
         let exchange = Exchange::new(
-            ExchangeAccountId::new("".into(), 0),
+            ExchangeAccountId::new("local_exchange_account_id".into(), 0),
             "host".into(),
             vec![],
             vec![],
@@ -407,144 +415,258 @@ mod liquidation {
         (exchange, rx)
     }
 
-    #[test]
-    fn empty_currency_pair() {
-        let event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: String::new(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("test".into()),
-            fill_price: dec!(0),
-            fill_amount: dec!(0),
-            is_diff: false,
-            total_filled_amount: None,
-            order_role: None,
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: None,
-            order_side: None,
-            order_amount: None,
-        };
+    mod liquidation {
+        use super::*;
 
-        let (exchange, _) = get_test_exchange();
-        match exchange.handle_order_filled(event_data) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Currency pair should be set for liquidation trade",
-                    &error.to_string()[..49]
-                );
+        #[test]
+        fn empty_currency_pair() {
+            let event_data = FillEventData {
+                source_type: EventSourceType::WebSocket,
+                trade_id: String::new(),
+                client_order_id: None,
+                exchange_order_id: ExchangeOrderId::new("test".into()),
+                fill_price: dec!(0),
+                fill_amount: dec!(0),
+                is_diff: false,
+                total_filled_amount: None,
+                order_role: None,
+                commission_currency_code: None,
+                commission_rate: None,
+                commission_amount: None,
+                fill_type: OrderFillType::Liquidation,
+                trade_currency_pair: None,
+                order_side: None,
+                order_amount: None,
+            };
+
+            let (exchange, _) = get_test_exchange();
+            match exchange.handle_order_filled(event_data) {
+                Ok(_) => assert!(false),
+                Err(error) => {
+                    assert_eq!(
+                        "Currency pair should be set for liquidation trade",
+                        &error.to_string()[..49]
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn empty_order_side() {
+            let event_data = FillEventData {
+                source_type: EventSourceType::WebSocket,
+                trade_id: String::new(),
+                client_order_id: None,
+                exchange_order_id: ExchangeOrderId::new("test".into()),
+                fill_price: dec!(0),
+                fill_amount: dec!(0),
+                is_diff: false,
+                total_filled_amount: None,
+                order_role: None,
+                commission_currency_code: None,
+                commission_rate: None,
+                commission_amount: None,
+                fill_type: OrderFillType::Liquidation,
+                trade_currency_pair: Some(CurrencyPair::from_currency_codes(
+                    "te".into(),
+                    "st".into(),
+                )),
+                order_side: None,
+                order_amount: None,
+            };
+
+            let (exchange, _) = get_test_exchange();
+            match exchange.handle_order_filled(event_data) {
+                Ok(_) => assert!(false),
+                Err(error) => {
+                    assert_eq!(
+                        "Side should be set for liquidatioin or close position trade",
+                        &error.to_string()[..59]
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn not_empty_client_order_id() {
+            let event_data = FillEventData {
+                source_type: EventSourceType::WebSocket,
+                trade_id: String::new(),
+                client_order_id: Some(ClientOrderId::unique_id()),
+                exchange_order_id: ExchangeOrderId::new("test".into()),
+                fill_price: dec!(0),
+                fill_amount: dec!(0),
+                is_diff: false,
+                total_filled_amount: None,
+                order_role: None,
+                commission_currency_code: None,
+                commission_rate: None,
+                commission_amount: None,
+                fill_type: OrderFillType::Liquidation,
+                trade_currency_pair: Some(CurrencyPair::from_currency_codes(
+                    "te".into(),
+                    "st".into(),
+                )),
+                order_side: Some(OrderSide::Buy),
+                order_amount: None,
+            };
+
+            let (exchange, _) = get_test_exchange();
+            match exchange.handle_order_filled(event_data) {
+                Ok(_) => assert!(false),
+                Err(error) => {
+                    assert_eq!(
+                        "Client order id cannot be set for liquidation or close position trade",
+                        &error.to_string()[..69]
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn not_empty_order_amount() {
+            let event_data = FillEventData {
+                source_type: EventSourceType::WebSocket,
+                trade_id: String::new(),
+                client_order_id: None,
+                exchange_order_id: ExchangeOrderId::new("test".into()),
+                fill_price: dec!(0),
+                fill_amount: dec!(0),
+                is_diff: false,
+                total_filled_amount: None,
+                order_role: None,
+                commission_currency_code: None,
+                commission_rate: None,
+                commission_amount: None,
+                fill_type: OrderFillType::Liquidation,
+                trade_currency_pair: Some(CurrencyPair::from_currency_codes(
+                    "te".into(),
+                    "st".into(),
+                )),
+                order_side: Some(OrderSide::Buy),
+                order_amount: None,
+            };
+
+            let (exchange, _) = get_test_exchange();
+            match exchange.handle_order_filled(event_data) {
+                Ok(_) => assert!(false),
+                Err(error) => {
+                    assert_eq!(
+                        "Order amount should be set for liquidation or close position trade",
+                        &error.to_string()[..66]
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn should_add_order() {
+            let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+            let order_side = OrderSide::Buy;
+            let order_amount = dec!(1);
+            let order_role = None;
+            let fill_price = dec!(1);
+            let fill_amount = dec!(0);
+
+            let event_data = FillEventData {
+                source_type: EventSourceType::WebSocket,
+                trade_id: String::new(),
+                client_order_id: None,
+                exchange_order_id: ExchangeOrderId::new("test".into()),
+                fill_price,
+                fill_amount,
+                is_diff: false,
+                total_filled_amount: None,
+                order_role,
+                commission_currency_code: None,
+                commission_rate: None,
+                commission_amount: None,
+                fill_type: OrderFillType::Liquidation,
+                trade_currency_pair: Some(currency_pair.clone()),
+                order_side: Some(order_side),
+                order_amount: Some(order_amount),
+            };
+
+            let (exchange, _event_received) = get_test_exchange();
+            match exchange.handle_order_filled(event_data) {
+                Ok(_) => {
+                    let order = exchange
+                        .orders
+                        .by_client_id
+                        .iter()
+                        .next()
+                        .expect("order should be added already");
+                    assert_eq!(order.order_type(), OrderType::Liquidation);
+                    assert_eq!(order.exchange_account_id(), exchange.exchange_account_id);
+                    assert_eq!(order.currency_pair(), currency_pair);
+                    assert_eq!(order.side(), order_side);
+                    assert_eq!(order.amount(), order_amount);
+                    assert_eq!(order.price(), fill_price);
+                    assert_eq!(order.role(), order_role);
+
+                    // TODO FIX it when Symbol wil be implemented
+                    //let (fills, filled_amount) = order.get_fills();
+                    //assert_eq!(filled_amount, fill_amount);
+                    //assert_eq!(fills.iter().next().expect("in test").price(), fill_price);
+                }
+                Err(error) => {
+                    dbg!(&error.to_string());
+                    assert!(false);
+                }
+            }
+        }
+
+        #[test]
+        fn empty_exchange_order_id() {
+            let event_data = FillEventData {
+                source_type: EventSourceType::WebSocket,
+                trade_id: String::new(),
+                client_order_id: None,
+                exchange_order_id: ExchangeOrderId::new("".into()),
+                fill_price: dec!(0),
+                fill_amount: dec!(0),
+                is_diff: false,
+                total_filled_amount: None,
+                order_role: None,
+                commission_currency_code: None,
+                commission_rate: None,
+                commission_amount: None,
+                fill_type: OrderFillType::Liquidation,
+                trade_currency_pair: Some(CurrencyPair::from_currency_codes(
+                    "te".into(),
+                    "st".into(),
+                )),
+                order_side: Some(OrderSide::Buy),
+                order_amount: Some(dec!(0)),
+            };
+
+            let (exchange, _event_receiver) = get_test_exchange();
+            match exchange.handle_order_filled(event_data) {
+                Ok(_) => assert!(false),
+                Err(error) => {
+                    assert_eq!(
+                        "Received HandleOrderFilled with an empty exchangeOrderId",
+                        &error.to_string()[..56]
+                    );
+                }
             }
         }
     }
 
     #[test]
-    fn empty_order_side() {
-        let event_data = FillEventData {
+    fn ignore_fill_with_same_trade_id() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let order_side = OrderSide::Buy;
+        let order_price = dec!(1);
+        let order_amount = dec!(1);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: String::new(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("test".into()),
-            fill_price: dec!(0),
-            fill_amount: dec!(0),
-            is_diff: false,
-            total_filled_amount: None,
-            order_role: None,
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
-            order_side: None,
-            order_amount: None,
-        };
-
-        let (exchange, _) = get_test_exchange();
-        match exchange.handle_order_filled(event_data) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Side should be set for liquidatioin or close position trade",
-                    &error.to_string()[..59]
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn not_empty_client_order_id() {
-        let event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: String::new(),
-            client_order_id: Some(ClientOrderId::unique_id()),
-            exchange_order_id: ExchangeOrderId::new("test".into()),
-            fill_price: dec!(0),
-            fill_amount: dec!(0),
-            is_diff: false,
-            total_filled_amount: None,
-            order_role: None,
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
-            order_side: Some(OrderSide::Buy),
-            order_amount: None,
-        };
-
-        let (exchange, _) = get_test_exchange();
-        match exchange.handle_order_filled(event_data) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Client order id cannot be set for liquidation or close position trade",
-                    &error.to_string()[..69]
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn not_empty_order_amount() {
-        let event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: String::new(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("test".into()),
-            fill_price: dec!(0),
-            fill_amount: dec!(0),
-            is_diff: false,
-            total_filled_amount: None,
-            order_role: None,
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
-            order_side: Some(OrderSide::Buy),
-            order_amount: None,
-        };
-
-        let (exchange, _) = get_test_exchange();
-        match exchange.handle_order_filled(event_data) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Order amount should be set for liquidation or close position trade",
-                    &error.to_string()[..66]
-                );
-            }
-        }
-    }
-
-    #[test]
-    // TODO different_error
-    fn empty_exchange_order_id() {
-        let event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: String::new(),
+            trade_id: trade_id.clone(),
             client_order_id: None,
             exchange_order_id: ExchangeOrderId::new("".into()),
             fill_price: dec!(0),
@@ -561,15 +683,48 @@ mod liquidation {
             order_amount: Some(dec!(0)),
         };
 
-        let (exchange, _event_receiver) = get_test_exchange();
-        match exchange.handle_order_filled(event_data) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Received HandleOrderFilled with an empty exchangeOrderId",
-                    &error.to_string()[..56]
-                );
-            }
-        }
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            None,
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        let cost = dec!(0);
+        let order_fill = OrderFill::new(
+            Uuid::new_v4(),
+            Utc::now(),
+            OrderFillType::Liquidation,
+            Some(trade_id),
+            order_price,
+            order_amount,
+            cost,
+            OrderFillRole::Taker,
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            false,
+            None,
+            None,
+        );
+        order.add_fill(order_fill);
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        exchange
+            .local_order_exist(&mut event_data, &*order_ref)
+            .expect("in test");
     }
 }
