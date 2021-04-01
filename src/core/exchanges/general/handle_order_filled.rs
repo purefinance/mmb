@@ -142,6 +142,7 @@ impl Exchange {
                         order.exchange_order_id(),
                     );
 
+            dbg!(&"HERE now");
             return Ok(());
         }
 
@@ -663,6 +664,7 @@ mod test {
         let order_price = dec!(1);
         let order_amount = dec!(1);
         let trade_id = "test_trade_id".to_owned();
+        let fill_amount = dec!(0.2);
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -670,7 +672,7 @@ mod test {
             client_order_id: None,
             exchange_order_id: ExchangeOrderId::new("".into()),
             fill_price: dec!(0),
-            fill_amount: dec!(0),
+            fill_amount,
             is_diff: false,
             total_filled_amount: None,
             order_role: None,
@@ -702,7 +704,7 @@ mod test {
             OrderFillType::Liquidation,
             Some(trade_id),
             order_price,
-            order_amount,
+            fill_amount,
             cost,
             OrderFillRole::Taker,
             CurrencyCode::new("test".into()),
@@ -726,5 +728,87 @@ mod test {
         exchange
             .local_order_exist(&mut event_data, &*order_ref)
             .expect("in test");
+
+        let (_, order_filled_amount) = order_ref.get_fills();
+        assert_eq!(order_filled_amount, fill_amount);
+    }
+
+    #[test]
+    fn ignore_diff_fill_after_non_diff() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let order_side = OrderSide::Buy;
+        let order_price = dec!(1);
+        let fill_amount = dec!(0.2);
+        let order_amount = dec!(1);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("".into()),
+            fill_price: dec!(0),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            None,
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        let cost = dec!(0);
+        let order_fill = OrderFill::new(
+            Uuid::new_v4(),
+            Utc::now(),
+            OrderFillType::Liquidation,
+            Some("different_trade_id".to_owned()),
+            order_price,
+            fill_amount,
+            cost,
+            OrderFillRole::Taker,
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            false,
+            None,
+            None,
+        );
+        order.add_fill(order_fill);
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        exchange
+            .local_order_exist(&mut event_data, &*order_ref)
+            .expect("in test");
+
+        let (_, order_filled_amount) = order_ref.get_fills();
+        assert_eq!(order_filled_amount, fill_amount);
     }
 }
