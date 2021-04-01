@@ -133,16 +133,15 @@ impl Exchange {
             return Ok(());
         }
 
-        if event_data.is_diff && order_filled_amound >= event_data.fill_amount {
+        if !event_data.is_diff && order_filled_amound >= event_data.fill_amount {
             warn!(
-                        "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
-                        order_filled_amound,
-                        event_data.fill_amount,
-                        order.client_order_id(),
-                        order.exchange_order_id(),
-                    );
+                "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
+                order_filled_amound,
+                event_data.fill_amount,
+                order.client_order_id(),
+                order.exchange_order_id(),
+            );
 
-            dbg!(&"HERE now");
             return Ok(());
         }
 
@@ -810,5 +809,348 @@ mod test {
 
         let (_, order_filled_amount) = order_ref.get_fills();
         assert_eq!(order_filled_amount, fill_amount);
+    }
+
+    #[test]
+    fn ignore_non_diff_fill_if_current_filled_amount_is_more_or_equal() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let order_side = OrderSide::Buy;
+        let order_price = dec!(1);
+        let fill_amount = dec!(0.2);
+        let order_amount = dec!(1);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("".into()),
+            fill_price: dec!(0),
+            fill_amount,
+            is_diff: false,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            None,
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        let cost = dec!(0);
+        let order_fill = OrderFill::new(
+            Uuid::new_v4(),
+            Utc::now(),
+            OrderFillType::Liquidation,
+            Some("different_trade_id".to_owned()),
+            order_price,
+            fill_amount,
+            cost,
+            OrderFillRole::Taker,
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            false,
+            None,
+            None,
+        );
+        order.add_fill(order_fill);
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        exchange
+            .local_order_exist(&mut event_data, &*order_ref)
+            .expect("in test");
+
+        let (_, order_filled_amount) = order_ref.get_fills();
+        assert_eq!(order_filled_amount, fill_amount);
+    }
+
+    #[test]
+    fn ignore_diff_fill_if_filled_amount_is_zero() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let order_side = OrderSide::Buy;
+        let order_price = dec!(1);
+        let fill_amount = dec!(0);
+        let order_amount = dec!(1);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("".into()),
+            fill_price: dec!(0),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            None,
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        let cost = dec!(0);
+        let order_fill = OrderFill::new(
+            Uuid::new_v4(),
+            Utc::now(),
+            OrderFillType::Liquidation,
+            Some("different_trade_id".to_owned()),
+            order_price,
+            fill_amount,
+            cost,
+            OrderFillRole::Taker,
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            true,
+            None,
+            None,
+        );
+        order.add_fill(order_fill);
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        exchange
+            .local_order_exist(&mut event_data, &*order_ref)
+            .expect("in test");
+
+        let (_, order_filled_amount) = order_ref.get_fills();
+        assert_eq!(order_filled_amount, dec!(0));
+    }
+
+    #[test]
+    fn error_if_order_status_is_failed_to_create() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let order_side = OrderSide::Buy;
+        let fill_amount = dec!(1);
+        let order_amount = dec!(1);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("".into()),
+            fill_price: dec!(0),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            None,
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+        order.set_status(OrderStatus::FailedToCreate, Utc::now());
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+            Ok(_) => assert!(false),
+            Err(error) => {
+                assert_eq!(
+                    "Fill was received for a FailedToCreate false",
+                    &error.to_string()[..44]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn error_if_order_status_is_completed() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let order_side = OrderSide::Buy;
+        let fill_amount = dec!(1);
+        let order_amount = dec!(1);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("".into()),
+            fill_price: dec!(0),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            None,
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+        order.set_status(OrderStatus::Completed, Utc::now());
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+            Ok(_) => assert!(false),
+            Err(error) => {
+                assert_eq!(
+                    "Fill was received for a Completed false",
+                    &error.to_string()[..39]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn error_if_cancellation_event_was_raised() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let order_side = OrderSide::Buy;
+        let fill_amount = dec!(1);
+        let order_amount = dec!(1);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("".into()),
+            fill_price: dec!(0),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            None,
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+        order.internal_props.cancellation_event_was_raised = true;
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+            Ok(_) => assert!(false),
+            Err(error) => {
+                // TODO has to be Created!
+                // Does it mean order status had to be changed somewhere?
+                assert_eq!(
+                    "Fill was received for a Creating true",
+                    &error.to_string()[..37]
+                );
+            }
+        }
     }
 }
