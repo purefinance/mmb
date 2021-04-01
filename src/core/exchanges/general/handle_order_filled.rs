@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use super::exchange::Exchange;
+use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
 use crate::core::{
-    exchanges::common::Amount, exchanges::common::CurrencyPair,
+    exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
     exchanges::common::ExchangeAccountId, exchanges::common::Price,
     exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
     orders::fill::OrderFillType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
@@ -35,7 +35,7 @@ pub struct FillEventData {
     pub is_diff: bool,
     pub total_filled_amount: Option<Amount>,
     pub order_role: Option<OrderRole>,
-    pub commission_currency_code: Option<String>,
+    pub commission_currency_code: Option<CurrencyCode>,
     pub commission_rate: Option<Amount>,
     pub commission_amount: Option<Amount>,
     pub fill_type: OrderFillType,
@@ -101,7 +101,7 @@ impl Exchange {
     }
 
     fn local_order_exist(&self, event_data: &mut FillEventData, order: &OrderRef) -> Result<()> {
-        let (order_fills, order_filled_amound) = order.get_fills();
+        let (order_fills, order_filled_amount) = order.get_fills();
 
         if !event_data.trade_id.is_empty()
             && order_fills.iter().any(|fill| {
@@ -133,10 +133,10 @@ impl Exchange {
             return Ok(());
         }
 
-        if !event_data.is_diff && order_filled_amound >= event_data.fill_amount {
+        if !event_data.is_diff && order_filled_amount >= event_data.fill_amount {
             warn!(
                 "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
-                order_filled_amound,
+                order_filled_amount,
                 event_data.fill_amount,
                 order.client_order_id(),
                 order.exchange_order_id(),
@@ -145,9 +145,15 @@ impl Exchange {
             return Ok(());
         }
 
-        let last_fill_amount = event_data.fill_amount;
-        let _last_fill_price = event_data.fill_price;
-        // TODO FIXME implement part connected with symbol
+        let mut last_fill_amount = event_data.fill_amount;
+        let mut last_fill_price = event_data.fill_price;
+        let symbol =
+            CurrencyPairMetadata::new(self.exchange_account_id.clone(), order.currency_pair());
+        let mut last_fill_cost = if !symbol.is_derivative() {
+            last_fill_amount * last_fill_price
+        } else {
+            last_fill_amount / last_fill_price
+        };
 
         if !event_data.is_diff && order_fills.len() > 0 {
             // Diff should be calculated only if it is not the first fill
@@ -155,7 +161,31 @@ impl Exchange {
             order_fills
                 .iter()
                 .for_each(|fill| total_filled_cost += fill.cost());
-            // TODO FIXME implement part connected with symbol
+            let cost_diff = last_fill_cost - total_filled_cost;
+            if cost_diff <= dec!(0) {
+                warn!("cost_diff if {} which is <= for {:?}", cost_diff, order);
+                return Ok(());
+            }
+
+            let amount_diff = last_fill_amount - order_filled_amount;
+            let res_fill_price = if !symbol.is_derivative() {
+                cost_diff / amount_diff
+            } else {
+                amount_diff / cost_diff
+            };
+            // TODO second parameter rounda.to_newarest_neighbor
+            last_fill_price = symbol.price_round(res_fill_price);
+
+            last_fill_amount = amount_diff;
+            last_fill_cost = cost_diff;
+
+            if let Some(commission_amount) = event_data.commission_amount {
+                let mut current_commission = dec!(0);
+                order_fills
+                    .iter()
+                    .for_each(|fill| current_commission += fill.commission_amount());
+                event_data.commission_amount = Some(commission_amount - current_commission);
+            }
         }
 
         if last_fill_amount.is_zero() {
@@ -169,10 +199,10 @@ impl Exchange {
         }
 
         if let Some(total_filled_amount) = event_data.total_filled_amount {
-            if order_filled_amound + last_fill_amount != total_filled_amount {
+            if order_filled_amount + last_fill_amount != total_filled_amount {
                 warn!(
                     "Fill was missed because {} != {} for {:?}",
-                    order_filled_amound, total_filled_amount, order
+                    order_filled_amount, total_filled_amount, order
                 );
 
                 return Ok(());
@@ -197,7 +227,8 @@ impl Exchange {
         info!("Received fill {:?}", event_data);
 
         if event_data.commission_currency_code.is_none() {
-            // TODO event_data.commission_currency_code = symbol.get_commision_currency_code(order.side());
+            event_data.commission_currency_code =
+                Some(symbol.get_commision_currency_code(order.side()));
         }
 
         if event_data.order_role.is_none() {
@@ -225,8 +256,20 @@ impl Exchange {
         }
 
         if event_data.commission_amount.is_none() {
-            // TODO let last_fill_amount_in_cuurency_code = ...
-            // TODO commission_amount = last_fill_amount_in_currency_code * commission_rate;
+            let last_fill_amount_in_currency_code = symbol
+                .convert_amount_from_amount_currency_code(
+                    event_data.commission_currency_code.clone().expect(
+                        "Impossible sitation: event_data.commission_currency_code are set above already"
+                    ),
+                    last_fill_amount,
+                    last_fill_price,
+                );
+            event_data.commission_amount = Some(
+                last_fill_amount_in_currency_code
+                    * event_data.commission_rate.expect(
+                        "Impossible sitation: event_data.commission_rate are set above already",
+                    ),
+            );
         }
 
         let _converted_commission_currency_code = event_data.commission_currency_code.clone();
@@ -1151,6 +1194,65 @@ mod test {
                     &error.to_string()[..37]
                 );
             }
+        }
+    }
+
+    #[test]
+    fn ignore_fill_if_total_filled_amount_is_incorrect() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let order_side = OrderSide::Buy;
+        let fill_amount = dec!(5);
+        let order_amount = dec!(1);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("".into()),
+            fill_price: dec!(0.8),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: Some(dec!(9)),
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            Some(OrderRole::Maker),
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+        order.fills.filled_amount = dec!(3);
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+            Ok(_) => {
+                let (fills, _) = order_ref.get_fills();
+                assert!(fills.is_empty());
+            }
+            Err(_) => assert!(false),
         }
     }
 }
