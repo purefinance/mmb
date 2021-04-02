@@ -2,13 +2,6 @@ use super::order::cancel::CancelOrderResult;
 use super::order::create::CreateOrderResult;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol};
 use super::{commission::Commission, features::ExchangeFeatures};
-use crate::core::exchanges::{
-    application_manager::ApplicationManager,
-    common::CurrencyPair,
-    common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
-    events::OrderEvent,
-    traits::ExchangeClient,
-};
 use crate::core::orders::order::ExchangeOrderId;
 use crate::core::orders::order::OrderHeader;
 use crate::core::orders::pool::OrdersPool;
@@ -20,6 +13,16 @@ use crate::core::{
     orders::order::ClientOrderId,
 };
 use anyhow::{bail, Error, Result};
+    exchanges::{
+        application_manager::ApplicationManager,
+        common::CurrencyPair,
+        common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
+        events::OrderEvent,
+        traits::ExchangeClient,
+    },
+    order_book::local_order_book_snapshot::Ask,
+    order_book::local_order_book_snapshot::Bid,
+};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::Future;
@@ -79,6 +82,7 @@ pub struct Exchange {
     pub(super) event_channel: mpsc::Sender<OrderEvent>,
     // FIXME think about it. Maybe it should be part of specific exchange?
     pub(super) commission: Commission,
+    pub(super) top_prices: DashMap<CurrencyPair, (Ask, Bid)>,
     pub(super) symbols: Mutex<Vec<Arc<Symbol>>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
 }
@@ -113,6 +117,7 @@ impl Exchange {
             features,
             event_channel,
             commission,
+            top_prices: DashMap::new(),
             symbols: Default::default(),
             currencies: Default::default(),
         });

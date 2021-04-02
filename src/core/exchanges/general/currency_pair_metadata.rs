@@ -5,11 +5,17 @@ use crate::core::{
     orders::order::OrderSide,
 };
 
-pub struct CurrencyPairMetadata {}
+pub struct CurrencyPairMetadata {
+    pub base_currency_code: CurrencyCode,
+    pub quote_currency_code: CurrencyCode,
+}
 
 impl CurrencyPairMetadata {
     pub fn new(exchange_order_id: ExchangeAccountId, currency_pair: CurrencyPair) -> Self {
-        Self {}
+        Self {
+            base_currency_code: CurrencyCode::new("base".into()),
+            quote_currency_code: CurrencyCode::new("quot".into()),
+        }
     }
 
     pub fn is_derivative(&self) -> bool {

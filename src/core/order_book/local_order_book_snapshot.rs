@@ -21,6 +21,9 @@ impl DataToExcludeOrder {
     }
 }
 
+pub type Ask = (Price, Amount);
+pub type Bid = (Price, Amount);
+
 /// Snapshot of certain ask and bids collection
 /// Identified by ExchangeId
 #[derive(Clone)]

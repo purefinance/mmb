@@ -3,11 +3,12 @@ use std::sync::Arc;
 use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
 use crate::core::{
     exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
-    exchanges::common::ExchangeAccountId, exchanges::common::Price,
-    exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
-    orders::fill::OrderFillType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
-    orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
-    orders::order::OrderStatus, orders::order::OrderType, orders::pool::OrderRef,
+    exchanges::common::ExchangeAccountId, exchanges::common::ExchangeIdCurrencyPair,
+    exchanges::common::Price, exchanges::events::AllowedEventSourceType,
+    orders::fill::EventSourceType, orders::fill::OrderFillType, orders::order::ClientOrderId,
+    orders::order::ExchangeOrderId, orders::order::OrderRole, orders::order::OrderSide,
+    orders::order::OrderSnapshot, orders::order::OrderStatus, orders::order::OrderType,
+    orders::pool::OrderRef,
 };
 use anyhow::{bail, Result};
 use log::{error, info, warn};
@@ -247,10 +248,11 @@ impl Exchange {
             event_data.order_role = order.role();
         }
 
-        // FIXME What is this?
+        // FIXME What is the better name?
         let some_magical_number = dec!(0.01);
         let expected_commission_rate =
             self.commission.get_commission(event_data.order_role)?.fee * some_magical_number;
+
         if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
             event_data.commission_rate = Some(expected_commission_rate);
         }
@@ -258,6 +260,7 @@ impl Exchange {
         if event_data.commission_amount.is_none() {
             let last_fill_amount_in_currency_code = symbol
                 .convert_amount_from_amount_currency_code(
+                    // FIXME refactor this
                     event_data.commission_currency_code.clone().expect(
                         "Impossible sitation: event_data.commission_currency_code are set above already"
                     ),
@@ -267,15 +270,63 @@ impl Exchange {
             event_data.commission_amount = Some(
                 last_fill_amount_in_currency_code
                     * event_data.commission_rate.expect(
+                        // FIXME that is not true! commission rate can be null here
                         "Impossible sitation: event_data.commission_rate are set above already",
                     ),
             );
         }
 
-        let _converted_commission_currency_code = event_data.commission_currency_code.clone();
-        let _converted_commission_amount = event_data.commission_amount;
+        // FIXME refactoring this handling Option<comission_currency_code>
+        let commission_currency_code = event_data.commission_currency_code.clone().expect(
+            "Impossible sitation: event_data.commission_currency_code are set above already",
+        );
+        // FIXME refactoring this handling Option<comission_amount>>
+        let commission_amount = event_data
+            .commission_amount
+            .clone()
+            .expect("Impossible sitation: event_data.commission_amount are set above already");
 
-        // TODO if all about symbol's data
+        let mut converted_commission_currency_code = commission_currency_code.clone();
+        let mut converted_commission_amount = commission_amount;
+
+        if commission_currency_code != symbol.base_currency_code
+            && commission_currency_code != symbol.quote_currency_code
+        {
+            let mut currency_pair = CurrencyPair::from_currency_codes(
+                commission_currency_code.clone(),
+                symbol.quote_currency_code.clone(),
+            );
+            match self.top_prices.get(&currency_pair) {
+                Some(top_prices) => {
+                    let (_, bid) = *top_prices;
+                    let price_bnb_quote = bid.0;
+                    converted_commission_amount = commission_amount * price_bnb_quote;
+                    converted_commission_currency_code = symbol.quote_currency_code.clone();
+                }
+                None => {
+                    currency_pair = CurrencyPair::from_currency_codes(
+                        symbol.quote_currency_code.clone(),
+                        commission_currency_code,
+                    );
+
+                    match self.top_prices.get(&currency_pair) {
+                        Some(top_prices) => {
+                            let (ask, _) = *top_prices;
+                            let price_quote_bnb = ask.0;
+                            converted_commission_amount = commission_amount / price_quote_bnb;
+                            converted_commission_currency_code = symbol.quote_currency_code.clone();
+                        }
+                        None => error!(
+                            "Top bids and asks for {} and currency pair {:?} do not exist",
+                            self.exchange_account_id, currency_pair
+                        ),
+                    }
+                }
+            }
+        }
+
+        // TODO continue here
+        //let last_fill_amount_in_converted_commission_currency_code =
 
         // FIXME handle it in the end
         Ok(())

@@ -20,7 +20,7 @@ impl LocalSnapshotsService {
         self.local_snapshots.get(&snapshot_id)
     }
 
-    /// Create snaphot if it does not exist
+    /// Create snapshot if it does not exist
     /// Update snapshot if suitable data arrive
     pub fn update(
         &mut self,
