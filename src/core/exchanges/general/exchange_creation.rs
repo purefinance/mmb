@@ -4,7 +4,10 @@ use crate::core::lifecycle::launcher::EngineBuildConfig;
 use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
 use itertools::Itertools;
 use log::error;
+use std::sync::mpsc::channel;
 use std::sync::Arc;
+
+use super::commission::Commission;
 
 pub async fn create_exchange(
     exchange_settings: &ExchangeSettings,
@@ -14,6 +17,7 @@ pub async fn create_exchange(
         [&exchange_settings.exchange_account_id.exchange_id]
         .create_exchange_client(exchange_settings.clone());
 
+    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_settings.exchange_account_id.clone(),
         exchange_settings.web_socket_host.clone(),
@@ -21,6 +25,8 @@ pub async fn create_exchange(
         exchange_settings.websocket_channels.clone(),
         exchange_client,
         features,
+        tx,
+        Commission::default(),
     );
 
     exchange.build_metadata().await;

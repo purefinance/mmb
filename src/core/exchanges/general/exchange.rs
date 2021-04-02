@@ -1,18 +1,13 @@
 use super::order::cancel::CancelOrderResult;
 use super::order::create::CreateOrderResult;
-use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol};
 use super::{commission::Commission, features::ExchangeFeatures};
+use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol};
 use crate::core::orders::order::ExchangeOrderId;
 use crate::core::orders::order::OrderHeader;
 use crate::core::orders::pool::OrdersPool;
 use crate::core::{
-    connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
-};
-use crate::core::{
-    connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
-    orders::order::ClientOrderId,
-};
-use anyhow::{bail, Error, Result};
+    connectivity::connectivity_manager::WebSocketRole,
+    exchanges::common::ExchangeAccountId,
     exchanges::{
         application_manager::ApplicationManager,
         common::CurrencyPair,
@@ -23,6 +18,11 @@ use anyhow::{bail, Error, Result};
     order_book::local_order_book_snapshot::Ask,
     order_book::local_order_book_snapshot::Bid,
 };
+use crate::core::{
+    connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
+    orders::order::ClientOrderId,
+};
+use anyhow::{bail, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::Future;

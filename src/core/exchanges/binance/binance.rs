@@ -1,11 +1,12 @@
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::common::{
-    CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair,
-};
 use crate::core::exchanges::general::features::{ExchangeFeatures, OpenOrdersType};
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, ExchangeClientBuilder};
 use crate::core::exchanges::utils;
+use crate::core::exchanges::{
+    common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
+    events::AllowedEventSourceType,
+};
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
@@ -256,7 +257,12 @@ impl ExchangeClientBuilder for BinanceBuilder {
         (
             Box::new(Binance::new(exchange_settings, exchange_account_id))
                 as Box<dyn ExchangeClient>,
-            ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, false),
+            ExchangeFeatures::new(
+                OpenOrdersType::AllCurrencyPair,
+                false,
+                false,
+                AllowedEventSourceType::All,
+            ),
         )
     }
 }
