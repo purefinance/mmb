@@ -94,13 +94,33 @@ impl Exchange {
 
                 return Ok(());
             }
-            Some(order) => {
-                self.local_order_exist(&mut event_data, &*order)?;
-            }
+            Some(order) => self.local_order_exist(&mut event_data, &*order),
+        }
+    }
+
+    fn was_trade_already_received(
+        trade_id: &str,
+        order_fills: &Vec<OrderFill>,
+        order_ref: &OrderRef,
+    ) -> bool {
+        if !trade_id.is_empty()
+            && order_fills.iter().any(|fill| {
+                if let Some(fill_trade_id) = fill.trade_id() {
+                    return fill_trade_id == &trade_id;
+                }
+
+                false
+            })
+        {
+            info!(
+                "Trade with {} was received already for order {:?}",
+                trade_id, order_ref
+            );
+
+            return true;
         }
 
-        //FIXME handle it in the end
-        Ok(())
+        false
     }
 
     fn local_order_exist(
@@ -110,20 +130,7 @@ impl Exchange {
     ) -> Result<()> {
         let (order_fills, order_filled_amount) = order_ref.get_fills();
 
-        if !event_data.trade_id.is_empty()
-            && order_fills.iter().any(|fill| {
-                if let Some(fill_trade_id) = fill.trade_id() {
-                    return fill_trade_id == &event_data.trade_id;
-                }
-
-                false
-            })
-        {
-            info!(
-                "Trade with {} was received already for order {:?}",
-                event_data.trade_id, order_ref
-            );
-
+        if Self::was_trade_already_received(&event_data.trade_id, &order_fills, &order_ref) {
             return Ok(());
         }
 
