@@ -386,7 +386,7 @@ impl Exchange {
         }
     }
 
-    fn add_event_on_order_change(
+    pub(crate) fn add_event_on_order_change(
         &self,
         order: &mut OrderSnapshot,
         event_type: OrderEventType,

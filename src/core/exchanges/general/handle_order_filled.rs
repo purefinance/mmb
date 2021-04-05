@@ -3,18 +3,20 @@ use std::sync::Arc;
 use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
 use crate::core::{
     exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
-    exchanges::common::ExchangeAccountId, exchanges::common::ExchangeIdCurrencyPair,
-    exchanges::common::Price, exchanges::events::AllowedEventSourceType,
-    orders::fill::EventSourceType, orders::fill::OrderFillType, orders::order::ClientOrderId,
-    orders::order::ExchangeOrderId, orders::order::OrderRole, orders::order::OrderSide,
-    orders::order::OrderSnapshot, orders::order::OrderStatus, orders::order::OrderType,
-    orders::pool::OrderRef,
+    exchanges::common::ExchangeAccountId, exchanges::common::Price,
+    exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
+    orders::fill::OrderFill, orders::fill::OrderFillType, orders::order::ClientOrderId,
+    orders::order::ExchangeOrderId, orders::order::OrderEventType, orders::order::OrderRole,
+    orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderStatus,
+    orders::order::OrderType, orders::pool::OrderRef,
 };
 use anyhow::{bail, Result};
+use chrono::Utc;
 use log::{error, info, warn};
 use parking_lot::RwLock;
 use rust_decimal::prelude::Zero;
 use rust_decimal_macros::dec;
+use uuid::Uuid;
 
 type ArgsToLog = (
     ExchangeAccountId,
@@ -101,8 +103,12 @@ impl Exchange {
         Ok(())
     }
 
-    fn local_order_exist(&self, event_data: &mut FillEventData, order: &OrderRef) -> Result<()> {
-        let (order_fills, order_filled_amount) = order.get_fills();
+    fn local_order_exist(
+        &self,
+        event_data: &mut FillEventData,
+        order_ref: &OrderRef,
+    ) -> Result<()> {
+        let (order_fills, order_filled_amount) = order_ref.get_fills();
 
         if !event_data.trade_id.is_empty()
             && order_fills.iter().any(|fill| {
@@ -115,7 +121,7 @@ impl Exchange {
         {
             info!(
                 "Trade with {} was received already for order {:?}",
-                event_data.trade_id, order
+                event_data.trade_id, order_ref
             );
 
             return Ok(());
@@ -128,7 +134,7 @@ impl Exchange {
             // relying only on fallbacks
             warn!(
                 "Unable to process a diff fill after a non-diff one {:?}",
-                order
+                order_ref
             );
 
             return Ok(());
@@ -139,8 +145,8 @@ impl Exchange {
                 "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
                 order_filled_amount,
                 event_data.fill_amount,
-                order.client_order_id(),
-                order.exchange_order_id(),
+                order_ref.client_order_id(),
+                order_ref.exchange_order_id(),
             );
 
             return Ok(());
@@ -149,7 +155,7 @@ impl Exchange {
         let mut last_fill_amount = event_data.fill_amount;
         let mut last_fill_price = event_data.fill_price;
         let symbol =
-            CurrencyPairMetadata::new(self.exchange_account_id.clone(), order.currency_pair());
+            CurrencyPairMetadata::new(self.exchange_account_id.clone(), order_ref.currency_pair());
         let mut last_fill_cost = if !symbol.is_derivative() {
             last_fill_amount * last_fill_price
         } else {
@@ -164,7 +170,7 @@ impl Exchange {
                 .for_each(|fill| total_filled_cost += fill.cost());
             let cost_diff = last_fill_cost - total_filled_cost;
             if cost_diff <= dec!(0) {
-                warn!("cost_diff if {} which is <= for {:?}", cost_diff, order);
+                warn!("cost_diff if {} which is <= for {:?}", cost_diff, order_ref);
                 return Ok(());
             }
 
@@ -192,8 +198,8 @@ impl Exchange {
         if last_fill_amount.is_zero() {
             warn!(
                 "last_fill_amount was received for 0 for {}, {:?}",
-                order.client_order_id(),
-                order.exchange_order_id()
+                order_ref.client_order_id(),
+                order_ref.exchange_order_id()
             );
 
             return Ok(());
@@ -203,21 +209,21 @@ impl Exchange {
             if order_filled_amount + last_fill_amount != total_filled_amount {
                 warn!(
                     "Fill was missed because {} != {} for {:?}",
-                    order_filled_amount, total_filled_amount, order
+                    order_filled_amount, total_filled_amount, order_ref
                 );
 
                 return Ok(());
             }
         }
 
-        if order.status() == OrderStatus::FailedToCreate
-            || order.status() == OrderStatus::Completed
-            || order.was_cancellation_event_raised()
+        if order_ref.status() == OrderStatus::FailedToCreate
+            || order_ref.status() == OrderStatus::Completed
+            || order_ref.was_cancellation_event_raised()
         {
             let error_msg = format!(
                 "Fill was received for a {:?} {} {:?}",
-                order.status(),
-                order.was_cancellation_event_raised(),
+                order_ref.status(),
+                order_ref.was_cancellation_event_raised(),
                 event_data
             );
 
@@ -229,13 +235,13 @@ impl Exchange {
 
         if event_data.commission_currency_code.is_none() {
             event_data.commission_currency_code =
-                Some(symbol.get_commision_currency_code(order.side()));
+                Some(symbol.get_commision_currency_code(order_ref.side()));
         }
 
         if event_data.order_role.is_none() {
             if event_data.commission_amount.is_none()
                 && event_data.commission_rate.is_none()
-                && order.role().is_none()
+                && order_ref.role().is_none()
             {
                 let error_msg = format!(
                     "Fill has neither commission nor comission rate. Order role in order was set too",
@@ -245,7 +251,7 @@ impl Exchange {
                 bail!("{}", error_msg)
             }
 
-            event_data.order_role = order.role();
+            event_data.order_role = order_ref.role();
         }
 
         // FIXME What is the better name?
@@ -280,6 +286,11 @@ impl Exchange {
         let commission_currency_code = event_data.commission_currency_code.clone().expect(
             "Impossible sitation: event_data.commission_currency_code are set above already",
         );
+        // FIXME refactoring this handling Option<order_role>
+        let order_role = event_data
+            .order_role
+            .clone()
+            .expect("Impossible sitation: event_data.order_role are set above already");
         // FIXME refactoring this handling Option<comission_amount>>
         let commission_amount = event_data
             .commission_amount
@@ -325,8 +336,105 @@ impl Exchange {
             }
         }
 
-        // TODO continue here
-        //let last_fill_amount_in_converted_commission_currency_code =
+        let last_fill_amount_in_converted_commission_currency_code = symbol
+            .convert_amount_from_amount_currency_code(
+                converted_commission_currency_code,
+                last_fill_amount,
+                last_fill_price,
+            );
+        let expected_converted_commission_amount =
+            last_fill_amount_in_converted_commission_currency_code * expected_commission_rate;
+
+        let referral_reward_amount = commission_amount
+            * self
+                .commission
+                .get_commission(event_data.order_role)?
+                .referral_reward
+            * some_magical_number;
+
+        let rounded_fill_price = symbol.price_round(last_fill_price);
+        // TODO continue it here
+        let order_fill = OrderFill::new(
+            // FIXME what to do with it? Does it even use in C#?
+            Uuid::new_v4(),
+            Utc::now(),
+            OrderFillType::Liquidation,
+            Some(event_data.trade_id.clone()),
+            rounded_fill_price,
+            last_fill_amount,
+            last_fill_cost,
+            order_role.into(),
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            CurrencyCode::new("test".into()),
+            dec!(0),
+            dec!(0),
+            false,
+            None,
+            None,
+        );
+        // FIXME Why should we clone it here?
+        order_ref.fn_mut(|order| order.add_fill(order_fill.clone()));
+
+        let mut order_fills_cost_sum = dec!(0);
+        order_fills
+            .iter()
+            .for_each(|fill| order_fills_cost_sum += fill.cost());
+        let average_fill_price = if !symbol.is_derivative() {
+            order_fills_cost_sum / order_filled_amount
+        } else {
+            order_filled_amount / order_fills_cost_sum
+        };
+
+        order_ref.fn_mut(|order| {
+            order.internal_props.average_fill_price = symbol.price_round(average_fill_price)
+        });
+
+        if order_filled_amount > order_ref.amount() {
+            let error_msg = format!(
+                "filled_amount {} > order.amount {} for {} {} {:?}",
+                order_filled_amount,
+                order_ref.amount(),
+                self.exchange_account_id,
+                order_ref.client_order_id(),
+                order_ref.exchange_order_id(),
+            );
+
+            error!("{}", error_msg);
+            bail!("{}", error_msg)
+        }
+
+        if order_filled_amount == order_ref.amount() {
+            order_ref.fn_mut(|order| {
+                order.set_status(OrderStatus::Completed, Utc::now());
+                self.add_event_on_order_change(order, OrderEventType::OrderFilled)
+                    .expect("Unable to send event, probably receiver is dead already");
+            });
+        }
+
+        info!(
+            "Added a fill {} {} {} {:?} {:?}",
+            self.exchange_account_id,
+            event_data.trade_id,
+            order_ref.client_order_id(),
+            order_ref.exchange_order_id(),
+            order_fill
+        );
+
+        if event_data.source_type == EventSourceType::RestFallback {
+            // TODO some metrics
+        }
+
+        if order_ref.status() == OrderStatus::Completed {
+            order_ref.fn_mut(|order| {
+                order.set_status(OrderStatus::Completed, Utc::now());
+                self.add_event_on_order_change(order, OrderEventType::OrderCompleted)
+                    .expect("Unable to send event, probably receiver is dead already");
+            });
+        }
+
+        // TODO DataRecorder.save(order)
 
         // FIXME handle it in the end
         Ok(())
@@ -484,14 +592,19 @@ mod test {
     use std::sync::mpsc::{channel, Receiver};
 
     fn get_test_exchange() -> (Arc<Exchange>, Receiver<OrderEvent>) {
-        let settings =
-            settings::ExchangeSettings::new("test_api_key".into(), "test_secret_key".into(), false);
+        let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
+        let settings = settings::ExchangeSettings::new(
+            exchange_account_id.clone(),
+            "test_api_key".into(),
+            "test_secret_key".into(),
+            false,
+        );
 
         let binance = Binance::new(settings, "Binance0".parse().expect("in test"));
 
         let (tx, rx) = channel();
         let exchange = Exchange::new(
-            ExchangeAccountId::new("local_exchange_account_id".into(), 0),
+            exchange_account_id,
             "host".into(),
             vec![],
             vec![],
