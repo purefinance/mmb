@@ -10,7 +10,7 @@ use crate::core::{
     orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderStatus,
     orders::order::OrderType, orders::pool::OrderRef,
 };
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use parking_lot::RwLock;
@@ -123,17 +123,11 @@ impl Exchange {
         false
     }
 
-    fn local_order_exist(
-        &self,
-        event_data: &mut FillEventData,
+    fn diff_fill_after_non_diff(
+        event_data: &FillEventData,
+        order_fills: &Vec<OrderFill>,
         order_ref: &OrderRef,
-    ) -> Result<()> {
-        let (order_fills, order_filled_amount) = order_ref.get_fills();
-
-        if Self::was_trade_already_received(&event_data.trade_id, &order_fills, &order_ref) {
-            return Ok(());
-        }
-
+    ) -> bool {
         if event_data.is_diff && order_fills.iter().any(|fill| !fill.is_diff()) {
             // Most likely we received a trade update (diff), then received a non-diff fill via fallback and then again received a diff trade update
             // It happens when WebSocket is glitchy and we miss update and the problem is we have no idea how to handle diff updates
@@ -144,9 +138,17 @@ impl Exchange {
                 order_ref
             );
 
-            return Ok(());
+            return true;
         }
 
+        false
+    }
+
+    fn filled_amount_not_less_event_fill(
+        event_data: &FillEventData,
+        order_filled_amount: Amount,
+        order_ref: &OrderRef,
+    ) -> bool {
         if !event_data.is_diff && order_filled_amount >= event_data.fill_amount {
             warn!(
                 "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
@@ -156,50 +158,155 @@ impl Exchange {
                 order_ref.exchange_order_id(),
             );
 
+            return true;
+        }
+
+        false
+    }
+
+    fn calculate_cost_diff(
+        order_fills: &Vec<OrderFill>,
+        order_ref: &OrderRef,
+        last_fill_cost: Price,
+    ) -> Option<Price> {
+        // Diff should be calculated only if it is not the first fill
+        let mut total_filled_cost = dec!(0);
+        order_fills
+            .iter()
+            .for_each(|fill| total_filled_cost += fill.cost());
+        let cost_diff = last_fill_cost - total_filled_cost;
+        if cost_diff <= dec!(0) {
+            warn!(
+                "cost_diff is {} which is <= 0 for {:?}",
+                cost_diff, order_ref
+            );
+
+            return None;
+        }
+
+        Some(cost_diff)
+    }
+
+    fn calculate_last_fill_data(
+        last_fill_amount: Amount,
+        order_fills: &Vec<OrderFill>,
+        order_filled_amount: Amount,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        cost_diff: Price,
+        event_data: &mut FillEventData,
+    ) -> (Price, Amount, Price) {
+        let amount_diff = last_fill_amount - order_filled_amount;
+        let res_fill_price = if !currency_pair_metadata.is_derivative() {
+            cost_diff / amount_diff
+        } else {
+            amount_diff / cost_diff
+        };
+        // TODO second parameter round.to_newarest_neighbor
+        let last_fill_price = currency_pair_metadata.price_round(res_fill_price);
+
+        let last_fill_amount = amount_diff;
+        let last_fill_cost = cost_diff;
+
+        if let Some(commission_amount) = event_data.commission_amount {
+            let mut current_commission = dec!(0);
+            order_fills
+                .iter()
+                .for_each(|fill| current_commission += fill.commission_amount());
+            event_data.commission_amount = Some(commission_amount - current_commission);
+        }
+
+        (last_fill_price, last_fill_amount, last_fill_cost)
+    }
+
+    fn wrong_status_or_cancelled(order_ref: &OrderRef, event_data: &FillEventData) -> Result<()> {
+        if order_ref.status() == OrderStatus::FailedToCreate
+            || order_ref.status() == OrderStatus::Completed
+            || order_ref.was_cancellation_event_raised()
+        {
+            let error_msg = format!(
+                "Fill was received for a {:?} {} {:?}",
+                order_ref.status(),
+                order_ref.was_cancellation_event_raised(),
+                event_data
+            );
+
+            error!("{}", error_msg);
+            bail!("{}", error_msg)
+        }
+
+        Ok(())
+    }
+
+    fn get_order_role(event_data: &FillEventData, order_ref: &OrderRef) -> Result<OrderRole> {
+        match &event_data.order_role {
+            Some(order_role) => Ok(order_role.clone()),
+            None => {
+                if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
+                    let error_msg = format!("Fill has neither commission nor comission rate",);
+
+                    error!("{}", error_msg);
+                    bail!("{}", error_msg)
+                }
+
+                match order_ref.role() {
+                    Some(role) => Ok(role),
+                    None => {
+                        let error_msg = format!("Unable to determine order_role");
+
+                        error!("{}", error_msg);
+                        bail!("{}", error_msg)
+                    }
+                }
+            }
+        }
+    }
+
+    fn local_order_exist(
+        &self,
+        mut event_data: &mut FillEventData,
+        order_ref: &OrderRef,
+    ) -> Result<()> {
+        let (order_fills, order_filled_amount) = order_ref.get_fills();
+
+        if Self::was_trade_already_received(&event_data.trade_id, &order_fills, &order_ref) {
+            return Ok(());
+        }
+
+        if Self::diff_fill_after_non_diff(&event_data, &order_fills, &order_ref) {
+            return Ok(());
+        }
+
+        if Self::filled_amount_not_less_event_fill(&event_data, order_filled_amount, &order_ref) {
             return Ok(());
         }
 
         let mut last_fill_amount = event_data.fill_amount;
         let mut last_fill_price = event_data.fill_price;
-        let symbol =
+        let currency_pair_metadata =
             CurrencyPairMetadata::new(self.exchange_account_id.clone(), order_ref.currency_pair());
-        let mut last_fill_cost = if !symbol.is_derivative() {
+        let mut last_fill_cost = if !currency_pair_metadata.is_derivative() {
             last_fill_amount * last_fill_price
         } else {
             last_fill_amount / last_fill_price
         };
 
         if !event_data.is_diff && order_fills.len() > 0 {
-            // Diff should be calculated only if it is not the first fill
-            let mut total_filled_cost = dec!(0);
-            order_fills
-                .iter()
-                .for_each(|fill| total_filled_cost += fill.cost());
-            let cost_diff = last_fill_cost - total_filled_cost;
-            if cost_diff <= dec!(0) {
-                warn!("cost_diff if {} which is <= for {:?}", cost_diff, order_ref);
-                return Ok(());
-            }
-
-            let amount_diff = last_fill_amount - order_filled_amount;
-            let res_fill_price = if !symbol.is_derivative() {
-                cost_diff / amount_diff
-            } else {
-                amount_diff / cost_diff
+            match Self::calculate_cost_diff(&order_fills, &*order_ref, last_fill_price) {
+                None => return Ok(()),
+                Some(cost_diff) => {
+                    let (price, amount, cost) = Self::calculate_last_fill_data(
+                        last_fill_price,
+                        &order_fills,
+                        order_filled_amount,
+                        &currency_pair_metadata,
+                        cost_diff,
+                        &mut event_data,
+                    );
+                    last_fill_price = price;
+                    last_fill_amount = amount;
+                    last_fill_cost = cost
+                }
             };
-            // TODO second parameter rounda.to_newarest_neighbor
-            last_fill_price = symbol.price_round(res_fill_price);
-
-            last_fill_amount = amount_diff;
-            last_fill_cost = cost_diff;
-
-            if let Some(commission_amount) = event_data.commission_amount {
-                let mut current_commission = dec!(0);
-                order_fills
-                    .iter()
-                    .for_each(|fill| current_commission += fill.commission_amount());
-                event_data.commission_amount = Some(commission_amount - current_commission);
-            }
         }
 
         if last_fill_amount.is_zero() {
@@ -223,60 +330,30 @@ impl Exchange {
             }
         }
 
-        if order_ref.status() == OrderStatus::FailedToCreate
-            || order_ref.status() == OrderStatus::Completed
-            || order_ref.was_cancellation_event_raised()
-        {
-            let error_msg = format!(
-                "Fill was received for a {:?} {} {:?}",
-                order_ref.status(),
-                order_ref.was_cancellation_event_raised(),
-                event_data
-            );
-
-            error!("{}", error_msg);
-            bail!("{}", error_msg)
-        }
+        Self::wrong_status_or_cancelled(&*order_ref, &event_data)?;
 
         info!("Received fill {:?}", event_data);
 
-        if event_data.commission_currency_code.is_none() {
-            event_data.commission_currency_code =
-                Some(symbol.get_commision_currency_code(order_ref.side()));
-        }
+        let commission_currency_code = match &event_data.commission_currency_code {
+            Some(commission_currency_code) => commission_currency_code.clone(),
+            None => currency_pair_metadata.get_commision_currency_code(order_ref.side()),
+        };
 
-        if event_data.order_role.is_none() {
-            if event_data.commission_amount.is_none()
-                && event_data.commission_rate.is_none()
-                && order_ref.role().is_none()
-            {
-                let error_msg = format!(
-                    "Fill has neither commission nor comission rate. Order role in order was set too",
-                );
-
-                error!("{}", error_msg);
-                bail!("{}", error_msg)
-            }
-
-            event_data.order_role = order_ref.role();
-        }
+        let order_role = Self::get_order_role(event_data, order_ref)?;
 
         // FIXME What is the better name?
         let some_magical_number = dec!(0.01);
         let expected_commission_rate =
-            self.commission.get_commission(event_data.order_role)?.fee * some_magical_number;
+            self.commission.get_commission(Some(order_role))?.fee * some_magical_number;
 
         if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
             event_data.commission_rate = Some(expected_commission_rate);
         }
 
         if event_data.commission_amount.is_none() {
-            let last_fill_amount_in_currency_code = symbol
+            let last_fill_amount_in_currency_code = currency_pair_metadata
                 .convert_amount_from_amount_currency_code(
-                    // FIXME refactor this
-                    event_data.commission_currency_code.clone().expect(
-                        "Impossible sitation: event_data.commission_currency_code are set above already"
-                    ),
+                    commission_currency_code.clone(),
                     last_fill_amount,
                     last_fill_price,
                 );
@@ -289,15 +366,6 @@ impl Exchange {
             );
         }
 
-        // FIXME refactoring this handling Option<comission_currency_code>
-        let commission_currency_code = event_data.commission_currency_code.clone().expect(
-            "Impossible sitation: event_data.commission_currency_code are set above already",
-        );
-        // FIXME refactoring this handling Option<order_role>
-        let order_role = event_data
-            .order_role
-            .clone()
-            .expect("Impossible sitation: event_data.order_role are set above already");
         // FIXME refactoring this handling Option<comission_amount>>
         let commission_amount = event_data
             .commission_amount
@@ -307,23 +375,24 @@ impl Exchange {
         let mut converted_commission_currency_code = commission_currency_code.clone();
         let mut converted_commission_amount = commission_amount;
 
-        if commission_currency_code != symbol.base_currency_code
-            && commission_currency_code != symbol.quote_currency_code
+        if commission_currency_code != currency_pair_metadata.base_currency_code
+            && commission_currency_code != currency_pair_metadata.quote_currency_code
         {
             let mut currency_pair = CurrencyPair::from_currency_codes(
                 commission_currency_code.clone(),
-                symbol.quote_currency_code.clone(),
+                currency_pair_metadata.quote_currency_code.clone(),
             );
             match self.top_prices.get(&currency_pair) {
                 Some(top_prices) => {
                     let (_, bid) = *top_prices;
                     let price_bnb_quote = bid.0;
                     converted_commission_amount = commission_amount * price_bnb_quote;
-                    converted_commission_currency_code = symbol.quote_currency_code.clone();
+                    converted_commission_currency_code =
+                        currency_pair_metadata.quote_currency_code.clone();
                 }
                 None => {
                     currency_pair = CurrencyPair::from_currency_codes(
-                        symbol.quote_currency_code.clone(),
+                        currency_pair_metadata.quote_currency_code.clone(),
                         commission_currency_code,
                     );
 
@@ -332,7 +401,8 @@ impl Exchange {
                             let (ask, _) = *top_prices;
                             let price_quote_bnb = ask.0;
                             converted_commission_amount = commission_amount / price_quote_bnb;
-                            converted_commission_currency_code = symbol.quote_currency_code.clone();
+                            converted_commission_currency_code =
+                                currency_pair_metadata.quote_currency_code.clone();
                         }
                         None => error!(
                             "Top bids and asks for {} and currency pair {:?} do not exist",
@@ -343,7 +413,7 @@ impl Exchange {
             }
         }
 
-        let last_fill_amount_in_converted_commission_currency_code = symbol
+        let last_fill_amount_in_converted_commission_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(
                 converted_commission_currency_code,
                 last_fill_amount,
@@ -355,11 +425,11 @@ impl Exchange {
         let referral_reward_amount = commission_amount
             * self
                 .commission
-                .get_commission(event_data.order_role)?
+                .get_commission(Some(order_role))?
                 .referral_reward
             * some_magical_number;
 
-        let rounded_fill_price = symbol.price_round(last_fill_price);
+        let rounded_fill_price = currency_pair_metadata.price_round(last_fill_price);
         // TODO continue it here
         let order_fill = OrderFill::new(
             // FIXME what to do with it? Does it even use in C#?
@@ -388,14 +458,15 @@ impl Exchange {
         order_fills
             .iter()
             .for_each(|fill| order_fills_cost_sum += fill.cost());
-        let average_fill_price = if !symbol.is_derivative() {
+        let average_fill_price = if !currency_pair_metadata.is_derivative() {
             order_fills_cost_sum / order_filled_amount
         } else {
             order_filled_amount / order_fills_cost_sum
         };
 
         order_ref.fn_mut(|order| {
-            order.internal_props.average_fill_price = symbol.price_round(average_fill_price)
+            order.internal_props.average_fill_price =
+                currency_pair_metadata.price_round(average_fill_price)
         });
 
         if order_filled_amount > order_ref.amount() {
@@ -868,7 +939,7 @@ mod test {
     }
 
     #[test]
-    fn ignore_fill_with_same_trade_id() {
+    fn ignore_if_trade_was_already_received() {
         let (exchange, _event_receiver) = get_test_exchange();
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1026,7 +1097,7 @@ mod test {
     }
 
     #[test]
-    fn ignore_non_diff_fill_if_current_filled_amount_is_more_or_equal() {
+    fn ignore_filled_amount_not_less_event_fill() {
         let (exchange, _event_receiver) = get_test_exchange();
 
         let client_order_id = ClientOrderId::unique_id();
