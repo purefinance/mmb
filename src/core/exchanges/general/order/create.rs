@@ -55,8 +55,7 @@ impl Exchange {
             Some(order_to_create.price),
         );
 
-        let _linked_cancellation_token =
-            CancellationToken::create_linked_token(&cancellation_token);
+        let _linked_cancellation_token = cancellation_token.create_linked_token();
 
         let create_order_future = self.create_order_base(order_to_create, cancellation_token);
 

@@ -1,3 +1,5 @@
+use crate::core::nothing_to_do;
+use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::Notify;
@@ -5,6 +7,7 @@ use tokio::sync::Notify;
 #[derive(Default)]
 struct CancellationState {
     signal: Notify,
+    handlers: Mutex<Vec<Box<dyn Fn() + Send>>>,
     is_cancellation_requested: AtomicBool,
 }
 
@@ -20,16 +23,13 @@ impl CancellationToken {
         Self::default()
     }
 
-    // TODO It's just a stub
-    pub fn create_linked_token(token: &CancellationToken) -> Self {
-        token.clone()
-    }
-
     pub fn cancel(&self) {
         let state = &self.state;
         state
             .is_cancellation_requested
             .store(true, Ordering::SeqCst);
+
+        state.handlers.lock().iter().for_each(|handler| handler());
         state.signal.notify_waiters();
     }
 
@@ -40,6 +40,28 @@ impl CancellationToken {
 
     pub async fn when_cancelled(&self) {
         self.state.clone().signal.notified().await;
+    }
+
+    pub fn create_linked_token(&self) -> Self {
+        let new_token = CancellationToken::new();
+
+        {
+            let weak_cancellation = Arc::downgrade(&new_token.state);
+            self.register_handler(Box::new(move || match weak_cancellation.upgrade() {
+                None => nothing_to_do(),
+                Some(state) => CancellationToken { state }.cancel(),
+            }))
+        }
+
+        if self.check_cancellation_requested() {
+            new_token.cancel();
+        }
+
+        new_token
+    }
+
+    fn register_handler(&self, handler: Box<dyn Fn() + Send>) {
+        self.state.handlers.lock().push(handler);
     }
 }
 
@@ -126,5 +148,109 @@ mod tests {
             token.when_cancelled().await;
             *signal.lock() = true;
         });
+    }
+
+    #[tokio::test]
+    async fn cancel_source_token_when_linked_source_token_is_not_cancelled() {
+        let source_token = CancellationToken::new();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+
+        let new_token = source_token.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token.check_cancellation_requested(), false);
+
+        source_token.cancel();
+        assert_eq!(source_token.check_cancellation_requested(), true);
+        assert_eq!(new_token.check_cancellation_requested(), true);
+    }
+
+    #[tokio::test]
+    async fn create_linked_token_when_source_token_is_cancelled() {
+        let source_token = CancellationToken::new();
+        source_token.cancel();
+        assert_eq!(source_token.check_cancellation_requested(), true);
+
+        let new_token = source_token.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), true);
+        assert_eq!(new_token.check_cancellation_requested(), true);
+    }
+
+    #[tokio::test]
+    async fn cancel_new_linked_token_when_source_token_is_not_cancelled() {
+        let source_token = CancellationToken::new();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+
+        let new_token = source_token.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token.check_cancellation_requested(), false);
+
+        new_token.cancel();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token.check_cancellation_requested(), true);
+    }
+
+    #[tokio::test]
+    async fn cancel_when_2_new_linked_tokens_to_single_source() {
+        // source -> token1
+        //      \--> token2
+
+        let source_token = CancellationToken::new();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+
+        let new_token1 = source_token.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token1.check_cancellation_requested(), false);
+
+        let new_token2 = source_token.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token1.check_cancellation_requested(), false);
+        assert_eq!(new_token2.check_cancellation_requested(), false);
+
+        source_token.cancel();
+        assert_eq!(source_token.check_cancellation_requested(), true);
+        assert_eq!(new_token1.check_cancellation_requested(), true);
+        assert_eq!(new_token2.check_cancellation_requested(), true);
+    }
+
+    #[tokio::test]
+    async fn cancel_source_when_2_sequentially_new_linked_tokens() {
+        // source -> token1 -> token2
+        let source_token = CancellationToken::new();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+
+        let new_token1 = source_token.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token1.check_cancellation_requested(), false);
+
+        let new_token2 = new_token1.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token1.check_cancellation_requested(), false);
+        assert_eq!(new_token2.check_cancellation_requested(), false);
+
+        source_token.cancel();
+        assert_eq!(source_token.check_cancellation_requested(), true);
+        assert_eq!(new_token1.check_cancellation_requested(), true);
+        assert_eq!(new_token2.check_cancellation_requested(), true);
+    }
+
+    #[tokio::test]
+    async fn cancel_token1_when_2_sequentially_new_linked_tokens() {
+        // source -> token1 -> token2
+        let source_token = CancellationToken::new();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+
+        let new_token1 = source_token.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token1.check_cancellation_requested(), false);
+
+        let new_token2 = new_token1.create_linked_token();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token1.check_cancellation_requested(), false);
+        assert_eq!(new_token2.check_cancellation_requested(), false);
+
+        new_token1.cancel();
+        assert_eq!(source_token.check_cancellation_requested(), false);
+        assert_eq!(new_token1.check_cancellation_requested(), true);
+        assert_eq!(new_token2.check_cancellation_requested(), true);
     }
 }
