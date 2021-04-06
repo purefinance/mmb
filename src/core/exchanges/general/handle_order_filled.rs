@@ -164,6 +164,54 @@ impl Exchange {
         false
     }
 
+    // FIXME not fully tested
+    fn get_last_fill_data(
+        mut event_data: &mut FillEventData,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        order_fills: &Vec<OrderFill>,
+        order_filled_amount: Amount,
+        order_ref: &OrderRef,
+    ) -> Option<(Price, Amount, Price)> {
+        let mut last_fill_amount = event_data.fill_amount;
+        let mut last_fill_price = event_data.fill_price;
+        let mut last_fill_cost = if !currency_pair_metadata.is_derivative() {
+            last_fill_amount * last_fill_price
+        } else {
+            last_fill_amount / last_fill_price
+        };
+
+        if !event_data.is_diff && order_fills.len() > 0 {
+            match Self::calculate_cost_diff(&order_fills, &*order_ref, last_fill_price) {
+                None => return None,
+                Some(cost_diff) => {
+                    let (price, amount, cost) = Self::calculate_last_fill_data(
+                        last_fill_price,
+                        &order_fills,
+                        order_filled_amount,
+                        &currency_pair_metadata,
+                        cost_diff,
+                        &mut event_data,
+                    );
+                    last_fill_price = price;
+                    last_fill_amount = amount;
+                    last_fill_cost = cost
+                }
+            };
+        }
+
+        if last_fill_amount.is_zero() {
+            warn!(
+                "last_fill_amount was received for 0 for {}, {:?}",
+                order_ref.client_order_id(),
+                order_ref.exchange_order_id()
+            );
+
+            return None;
+        }
+
+        Some((last_fill_price, last_fill_amount, last_fill_cost))
+    }
+
     fn calculate_cost_diff(
         order_fills: &Vec<OrderFill>,
         order_ref: &OrderRef,
@@ -280,44 +328,19 @@ impl Exchange {
             return Ok(());
         }
 
-        let mut last_fill_amount = event_data.fill_amount;
-        let mut last_fill_price = event_data.fill_price;
         let currency_pair_metadata =
             CurrencyPairMetadata::new(self.exchange_account_id.clone(), order_ref.currency_pair());
-        let mut last_fill_cost = if !currency_pair_metadata.is_derivative() {
-            last_fill_amount * last_fill_price
-        } else {
-            last_fill_amount / last_fill_price
+        let last_fill_data = match Self::get_last_fill_data(
+            &mut event_data,
+            &currency_pair_metadata,
+            &order_fills,
+            order_filled_amount,
+            order_ref,
+        ) {
+            Some(last_fill_data) => last_fill_data,
+            None => return Ok(()),
         };
-
-        if !event_data.is_diff && order_fills.len() > 0 {
-            match Self::calculate_cost_diff(&order_fills, &*order_ref, last_fill_price) {
-                None => return Ok(()),
-                Some(cost_diff) => {
-                    let (price, amount, cost) = Self::calculate_last_fill_data(
-                        last_fill_price,
-                        &order_fills,
-                        order_filled_amount,
-                        &currency_pair_metadata,
-                        cost_diff,
-                        &mut event_data,
-                    );
-                    last_fill_price = price;
-                    last_fill_amount = amount;
-                    last_fill_cost = cost
-                }
-            };
-        }
-
-        if last_fill_amount.is_zero() {
-            warn!(
-                "last_fill_amount was received for 0 for {}, {:?}",
-                order_ref.client_order_id(),
-                order_ref.exchange_order_id()
-            );
-
-            return Ok(());
-        }
+        let (last_fill_price, last_fill_amount, last_fill_cost) = last_fill_data;
 
         if let Some(total_filled_amount) = event_data.total_filled_amount {
             if order_filled_amount + last_fill_amount != total_filled_amount {
