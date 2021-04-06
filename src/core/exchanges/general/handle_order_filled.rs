@@ -331,6 +331,7 @@ impl Exchange {
             return Ok(());
         }
 
+        // FIXME USE Evgeniy's PR with Symbol
         let currency_pair_metadata =
             CurrencyPairMetadata::new(self.exchange_account_id.clone(), order_ref.currency_pair());
         let last_fill_data = match Self::get_last_fill_data(
@@ -1415,13 +1416,14 @@ mod test {
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
         let trade_id = "test_trade_id".to_owned();
+        let fill_price = dec!(0.2);
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
             trade_id: trade_id.clone(),
             client_order_id: None,
             exchange_order_id: ExchangeOrderId::new("".into()),
-            fill_price: dec!(0.2),
+            fill_price,
             fill_amount,
             is_diff: true,
             total_filled_amount: None,
@@ -1466,6 +1468,86 @@ mod test {
                 );
             }
         }
+    }
+
+    // TODO Can be improved via testing onle calculate_cost_diff_function
+    #[test]
+    fn calculate_cost_diff() {
+        let (exchange, _event_receiver) = get_test_exchange();
+
+        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let fill_amount = dec!(5);
+        let order_amount = dec!(12);
+        let trade_id = "test_trade_id".to_owned();
+        let client_order_id = ClientOrderId::unique_id();
+        let order_side = OrderSide::Buy;
+        let order_price = dec!(0.2);
+        let exchange_order_id: ExchangeOrderId = "some_order_id".into();
+
+        // Add order manually for setting custom order.amount
+        // FIXME CONTINUE FROM HERE
+        // FIXME ADD order with exchange_order_id
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            Some(OrderRole::Maker),
+            exchange.exchange_account_id.clone(),
+            currency_pair.clone(),
+            order_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        exchange
+            .orders
+            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
+
+        let mut first_event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id,
+            fill_price: dec!(0.2),
+            fill_amount,
+            is_diff: false,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: Some(dec!(0.01)),
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(order_side),
+            order_amount: Some(dec!(0)),
+        };
+
+        exchange
+            .handle_order_filled(first_event_data)
+            .expect("in test");
+
+        //let mut second_event_data = FillEventData {
+        //    source_type: EventSourceType::WebSocket,
+        //    trade_id: trade_id.clone(),
+        //    client_order_id: None,
+        //    exchange_order_id: ExchangeOrderId::new("some_order_id".into()),
+        //    fill_price: dec!(0.2),
+        //    fill_amount,
+        //    is_diff: true,
+        //    total_filled_amount: None,
+        //    order_role: None,
+        //    commission_currency_code: None,
+        //    commission_rate: None,
+        //    commission_amount: None,
+        //    fill_type: OrderFillType::Liquidation,
+        //    trade_currency_pair: Some(currency_pair.clone()),
+        //    order_side: Some(OrderSide::Buy),
+        //    order_amount: Some(dec!(0)),
+        //};
+
+        //exchange
+        //    .handle_order_filled(second_event_data)
+        //    .expect("in test");
     }
 
     #[test]

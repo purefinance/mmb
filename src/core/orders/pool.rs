@@ -84,6 +84,7 @@ impl OrderRef {
     }
 }
 
+#[derive(Debug)]
 pub struct OrdersPool {
     pub by_client_id: DashMap<ClientOrderId, OrderRef>,
     pub by_exchange_id: DashMap<ExchangeOrderId, OrderRef>,
@@ -111,6 +112,17 @@ impl OrdersPool {
             .by_client_id
             .insert(client_order_id.clone(), order_ref.clone());
         let _ = self.not_finished.insert(client_order_id, order_ref);
+    }
+
+    // Using for tests
+    pub(crate) fn try_add_snapshot_by_exchange_id(&self, snapshot: Arc<RwLock<OrderSnapshot>>) {
+        if let Some(exchange_order_id) = snapshot.read().props.exchange_order_id.clone() {
+            let order_ref = OrderRef(snapshot.clone());
+            let _ = self
+                .by_exchange_id
+                .insert(exchange_order_id.clone(), order_ref.clone());
+            dbg!(&"ADDED");
+        }
     }
 
     /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
