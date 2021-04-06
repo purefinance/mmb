@@ -289,7 +289,10 @@ impl Exchange {
         match &event_data.order_role {
             Some(order_role) => Ok(order_role.clone()),
             None => {
-                if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
+                if event_data.commission_amount.is_none()
+                    && event_data.commission_rate.is_none()
+                    && order_ref.role().is_none()
+                {
                     let error_msg = format!("Fill has neither commission nor comission rate",);
 
                     error!("{}", error_msg);
@@ -476,6 +479,8 @@ impl Exchange {
         );
         // FIXME Why should we clone it here?
         order_ref.fn_mut(|order| order.add_fill(order_fill.clone()));
+        // This order fields updated, so let's use actual values
+        let (order_fills, order_filled_amount) = order_ref.get_fills();
 
         let mut order_fills_cost_sum = dec!(0);
         order_fills
@@ -588,7 +593,8 @@ impl Exchange {
                     event_data.client_order_id = Some(order.client_order_id());
                 }
                 None => {
-                    let order_instance = self.create_order_instance(event_data);
+                    // Liquidation and ClosePosition are always Takers
+                    let order_instance = self.create_order_instance(event_data, OrderRole::Taker);
 
                     event_data.client_order_id =
                         Some(order_instance.header.client_order_id.clone());
@@ -605,7 +611,11 @@ impl Exchange {
         Ok(())
     }
 
-    fn create_order_instance(&self, event_data: &FillEventData) -> OrderSnapshot {
+    fn create_order_instance(
+        &self,
+        event_data: &FillEventData,
+        order_role: OrderRole,
+    ) -> OrderSnapshot {
         let currency_pair = event_data
             .trade_currency_pair
             .clone()
@@ -624,7 +634,7 @@ impl Exchange {
         let order_instance = OrderSnapshot::with_params(
             client_order_id.clone(),
             OrderType::Liquidation,
-            None,
+            Some(order_role),
             self.exchange_account_id.clone(),
             currency_pair,
             event_data.fill_price,
@@ -871,10 +881,10 @@ mod test {
         fn should_add_order() {
             let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
             let order_side = OrderSide::Buy;
-            let order_amount = dec!(1);
+            let order_amount = dec!(12);
             let order_role = None;
-            let fill_price = dec!(1);
-            let fill_amount = dec!(0);
+            let fill_price = dec!(0.2);
+            let fill_amount = dec!(5);
 
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
@@ -910,17 +920,13 @@ mod test {
                     assert_eq!(order.side(), order_side);
                     assert_eq!(order.amount(), order_amount);
                     assert_eq!(order.price(), fill_price);
-                    assert_eq!(order.role(), order_role);
+                    assert_eq!(order.role(), Some(OrderRole::Taker));
 
-                    // TODO FIX it when Symbol wil be implemented
-                    //let (fills, filled_amount) = order.get_fills();
-                    //assert_eq!(filled_amount, fill_amount);
-                    //assert_eq!(fills.iter().next().expect("in test").price(), fill_price);
+                    let (fills, filled_amount) = order.get_fills();
+                    assert_eq!(filled_amount, fill_amount);
+                    assert_eq!(fills.iter().next().expect("in test").price(), fill_price);
                 }
-                Err(error) => {
-                    dbg!(&error.to_string());
-                    assert!(false);
-                }
+                Err(_) => assert!(false),
             }
         }
 
