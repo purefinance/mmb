@@ -1,10 +1,12 @@
-use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol, SYMBOL_DEFAULT_PRECISION};
+use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
 use crate::core::exchanges::general::exchange::Exchange;
 use anyhow::{bail, Result};
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::warn;
 use std::sync::Arc;
+
+use super::currency_pair_metadata::{Symbol, SYMBOL_DEFAULT_PRECISION};
 
 impl Exchange {
     pub async fn build_metadata(&self) {

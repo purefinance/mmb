@@ -1,7 +1,9 @@
-use super::common::{
-    CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
+use super::{
+    common::{
+        CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
+    },
+    general::currency_pair_metadata::Symbol,
 };
-use crate::core::exchanges::common::Symbol;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,

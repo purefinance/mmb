@@ -181,7 +181,7 @@ impl Exchange {
         };
 
         if !event_data.is_diff && order_fills.len() > 0 {
-            match Self::calculate_cost_diff(&order_fills, &*order_ref, last_fill_price) {
+            match Self::calculate_cost_diff(&order_fills, &*order_ref, last_fill_cost) {
                 None => return None,
                 Some(cost_diff) => {
                     let (price, amount, cost) = Self::calculate_last_fill_data(
@@ -192,6 +192,9 @@ impl Exchange {
                         cost_diff,
                         &mut event_data,
                     );
+                    dbg!(&price);
+                    dbg!(&amount);
+                    dbg!(&cost);
                     last_fill_price = price;
                     last_fill_amount = amount;
                     last_fill_cost = cost
@@ -317,6 +320,7 @@ impl Exchange {
         mut event_data: &mut FillEventData,
         order_ref: &OrderRef,
     ) -> Result<()> {
+        dbg!(&"BEFORE");
         let (order_fills, order_filled_amount) = order_ref.get_fills();
 
         if Self::was_trade_already_received(&event_data.trade_id, &order_fills, &order_ref) {
@@ -542,6 +546,7 @@ impl Exchange {
         }
 
         // TODO DataRecorder.save(order)
+        dbg!(&"THE END");
 
         // FIXME handle it in the end
         Ok(())
@@ -699,7 +704,10 @@ mod test {
         exchanges::events::OrderEvent, exchanges::general::commission::Commission,
         exchanges::general::features::ExchangeFeatures,
         exchanges::general::features::OpenOrdersType, orders::fill::OrderFill,
-        orders::order::OrderFillRole, orders::pool::OrdersPool, settings,
+        orders::order::OrderExecutionType, orders::order::OrderFillRole, orders::order::OrderFills,
+        orders::order::OrderHeader, orders::order::OrderSimpleProps,
+        orders::order::OrderStatusHistory, orders::order::SystemInternalOrderProps,
+        orders::pool::OrdersPool, settings,
     };
     use std::sync::mpsc::{channel, Receiver};
 
@@ -1482,32 +1490,50 @@ mod test {
         let client_order_id = ClientOrderId::unique_id();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
+        let order_role = OrderRole::Maker;
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        // FIXME CONTINUE FROM HERE
         // FIXME ADD order with exchange_order_id
-        let mut order = OrderSnapshot::with_params(
+        let header = OrderHeader::new(
             client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
+            Utc::now(),
             exchange.exchange_account_id.clone(),
             currency_pair.clone(),
-            order_price,
+            OrderType::Limit,
+            OrderSide::Buy,
             order_amount,
-            order_side,
+            OrderExecutionType::None,
             None,
+            None,
+            None,
+        );
+        let props = OrderSimpleProps::new(
+            Some(order_price),
+            Some(order_role),
+            Some(exchange_order_id.clone()),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            None,
+        );
+        let order = OrderSnapshot::new(
+            Arc::new(header),
+            props,
+            OrderFills::default(),
+            OrderStatusHistory::default(),
+            SystemInternalOrderProps::default(),
         );
 
         exchange
             .orders
             .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
 
-        let mut first_event_data = FillEventData {
+        let first_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
             trade_id: trade_id.clone(),
             client_order_id: None,
-            exchange_order_id,
+            exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(0.2),
             fill_amount,
             is_diff: false,
@@ -1526,28 +1552,36 @@ mod test {
             .handle_order_filled(first_event_data)
             .expect("in test");
 
-        //let mut second_event_data = FillEventData {
-        //    source_type: EventSourceType::WebSocket,
-        //    trade_id: trade_id.clone(),
-        //    client_order_id: None,
-        //    exchange_order_id: ExchangeOrderId::new("some_order_id".into()),
-        //    fill_price: dec!(0.2),
-        //    fill_amount,
-        //    is_diff: true,
-        //    total_filled_amount: None,
-        //    order_role: None,
-        //    commission_currency_code: None,
-        //    commission_rate: None,
-        //    commission_amount: None,
-        //    fill_type: OrderFillType::Liquidation,
-        //    trade_currency_pair: Some(currency_pair.clone()),
-        //    order_side: Some(OrderSide::Buy),
-        //    order_amount: Some(dec!(0)),
-        //};
+        let second_event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: "another_trade_id".to_owned(),
+            client_order_id: None,
+            exchange_order_id: exchange_order_id.clone(),
+            fill_price: dec!(0.3),
+            fill_amount: dec!(10),
+            is_diff: false,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: Some(dec!(0.03)),
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
 
-        //exchange
-        //    .handle_order_filled(second_event_data)
-        //    .expect("in test");
+        exchange
+            .handle_order_filled(second_event_data)
+            .expect("in test");
+
+        let order_ref = exchange
+            .orders
+            .by_exchange_id
+            .get(&exchange_order_id)
+            .expect("in test");
+        //dbg!(&order_ref.get_fills());
+        let (fills, filled_amount) = order_ref.get_fills();
     }
 
     #[test]

@@ -273,7 +273,27 @@ pub struct OrderSimpleProps {
 }
 
 impl OrderSimpleProps {
-    pub fn new(price: Option<Price>) -> OrderSimpleProps {
+    pub(crate) fn new(
+        raw_price: Option<Price>,
+        role: Option<OrderRole>,
+        exchange_order_id: Option<ExchangeOrderId>,
+        stop_loss_price: Decimal,
+        trailing_stop_delta: Decimal,
+        status: OrderStatus,
+        finished_time: Option<DateTime>,
+    ) -> Self {
+        Self {
+            raw_price,
+            role,
+            exchange_order_id,
+            stop_loss_price,
+            trailing_stop_delta,
+            status,
+            finished_time,
+        }
+    }
+
+    pub fn from_price(price: Option<Price>) -> OrderSimpleProps {
         Self {
             raw_price: price,
             role: None,
@@ -470,7 +490,7 @@ impl OrderSnapshot {
             None,
         );
 
-        let mut props = OrderSimpleProps::new(Some(price));
+        let mut props = OrderSimpleProps::from_price(Some(price));
         props.role = order_role;
 
         Self::new(

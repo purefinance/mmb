@@ -121,14 +121,13 @@ impl OrdersPool {
             let _ = self
                 .by_exchange_id
                 .insert(exchange_order_id.clone(), order_ref.clone());
-            dbg!(&"ADDED");
         }
     }
 
     /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
     pub fn add_simple_initial(&self, header: Arc<OrderHeader>, price: Option<Decimal>) {
         let snapshot = Arc::new(RwLock::new(OrderSnapshot {
-            props: OrderSimpleProps::new(price),
+            props: OrderSimpleProps::from_price(price),
             header,
             fills: Default::default(),
             status_history: Default::default(),

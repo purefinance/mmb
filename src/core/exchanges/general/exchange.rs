@@ -1,7 +1,7 @@
-use super::order::cancel::CancelOrderResult;
 use super::order::create::CreateOrderResult;
 use super::{commission::Commission, features::ExchangeFeatures};
-use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol};
+use super::{currency_pair_metadata::Symbol, order::cancel::CancelOrderResult};
+use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
 use crate::core::orders::order::ExchangeOrderId;
 use crate::core::orders::order::OrderHeader;
 use crate::core::orders::pool::OrdersPool;

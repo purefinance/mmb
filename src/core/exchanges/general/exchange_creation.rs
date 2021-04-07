@@ -1,4 +1,3 @@
-use crate::core::exchanges::common::Symbol;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
 use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
@@ -7,7 +6,7 @@ use log::error;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
 
-use super::commission::Commission;
+use super::{commission::Commission, currency_pair_metadata::Symbol};
 
 pub async fn create_exchange(
     exchange_settings: &ExchangeSettings,

@@ -1,6 +1,5 @@
 use super::binance::Binance;
-use crate::core::exchanges::common::Symbol;
-use crate::core::exchanges::traits::Support;
+use crate::core::exchanges::{general::currency_pair_metadata::Symbol, traits::Support};
 use crate::core::orders::order::*;
 use crate::core::{
     exchanges::common::{
