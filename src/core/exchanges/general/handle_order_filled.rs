@@ -734,6 +734,37 @@ mod test {
             tx,
             Commission::default(),
         );
+        let base_currency = "PHB";
+        let quote_currency = "PHB";
+        let specific_currency_pair = "PHBBTC";
+        // FIXME What is proper value?
+        let price_precision = 0;
+        // FIXME What is proper value?
+        let amount_precision = 0;
+        let price_tick = dec!(0.1);
+        let symbol = CurrencyPairMetadata::new(
+            false,
+            false,
+            base_currency.into(),
+            base_currency.into(),
+            quote_currency.into(),
+            quote_currency.into(),
+            specific_currency_pair.into(),
+            None,
+            None,
+            price_precision,
+            PrecisionType::ByFraction,
+            Some(price_tick),
+            base_currency.into(),
+            None,
+            None,
+            amount_precision,
+            PrecisionType::ByFraction,
+            None,
+            None,
+            None,
+        );
+        exchange.symbols.lock().push(Arc::new(symbol));
 
         (exchange, rx)
     }
@@ -884,7 +915,7 @@ mod test {
 
         #[test]
         fn should_add_order() {
-            let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+            let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
             let order_side = OrderSide::Buy;
             let order_amount = dec!(12);
             let order_role = None;
@@ -1214,7 +1245,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange();
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
         let fill_amount = dec!(0);
@@ -1293,7 +1324,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange();
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1354,7 +1385,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange();
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1415,7 +1446,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange();
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1524,37 +1555,6 @@ mod test {
         exchange
             .orders
             .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
-        let base_currency = "PHB";
-        let quote_currency = "PHB";
-        let specific_currency_pair = "PHBBTC";
-        // FIXME What is proper value?
-        let price_precision = 0;
-        // FIXME What is proper value?
-        let amount_precision = 0;
-        let price_tick = dec!(0.1);
-        let symbol = CurrencyPairMetadata::new(
-            false,
-            false,
-            base_currency.into(),
-            base_currency.into(),
-            quote_currency.into(),
-            quote_currency.into(),
-            specific_currency_pair.into(),
-            None,
-            None,
-            price_precision,
-            PrecisionType::ByFraction,
-            Some(price_tick),
-            base_currency.into(),
-            None,
-            None,
-            amount_precision,
-            PrecisionType::ByFraction,
-            None,
-            None,
-            None,
-        );
-        exchange.symbols.lock().push(Arc::new(symbol));
 
         let first_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1625,7 +1625,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange();
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(1);
