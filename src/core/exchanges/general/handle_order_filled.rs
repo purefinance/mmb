@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
+use super::{
+    currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Round, exchange::Exchange,
+};
 use crate::core::{
     exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
     exchanges::common::ExchangeAccountId, exchanges::common::Price,
@@ -252,8 +254,7 @@ impl Exchange {
         } else {
             amount_diff / cost_diff
         };
-        // TODO second parameter round.to_newarest_neighbor
-        let last_fill_price = currency_pair_metadata.price_round(res_fill_price);
+        let last_fill_price = currency_pair_metadata.price_round(res_fill_price, Round::ToNearest);
 
         let last_fill_amount = amount_diff;
         let last_fill_cost = cost_diff;
@@ -459,7 +460,8 @@ impl Exchange {
                 .referral_reward
             * some_magical_number;
 
-        let rounded_fill_price = currency_pair_metadata.price_round(last_fill_price);
+        let rounded_fill_price =
+            currency_pair_metadata.price_round(last_fill_price, Round::ToNearest);
         // TODO continue it here
         let order_fill = OrderFill::new(
             // FIXME what to do with it? Does it even use in C#?
@@ -498,7 +500,7 @@ impl Exchange {
 
         order_ref.fn_mut(|order| {
             order.internal_props.average_fill_price =
-                currency_pair_metadata.price_round(average_fill_price)
+                currency_pair_metadata.price_round(average_fill_price, Round::ToNearest)
         });
 
         if order_filled_amount > order_ref.amount() {
@@ -701,6 +703,7 @@ mod test {
     use crate::core::{
         exchanges::binance::binance::Binance, exchanges::common::CurrencyCode,
         exchanges::events::OrderEvent, exchanges::general::commission::Commission,
+        exchanges::general::currency_pair_metadata::PrecisionType,
         exchanges::general::features::ExchangeFeatures,
         exchanges::general::features::OpenOrdersType, orders::fill::OrderFill,
         orders::order::OrderExecutionType, orders::order::OrderFillRole, orders::order::OrderFills,
@@ -1482,7 +1485,7 @@ mod test {
     fn calculate_cost_diff() {
         let (exchange, _event_receiver) = get_test_exchange();
 
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -1527,6 +1530,37 @@ mod test {
         exchange
             .orders
             .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
+        let base_currency = "PHB";
+        let quote_currency = "PHB";
+        let specific_currency_pair = "PHBBTC";
+        // FIXME What is proper value?
+        let price_precision = 0;
+        // FIXME What is proper value?
+        let amount_precision = 0;
+        let price_tick = dec!(0.1);
+        let symbol = CurrencyPairMetadata::new(
+            false,
+            false,
+            base_currency.into(),
+            base_currency.into(),
+            quote_currency.into(),
+            quote_currency.into(),
+            specific_currency_pair.into(),
+            None,
+            None,
+            price_precision,
+            PrecisionType::ByFraction,
+            Some(price_tick),
+            base_currency.into(),
+            None,
+            None,
+            amount_precision,
+            PrecisionType::ByFraction,
+            None,
+            None,
+            None,
+        );
+        exchange.symbols.lock().push(Arc::new(symbol));
 
         let first_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,

@@ -83,6 +83,7 @@ pub struct Exchange {
     pub(super) top_prices: DashMap<CurrencyPair, (Ask, Bid)>,
     pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
+    // FIXME DashSet instead Mutex<Vec> maybe?
     pub(super) symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
 }

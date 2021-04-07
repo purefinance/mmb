@@ -13,6 +13,12 @@ use anyhow::{bail, Result};
 
 use super::exchange::Exchange;
 
+pub enum Round {
+    Floor,
+    Ceiling,
+    ToNearest,
+}
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PrecisionType {
     ByFraction,
@@ -121,12 +127,43 @@ impl CurrencyPairMetadata {
     }
 
     pub fn is_derivative(&self) -> bool {
-        false
+        self.is_derivative
     }
 
     // TODO second params is round
-    pub fn price_round(&self, price: Price) -> Price {
-        price
+    pub fn price_round(&self, price: Price, round: Round) -> Price {
+        let tick = self.price_tick;
+        match tick {
+            Some(tick) => Self::round_by_tick(price, tick, round),
+            None => {
+                let price_precision = self.price_precision;
+                let floored = match self.price_precision_type {
+                    PrecisionType::ByFraction => {
+                        Self::round_by_fraction(price, price_precision, round)
+                    }
+                    PrecisionType::ByMantissa => {
+                        Self::round_by_mantissa(price, price_precision, round)
+                    }
+                };
+
+                floored
+            }
+        }
+    }
+
+    fn round_by_tick(value: Price, tick: Price, round: Round) -> Price {
+        // FIXME todo
+        value
+    }
+
+    fn round_by_fraction(value: Price, precision: i8, round: Round) -> Price {
+        // FIXME todo
+        value
+    }
+
+    fn round_by_mantissa(value: Price, precision: i8, round: Round) -> Price {
+        // FIXME todo
+        value
     }
 
     // TODO is that appropriate return type?
