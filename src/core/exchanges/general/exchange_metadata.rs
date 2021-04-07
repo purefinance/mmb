@@ -6,7 +6,9 @@ use itertools::Itertools;
 use log::warn;
 use std::sync::Arc;
 
-use super::currency_pair_metadata::{Symbol, SYMBOL_DEFAULT_PRECISION};
+use super::currency_pair_metadata::{
+    CurrencyPairMetadata, CURRENCY_PAIR_METADATA_DEFAULT_PRECISION,
+};
 
 impl Exchange {
     pub async fn build_metadata(&self) {
@@ -38,8 +40,8 @@ impl Exchange {
         let supported_symbols = symbols
             .into_iter()
             .filter(|s| {
-                s.amount_precision != SYMBOL_DEFAULT_PRECISION
-                    && s.price_precision != SYMBOL_DEFAULT_PRECISION
+                s.amount_precision != CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
+                    && s.price_precision != CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
             })
             .collect_vec();
 
@@ -55,7 +57,7 @@ impl Exchange {
         }
     }
 
-    async fn build_metadata_core(&self) -> Result<Vec<Arc<Symbol>>> {
+    async fn build_metadata_core(&self) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
         let response = self.exchange_client.request_metadata().await?;
 
         if let Some(error) = self.get_rest_error(&response) {
@@ -76,7 +78,9 @@ impl Exchange {
         };
     }
 
-    fn get_supported_currencies(symbols: &[Arc<Symbol>]) -> DashMap<CurrencyCode, CurrencyId> {
+    fn get_supported_currencies(
+        symbols: &[Arc<CurrencyPairMetadata>],
+    ) -> DashMap<CurrencyCode, CurrencyId> {
         symbols
             .iter()
             .flat_map(|s| {
@@ -88,7 +92,7 @@ impl Exchange {
             .collect()
     }
 
-    pub fn set_symbols(&self, symbols: Vec<Arc<Symbol>>) {
+    pub fn set_symbols(&self, symbols: Vec<Arc<CurrencyPairMetadata>>) {
         let mut currencies = symbols
             .iter()
             .flat_map(|x| vec![x.base_currency_code.clone(), x.quote_currency_code.clone()])

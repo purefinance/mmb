@@ -1,11 +1,17 @@
+use std::sync::Arc;
+
 use crate::core::{
     exchanges::common::Amount,
     exchanges::common::CurrencyCode,
     exchanges::common::CurrencyId,
+    exchanges::common::ExchangeAccountId,
     exchanges::common::SpecificCurrencyPair,
-    exchanges::common::{CurrencyPair, ExchangeAccountId, Price},
+    exchanges::common::{CurrencyPair, Price},
     orders::order::OrderSide,
 };
+use anyhow::{bail, Result};
+
+use super::exchange::Exchange;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum PrecisionType {
@@ -20,17 +26,17 @@ pub enum BeforeAfter {
     After,
 }
 
-pub const SYMBOL_DEFAULT_PRECISION: i8 = i8::MAX;
+pub const CURRENCY_PAIR_METADATA_DEFAULT_PRECISION: i8 = i8::MAX;
 
 #[derive(Debug, Clone)]
-pub struct Symbol {
+pub struct CurrencyPairMetadata {
     pub is_active: bool,
     pub is_derivative: bool,
     pub base_currency_id: CurrencyId,
     pub base_currency_code: CurrencyCode,
     pub quote_currency_id: CurrencyId,
     pub quote_currency_code: CurrencyCode,
-    // Currency pair in specific for exchange (which related to symbol)
+    // Currency pair in specific for exchange (which related to CurrencyPairMetadata)
     pub specific_currency_pair: SpecificCurrencyPair,
     pub min_price: Option<Price>,
     pub max_price: Option<Price>,
@@ -47,7 +53,53 @@ pub struct Symbol {
     pub balance_currency_code: Option<CurrencyCode>,
 }
 
-impl Symbol {
+impl CurrencyPairMetadata {
+    pub fn new(
+        is_active: bool,
+        is_derivative: bool,
+        base_currency_id: CurrencyId,
+        base_currency_code: CurrencyCode,
+        quote_currency_id: CurrencyId,
+        quote_currency_code: CurrencyCode,
+        specific_currency_pair: SpecificCurrencyPair,
+        min_price: Option<Price>,
+        max_price: Option<Price>,
+        price_precision: i8,
+        price_precision_type: PrecisionType,
+        price_tick: Option<Price>,
+        amount_currency_code: CurrencyCode,
+        min_amount: Option<Amount>,
+        max_amount: Option<Amount>,
+        amount_precision: i8,
+        amount_precision_type: PrecisionType,
+        amount_tick: Option<Amount>,
+        min_cost: Option<Price>,
+        balance_currency_code: Option<CurrencyCode>,
+    ) -> Self {
+        Self {
+            is_active,
+            is_derivative,
+            base_currency_id,
+            base_currency_code,
+            quote_currency_id,
+            quote_currency_code,
+            specific_currency_pair,
+            min_price,
+            max_price,
+            price_precision,
+            price_precision_type,
+            price_tick,
+            amount_currency_code,
+            min_amount,
+            max_amount,
+            amount_precision,
+            amount_precision_type,
+            amount_tick,
+            min_cost,
+            balance_currency_code,
+        }
+    }
+
     // Currency pair in unified for crate format
     pub fn currency_pair(&self) -> CurrencyPair {
         CurrencyPair::from_currency_codes(
@@ -65,20 +117,6 @@ impl Symbol {
             (Before, Sell) => self.base_currency_code.clone(),
             (After, Buy) => self.base_currency_code.clone(),
             (After, Sell) => self.quote_currency_code.clone(),
-        }
-    }
-}
-
-pub struct CurrencyPairMetadata {
-    pub base_currency_code: CurrencyCode,
-    pub quote_currency_code: CurrencyCode,
-}
-
-impl CurrencyPairMetadata {
-    pub fn new(exchange_order_id: ExchangeAccountId, currency_pair: CurrencyPair) -> Self {
-        Self {
-            base_currency_code: CurrencyCode::new("base".into()),
-            quote_currency_code: CurrencyCode::new("quot".into()),
         }
     }
 
@@ -103,5 +141,29 @@ impl CurrencyPairMetadata {
         currency_pair_price: Price,
     ) -> Amount {
         amount_in_amount_currency_code
+    }
+}
+
+impl Exchange {
+    pub fn get_currency_pair_metadata(
+        &self,
+        currency_pair: &CurrencyPair,
+    ) -> Result<Arc<CurrencyPairMetadata>> {
+        let specific_pair = self
+            .exchange_client
+            .get_specific_currency_pair(currency_pair);
+        let currency_pairs = &self.symbols;
+        match currency_pairs
+            .lock()
+            .iter()
+            .find(|&current_pair| current_pair.specific_currency_pair == specific_pair)
+        {
+            Some(suitable_currency_pair_metadata) => Ok(suitable_currency_pair_metadata.clone()),
+            None => bail!(
+                "Unsupported currency pair on {} {:?}",
+                self.exchange_account_id,
+                currency_pair
+            ),
+        }
     }
 }

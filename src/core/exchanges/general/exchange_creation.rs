@@ -6,7 +6,7 @@ use log::error;
 use std::sync::mpsc::channel;
 use std::sync::Arc;
 
-use super::{commission::Commission, currency_pair_metadata::Symbol};
+use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
 
 pub async fn create_exchange(
     exchange_settings: &ExchangeSettings,
@@ -40,7 +40,7 @@ pub async fn create_exchange(
 pub fn get_symbols(
     exchange: &Arc<Exchange>,
     currency_pairs: &[CurrencyPairSetting],
-) -> Vec<Arc<Symbol>> {
+) -> Vec<Arc<CurrencyPairMetadata>> {
     let mut symbols = Vec::new();
 
     let supported_symbols_guard = exchange.supported_symbols.lock();

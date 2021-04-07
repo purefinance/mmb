@@ -1,6 +1,6 @@
 use super::order::create::CreateOrderResult;
 use super::{commission::Commission, features::ExchangeFeatures};
-use super::{currency_pair_metadata::Symbol, order::cancel::CancelOrderResult};
+use super::{currency_pair_metadata::CurrencyPairMetadata, order::cancel::CancelOrderResult};
 use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
 use crate::core::orders::order::ExchangeOrderId;
 use crate::core::orders::order::OrderHeader;
@@ -75,15 +75,15 @@ pub struct Exchange {
             Option<oneshot::Receiver<CancelOrderResult>>,
         ),
     >,
-    pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
-    pub(super) supported_symbols: Mutex<Vec<Arc<Symbol>>>,
-    application_manager: ApplicationManager,
     pub(super) features: ExchangeFeatures,
     pub(super) event_channel: mpsc::Sender<OrderEvent>,
+    application_manager: ApplicationManager,
     // FIXME think about it. Maybe it should be part of specific exchange?
     pub(super) commission: Commission,
     pub(super) top_prices: DashMap<CurrencyPair, (Ask, Bid)>,
-    pub(super) symbols: Mutex<Vec<Arc<Symbol>>>,
+    pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
+    pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
+    pub(super) symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
 }
 

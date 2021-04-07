@@ -335,9 +335,8 @@ impl Exchange {
             return Ok(());
         }
 
-        // FIXME USE Evgeniy's PR with Symbol
-        let currency_pair_metadata =
-            CurrencyPairMetadata::new(self.exchange_account_id.clone(), order_ref.currency_pair());
+        // FIXME It's not wholly implemented
+        let currency_pair_metadata = self.get_currency_pair_metadata(&order_ref.currency_pair())?;
         let last_fill_data = match Self::get_last_fill_data(
             &mut event_data,
             &currency_pair_metadata,
