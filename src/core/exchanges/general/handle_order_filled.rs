@@ -12,7 +12,7 @@ use crate::core::{
     orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderStatus,
     orders::order::OrderType, orders::pool::OrderRef,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use parking_lot::RwLock;
@@ -166,7 +166,6 @@ impl Exchange {
         false
     }
 
-    // FIXME not fully tested
     fn get_last_fill_data(
         mut event_data: &mut FillEventData,
         currency_pair_metadata: &CurrencyPairMetadata,
@@ -420,7 +419,7 @@ impl Exchange {
                 None => {
                     currency_pair = CurrencyPair::from_currency_codes(
                         currency_pair_metadata.quote_currency_code.clone(),
-                        commission_currency_code,
+                        commission_currency_code.clone(),
                     );
 
                     match self.top_prices.get(&currency_pair) {
@@ -442,7 +441,7 @@ impl Exchange {
 
         let last_fill_amount_in_converted_commission_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(
-                converted_commission_currency_code,
+                converted_commission_currency_code.clone(),
                 last_fill_amount,
                 last_fill_price,
             );
@@ -468,12 +467,12 @@ impl Exchange {
             last_fill_amount,
             last_fill_cost,
             order_role.into(),
-            CurrencyCode::new("test".into()),
+            commission_currency_code,
             commission_amount,
-            dec!(0),
-            CurrencyCode::new("test".into()),
-            dec!(0),
-            dec!(0),
+            referral_reward_amount,
+            converted_commission_currency_code,
+            converted_commission_amount,
+            expected_converted_commission_amount,
             false,
             None,
             None,

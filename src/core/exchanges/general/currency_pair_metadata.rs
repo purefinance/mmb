@@ -171,6 +171,7 @@ impl CurrencyPairMetadata {
         CurrencyCode::new("test".into())
     }
 
+    // FIXME
     pub fn convert_amount_from_amount_currency_code(
         &self,
         to_currency_code: CurrencyCode,
