@@ -187,16 +187,13 @@ impl Exchange {
                 None => return None,
                 Some(cost_diff) => {
                     let (price, amount, cost) = Self::calculate_last_fill_data(
-                        last_fill_price,
+                        last_fill_amount,
                         &order_fills,
                         order_filled_amount,
                         &currency_pair_metadata,
                         cost_diff,
                         &mut event_data,
                     );
-                    dbg!(&price);
-                    dbg!(&amount);
-                    dbg!(&cost);
                     last_fill_price = price;
                     last_fill_amount = amount;
                     last_fill_cost = cost
@@ -321,7 +318,6 @@ impl Exchange {
         mut event_data: &mut FillEventData,
         order_ref: &OrderRef,
     ) -> Result<()> {
-        dbg!(&"BEFORE");
         let (order_fills, order_filled_amount) = order_ref.get_fills();
 
         if Self::was_trade_already_received(&event_data.trade_id, &order_fills, &order_ref) {
@@ -462,7 +458,6 @@ impl Exchange {
 
         let rounded_fill_price =
             currency_pair_metadata.price_round(last_fill_price, Round::ToNearest);
-        // TODO continue it here
         let order_fill = OrderFill::new(
             // FIXME what to do with it? Does it even use in C#?
             Uuid::new_v4(),
@@ -474,7 +469,7 @@ impl Exchange {
             last_fill_cost,
             order_role.into(),
             CurrencyCode::new("test".into()),
-            dec!(0),
+            commission_amount,
             dec!(0),
             CurrencyCode::new("test".into()),
             dec!(0),
@@ -547,7 +542,6 @@ impl Exchange {
         }
 
         // TODO DataRecorder.save(order)
-        dbg!(&"THE END");
 
         // FIXME handle it in the end
         Ok(())
@@ -1613,8 +1607,17 @@ mod test {
             .by_exchange_id
             .get(&exchange_order_id)
             .expect("in test");
-        //dbg!(&order_ref.get_fills());
-        let (fills, filled_amount) = order_ref.get_fills();
+        let (fills, _filled_amount) = order_ref.get_fills();
+
+        assert_eq!(fills.len(), 2);
+        let first_fill = &fills[0];
+        assert_eq!(first_fill.price(), dec!(0.2));
+        assert_eq!(first_fill.amount(), dec!(5));
+        assert_eq!(first_fill.commission_amount(), dec!(0.01));
+        let second_fill = &fills[1];
+        assert_eq!(second_fill.price(), dec!(0.4));
+        assert_eq!(second_fill.amount(), dec!(5));
+        assert_eq!(second_fill.commission_amount(), dec!(0.02));
     }
 
     #[test]
