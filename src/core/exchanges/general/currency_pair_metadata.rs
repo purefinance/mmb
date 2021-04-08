@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::core::{
     exchanges::common::Amount,
     exchanges::common::CurrencyCode,
@@ -8,8 +6,11 @@ use crate::core::{
     exchanges::common::{CurrencyPair, Price},
     orders::order::OrderSide,
 };
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use std::convert::TryFrom;
+use std::sync::Arc;
 
 use super::exchange::Exchange;
 
@@ -130,7 +131,6 @@ impl CurrencyPairMetadata {
         self.is_derivative
     }
 
-    // TODO second params is round
     pub fn price_round(&self, price: Price, round: Round) -> Result<Price> {
         let tick = self.price_tick;
         match tick {
@@ -156,17 +156,63 @@ impl CurrencyPairMetadata {
             bail!("Too small tick: {}", tick)
         }
 
-        Ok(value)
+        Self::inner_round_by_tick(value, tick, round)
     }
 
-    fn round_by_fraction(value: Price, _precision: i8, _round: Round) -> Result<Price> {
-        // FIXME todo
-        Ok(value)
+    fn inner_round_by_tick(value: Price, tick: Price, round: Round) -> Result<Price> {
+        let floor = (value / tick).floor() * tick;
+        let ceil = (value / tick).ceil() * tick;
+        match round {
+            Round::Floor => Ok(floor),
+            Round::Ceiling => Ok(ceil),
+            Round::ToNearest => {
+                let mut result = floor;
+                if ceil - value <= value - floor {
+                    result = ceil;
+                }
+
+                return Ok(result);
+            }
+        }
     }
 
-    fn round_by_mantissa(value: Price, _precision: i8, _round: Round) -> Result<Price> {
-        // FIXME todo
-        Ok(value)
+    fn round_by_mantissa(value: Price, precision: i8, round: Round) -> Result<Price> {
+        if value == dec!(0) {
+            return Ok(dec!(0));
+        }
+
+        let floor_digits = Self::get_precision_digits_by_fractional(value, precision)?;
+
+        Self::round_by_fraction(value, floor_digits, round)
+    }
+
+    fn get_precision_digits_by_fractional(value: Price, precision: i8) -> Result<i8> {
+        if precision <= 0 {
+            bail!(
+                "Count of precision digits cannot be less 1 but got {}",
+                precision
+            )
+        }
+
+        let mut integral_digits = 0;
+        if value >= dec!(1) {
+            integral_digits = 1;
+            let mut tmp = value * dec!(0.1);
+            while tmp < dec!(1) {
+                tmp *= dec!(10);
+                integral_digits -= 1;
+            }
+        }
+
+        let floor_digits = precision - integral_digits;
+
+        Ok(floor_digits)
+    }
+
+    fn round_by_fraction(value: Price, precision: i8, round: Round) -> Result<Price> {
+        let pow_precision = Decimal::try_from(0.1_f32.powi(precision as i32))
+            .context("Unable to create Decimal from f32")?;
+        Self::inner_round_by_tick(value, pow_precision, round)
     }
 
     // TODO is that appropriate return type?
