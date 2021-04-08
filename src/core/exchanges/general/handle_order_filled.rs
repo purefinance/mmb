@@ -250,8 +250,6 @@ impl Exchange {
         } else {
             amount_diff / cost_diff
         };
-        // FIXME continue here
-        // FIXME think what to do with that error from price_round
         let last_fill_price =
             currency_pair_metadata.price_round(res_fill_price, Round::ToNearest)?;
 
@@ -1537,7 +1535,6 @@ mod test {
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        // FIXME ADD order with exchange_order_id
         let header = OrderHeader::new(
             client_order_id.clone(),
             Utc::now(),
@@ -1652,7 +1649,6 @@ mod test {
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        // FIXME ADD order with exchange_order_id
         let header = OrderHeader::new(
             client_order_id.clone(),
             Utc::now(),
@@ -1766,7 +1762,6 @@ mod test {
         let exchange_order_id: ExchangeOrderId = "some_order_id".into();
 
         // Add order manually for setting custom order.amount
-        // FIXME ADD order with exchange_order_id
         let header = OrderHeader::new(
             client_order_id.clone(),
             Utc::now(),
@@ -1852,22 +1847,22 @@ mod test {
             .by_exchange_id
             .get(&exchange_order_id)
             .expect("in test");
+
         let (fills, filled_amount) = order_ref.get_fills();
 
         assert_eq!(filled_amount, dec!(10));
         assert_eq!(order_ref.internal_props().average_fill_price, dec!(3000));
+        assert_eq!(fills.len(), 2);
 
-        dbg!(&fills);
+        let first_fill = &fills[0];
+        assert_eq!(first_fill.price(), dec!(2000));
+        assert_eq!(first_fill.amount(), dec!(5));
+        assert_eq!(first_fill.commission_amount(), dec!(0.01));
 
-        //assert_eq!(fills.len(), 2);
-        //let first_fill = &fills[0];
-        //assert_eq!(first_fill.price(), dec!(0.2));
-        //assert_eq!(first_fill.amount(), dec!(5));
-        //assert_eq!(first_fill.commission_amount(), dec!(0.01));
-        //let second_fill = &fills[1];
-        //assert_eq!(second_fill.price(), dec!(0.4));
-        //assert_eq!(second_fill.amount(), dec!(5));
-        //assert_eq!(second_fill.commission_amount(), dec!(0.02));
+        let second_fill = &fills[1];
+        assert_eq!(second_fill.price(), dec!(6000));
+        assert_eq!(second_fill.amount(), dec!(5));
+        assert_eq!(second_fill.commission_amount(), dec!(0.02));
     }
 
     #[test]
