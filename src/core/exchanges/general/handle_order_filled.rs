@@ -1986,6 +1986,111 @@ mod test {
     }
 
     #[test]
+    fn ignore_non_diff_fill_with_second_cost_lesser() {
+        let (exchange, _event_receiver) = get_test_exchange(false);
+
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let fill_amount = dec!(5);
+        let order_amount = dec!(12);
+        let trade_id = "test_trade_id".to_owned();
+        let client_order_id = ClientOrderId::unique_id();
+        let order_side = OrderSide::Buy;
+        let order_price = dec!(0.2);
+        let order_role = OrderRole::Maker;
+        let exchange_order_id: ExchangeOrderId = "some_order_id".into();
+
+        // Add order manually for setting custom order.amount
+        let header = OrderHeader::new(
+            client_order_id.clone(),
+            Utc::now(),
+            exchange.exchange_account_id.clone(),
+            currency_pair.clone(),
+            OrderType::Limit,
+            OrderSide::Sell,
+            order_amount,
+            OrderExecutionType::None,
+            None,
+            None,
+            None,
+        );
+        let props = OrderSimpleProps::new(
+            Some(order_price),
+            Some(order_role),
+            Some(exchange_order_id.clone()),
+            Default::default(),
+            Default::default(),
+            Default::default(),
+            None,
+        );
+        let order = OrderSnapshot::new(
+            Arc::new(header),
+            props,
+            OrderFills::default(),
+            OrderStatusHistory::default(),
+            SystemInternalOrderProps::default(),
+        );
+
+        exchange
+            .orders
+            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
+
+        let first_event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: exchange_order_id.clone(),
+            fill_price: dec!(0.8),
+            fill_amount,
+            is_diff: false,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: Some(dec!(0.01)),
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(order_side),
+            order_amount: Some(dec!(0)),
+        };
+
+        exchange
+            .handle_order_filled(first_event_data)
+            .expect("in test");
+
+        let second_event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: "another_trade_id".to_owned(),
+            client_order_id: None,
+            exchange_order_id: exchange_order_id.clone(),
+            fill_price: dec!(0.3),
+            fill_amount: dec!(10),
+            is_diff: false,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: Some(dec!(0.03)),
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        exchange
+            .handle_order_filled(second_event_data)
+            .expect("in test");
+
+        let order_ref = exchange
+            .orders
+            .by_exchange_id
+            .get(&exchange_order_id)
+            .expect("in test");
+
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
+    }
+
+    #[test]
     fn ignore_fill_if_total_filled_amount_is_incorrect() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
