@@ -8,6 +8,15 @@ pub struct CommissionForType {
     pub referral_reward: Price,
 }
 
+impl CommissionForType {
+    pub fn new(fee: Price, referral_reward: Price) -> Self {
+        Self {
+            fee,
+            referral_reward,
+        }
+    }
+}
+
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct Commission {
     pub maker: CommissionForType,
@@ -15,6 +24,10 @@ pub struct Commission {
 }
 
 impl Commission {
+    pub fn new(maker: CommissionForType, taker: CommissionForType) -> Self {
+        Self { maker, taker }
+    }
+
     pub fn get_commission(&self, order_role: Option<OrderRole>) -> Result<CommissionForType> {
         match order_role {
             Some(order_role) => match order_role {
