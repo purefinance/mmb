@@ -16,7 +16,7 @@ pub async fn create_exchange(
         [&exchange_settings.exchange_account_id.exchange_id]
         .create_exchange_client(exchange_settings.clone());
 
-    let (tx, rx) = channel();
+    let (tx, _) = channel();
     let exchange = Exchange::new(
         exchange_settings.exchange_account_id.clone(),
         exchange_settings.web_socket_host.clone(),

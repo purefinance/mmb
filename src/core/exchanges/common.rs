@@ -1,4 +1,3 @@
-use crate::core::orders::order::OrderSide;
 use awc::http::StatusCode;
 use itertools::Itertools;
 use regex::Regex;

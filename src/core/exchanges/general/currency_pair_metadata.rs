@@ -4,12 +4,12 @@ use crate::core::{
     exchanges::common::Amount,
     exchanges::common::CurrencyCode,
     exchanges::common::CurrencyId,
-    exchanges::common::ExchangeAccountId,
     exchanges::common::SpecificCurrencyPair,
     exchanges::common::{CurrencyPair, Price},
     orders::order::OrderSide,
 };
 use anyhow::{bail, Result};
+use rust_decimal_macros::dec;
 
 use super::exchange::Exchange;
 
@@ -131,52 +131,55 @@ impl CurrencyPairMetadata {
     }
 
     // TODO second params is round
-    pub fn price_round(&self, price: Price, round: Round) -> Price {
+    pub fn price_round(&self, price: Price, round: Round) -> Result<Price> {
         let tick = self.price_tick;
         match tick {
-            Some(tick) => Self::round_by_tick(price, tick, round),
+            Some(tick) => Ok(Self::round_by_tick(price, tick, round)?),
             None => {
                 let price_precision = self.price_precision;
                 let floored = match self.price_precision_type {
                     PrecisionType::ByFraction => {
-                        Self::round_by_fraction(price, price_precision, round)
+                        Self::round_by_fraction(price, price_precision, round)?
                     }
                     PrecisionType::ByMantissa => {
-                        Self::round_by_mantissa(price, price_precision, round)
+                        Self::round_by_mantissa(price, price_precision, round)?
                     }
                 };
 
-                floored
+                Ok(floored)
             }
         }
     }
 
-    fn round_by_tick(value: Price, tick: Price, round: Round) -> Price {
-        // FIXME todo
-        value
+    fn round_by_tick(value: Price, tick: Price, round: Round) -> Result<Price> {
+        if tick <= dec!(0) {
+            bail!("Too small tick: {}", tick)
+        }
+
+        Ok(value)
     }
 
-    fn round_by_fraction(value: Price, precision: i8, round: Round) -> Price {
+    fn round_by_fraction(value: Price, _precision: i8, _round: Round) -> Result<Price> {
         // FIXME todo
-        value
+        Ok(value)
     }
 
-    fn round_by_mantissa(value: Price, precision: i8, round: Round) -> Price {
+    fn round_by_mantissa(value: Price, _precision: i8, _round: Round) -> Result<Price> {
         // FIXME todo
-        value
+        Ok(value)
     }
 
     // TODO is that appropriate return type?
-    pub fn get_commision_currency_code(&self, side: OrderSide) -> CurrencyCode {
+    pub fn get_commision_currency_code(&self, _side: OrderSide) -> CurrencyCode {
         CurrencyCode::new("test".into())
     }
 
     // FIXME
     pub fn convert_amount_from_amount_currency_code(
         &self,
-        to_currency_code: CurrencyCode,
+        _to_currency_code: CurrencyCode,
         amount_in_amount_currency_code: Amount,
-        currency_pair_price: Price,
+        _currency_pair_price: Price,
     ) -> Amount {
         amount_in_amount_currency_code
     }
