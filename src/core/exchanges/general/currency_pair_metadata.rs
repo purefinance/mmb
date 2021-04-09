@@ -215,19 +215,35 @@ impl CurrencyPairMetadata {
         Self::inner_round_by_tick(value, pow_precision, round)
     }
 
-    // TODO is that appropriate return type?
-    pub fn get_commision_currency_code(&self, _side: OrderSide) -> CurrencyCode {
-        CurrencyCode::new("test".into())
+    pub fn get_commision_currency_code(&self, side: OrderSide) -> CurrencyCode {
+        match &self.balance_currency_code {
+            Some(balance_currency_code) => balance_currency_code.clone(),
+            None => match side {
+                OrderSide::Buy => self.base_currency_code.clone(),
+                OrderSide::Sell => self.quote_currency_code.clone(),
+            },
+        }
     }
 
-    // FIXME
     pub fn convert_amount_from_amount_currency_code(
         &self,
-        _to_currency_code: CurrencyCode,
+        to_currency_code: CurrencyCode,
         amount_in_amount_currency_code: Amount,
-        _currency_pair_price: Price,
-    ) -> Amount {
-        amount_in_amount_currency_code
+        currency_pair_price: Price,
+    ) -> Result<Amount> {
+        if to_currency_code == self.amount_currency_code {
+            return Ok(amount_in_amount_currency_code);
+        }
+
+        if to_currency_code == self.base_currency_code {
+            return Ok(amount_in_amount_currency_code / currency_pair_price);
+        }
+
+        if to_currency_code == self.quote_currency_code {
+            return Ok(amount_in_amount_currency_code * currency_pair_price);
+        }
+
+        bail!("Currency code outside currency pair is not supported yet")
     }
 }
 
@@ -252,5 +268,48 @@ impl Exchange {
                 currency_pair
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn get_commission_currency_code_from_balance() {
+        let base_currency = "PHB";
+        let quote_currency = "PHB";
+        let specific_currency_pair = "PHBBTC";
+        let price_precision = 0;
+        let amount_precision = 0;
+        let price_tick = dec!(0.1);
+        let is_derivative = false;
+        let balance_currency_code = CurrencyCode::new("ETH".into());
+
+        let currency_pair_metadata = CurrencyPairMetadata::new(
+            false,
+            is_derivative,
+            base_currency.into(),
+            base_currency.into(),
+            quote_currency.into(),
+            quote_currency.into(),
+            specific_currency_pair.into(),
+            None,
+            None,
+            price_precision,
+            PrecisionType::ByFraction,
+            Some(price_tick),
+            base_currency.into(),
+            None,
+            None,
+            amount_precision,
+            PrecisionType::ByFraction,
+            None,
+            None,
+            Some(balance_currency_code.clone()),
+        );
+
+        let gotten = currency_pair_metadata.get_commision_currency_code(OrderSide::Buy);
+        assert_eq!(gotten, balance_currency_code);
     }
 }

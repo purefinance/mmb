@@ -49,6 +49,7 @@ impl Exchange {
         self.set_supported_currencies(supported_currencies);
 
         *self.supported_symbols.lock() = supported_symbols;
+        dbg!(&"AHA");
     }
 
     fn set_supported_currencies(&self, supported_currencies: DashMap<CurrencyCode, CurrencyId>) {
