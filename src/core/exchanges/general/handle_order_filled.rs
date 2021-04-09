@@ -2754,4 +2754,71 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn calculate_commission_amount() {
+        let (exchange, _event_receiver) = get_test_exchange(false);
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let order_side = OrderSide::Buy;
+        let fill_price = dec!(0.8);
+        let fill_amount = dec!(5);
+        let order_amount = dec!(12);
+        let trade_id = "test_trade_id".to_owned();
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("".into()),
+            fill_price: fill_price.clone(),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: None,
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(OrderSide::Buy),
+            order_amount: Some(dec!(0)),
+        };
+
+        let mut order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            Some(OrderRole::Maker),
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            dec!(0.2),
+            order_amount,
+            order_side,
+            None,
+        );
+        order.fills.filled_amount = dec!(3);
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+            Ok(_) => {
+                let (fills, _) = order_ref.get_fills();
+                assert_eq!(fills.len(), 1);
+
+                let first_fill = &fills[0];
+                let result_value = dec!(0.1) / dec!(100) * fill_amount;
+                assert_eq!(first_fill.commission_amount(), result_value);
+            }
+            Err(error) => {
+                dbg!(&error);
+                assert!(false);
+            }
+        }
+    }
 }
