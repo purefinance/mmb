@@ -274,7 +274,7 @@ impl TradePlace {
 }
 
 /// Exchange account id and currency pair
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub struct TradePlaceAccount {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
@@ -293,21 +293,6 @@ impl TradePlaceAccount {
             self.exchange_account_id.exchange_id.clone(),
             self.currency_pair.clone(),
         )
-    }
-}
-
-#[derive(PartialEq, Eq, Clone, Hash, Debug, Serialize, Deserialize)]
-pub struct ExchangeIdCurrencyPair {
-    exchange_account_id: ExchangeAccountId,
-    currency_pair: CurrencyPair,
-}
-
-impl ExchangeIdCurrencyPair {
-    pub fn new(exchange_account_id: ExchangeAccountId, currency_pair: CurrencyPair) -> Self {
-        Self {
-            exchange_account_id,
-            currency_pair,
-        }
     }
 }
 
