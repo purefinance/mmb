@@ -52,14 +52,16 @@ pub async fn send_post_request(
     api_key: &str,
     parameters: &HttpParams,
 ) -> Result<RestRequestOutcome> {
-    let client = awc::Client::default();
-    let response = client
-        .post(url)
-        .header("X-MBX-APIKEY", api_key)
-        .send_form(&parameters)
-        .await;
+    // let client = awc::Client::default();
+    // let response = client
+    //     .post(url)
+    //     .header("X-MBX-APIKEY", api_key)
+    //     .send_form(&parameters)
+    //     .await;
+    //
+    // handle_response(response, "POST").await
 
-    handle_response(response, "POST").await
+    todo!()
 }
 
 pub async fn send_delete_request(
@@ -83,14 +85,24 @@ pub async fn send_get_request(
     api_key: &str,
     parameters: &HttpParams,
 ) -> Result<RestRequestOutcome> {
-    let client = awc::Client::default();
-    let response = client
-        .get(url)
-        .header("X-MBX-APIKEY", api_key)
-        .query(&parameters)
-        .context("Unable to add query")?
-        .send()
-        .await;
+    let client = hyper::Client::new();
 
-    handle_response(response, "GET").await
+    let req = hyper::Request::get(url)
+        .header("X-MBX-APIKEY", api_key)
+        .body(hyper::body::Body::empty())
+        .context("Error during creation of http GET request")?;
+    let response = client.request(req).await?;
+
+    todo!()
+
+    //     let client = awc::Client::default();
+    //     let response = client
+    //         .get(url)
+    //         .header("X-MBX-APIKEY", api_key)
+    //         .query(&parameters)
+    //         .context("Unable to add query")?
+    //         .send()
+    //         .await;
+    //
+    //     handle_response(response, "GET").await
 }

@@ -35,7 +35,7 @@ pub struct BinanceOrderInfo {
     pub side: String,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl Support for Binance {
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
         //Binance is a little inconsistent: for failed responses sometimes they include
@@ -146,14 +146,14 @@ impl Support for Binance {
 
     fn set_order_created_callback(
         &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     ) {
         *self.order_created_callback.lock() = callback;
     }
 
     fn set_order_cancelled_callback(
         &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     ) {
         *self.order_cancelled_callback.lock() = callback;
     }

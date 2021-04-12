@@ -70,8 +70,11 @@ impl WebSockets {
 // TODO Find more clear names in the future
 type Callback0 = Box<dyn FnMut()>;
 type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
-type GetWSParamsCallback =
-    Box<dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>>;
+pub type GetWSParamsCallback = Box<
+    dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
+        + Send
+        + Sync,
+>;
 type WSMessageReceived = Box<dyn FnMut(&str)>;
 
 pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
