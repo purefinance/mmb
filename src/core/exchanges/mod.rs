@@ -2,6 +2,7 @@ pub mod application_manager;
 pub mod binance;
 pub mod cancellation_token;
 pub mod common;
+pub mod events;
 pub mod exchange_blocker;
 pub mod general;
 pub mod rest_client;

@@ -1,5 +1,6 @@
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::common::ExchangeId;
+use crate::core::exchanges::events::{ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
@@ -10,6 +11,7 @@ use futures::future::join_all;
 use log::info;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,
@@ -34,7 +36,23 @@ pub async fn launch_trading_engine<TSettings: Default>(build_settings: &EngineBu
     info!("Bot started session");
 
     let settings = load_settings::<TSettings>().await;
-    let _exchanges = create_exchanges(&settings.core, build_settings).await;
+    let exchanges = create_exchanges(&settings.core, build_settings).await;
+    let exchanges_map: HashMap<_, _> = exchanges
+        .into_iter()
+        .map(|x| (x.exchange_account_id.clone(), x))
+        .collect();
+
+    let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
+
+    let exchange_events = ExchangeEvents::new(events_sender);
+
+    {
+        // TODO uncomment when will be implemented Send for Exchange;
+        // let exchanges_map = exchanges_map.clone();
+        // let _ = tokio::spawn(
+        //     async move { ExchangeEvents::start(events_receiver, exchanges_map).await },
+        // );
+    }
 }
 
 async fn load_settings<TSettings: Default>() -> AppSettings<TSettings> {

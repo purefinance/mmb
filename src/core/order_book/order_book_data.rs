@@ -4,7 +4,7 @@ use chrono::Utc;
 use rust_decimal::prelude::*;
 
 /// Main asks and bids storage
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct OrderBookData {
     pub asks: SortedOrderData,
     pub bids: SortedOrderData,
