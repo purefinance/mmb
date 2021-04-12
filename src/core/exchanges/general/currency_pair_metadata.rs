@@ -231,6 +231,8 @@ impl CurrencyPairMetadata {
         amount_in_amount_currency_code: Amount,
         currency_pair_price: Price,
     ) -> Result<Amount> {
+        dbg!(&self.amount_currency_code);
+        dbg!(&self.base_currency_code);
         if to_currency_code == self.amount_currency_code {
             return Ok(amount_in_amount_currency_code);
         }
