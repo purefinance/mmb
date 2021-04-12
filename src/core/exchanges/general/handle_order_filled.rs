@@ -3085,4 +3085,68 @@ mod test {
             Err(_) => assert!(false),
         }
     }
+
+    #[test]
+    fn expected_commission_amount_not_equal_wrong_commission_amount() {
+        let (exchange, _event_receiver) = get_test_exchange(false);
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let order_side = OrderSide::Buy;
+        let fill_amount = dec!(5);
+        let order_amount = dec!(12);
+        let trade_id = "test_trade_id".to_owned();
+        let commission_amount = dec!(1000);
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("some_exchange_order_id".into()),
+            fill_price: dec!(0.8),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: Some(OrderRole::Maker),
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: Some(commission_amount),
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(order_side),
+            order_amount: Some(dec!(0)),
+        };
+
+        let order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            Some(OrderRole::Maker),
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+            Ok(_) => {
+                let (fills, _) = order_ref.get_fills();
+                assert_eq!(fills.len(), 1);
+
+                let fill = &fills[0];
+                assert_eq!(fill.commission_amount(), commission_amount);
+                let right_value = dec!(0.1) / dec!(100) * dec!(5);
+                assert_eq!(fill.expected_converted_commission_amount(), right_value);
+            }
+            Err(_) => assert!(false),
+        }
+    }
 }
