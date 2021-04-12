@@ -754,9 +754,14 @@ mod test {
             tx,
             commission,
         );
-        let base_currency = "PHB";
-        let quote_currency = "BTC";
-        let amount_currency = "BTC";
+        let base_currency_code = "PHB";
+        let quote_currency_code = "BTC";
+        let amount_currency_code = if is_derivative {
+            quote_currency_code.clone()
+        } else {
+            base_currency_code.clone()
+        };
+
         let specific_currency_pair = "PHBBTC";
         // FIXME What is proper value?
         let price_precision = 0;
@@ -766,17 +771,17 @@ mod test {
         let symbol = CurrencyPairMetadata::new(
             false,
             is_derivative,
-            base_currency.into(),
-            base_currency.into(),
-            quote_currency.into(),
-            quote_currency.into(),
+            base_currency_code.into(),
+            base_currency_code.into(),
+            quote_currency_code.into(),
+            quote_currency_code.into(),
             specific_currency_pair.into(),
             None,
             None,
             price_precision,
             PrecisionType::ByFraction,
             Some(price_tick),
-            amount_currency.into(),
+            amount_currency_code.into(),
             None,
             None,
             amount_precision,
@@ -3010,6 +3015,72 @@ mod test {
                 let fill = &fills[0];
                 let right_value = dec!(0.1) / dec!(100) * dec!(5) / dec!(0.8);
                 assert_eq!(fill.commission_amount(), right_value);
+            }
+            Err(_) => assert!(false),
+        }
+    }
+
+    #[test]
+    fn expected_commission_amount_equal_commission_amount() {
+        let (exchange, _event_receiver) = get_test_exchange(false);
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let order_side = OrderSide::Buy;
+        let fill_amount = dec!(5);
+        let order_amount = dec!(12);
+        let trade_id = "test_trade_id".to_owned();
+        let commission_amount = dec!(0.1) / dec!(100) * dec!(5);
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: trade_id.clone(),
+            client_order_id: None,
+            exchange_order_id: ExchangeOrderId::new("some_exchange_order_id".into()),
+            fill_price: dec!(0.8),
+            fill_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: Some(OrderRole::Maker),
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: Some(commission_amount),
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(order_side),
+            order_amount: Some(dec!(0)),
+        };
+
+        let order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            Some(OrderRole::Maker),
+            exchange.exchange_account_id.clone(),
+            currency_pair,
+            event_data.fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+            Ok(_) => {
+                let (fills, _) = order_ref.get_fills();
+                assert_eq!(fills.len(), 1);
+
+                let fill = &fills[0];
+                assert_eq!(fill.commission_amount(), commission_amount);
+                assert_eq!(
+                    fill.expected_converted_commission_amount(),
+                    commission_amount
+                );
             }
             Err(_) => assert!(false),
         }
