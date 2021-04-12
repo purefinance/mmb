@@ -340,6 +340,85 @@ impl Exchange {
         }
     }
 
+    fn try_set_commission_rate(event_data: &mut FillEventData, expected_commission_rate: Price) {
+        if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
+            event_data.commission_rate = Some(expected_commission_rate);
+        }
+    }
+
+    // FIXME unexpected? What's the better name?
+    fn calculate_commission_data_for_unexpected_currency_code(
+        &self,
+        commission_currency_code: &CurrencyCode,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        commission_amount: Amount,
+        converted_commission_amount: &mut Amount,
+        converted_commission_currency_code: &mut CurrencyCode,
+    ) {
+        if commission_currency_code != &currency_pair_metadata.base_currency_code
+            && commission_currency_code != &currency_pair_metadata.quote_currency_code
+        {
+            let mut currency_pair = CurrencyPair::from_currency_codes(
+                commission_currency_code.clone(),
+                currency_pair_metadata.quote_currency_code.clone(),
+            );
+            match self.top_prices.get(&currency_pair) {
+                Some(top_prices) => {
+                    let (_, bid) = *top_prices;
+                    let price_bnb_quote = bid.0;
+                    *converted_commission_amount = commission_amount * price_bnb_quote;
+                    *converted_commission_currency_code =
+                        currency_pair_metadata.quote_currency_code.clone();
+                }
+                None => {
+                    currency_pair = CurrencyPair::from_currency_codes(
+                        currency_pair_metadata.quote_currency_code.clone(),
+                        commission_currency_code.clone(),
+                    );
+
+                    match self.top_prices.get(&currency_pair) {
+                        Some(top_prices) => {
+                            let (ask, _) = *top_prices;
+                            let price_quote_bnb = ask.0;
+                            *converted_commission_amount = commission_amount / price_quote_bnb;
+                            *converted_commission_currency_code =
+                                currency_pair_metadata.quote_currency_code.clone();
+                        }
+                        None => error!(
+                            "Top bids and asks for {} and currency pair {:?} do not exist",
+                            self.exchange_account_id, currency_pair
+                        ),
+                    }
+                }
+            }
+        }
+    }
+
+    fn set_average_order_fill_price(
+        fills: &Vec<OrderFill>,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        order_filled_amount: Amount,
+        order_ref: &OrderRef,
+    ) -> Result<()> {
+        let mut order_fills_cost_sum = dec!(0);
+        fills
+            .iter()
+            .for_each(|fill| order_fills_cost_sum += fill.cost());
+        let average_fill_price = if !currency_pair_metadata.is_derivative() {
+            order_fills_cost_sum / order_filled_amount
+        } else {
+            order_filled_amount / order_fills_cost_sum
+        };
+
+        let order_average_fill_price =
+            currency_pair_metadata.price_round(average_fill_price, Round::ToNearest)?;
+        order_ref.fn_mut(|order| {
+            order.internal_props.average_fill_price = order_average_fill_price;
+        });
+
+        Ok(())
+    }
+
     fn local_order_exist(
         &self,
         mut event_data: &mut FillEventData,
@@ -399,9 +478,7 @@ impl Exchange {
         let expected_commission_rate =
             self.commission.get_commission(Some(order_role))?.fee * some_magical_number;
 
-        if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
-            event_data.commission_rate = Some(expected_commission_rate);
-        }
+        Self::try_set_commission_rate(&mut event_data, expected_commission_rate);
 
         let commission_amount = Self::get_commission_amount(
             &event_data,
@@ -415,43 +492,13 @@ impl Exchange {
         let mut converted_commission_currency_code = commission_currency_code.clone();
         let mut converted_commission_amount = commission_amount;
 
-        if commission_currency_code != currency_pair_metadata.base_currency_code
-            && commission_currency_code != currency_pair_metadata.quote_currency_code
-        {
-            let mut currency_pair = CurrencyPair::from_currency_codes(
-                commission_currency_code.clone(),
-                currency_pair_metadata.quote_currency_code.clone(),
-            );
-            match self.top_prices.get(&currency_pair) {
-                Some(top_prices) => {
-                    let (_, bid) = *top_prices;
-                    let price_bnb_quote = bid.0;
-                    converted_commission_amount = commission_amount * price_bnb_quote;
-                    converted_commission_currency_code =
-                        currency_pair_metadata.quote_currency_code.clone();
-                }
-                None => {
-                    currency_pair = CurrencyPair::from_currency_codes(
-                        currency_pair_metadata.quote_currency_code.clone(),
-                        commission_currency_code.clone(),
-                    );
-
-                    match self.top_prices.get(&currency_pair) {
-                        Some(top_prices) => {
-                            let (ask, _) = *top_prices;
-                            let price_quote_bnb = ask.0;
-                            converted_commission_amount = commission_amount / price_quote_bnb;
-                            converted_commission_currency_code =
-                                currency_pair_metadata.quote_currency_code.clone();
-                        }
-                        None => error!(
-                            "Top bids and asks for {} and currency pair {:?} do not exist",
-                            self.exchange_account_id, currency_pair
-                        ),
-                    }
-                }
-            }
-        }
+        self.calculate_commission_data_for_unexpected_currency_code(
+            &commission_currency_code,
+            &currency_pair_metadata,
+            commission_amount,
+            &mut converted_commission_amount,
+            &mut converted_commission_currency_code,
+        );
 
         let last_fill_amount_in_converted_commission_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(
@@ -496,21 +543,12 @@ impl Exchange {
         // This order fields updated, so let's use actual values
         let (order_fills, order_filled_amount) = order_ref.get_fills();
 
-        let mut order_fills_cost_sum = dec!(0);
-        order_fills
-            .iter()
-            .for_each(|fill| order_fills_cost_sum += fill.cost());
-        let average_fill_price = if !currency_pair_metadata.is_derivative() {
-            order_fills_cost_sum / order_filled_amount
-        } else {
-            order_filled_amount / order_fills_cost_sum
-        };
-
-        let order_average_fill_price =
-            currency_pair_metadata.price_round(average_fill_price, Round::ToNearest)?;
-        order_ref.fn_mut(|order| {
-            order.internal_props.average_fill_price = order_average_fill_price;
-        });
+        Self::set_average_order_fill_price(
+            &order_fills,
+            &currency_pair_metadata,
+            order_filled_amount,
+            order_ref,
+        )?;
 
         if order_filled_amount > order_ref.amount() {
             let error_msg = format!(
@@ -3542,6 +3580,67 @@ mod test {
                 let receive_time = first_fill.receive_time().timestamp_millis();
                 let current_time = Utc::now().timestamp_millis();
                 assert_eq!(current_time, receive_time);
+            }
+            Err(_) => {
+                assert!(false);
+            }
+        }
+    }
+
+    #[test]
+    fn order_completed_if_filled_completely() {
+        let (exchange, _event_receiver) = get_test_exchange(false);
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let order_side = OrderSide::Buy;
+        let fill_price = dec!(0.2);
+        let order_amount = dec!(12);
+        let exchange_account_id = ExchangeOrderId::new("some_echange_order_id".into());
+        let client_account_id = ClientOrderId::unique_id();
+
+        let order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            Some(OrderRole::Maker),
+            exchange.exchange_account_id.clone(),
+            currency_pair.clone(),
+            fill_price,
+            order_amount,
+            order_side,
+            None,
+        );
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: "first_trend_id".into(),
+            client_order_id: Some(client_account_id.clone()),
+            exchange_order_id: exchange_account_id.clone(),
+            fill_price,
+            fill_amount: order_amount,
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: Some(OrderRole::Maker),
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(order_side),
+            order_amount: Some(dec!(0)),
+        };
+
+        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+            Ok(_) => {
+                let order_status = order_ref.status();
+                assert_eq!(order_status, OrderStatus::Completed);
             }
             Err(_) => {
                 assert!(false);
