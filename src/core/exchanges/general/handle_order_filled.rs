@@ -419,6 +419,118 @@ impl Exchange {
         Ok(())
     }
 
+    fn check_fill_amounts_comformity(
+        &self,
+        order_filled_amount: Amount,
+        order_ref: &OrderRef,
+    ) -> Result<()> {
+        if order_filled_amount > order_ref.amount() {
+            let error_msg = format!(
+                "filled_amount {} > order.amount {} for {} {} {:?}",
+                order_filled_amount,
+                order_ref.amount(),
+                self.exchange_account_id,
+                order_ref.client_order_id(),
+                order_ref.exchange_order_id(),
+            );
+
+            error!("{}", error_msg);
+            bail!("{}", error_msg)
+        }
+
+        Ok(())
+    }
+
+    fn send_order_filled_event(
+        &self,
+        event_data: &FillEventData,
+        order_ref: &OrderRef,
+        order_fill: &OrderFill,
+    ) {
+        order_ref.fn_mut(|order| {
+            self.add_event_on_order_change(order, OrderEventType::OrderFilled)
+                .expect("Unable to send event, probably receiver is dead already");
+        });
+
+        info!(
+            "Added a fill {} {} {} {:?} {:?}",
+            self.exchange_account_id,
+            event_data.trade_id,
+            order_ref.client_order_id(),
+            order_ref.exchange_order_id(),
+            order_fill
+        );
+    }
+
+    fn react_if_order_completed(&self, order_filled_amount: Amount, order_ref: &OrderRef) {
+        if order_filled_amount == order_ref.amount() {
+            order_ref.fn_mut(|order| {
+                order.set_status(OrderStatus::Completed, Utc::now());
+                self.add_event_on_order_change(order, OrderEventType::OrderCompleted)
+                    .expect("Unable to send event, probably receiver is dead already");
+            });
+        }
+    }
+
+    fn add_fill(
+        &self,
+        event_data: &FillEventData,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        order_ref: &OrderRef,
+        converted_commission_currency_code: &CurrencyCode,
+        last_fill_amount: Amount,
+        last_fill_price: Price,
+        last_fill_cost: Price,
+        expected_commission_rate: Price,
+        commission_amount: Amount,
+        order_role: OrderRole,
+        commission_currency_code: &CurrencyCode,
+        converted_commission_amount: Amount,
+    ) -> Result<OrderFill> {
+        let last_fill_amount_in_converted_commission_currency_code = currency_pair_metadata
+            .convert_amount_from_amount_currency_code(
+                converted_commission_currency_code.clone(),
+                last_fill_amount,
+                last_fill_price,
+            )?;
+        let expected_converted_commission_amount =
+            last_fill_amount_in_converted_commission_currency_code * expected_commission_rate;
+
+        let proportion_multiplier = dec!(0.01);
+        let referral_reward_amount = commission_amount
+            * self
+                .commission
+                .get_commission(Some(order_role))?
+                .referral_reward
+            * proportion_multiplier;
+
+        let rounded_fill_price =
+            currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;
+        let order_fill = OrderFill::new(
+            // FIXME what to do with it? Does it even use in C#?
+            Uuid::new_v4(),
+            Utc::now(),
+            OrderFillType::Liquidation,
+            Some(event_data.trade_id.clone()),
+            rounded_fill_price,
+            last_fill_amount,
+            last_fill_cost,
+            order_role.into(),
+            commission_currency_code.clone(),
+            commission_amount,
+            referral_reward_amount,
+            converted_commission_currency_code.clone(),
+            converted_commission_amount,
+            expected_converted_commission_amount,
+            event_data.is_diff,
+            None,
+            None,
+        );
+        order_ref.fn_mut(|order| order.add_fill(order_fill.clone()));
+
+        Ok(order_fill)
+    }
+
     fn local_order_exist(
         &self,
         mut event_data: &mut FillEventData,
@@ -439,7 +551,7 @@ impl Exchange {
         }
 
         let currency_pair_metadata = self.get_currency_pair_metadata(&order_ref.currency_pair())?;
-        let last_fill_data = match Self::get_last_fill_data(
+        let (last_fill_price, last_fill_amount, last_fill_cost) = match Self::get_last_fill_data(
             &mut event_data,
             &currency_pair_metadata,
             &order_fills,
@@ -449,7 +561,6 @@ impl Exchange {
             Some(last_fill_data) => last_fill_data,
             None => return Ok(()),
         };
-        let (last_fill_price, last_fill_amount, last_fill_cost) = last_fill_data;
 
         if let Some(total_filled_amount) = event_data.total_filled_amount {
             if order_filled_amount + last_fill_amount != total_filled_amount {
@@ -473,10 +584,9 @@ impl Exchange {
 
         let order_role = Self::get_order_role(event_data, order_ref)?;
 
-        // FIXME What is the better name?
-        let some_magical_number = dec!(0.01);
+        let proportion_multiplier = dec!(0.01);
         let expected_commission_rate =
-            self.commission.get_commission(Some(order_role))?.fee * some_magical_number;
+            self.commission.get_commission(Some(order_role))?.fee * proportion_multiplier;
 
         Self::try_set_commission_rate(&mut event_data, expected_commission_rate);
 
@@ -500,46 +610,21 @@ impl Exchange {
             &mut converted_commission_currency_code,
         );
 
-        let last_fill_amount_in_converted_commission_currency_code = currency_pair_metadata
-            .convert_amount_from_amount_currency_code(
-                converted_commission_currency_code.clone(),
-                last_fill_amount,
-                last_fill_price,
-            )?;
-        let expected_converted_commission_amount =
-            last_fill_amount_in_converted_commission_currency_code * expected_commission_rate;
-
-        let referral_reward_amount = commission_amount
-            * self
-                .commission
-                .get_commission(Some(order_role))?
-                .referral_reward
-            * some_magical_number;
-
-        let rounded_fill_price =
-            currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;
-        let order_fill = OrderFill::new(
-            // FIXME what to do with it? Does it even use in C#?
-            Uuid::new_v4(),
-            Utc::now(),
-            OrderFillType::Liquidation,
-            Some(event_data.trade_id.clone()),
-            rounded_fill_price,
+        let order_fill = self.add_fill(
+            &event_data,
+            &currency_pair_metadata,
+            &order_ref,
+            &converted_commission_currency_code,
             last_fill_amount,
+            last_fill_price,
             last_fill_cost,
-            order_role.into(),
-            commission_currency_code,
+            expected_commission_rate,
             commission_amount,
-            referral_reward_amount,
-            converted_commission_currency_code,
+            order_role,
+            &commission_currency_code,
             converted_commission_amount,
-            expected_converted_commission_amount,
-            event_data.is_diff,
-            None,
-            None,
-        );
-        // FIXME Why should we clone it here?
-        order_ref.fn_mut(|order| order.add_fill(order_fill.clone()));
+        )?;
+
         // This order fields updated, so let's use actual values
         let (order_fills, order_filled_amount) = order_ref.get_fills();
 
@@ -550,48 +635,15 @@ impl Exchange {
             order_ref,
         )?;
 
-        if order_filled_amount > order_ref.amount() {
-            let error_msg = format!(
-                "filled_amount {} > order.amount {} for {} {} {:?}",
-                order_filled_amount,
-                order_ref.amount(),
-                self.exchange_account_id,
-                order_ref.client_order_id(),
-                order_ref.exchange_order_id(),
-            );
+        self.check_fill_amounts_comformity(order_filled_amount, &order_ref)?;
 
-            error!("{}", error_msg);
-            bail!("{}", error_msg)
-        }
-
-        if order_filled_amount == order_ref.amount() {
-            order_ref.fn_mut(|order| {
-                order.set_status(OrderStatus::Completed, Utc::now());
-                self.add_event_on_order_change(order, OrderEventType::OrderFilled)
-                    .expect("Unable to send event, probably receiver is dead already");
-            });
-        }
-
-        info!(
-            "Added a fill {} {} {} {:?} {:?}",
-            self.exchange_account_id,
-            event_data.trade_id,
-            order_ref.client_order_id(),
-            order_ref.exchange_order_id(),
-            order_fill
-        );
+        self.send_order_filled_event(&event_data, &order_ref, &order_fill);
 
         if event_data.source_type == EventSourceType::RestFallback {
             // TODO some metrics
         }
 
-        if order_ref.status() == OrderStatus::Completed {
-            order_ref.fn_mut(|order| {
-                order.set_status(OrderStatus::Completed, Utc::now());
-                self.add_event_on_order_change(order, OrderEventType::OrderCompleted)
-                    .expect("Unable to send event, probably receiver is dead already");
-            });
-        }
+        self.react_if_order_completed(order_filled_amount, &order_ref);
 
         // TODO DataRecorder.save(order)
 
