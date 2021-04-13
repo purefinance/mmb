@@ -374,7 +374,7 @@ impl Exchange {
         commission_amount: Amount,
         converted_commission_amount: &mut Amount,
         converted_commission_currency_code: &mut CurrencyCode,
-    ) {
+    ) -> Result<()> {
         if commission_currency_code != &currency_pair_metadata.base_currency_code
             && commission_currency_code != &currency_pair_metadata.quote_currency_code
         {
@@ -382,10 +382,14 @@ impl Exchange {
                 commission_currency_code.clone(),
                 currency_pair_metadata.quote_currency_code.clone(),
             );
-            match self.top_prices.get(&currency_pair) {
+            //match self.top_prices.get(&currency_pair) {
+            match self.order_book_top.get(&currency_pair) {
                 Some(top_prices) => {
-                    let (_, bid) = *top_prices;
-                    let price_bnb_quote = bid.0;
+                    let bid = top_prices
+                        .bid
+                        .as_ref()
+                        .context("There are no top bid in order book")?;
+                    let price_bnb_quote = bid.price;
                     *converted_commission_amount = commission_amount * price_bnb_quote;
                     *converted_commission_currency_code =
                         currency_pair_metadata.quote_currency_code.clone();
@@ -396,10 +400,13 @@ impl Exchange {
                         commission_currency_code.clone(),
                     );
 
-                    match self.top_prices.get(&currency_pair) {
+                    match self.order_book_top.get(&currency_pair) {
                         Some(top_prices) => {
-                            let (ask, _) = *top_prices;
-                            let price_quote_bnb = ask.0;
+                            let ask = top_prices
+                                .ask
+                                .as_ref()
+                                .context("There are no top ask in order book")?;
+                            let price_quote_bnb = ask.price;
                             *converted_commission_amount = commission_amount / price_quote_bnb;
                             *converted_commission_currency_code =
                                 currency_pair_metadata.quote_currency_code.clone();
@@ -412,6 +419,8 @@ impl Exchange {
                 }
             }
         }
+
+        Ok(())
     }
 
     fn set_average_order_fill_price(
@@ -632,7 +641,7 @@ impl Exchange {
             commission_amount,
             &mut converted_commission_amount,
             &mut converted_commission_currency_code,
-        );
+        )?;
 
         let order_fill = self.add_fill(
             &event_data,
@@ -826,6 +835,7 @@ mod test {
         exchanges::general::commission::Commission,
         exchanges::general::commission::CommissionForType,
         exchanges::general::currency_pair_metadata::PrecisionType,
+        exchanges::general::exchange::OrderBookTop, exchanges::general::exchange::PriceLevel,
         exchanges::general::features::ExchangeFeatures,
         exchanges::general::features::OpenOrdersType, orders::event::OrderEvent,
         orders::fill::OrderFill, orders::order::OrderExecutionType, orders::order::OrderFillRole,
@@ -3705,7 +3715,7 @@ mod test {
     }
 
     #[test]
-    fn converted_commission_amount_to_quote_when_bnb_case() {
+    fn converted_commission_amount_to_quote_when_bnb_case() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let commission_currency_code = CurrencyCode::new("BNB".into());
@@ -3718,10 +3728,16 @@ mod test {
             commission_currency_code.clone(),
             currency_pair_metadata.quote_currency_code.clone(),
         );
-        let top_ask = (dec!(0.0), dec!(0.0));
-        let top_bid = (dec!(0.3), dec!(1));
-        let prices = (top_ask, top_bid);
-        exchange.top_prices.insert(currency_pair, prices);
+        let order_book_top = OrderBookTop {
+            ask: None,
+            bid: Some(PriceLevel {
+                price: dec!(0.3),
+                amount: dec!(0.1),
+            }),
+        };
+        exchange
+            .order_book_top
+            .insert(currency_pair, order_book_top);
 
         exchange.calculate_commission_data_for_unexpected_currency_code(
             &commission_currency_code,
@@ -3729,12 +3745,14 @@ mod test {
             commission_amount,
             &mut converted_commission_amount,
             &mut converted_commission_currency_code,
-        );
+        )?;
 
         let right_amount = dec!(4.5);
         assert_eq!(converted_commission_amount, right_amount);
 
         let right_currency_code = CurrencyCode::new("BTC".into());
         assert_eq!(converted_commission_currency_code, right_currency_code);
+
+        Ok(())
     }
 }

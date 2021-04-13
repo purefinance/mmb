@@ -160,10 +160,10 @@ fn update_order_book_top_for_exchange(
             .expect("snapshot should exists because we just added one");
 
         let order_book_top = OrderBookTop {
-            top_ask: snapshot
+            ask: snapshot
                 .get_top_ask()
                 .map(|(price, amount)| PriceLevel { price, amount }),
-            top_bid: snapshot
+            bid: snapshot
                 .get_top_bid()
                 .map(|(price, amount)| PriceLevel { price, amount }),
         };

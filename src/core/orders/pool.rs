@@ -83,11 +83,9 @@ impl OrderRef {
     }
 
     pub fn get_fills(&self) -> (Vec<OrderFill>, Amount) {
-        // FIXME is that OK to clone it here?
         self.fn_ref(|order| (order.fills.fills.clone(), order.fills.filled_amount))
     }
     pub fn internal_props(&self) -> SystemInternalOrderProps {
-        // FIXME is that OK to clone it here?
         self.fn_ref(|order| order.internal_props.clone())
     }
 }

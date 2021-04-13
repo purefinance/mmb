@@ -13,8 +13,6 @@ use crate::core::{
         common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
         traits::ExchangeClient,
     },
-    order_book::local_order_book_snapshot::Ask,
-    order_book::local_order_book_snapshot::Bid,
 };
 use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
@@ -56,8 +54,8 @@ pub(crate) struct PriceLevel {
 }
 
 pub(crate) struct OrderBookTop {
-    pub top_ask: Option<PriceLevel>,
-    pub top_bid: Option<PriceLevel>,
+    pub ask: Option<PriceLevel>,
+    pub bid: Option<PriceLevel>,
 }
 
 pub struct Exchange {
@@ -92,7 +90,6 @@ pub struct Exchange {
     application_manager: ApplicationManager,
     // FIXME think about it. Maybe it should be part of specific exchange?
     pub(super) commission: Commission,
-    pub(super) top_prices: DashMap<CurrencyPair, (Ask, Bid)>,
     pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     // FIXME DashSet instead Mutex<Vec> maybe?
@@ -131,7 +128,6 @@ impl Exchange {
             features,
             event_channel,
             commission,
-            top_prices: DashMap::new(),
             symbols: Default::default(),
             currencies: Default::default(),
             order_book_top: Default::default(),

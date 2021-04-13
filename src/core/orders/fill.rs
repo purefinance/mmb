@@ -24,7 +24,7 @@ pub enum EventSourceType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderFill {
-    // FIXME Client order ID should be here?
+    // FIXME ClientOrderID should be here?
     id: Uuid,
     receive_time: DateTime,
     fill_type: OrderFillType,

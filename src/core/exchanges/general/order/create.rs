@@ -8,7 +8,6 @@ use crate::core::{
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
     orders::order::OrderEventType,
-    orders::order::OrderSnapshot,
     orders::order::OrderStatus,
     orders::order::OrderType,
     orders::pool::OrderRef,
@@ -196,32 +195,30 @@ impl Exchange {
 
                 bail!("{}", error_msg);
             }
-            Some(order_ref) => order_ref.fn_mut(|order| {
+            Some(order_ref) => {
                 let args_to_log = (
                     exchange_account_id,
                     client_order_id,
-                    &order.props.exchange_order_id.clone(),
+                    &order_ref.exchange_order_id(),
                 );
                 self.react_on_status_when_failed(
                     &order_ref,
-                    order,
                     args_to_log,
                     source_type,
                     exchange_error,
                 )
-            }),
+            }
         }
     }
 
     fn react_on_status_when_failed(
         &self,
         order_ref: &OrderRef,
-        order: &mut OrderSnapshot,
         args_to_log: (&ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
         _source_type: &EventSourceType,
         exchange_error: &ExchangeError,
     ) -> Result<()> {
-        let status = order.props.status;
+        let status = order_ref.status();
         match status {
             OrderStatus::Created => Self::log_error_and_propagate("Created", args_to_log),
             OrderStatus::FailedToCreate => {
@@ -240,10 +237,13 @@ impl Exchange {
             OrderStatus::Creating => {
                 // TODO RestFallback and some metrics
 
-                order.set_status(OrderStatus::FailedToCreate, Utc::now());
-                order.internal_props.last_creation_error_type =
-                    Some(exchange_error.error_type.clone());
-                order.internal_props.last_creation_error_message = exchange_error.message.clone();
+                order_ref.fn_mut(|order| {
+                    order.set_status(OrderStatus::FailedToCreate, Utc::now());
+                    order.internal_props.last_creation_error_type =
+                        Some(exchange_error.error_type.clone());
+                    order.internal_props.last_creation_error_message =
+                        exchange_error.message.clone();
+                });
 
                 self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderFailed)?;
 
