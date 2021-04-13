@@ -1,11 +1,9 @@
 use super::order::create::CreateOrderResult;
-use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol};
 use super::{commission::Commission, features::ExchangeFeatures};
 use super::{currency_pair_metadata::CurrencyPairMetadata, order::cancel::CancelOrderResult};
-use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
-use crate::core::orders::order::ExchangeOrderId;
-use crate::core::orders::order::OrderHeader;
+use crate::core::orders::order::{OrderEventType, OrderHeader};
 use crate::core::orders::pool::OrdersPool;
+use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::common::ExchangeAccountId,
@@ -13,7 +11,6 @@ use crate::core::{
         application_manager::ApplicationManager,
         common::CurrencyPair,
         common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
-        events::OrderEvent,
         traits::ExchangeClient,
     },
     order_book::local_order_book_snapshot::Ask,
@@ -23,7 +20,11 @@ use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
 };
-use anyhow::{bail, Error, Result};
+use crate::core::{
+    exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
+    orders::event::OrderEvent,
+};
+use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::Future;
@@ -432,5 +433,29 @@ impl Exchange {
         };
 
         Ok(self.create_websocket_params(&ws_path))
+    }
+
+    pub(crate) fn add_event_on_order_change(
+        &self,
+        order_ref: &OrderRef,
+        event_type: OrderEventType,
+    ) -> Result<()> {
+        if event_type == OrderEventType::CancelOrderSucceeded {
+            order_ref.fn_mut(|order| order.internal_props.cancellation_event_was_raised = true)
+        }
+
+        if order_ref.is_finished() {
+            let _ = self
+                .orders
+                .not_finished
+                .remove(&order_ref.client_order_id());
+        }
+
+        let order_event = OrderEvent::new(order_ref.clone(), event_type, None);
+        self.event_channel
+            .send(order_event)
+            .context("Unable to send event. Probably receiver is already dead")?;
+
+        Ok(())
     }
 }

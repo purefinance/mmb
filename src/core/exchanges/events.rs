@@ -1,7 +1,3 @@
-use crate::core::orders::{
-    fill::OrderFill,
-    }
-    order::{OrderEventType, OrderSnapshot},
 use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price,
 };
@@ -10,7 +6,6 @@ use crate::core::order_book::event::OrderBookEvent;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::event::OrderEvent;
 use crate::core::orders::order::{OrderSide, OrderType};
-use crate::core::orders::pool::OrderRef;
 use crate::core::DateTime;
 use anyhow::{Context, Result};
 use rust_decimal::Decimal;
@@ -24,20 +19,8 @@ pub const CHANNEL_MAX_EVENTS_COUNT: usize = 200_000;
 pub struct ExchangeBalance {
     pub currency_code: CurrencyCode,
     pub balance: Decimal,
- }
- 
-#[derive(Debug, Clone, PartialEq, Copy)]
-pub enum AllowedEventSourceType {
-    All,
-    FallbackOnly,
-    NonFallback,
 }
 
-impl Default for AllowedEventSourceType {
-    fn default() -> Self {
-        AllowedEventSourceType::All
-        }}
-        
 #[derive(Debug, Clone)]
 pub struct ExchangeBalancesAndPositions {
     pub balances: Vec<ExchangeBalance>,
@@ -192,5 +175,18 @@ fn update_order_book_top_for_exchange(
                     .order_book_top
                     .insert(trade_place_account.currency_pair.clone(), order_book_top)
             });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum AllowedEventSourceType {
+    All,
+    FallbackOnly,
+    NonFallback,
+}
+
+impl Default for AllowedEventSourceType {
+    fn default() -> Self {
+        AllowedEventSourceType::All
     }
 }

@@ -1,7 +1,6 @@
 use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, TradePlaceAccount};
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
-    OrderType,
 };
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -51,6 +50,9 @@ impl OrderRef {
     pub fn role(&self) -> Option<OrderRole> {
         self.fn_ref(|x| x.props.role)
     }
+    pub fn is_finished(&self) -> bool {
+        self.fn_ref(|x| x.props.is_finished())
+    }
     pub fn was_cancellation_event_raised(&self) -> bool {
         self.fn_ref(|x| x.internal_props.cancellation_event_was_raised)
     }
@@ -74,10 +76,6 @@ impl OrderRef {
     }
     pub fn side(&self) -> OrderSide {
         self.fn_ref(|x| x.header.side.clone())
-    }
-
-    pub fn order_type(&self) -> OrderType {
-        self.fn_ref(|x| x.header.order_type)
     }
 
     pub fn deep_clone(&self) -> OrderSnapshot {

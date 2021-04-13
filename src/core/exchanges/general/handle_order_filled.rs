@@ -12,7 +12,7 @@ use crate::core::{
     orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderStatus,
     orders::order::OrderType, orders::pool::OrderRef,
 };
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use parking_lot::RwLock;
@@ -466,11 +466,9 @@ impl Exchange {
         event_data: &FillEventData,
         order_ref: &OrderRef,
         order_fill: &OrderFill,
-    ) {
-        order_ref.fn_mut(|order| {
-            self.add_event_on_order_change(order, OrderEventType::OrderFilled)
-                .expect("Unable to send event, probably receiver is dead already");
-        });
+    ) -> Result<()> {
+        self.add_event_on_order_change(order_ref, OrderEventType::OrderFilled)
+            .context("Unable to send event, probably receiver is dead already")?;
 
         info!(
             "Added a fill {} {} {} {:?} {:?}",
@@ -480,16 +478,24 @@ impl Exchange {
             order_ref.exchange_order_id(),
             order_fill
         );
+
+        Ok(())
     }
 
-    fn react_if_order_completed(&self, order_filled_amount: Amount, order_ref: &OrderRef) {
+    fn react_if_order_completed(
+        &self,
+        order_filled_amount: Amount,
+        order_ref: &OrderRef,
+    ) -> Result<()> {
         if order_filled_amount == order_ref.amount() {
             order_ref.fn_mut(|order| {
                 order.set_status(OrderStatus::Completed, Utc::now());
-                self.add_event_on_order_change(order, OrderEventType::OrderCompleted)
-                    .expect("Unable to send event, probably receiver is dead already");
             });
+            self.add_event_on_order_change(order_ref, OrderEventType::OrderCompleted)
+                .context("Unable to send event, probably receiver is dead already")?;
         }
+
+        Ok(())
     }
 
     fn add_fill(
@@ -655,13 +661,13 @@ impl Exchange {
 
         self.check_fill_amounts_comformity(order_filled_amount, &order_ref)?;
 
-        self.send_order_filled_event(&event_data, &order_ref, &order_fill);
+        self.send_order_filled_event(&event_data, &order_ref, &order_fill)?;
 
         if event_data.source_type == EventSourceType::RestFallback {
             // TODO some metrics
         }
 
-        self.react_if_order_completed(order_filled_amount, &order_ref);
+        self.react_if_order_completed(order_filled_amount, &order_ref)?;
 
         // TODO DataRecorder.save(order)
 
@@ -817,13 +823,13 @@ mod test {
     use super::*;
     use crate::core::{
         exchanges::binance::binance::Binance, exchanges::common::CurrencyCode,
-        exchanges::events::OrderEvent, exchanges::general::commission::Commission,
+        exchanges::general::commission::Commission,
         exchanges::general::commission::CommissionForType,
         exchanges::general::currency_pair_metadata::PrecisionType,
         exchanges::general::features::ExchangeFeatures,
-        exchanges::general::features::OpenOrdersType, orders::fill::OrderFill,
-        orders::order::OrderExecutionType, orders::order::OrderFillRole, orders::order::OrderFills,
-        orders::order::OrderHeader, orders::order::OrderSimpleProps,
+        exchanges::general::features::OpenOrdersType, orders::event::OrderEvent,
+        orders::fill::OrderFill, orders::order::OrderExecutionType, orders::order::OrderFillRole,
+        orders::order::OrderFills, orders::order::OrderHeader, orders::order::OrderSimpleProps,
         orders::order::OrderStatusHistory, orders::order::SystemInternalOrderProps,
         orders::pool::OrdersPool, settings,
     };
