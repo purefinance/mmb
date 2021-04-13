@@ -3716,4 +3716,29 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn converted_commission_amount_to_quote_when_bnb_case() {
+        let (exchange, _event_receiver) = get_test_exchange(false);
+
+        let commission_currency_code = CurrencyCode::new("BNB".into());
+        let currency_pair_metadata = exchange.symbols.lock()[0].clone();
+        let commission_amount = dec!(15);
+        let mut converted_commission_amount = dec!(4.5);
+        let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
+
+        exchange.calculate_commission_data_for_unexpected_currency_code(
+            &commission_currency_code,
+            &currency_pair_metadata,
+            commission_amount,
+            &mut converted_commission_amount,
+            &mut converted_commission_currency_code,
+        );
+
+        let right_amount = dec!(4.5);
+        assert_eq!(converted_commission_amount, right_amount);
+
+        let right_currency_code = CurrencyCode::new("BTC".into());
+        assert_eq!(converted_commission_currency_code, right_currency_code);
+    }
 }
