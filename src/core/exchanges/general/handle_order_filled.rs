@@ -3727,6 +3727,15 @@ mod test {
         let mut converted_commission_amount = dec!(4.5);
         let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
 
+        let currency_pair = CurrencyPair::from_currency_codes(
+            commission_currency_code.clone(),
+            currency_pair_metadata.quote_currency_code.clone(),
+        );
+        let top_ask = (dec!(0.0), dec!(0.0));
+        let top_bid = (dec!(0.3), dec!(1));
+        let prices = (top_ask, top_bid);
+        exchange.top_prices.insert(currency_pair, prices);
+
         exchange.calculate_commission_data_for_unexpected_currency_code(
             &commission_currency_code,
             &currency_pair_metadata,
