@@ -166,6 +166,26 @@ impl Exchange {
         false
     }
 
+    fn should_miss_fill(
+        event_data: &FillEventData,
+        order_filled_amount: Amount,
+        last_fill_amount: Amount,
+        order_ref: &OrderRef,
+    ) -> bool {
+        if let Some(total_filled_amount) = event_data.total_filled_amount {
+            if order_filled_amount + last_fill_amount != total_filled_amount {
+                warn!(
+                    "Fill was missed because {} != {} for {:?}",
+                    order_filled_amount, total_filled_amount, order_ref
+                );
+
+                return true;
+            }
+        }
+
+        false
+    }
+
     fn get_last_fill_data(
         mut event_data: &mut FillEventData,
         currency_pair_metadata: &CurrencyPairMetadata,
@@ -562,15 +582,13 @@ impl Exchange {
             None => return Ok(()),
         };
 
-        if let Some(total_filled_amount) = event_data.total_filled_amount {
-            if order_filled_amount + last_fill_amount != total_filled_amount {
-                warn!(
-                    "Fill was missed because {} != {} for {:?}",
-                    order_filled_amount, total_filled_amount, order_ref
-                );
-
-                return Ok(());
-            }
+        if Self::should_miss_fill(
+            &event_data,
+            order_filled_amount,
+            last_fill_amount,
+            &order_ref,
+        ) {
+            return Ok(());
         }
 
         Self::wrong_status_or_cancelled(&*order_ref, &event_data)?;
@@ -647,7 +665,6 @@ impl Exchange {
 
         // TODO DataRecorder.save(order)
 
-        // FIXME handle it in the end
         Ok(())
     }
 
