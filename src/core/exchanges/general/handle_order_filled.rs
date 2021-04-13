@@ -876,9 +876,7 @@ mod test {
         };
 
         let specific_currency_pair = "PHBBTC";
-        // FIXME What is proper value?
         let price_precision = 0;
-        // FIXME What is proper value?
         let amount_precision = 0;
         let price_tick = dec!(0.1);
         let symbol = CurrencyPairMetadata::new(
@@ -2464,7 +2462,7 @@ mod test {
     }
 
     #[test]
-    fn use_commission_currency_code_from_event_data() {
+    fn use_commission_currency_code_from_event_data() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2514,21 +2512,17 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
 
-                let fill = &fills[0];
-                assert_eq!(
-                    fill.converted_commission_currency_code(),
-                    &commission_currency_code
-                );
-            }
-            Err(error) => {
-                assert!(false);
-            }
-        }
+        let fill = &fills[0];
+        assert_eq!(
+            fill.converted_commission_currency_code(),
+            &commission_currency_code
+        );
+
+        Ok(())
     }
 
     #[test]
@@ -2740,7 +2734,7 @@ mod test {
     }
 
     #[test]
-    fn use_commission_rate_if_specified() {
+    fn use_commission_rate_if_specified() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2791,23 +2785,19 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
 
-                let first_fill = &fills[0];
-                let result_value = commission_rate * fill_price * fill_amount;
-                assert_eq!(first_fill.commission_amount(), result_value);
-            }
-            Err(error) => {
-                assert!(false);
-            }
-        }
+        let first_fill = &fills[0];
+        let result_value = commission_rate * fill_price * fill_amount;
+        assert_eq!(first_fill.commission_amount(), result_value);
+
+        Ok(())
     }
 
     #[test]
-    fn calculate_commission_rate_if_not_specified() {
+    fn calculate_commission_rate_if_not_specified() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2857,23 +2847,19 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
 
-                let first_fill = &fills[0];
-                let result_value = dec!(0.1) / dec!(100) * fill_price * fill_amount;
-                assert_eq!(first_fill.commission_amount(), result_value);
-            }
-            Err(error) => {
-                assert!(false);
-            }
-        }
+        let first_fill = &fills[0];
+        let result_value = dec!(0.1) / dec!(100) * fill_price * fill_amount;
+        assert_eq!(first_fill.commission_amount(), result_value);
+
+        Ok(())
     }
 
     #[test]
-    fn calculate_commission_amount() {
+    fn calculate_commission_amount() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2923,19 +2909,15 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
 
-                let first_fill = &fills[0];
-                let result_value = dec!(0.1) / dec!(100) * fill_amount;
-                assert_eq!(first_fill.commission_amount(), result_value);
-            }
-            Err(error) => {
-                assert!(false);
-            }
-        }
+        let first_fill = &fills[0];
+        let result_value = dec!(0.1) / dec!(100) * fill_amount;
+        assert_eq!(first_fill.commission_amount(), result_value);
+
+        Ok(())
     }
 
     #[test]
@@ -3006,7 +2988,6 @@ mod test {
 
     #[test]
     fn get_commission_amount_via_rate_for_sell() {
-        // FIXME change parameter to enum Derivative
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
