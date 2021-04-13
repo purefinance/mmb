@@ -1,4 +1,5 @@
 use super::order::create::CreateOrderResult;
+use crate::core::exchanges::common::{CurrencyCode, CurrencyId, Symbol};
 use super::{commission::Commission, features::ExchangeFeatures};
 use super::{currency_pair_metadata::CurrencyPairMetadata, order::cancel::CancelOrderResult};
 use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
@@ -48,6 +49,16 @@ enum CheckContent {
     Usable,
 }
 
+pub(crate) struct PriceLevel {
+    pub price: Price,
+    pub amount: Amount,
+}
+
+pub(crate) struct OrderBookTop {
+    pub top_ask: Option<PriceLevel>,
+    pub top_bid: Option<PriceLevel>,
+}
+
 pub struct Exchange {
     pub exchange_account_id: ExchangeAccountId,
     websocket_host: String,
@@ -86,6 +97,7 @@ pub struct Exchange {
     // FIXME DashSet instead Mutex<Vec> maybe?
     pub(super) symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
+    pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
 }
 
 impl Exchange {
@@ -121,6 +133,7 @@ impl Exchange {
             top_prices: DashMap::new(),
             symbols: Default::default(),
             currencies: Default::default(),
+            order_book_top: Default::default(),
         });
 
         exchange.clone().setup_connectivity_manager();

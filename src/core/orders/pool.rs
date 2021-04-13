@@ -1,6 +1,7 @@
 use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, TradePlaceAccount};
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
+    OrderType,
 };
 use dashmap::DashMap;
 use parking_lot::RwLock;
@@ -73,6 +74,10 @@ impl OrderRef {
     }
     pub fn side(&self) -> OrderSide {
         self.fn_ref(|x| x.header.side.clone())
+    }
+
+    pub fn order_type(&self) -> OrderType {
+        self.fn_ref(|x| x.header.order_type)
     }
 
     pub fn deep_clone(&self) -> OrderSnapshot {

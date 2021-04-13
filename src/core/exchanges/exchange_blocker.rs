@@ -657,9 +657,8 @@ impl ExchangeBlocker {
     pub async fn wait_unblock(
         &self,
         exchange_account_id: ExchangeAccountId,
-        _cancellation_token: CancellationToken,
+        cancellation_token: CancellationToken,
     ) {
-        // TODO check cancellation
         trace!(
             "ExchangeBlocker::wait_unblock() started {}",
             exchange_account_id
@@ -679,7 +678,12 @@ impl ExchangeBlocker {
                 return;
             }
 
-            join_all(unblocked_notifies.iter().map(|x| x.notified())).await;
+            let unblocked_futures = join_all(unblocked_notifies.iter().map(|x| x.notified()));
+
+            tokio::select! {
+                _ = unblocked_futures => nothing_to_do(),
+                _ = cancellation_token.when_cancelled() => return (),
+            }
 
             // we can reblock some reasons while waiting others
             if !self.is_blocked(&exchange_account_id) {
@@ -697,9 +701,8 @@ impl ExchangeBlocker {
         &self,
         exchange_account_id: ExchangeAccountId,
         reason: BlockReason,
-        _cancellation_token: CancellationToken,
+        cancellation_token: CancellationToken,
     ) {
-        // TODO check cancellation
         trace!(
             "ExchangeBlocker::wait_unblock_with_reason started {} {}",
             exchange_account_id,
@@ -719,7 +722,10 @@ impl ExchangeBlocker {
             }
         };
 
-        unblocked_notify.notified().await;
+        tokio::select! {
+            _ = unblocked_notify.notified() => nothing_to_do(),
+            _ = cancellation_token.when_cancelled() => return (),
+        }
 
         trace!(
             "ExchangeBlocker::wait_unblock_with_reason finished {} {}",

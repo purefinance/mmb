@@ -3,17 +3,17 @@ use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::DateTime;
 use derive_getters::Dissolve;
 
-/// Possible varians of OrderDataBookEvent
-#[derive(Copy, Clone)]
+/// Possible variants of OrderBookEvent
+#[derive(Debug, Copy, Clone)]
 pub enum EventType {
-    /// Means full snaphot should be add to local snaphots
+    /// Means full snapshot should be add to local snapshots
     Snapshot,
     /// Means that data should be applied to suitable existing snapshot
     Update,
 }
 
 /// Event to update local snapshot
-#[derive(Dissolve, Clone)]
+#[derive(Debug, Dissolve, Clone)]
 pub struct OrderBookEvent {
     id: u128,
     creation_time: DateTime,

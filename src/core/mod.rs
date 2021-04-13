@@ -6,6 +6,7 @@ pub mod logger;
 pub mod orders;
 
 pub mod async_event;
+pub mod events;
 pub mod lifecycle;
 pub mod order_book;
 pub mod settings;

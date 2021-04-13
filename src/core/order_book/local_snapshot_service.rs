@@ -5,52 +5,55 @@ use std::collections::HashMap;
 
 /// Produce and actualize current logical state of order book snapshot according to logical time of handled order book events
 pub struct LocalSnapshotsService {
-    local_snapshots: HashMap<ExchangeIdCurrencyPair, LocalOrderBookSnapshot>,
+    local_snapshots: HashMap<TradePlaceAccount, LocalOrderBookSnapshot>,
 }
 
 impl LocalSnapshotsService {
-    pub fn new(local_snapshots: HashMap<ExchangeIdCurrencyPair, LocalOrderBookSnapshot>) -> Self {
+    pub fn new(local_snapshots: HashMap<TradePlaceAccount, LocalOrderBookSnapshot>) -> Self {
         Self { local_snapshots }
     }
 
     pub fn get_snapshot(
         &self,
-        snapshot_id: ExchangeIdCurrencyPair,
+        trade_place_account: TradePlaceAccount,
     ) -> Option<&LocalOrderBookSnapshot> {
-        self.local_snapshots.get(&snapshot_id)
+        self.local_snapshots.get(&trade_place_account)
     }
 
     /// Create snapshot if it does not exist
     /// Update snapshot if suitable data arrive
-    pub fn update(
-        &mut self,
-        order_book_event: order_book_event::OrderBookEvent,
-    ) -> Option<ExchangeIdCurrencyPair> {
+    pub fn update(&mut self, order_book_event: event::OrderBookEvent) -> Option<TradePlaceAccount> {
         // Extract all field
         let (_, creation_time, exchange_id, currency_pair, _, event_type, event_data) =
             order_book_event.dissolve();
 
-        let exchange_symbol = ExchangeIdCurrencyPair::new(exchange_id, currency_pair);
+        let trade_place_account = TradePlaceAccount::new(exchange_id, currency_pair);
 
         match event_type {
-            order_book_event::EventType::Snapshot => {
+            event::EventType::Snapshot => {
                 let local_order_book_snapshot = event_data.to_local_order_book_snapshot();
 
                 self.local_snapshots
-                    .insert(exchange_symbol.clone(), local_order_book_snapshot);
+                    .insert(trade_place_account.clone(), local_order_book_snapshot);
 
-                return Some(exchange_symbol);
+                return Some(trade_place_account);
             }
-            order_book_event::EventType::Update => {
-                // Exctract variable here to avoid partial moving
+            event::EventType::Update => {
+                // Extract variable here to avoid partial moving
                 self.local_snapshots
-                    .get_mut(&exchange_symbol)
+                    .get_mut(&trade_place_account)
                     .map(|snapshot| {
                         snapshot.apply_update(event_data, creation_time);
-                        exchange_symbol
+                        trade_place_account
                     })
             }
         }
+    }
+}
+
+impl Default for LocalSnapshotsService {
+    fn default() -> Self {
+        LocalSnapshotsService::new(HashMap::new())
     }
 }
 
@@ -63,10 +66,10 @@ mod tests {
     fn create_order_book_event_for_tests(
         exchange_id: ExchangeId,
         currency_pair: CurrencyPair,
-        event_type: order_book_event::EventType,
+        event_type: event::EventType,
         order_book_data: order_book_data::OrderBookData,
-    ) -> order_book_event::OrderBookEvent {
-        order_book_event::OrderBookEvent::new(
+    ) -> event::OrderBookEvent {
+        event::OrderBookEvent::new(
             Utc::now(),
             ExchangeAccountId::new(exchange_id, 0),
             currency_pair,
@@ -93,22 +96,22 @@ mod tests {
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
             CurrencyPair::from_currency_codes("base".into(), "quote".into()),
-            order_book_event::EventType::Snapshot,
+            event::EventType::Snapshot,
             order_book_data::OrderBookData::new(asks, bids),
         );
 
         // Perform update
-        let exchange_id_symbol = snapshot_controller
+        let trade_place_account = snapshot_controller
             .update(order_book_event)
             .expect("in test");
 
         let updated_asks = &snapshot_controller
-            .get_snapshot(exchange_id_symbol.clone())
+            .get_snapshot(trade_place_account.clone())
             .expect("in test")
             .asks;
 
         let updated_bids = &snapshot_controller
-            .get_snapshot(exchange_id_symbol)
+            .get_snapshot(trade_place_account)
             .expect("in test")
             .bids;
 
@@ -136,7 +139,7 @@ mod tests {
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
             CurrencyPair::from_currency_codes("base".into(), "quote".into()),
-            order_book_event::EventType::Update,
+            event::EventType::Update,
             order_book_data::OrderBookData::new(asks, bids),
         );
 
@@ -152,7 +155,7 @@ mod tests {
         let test_exchange_id = "exchange_id";
         let test_currency_pair = CurrencyPair::from_currency_codes("base".into(), "quote".into());
         // Construct main object
-        let exchange_id_symbol = ExchangeIdCurrencyPair::new(
+        let trade_place_account = TradePlaceAccount::new(
             ExchangeAccountId::new(test_exchange_id.into(), 0),
             test_currency_pair.clone(),
         );
@@ -168,7 +171,7 @@ mod tests {
             LocalOrderBookSnapshot::new(primary_asks, primary_bids, Utc::now());
 
         let mut local_snapshots = HashMap::new();
-        local_snapshots.insert(exchange_id_symbol, primary_order_book_snapshot);
+        local_snapshots.insert(trade_place_account, primary_order_book_snapshot);
 
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
@@ -182,7 +185,7 @@ mod tests {
         let order_book_event = create_order_book_event_for_tests(
             test_exchange_id.into(),
             test_currency_pair,
-            order_book_event::EventType::Update,
+            event::EventType::Update,
             order_book_data::OrderBookData::new(asks, bids),
         );
 
