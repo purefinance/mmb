@@ -382,9 +382,9 @@ impl Exchange {
                 commission_currency_code.clone(),
                 currency_pair_metadata.quote_currency_code.clone(),
             );
-            //match self.top_prices.get(&currency_pair) {
             match self.order_book_top.get(&currency_pair) {
                 Some(top_prices) => {
+                    dbg!(&"FIRST");
                     let bid = top_prices
                         .bid
                         .as_ref()
@@ -402,6 +402,7 @@ impl Exchange {
 
                     match self.order_book_top.get(&currency_pair) {
                         Some(top_prices) => {
+                            dbg!(&"SECOND");
                             let ask = top_prices
                                 .ask
                                 .as_ref()
@@ -3714,45 +3715,118 @@ mod test {
         }
     }
 
-    #[test]
-    fn converted_commission_amount_to_quote_when_bnb_case() -> Result<()> {
-        let (exchange, _event_receiver) = get_test_exchange(false);
+    mod calculate_commission_data_for_unexpected_currency_code {
+        use super::*;
 
-        let commission_currency_code = CurrencyCode::new("BNB".into());
-        let currency_pair_metadata = exchange.symbols.lock()[0].clone();
-        let commission_amount = dec!(15);
-        let mut converted_commission_amount = dec!(4.5);
-        let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
+        #[test]
+        fn using_top_bid() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let currency_pair = CurrencyPair::from_currency_codes(
-            commission_currency_code.clone(),
-            currency_pair_metadata.quote_currency_code.clone(),
-        );
-        let order_book_top = OrderBookTop {
-            ask: None,
-            bid: Some(PriceLevel {
-                price: dec!(0.3),
-                amount: dec!(0.1),
-            }),
-        };
-        exchange
-            .order_book_top
-            .insert(currency_pair, order_book_top);
+            let commission_currency_code = CurrencyCode::new("BNB".into());
+            let currency_pair_metadata = exchange.symbols.lock()[0].clone();
+            let commission_amount = dec!(15);
+            let mut converted_commission_amount = dec!(4.5);
+            let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
 
-        exchange.calculate_commission_data_for_unexpected_currency_code(
-            &commission_currency_code,
-            &currency_pair_metadata,
-            commission_amount,
-            &mut converted_commission_amount,
-            &mut converted_commission_currency_code,
-        )?;
+            let currency_pair = CurrencyPair::from_currency_codes(
+                commission_currency_code.clone(),
+                currency_pair_metadata.quote_currency_code.clone(),
+            );
+            let order_book_top = OrderBookTop {
+                ask: None,
+                bid: Some(PriceLevel {
+                    price: dec!(0.3),
+                    amount: dec!(0.1),
+                }),
+            };
+            exchange
+                .order_book_top
+                .insert(currency_pair, order_book_top);
 
-        let right_amount = dec!(4.5);
-        assert_eq!(converted_commission_amount, right_amount);
+            exchange.calculate_commission_data_for_unexpected_currency_code(
+                &commission_currency_code,
+                &currency_pair_metadata,
+                commission_amount,
+                &mut converted_commission_amount,
+                &mut converted_commission_currency_code,
+            )?;
 
-        let right_currency_code = CurrencyCode::new("BTC".into());
-        assert_eq!(converted_commission_currency_code, right_currency_code);
+            let right_amount = dec!(4.5);
+            assert_eq!(converted_commission_amount, right_amount);
 
-        Ok(())
+            let right_currency_code = CurrencyCode::new("BTC".into());
+            assert_eq!(converted_commission_currency_code, right_currency_code);
+
+            Ok(())
+        }
+
+        #[test]
+        fn using_top_ask() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(false);
+
+            let commission_currency_code = CurrencyCode::new("BNB".into());
+            let currency_pair_metadata = exchange.symbols.lock()[0].clone();
+            let commission_amount = dec!(15);
+            let mut converted_commission_amount = dec!(4.5);
+            let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
+
+            let currency_pair = CurrencyPair::from_currency_codes(
+                CurrencyCode::new("BTC".into()),
+                commission_currency_code.clone(),
+            );
+            let order_book_top = OrderBookTop {
+                ask: Some(PriceLevel {
+                    price: dec!(0.3),
+                    amount: dec!(0.1),
+                }),
+                bid: None,
+            };
+            exchange
+                .order_book_top
+                .insert(currency_pair, order_book_top);
+
+            exchange.calculate_commission_data_for_unexpected_currency_code(
+                &commission_currency_code,
+                &currency_pair_metadata,
+                commission_amount,
+                &mut converted_commission_amount,
+                &mut converted_commission_currency_code,
+            )?;
+
+            let right_amount = dec!(50);
+            assert_eq!(converted_commission_amount, right_amount);
+
+            let right_currency_code = CurrencyCode::new("BTC".into());
+            assert_eq!(converted_commission_currency_code, right_currency_code);
+
+            Ok(())
+        }
+
+        #[test]
+        fn fatal_error() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(false);
+
+            let commission_currency_code = CurrencyCode::new("BNB".into());
+            let currency_pair_metadata = exchange.symbols.lock()[0].clone();
+            let commission_amount = dec!(15);
+            let mut converted_commission_amount = dec!(3);
+            let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
+
+            exchange.calculate_commission_data_for_unexpected_currency_code(
+                &commission_currency_code,
+                &currency_pair_metadata,
+                commission_amount,
+                &mut converted_commission_amount,
+                &mut converted_commission_currency_code,
+            )?;
+
+            let right_amount = dec!(3);
+            assert_eq!(converted_commission_amount, right_amount);
+
+            let right_currency_code = CurrencyCode::new("BTC".into());
+            assert_eq!(converted_commission_currency_code, right_currency_code);
+
+            Ok(())
+        }
     }
 }
