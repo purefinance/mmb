@@ -384,7 +384,6 @@ impl Exchange {
             );
             match self.order_book_top.get(&currency_pair) {
                 Some(top_prices) => {
-                    dbg!(&"FIRST");
                     let bid = top_prices
                         .bid
                         .as_ref()
@@ -402,7 +401,6 @@ impl Exchange {
 
                     match self.order_book_top.get(&currency_pair) {
                         Some(top_prices) => {
-                            dbg!(&"SECOND");
                             let ask = top_prices
                                 .ask
                                 .as_ref()
