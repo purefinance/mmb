@@ -79,7 +79,6 @@ async fn cancelled_successfully() {
         .create_order(&order_to_create, CancellationToken::default())
         .await;
 
-    dbg!(&created_order);
     match created_order {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");

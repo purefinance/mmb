@@ -375,8 +375,6 @@ pub struct SystemInternalOrderProps {
 
     pub handled_by_balance_recovery: bool,
     pub filled_amount_after_cancellation: Option<Decimal>,
-    // FIXME is that OK?
-    pub average_fill_price: Price,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

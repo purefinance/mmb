@@ -31,8 +31,8 @@ impl Commission {
     pub fn get_commission(&self, order_role: Option<OrderRole>) -> Result<CommissionForType> {
         match order_role {
             Some(order_role) => match order_role {
-                OrderRole::Maker => return Ok(self.maker.clone()),
-                OrderRole::Taker => return Ok(self.taker.clone()),
+                OrderRole::Maker => Ok(self.maker.clone()),
+                OrderRole::Taker => Ok(self.taker.clone()),
             },
             None => bail!("Cannot get fee because there are no order_role"),
         }
