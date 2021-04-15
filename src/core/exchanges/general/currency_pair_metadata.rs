@@ -61,6 +61,14 @@ pub struct CurrencyPairMetadata {
 }
 
 impl CurrencyPairMetadata {
+    pub fn base_currency_code(&self) -> CurrencyCode {
+        self.base_currency_code.clone()
+    }
+
+    pub fn quote_currency_code(&self) -> CurrencyCode {
+        self.quote_currency_code.clone()
+    }
+
     pub fn new(
         is_active: bool,
         is_derivative: bool,
