@@ -16,7 +16,7 @@ use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use parking_lot::RwLock;
-use rust_decimal::prelude::Zero;
+use rust_decimal::{prelude::Zero, Decimal};
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 
@@ -202,7 +202,7 @@ impl Exchange {
         };
 
         if !event_data.is_diff && order_fills.len() > 0 {
-            match Self::calculate_cost_diff(&order_fills, &*order_ref, last_fill_cost) {
+            match Self::calculate_cost_diff(&order_fills, order_ref, last_fill_cost) {
                 None => return Ok(None),
                 Some(cost_diff) => {
                     let (price, amount, cost) = Self::calculate_last_fill_data(
@@ -215,7 +215,7 @@ impl Exchange {
                     )?;
                     last_fill_price = price;
                     last_fill_amount = amount;
-                    last_fill_cost = cost
+                    last_fill_cost = cost;
                 }
             };
         }
@@ -239,10 +239,7 @@ impl Exchange {
         last_fill_cost: Price,
     ) -> Option<Price> {
         // Diff should be calculated only if it is not the first fill
-        let mut total_filled_cost = dec!(0);
-        order_fills
-            .iter()
-            .for_each(|fill| total_filled_cost += fill.cost());
+        let total_filled_cost = order_fills.iter().map(|fill| fill.cost()).sum::<Decimal>();
         let cost_diff = last_fill_cost - total_filled_cost;
         if cost_diff <= dec!(0) {
             warn!(
@@ -277,10 +274,10 @@ impl Exchange {
         let last_fill_cost = cost_diff;
 
         if let Some(commission_amount) = event_data.commission_amount {
-            let mut current_commission = dec!(0);
-            order_fills
+            let current_commission = order_fills
                 .iter()
-                .for_each(|fill| current_commission += fill.commission_amount());
+                .map(|fill| fill.commission_amount())
+                .sum::<Decimal>();
             event_data.commission_amount = Some(commission_amount - current_commission);
         }
 
@@ -579,7 +576,7 @@ impl Exchange {
             return Ok(());
         }
 
-        Self::wrong_status_or_cancelled(&*order_ref, &event_data)?;
+        Self::wrong_status_or_cancelled(order_ref, &event_data)?;
 
         info!("Received fill {:?}", event_data);
 
@@ -1187,7 +1184,7 @@ mod test {
             .expect("in test");
 
         exchange
-            .local_order_exist(&mut event_data, &*order_ref)
+            .local_order_exist(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1266,7 +1263,7 @@ mod test {
             .expect("in test");
 
         exchange
-            .local_order_exist(&mut event_data, &*order_ref)
+            .local_order_exist(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1345,7 +1342,7 @@ mod test {
             .expect("in test");
 
         exchange
-            .local_order_exist(&mut event_data, &*order_ref)
+            .local_order_exist(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1424,7 +1421,7 @@ mod test {
             .expect("in test");
 
         exchange
-            .local_order_exist(&mut event_data, &*order_ref)
+            .local_order_exist(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1481,7 +1478,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -1542,7 +1539,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -1604,7 +1601,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 // TODO has to be Created!
@@ -2236,7 +2233,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert!(fills.is_empty());
@@ -2295,7 +2292,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2358,7 +2355,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2423,7 +2420,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match Exchange::get_order_role(&mut event_data, &*order_ref) {
+        match Exchange::get_order_role(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -2485,7 +2482,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        exchange.local_order_exist(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2549,7 +2546,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2616,7 +2613,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2692,7 +2689,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2758,7 +2755,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        exchange.local_order_exist(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2820,7 +2817,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        exchange.local_order_exist(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2882,7 +2879,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        exchange.local_order_exist(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2946,7 +2943,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3012,7 +3009,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3074,7 +3071,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3137,7 +3134,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3203,7 +3200,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3266,7 +3263,7 @@ mod test {
             .get(&client_order_id)
             .expect("in test");
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3329,7 +3326,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3358,7 +3355,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut second_event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut second_event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3387,7 +3384,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut second_event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut second_event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3451,7 +3448,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -3512,7 +3509,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
                 let order_status = order_ref.status();
                 assert_eq!(order_status, OrderStatus::Completed);
