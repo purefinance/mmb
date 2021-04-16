@@ -15,6 +15,7 @@ use crate::core::{
 };
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
+use commission::Percent;
 use log::{error, info, warn};
 use parking_lot::RwLock;
 use rust_decimal::{prelude::Zero, Decimal};
@@ -42,7 +43,7 @@ pub struct FillEventData {
     pub total_filled_amount: Option<Amount>,
     pub order_role: Option<OrderRole>,
     pub commission_currency_code: Option<CurrencyCode>,
-    pub commission_rate: Option<Decimal>,
+    pub commission_rate: Option<Percent>,
     pub commission_amount: Option<Amount>,
     pub fill_type: OrderFillType,
     pub trade_currency_pair: Option<CurrencyPair>,
@@ -86,7 +87,7 @@ impl Exchange {
 
                 unimplemented!("First need to implement BufferedFillsManager");
             }
-            Some(order_ref) => self.local_order_exist(&mut event_data, &order_ref),
+            Some(order_ref) => self.try_to_create_and_add_order_fill(&mut event_data, &order_ref),
         }
     }
 
@@ -322,7 +323,7 @@ impl Exchange {
 
     fn get_commission_amount(
         event_data: &FillEventData,
-        expected_commission_rate: Amount,
+        expected_commission_rate: Percent,
         last_fill_amount: Amount,
         last_fill_price: Price,
         commission_currency_code: &CurrencyCode,
@@ -362,8 +363,7 @@ impl Exchange {
         expected_commission_rate
     }
 
-    // FIXME unexpected? What's the better name?
-    fn calculate_commission_data_for_unexpected_currency_code(
+    fn update_commission_for_bnb_case(
         &self,
         commission_currency_code: &CurrencyCode,
         currency_pair_metadata: &CurrencyPairMetadata,
@@ -486,7 +486,7 @@ impl Exchange {
         last_fill_amount: Amount,
         last_fill_price: Price,
         last_fill_cost: Price,
-        expected_commission_rate: Price,
+        expected_commission_rate: Percent,
         commission_amount: Amount,
         order_role: OrderRole,
         commission_currency_code: &CurrencyCode,
@@ -531,7 +531,7 @@ impl Exchange {
         Ok(order_fill)
     }
 
-    fn local_order_exist(
+    fn try_to_create_and_add_order_fill(
         &self,
         mut event_data: &mut FillEventData,
         order_ref: &OrderRef,
@@ -599,7 +599,7 @@ impl Exchange {
         let mut converted_commission_currency_code = commission_currency_code.clone();
         let mut converted_commission_amount = commission_amount;
 
-        self.calculate_commission_data_for_unexpected_currency_code(
+        self.update_commission_for_bnb_case(
             &commission_currency_code,
             &currency_pair_metadata,
             commission_amount,
@@ -1171,7 +1171,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
-            .local_order_exist(&mut event_data, &order_ref)
+            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1246,7 +1246,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
-            .local_order_exist(&mut event_data, &order_ref)
+            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1321,7 +1321,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
-            .local_order_exist(&mut event_data, &order_ref)
+            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1396,7 +1396,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
-            .local_order_exist(&mut event_data, &order_ref)
+            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1449,7 +1449,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -1506,7 +1506,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -1564,7 +1564,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 // TODO has to be Created!
@@ -1922,7 +1922,7 @@ mod test {
         assert_eq!(second_fill.commission_amount(), dec!(0.02));
     }
 
-    // FIXME Why do we need tests like this?
+    // TODO Why do we need tests like this?
     // Nothing depends on order.side as I can see
     #[test]
     fn calculate_cost_diff_on_sell_side_derivative() {
@@ -2192,7 +2192,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert!(fills.is_empty());
@@ -2247,7 +2247,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2306,7 +2306,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2425,7 +2425,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.local_order_exist(&mut event_data, &order_ref)?;
+        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2485,7 +2485,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2548,7 +2548,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2620,7 +2620,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2682,7 +2682,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.local_order_exist(&mut event_data, &order_ref)?;
+        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2740,7 +2740,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.local_order_exist(&mut event_data, &order_ref)?;
+        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2798,7 +2798,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.local_order_exist(&mut event_data, &order_ref)?;
+        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2858,7 +2858,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2920,7 +2920,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2978,7 +2978,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3037,7 +3037,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3099,7 +3099,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3158,7 +3158,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3217,7 +3217,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3246,7 +3246,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut second_event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3275,7 +3275,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut second_event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3335,7 +3335,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -3392,7 +3392,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut event_data, &order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let order_status = order_ref.status();
                 assert_eq!(order_status, OrderStatus::Completed);
@@ -3403,7 +3403,7 @@ mod test {
         }
     }
 
-    mod calculate_commission_data_for_unexpected_currency_code {
+    mod update_commission_for_bnb_case {
         use super::*;
 
         #[test]
@@ -3431,7 +3431,7 @@ mod test {
                 .order_book_top
                 .insert(currency_pair, order_book_top);
 
-            exchange.calculate_commission_data_for_unexpected_currency_code(
+            exchange.update_commission_for_bnb_case(
                 &commission_currency_code,
                 &currency_pair_metadata,
                 commission_amount,
@@ -3473,7 +3473,7 @@ mod test {
                 .order_book_top
                 .insert(currency_pair, order_book_top);
 
-            exchange.calculate_commission_data_for_unexpected_currency_code(
+            exchange.update_commission_for_bnb_case(
                 &commission_currency_code,
                 &currency_pair_metadata,
                 commission_amount,
@@ -3500,7 +3500,7 @@ mod test {
             let mut converted_commission_amount = dec!(3);
             let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
 
-            exchange.calculate_commission_data_for_unexpected_currency_code(
+            exchange.update_commission_for_bnb_case(
                 &commission_currency_code,
                 &currency_pair_metadata,
                 commission_amount,
