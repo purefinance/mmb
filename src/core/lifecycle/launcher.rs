@@ -37,14 +37,14 @@ pub async fn launch_trading_engine<TSettings: Default>(build_settings: &EngineBu
 
     let settings = load_settings::<TSettings>().await;
     let exchanges = create_exchanges(&settings.core, build_settings).await;
-    let exchanges_map: HashMap<_, _> = exchanges
+    let _exchanges_map: HashMap<_, _> = exchanges
         .into_iter()
         .map(|x| (x.exchange_account_id.clone(), x))
         .collect();
 
-    let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
+    let (events_sender, _events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
-    let exchange_events = ExchangeEvents::new(events_sender);
+    let _exchange_events = ExchangeEvents::new(events_sender);
 
     {
         // TODO uncomment when will be implemented Send for Exchange;

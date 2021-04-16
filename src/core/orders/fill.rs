@@ -1,11 +1,19 @@
 use crate::core::{
     exchanges::common::CurrencyCode,
-    orders::order::{OrderFillRole, OrderFillType, OrderSide},
+    orders::order::{OrderFillRole, OrderSide},
     DateTime,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
+pub enum OrderFillType {
+    UserTrade = 1,
+    Liquidation = 2,
+    Funding = 3,
+    ClosePosition = 4,
+}
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum EventSourceType {
@@ -16,6 +24,7 @@ pub enum EventSourceType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderFill {
+    // TODO ClientOrderID should be here?
     id: Uuid,
     receive_time: DateTime,
     fill_type: OrderFillType,

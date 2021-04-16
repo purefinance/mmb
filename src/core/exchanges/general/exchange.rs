@@ -1,24 +1,28 @@
-use super::features::ExchangeFeatures;
-use super::order::cancel::CancelOrderResult;
 use super::order::create::CreateOrderResult;
-use crate::core::exchanges::common::{Amount, CurrencyCode, CurrencyId, Price, Symbol};
-use crate::core::exchanges::{
-    application_manager::ApplicationManager,
-    common::CurrencyPair,
-    common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
-    traits::ExchangeClient,
-};
-use crate::core::orders::order::ExchangeOrderId;
-use crate::core::orders::order::OrderHeader;
+use super::{commission::Commission, features::ExchangeFeatures};
+use super::{currency_pair_metadata::CurrencyPairMetadata, order::cancel::CancelOrderResult};
+use crate::core::orders::order::{OrderEventType, OrderHeader};
 use crate::core::orders::pool::OrdersPool;
+use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
 use crate::core::{
-    connectivity::connectivity_manager::WebSocketRole, exchanges::common::ExchangeAccountId,
+    connectivity::connectivity_manager::WebSocketRole,
+    exchanges::common::ExchangeAccountId,
+    exchanges::{
+        application_manager::ApplicationManager,
+        common::CurrencyPair,
+        common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
+        traits::ExchangeClient,
+    },
 };
 use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
 };
-use anyhow::{bail, Error, Result};
+use crate::core::{
+    exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
+    orders::event::OrderEvent,
+};
+use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::Future;
@@ -26,6 +30,7 @@ use log::{info, warn, Level};
 use parking_lot::Mutex;
 use serde_json::Value;
 use std::pin::Pin;
+use std::sync::mpsc;
 use std::sync::Arc;
 use tokio::sync::oneshot;
 
@@ -49,8 +54,8 @@ pub(crate) struct PriceLevel {
 }
 
 pub(crate) struct OrderBookTop {
-    pub top_ask: Option<PriceLevel>,
-    pub top_bid: Option<PriceLevel>,
+    pub ask: Option<PriceLevel>,
+    pub bid: Option<PriceLevel>,
 }
 
 pub struct Exchange {
@@ -80,11 +85,13 @@ pub struct Exchange {
             Option<oneshot::Receiver<CancelOrderResult>>,
         ),
     >,
-    pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
-    pub(super) supported_symbols: Mutex<Vec<Arc<Symbol>>>,
-    application_manager: ApplicationManager,
     pub(super) features: ExchangeFeatures,
-    pub(super) symbols: Mutex<Vec<Arc<Symbol>>>,
+    pub(super) event_channel: mpsc::Sender<OrderEvent>,
+    application_manager: ApplicationManager,
+    pub(super) commission: Commission,
+    pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
+    pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
+    pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
 }
@@ -97,6 +104,8 @@ impl Exchange {
         websocket_channels: Vec<String>,
         exchange_client: Box<dyn ExchangeClient>,
         features: ExchangeFeatures,
+        event_channel: mpsc::Sender<OrderEvent>,
+        commission: Commission,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
@@ -115,6 +124,8 @@ impl Exchange {
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
             features,
+            event_channel,
+            commission,
             symbols: Default::default(),
             currencies: Default::default(),
             order_book_top: Default::default(),
@@ -416,5 +427,29 @@ impl Exchange {
         };
 
         Ok(self.create_websocket_params(&ws_path))
+    }
+
+    pub(crate) fn add_event_on_order_change(
+        &self,
+        order_ref: &OrderRef,
+        event_type: OrderEventType,
+    ) -> Result<()> {
+        if event_type == OrderEventType::CancelOrderSucceeded {
+            order_ref.fn_mut(|order| order.internal_props.was_cancellation_event_raised = true)
+        }
+
+        if order_ref.is_finished() {
+            let _ = self
+                .orders
+                .not_finished
+                .remove(&order_ref.client_order_id());
+        }
+
+        let order_event = OrderEvent::new(order_ref.clone(), order_ref.status(), event_type, None);
+        self.event_channel
+            .send(order_event)
+            .context("Unable to send event. Probably receiver is already dead")?;
+
+        Ok(())
     }
 }

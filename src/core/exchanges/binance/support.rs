@@ -1,6 +1,7 @@
 use super::binance::Binance;
-use crate::core::exchanges::common::Symbol;
-use crate::core::exchanges::traits::Support;
+use crate::core::exchanges::{
+    general::currency_pair_metadata::CurrencyPairMetadata, traits::Support,
+};
 use crate::core::orders::order::*;
 use crate::core::{
     exchanges::common::{
@@ -228,7 +229,10 @@ impl Support for Binance {
         info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    fn parse_metadata(&self, _response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
+    fn parse_metadata(
+        &self,
+        _response: &RestRequestOutcome,
+    ) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
         // TODO parse metadata
         Ok(vec![])
     }

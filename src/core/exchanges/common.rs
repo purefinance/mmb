@@ -1,8 +1,8 @@
-use crate::core::orders::order::OrderSide;
 use awc::http::StatusCode;
 use itertools::Itertools;
 use regex::Regex;
 use rust_decimal::*;
+use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
 use std::collections::BTreeMap;
@@ -196,67 +196,6 @@ impl CurrencyPair {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum PrecisionType {
-    ByFraction,
-    ByMantissa,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum BeforeAfter {
-    Before,
-    After,
-}
-
-pub const SYMBOL_DEFAULT_PRECISION: i8 = i8::MAX;
-
-#[derive(Debug, Clone)]
-pub struct Symbol {
-    pub is_active: bool,
-    pub is_derivative: bool,
-    pub base_currency_id: CurrencyId,
-    pub base_currency_code: CurrencyCode,
-    pub quote_currency_id: CurrencyId,
-    pub quote_currency_code: CurrencyCode,
-    // Currency pair in specific for exchange (which related to symbol)
-    pub specific_currency_pair: SpecificCurrencyPair,
-    pub min_price: Option<Decimal>,
-    pub max_price: Option<Decimal>,
-    pub price_precision: i8,
-    pub price_precision_type: PrecisionType,
-    pub price_tick: Option<Decimal>,
-    pub amount_currency_code: CurrencyCode,
-    pub min_amount: Option<Decimal>,
-    pub max_amount: Option<Decimal>,
-    pub amount_precision: i8,
-    pub amount_precision_type: PrecisionType,
-    pub amount_tick: Option<Decimal>,
-    pub min_cost: Option<Decimal>,
-    pub balance_currency_code: Option<CurrencyCode>,
-}
-
-impl Symbol {
-    // Currency pair in unified for crate format
-    pub fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_currency_codes(
-            self.base_currency_code.clone(),
-            self.quote_currency_code.clone(),
-        )
-    }
-
-    pub fn get_trade_code(&self, side: OrderSide, before_after: BeforeAfter) -> CurrencyCode {
-        use BeforeAfter::*;
-        use OrderSide::*;
-
-        match (before_after, side) {
-            (Before, Buy) => self.quote_currency_code.clone(),
-            (Before, Sell) => self.base_currency_code.clone(),
-            (After, Buy) => self.base_currency_code.clone(),
-            (After, Sell) => self.quote_currency_code.clone(),
-        }
-    }
-}
-
 /// Exchange id and currency pair
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct TradePlace {
@@ -343,6 +282,17 @@ pub struct RestRequestOutcome {
 impl RestRequestOutcome {
     pub fn new(content: String, status: StatusCode) -> Self {
         Self { content, status }
+    }
+}
+
+pub trait ConvertPercentToRate {
+    fn percent_to_rate(&self) -> Decimal;
+}
+
+impl ConvertPercentToRate for Decimal {
+    fn percent_to_rate(&self) -> Decimal {
+        let proportion_multiplier = dec!(0.01);
+        self * proportion_multiplier
     }
 }
 

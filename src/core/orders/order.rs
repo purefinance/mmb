@@ -3,6 +3,7 @@ use crate::core::exchanges::common::{
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
+use chrono::Utc;
 use nanoid::nanoid;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -131,8 +132,8 @@ pub struct ExchangeOrderId(String16);
 
 impl ExchangeOrderId {
     #[inline]
-    pub fn new(client_order_id: String16) -> Self {
-        ExchangeOrderId(client_order_id)
+    pub fn new(exchange_order_id: String16) -> Self {
+        ExchangeOrderId(exchange_order_id)
     }
 
     /// Extracts a string slice containing the entire string.
@@ -217,7 +218,7 @@ pub struct OrderHeader {
 
     pub execution_type: OrderExecutionType,
 
-    pub reservation_id: ReservationId,
+    pub reservation_id: Option<ReservationId>,
 
     pub signal_id: Option<String>,
     pub strategy_name: String,
@@ -233,7 +234,7 @@ impl OrderHeader {
         side: OrderSide,
         amount: Amount,
         execution_type: OrderExecutionType,
-        reservation_id: ReservationId,
+        reservation_id: Option<ReservationId>,
         signal_id: Option<String>,
         strategy_name: String,
     ) -> Self {
@@ -272,7 +273,27 @@ pub struct OrderSimpleProps {
 }
 
 impl OrderSimpleProps {
-    pub fn new(price: Option<Price>) -> OrderSimpleProps {
+    pub(crate) fn new(
+        raw_price: Option<Price>,
+        role: Option<OrderRole>,
+        exchange_order_id: Option<ExchangeOrderId>,
+        stop_loss_price: Decimal,
+        trailing_stop_delta: Decimal,
+        status: OrderStatus,
+        finished_time: Option<DateTime>,
+    ) -> Self {
+        Self {
+            raw_price,
+            role,
+            exchange_order_id,
+            stop_loss_price,
+            trailing_stop_delta,
+            status,
+            finished_time,
+        }
+    }
+
+    pub fn from_price(price: Option<Price>) -> OrderSimpleProps {
         Self {
             raw_price: price,
             role: None,
@@ -287,14 +308,6 @@ impl OrderSimpleProps {
     pub fn is_finished(&self) -> bool {
         self.status.is_finished()
     }
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
-pub enum OrderFillType {
-    UserTrade = 1,
-    Liquidation = 2,
-    Funding = 3,
-    ClosePosition = 4,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
@@ -314,8 +327,8 @@ impl From<OrderRole> for OrderFillRole {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrderFills {
-    fills: Vec<OrderFill>,
-    filled_amount: Decimal,
+    pub fills: Vec<OrderFill>,
+    pub filled_amount: Decimal,
 }
 
 impl OrderFills {
@@ -355,7 +368,7 @@ pub struct SystemInternalOrderProps {
     pub canceled_not_from_wait_cancel_order: bool,
 
     #[serde(skip_serializing)]
-    pub cancellation_event_was_raised: bool,
+    pub was_cancellation_event_raised: bool,
 
     pub last_order_trades_request_time: Option<DateTime>,
 
@@ -447,6 +460,44 @@ impl OrderSnapshot {
             status_history,
             internal_props,
         }
+    }
+
+    pub fn with_params(
+        client_order_id: ClientOrderId,
+        order_type: OrderType,
+        order_role: Option<OrderRole>,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        price: Price,
+        amount: Amount,
+        order_side: OrderSide,
+        reservation_id: Option<ReservationId>,
+        strategy_name: &str,
+    ) -> Self {
+        let header = OrderHeader::new(
+            client_order_id,
+            Utc::now(),
+            exchange_account_id,
+            currency_pair,
+            order_type,
+            order_side,
+            amount,
+            OrderExecutionType::None,
+            reservation_id,
+            None,
+            strategy_name.to_owned(),
+        );
+
+        let mut props = OrderSimpleProps::from_price(Some(price));
+        props.role = order_role;
+
+        Self::new(
+            Arc::new(header),
+            props,
+            OrderFills::default(),
+            OrderStatusHistory::default(),
+            SystemInternalOrderProps::default(),
+        )
     }
 
     pub fn add_fill(&mut self, fill: OrderFill) {

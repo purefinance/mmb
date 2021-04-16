@@ -6,7 +6,6 @@ use crate::core::order_book::event::OrderBookEvent;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::event::OrderEvent;
 use crate::core::orders::order::{OrderSide, OrderType};
-use crate::core::orders::pool::OrderRef;
 use crate::core::DateTime;
 use anyhow::{Context, Result};
 use rust_decimal::Decimal;
@@ -161,10 +160,10 @@ fn update_order_book_top_for_exchange(
             .expect("snapshot should exists because we just added one");
 
         let order_book_top = OrderBookTop {
-            top_ask: snapshot
+            ask: snapshot
                 .get_top_ask()
                 .map(|(price, amount)| PriceLevel { price, amount }),
-            top_bid: snapshot
+            bid: snapshot
                 .get_top_bid()
                 .map(|(price, amount)| PriceLevel { price, amount }),
         };
@@ -176,5 +175,18 @@ fn update_order_book_top_for_exchange(
                     .order_book_top
                     .insert(trade_place_account.currency_pair.clone(), order_book_top)
             });
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+pub enum AllowedEventSourceType {
+    All,
+    FallbackOnly,
+    NonFallback,
+}
+
+impl Default for AllowedEventSourceType {
+    fn default() -> Self {
+        AllowedEventSourceType::All
     }
 }

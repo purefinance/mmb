@@ -1,14 +1,17 @@
 use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
-use mmb_lib::core::exchanges::binance::binance::*;
-use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
+use mmb_lib::core::exchanges::{binance::binance::*, events::AllowedEventSourceType};
+use mmb_lib::core::exchanges::{
+    cancellation_token::CancellationToken, general::commission::Commission,
+};
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
+use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
 
@@ -32,13 +35,21 @@ async fn open_orders_exists() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
+    let (tx, _) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        ExchangeFeatures::new(
+            OpenOrdersType::AllCurrencyPair,
+            false,
+            true,
+            AllowedEventSourceType::default(),
+        ),
+        tx,
+        Commission::default(),
     );
 
     exchange.clone().connect().await;
@@ -55,9 +66,9 @@ async fn open_orders_exists() {
         OrderSide::Buy,
         dec!(10000),
         OrderExecutionType::None,
-        ReservationId::gen_new(),
         None,
-        "".into(),
+        None,
+        "FromGetOpenOrdersTest".to_owned(),
     );
 
     let order_to_create = OrderCreating {
@@ -84,9 +95,9 @@ async fn open_orders_exists() {
         OrderSide::Buy,
         dec!(10000),
         OrderExecutionType::None,
-        ReservationId::gen_new(),
         None,
-        "".into(),
+        None,
+        "FromGetOpenOrdersTest".to_owned(),
     );
 
     let second_order_to_create = OrderCreating {

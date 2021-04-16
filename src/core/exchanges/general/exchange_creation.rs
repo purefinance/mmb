@@ -1,10 +1,12 @@
-use crate::core::exchanges::common::Symbol;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
 use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
 use itertools::Itertools;
 use log::error;
+use std::sync::mpsc::channel;
 use std::sync::Arc;
+
+use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
 
 pub async fn create_exchange(
     exchange_settings: &ExchangeSettings,
@@ -14,6 +16,7 @@ pub async fn create_exchange(
         [&exchange_settings.exchange_account_id.exchange_id]
         .create_exchange_client(exchange_settings.clone());
 
+    let (tx, _) = channel();
     let exchange = Exchange::new(
         exchange_settings.exchange_account_id.clone(),
         exchange_settings.web_socket_host.clone(),
@@ -21,6 +24,8 @@ pub async fn create_exchange(
         exchange_settings.websocket_channels.clone(),
         exchange_client,
         features,
+        tx,
+        Commission::default(),
     );
 
     exchange.build_metadata().await;
@@ -35,7 +40,7 @@ pub async fn create_exchange(
 pub fn get_symbols(
     exchange: &Arc<Exchange>,
     currency_pairs: &[CurrencyPairSetting],
-) -> Vec<Arc<Symbol>> {
+) -> Vec<Arc<CurrencyPairMetadata>> {
     let mut symbols = Vec::new();
 
     let supported_symbols_guard = exchange.supported_symbols.lock();
@@ -44,7 +49,7 @@ pub fn get_symbols(
             .iter()
             .filter(|x| {
                 if let Some(currency_pair) = &currency_pair_setting.currency_pair {
-                    return currency_pair.as_str() == x.specific_currency_pair.as_str();
+                    return currency_pair.as_str() == x.currency_pair().as_str();
                 }
 
                 return x.base_currency_code == currency_pair_setting.base

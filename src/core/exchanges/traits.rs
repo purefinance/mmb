@@ -1,7 +1,9 @@
-use super::common::{
-    CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
+use super::{
+    common::{
+        CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
+    },
+    general::currency_pair_metadata::CurrencyPairMetadata,
 };
-use crate::core::exchanges::common::Symbol;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
@@ -65,7 +67,10 @@ pub trait Support {
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;
     fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo>;
-    fn parse_metadata(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>>;
+    fn parse_metadata(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<Vec<Arc<CurrencyPairMetadata>>>;
 }
 
 pub trait ExchangeClientBuilder {

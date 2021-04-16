@@ -1,5 +1,6 @@
 use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
+use mmb::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
@@ -10,6 +11,7 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
+use std::sync::mpsc::channel;
 
 #[actix_rt::test]
 async fn create_successfully() {
@@ -29,13 +31,21 @@ async fn create_successfully() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
+    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
         currency_pairs,
         channels,
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        ExchangeFeatures::new(
+            OpenOrdersType::AllCurrencyPair,
+            false,
+            true,
+            AllowedEventSourceType::default(),
+        ),
+        tx,
+        Commission::default(),
     );
 
     exchange.clone().connect().await;
@@ -51,9 +61,9 @@ async fn create_successfully() {
         OrderSide::Buy,
         dec!(10000),
         OrderExecutionType::None,
-        ReservationId::gen_new(),
         None,
-        "".into(),
+        None,
+        "FromCreateOrderTest".to_owned(),
     );
 
     let order_to_create = OrderCreating {
@@ -71,6 +81,13 @@ async fn create_successfully() {
 
     match created_order {
         Ok(order_ref) => {
+            let event = rx
+                .recv()
+                .expect("CreateOrderSucceeded event had to be occured");
+            if event.event_type != OrderEventType::CreateOrderSucceeded {
+                assert!(false)
+            }
+
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
                 header: order_header,
@@ -105,13 +122,21 @@ async fn should_fail() {
 
     let binance = Binance::new(settings, exchange_account_id);
 
+    let (tx, _) = channel();
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
         vec![],
         vec![],
         Box::new(binance),
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        ExchangeFeatures::new(
+            OpenOrdersType::AllCurrencyPair,
+            false,
+            true,
+            AllowedEventSourceType::default(),
+        ),
+        tx,
+        Commission::default(),
     );
 
     let test_order_client_id = ClientOrderId::unique_id();
@@ -125,9 +150,9 @@ async fn should_fail() {
         OrderSide::Buy,
         dec!(1),
         OrderExecutionType::None,
-        ReservationId::gen_new(),
         None,
-        "".into(),
+        None,
+        "FromCreateOrderTest".to_owned(),
     );
 
     let order_to_create = OrderCreating {
@@ -139,7 +164,6 @@ async fn should_fail() {
         .create_order(&order_to_create, CancellationToken::default())
         .await;
 
-    dbg!(&created_order);
     match created_order {
         Ok(_) => {
             assert!(false)
