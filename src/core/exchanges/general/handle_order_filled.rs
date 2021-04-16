@@ -5,7 +5,8 @@ use super::{
     exchange::Exchange,
 };
 use crate::core::{
-    exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
+    exchanges::common::Amount, exchanges::common::ConvertPercentToRate,
+    exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
     exchanges::common::ExchangeAccountId, exchanges::common::Price,
     exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
     orders::fill::OrderFill, orders::fill::OrderFillType, orders::order::ClientOrderId,
@@ -354,7 +355,8 @@ impl Exchange {
         order_role: OrderRole,
     ) -> Decimal {
         let commission = self.commission.get_commission(order_role).fee;
-        let expected_commission_rate = commission::percent_to_rate(commission);
+        //let expected_commission_rate = commission::percent_to_rate(commission);
+        let expected_commission_rate = commission.percent_to_rate();
 
         if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
             event_data.commission_rate = Some(expected_commission_rate);
@@ -502,8 +504,7 @@ impl Exchange {
             last_fill_amount_in_converted_commission_currency_code * expected_commission_rate;
 
         let referral_reward = self.commission.get_commission(order_role).referral_reward;
-        let referral_reward_amount =
-            commission_amount * commission::percent_to_rate(referral_reward);
+        let referral_reward_amount = commission_amount * referral_reward.percent_to_rate();
 
         let rounded_fill_price =
             currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;

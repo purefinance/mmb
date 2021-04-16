@@ -446,7 +446,7 @@ impl Exchange {
                 .remove(&order_ref.client_order_id());
         }
 
-        let order_event = OrderEvent::new(order_ref.clone(), event_type, None);
+        let order_event = OrderEvent::new(order_ref.clone(), order_ref.status(), event_type, None);
         self.event_channel
             .send(order_event)
             .context("Unable to send event. Probably receiver is already dead")?;

@@ -1,6 +1,5 @@
 use crate::core::orders::order::OrderRole;
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 
 pub type Percent = Decimal;
 
@@ -17,11 +16,6 @@ impl CommissionForType {
             referral_reward,
         }
     }
-}
-
-pub fn percent_to_rate(percent_value: Percent) -> Decimal {
-    let proportion_multiplier = dec!(0.01);
-    percent_value * proportion_multiplier
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
