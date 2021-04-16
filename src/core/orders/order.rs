@@ -368,8 +368,7 @@ pub struct SystemInternalOrderProps {
     pub canceled_not_from_wait_cancel_order: bool,
 
     #[serde(skip_serializing)]
-    // FIXME maybe was_cancellation_event_raised?
-    pub cancellation_event_was_raised: bool,
+    pub was_cancellation_event_raised: bool,
 
     pub last_order_trades_request_time: Option<DateTime>,
 

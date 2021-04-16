@@ -54,7 +54,7 @@ impl OrderRef {
         self.fn_ref(|x| x.props.is_finished())
     }
     pub fn was_cancellation_event_raised(&self) -> bool {
-        self.fn_ref(|x| x.internal_props.cancellation_event_was_raised)
+        self.fn_ref(|x| x.internal_props.was_cancellation_event_raised)
     }
     pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
         self.fn_ref(|x| x.props.exchange_order_id.clone())

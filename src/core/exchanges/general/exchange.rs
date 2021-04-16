@@ -88,7 +88,6 @@ pub struct Exchange {
     pub(super) features: ExchangeFeatures,
     pub(super) event_channel: mpsc::Sender<OrderEvent>,
     application_manager: ApplicationManager,
-    // FIXME think about it. Maybe it should be part of specific exchange?
     pub(super) commission: Commission,
     pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
@@ -437,7 +436,7 @@ impl Exchange {
         event_type: OrderEventType,
     ) -> Result<()> {
         if event_type == OrderEventType::CancelOrderSucceeded {
-            order_ref.fn_mut(|order| order.internal_props.cancellation_event_was_raised = true)
+            order_ref.fn_mut(|order| order.internal_props.was_cancellation_event_raised = true)
         }
 
         if order_ref.is_finished() {

@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use super::{
-    currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Round, exchange::Exchange,
+    commission, currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Round,
+    exchange::Exchange,
 };
 use crate::core::{
     exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
@@ -41,7 +42,7 @@ pub struct FillEventData {
     pub total_filled_amount: Option<Amount>,
     pub order_role: Option<OrderRole>,
     pub commission_currency_code: Option<CurrencyCode>,
-    pub commission_rate: Option<Amount>,
+    pub commission_rate: Option<Decimal>,
     pub commission_amount: Option<Amount>,
     pub fill_type: OrderFillType,
     pub trade_currency_pair: Option<CurrencyPair>,
@@ -83,16 +84,7 @@ impl Exchange {
                 info!("Received a fill for not existing order {:?}", &args_to_log);
                 // TODO BufferedFillsManager.add_fill()
 
-                if let Some(client_order_id) = event_data.client_order_id {
-                    // FIXME Why? Order could be not created
-                    self.raise_order_created(
-                        client_order_id,
-                        event_data.exchange_order_id,
-                        event_data.source_type,
-                    );
-                }
-
-                return Ok(());
+                unimplemented!("First need to implement BufferedFillsManager");
             }
             Some(order_ref) => self.local_order_exist(&mut event_data, &order_ref),
         }
@@ -185,7 +177,7 @@ impl Exchange {
     }
 
     fn get_last_fill_data(
-        mut event_data: &mut FillEventData,
+        event_data: &mut FillEventData,
         currency_pair_metadata: &CurrencyPairMetadata,
         order_fills: &Vec<OrderFill>,
         order_filled_amount: Amount,
@@ -205,15 +197,15 @@ impl Exchange {
                 Some(cost_diff) => {
                     let (price, amount, cost) = Self::calculate_last_fill_data(
                         last_fill_amount,
-                        &order_fills,
                         order_filled_amount,
                         &currency_pair_metadata,
                         cost_diff,
-                        &mut event_data,
                     )?;
                     last_fill_price = price;
                     last_fill_amount = amount;
                     last_fill_cost = cost;
+
+                    Self::try_set_commission_amount(event_data, order_fills);
                 }
             };
         }
@@ -234,10 +226,10 @@ impl Exchange {
     fn calculate_cost_diff(
         order_fills: &Vec<OrderFill>,
         order_ref: &OrderRef,
-        last_fill_cost: Price,
-    ) -> Option<Price> {
+        last_fill_cost: Decimal,
+    ) -> Option<Decimal> {
         // Diff should be calculated only if it is not the first fill
-        let total_filled_cost = order_fills.iter().map(|fill| fill.cost()).sum::<Decimal>();
+        let total_filled_cost: Decimal = order_fills.iter().map(|fill| fill.cost()).sum();
         let cost_diff = last_fill_cost - total_filled_cost;
         if cost_diff <= dec!(0) {
             warn!(
@@ -253,11 +245,9 @@ impl Exchange {
 
     fn calculate_last_fill_data(
         last_fill_amount: Amount,
-        order_fills: &Vec<OrderFill>,
         order_filled_amount: Amount,
         currency_pair_metadata: &CurrencyPairMetadata,
         cost_diff: Price,
-        event_data: &mut FillEventData,
     ) -> Result<(Price, Amount, Price)> {
         let amount_diff = last_fill_amount - order_filled_amount;
         let res_fill_price = if !currency_pair_metadata.is_derivative() {
@@ -271,15 +261,17 @@ impl Exchange {
         let last_fill_amount = amount_diff;
         let last_fill_cost = cost_diff;
 
+        Ok((last_fill_price, last_fill_amount, last_fill_cost))
+    }
+
+    fn try_set_commission_amount(event_data: &mut FillEventData, order_fills: &Vec<OrderFill>) {
         if let Some(commission_amount) = event_data.commission_amount {
-            let current_commission = order_fills
+            let current_commission: Decimal = order_fills
                 .iter()
                 .map(|fill| fill.commission_amount())
-                .sum::<Decimal>();
+                .sum();
             event_data.commission_amount = Some(commission_amount - current_commission);
         }
-
-        Ok((last_fill_price, last_fill_amount, last_fill_cost))
     }
 
     fn wrong_status_or_cancelled(order_ref: &OrderRef, event_data: &FillEventData) -> Result<()> {
@@ -355,10 +347,19 @@ impl Exchange {
         }
     }
 
-    fn try_set_commission_rate(event_data: &mut FillEventData, expected_commission_rate: Price) {
+    fn try_set_commission_rate(
+        &self,
+        event_data: &mut FillEventData,
+        order_role: OrderRole,
+    ) -> Decimal {
+        let commission = self.commission.get_commission(order_role).fee;
+        let expected_commission_rate = commission::percent_to_rate(commission);
+
         if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
             event_data.commission_rate = Some(expected_commission_rate);
         }
+
+        expected_commission_rate
     }
 
     // FIXME unexpected? What's the better name?
@@ -500,20 +501,16 @@ impl Exchange {
         let expected_converted_commission_amount =
             last_fill_amount_in_converted_commission_currency_code * expected_commission_rate;
 
-        let proportion_multiplier = dec!(0.01);
-        let referral_reward = self
-            .commission
-            .get_commission(Some(order_role))?
-            .referral_reward;
-        let referral_reward_amount = commission_amount * referral_reward * proportion_multiplier;
+        let referral_reward = self.commission.get_commission(order_role).referral_reward;
+        let referral_reward_amount =
+            commission_amount * commission::percent_to_rate(referral_reward);
 
         let rounded_fill_price =
             currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;
         let order_fill = OrderFill::new(
-            // FIXME what to do with it? Does it even use in C#?
             Uuid::new_v4(),
             Utc::now(),
-            OrderFillType::Liquidation,
+            event_data.fill_type,
             Some(event_data.trade_id.clone()),
             rounded_fill_price,
             last_fill_amount,
@@ -541,15 +538,15 @@ impl Exchange {
     ) -> Result<()> {
         let (order_fills, order_filled_amount) = order_ref.get_fills();
 
-        if Self::was_trade_already_received(&event_data.trade_id, &order_fills, &order_ref) {
+        if Self::was_trade_already_received(&event_data.trade_id, &order_fills, order_ref) {
             return Ok(());
         }
 
-        if Self::diff_fill_after_non_diff(&event_data, &order_fills, &order_ref) {
+        if Self::diff_fill_after_non_diff(&event_data, &order_fills, order_ref) {
             return Ok(());
         }
 
-        if Self::filled_amount_not_less_event_fill(&event_data, order_filled_amount, &order_ref) {
+        if Self::filled_amount_not_less_event_fill(&event_data, order_filled_amount, order_ref) {
             return Ok(());
         }
 
@@ -569,14 +566,17 @@ impl Exchange {
             &event_data,
             order_filled_amount,
             last_fill_amount,
-            &order_ref,
+            order_ref,
         ) {
             return Ok(());
         }
 
         Self::wrong_status_or_cancelled(order_ref, &event_data)?;
 
-        info!("Received fill {:?}", event_data);
+        info!(
+            "Received fill {:?} {} {}",
+            event_data, last_fill_price, last_fill_amount
+        );
 
         let commission_currency_code = match &event_data.commission_currency_code {
             Some(commission_currency_code) => commission_currency_code.clone(),
@@ -585,11 +585,7 @@ impl Exchange {
 
         let order_role = Self::get_order_role(event_data, order_ref)?;
 
-        let proportion_multiplier = dec!(0.01);
-        let expected_commission_rate =
-            self.commission.get_commission(Some(order_role))?.fee * proportion_multiplier;
-
-        Self::try_set_commission_rate(&mut event_data, expected_commission_rate);
+        let expected_commission_rate = self.try_set_commission_rate(&mut event_data, order_role);
 
         let commission_amount = Self::get_commission_amount(
             &event_data,
@@ -614,7 +610,7 @@ impl Exchange {
         let order_fill = self.add_fill(
             &event_data,
             &currency_pair_metadata,
-            &order_ref,
+            order_ref,
             &converted_commission_currency_code,
             last_fill_amount,
             last_fill_price,
@@ -629,15 +625,15 @@ impl Exchange {
         // This order fields updated, so let's use actual values
         let (_, order_filled_amount) = order_ref.get_fills();
 
-        self.check_fill_amounts_comformity(order_filled_amount, &order_ref)?;
+        self.check_fill_amounts_comformity(order_filled_amount, order_ref)?;
 
-        self.send_order_filled_event(&event_data, &order_ref, &order_fill)?;
+        self.send_order_filled_event(&event_data, order_ref, &order_fill)?;
 
         if event_data.source_type == EventSourceType::RestFallback {
             // TODO some metrics
         }
 
-        self.react_if_order_completed(order_filled_amount, &order_ref)?;
+        self.react_if_order_completed(order_filled_amount, order_ref)?;
 
         // TODO DataRecorder.save(order)
 
@@ -1563,7 +1559,7 @@ mod test {
             order_side,
             None,
         );
-        order.internal_props.cancellation_event_was_raised = true;
+        order.internal_props.was_cancellation_event_raised = true;
 
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));

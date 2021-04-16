@@ -26,7 +26,7 @@ pub enum PrecisionType {
     ByMantissa,
 }
 
-// FIXME Strange name, need to fix
+// TODO Change to Maker-Taker
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BeforeAfter {
     Before,
