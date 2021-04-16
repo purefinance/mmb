@@ -91,8 +91,7 @@ pub struct Exchange {
     pub(super) commission: Commission,
     pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
-    // FIXME DashSet instead Mutex<Vec> maybe?
-    pub(super) symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
+    pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
 }

@@ -2,7 +2,6 @@ use crate::core::{
     exchanges::common::Amount,
     exchanges::common::CurrencyCode,
     exchanges::common::CurrencyId,
-    exchanges::common::SpecificCurrencyPair,
     exchanges::common::{CurrencyPair, Price},
     orders::order::OrderSide,
 };
@@ -43,8 +42,7 @@ pub struct CurrencyPairMetadata {
     pub base_currency_code: CurrencyCode,
     pub quote_currency_id: CurrencyId,
     pub quote_currency_code: CurrencyCode,
-    // Currency pair in specific for exchange (which related to CurrencyPairMetadata)
-    pub specific_currency_pair: SpecificCurrencyPair,
+    pub currency_pair: CurrencyPair,
     pub min_price: Option<Price>,
     pub max_price: Option<Price>,
     pub price_precision: i8,
@@ -68,7 +66,7 @@ impl CurrencyPairMetadata {
         base_currency_code: CurrencyCode,
         quote_currency_id: CurrencyId,
         quote_currency_code: CurrencyCode,
-        specific_currency_pair: SpecificCurrencyPair,
+        currency_pair: CurrencyPair,
         min_price: Option<Price>,
         max_price: Option<Price>,
         price_precision: i8,
@@ -90,7 +88,7 @@ impl CurrencyPairMetadata {
             base_currency_code,
             quote_currency_id,
             quote_currency_code,
-            specific_currency_pair,
+            currency_pair,
             min_price,
             max_price,
             price_precision,
@@ -252,15 +250,8 @@ impl Exchange {
         &self,
         currency_pair: &CurrencyPair,
     ) -> Result<Arc<CurrencyPairMetadata>> {
-        let specific_pair = self
-            .exchange_client
-            .get_specific_currency_pair(currency_pair);
-        let currency_pairs = &self.symbols;
-        match currency_pairs
-            .lock()
-            .iter()
-            .find(|&current_pair| current_pair.specific_currency_pair == specific_pair)
-        {
+        let maybe_currency_pair_metadata = self.symbols.get(currency_pair);
+        match maybe_currency_pair_metadata {
             Some(suitable_currency_pair_metadata) => Ok(suitable_currency_pair_metadata.clone()),
             None => bail!(
                 "Unsupported currency pair on {} {:?}",
@@ -279,7 +270,6 @@ mod test {
     fn get_commission_currency_code_from_balance() {
         let base_currency = "PHB";
         let quote_currency = "PHB";
-        let specific_currency_pair = "PHBBTC";
         let price_precision = 0;
         let amount_precision = 0;
         let price_tick = dec!(0.1);
@@ -293,7 +283,7 @@ mod test {
             base_currency.into(),
             quote_currency.into(),
             quote_currency.into(),
-            specific_currency_pair.into(),
+            CurrencyPair::from_currency_codes(base_currency.into(), quote_currency.into()),
             None,
             None,
             price_precision,
