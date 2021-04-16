@@ -63,7 +63,7 @@ async fn cancelled_successfully() {
         OrderExecutionType::None,
         None,
         None,
-        None,
+        "FromCancelOrderTest".to_owned(),
     );
 
     let order_to_create = OrderCreating {
@@ -155,7 +155,7 @@ async fn nothing_to_cancel() {
         OrderExecutionType::None,
         None,
         None,
-        None,
+        "FromCancelOrderTest".to_owned(),
     );
 
     let order_to_cancel = OrderCancelling {

@@ -733,6 +733,7 @@ impl Exchange {
             order_amount,
             order_side,
             None,
+            "Unknown order from handle_order_filled()",
         );
 
         self.orders
@@ -1144,6 +1145,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let cost = dec!(0);
@@ -1219,6 +1221,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let cost = dec!(0);
@@ -1294,6 +1297,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let cost = dec!(0);
@@ -1369,6 +1373,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let cost = dec!(0);
@@ -1443,6 +1448,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.set_status(OrderStatus::FailedToCreate, Utc::now());
 
@@ -1500,6 +1506,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.set_status(OrderStatus::Completed, Utc::now());
 
@@ -1558,6 +1565,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.internal_props.was_cancellation_event_raised = true;
 
@@ -1604,7 +1612,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -1718,7 +1726,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -1831,7 +1839,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -1950,7 +1958,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -2067,7 +2075,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -2186,6 +2194,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2241,6 +2250,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2300,6 +2310,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2361,6 +2372,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2419,6 +2431,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2479,6 +2492,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2542,6 +2556,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2614,6 +2629,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2676,6 +2692,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2734,6 +2751,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2792,6 +2810,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
@@ -2849,6 +2868,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         exchange
@@ -2911,6 +2931,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         exchange
@@ -2973,6 +2994,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
@@ -3032,6 +3054,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
@@ -3094,6 +3117,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
@@ -3153,6 +3177,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
@@ -3193,6 +3218,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
@@ -3311,6 +3337,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
@@ -3368,6 +3395,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();

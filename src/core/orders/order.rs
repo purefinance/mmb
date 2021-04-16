@@ -221,7 +221,7 @@ pub struct OrderHeader {
     pub reservation_id: Option<ReservationId>,
 
     pub signal_id: Option<String>,
-    pub strategy_name: Option<String>,
+    pub strategy_name: String,
 }
 
 impl OrderHeader {
@@ -236,7 +236,7 @@ impl OrderHeader {
         execution_type: OrderExecutionType,
         reservation_id: Option<ReservationId>,
         signal_id: Option<String>,
-        strategy_name: Option<String>,
+        strategy_name: String,
     ) -> Self {
         Self {
             version: CURRENT_ORDER_VERSION,
@@ -472,6 +472,7 @@ impl OrderSnapshot {
         amount: Amount,
         order_side: OrderSide,
         reservation_id: Option<ReservationId>,
+        strategy_name: &str,
     ) -> Self {
         let header = OrderHeader::new(
             client_order_id,
@@ -484,7 +485,7 @@ impl OrderSnapshot {
             OrderExecutionType::None,
             reservation_id,
             None,
-            None,
+            strategy_name.to_owned(),
         );
 
         let mut props = OrderSimpleProps::from_price(Some(price));

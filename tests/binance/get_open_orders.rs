@@ -68,7 +68,7 @@ async fn open_orders_exists() {
         OrderExecutionType::None,
         None,
         None,
-        None,
+        "FromGetOpenOrdersTest".to_owned(),
     );
 
     let order_to_create = OrderCreating {
@@ -97,7 +97,7 @@ async fn open_orders_exists() {
         OrderExecutionType::None,
         None,
         None,
-        None,
+        "FromGetOpenOrdersTest".to_owned(),
     );
 
     let second_order_to_create = OrderCreating {
