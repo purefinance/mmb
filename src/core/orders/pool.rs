@@ -111,13 +111,15 @@ impl OrdersPool {
     }
 
     /// Insert specified `OrderSnapshot` in order pool.
-    pub fn add_snapshot_initial(&self, snapshot: Arc<RwLock<OrderSnapshot>>) {
+    pub fn add_snapshot_initial(&self, snapshot: Arc<RwLock<OrderSnapshot>>) -> OrderRef {
         let client_order_id = snapshot.read().header.client_order_id.clone();
         let order_ref = OrderRef(snapshot.clone());
         let _ = self
             .by_client_id
             .insert(client_order_id.clone(), order_ref.clone());
-        let _ = self.not_finished.insert(client_order_id, order_ref);
+        let _ = self.not_finished.insert(client_order_id, order_ref.clone());
+
+        order_ref
     }
 
     // Using for tests
@@ -131,7 +133,7 @@ impl OrdersPool {
     }
 
     /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
-    pub fn add_simple_initial(&self, header: Arc<OrderHeader>, price: Option<Decimal>) {
+    pub fn add_simple_initial(&self, header: Arc<OrderHeader>, price: Option<Decimal>) -> OrderRef {
         let snapshot = Arc::new(RwLock::new(OrderSnapshot {
             props: OrderSimpleProps::from_price(price),
             header,

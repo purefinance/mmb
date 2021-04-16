@@ -75,18 +75,16 @@ impl Exchange {
             )?;
         }
 
-        self.add_order_in_pool_if_not(&mut event_data, &args_to_log)?;
+        let maybe_order_ref =
+            self.add_order_in_pool_if_not_exists(&mut event_data, &args_to_log)?;
 
-        match self
-            .orders
-            .by_exchange_id
-            .get(&event_data.exchange_order_id)
-        {
+        match maybe_order_ref {
             None => {
                 info!("Received a fill for not existing order {:?}", &args_to_log);
                 // TODO BufferedFillsManager.add_fill()
 
                 if let Some(client_order_id) = event_data.client_order_id {
+                    // FIXME Why? Order could be not created
                     self.raise_order_created(
                         client_order_id,
                         event_data.exchange_order_id,
@@ -96,7 +94,7 @@ impl Exchange {
 
                 return Ok(());
             }
-            Some(order) => self.local_order_exist(&mut event_data, &*order),
+            Some(order_ref) => self.local_order_exist(&mut event_data, &order_ref),
         }
     }
 
@@ -646,11 +644,11 @@ impl Exchange {
         Ok(())
     }
 
-    fn add_order_in_pool_if_not(
+    fn add_order_in_pool_if_not_exists(
         &self,
         event_data: &mut FillEventData,
         args_to_log: &ArgsToLog,
-    ) -> Result<()> {
+    ) -> Result<Option<OrderRef>> {
         if event_data.fill_type == OrderFillType::Liquidation
             || event_data.fill_type == OrderFillType::ClosePosition
         {
@@ -689,32 +687,31 @@ impl Exchange {
                 .by_exchange_id
                 .get(&event_data.exchange_order_id)
             {
-                Some(order) => {
-                    event_data.client_order_id = Some(order.client_order_id());
+                Some(order_ref) => {
+                    event_data.client_order_id = Some(order_ref.client_order_id());
+                    return Ok(Some(order_ref.clone()));
                 }
                 None => {
                     // Liquidation and ClosePosition are always Takers
-                    let client_order_id = self.create_order_in_pool(event_data, OrderRole::Taker);
+                    let order_ref = self.create_order_in_pool(event_data, OrderRole::Taker);
 
-                    event_data.client_order_id = Some(client_order_id.clone());
+                    event_data.client_order_id = Some(order_ref.client_order_id());
                     self.handle_create_order_succeeded(
                         &self.exchange_account_id,
-                        &client_order_id,
+                        &order_ref.client_order_id(),
                         &event_data.exchange_order_id,
                         &event_data.source_type,
                     )?;
+
+                    return Ok(Some(order_ref));
                 }
             }
         }
 
-        Ok(())
+        Ok(None)
     }
 
-    fn create_order_in_pool(
-        &self,
-        event_data: &FillEventData,
-        order_role: OrderRole,
-    ) -> ClientOrderId {
+    fn create_order_in_pool(&self, event_data: &FillEventData, order_role: OrderRole) -> OrderRef {
         let currency_pair = event_data
             .trade_currency_pair
             .clone()
@@ -743,9 +740,7 @@ impl Exchange {
         );
 
         self.orders
-            .add_snapshot_initial(Arc::new(RwLock::new(order_instance)));
-
-        client_order_id
+            .add_snapshot_initial(Arc::new(RwLock::new(order_instance)))
     }
 
     fn log_fill_handling_error_and_propagate(
@@ -1177,11 +1172,7 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
             .local_order_exist(&mut event_data, &order_ref)
@@ -1256,11 +1247,7 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
             .local_order_exist(&mut event_data, &order_ref)
@@ -1335,11 +1322,7 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
             .local_order_exist(&mut event_data, &order_ref)
@@ -1414,11 +1397,7 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
             .local_order_exist(&mut event_data, &order_ref)
@@ -1472,11 +1451,7 @@ mod test {
         order.set_status(OrderStatus::FailedToCreate, Utc::now());
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
@@ -1533,11 +1508,7 @@ mod test {
         order.set_status(OrderStatus::Completed, Utc::now());
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
@@ -1595,11 +1566,7 @@ mod test {
         order.internal_props.cancellation_event_was_raised = true;
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
@@ -2227,11 +2194,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -2286,11 +2249,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -2349,11 +2308,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -2414,11 +2369,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match Exchange::get_order_role(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
@@ -2476,11 +2427,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange.local_order_exist(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
@@ -2540,11 +2487,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -2607,11 +2550,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -2683,11 +2622,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -2749,11 +2684,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange.local_order_exist(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
@@ -2811,11 +2742,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange.local_order_exist(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
@@ -2873,11 +2800,7 @@ mod test {
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange.local_order_exist(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
@@ -2937,11 +2860,7 @@ mod test {
             .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order.clone())));
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -3003,11 +2922,7 @@ mod test {
             .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order.clone())));
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -3065,11 +2980,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -3128,11 +3039,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -3194,11 +3101,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -3257,11 +3160,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         match exchange.local_order_exist(&mut event_data, &order_ref) {
             Ok(_) => {
@@ -3301,11 +3200,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -3423,11 +3318,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -3484,11 +3375,7 @@ mod test {
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
