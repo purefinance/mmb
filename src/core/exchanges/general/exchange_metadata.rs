@@ -101,8 +101,7 @@ impl Exchange {
         *self.currencies.lock() = currencies;
 
         symbols.iter().for_each(|symbol| {
-            self.symbols
-                .insert(symbol.currency_pair.clone(), symbol.clone());
+            self.symbols.insert(symbol.currency_pair(), symbol.clone());
         });
     }
 }

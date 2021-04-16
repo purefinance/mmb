@@ -839,7 +839,6 @@ mod test {
             base_currency_code.clone()
         };
 
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let price_precision = 0;
         let amount_precision = 0;
         let price_tick = dec!(0.1);
@@ -850,7 +849,6 @@ mod test {
             base_currency_code.into(),
             quote_currency_code.into(),
             quote_currency_code.into(),
-            currency_pair.clone(),
             None,
             None,
             price_precision,
@@ -865,7 +863,9 @@ mod test {
             None,
             None,
         );
-        exchange.symbols.insert(currency_pair, Arc::new(symbol));
+        exchange
+            .symbols
+            .insert(symbol.currency_pair(), Arc::new(symbol));
 
         (exchange, rx)
     }
