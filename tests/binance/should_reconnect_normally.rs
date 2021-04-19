@@ -4,6 +4,8 @@ use log::info;
 use mmb_lib::core::{
     connectivity::connectivity_manager::ConnectivityManager,
     connectivity::websocket_actor::WebSocketParams,
+    exchanges::events::AllowedEventSourceType,
+    exchanges::general::commission::Commission,
     exchanges::general::exchange::Exchange,
     exchanges::general::features::ExchangeFeatures,
     exchanges::general::features::OpenOrdersType,
@@ -33,15 +35,21 @@ pub async fn should_connect_and_reconnect_normally() {
         exchange_account_id.clone(),
     ));
 
-    let (tx, rx) = channel();
+    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
         currency_pairs,
         channels,
         exchange_client,
-        ExchangeFeatures::new(OpenOrdersType::AllCurrencyPair, false, true),
+        ExchangeFeatures::new(
+            OpenOrdersType::AllCurrencyPair,
+            false,
+            true,
+            AllowedEventSourceType::default(),
+        ),
         tx,
+        Commission::default(),
     );
 
     let exchange_weak = Arc::downgrade(&exchange);

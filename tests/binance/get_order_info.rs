@@ -1,10 +1,12 @@
 use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
-use mmb_lib::core::exchanges::binance::binance::*;
-use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
+use mmb_lib::core::exchanges::{binance::binance::*, events::AllowedEventSourceType};
+use mmb_lib::core::exchanges::{
+    cancellation_token::CancellationToken, general::commission::Commission,
+};
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
@@ -30,7 +32,7 @@ async fn get_order_info() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
-    let (tx, rx) = channel();
+    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
@@ -60,7 +62,7 @@ async fn get_order_info() {
         OrderSide::Buy,
         dec!(10000),
         OrderExecutionType::None,
-        ReservationId::gen_new(),
+        Some(ReservationId::gen_new()),
         None,
         "".into(),
     );

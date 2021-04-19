@@ -221,7 +221,7 @@ pub struct OrderHeader {
     pub reservation_id: Option<ReservationId>,
 
     pub signal_id: Option<String>,
-    pub strategy_name: Option<String>,
+    pub strategy_name: String,
 }
 
 impl OrderHeader {
@@ -236,7 +236,7 @@ impl OrderHeader {
         execution_type: OrderExecutionType,
         reservation_id: Option<ReservationId>,
         signal_id: Option<String>,
-        strategy_name: Option<String>,
+        strategy_name: String,
     ) -> Self {
         Self {
             version: CURRENT_ORDER_VERSION,
@@ -368,15 +368,12 @@ pub struct SystemInternalOrderProps {
     pub canceled_not_from_wait_cancel_order: bool,
 
     #[serde(skip_serializing)]
-    // FIXME maybe was_cancellation_event_raised?
-    pub cancellation_event_was_raised: bool,
+    pub was_cancellation_event_raised: bool,
 
     pub last_order_trades_request_time: Option<DateTime>,
 
     pub handled_by_balance_recovery: bool,
     pub filled_amount_after_cancellation: Option<Decimal>,
-    // FIXME is that OK?
-    pub average_fill_price: Price,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -475,6 +472,7 @@ impl OrderSnapshot {
         amount: Amount,
         order_side: OrderSide,
         reservation_id: Option<ReservationId>,
+        strategy_name: &str,
     ) -> Self {
         let header = OrderHeader::new(
             client_order_id,
@@ -487,7 +485,7 @@ impl OrderSnapshot {
             OrderExecutionType::None,
             reservation_id,
             None,
-            None,
+            strategy_name.to_owned(),
         );
 
         let mut props = OrderSimpleProps::from_price(Some(price));

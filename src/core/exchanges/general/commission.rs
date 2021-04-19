@@ -1,15 +1,16 @@
-use anyhow::{bail, Result};
+use crate::core::orders::order::OrderRole;
+use rust_decimal::Decimal;
 
-use crate::core::{exchanges::common::Price, orders::order::OrderRole};
+pub type Percent = Decimal;
 
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct CommissionForType {
-    pub fee: Price,
-    pub referral_reward: Price,
+    pub fee: Percent,
+    pub referral_reward: Percent,
 }
 
 impl CommissionForType {
-    pub fn new(fee: Price, referral_reward: Price) -> Self {
+    pub fn new(fee: Percent, referral_reward: Percent) -> Self {
         Self {
             fee,
             referral_reward,
@@ -28,13 +29,10 @@ impl Commission {
         Self { maker, taker }
     }
 
-    pub fn get_commission(&self, order_role: Option<OrderRole>) -> Result<CommissionForType> {
+    pub fn get_commission(&self, order_role: OrderRole) -> CommissionForType {
         match order_role {
-            Some(order_role) => match order_role {
-                OrderRole::Maker => return Ok(self.maker.clone()),
-                OrderRole::Taker => return Ok(self.taker.clone()),
-            },
-            None => bail!("Cannot get fee because there are no order_role"),
+            OrderRole::Maker => self.maker.clone(),
+            OrderRole::Taker => self.taker.clone(),
         }
     }
 }

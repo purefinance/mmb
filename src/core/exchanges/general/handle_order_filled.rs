@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use super::{
-    currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Round, exchange::Exchange,
+    commission, currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Round,
+    exchange::Exchange,
 };
 use crate::core::{
-    exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
+    exchanges::common::Amount, exchanges::common::ConvertPercentToRate,
+    exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
     exchanges::common::ExchangeAccountId, exchanges::common::Price,
     exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
     orders::fill::OrderFill, orders::fill::OrderFillType, orders::order::ClientOrderId,
@@ -14,9 +16,10 @@ use crate::core::{
 };
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
+use commission::Percent;
 use log::{error, info, warn};
 use parking_lot::RwLock;
-use rust_decimal::prelude::Zero;
+use rust_decimal::{prelude::Zero, Decimal};
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 
@@ -41,7 +44,7 @@ pub struct FillEventData {
     pub total_filled_amount: Option<Amount>,
     pub order_role: Option<OrderRole>,
     pub commission_currency_code: Option<CurrencyCode>,
-    pub commission_rate: Option<Amount>,
+    pub commission_rate: Option<Percent>,
     pub commission_amount: Option<Amount>,
     pub fill_type: OrderFillType,
     pub trade_currency_pair: Option<CurrencyPair>,
@@ -75,28 +78,17 @@ impl Exchange {
             )?;
         }
 
-        self.check_based_on_fill_type(&mut event_data, &args_to_log)?;
+        let maybe_order_ref =
+            self.add_order_in_pool_if_not_exists(&mut event_data, &args_to_log)?;
 
-        match self
-            .orders
-            .by_exchange_id
-            .get(&event_data.exchange_order_id)
-        {
+        match maybe_order_ref {
             None => {
                 info!("Received a fill for not existing order {:?}", &args_to_log);
                 // TODO BufferedFillsManager.add_fill()
 
-                if let Some(client_order_id) = event_data.client_order_id {
-                    self.raise_order_created(
-                        client_order_id,
-                        event_data.exchange_order_id,
-                        event_data.source_type,
-                    );
-                }
-
-                return Ok(());
+                unimplemented!("First need to implement BufferedFillsManager");
             }
-            Some(order) => self.local_order_exist(&mut event_data, &*order),
+            Some(order_ref) => self.try_to_create_and_add_order_fill(&mut event_data, &order_ref),
         }
     }
 
@@ -187,7 +179,7 @@ impl Exchange {
     }
 
     fn get_last_fill_data(
-        mut event_data: &mut FillEventData,
+        event_data: &mut FillEventData,
         currency_pair_metadata: &CurrencyPairMetadata,
         order_fills: &Vec<OrderFill>,
         order_filled_amount: Amount,
@@ -202,20 +194,20 @@ impl Exchange {
         };
 
         if !event_data.is_diff && order_fills.len() > 0 {
-            match Self::calculate_cost_diff(&order_fills, &*order_ref, last_fill_cost) {
+            match Self::calculate_cost_diff(&order_fills, order_ref, last_fill_cost) {
                 None => return Ok(None),
                 Some(cost_diff) => {
                     let (price, amount, cost) = Self::calculate_last_fill_data(
                         last_fill_amount,
-                        &order_fills,
                         order_filled_amount,
                         &currency_pair_metadata,
                         cost_diff,
-                        &mut event_data,
                     )?;
                     last_fill_price = price;
                     last_fill_amount = amount;
-                    last_fill_cost = cost
+                    last_fill_cost = cost;
+
+                    Self::try_set_commission_amount(event_data, order_fills);
                 }
             };
         }
@@ -236,13 +228,10 @@ impl Exchange {
     fn calculate_cost_diff(
         order_fills: &Vec<OrderFill>,
         order_ref: &OrderRef,
-        last_fill_cost: Price,
-    ) -> Option<Price> {
+        last_fill_cost: Decimal,
+    ) -> Option<Decimal> {
         // Diff should be calculated only if it is not the first fill
-        let mut total_filled_cost = dec!(0);
-        order_fills
-            .iter()
-            .for_each(|fill| total_filled_cost += fill.cost());
+        let total_filled_cost: Decimal = order_fills.iter().map(|fill| fill.cost()).sum();
         let cost_diff = last_fill_cost - total_filled_cost;
         if cost_diff <= dec!(0) {
             warn!(
@@ -258,11 +247,9 @@ impl Exchange {
 
     fn calculate_last_fill_data(
         last_fill_amount: Amount,
-        order_fills: &Vec<OrderFill>,
         order_filled_amount: Amount,
         currency_pair_metadata: &CurrencyPairMetadata,
         cost_diff: Price,
-        event_data: &mut FillEventData,
     ) -> Result<(Price, Amount, Price)> {
         let amount_diff = last_fill_amount - order_filled_amount;
         let res_fill_price = if !currency_pair_metadata.is_derivative() {
@@ -276,15 +263,17 @@ impl Exchange {
         let last_fill_amount = amount_diff;
         let last_fill_cost = cost_diff;
 
+        Ok((last_fill_price, last_fill_amount, last_fill_cost))
+    }
+
+    fn try_set_commission_amount(event_data: &mut FillEventData, order_fills: &Vec<OrderFill>) {
         if let Some(commission_amount) = event_data.commission_amount {
-            let mut current_commission = dec!(0);
-            order_fills
+            let current_commission: Decimal = order_fills
                 .iter()
-                .for_each(|fill| current_commission += fill.commission_amount());
+                .map(|fill| fill.commission_amount())
+                .sum();
             event_data.commission_amount = Some(commission_amount - current_commission);
         }
-
-        Ok((last_fill_price, last_fill_amount, last_fill_cost))
     }
 
     fn wrong_status_or_cancelled(order_ref: &OrderRef, event_data: &FillEventData) -> Result<()> {
@@ -335,7 +324,7 @@ impl Exchange {
 
     fn get_commission_amount(
         event_data: &FillEventData,
-        expected_commission_rate: Amount,
+        expected_commission_rate: Percent,
         last_fill_amount: Amount,
         last_fill_price: Price,
         commission_currency_code: &CurrencyCode,
@@ -360,14 +349,22 @@ impl Exchange {
         }
     }
 
-    fn try_set_commission_rate(event_data: &mut FillEventData, expected_commission_rate: Price) {
+    fn try_set_commission_rate(
+        &self,
+        event_data: &mut FillEventData,
+        order_role: OrderRole,
+    ) -> Decimal {
+        let commission = self.commission.get_commission(order_role).fee;
+        let expected_commission_rate = commission.percent_to_rate();
+
         if event_data.commission_amount.is_none() && event_data.commission_rate.is_none() {
             event_data.commission_rate = Some(expected_commission_rate);
         }
+
+        expected_commission_rate
     }
 
-    // FIXME unexpected? What's the better name?
-    fn calculate_commission_data_for_unexpected_currency_code(
+    fn update_commission_for_bnb_case(
         &self,
         commission_currency_code: &CurrencyCode,
         currency_pair_metadata: &CurrencyPairMetadata,
@@ -418,31 +415,6 @@ impl Exchange {
                 }
             }
         }
-
-        Ok(())
-    }
-
-    fn set_average_order_fill_price(
-        fills: &Vec<OrderFill>,
-        currency_pair_metadata: &CurrencyPairMetadata,
-        order_filled_amount: Amount,
-        order_ref: &OrderRef,
-    ) -> Result<()> {
-        let mut order_fills_cost_sum = dec!(0);
-        fills
-            .iter()
-            .for_each(|fill| order_fills_cost_sum += fill.cost());
-        let average_fill_price = if !currency_pair_metadata.is_derivative() {
-            order_fills_cost_sum / order_filled_amount
-        } else {
-            order_filled_amount / order_fills_cost_sum
-        };
-
-        let order_average_fill_price =
-            currency_pair_metadata.price_round(average_fill_price, Round::ToNearest)?;
-        order_ref.fn_mut(|order| {
-            order.internal_props.average_fill_price = order_average_fill_price;
-        });
 
         Ok(())
     }
@@ -517,7 +489,7 @@ impl Exchange {
         last_fill_amount: Amount,
         last_fill_price: Price,
         last_fill_cost: Price,
-        expected_commission_rate: Price,
+        expected_commission_rate: Percent,
         commission_amount: Amount,
         order_role: OrderRole,
         commission_currency_code: &CurrencyCode,
@@ -532,21 +504,15 @@ impl Exchange {
         let expected_converted_commission_amount =
             last_fill_amount_in_converted_commission_currency_code * expected_commission_rate;
 
-        let proportion_multiplier = dec!(0.01);
-        let referral_reward_amount = commission_amount
-            * self
-                .commission
-                .get_commission(Some(order_role))?
-                .referral_reward
-            * proportion_multiplier;
+        let referral_reward = self.commission.get_commission(order_role).referral_reward;
+        let referral_reward_amount = commission_amount * referral_reward.percent_to_rate();
 
         let rounded_fill_price =
             currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;
         let order_fill = OrderFill::new(
-            // FIXME what to do with it? Does it even use in C#?
             Uuid::new_v4(),
             Utc::now(),
-            OrderFillType::Liquidation,
+            event_data.fill_type,
             Some(trade_id.to_owned()),
             rounded_fill_price,
             last_fill_amount,
@@ -567,22 +533,22 @@ impl Exchange {
         Ok(order_fill)
     }
 
-    fn local_order_exist(
+    fn try_to_create_and_add_order_fill(
         &self,
         mut event_data: &mut FillEventData,
         order_ref: &OrderRef,
     ) -> Result<()> {
         let (order_fills, order_filled_amount) = order_ref.get_fills();
 
-        if Self::was_trade_already_received(&event_data.trade_id, &order_fills, &order_ref) {
+        if Self::was_trade_already_received(&event_data.trade_id, &order_fills, order_ref) {
             return Ok(());
         }
 
-        if Self::diff_fill_after_non_diff(&event_data, &order_fills, &order_ref) {
+        if Self::diff_fill_after_non_diff(&event_data, &order_fills, order_ref) {
             return Ok(());
         }
 
-        if Self::filled_amount_not_less_event_fill(&event_data, order_filled_amount, &order_ref) {
+        if Self::filled_amount_not_less_event_fill(&event_data, order_filled_amount, order_ref) {
             return Ok(());
         }
 
@@ -602,14 +568,17 @@ impl Exchange {
             &event_data,
             order_filled_amount,
             last_fill_amount,
-            &order_ref,
+            order_ref,
         ) {
             return Ok(());
         }
 
-        Self::wrong_status_or_cancelled(&*order_ref, &event_data)?;
+        Self::wrong_status_or_cancelled(order_ref, &event_data)?;
 
-        info!("Received fill {:?}", event_data);
+        info!(
+            "Received fill {:?} {} {}",
+            event_data, last_fill_price, last_fill_amount
+        );
 
         let commission_currency_code = match &event_data.commission_currency_code {
             Some(commission_currency_code) => commission_currency_code.clone(),
@@ -618,11 +587,7 @@ impl Exchange {
 
         let order_role = Self::get_order_role(event_data, order_ref)?;
 
-        let proportion_multiplier = dec!(0.01);
-        let expected_commission_rate =
-            self.commission.get_commission(Some(order_role))?.fee * proportion_multiplier;
-
-        Self::try_set_commission_rate(&mut event_data, expected_commission_rate);
+        let expected_commission_rate = self.try_set_commission_rate(&mut event_data, order_role);
 
         let commission_amount = Self::get_commission_amount(
             &event_data,
@@ -636,7 +601,7 @@ impl Exchange {
         let mut converted_commission_currency_code = commission_currency_code.clone();
         let mut converted_commission_amount = commission_amount;
 
-        self.calculate_commission_data_for_unexpected_currency_code(
+        self.update_commission_for_bnb_case(
             &commission_currency_code,
             &currency_pair_metadata,
             commission_amount,
@@ -648,7 +613,7 @@ impl Exchange {
             &event_data.trade_id,
             event_data.is_diff,
             &currency_pair_metadata,
-            &order_ref,
+            order_ref,
             &converted_commission_currency_code,
             last_fill_amount,
             last_fill_price,
@@ -661,35 +626,28 @@ impl Exchange {
         )?;
 
         // This order fields updated, so let's use actual values
-        let (order_fills, order_filled_amount) = order_ref.get_fills();
+        let (_, order_filled_amount) = order_ref.get_fills();
 
-        Self::set_average_order_fill_price(
-            &order_fills,
-            &currency_pair_metadata,
-            order_filled_amount,
-            order_ref,
-        )?;
+        self.check_fill_amounts_comformity(order_filled_amount, order_ref)?;
 
-        self.check_fill_amounts_comformity(order_filled_amount, &order_ref)?;
-
-        self.send_order_filled_event(&event_data, &order_ref, &order_fill)?;
+        self.send_order_filled_event(&event_data, order_ref, &order_fill)?;
 
         if event_data.source_type == EventSourceType::RestFallback {
             // TODO some metrics
         }
 
-        self.react_if_order_completed(order_filled_amount, &order_ref)?;
+        self.react_if_order_completed(order_filled_amount, order_ref)?;
 
         // TODO DataRecorder.save(order)
 
         Ok(())
     }
 
-    fn check_based_on_fill_type(
+    fn add_order_in_pool_if_not_exists(
         &self,
         event_data: &mut FillEventData,
         args_to_log: &ArgsToLog,
-    ) -> Result<()> {
+    ) -> Result<Option<OrderRef>> {
         if event_data.fill_type == OrderFillType::Liquidation
             || event_data.fill_type == OrderFillType::ClosePosition
         {
@@ -728,33 +686,31 @@ impl Exchange {
                 .by_exchange_id
                 .get(&event_data.exchange_order_id)
             {
-                Some(order) => {
-                    event_data.client_order_id = Some(order.client_order_id());
+                Some(order_ref) => {
+                    event_data.client_order_id = Some(order_ref.client_order_id());
+                    return Ok(Some(order_ref.clone()));
                 }
                 None => {
                     // Liquidation and ClosePosition are always Takers
-                    let order_instance = self.create_order_instance(event_data, OrderRole::Taker);
+                    let order_ref = self.create_order_in_pool(event_data, OrderRole::Taker);
 
-                    event_data.client_order_id =
-                        Some(order_instance.header.client_order_id.clone());
+                    event_data.client_order_id = Some(order_ref.client_order_id());
                     self.handle_create_order_succeeded(
                         &self.exchange_account_id,
-                        &order_instance.header.client_order_id,
+                        &order_ref.client_order_id(),
                         &event_data.exchange_order_id,
                         &event_data.source_type,
                     )?;
+
+                    return Ok(Some(order_ref));
                 }
             }
         }
 
-        Ok(())
+        Ok(None)
     }
 
-    fn create_order_instance(
-        &self,
-        event_data: &FillEventData,
-        order_role: OrderRole,
-    ) -> OrderSnapshot {
+    fn create_order_in_pool(&self, event_data: &FillEventData, order_role: OrderRole) -> OrderRef {
         let currency_pair = event_data
             .trade_currency_pair
             .clone()
@@ -780,12 +736,11 @@ impl Exchange {
             order_amount,
             order_side,
             None,
+            "Unknown order from handle_order_filled()",
         );
 
         self.orders
-            .add_snapshot_initial(Arc::new(RwLock::new(order_instance.clone())));
-
-        order_instance
+            .add_snapshot_initial(Arc::new(RwLock::new(order_instance)))
     }
 
     fn log_fill_handling_error_and_propagate(
@@ -887,7 +842,6 @@ mod test {
             base_currency_code.clone()
         };
 
-        let specific_currency_pair = "PHBBTC";
         let price_precision = 0;
         let amount_precision = 0;
         let price_tick = dec!(0.1);
@@ -898,7 +852,6 @@ mod test {
             base_currency_code.into(),
             quote_currency_code.into(),
             quote_currency_code.into(),
-            specific_currency_pair.into(),
             None,
             None,
             price_precision,
@@ -913,7 +866,9 @@ mod test {
             None,
             None,
         );
-        exchange.symbols.lock().push(Arc::new(symbol));
+        exchange
+            .symbols
+            .insert(symbol.currency_pair(), Arc::new(symbol));
 
         (exchange, rx)
     }
@@ -1095,7 +1050,7 @@ mod test {
 
         #[test]
         fn should_add_order() {
-            let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_amount = dec!(12);
             let order_role = None;
@@ -1224,6 +1179,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let cost = dec!(0);
@@ -1248,14 +1204,10 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
-            .local_order_exist(&mut event_data, &*order_ref)
+            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1303,6 +1255,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let cost = dec!(0);
@@ -1327,14 +1280,10 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
-            .local_order_exist(&mut event_data, &*order_ref)
+            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1382,6 +1331,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let cost = dec!(0);
@@ -1406,14 +1356,10 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
-            .local_order_exist(&mut event_data, &*order_ref)
+            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1425,7 +1371,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
         let fill_amount = dec!(0);
@@ -1461,6 +1407,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let cost = dec!(0);
@@ -1485,14 +1432,10 @@ mod test {
         );
         order.add_fill(order_fill);
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange
-            .local_order_exist(&mut event_data, &*order_ref)
+            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
             .expect("in test");
 
         let (_, order_filled_amount) = order_ref.get_fills();
@@ -1504,7 +1447,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1539,17 +1482,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.set_status(OrderStatus::FailedToCreate, Utc::now());
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -1565,7 +1505,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1600,17 +1540,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.set_status(OrderStatus::Completed, Utc::now());
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -1626,7 +1563,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1662,17 +1599,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
-        order.internal_props.cancellation_event_was_raised = true;
+        order.internal_props.was_cancellation_event_raised = true;
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 // TODO has to be Created!
@@ -1690,7 +1624,7 @@ mod test {
     fn calculate_cost_diff_on_buy_side() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -1712,7 +1646,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -1804,7 +1738,7 @@ mod test {
     fn calculate_cost_diff_on_sell_side() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -1826,7 +1760,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -1917,7 +1851,7 @@ mod test {
     fn calculate_cost_diff_on_buy_side_derivative() {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -1939,7 +1873,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -2017,7 +1951,6 @@ mod test {
         let (fills, filled_amount) = order_ref.get_fills();
 
         assert_eq!(filled_amount, dec!(10));
-        assert_eq!(order_ref.internal_props().average_fill_price, dec!(3000));
         assert_eq!(fills.len(), 2);
 
         let first_fill = &fills[0];
@@ -2031,13 +1964,13 @@ mod test {
         assert_eq!(second_fill.commission_amount(), dec!(0.02));
     }
 
-    // FIXME Why do we need tests like this?
+    // TODO Why do we need tests like this?
     // Nothing depends on order.side as I can see
     #[test]
     fn calculate_cost_diff_on_sell_side_derivative() {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -2059,7 +1992,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -2137,7 +2070,6 @@ mod test {
         let (fills, filled_amount) = order_ref.get_fills();
 
         assert_eq!(filled_amount, dec!(10));
-        assert_eq!(order_ref.internal_props().average_fill_price, dec!(3000));
         assert_eq!(fills.len(), 2);
 
         let first_fill = &fills[0];
@@ -2155,7 +2087,7 @@ mod test {
     fn ignore_non_diff_fill_with_second_cost_lesser() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -2177,7 +2109,7 @@ mod test {
             OrderExecutionType::None,
             None,
             None,
-            None,
+            "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
             Some(order_price),
@@ -2261,7 +2193,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(1);
@@ -2296,17 +2228,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert!(fills.is_empty());
@@ -2320,7 +2249,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2355,17 +2284,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2383,7 +2309,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2418,17 +2344,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2448,7 +2371,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2483,17 +2406,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match Exchange::get_order_role(&mut event_data, &*order_ref) {
+        match Exchange::get_order_role(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -2509,7 +2429,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2545,17 +2465,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2573,7 +2490,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2609,17 +2526,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2641,7 +2555,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2676,26 +2590,24 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
 
                 let quote_currency_code = exchange
                     .symbols
-                    .lock()
-                    .first()
-                    .expect("")
+                    .iter()
+                    .next()
+                    .expect("in test")
+                    .value()
                     .quote_currency_code
                     .clone();
 
@@ -2716,7 +2628,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2752,17 +2664,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -2781,7 +2690,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
@@ -2818,17 +2727,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2844,7 +2750,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
@@ -2880,17 +2786,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2906,7 +2809,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
@@ -2942,17 +2845,14 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
         order.fills.filled_amount = dec!(3);
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.local_order_exist(&mut event_data, &*order_ref)?;
+        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2968,7 +2868,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -3003,6 +2903,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         exchange
@@ -3010,13 +2911,9 @@ mod test {
             .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order.clone())));
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3034,7 +2931,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -3069,6 +2966,7 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         exchange
@@ -3076,13 +2974,9 @@ mod test {
             .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order.clone())));
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3100,7 +2994,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -3135,16 +3029,13 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3162,7 +3053,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -3198,16 +3089,13 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3228,7 +3116,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -3264,16 +3152,13 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3292,7 +3177,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -3327,16 +3212,13 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (fills, _) = order_ref.get_fills();
                 assert_eq!(fills.len(), 1);
@@ -3354,7 +3236,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_price = dec!(0.8);
         let order_amount = dec!(12);
@@ -3371,14 +3253,11 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -3399,7 +3278,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3428,7 +3307,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut second_event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3457,7 +3336,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut second_event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
             Ok(_) => {
                 let (_, filled_amount) = order_ref.get_fills();
 
@@ -3476,7 +3355,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_price = dec!(0.8);
         let order_amount = dec!(12);
@@ -3493,14 +3372,11 @@ mod test {
             order_amount,
             order_side,
             None,
+            "FromTest",
         );
 
         let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -3521,7 +3397,7 @@ mod test {
             order_amount: Some(dec!(0)),
         };
 
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
             Ok(_) => assert!(false),
             Err(error) => {
                 assert_eq!(
@@ -3529,93 +3405,6 @@ mod test {
                     &error.to_string()[..38]
                 );
             }
-        }
-    }
-
-    fn average_fill_price() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
-
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
-        let order_side = OrderSide::Buy;
-        let fill_price = dec!(0.8);
-        let order_amount = dec!(12);
-        let exchange_account_id = ExchangeOrderId::new("some_echange_order_id".into());
-        let client_account_id = ClientOrderId::unique_id();
-
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair.clone(),
-            fill_price,
-            order_amount,
-            order_side,
-            None,
-        );
-
-        let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .by_client_id
-            .get(&client_order_id)
-            .expect("in test");
-
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: "first_trend_id".into(),
-            client_order_id: Some(client_account_id.clone()),
-            exchange_order_id: exchange_account_id.clone(),
-            fill_price: dec!(0.2),
-            fill_amount: dec!(5),
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
-
-        match exchange.local_order_exist(&mut event_data, &*order_ref) {
-            Ok(_) => {
-                let right_average_fill_price = dec!(0.2);
-                let calculated = order_ref.internal_props().average_fill_price;
-                assert_eq!(calculated, right_average_fill_price);
-            }
-            Err(_) => assert!(false),
-        }
-
-        let mut second_event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: "second_trade_id".into(),
-            client_order_id: Some(client_account_id.clone()),
-            exchange_order_id: exchange_account_id.clone(),
-            fill_price: dec!(0.4),
-            fill_amount: dec!(5),
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
-
-        match exchange.local_order_exist(&mut second_event_data, &*order_ref) {
-            Ok(_) => {
-                let right_average_fill_price = dec!(0.3);
-                let calculated = order_ref.internal_props().average_fill_price;
-                assert_eq!(calculated, right_average_fill_price);
-            }
-            Err(_) => assert!(false),
         }
     }
 
@@ -3632,13 +3421,11 @@ mod test {
         #[test]
         fn order_completed_if_filled_completely() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
-
             let client_order_id = ClientOrderId::unique_id();
             let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.2);
             let order_amount = dec!(12);
-
             let order_ref = create_order_ref(
                 &client_order_id,
                 Some(OrderRole::Maker),
@@ -3648,22 +3435,18 @@ mod test {
                 order_amount,
                 order_side,
             );
-
             let order_filled_amount = order_amount;
             exchange.react_if_order_completed(order_filled_amount, &order_ref)?;
-
             let order_status = order_ref.status();
             assert_eq!(order_status, OrderStatus::Completed);
-
             Ok(())
         }
-
         #[test]
         fn order_not_filled() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.2);
             let order_amount = dec!(12);
@@ -3676,6 +3459,7 @@ mod test {
                 fill_price,
                 order_amount,
                 order_side,
+            "FromTest",
             );
 
             let order_filled_amount = dec!(10);
@@ -3688,7 +3472,7 @@ mod test {
         }
     }
 
-    mod calculate_commission_data_for_unexpected_currency_code {
+    mod update_commission_for_bnb_case {
         use super::*;
 
         #[test]
@@ -3696,7 +3480,13 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange.symbols.lock()[0].clone();
+            let currency_pair_metadata = exchange
+                .symbols
+                .iter()
+                .next()
+                .expect("in test")
+                .value()
+                .clone();
             let commission_amount = dec!(15);
             let mut converted_commission_amount = dec!(4.5);
             let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
@@ -3716,7 +3506,7 @@ mod test {
                 .order_book_top
                 .insert(currency_pair, order_book_top);
 
-            exchange.calculate_commission_data_for_unexpected_currency_code(
+            exchange.update_commission_for_bnb_case(
                 &commission_currency_code,
                 &currency_pair_metadata,
                 commission_amount,
@@ -3738,7 +3528,13 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange.symbols.lock()[0].clone();
+            let currency_pair_metadata = exchange
+                .symbols
+                .iter()
+                .next()
+                .expect("in test")
+                .value()
+                .clone();
             let commission_amount = dec!(15);
             let mut converted_commission_amount = dec!(4.5);
             let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
@@ -3758,7 +3554,7 @@ mod test {
                 .order_book_top
                 .insert(currency_pair, order_book_top);
 
-            exchange.calculate_commission_data_for_unexpected_currency_code(
+            exchange.update_commission_for_bnb_case(
                 &commission_currency_code,
                 &currency_pair_metadata,
                 commission_amount,
@@ -3780,12 +3576,18 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange.symbols.lock()[0].clone();
+            let currency_pair_metadata = exchange
+                .symbols
+                .iter()
+                .next()
+                .expect("in test")
+                .value()
+                .clone();
             let commission_amount = dec!(15);
             let mut converted_commission_amount = dec!(3);
             let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
 
-            exchange.calculate_commission_data_for_unexpected_currency_code(
+            exchange.update_commission_for_bnb_case(
                 &commission_currency_code,
                 &currency_pair_metadata,
                 commission_amount,

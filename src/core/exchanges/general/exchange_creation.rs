@@ -49,7 +49,7 @@ pub fn get_symbols(
             .iter()
             .filter(|x| {
                 if let Some(currency_pair) = &currency_pair_setting.currency_pair {
-                    return currency_pair.as_str() == x.specific_currency_pair.as_str();
+                    return currency_pair.as_str() == x.currency_pair().as_str();
                 }
 
                 return x.base_currency_code == currency_pair_setting.base

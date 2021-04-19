@@ -63,7 +63,7 @@ async fn cancelled_successfully() {
         OrderExecutionType::None,
         None,
         None,
-        None,
+        "FromCancelOrderTest".to_owned(),
     );
 
     let order_to_create = OrderCreating {
@@ -79,7 +79,6 @@ async fn cancelled_successfully() {
         .create_order(&order_to_create, CancellationToken::default())
         .await;
 
-    dbg!(&created_order);
     match created_order {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
@@ -156,7 +155,7 @@ async fn nothing_to_cancel() {
         OrderExecutionType::None,
         None,
         None,
-        None,
+        "FromCancelOrderTest".to_owned(),
     );
 
     let order_to_cancel = OrderCancelling {
