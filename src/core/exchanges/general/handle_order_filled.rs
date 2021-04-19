@@ -478,11 +478,11 @@ impl Exchange {
         Ok(())
     }
 
-    // FIXME extract currency_pair_metadata and just pass two values that using it
     fn add_fill(
         &self,
         trade_id: &str,
         is_diff: bool,
+        fill_type: OrderFillType,
         currency_pair_metadata: &CurrencyPairMetadata,
         order_ref: &OrderRef,
         converted_commission_currency_code: &CurrencyCode,
@@ -512,7 +512,7 @@ impl Exchange {
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
             Utc::now(),
-            event_data.fill_type,
+            fill_type,
             Some(trade_id.to_owned()),
             rounded_fill_price,
             last_fill_amount,
@@ -612,6 +612,7 @@ impl Exchange {
         let order_fill = self.add_fill(
             &event_data.trade_id,
             event_data.is_diff,
+            event_data.fill_type,
             &currency_pair_metadata,
             order_ref,
             &converted_commission_currency_code,
@@ -892,6 +893,7 @@ mod test {
             amount,
             side,
             None,
+            "StrategyInUnitTests",
         );
 
         let order_pool = OrdersPool::new();
@@ -3408,19 +3410,12 @@ mod test {
         }
     }
 
-    mod add_fill {
-        use super::*;
-        //#[double]
-        //use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
-        //use mockall_double::double;
-
-
     mod react_if_order_completed {
         use super::*;
 
         #[test]
         fn order_completed_if_filled_completely() -> Result<()> {
-            let (exchange, _event_receiver) = get_test_exchange(false);
+            let (exchange, event_receiver) = get_test_exchange(false);
             let client_order_id = ClientOrderId::unique_id();
             let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
             let order_side = OrderSide::Buy;
@@ -3438,15 +3433,23 @@ mod test {
             let order_filled_amount = order_amount;
             exchange.react_if_order_completed(order_filled_amount, &order_ref)?;
             let order_status = order_ref.status();
+
             assert_eq!(order_status, OrderStatus::Completed);
+            let gotten_id = event_receiver
+                .recv()
+                .context("Event was not received")?
+                .order
+                .client_order_id();
+            assert_eq!(gotten_id, client_order_id);
             Ok(())
         }
+
         #[test]
         fn order_not_filled() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.2);
             let order_amount = dec!(12);
@@ -3459,15 +3462,14 @@ mod test {
                 fill_price,
                 order_amount,
                 order_side,
-            "FromTest",
             );
 
             let order_filled_amount = dec!(10);
             exchange.react_if_order_completed(order_filled_amount, &order_ref)?;
 
             let order_status = order_ref.status();
-            assert_ne!(order_status, OrderStatus::Completed);
 
+            assert_ne!(order_status, OrderStatus::Completed);
             Ok(())
         }
     }
