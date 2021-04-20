@@ -8,6 +8,7 @@ pub mod orders;
 pub mod async_event;
 pub mod events;
 pub mod lifecycle;
+pub mod math;
 pub mod order_book;
 pub mod settings;
 pub mod text;

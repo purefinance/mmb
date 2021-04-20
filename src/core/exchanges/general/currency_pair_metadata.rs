@@ -3,10 +3,10 @@ use crate::core::{
     exchanges::common::CurrencyCode,
     exchanges::common::CurrencyId,
     exchanges::common::{CurrencyPair, Price},
+    math::powi,
     orders::order::OrderSide,
 };
 use anyhow::{bail, Result};
-use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 
@@ -218,24 +218,9 @@ impl CurrencyPairMetadata {
         Ok(floor_digits)
     }
 
-    fn powi(value: Decimal, degree: i8) -> Decimal {
-        match degree {
-            std::i8::MIN..=-1 => {
-                let mut result = dec!(1);
-                let degree = -degree;
-
-                for _ in 0..degree {
-                    result *= value;
-                }
-                dec!(1) / result
-            }
-            _ => value.powi(degree as u64),
-        }
-    }
-
     fn round_by_fraction(value: Price, precision: i8, round: Round) -> Result<Price> {
         let multiplier = dec!(0.1);
-        let pow_precision = Self::powi(multiplier, precision);
+        let pow_precision = powi(multiplier, precision);
 
         Self::inner_round_by_tick(value, pow_precision, round)
     }
@@ -292,6 +277,7 @@ impl Exchange {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rust_decimal_macros::dec;
 
     #[test]
     fn get_commission_currency_code_from_balance() {
@@ -329,1017 +315,141 @@ mod test {
         assert_eq!(gotten, balance_currency_code);
     }
 
-    mod custom_powi {
-        use super::*;
+    use rstest::rstest;
+    use rust_decimal::Decimal;
 
-        #[test]
-        fn first() -> Result<()> {
-            let value = dec!(0.1);
-            let precision = -1;
+    #[rstest]
+    #[case(dec!(123.456), 2, Round::Floor, dec!(123.45))]
+    #[case(dec!(12.3456), 2, Round::Floor, dec!(12.34))]
+    #[case(dec!(0), 2, Round::Floor, dec!(0))]
+    #[case(dec!(0.01234), 2, Round::Floor, dec!(0.01))]
+    #[case(dec!(0.01234), 3, Round::Floor, dec!(0.012))]
+    #[case(dec!(123.456), -1, Round::Floor, dec!(120))]
+    #[case(dec!(123.456), 0, Round::Floor, dec!(123))]
+    #[case(dec!(123.456), 2, Round::Ceiling, dec!(123.46))]
+    #[case(dec!(12.3456), 2, Round::Ceiling, dec!(12.35))]
+    #[case(dec!(0), 2, Round::Ceiling, dec!(0))]
+    #[case(dec!(0.01234), 2, Round::Ceiling, dec!(0.02))]
+    #[case(dec!(0.01234), 3, Round::Ceiling, dec!(0.013))]
+    #[case(dec!(123.456), -1, Round::Ceiling, dec!(130))]
+    #[case(dec!(123.456), 0, Round::Ceiling, dec!(124))]
+    #[case(dec!(123.456), 2, Round::ToNearest, dec!(123.46))]
+    #[case(dec!(12.3456), 2, Round::ToNearest, dec!(12.35))]
+    #[case(dec!(0), 2, Round::ToNearest, dec!(0))]
+    #[case(dec!(0.01234), 2, Round::ToNearest, dec!(0.01))]
+    #[case(dec!(0.01234), 3, Round::ToNearest, dec!(0.012))]
+    #[case(dec!(123.456), -1, Round::ToNearest, dec!(120))]
+    #[case(dec!(123.456), 0, Round::ToNearest, dec!(123))]
+    fn round_by_fraction(
+        #[case] value: Decimal,
+        #[case] precision: i8,
+        #[case] round_to: Round,
+        #[case] expected: Decimal,
+    ) -> Result<()> {
+        let rounded = CurrencyPairMetadata::round_by_fraction(value, precision, round_to)?;
 
-            let powered = CurrencyPairMetadata::powi(value, precision);
+        assert_eq!(rounded, expected);
 
-            let right_value = dec!(10);
-            assert_eq!(powered, right_value);
-
-            Ok(())
-        }
-
-        #[test]
-        fn second() -> Result<()> {
-            let value = dec!(0.1);
-            let precision = -6;
-
-            let powered = CurrencyPairMetadata::powi(value, precision);
-
-            let right_value = dec!(1000000);
-            assert_eq!(powered, right_value);
-
-            Ok(())
-        }
-
-        #[test]
-        fn third() -> Result<()> {
-            let value = dec!(1.6);
-            let precision = 2;
-
-            let powered = CurrencyPairMetadata::powi(value, precision);
-
-            let right_value = dec!(2.56);
-            assert_eq!(powered, right_value);
-
-            Ok(())
-        }
+        Ok(())
     }
 
-    mod round_by_fraction {
-        use super::*;
-
-        mod floor {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
-
-                let right_value = dec!(123.45);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(12.3456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
-
-                let right_value = dec!(12.34);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(0);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(0.01234);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
-
-                let right_value = dec!(0.01);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(0.01234);
-                let precision = 3;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
-
-                let right_value = dec!(0.012);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn sixth() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = -1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
-
-                let right_value = dec!(120);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn seventh() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 0;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
-
-                let right_value = dec!(123);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-        }
-
-        mod ceiling {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(123.46);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(12.3456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(12.35);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(0);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(0.01234);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(0.02);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(0.01234);
-                let precision = 3;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(0.013);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn sixth() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = -1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(130);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn seventh() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 0;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(124);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-        }
-
-        mod to_nearest {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(123.46);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(12.3456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(12.35);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(0);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(0.01234);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(0.01);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(0.01234);
-                let precision = 3;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(0.012);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn sixth() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = -1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(120);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn seventh() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 0;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(123);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
+    #[rstest]
+    #[case(dec!(123.456), 5, Round::Floor, dec!(123.45))]
+    #[case(dec!(12.34567), 5, Round::Floor, dec!(12.345))]
+    #[case(dec!(0.0123456), 5, Round::Floor, dec!(0.012345))]
+    #[case(dec!(0.0123456), 1, Round::Floor, dec!(0.01))]
+    #[case(dec!(0.00123456), 2, Round::Floor, dec!(0.0012))]
+    #[case(dec!(123.456), 4, Round::Floor, dec!(123.4))]
+    #[case(dec!(123.456), 2, Round::Floor, dec!(120))]
+    #[case(dec!(0), 5, Round::Floor, dec!(0))]
+    #[case(dec!(123.456), 5, Round::Ceiling, dec!(123.46))]
+    #[case(dec!(12.34567), 5, Round::Ceiling, dec!(12.346))]
+    #[case(dec!(0.0123456), 5, Round::Ceiling, dec!(0.012346))]
+    #[case(dec!(0.0123456), 1, Round::Ceiling, dec!(0.02))]
+    #[case(dec!(0.00123456), 2, Round::Ceiling, dec!(0.0013))]
+    #[case(dec!(123.456), 4, Round::Ceiling, dec!(123.5))]
+    #[case(dec!(123.456), 2, Round::Ceiling, dec!(130))]
+    #[case(dec!(0), 5, Round::Ceiling, dec!(0))]
+    #[case(dec!(123.456), 5, Round::ToNearest, dec!(123.46))]
+    #[case(dec!(12.34567), 5, Round::ToNearest, dec!(12.346))]
+    #[case(dec!(0.0123456), 5, Round::ToNearest, dec!(0.012346))]
+    #[case(dec!(0.0123456), 1, Round::ToNearest, dec!(0.01))]
+    #[case(dec!(0.00123456), 2, Round::ToNearest, dec!(0.0012))]
+    #[case(dec!(123.456), 4, Round::ToNearest, dec!(123.5))]
+    #[case(dec!(123.456), 2, Round::ToNearest, dec!(120))]
+    #[case(dec!(0), 5, Round::ToNearest, dec!(0))]
+    fn round_by_mantissa(
+        #[case] value: Decimal,
+        #[case] precision: i8,
+        #[case] round_to: Round,
+        #[case] expected: Decimal,
+    ) -> Result<()> {
+        let rounded = CurrencyPairMetadata::round_by_mantissa(value, precision, round_to)?;
+
+        assert_eq!(rounded, expected);
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case(dec!(123.456), 0, Round::Floor)]
+    #[case(dec!(123.456), -1, Round::Floor)]
+    #[case(dec!(123.456), 0, Round::Ceiling)]
+    #[case(dec!(123.456), -1, Round::Ceiling)]
+    #[case(dec!(123.456), 0, Round::ToNearest)]
+    #[case(dec!(123.456), -1, Round::ToNearest)]
+    fn round_by_mantissa_invalid_precision(
+        #[case] value: Decimal,
+        #[case] precision: i8,
+        #[case] round_to: Round,
+    ) {
+        let rounded = CurrencyPairMetadata::round_by_mantissa(value, precision, round_to);
+
+        assert!(rounded.is_err());
+    }
+
+    #[test]
+    fn too_small_tick() {
+        let value = dec!(123.456);
+        let tick = dec!(-0.1);
+
+        let maybe_error = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor);
+
+        match maybe_error {
+            Ok(_) => assert!(false),
+            Err(error) => {
+                assert_eq!("Too small tick: -0.1", &error.to_string()[..20]);
             }
         }
     }
 
-    mod round_by_mantissa {
-        use super::*;
-
-        mod floor {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
-
-                let right_value = dec!(123.45);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(12.34567);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
-
-                let right_value = dec!(12.345);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(0.0123456);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
-
-                let right_value = dec!(0.012345);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(0.0123456);
-                let precision = 1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
-
-                let right_value = dec!(0.01);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(0.00123456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
-
-                let right_value = dec!(0.0012);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn sixth() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 4;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
-
-                let right_value = dec!(123.4);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn seventh() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
-
-                let right_value = dec!(120);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn eighth() -> Result<()> {
-                let value = dec!(0);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-        }
-
-        mod ceiling {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(123.46);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(12.34567);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(12.346);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(0.0123456);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(0.012346);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(0.0123456);
-                let precision = 1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(0.02);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(0.00123456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(0.0013);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn sixth() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 4;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(123.5);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn seventh() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(130);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn eighth() -> Result<()> {
-                let value = dec!(0);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-        }
-
-        mod to_nearest {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(123.46);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(12.34567);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(12.346);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(0.01234567);
-                let precision = 5;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(0.012346);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(0.0123456);
-                let precision = 1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(0.01);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(0.00123456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(0.0012);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn sixth() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 4;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(123.5);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn seventh() -> Result<()> {
-                let value = dec!(123.456);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(120);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn eight() -> Result<()> {
-                let value = dec!(0);
-                let precision = 2;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-        }
-
-        mod invalid_precision {
-            use super::*;
-
-            #[test]
-            fn first() {
-                let value = dec!(123.456);
-                let precision = 0;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor);
-
-                assert!(rounded.is_err())
-            }
-
-            #[test]
-            fn second() {
-                let value = dec!(123.456);
-                let precision = -1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor);
-
-                assert!(rounded.is_err())
-            }
-
-            #[test]
-            fn third() {
-                let value = dec!(123.456);
-                let precision = 0;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling);
-
-                assert!(rounded.is_err())
-            }
-
-            #[test]
-            fn fourth() {
-                let value = dec!(123.456);
-                let precision = -1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling);
-
-                assert!(rounded.is_err())
-            }
-
-            #[test]
-            fn fifth() {
-                let value = dec!(123.456);
-                let precision = 0;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest);
-
-                assert!(rounded.is_err())
-            }
-
-            #[test]
-            fn sixth() {
-                let value = dec!(123.456);
-                let precision = -1;
-
-                let rounded =
-                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest);
-
-                assert!(rounded.is_err())
-            }
-        }
-    }
-
-    mod round_by_tick {
-        use super::*;
-
-        #[test]
-        fn too_small_tick() {
-            let value = dec!(123.456);
-            let tick = dec!(-0.1);
-
-            let maybe_error = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor);
-
-            match maybe_error {
-                Ok(_) => assert!(false),
-                Err(error) => {
-                    assert_eq!("Too small tick: -0.1", &error.to_string()[..20]);
-                }
-            }
-        }
-
-        mod floor {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.1);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor)?;
-
-                let right_value = dec!(123.4);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.4);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor)?;
-
-                let right_value = dec!(123.2);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.03);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor)?;
-
-                let right_value = dec!(123.45);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(2);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor)?;
-
-                let right_value = dec!(122);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(0);
-                let tick = dec!(0.03);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-        }
-
-        mod ceiling {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.1);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Ceiling)?;
-
-                let right_value = dec!(123.5);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.4);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Ceiling)?;
-
-                let right_value = dec!(123.6);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.03);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Ceiling)?;
-
-                let right_value = dec!(123.48);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(2);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Ceiling)?;
-
-                let right_value = dec!(124);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(0);
-                let tick = dec!(0.03);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::Ceiling)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-        }
-
-        mod to_nearest {
-            use super::*;
-
-            #[test]
-            fn first() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.1);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::ToNearest)?;
-
-                let right_value = dec!(123.5);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn second() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.4);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::ToNearest)?;
-
-                let right_value = dec!(123.6);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn third() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.03);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::ToNearest)?;
-
-                let right_value = dec!(123.45);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fourth() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(0.01);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::ToNearest)?;
-
-                let right_value = dec!(123.46);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn fifth() -> Result<()> {
-                let value = dec!(123.456);
-                let tick = dec!(2);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::ToNearest)?;
-
-                let right_value = dec!(124);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-
-            #[test]
-            fn sixth() -> Result<()> {
-                let value = dec!(0);
-                let tick = dec!(0.03);
-
-                let rounded = CurrencyPairMetadata::round_by_tick(value, tick, Round::ToNearest)?;
-
-                let right_value = dec!(0);
-                assert_eq!(rounded, right_value);
-
-                Ok(())
-            }
-        }
+    #[rstest]
+    #[case(dec!(123.456), dec!(0.1), Round::Floor, dec!(123.4))]
+    #[case(dec!(123.456), dec!(0.4), Round::Floor, dec!(123.2))]
+    #[case(dec!(123.456), dec!(0.03), Round::Floor, dec!(123.45))]
+    #[case(dec!(123.456), dec!(2), Round::Floor, dec!(122))]
+    #[case(dec!(0), dec!(0.03), Round::Floor, dec!(0))]
+    #[case(dec!(123.456), dec!(0.1), Round::Ceiling, dec!(123.5))]
+    #[case(dec!(123.456), dec!(0.4), Round::Ceiling, dec!(123.6))]
+    #[case(dec!(123.456), dec!(0.03), Round::Ceiling, dec!(123.48))]
+    #[case(dec!(123.456), dec!(2), Round::Ceiling, dec!(124))]
+    #[case(dec!(0), dec!(0.03), Round::Ceiling, dec!(0))]
+    #[case(dec!(123.456), dec!(0.1), Round::ToNearest, dec!(123.5))]
+    #[case(dec!(123.456), dec!(0.4), Round::ToNearest, dec!(123.6))]
+    #[case(dec!(123.456), dec!(0.03), Round::ToNearest, dec!(123.45))]
+    #[case(dec!(123.456), dec!(0.01), Round::ToNearest, dec!(123.46))]
+    #[case(dec!(123.456), dec!(2), Round::ToNearest, dec!(124))]
+    #[case(dec!(0), dec!(0.03), Round::ToNearest, dec!(0))]
+    fn round_by_tick(
+        #[case] value: Decimal,
+        #[case] tick: Decimal,
+        #[case] round_to: Round,
+        #[case] expected: Decimal,
+    ) -> Result<()> {
+        let rounded = CurrencyPairMetadata::round_by_tick(value, tick, round_to)?;
+
+        assert_eq!(rounded, expected);
+
+        Ok(())
     }
 }

@@ -5,14 +5,13 @@ use super::{
     exchange::Exchange,
 };
 use crate::core::{
-    exchanges::common::Amount, exchanges::common::ConvertPercentToRate,
-    exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
+    exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
     exchanges::common::ExchangeAccountId, exchanges::common::Price,
-    exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
-    orders::fill::OrderFill, orders::fill::OrderFillType, orders::order::ClientOrderId,
-    orders::order::ExchangeOrderId, orders::order::OrderEventType, orders::order::OrderRole,
-    orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderStatus,
-    orders::order::OrderType, orders::pool::OrderRef,
+    exchanges::events::AllowedEventSourceType, math::ConvertPercentToRate,
+    orders::fill::EventSourceType, orders::fill::OrderFill, orders::fill::OrderFillType,
+    orders::order::ClientOrderId, orders::order::ExchangeOrderId, orders::order::OrderEventType,
+    orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
+    orders::order::OrderStatus, orders::order::OrderType, orders::pool::OrderRef,
 };
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
