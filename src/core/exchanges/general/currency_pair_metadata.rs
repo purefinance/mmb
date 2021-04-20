@@ -6,6 +6,7 @@ use crate::core::{
     orders::order::OrderSide,
 };
 use anyhow::{bail, Result};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 
@@ -217,9 +218,24 @@ impl CurrencyPairMetadata {
         Ok(floor_digits)
     }
 
+    fn powi(value: Decimal, degree: i8) -> Decimal {
+        match degree {
+            std::i8::MIN..=-1 => {
+                let mut result = dec!(1);
+                let degree = -degree;
+
+                for _ in 0..degree {
+                    result *= value;
+                }
+                dec!(1) / result
+            }
+            _ => value.powi(degree as u64),
+        }
+    }
+
     fn round_by_fraction(value: Price, precision: i8, round: Round) -> Result<Price> {
         let multiplier = dec!(0.1);
-        let pow_precision = multiplier.powi(precision as u64);
+        let pow_precision = Self::powi(multiplier, precision);
 
         Self::inner_round_by_tick(value, pow_precision, round)
     }
@@ -313,6 +329,49 @@ mod test {
         assert_eq!(gotten, balance_currency_code);
     }
 
+    mod custom_powi {
+        use super::*;
+
+        #[test]
+        fn first() -> Result<()> {
+            let value = dec!(0.1);
+            let precision = -1;
+
+            let powered = CurrencyPairMetadata::powi(value, precision);
+
+            let right_value = dec!(10);
+            assert_eq!(powered, right_value);
+
+            Ok(())
+        }
+
+        #[test]
+        fn second() -> Result<()> {
+            let value = dec!(0.1);
+            let precision = -6;
+
+            let powered = CurrencyPairMetadata::powi(value, precision);
+
+            let right_value = dec!(1000000);
+            assert_eq!(powered, right_value);
+
+            Ok(())
+        }
+
+        #[test]
+        fn third() -> Result<()> {
+            let value = dec!(1.6);
+            let precision = 2;
+
+            let powered = CurrencyPairMetadata::powi(value, precision);
+
+            let right_value = dec!(2.56);
+            assert_eq!(powered, right_value);
+
+            Ok(())
+        }
+    }
+
     mod round_by_fraction {
         use super::*;
 
@@ -389,20 +448,19 @@ mod test {
                 Ok(())
             }
 
-            // FIXME ask about negative precision
-            //#[test]
-            //fn sixth() -> Result<()> {
-            //    let value = dec!(123.456);
-            //    let precision = -1;
+            #[test]
+            fn sixth() -> Result<()> {
+                let value = dec!(123.456);
+                let precision = -1;
 
-            //    let rounded =
-            //        CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
+                let rounded =
+                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Floor)?;
 
-            //    let right_value = dec!(120);
-            //    assert_eq!(rounded, right_value);
+                let right_value = dec!(120);
+                assert_eq!(rounded, right_value);
 
-            //    Ok(())
-            //}
+                Ok(())
+            }
 
             #[test]
             fn seventh() -> Result<()> {
@@ -492,20 +550,19 @@ mod test {
                 Ok(())
             }
 
-            // FIXME ask about negative precision
-            //#[test]
-            //fn sixth() -> Result<()> {
-            //    let value = dec!(123.456);
-            //    let precision = -1;
+            #[test]
+            fn sixth() -> Result<()> {
+                let value = dec!(123.456);
+                let precision = -1;
 
-            //    let rounded =
-            //        CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
+                let rounded =
+                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::Ceiling)?;
 
-            //    let right_value = dec!(130);
-            //    assert_eq!(rounded, right_value);
+                let right_value = dec!(130);
+                assert_eq!(rounded, right_value);
 
-            //    Ok(())
-            //}
+                Ok(())
+            }
 
             #[test]
             fn seventh() -> Result<()> {
@@ -595,20 +652,19 @@ mod test {
                 Ok(())
             }
 
-            // FIXME ask about negative precision
-            //#[test]
-            //fn sixth() -> Result<()> {
-            //    let value = dec!(123.456);
-            //    let precision = -1;
+            #[test]
+            fn sixth() -> Result<()> {
+                let value = dec!(123.456);
+                let precision = -1;
 
-            //    let rounded =
-            //        CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
+                let rounded =
+                    CurrencyPairMetadata::round_by_fraction(value, precision, Round::ToNearest)?;
 
-            //    let right_value = dec!(130);
-            //    assert_eq!(rounded, right_value);
+                let right_value = dec!(120);
+                assert_eq!(rounded, right_value);
 
-            //    Ok(())
-            //}
+                Ok(())
+            }
 
             #[test]
             fn seventh() -> Result<()> {
@@ -716,20 +772,19 @@ mod test {
                 Ok(())
             }
 
-            //// FIXME producing -1 to round_by_fraction, so it's freezing
-            //#[test]
-            //fn seventh() -> Result<()> {
-            //    let value = dec!(123.456);
-            //    let precision = 2;
+            #[test]
+            fn seventh() -> Result<()> {
+                let value = dec!(123.456);
+                let precision = 2;
 
-            //    let rounded =
-            //        CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
+                let rounded =
+                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Floor)?;
 
-            //    let right_value = dec!(120);
-            //    assert_eq!(rounded, right_value);
+                let right_value = dec!(120);
+                assert_eq!(rounded, right_value);
 
-            //    Ok(())
-            //}
+                Ok(())
+            }
 
             #[test]
             fn eighth() -> Result<()> {
@@ -833,20 +888,19 @@ mod test {
                 Ok(())
             }
 
-            //// FIXME producing -1 to round_by_fraction, so it's freezing
-            //#[test]
-            //fn seventh() -> Result<()> {
-            //    let value = dec!(123.456);
-            //    let precision = 2;
+            #[test]
+            fn seventh() -> Result<()> {
+                let value = dec!(123.456);
+                let precision = 2;
 
-            //    let rounded =
-            //        CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
+                let rounded =
+                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::Ceiling)?;
 
-            //    let right_value = dec!(130);
-            //    assert_eq!(rounded, right_value);
+                let right_value = dec!(130);
+                assert_eq!(rounded, right_value);
 
-            //    Ok(())
-            //}
+                Ok(())
+            }
 
             #[test]
             fn eighth() -> Result<()> {
@@ -950,20 +1004,19 @@ mod test {
                 Ok(())
             }
 
-            //// FIXME producing -1 to round_by_fraction, so it's freezing
-            //#[test]
-            //fn seventh() -> Result<()> {
-            //    let value = dec!(123.456);
-            //    let precision = 2;
+            #[test]
+            fn seventh() -> Result<()> {
+                let value = dec!(123.456);
+                let precision = 2;
 
-            //    let rounded =
-            //        CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
+                let rounded =
+                    CurrencyPairMetadata::round_by_mantissa(value, precision, Round::ToNearest)?;
 
-            //    let right_value = dec!(120);
-            //    assert_eq!(rounded, right_value);
+                let right_value = dec!(120);
+                assert_eq!(rounded, right_value);
 
-            //    Ok(())
-            //}
+                Ok(())
+            }
 
             #[test]
             fn eight() -> Result<()> {
