@@ -47,6 +47,7 @@ async fn open_orders_exists() {
             false,
             true,
             AllowedEventSourceType::default(),
+            AllowedEventSourceType::default(),
         ),
         tx,
         Commission::default(),

@@ -373,7 +373,7 @@ pub struct SystemInternalOrderProps {
     pub last_order_trades_request_time: Option<DateTime>,
 
     pub handled_by_balance_recovery: bool,
-    pub filled_amount_after_cancellation: Option<Decimal>,
+    pub filled_amount_after_cancellation: Option<Amount>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

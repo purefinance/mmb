@@ -48,6 +48,7 @@ pub async fn should_connect_and_reconnect_normally() {
             false,
             true,
             AllowedEventSourceType::default(),
+            AllowedEventSourceType::default(),
         ),
         tx,
         Commission::default(),

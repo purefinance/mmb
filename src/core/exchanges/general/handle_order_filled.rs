@@ -762,7 +762,7 @@ impl Exchange {
         bail!("{}", error_msg)
     }
 
-    fn should_ignore_event(
+    pub(super) fn should_ignore_event(
         allowed_event_source_type: AllowedEventSourceType,
         source_type: EventSourceType,
     ) -> bool {
@@ -831,6 +831,7 @@ mod test {
                 OpenOrdersType::AllCurrencyPair,
                 false,
                 true,
+                AllowedEventSourceType::default(),
                 AllowedEventSourceType::default(),
             ),
             tx,

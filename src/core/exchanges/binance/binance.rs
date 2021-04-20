@@ -261,6 +261,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 false,
                 false,
                 AllowedEventSourceType::All,
+                AllowedEventSourceType::All,
             ),
         )
     }
