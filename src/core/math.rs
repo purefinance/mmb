@@ -16,8 +16,7 @@ pub(crate) fn powi(value: Decimal, degree: i8) -> Decimal {
     if degree < 0 {
         let degree = -degree;
 
-        let result = value.powi(degree as u64);
-        dec!(1) / result
+        dec!(1) / value.powi(degree as u64)
     } else {
         value.powi(degree as u64)
     }
@@ -26,42 +25,17 @@ pub(crate) fn powi(value: Decimal, degree: i8) -> Decimal {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rstest::rstest;
 
-    mod custom_powi {
-        use super::*;
-        use rust_decimal_macros::dec;
+    use rust_decimal_macros::dec;
 
-        #[test]
-        fn first() {
-            let value = dec!(0.1);
-            let degree = -1;
+    #[rstest]
+    #[case(dec!(0.1), -1, dec!(10))]
+    #[case(dec!(0.1), -6, dec!(1000000))]
+    #[case(dec!(1.6), 2, dec!(2.56))]
+    fn custom_powi(#[case] value: Decimal, #[case] degree: i8, #[case] expected: Decimal) {
+        let powered = powi(value, degree);
 
-            let powered = powi(value, degree);
-
-            let right_value = dec!(10);
-            assert_eq!(powered, right_value);
-        }
-
-        #[test]
-        fn second() {
-            let value = dec!(0.1);
-            let degree = -6;
-
-            let powered = powi(value, degree);
-
-            let right_value = dec!(1000000);
-            assert_eq!(powered, right_value);
-        }
-
-        #[test]
-        fn third() {
-            let value = dec!(1.6);
-            let degree = 2;
-
-            let powered = powi(value, degree);
-
-            let right_value = dec!(2.56);
-            assert_eq!(powered, right_value);
-        }
+        assert_eq!(powered, expected);
     }
 }
