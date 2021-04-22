@@ -1,24 +1,33 @@
 use super::support::BinanceOrderInfo;
 use crate::core::exchanges::general::exchange::BoxExchangeClient;
-use crate::core::exchanges::general::features::{ExchangeFeatures, OpenOrdersType};
-use crate::core::exchanges::rest_client;
+use crate::core::exchanges::{
+    common::CurrencyCode,
+    general::features::{ExchangeFeatures, OpenOrdersType},
+};
 use crate::core::exchanges::traits::ExchangeClientBuilder;
-use crate::core::exchanges::utils;
 use crate::core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
     events::AllowedEventSourceType,
 };
+use crate::core::exchanges::{general::handle_order_filled::FillEventData, utils};
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
-use anyhow::{anyhow, Context, Result};
+use crate::core::{exchanges::rest_client, DateTime};
+use crate::core::{
+    exchanges::traits::{ExchangeClient, ExchangeClientBuilder},
+    orders::fill::OrderFillType,
+};
+use anyhow::{anyhow, bail, Context, Result};
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use log::error;
 use parking_lot::Mutex;
+use rust_decimal::Decimal;
 use serde_json::Value;
 use sha2::Sha256;
-use std::collections::HashMap;
+use std::str::FromStr;
+use std::{collections::HashMap, time::Duration, time::SystemTime, time::UNIX_EPOCH};
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -237,11 +246,92 @@ impl Binance {
                     client_order_id, msg_to_log
                 ),
             },
-            "TRADE" | "CALCULATED" => {} // TODO handle it,
+            // TODO integrational test for that
+            "TRADE" | "CALCULATED" => {
+                let trade_id = json_response["t"]
+                    .as_str()
+                    .ok_or(anyhow!("Unable to parse trade id"))?
+                    .to_owned();
+                let last_filled_price = json_response["L"]
+                    .as_str()
+                    .ok_or(anyhow!("Unable to parse last filled price"))?
+                    .to_owned();
+                let last_filled_amount = json_response["l"]
+                    .as_str()
+                    .ok_or(anyhow!("Unable to parse last filled amount"))?
+                    .to_owned();
+                let total_filled_amount = json_response["z"]
+                    .as_str()
+                    .ok_or(anyhow!("Unable to parse total filled amount"))?
+                    .to_owned();
+                let commission_amount = json_response["n"]
+                    .as_str()
+                    .ok_or(anyhow!("Unable to parse last commisstion amount"))?
+                    .to_owned();
+                let commission_currency = json_response["N"]
+                    .as_str()
+                    .ok_or(anyhow!("Unable to parse last commission currency"))?
+                    .to_owned();
+                // TODO more complicated get_currency_code() depends on supported_currencies
+                let commission_currency_code = CurrencyCode::new(commission_currency.into());
+                let is_maker = json_response["m"]
+                    .as_bool()
+                    .ok_or(anyhow!("Unable to parse trade side"))?;
+                let order_side = Self::to_local_order_side(
+                    json_response["S"]
+                        .as_str()
+                        .ok_or(anyhow!("Unable to parse last filled amount"))?,
+                );
+
+                let event_time = json_response["E"].as_u64();
+                let receive_time = event_time.map(|time| {
+                    let unix_timestamp: SystemTime = UNIX_EPOCH + Duration::from_millis(time);
+                    DateTime::from(unix_timestamp)
+                });
+
+                let fill_type = Self::get_fill_type(execution_type)?;
+                let order_role = if is_maker {
+                    OrderRole::Maker
+                } else {
+                    OrderRole::Taker
+                };
+
+                let event_data = FillEventData {
+                    source_type: EventSourceType::WebSocket,
+                    trade_id,
+                    client_order_id: Some(ClientOrderId::new(client_order_id.into())),
+                    exchange_order_id: ExchangeOrderId::new(exchange_order_id.into()),
+                    fill_price: Decimal::from_str(&last_filled_price)?,
+                    fill_amount: Decimal::from_str(&last_filled_amount)?,
+                    is_diff: true,
+                    total_filled_amount: Some(Decimal::from_str(&total_filled_amount)?),
+                    order_role: Some(order_role),
+                    commission_currency_code: Some(commission_currency_code),
+                    commission_rate: None,
+                    commission_amount: Some(Decimal::from_str(&commission_amount)?),
+                    fill_type,
+                    trade_currency_pair: None,
+                    order_side: Some(order_side),
+                    order_amount: None,
+                    receive_time,
+                };
+
+                //handle_order_filled();
+            }
             _ => error!("Impossible execution type"),
         }
 
         Ok(())
+    }
+
+    fn get_fill_type(raw_type: &str) -> Result<OrderFillType> {
+        match raw_type {
+            "CALCULATED" => Ok(OrderFillType::Liquidation),
+            "FILL" => Ok(OrderFillType::UserTrade),
+            "TRADE" => Ok(OrderFillType::UserTrade),
+            "PARTIAL_FILL" => Ok(OrderFillType::UserTrade),
+            _ => bail!("Unable to map trade type"),
+        }
     }
 }
 

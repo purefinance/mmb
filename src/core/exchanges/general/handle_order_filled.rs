@@ -11,7 +11,7 @@ use crate::core::{
     orders::fill::EventSourceType, orders::fill::OrderFill, orders::fill::OrderFillType,
     orders::order::ClientOrderId, orders::order::ExchangeOrderId, orders::order::OrderEventType,
     orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
-    orders::order::OrderStatus, orders::order::OrderType, orders::pool::OrderRef,
+    orders::order::OrderStatus, orders::order::OrderType, orders::pool::OrderRef, DateTime,
 };
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
@@ -49,6 +49,7 @@ pub struct FillEventData {
     pub trade_currency_pair: Option<CurrencyPair>,
     pub order_side: Option<OrderSide>,
     pub order_amount: Option<Amount>,
+    pub receive_time: Option<DateTime>,
 }
 
 impl Exchange {
@@ -511,6 +512,7 @@ impl Exchange {
             currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
+            // FIXME receive_time?
             Utc::now(),
             fill_type,
             Some(trade_id.to_owned()),
@@ -790,123 +792,15 @@ mod test {
 
     use super::*;
     use crate::core::{
-        exchanges::binance::binance::Binance, exchanges::common::CurrencyCode,
-        exchanges::general::commission::Commission,
-        exchanges::general::commission::CommissionForType,
-        exchanges::general::currency_pair_metadata::PrecisionType,
-        exchanges::general::exchange::OrderBookTop, exchanges::general::exchange::PriceLevel,
-        exchanges::general::features::ExchangeFeatures,
-        exchanges::general::features::OpenOrdersType, orders::event::OrderEvent,
-        orders::fill::OrderFill, orders::order::OrderExecutionType, orders::order::OrderFillRole,
-        orders::order::OrderFills, orders::order::OrderHeader, orders::order::OrderSimpleProps,
+        exchanges::common::CurrencyCode, exchanges::general::exchange::OrderBookTop,
+        exchanges::general::exchange::PriceLevel, exchanges::general::test_helper,
+        exchanges::general::test_helper::create_order_ref,
+        exchanges::general::test_helper::get_test_exchange, orders::fill::OrderFill,
+        orders::order::OrderExecutionType, orders::order::OrderFillRole, orders::order::OrderFills,
+        orders::order::OrderHeader, orders::order::OrderSimpleProps,
         orders::order::OrderStatusHistory, orders::order::SystemInternalOrderProps,
-        orders::pool::OrdersPool, settings,
+        orders::pool::OrdersPool,
     };
-    use std::sync::mpsc::{channel, Receiver};
-
-    fn get_test_exchange(is_derivative: bool) -> (Arc<Exchange>, Receiver<OrderEvent>) {
-        let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
-        let settings = settings::ExchangeSettings::new(
-            exchange_account_id.clone(),
-            "test_api_key".into(),
-            "test_secret_key".into(),
-            false,
-        );
-
-        let binance = Binance::new(settings, "Binance0".parse().expect("in test"));
-        let referral_reward = dec!(40);
-        let commission = Commission::new(
-            CommissionForType::new(dec!(0.1), referral_reward),
-            CommissionForType::new(dec!(0.2), referral_reward),
-        );
-
-        let (tx, rx) = channel();
-        let exchange = Exchange::new(
-            exchange_account_id,
-            "host".into(),
-            vec![],
-            vec![],
-            Box::new(binance),
-            ExchangeFeatures::new(
-                OpenOrdersType::AllCurrencyPair,
-                false,
-                true,
-                AllowedEventSourceType::default(),
-                AllowedEventSourceType::default(),
-            ),
-            tx,
-            commission,
-        );
-        let base_currency_code = "PHB";
-        let quote_currency_code = "BTC";
-        let amount_currency_code = if is_derivative {
-            quote_currency_code.clone()
-        } else {
-            base_currency_code.clone()
-        };
-
-        let price_precision = 0;
-        let amount_precision = 0;
-        let price_tick = dec!(0.1);
-        let symbol = CurrencyPairMetadata::new(
-            false,
-            is_derivative,
-            base_currency_code.into(),
-            base_currency_code.into(),
-            quote_currency_code.into(),
-            quote_currency_code.into(),
-            None,
-            None,
-            price_precision,
-            PrecisionType::ByFraction,
-            Some(price_tick),
-            amount_currency_code.into(),
-            None,
-            None,
-            amount_precision,
-            PrecisionType::ByFraction,
-            None,
-            None,
-            None,
-        );
-        exchange
-            .symbols
-            .insert(symbol.currency_pair(), Arc::new(symbol));
-
-        (exchange, rx)
-    }
-
-    fn create_order_ref(
-        client_order_id: &ClientOrderId,
-        role: Option<OrderRole>,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
-        price: Price,
-        amount: Amount,
-        side: OrderSide,
-    ) -> OrderRef {
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            role,
-            exchange_account_id.clone(),
-            currency_pair.clone(),
-            price,
-            amount,
-            side,
-            None,
-            "StrategyInUnitTests",
-        );
-
-        let order_pool = OrdersPool::new();
-        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-        let order_ref = order_pool
-            .cache_by_client_id
-            .get(&client_order_id)
-            .expect("in test");
-
-        order_ref.clone()
-    }
 
     mod liquidation {
         use super::*;
@@ -930,6 +824,7 @@ mod test {
                 trade_currency_pair: None,
                 order_side: None,
                 order_amount: None,
+                receive_time: Some(Utc::now()),
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -966,6 +861,7 @@ mod test {
                 )),
                 order_side: None,
                 order_amount: None,
+                receive_time: Some(Utc::now()),
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -1002,6 +898,7 @@ mod test {
                 )),
                 order_side: Some(OrderSide::Buy),
                 order_amount: None,
+                receive_time: Some(Utc::now()),
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -1038,6 +935,7 @@ mod test {
                 )),
                 order_side: Some(OrderSide::Buy),
                 order_amount: None,
+                receive_time: Some(Utc::now()),
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -1078,6 +976,7 @@ mod test {
                 trade_currency_pair: Some(currency_pair.clone()),
                 order_side: Some(order_side),
                 order_amount: Some(order_amount),
+                receive_time: Some(Utc::now()),
             };
 
             let (exchange, _event_received) = get_test_exchange(false);
@@ -1127,6 +1026,7 @@ mod test {
                 )),
                 order_side: Some(OrderSide::Buy),
                 order_amount: Some(dec!(0)),
+                receive_time: Some(Utc::now()),
             };
 
             let (exchange, _event_receiver) = get_test_exchange(false);
@@ -1171,6 +1071,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1247,6 +1148,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1323,6 +1225,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1399,6 +1302,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1474,6 +1378,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1532,6 +1437,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1591,6 +1497,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1669,9 +1576,9 @@ mod test {
             SystemInternalOrderProps::default(),
         );
 
-        exchange
-            .orders
-            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let first_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1690,6 +1597,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -1713,6 +1621,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -1783,9 +1692,10 @@ mod test {
             SystemInternalOrderProps::default(),
         );
 
-        exchange
-            .orders
-            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+
+        test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let first_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1804,6 +1714,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -1827,6 +1738,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -1896,9 +1808,9 @@ mod test {
             SystemInternalOrderProps::default(),
         );
 
-        exchange
-            .orders
-            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let first_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1917,6 +1829,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -1940,6 +1853,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -2015,9 +1929,9 @@ mod test {
             SystemInternalOrderProps::default(),
         );
 
-        exchange
-            .orders
-            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let first_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2036,6 +1950,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -2059,6 +1974,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -2132,9 +2048,9 @@ mod test {
             SystemInternalOrderProps::default(),
         );
 
-        exchange
-            .orders
-            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order)));
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
         let first_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2153,6 +2069,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -2176,6 +2093,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         exchange
@@ -2220,6 +2138,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2276,6 +2195,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2336,6 +2256,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2398,6 +2319,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2457,6 +2379,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2518,6 +2441,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2582,6 +2506,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2656,6 +2581,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2719,6 +2645,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2778,6 +2705,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2837,6 +2765,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2934,6 +2863,7 @@ mod test {
     }
 
     mod add_fill {
+
         use super::*;
 
         #[test]
@@ -3426,6 +3356,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
@@ -3455,6 +3386,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
@@ -3484,6 +3416,7 @@ mod test {
             trade_currency_pair: Some(currency_pair.clone()),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            receive_time: Some(Utc::now()),
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
