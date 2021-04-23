@@ -3,6 +3,7 @@ use super::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
     general::currency_pair_metadata::CurrencyPairMetadata,
+    general::handle_order_filled::FillEventData,
 };
 use crate::core::exchanges::general::exchange::BoxExchangeClient;
 use crate::core::exchanges::general::features::ExchangeFeatures;
@@ -49,6 +50,8 @@ pub trait Support: Send + Sync {
         &self,
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     );
+
+    fn set_handle_order_filled_callback(&self, callback: Box<dyn FnMut(FillEventData)>);
 
     fn build_ws_main_path(
         &self,

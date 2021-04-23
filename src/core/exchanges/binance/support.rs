@@ -1,6 +1,7 @@
 use super::binance::Binance;
 use crate::core::exchanges::{
-    general::currency_pair_metadata::CurrencyPairMetadata, traits::Support,
+    general::currency_pair_metadata::CurrencyPairMetadata,
+    general::handle_order_filled::FillEventData, traits::Support,
 };
 use crate::core::orders::order::*;
 use crate::core::{
@@ -156,6 +157,10 @@ impl Support for Binance {
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     ) {
         *self.order_cancelled_callback.lock() = callback;
+    }
+
+    fn set_handle_order_filled_callback(&self, callback: Box<dyn FnMut(FillEventData)>) {
+        *self.handle_order_filled_callback.lock() = callback;
     }
 
     fn build_ws_main_path(

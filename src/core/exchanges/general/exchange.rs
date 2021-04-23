@@ -178,6 +178,20 @@ impl Exchange {
                 ),
             },
         ));
+
+        let exchange_weak = Arc::downgrade(&self);
+        self.exchange_client
+            .set_handle_order_filled_callback(Box::new(move |event_data| {
+                match exchange_weak.upgrade() {
+                    Some(exchange) => {
+                        // FIXME How to handle Result here?
+                        exchange.handle_order_filled(event_data);
+                    }
+                    None => info!(
+                        "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
+                    ),
+                }
+            }));
     }
 
     fn on_websocket_message(&self, msg: &str) {

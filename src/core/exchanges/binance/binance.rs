@@ -36,6 +36,7 @@ pub struct Binance {
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub order_cancelled_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
+    pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData)>>,
 
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
@@ -59,6 +60,7 @@ impl Binance {
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
+            handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
             unified_to_specific,
             specific_to_unified,
         }
@@ -316,7 +318,7 @@ impl Binance {
                     receive_time,
                 };
 
-                //handle_order_filled();
+                (&self.handle_order_filled_callback).lock()(event_data);
             }
             _ => error!("Impossible execution type"),
         }
