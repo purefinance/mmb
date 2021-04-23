@@ -170,8 +170,12 @@ impl Exchange {
         self.exchange_client.set_order_cancelled_callback(Box::new(
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
-                    // FIXME How to handle Result here?
-                    exchange.raise_order_cancelled(client_order_id, exchange_order_id, source_type);
+                    // TODO Probably graceful shutdown
+                    let _ = exchange.raise_order_cancelled(
+                        client_order_id,
+                        exchange_order_id,
+                        source_type,
+                    );
                 }
                 None => info!(
                     "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
@@ -184,8 +188,8 @@ impl Exchange {
             .set_handle_order_filled_callback(Box::new(move |event_data| {
                 match exchange_weak.upgrade() {
                     Some(exchange) => {
-                        // FIXME How to handle Result here?
-                        exchange.handle_order_filled(event_data);
+                        // TODO Probably graceful shutdown
+                        let _ = exchange.handle_order_filled(event_data);
                     }
                     None => info!(
                         "Unable to upgrade weak referene to Exchange instance. Probably it's dead",

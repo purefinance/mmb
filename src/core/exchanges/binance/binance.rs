@@ -13,7 +13,6 @@ use crate::core::exchanges::{general::handle_order_filled::FillEventData, utils}
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
-use crate::core::{exchanges::rest_client, DateTime};
 use crate::core::{
     exchanges::traits::{ExchangeClient, ExchangeClientBuilder},
     orders::fill::OrderFillType,
@@ -26,8 +25,8 @@ use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use serde_json::Value;
 use sha2::Sha256;
+use std::collections::HashMap;
 use std::str::FromStr;
-use std::{collections::HashMap, time::Duration, time::SystemTime, time::UNIX_EPOCH};
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -285,12 +284,6 @@ impl Binance {
                         .ok_or(anyhow!("Unable to parse last filled amount"))?,
                 );
 
-                let event_time = json_response["E"].as_u64();
-                let receive_time = event_time.map(|time| {
-                    let unix_timestamp: SystemTime = UNIX_EPOCH + Duration::from_millis(time);
-                    DateTime::from(unix_timestamp)
-                });
-
                 let fill_type = Self::get_fill_type(execution_type)?;
                 let order_role = if is_maker {
                     OrderRole::Maker
@@ -315,7 +308,6 @@ impl Binance {
                     trade_currency_pair: None,
                     order_side: Some(order_side),
                     order_amount: None,
-                    receive_time,
                 };
 
                 (&self.handle_order_filled_callback).lock()(event_data);
