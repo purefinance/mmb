@@ -31,7 +31,7 @@ async fn cancelled_successfully() {
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
-    let (tx, _) = channel();
+    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
@@ -99,7 +99,8 @@ async fn cancelled_successfully() {
         }
 
         // Create order failed
-        Err(_) => {
+        Err(error) => {
+            dbg!(&error);
             assert!(false)
         }
     }
