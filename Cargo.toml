@@ -54,6 +54,7 @@ nanoid = "0.3.0"
 rand = "0.8"
 actix-rt = "2.0.0-beta.2"
 pretty_assertions = "0.6"
+rstest = "0.7.0"
 
 [lib]
 name = "mmb_lib"

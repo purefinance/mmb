@@ -2,7 +2,6 @@ use awc::http::StatusCode;
 use itertools::Itertools;
 use regex::Regex;
 use rust_decimal::*;
-use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
 use std::collections::BTreeMap;
@@ -282,17 +281,6 @@ pub struct RestRequestOutcome {
 impl RestRequestOutcome {
     pub fn new(content: String, status: StatusCode) -> Self {
         Self { content, status }
-    }
-}
-
-pub trait ConvertPercentToRate {
-    fn percent_to_rate(&self) -> Decimal;
-}
-
-impl ConvertPercentToRate for Decimal {
-    fn percent_to_rate(&self) -> Decimal {
-        let proportion_multiplier = dec!(0.01);
-        self * proportion_multiplier
     }
 }
 

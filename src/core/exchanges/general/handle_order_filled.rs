@@ -5,14 +5,13 @@ use super::{
     exchange::Exchange,
 };
 use crate::core::{
-    exchanges::common::Amount, exchanges::common::ConvertPercentToRate,
-    exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
+    exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
     exchanges::common::ExchangeAccountId, exchanges::common::Price,
-    exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
-    orders::fill::OrderFill, orders::fill::OrderFillType, orders::order::ClientOrderId,
-    orders::order::ExchangeOrderId, orders::order::OrderEventType, orders::order::OrderRole,
-    orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderStatus,
-    orders::order::OrderType, orders::pool::OrderRef,
+    exchanges::events::AllowedEventSourceType, math::ConvertPercentToRate,
+    orders::fill::EventSourceType, orders::fill::OrderFill, orders::fill::OrderFillType,
+    orders::order::ClientOrderId, orders::order::ExchangeOrderId, orders::order::OrderEventType,
+    orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
+    orders::order::OrderStatus, orders::order::OrderType, orders::pool::OrderRef,
 };
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
@@ -323,17 +322,18 @@ impl Exchange {
     }
 
     fn get_commission_amount(
-        event_data: &FillEventData,
+        event_data_commission_amount: Option<Amount>,
+        event_data_commission_rate: Option<Decimal>,
         expected_commission_rate: Percent,
         last_fill_amount: Amount,
         last_fill_price: Price,
         commission_currency_code: &CurrencyCode,
         currency_pair_metadata: &CurrencyPairMetadata,
     ) -> Result<Amount> {
-        match event_data.commission_amount {
+        match event_data_commission_amount {
             Some(commission_amount) => Ok(commission_amount.clone()),
             None => {
-                let commission_rate = match event_data.commission_rate {
+                let commission_rate = match event_data_commission_rate {
                     Some(commission_rate) => commission_rate.clone(),
                     None => expected_commission_rate,
                 };
@@ -372,12 +372,12 @@ impl Exchange {
         converted_commission_amount: &mut Amount,
         converted_commission_currency_code: &mut CurrencyCode,
     ) -> Result<()> {
-        if commission_currency_code != &currency_pair_metadata.base_currency_code
-            && commission_currency_code != &currency_pair_metadata.quote_currency_code
+        if commission_currency_code != &currency_pair_metadata.base_currency_code()
+            && commission_currency_code != &currency_pair_metadata.quote_currency_code()
         {
             let mut currency_pair = CurrencyPair::from_currency_codes(
                 commission_currency_code.clone(),
-                currency_pair_metadata.quote_currency_code.clone(),
+                currency_pair_metadata.quote_currency_code(),
             );
             match self.order_book_top.get(&currency_pair) {
                 Some(top_prices) => {
@@ -388,11 +388,11 @@ impl Exchange {
                     let price_bnb_quote = bid.price;
                     *converted_commission_amount = commission_amount * price_bnb_quote;
                     *converted_commission_currency_code =
-                        currency_pair_metadata.quote_currency_code.clone();
+                        currency_pair_metadata.quote_currency_code();
                 }
                 None => {
                     currency_pair = CurrencyPair::from_currency_codes(
-                        currency_pair_metadata.quote_currency_code.clone(),
+                        currency_pair_metadata.quote_currency_code(),
                         commission_currency_code.clone(),
                     );
 
@@ -405,7 +405,7 @@ impl Exchange {
                             let price_quote_bnb = ask.price;
                             *converted_commission_amount = commission_amount / price_quote_bnb;
                             *converted_commission_currency_code =
-                                currency_pair_metadata.quote_currency_code.clone();
+                                currency_pair_metadata.quote_currency_code();
                         }
                         None => error!(
                             "Top bids and asks for {} and currency pair {:?} do not exist",
@@ -480,7 +480,9 @@ impl Exchange {
 
     fn add_fill(
         &self,
-        event_data: &FillEventData,
+        trade_id: &str,
+        is_diff: bool,
+        fill_type: OrderFillType,
         currency_pair_metadata: &CurrencyPairMetadata,
         order_ref: &OrderRef,
         converted_commission_currency_code: &CurrencyCode,
@@ -510,8 +512,8 @@ impl Exchange {
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
             Utc::now(),
-            event_data.fill_type,
-            Some(event_data.trade_id.clone()),
+            fill_type,
+            Some(trade_id.to_owned()),
             rounded_fill_price,
             last_fill_amount,
             last_fill_cost,
@@ -522,7 +524,7 @@ impl Exchange {
             converted_commission_currency_code.clone(),
             converted_commission_amount,
             expected_converted_commission_amount,
-            event_data.is_diff,
+            is_diff,
             None,
             None,
         );
@@ -588,7 +590,8 @@ impl Exchange {
         let expected_commission_rate = self.try_set_commission_rate(&mut event_data, order_role);
 
         let commission_amount = Self::get_commission_amount(
-            &event_data,
+            event_data.commission_amount,
+            event_data.commission_rate,
             expected_commission_rate,
             last_fill_amount,
             last_fill_price,
@@ -608,7 +611,9 @@ impl Exchange {
         )?;
 
         let order_fill = self.add_fill(
-            &event_data,
+            &event_data.trade_id,
+            event_data.is_diff,
+            event_data.fill_type,
             &currency_pair_metadata,
             order_ref,
             &converted_commission_currency_code,
@@ -809,10 +814,10 @@ mod test {
         );
 
         let binance = Binance::new(settings, "Binance0".parse().expect("in test"));
-        let refferal_reward = dec!(40);
+        let referral_reward = dec!(40);
         let commission = Commission::new(
-            CommissionForType::new(dec!(0.1), refferal_reward),
-            CommissionForType::new(dec!(0.2), refferal_reward),
+            CommissionForType::new(dec!(0.1), referral_reward),
+            CommissionForType::new(dec!(0.2), referral_reward),
         );
 
         let (tx, rx) = channel();
@@ -868,6 +873,38 @@ mod test {
             .insert(symbol.currency_pair(), Arc::new(symbol));
 
         (exchange, rx)
+    }
+
+    fn create_order_ref(
+        client_order_id: &ClientOrderId,
+        role: Option<OrderRole>,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair: &CurrencyPair,
+        price: Price,
+        amount: Amount,
+        side: OrderSide,
+    ) -> OrderRef {
+        let order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            role,
+            exchange_account_id.clone(),
+            currency_pair.clone(),
+            price,
+            amount,
+            side,
+            None,
+            "StrategyInUnitTests",
+        );
+
+        let order_pool = OrdersPool::new();
+        order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        let order_ref = order_pool
+            .by_client_id
+            .get(&client_order_id)
+            .expect("in test");
+
+        order_ref.clone()
     }
 
     mod liquidation {
@@ -2829,606 +2866,384 @@ mod test {
         Ok(())
     }
 
-    #[test]
-    fn get_commission_amount_via_rate() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
+    mod get_commission_amount {
+        use super::*;
 
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Buy;
-        let fill_amount = dec!(5);
-        let order_amount = dec!(12);
-        let trade_id = "test_trade_id".to_owned();
+        #[test]
+        fn from_event_data() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(true);
 
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: trade_id.clone(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("some_exchange_order_id".into()),
-            fill_price: dec!(0.8),
-            fill_amount,
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
-        };
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
 
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair,
-            event_data.fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
+            let commission_rate = dec!(0.001);
+            let expected_commission_rate = dec!(0.001);
+            let last_fill_amount = dec!(5);
+            let last_fill_price = dec!(0.8);
+            let commission_currency_code = CurrencyCode::new("PHB".into());
+            let currency_pair_metadata =
+                exchange.get_currency_pair_metadata(&currency_pair.clone())?;
+            let event_data_commission_amount = dec!(6.3);
 
-        exchange
-            .orders
-            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order.clone())));
+            let commission_amount = Exchange::get_commission_amount(
+                Some(event_data_commission_amount),
+                Some(commission_rate),
+                expected_commission_rate,
+                last_fill_amount,
+                last_fill_price,
+                &commission_currency_code,
+                &currency_pair_metadata,
+            )
+            .context("Unable to get commision_amount")?;
 
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            let right_value = event_data_commission_amount;
+            assert_eq!(commission_amount, right_value);
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+            Ok(())
+        }
 
-                let fill = &fills[0];
-                let right_value = dec!(0.1) / dec!(100) * dec!(5);
-                assert_eq!(fill.commission_amount(), right_value);
-            }
-            Err(_) => assert!(false),
+        #[test]
+        fn via_commission_rate() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(true);
+
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+
+            let commission_rate = dec!(0.001);
+            let expected_commission_rate = dec!(0.001);
+            let last_fill_amount = dec!(5);
+            let last_fill_price = dec!(0.8);
+            let commission_currency_code = CurrencyCode::new("PHB".into());
+            let currency_pair_metadata =
+                exchange.get_currency_pair_metadata(&currency_pair.clone())?;
+            let commission_amount = Exchange::get_commission_amount(
+                None,
+                Some(commission_rate),
+                expected_commission_rate,
+                last_fill_amount,
+                last_fill_price,
+                &commission_currency_code,
+                &currency_pair_metadata,
+            )
+            .context("Unable to get commision_amount")?;
+
+            let right_value = dec!(0.1) / dec!(100) * dec!(5) / dec!(0.8);
+            assert_eq!(commission_amount, right_value);
+
+            Ok(())
         }
     }
 
-    #[test]
-    fn get_commission_amount_via_rate_for_sell() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
+    mod add_fill {
+        use super::*;
 
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Sell;
-        let fill_amount = dec!(5);
-        let order_amount = dec!(12);
-        let trade_id = "test_trade_id".to_owned();
+        #[test]
+        fn expected_commission_amount_equal_commission_amount() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: trade_id.clone(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("some_exchange_order_id".into()),
-            fill_price: dec!(0.8),
-            fill_amount,
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_side = OrderSide::Buy;
+            let order_amount = dec!(12);
+            let order_role = OrderRole::Maker;
+            let fill_price = dec!(0.8);
 
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair,
-            event_data.fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
+            let order_ref = create_order_ref(
+                &client_order_id,
+                Some(order_role),
+                &exchange.exchange_account_id.clone(),
+                &currency_pair.clone(),
+                fill_price,
+                order_amount,
+                order_side,
+            );
 
-        exchange
-            .orders
-            .try_add_snapshot_by_exchange_id(Arc::new(RwLock::new(order.clone())));
+            let trade_id = "test trade_id".to_owned();
+            let is_diff = true;
+            let currency_pair_metadata =
+                exchange.get_currency_pair_metadata(&currency_pair.clone())?;
+            let converted_commission_currency_code =
+                currency_pair_metadata.get_commision_currency_code(order_side);
+            let last_fill_amount = dec!(5);
+            let last_fill_price = dec!(0.8);
+            let last_fill_cost = dec!(4.0);
+            let expected_commission_rate = dec!(0.001);
+            let commission_currency_code = CurrencyCode::new("PHB".into());
+            let converted_commission_amount = dec!(0.005);
+            let commission_amount = dec!(0.1) / dec!(100) * dec!(5);
 
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            let fill = exchange
+                .add_fill(
+                    &trade_id,
+                    is_diff,
+                    OrderFillType::Liquidation,
+                    &currency_pair_metadata,
+                    &order_ref,
+                    &converted_commission_currency_code,
+                    last_fill_amount,
+                    last_fill_price,
+                    last_fill_cost,
+                    expected_commission_rate,
+                    commission_amount,
+                    order_role,
+                    &commission_currency_code,
+                    converted_commission_amount,
+                )
+                .context("Error while adding fill")?;
+            assert_eq!(fill.commission_amount(), commission_amount);
+            assert_eq!(
+                fill.expected_converted_commission_amount(),
+                commission_amount
+            );
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+            Ok(())
+        }
 
-                let fill = &fills[0];
-                let right_value = dec!(0.1) / dec!(100) * dec!(5) * dec!(0.8);
-                assert_eq!(fill.commission_amount(), right_value);
-            }
-            Err(_) => assert!(false),
+        #[test]
+        fn expected_commission_amount_not_equal_wrong_commission_amount() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(false);
+
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_side = OrderSide::Buy;
+            let order_amount = dec!(12);
+            let fill_price = dec!(0.8);
+            let order_role = OrderRole::Maker;
+
+            let order_ref = create_order_ref(
+                &client_order_id,
+                Some(order_role),
+                &exchange.exchange_account_id.clone(),
+                &currency_pair.clone(),
+                fill_price,
+                order_amount,
+                order_side,
+            );
+
+            let trade_id = "test trade_id".to_owned();
+            let is_diff = true;
+            let currency_pair_metadata =
+                exchange.get_currency_pair_metadata(&currency_pair.clone())?;
+            let converted_commission_currency_code =
+                currency_pair_metadata.get_commision_currency_code(order_side);
+            let last_fill_amount = dec!(5);
+            let last_fill_price = dec!(0.8);
+            let last_fill_cost = dec!(4.0);
+            let expected_commission_rate = dec!(0.001);
+            let commission_currency_code = CurrencyCode::new("PHB".into());
+            let converted_commission_amount = dec!(0.005);
+            let commission_amount = dec!(1000);
+
+            let fill = exchange
+                .add_fill(
+                    &trade_id,
+                    is_diff,
+                    OrderFillType::Liquidation,
+                    &currency_pair_metadata,
+                    &order_ref,
+                    &converted_commission_currency_code,
+                    last_fill_amount,
+                    last_fill_price,
+                    last_fill_cost,
+                    expected_commission_rate,
+                    commission_amount,
+                    order_role,
+                    &commission_currency_code,
+                    converted_commission_amount,
+                )
+                .context("Error while adding fill")?;
+
+            assert_eq!(fill.commission_amount(), commission_amount);
+            let right_value = dec!(0.1) / dec!(100) * dec!(5);
+            assert_eq!(fill.expected_converted_commission_amount(), right_value);
+
+            Ok(())
+        }
+
+        #[test]
+        fn check_referral_reward_amount() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(false);
+
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_side = OrderSide::Buy;
+            let order_role = OrderRole::Maker;
+            let order_amount = dec!(12);
+            let fill_price = dec!(0.8);
+
+            let order_ref = create_order_ref(
+                &client_order_id,
+                Some(order_role),
+                &exchange.exchange_account_id.clone(),
+                &currency_pair.clone(),
+                fill_price,
+                order_amount,
+                order_side,
+            );
+
+            let trade_id = "test trade_id".to_owned();
+            let is_diff = true;
+            let currency_pair_metadata =
+                exchange.get_currency_pair_metadata(&currency_pair.clone())?;
+            let converted_commission_currency_code =
+                currency_pair_metadata.get_commision_currency_code(order_side);
+            let last_fill_amount = dec!(5);
+            let last_fill_price = dec!(0.8);
+            let last_fill_cost = dec!(4.0);
+            let expected_commission_rate = dec!(0.001);
+            let commission_amount = dec!(0.005);
+            let commission_currency_code = CurrencyCode::new("PHB".into());
+            let converted_commission_amount = dec!(0.005);
+
+            let fill = exchange
+                .add_fill(
+                    &trade_id,
+                    is_diff,
+                    OrderFillType::Liquidation,
+                    &currency_pair_metadata,
+                    &order_ref,
+                    &converted_commission_currency_code,
+                    last_fill_amount,
+                    last_fill_price,
+                    last_fill_cost,
+                    expected_commission_rate,
+                    commission_amount,
+                    order_role,
+                    &commission_currency_code,
+                    converted_commission_amount,
+                )
+                .context("Error while adding fill")?;
+
+            let right_value = dec!(5) * dec!(0.1) / dec!(100) * dec!(0.4);
+            assert_eq!(fill.referral_reward_amount(), right_value);
+
+            Ok(())
         }
     }
 
-    #[test]
-    fn get_commission_amount_via_rate_for_buy() {
-        let (exchange, _event_receiver) = get_test_exchange(true);
+    mod check_fill_amounts_comformity {
+        use super::*;
 
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Buy;
-        let fill_amount = dec!(5);
-        let order_amount = dec!(12);
-        let trade_id = "test_trade_id".to_owned();
+        #[test]
+        fn too_big_filled_amount() {
+            let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: trade_id.clone(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("some_exchange_order_id".into()),
-            fill_price: dec!(0.8),
-            fill_amount,
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_side = OrderSide::Buy;
+            let fill_price = dec!(0.8);
+            let order_amount = dec!(12);
 
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair,
-            event_data.fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
+            let order_ref = create_order_ref(
+                &client_order_id,
+                Some(OrderRole::Maker),
+                &exchange.exchange_account_id.clone(),
+                &currency_pair.clone(),
+                fill_price,
+                order_amount,
+                order_side,
+            );
 
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
-
-                let fill = &fills[0];
-                let right_value = dec!(0.1) / dec!(100) * dec!(5) / dec!(0.8);
-                assert_eq!(fill.commission_amount(), right_value);
+            let fill_amount = dec!(13);
+            match exchange.check_fill_amounts_comformity(fill_amount, &order_ref) {
+                Ok(_) => assert!(false),
+                Err(error) => {
+                    assert_eq!(
+                        "filled_amount 13 > order.amount 12 for",
+                        &error.to_string()[..38]
+                    );
+                }
             }
-            Err(_) => assert!(false),
+        }
+
+        #[test]
+        fn proper_filled_amount() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(false);
+
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_side = OrderSide::Buy;
+            let fill_price = dec!(0.8);
+            let order_amount = dec!(12);
+
+            let order_ref = create_order_ref(
+                &client_order_id,
+                Some(OrderRole::Maker),
+                &exchange.exchange_account_id.clone(),
+                &currency_pair.clone(),
+                fill_price,
+                order_amount,
+                order_side,
+            );
+
+            let fill_amount = dec!(10);
+            exchange
+                .check_fill_amounts_comformity(fill_amount, &order_ref)
+                .context("Wrong fill amount")?;
+
+            Ok(())
         }
     }
 
-    #[test]
-    fn expected_commission_amount_equal_commission_amount() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
+    mod react_if_order_completed {
+        use super::*;
 
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Buy;
-        let fill_amount = dec!(5);
-        let order_amount = dec!(12);
-        let trade_id = "test_trade_id".to_owned();
-        let commission_amount = dec!(0.1) / dec!(100) * dec!(5);
+        #[test]
+        fn order_completed_if_filled_completely() -> Result<()> {
+            let (exchange, event_receiver) = get_test_exchange(false);
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+            let order_side = OrderSide::Buy;
+            let fill_price = dec!(0.2);
+            let order_amount = dec!(12);
+            let order_ref = create_order_ref(
+                &client_order_id,
+                Some(OrderRole::Maker),
+                &exchange.exchange_account_id,
+                &currency_pair,
+                fill_price,
+                order_amount,
+                order_side,
+            );
+            let order_filled_amount = order_amount;
+            exchange.react_if_order_completed(order_filled_amount, &order_ref)?;
+            let order_status = order_ref.status();
 
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: trade_id.clone(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("some_exchange_order_id".into()),
-            fill_price: dec!(0.8),
-            fill_amount,
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: Some(commission_amount),
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
-
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair,
-            event_data.fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
-
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
-
-                let fill = &fills[0];
-                assert_eq!(fill.commission_amount(), commission_amount);
-                assert_eq!(
-                    fill.expected_converted_commission_amount(),
-                    commission_amount
-                );
-            }
-            Err(_) => assert!(false),
-        }
-    }
-
-    #[test]
-    fn expected_commission_amount_not_equal_wrong_commission_amount() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
-
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Buy;
-        let fill_amount = dec!(5);
-        let order_amount = dec!(12);
-        let trade_id = "test_trade_id".to_owned();
-        let commission_amount = dec!(1000);
-
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: trade_id.clone(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("some_exchange_order_id".into()),
-            fill_price: dec!(0.8),
-            fill_amount,
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: Some(commission_amount),
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
-
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair,
-            event_data.fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
-
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
-
-                let fill = &fills[0];
-                assert_eq!(fill.commission_amount(), commission_amount);
-                let right_value = dec!(0.1) / dec!(100) * dec!(5);
-                assert_eq!(fill.expected_converted_commission_amount(), right_value);
-            }
-            Err(_) => assert!(false),
-        }
-    }
-
-    #[test]
-    fn refferal_reward_percentage_from_commissions() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
-
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Buy;
-        let fill_amount = dec!(5);
-        let order_amount = dec!(12);
-        let trade_id = "test_trade_id".to_owned();
-
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: trade_id.clone(),
-            client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("some_exchange_order_id".into()),
-            fill_price: dec!(0.8),
-            fill_amount,
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
-
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair,
-            event_data.fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
-
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
-
-                let fill = &fills[0];
-                let right_value = dec!(5) * dec!(0.1) / dec!(100) * dec!(0.4);
-                assert_eq!(fill.referral_reward_amount(), right_value);
-            }
-            Err(_) => assert!(false),
-        }
-    }
-
-    #[test]
-    fn filled_amount_from_zero_to_completed() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
-
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Buy;
-        let fill_price = dec!(0.8);
-        let order_amount = dec!(12);
-        let exchange_account_id = ExchangeOrderId::new("some_echange_order_id".into());
-        let client_account_id = ClientOrderId::unique_id();
-
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair.clone(),
-            fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
-
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: "first_trend_id".into(),
-            client_order_id: Some(client_account_id.clone()),
-            exchange_order_id: exchange_account_id.clone(),
-            fill_price,
-            fill_amount: dec!(5),
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
-
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (_, filled_amount) = order_ref.get_fills();
-
-                let current_right_filled_amount = dec!(5);
-                assert_eq!(filled_amount, current_right_filled_amount);
-            }
-            Err(_) => assert!(false),
+            assert_eq!(order_status, OrderStatus::Completed);
+            let gotten_id = event_receiver
+                .recv()
+                .context("Event was not received")?
+                .order
+                .client_order_id();
+            assert_eq!(gotten_id, client_order_id);
+            Ok(())
         }
 
-        let mut second_event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: "second_trade_id".into(),
-            client_order_id: Some(client_account_id.clone()),
-            exchange_order_id: exchange_account_id.clone(),
-            fill_price,
-            fill_amount: dec!(2),
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
+        #[test]
+        fn order_not_filled() -> Result<()> {
+            let (exchange, _event_receiver) = get_test_exchange(false);
 
-        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
-            Ok(_) => {
-                let (_, filled_amount) = order_ref.get_fills();
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_side = OrderSide::Buy;
+            let fill_price = dec!(0.2);
+            let order_amount = dec!(12);
 
-                let right_filled_amount = dec!(7);
-                assert_eq!(filled_amount, right_filled_amount);
-            }
-            Err(_) => assert!(false),
-        }
+            let order_ref = create_order_ref(
+                &client_order_id,
+                Some(OrderRole::Maker),
+                &exchange.exchange_account_id,
+                &currency_pair,
+                fill_price,
+                order_amount,
+                order_side,
+            );
 
-        let mut second_event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: "third_trade_id".into(),
-            client_order_id: Some(client_account_id.clone()),
-            exchange_order_id: exchange_account_id.clone(),
-            fill_price,
-            fill_amount: dec!(5),
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
+            let order_filled_amount = dec!(10);
+            exchange.react_if_order_completed(order_filled_amount, &order_ref)?;
 
-        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
-            Ok(_) => {
-                let (_, filled_amount) = order_ref.get_fills();
+            let order_status = order_ref.status();
 
-                let right_filled_amount = dec!(12);
-                assert_eq!(filled_amount, right_filled_amount);
-
-                let order_status = order_ref.status();
-                assert_eq!(order_status, OrderStatus::Completed);
-            }
-            Err(_) => assert!(false),
-        }
-    }
-
-    #[test]
-    fn too_big_filled_amount() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
-
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Buy;
-        let fill_price = dec!(0.8);
-        let order_amount = dec!(12);
-        let exchange_account_id = ExchangeOrderId::new("some_echange_order_id".into());
-        let client_account_id = ClientOrderId::unique_id();
-
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair.clone(),
-            fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
-
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: "first_trend_id".into(),
-            client_order_id: Some(client_account_id.clone()),
-            exchange_order_id: exchange_account_id.clone(),
-            fill_price,
-            fill_amount: dec!(13),
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
-
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "filled_amount 13 > order.amount 12 for",
-                    &error.to_string()[..38]
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn order_completed_if_filled_completely() {
-        let (exchange, _event_receiver) = get_test_exchange(false);
-
-        let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
-        let order_side = OrderSide::Buy;
-        let fill_price = dec!(0.2);
-        let order_amount = dec!(12);
-        let exchange_account_id = ExchangeOrderId::new("some_echange_order_id".into());
-        let client_account_id = ClientOrderId::unique_id();
-
-        let order = OrderSnapshot::with_params(
-            client_order_id.clone(),
-            OrderType::Liquidation,
-            Some(OrderRole::Maker),
-            exchange.exchange_account_id.clone(),
-            currency_pair.clone(),
-            fill_price,
-            order_amount,
-            order_side,
-            None,
-            "FromTest",
-        );
-
-        let order_pool = OrdersPool::new();
-        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
-
-        let mut event_data = FillEventData {
-            source_type: EventSourceType::WebSocket,
-            trade_id: "first_trend_id".into(),
-            client_order_id: Some(client_account_id.clone()),
-            exchange_order_id: exchange_account_id.clone(),
-            fill_price,
-            fill_amount: order_amount,
-            is_diff: true,
-            total_filled_amount: None,
-            order_role: Some(OrderRole::Maker),
-            commission_currency_code: None,
-            commission_rate: None,
-            commission_amount: None,
-            fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair.clone()),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
-        };
-
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let order_status = order_ref.status();
-                assert_eq!(order_status, OrderStatus::Completed);
-            }
-            Err(_) => {
-                assert!(false);
-            }
+            assert_ne!(order_status, OrderStatus::Completed);
+            Ok(())
         }
     }
 
@@ -3562,6 +3377,125 @@ mod test {
             assert_eq!(converted_commission_currency_code, right_currency_code);
 
             Ok(())
+        }
+    }
+
+    #[test]
+    fn filled_amount_from_zero_to_completed() {
+        let (exchange, _event_receiver) = get_test_exchange(false);
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let order_side = OrderSide::Buy;
+        let fill_price = dec!(0.8);
+        let order_amount = dec!(12);
+        let exchange_account_id = ExchangeOrderId::new("some_echange_order_id".into());
+        let client_account_id = ClientOrderId::unique_id();
+
+        let order = OrderSnapshot::with_params(
+            client_order_id.clone(),
+            OrderType::Liquidation,
+            Some(OrderRole::Maker),
+            exchange.exchange_account_id.clone(),
+            currency_pair.clone(),
+            fill_price,
+            order_amount,
+            order_side,
+            None,
+            "FromTest",
+        );
+
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+
+        let mut event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: "first_trend_id".into(),
+            client_order_id: Some(client_account_id.clone()),
+            exchange_order_id: exchange_account_id.clone(),
+            fill_price,
+            fill_amount: dec!(5),
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: Some(OrderRole::Maker),
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(order_side),
+            order_amount: Some(dec!(0)),
+        };
+
+        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
+            Ok(_) => {
+                let (_, filled_amount) = order_ref.get_fills();
+
+                let current_right_filled_amount = dec!(5);
+                assert_eq!(filled_amount, current_right_filled_amount);
+            }
+            Err(_) => assert!(false),
+        }
+
+        let mut second_event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: "second_trade_id".into(),
+            client_order_id: Some(client_account_id.clone()),
+            exchange_order_id: exchange_account_id.clone(),
+            fill_price,
+            fill_amount: dec!(2),
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: Some(OrderRole::Maker),
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(order_side),
+            order_amount: Some(dec!(0)),
+        };
+
+        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
+            Ok(_) => {
+                let (_, filled_amount) = order_ref.get_fills();
+
+                let right_filled_amount = dec!(7);
+                assert_eq!(filled_amount, right_filled_amount);
+            }
+            Err(_) => assert!(false),
+        }
+
+        let mut second_event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id: "third_trade_id".into(),
+            client_order_id: Some(client_account_id.clone()),
+            exchange_order_id: exchange_account_id.clone(),
+            fill_price,
+            fill_amount: dec!(5),
+            is_diff: true,
+            total_filled_amount: None,
+            order_role: Some(OrderRole::Maker),
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::Liquidation,
+            trade_currency_pair: Some(currency_pair.clone()),
+            order_side: Some(order_side),
+            order_amount: Some(dec!(0)),
+        };
+
+        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
+            Ok(_) => {
+                let (_, filled_amount) = order_ref.get_fills();
+
+                let right_filled_amount = dec!(12);
+                assert_eq!(filled_amount, right_filled_amount);
+
+                let order_status = order_ref.status();
+                assert_eq!(order_status, OrderStatus::Completed);
+            }
+            Err(_) => assert!(false),
         }
     }
 }

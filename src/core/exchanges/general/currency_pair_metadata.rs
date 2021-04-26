@@ -3,12 +3,11 @@ use crate::core::{
     exchanges::common::CurrencyCode,
     exchanges::common::CurrencyId,
     exchanges::common::{CurrencyPair, Price},
+    math::powi,
     orders::order::OrderSide,
 };
-use anyhow::{bail, Context, Result};
-use rust_decimal::Decimal;
+use anyhow::{bail, Result};
 use rust_decimal_macros::dec;
-use std::convert::TryFrom;
 use std::sync::Arc;
 
 use super::exchange::Exchange;
@@ -58,6 +57,14 @@ pub struct CurrencyPairMetadata {
 }
 
 impl CurrencyPairMetadata {
+    pub fn base_currency_code(&self) -> CurrencyCode {
+        self.base_currency_code.clone()
+    }
+
+    pub fn quote_currency_code(&self) -> CurrencyCode {
+        self.quote_currency_code.clone()
+    }
+
     pub fn new(
         is_active: bool,
         is_derivative: bool,
@@ -189,10 +196,17 @@ impl CurrencyPairMetadata {
             )
         }
 
-        let mut integral_digits = 0;
+        let mut integral_digits;
         if value >= dec!(1) {
             integral_digits = 1;
             let mut tmp = value * dec!(0.1);
+            while tmp >= dec!(1) {
+                tmp *= dec!(0.1);
+                integral_digits += 1;
+            }
+        } else {
+            integral_digits = 0;
+            let mut tmp = value * dec!(10);
             while tmp < dec!(1) {
                 tmp *= dec!(10);
                 integral_digits -= 1;
@@ -205,8 +219,9 @@ impl CurrencyPairMetadata {
     }
 
     fn round_by_fraction(value: Price, precision: i8, round: Round) -> Result<Price> {
-        let pow_precision = Decimal::try_from(0.1_f32.powi(precision as i32))
-            .context("Unable to create Decimal from f32")?;
+        let multiplier = dec!(0.1);
+        let pow_precision = powi(multiplier, precision);
+
         Self::inner_round_by_tick(value, pow_precision, round)
     }
 
@@ -262,6 +277,7 @@ impl Exchange {
 #[cfg(test)]
 mod test {
     use super::*;
+    use rust_decimal_macros::dec;
 
     #[test]
     fn get_commission_currency_code_from_balance() {
@@ -297,5 +313,143 @@ mod test {
 
         let gotten = currency_pair_metadata.get_commision_currency_code(OrderSide::Buy);
         assert_eq!(gotten, balance_currency_code);
+    }
+
+    use rstest::rstest;
+    use rust_decimal::Decimal;
+
+    #[rstest]
+    #[case(dec!(123.456), 2, Round::Floor, dec!(123.45))]
+    #[case(dec!(12.3456), 2, Round::Floor, dec!(12.34))]
+    #[case(dec!(0), 2, Round::Floor, dec!(0))]
+    #[case(dec!(0.01234), 2, Round::Floor, dec!(0.01))]
+    #[case(dec!(0.01234), 3, Round::Floor, dec!(0.012))]
+    #[case(dec!(123.456), -1, Round::Floor, dec!(120))]
+    #[case(dec!(123.456), 0, Round::Floor, dec!(123))]
+    #[case(dec!(123.456), 2, Round::Ceiling, dec!(123.46))]
+    #[case(dec!(12.3456), 2, Round::Ceiling, dec!(12.35))]
+    #[case(dec!(0), 2, Round::Ceiling, dec!(0))]
+    #[case(dec!(0.01234), 2, Round::Ceiling, dec!(0.02))]
+    #[case(dec!(0.01234), 3, Round::Ceiling, dec!(0.013))]
+    #[case(dec!(123.456), -1, Round::Ceiling, dec!(130))]
+    #[case(dec!(123.456), 0, Round::Ceiling, dec!(124))]
+    #[case(dec!(123.456), 2, Round::ToNearest, dec!(123.46))]
+    #[case(dec!(12.3456), 2, Round::ToNearest, dec!(12.35))]
+    #[case(dec!(0), 2, Round::ToNearest, dec!(0))]
+    #[case(dec!(0.01234), 2, Round::ToNearest, dec!(0.01))]
+    #[case(dec!(0.01234), 3, Round::ToNearest, dec!(0.012))]
+    #[case(dec!(123.456), -1, Round::ToNearest, dec!(120))]
+    #[case(dec!(123.456), 0, Round::ToNearest, dec!(123))]
+    fn round_by_fraction(
+        #[case] value: Decimal,
+        #[case] precision: i8,
+        #[case] round_to: Round,
+        #[case] expected: Decimal,
+    ) -> Result<()> {
+        let rounded = CurrencyPairMetadata::round_by_fraction(value, precision, round_to)?;
+
+        assert_eq!(rounded, expected);
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case(dec!(123.456), 5, Round::Floor, dec!(123.45))]
+    #[case(dec!(12.34567), 5, Round::Floor, dec!(12.345))]
+    #[case(dec!(0.0123456), 5, Round::Floor, dec!(0.012345))]
+    #[case(dec!(0.0123456), 1, Round::Floor, dec!(0.01))]
+    #[case(dec!(0.00123456), 2, Round::Floor, dec!(0.0012))]
+    #[case(dec!(123.456), 4, Round::Floor, dec!(123.4))]
+    #[case(dec!(123.456), 2, Round::Floor, dec!(120))]
+    #[case(dec!(0), 5, Round::Floor, dec!(0))]
+    #[case(dec!(123.456), 5, Round::Ceiling, dec!(123.46))]
+    #[case(dec!(12.34567), 5, Round::Ceiling, dec!(12.346))]
+    #[case(dec!(0.0123456), 5, Round::Ceiling, dec!(0.012346))]
+    #[case(dec!(0.0123456), 1, Round::Ceiling, dec!(0.02))]
+    #[case(dec!(0.00123456), 2, Round::Ceiling, dec!(0.0013))]
+    #[case(dec!(123.456), 4, Round::Ceiling, dec!(123.5))]
+    #[case(dec!(123.456), 2, Round::Ceiling, dec!(130))]
+    #[case(dec!(0), 5, Round::Ceiling, dec!(0))]
+    #[case(dec!(123.456), 5, Round::ToNearest, dec!(123.46))]
+    #[case(dec!(12.34567), 5, Round::ToNearest, dec!(12.346))]
+    #[case(dec!(0.0123456), 5, Round::ToNearest, dec!(0.012346))]
+    #[case(dec!(0.0123456), 1, Round::ToNearest, dec!(0.01))]
+    #[case(dec!(0.00123456), 2, Round::ToNearest, dec!(0.0012))]
+    #[case(dec!(123.456), 4, Round::ToNearest, dec!(123.5))]
+    #[case(dec!(123.456), 2, Round::ToNearest, dec!(120))]
+    #[case(dec!(0), 5, Round::ToNearest, dec!(0))]
+    fn round_by_mantissa(
+        #[case] value: Decimal,
+        #[case] precision: i8,
+        #[case] round_to: Round,
+        #[case] expected: Decimal,
+    ) -> Result<()> {
+        let rounded = CurrencyPairMetadata::round_by_mantissa(value, precision, round_to)?;
+
+        assert_eq!(rounded, expected);
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[case(dec!(123.456), 0, Round::Floor)]
+    #[case(dec!(123.456), -1, Round::Floor)]
+    #[case(dec!(123.456), 0, Round::Ceiling)]
+    #[case(dec!(123.456), -1, Round::Ceiling)]
+    #[case(dec!(123.456), 0, Round::ToNearest)]
+    #[case(dec!(123.456), -1, Round::ToNearest)]
+    fn round_by_mantissa_invalid_precision(
+        #[case] value: Decimal,
+        #[case] precision: i8,
+        #[case] round_to: Round,
+    ) {
+        let rounded = CurrencyPairMetadata::round_by_mantissa(value, precision, round_to);
+
+        assert!(rounded.is_err());
+    }
+
+    #[test]
+    fn too_small_tick() {
+        let value = dec!(123.456);
+        let tick = dec!(-0.1);
+
+        let maybe_error = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor);
+
+        match maybe_error {
+            Ok(_) => assert!(false),
+            Err(error) => {
+                assert_eq!("Too small tick: -0.1", &error.to_string()[..20]);
+            }
+        }
+    }
+
+    #[rstest]
+    #[case(dec!(123.456), dec!(0.1), Round::Floor, dec!(123.4))]
+    #[case(dec!(123.456), dec!(0.4), Round::Floor, dec!(123.2))]
+    #[case(dec!(123.456), dec!(0.03), Round::Floor, dec!(123.45))]
+    #[case(dec!(123.456), dec!(2), Round::Floor, dec!(122))]
+    #[case(dec!(0), dec!(0.03), Round::Floor, dec!(0))]
+    #[case(dec!(123.456), dec!(0.1), Round::Ceiling, dec!(123.5))]
+    #[case(dec!(123.456), dec!(0.4), Round::Ceiling, dec!(123.6))]
+    #[case(dec!(123.456), dec!(0.03), Round::Ceiling, dec!(123.48))]
+    #[case(dec!(123.456), dec!(2), Round::Ceiling, dec!(124))]
+    #[case(dec!(0), dec!(0.03), Round::Ceiling, dec!(0))]
+    #[case(dec!(123.456), dec!(0.1), Round::ToNearest, dec!(123.5))]
+    #[case(dec!(123.456), dec!(0.4), Round::ToNearest, dec!(123.6))]
+    #[case(dec!(123.456), dec!(0.03), Round::ToNearest, dec!(123.45))]
+    #[case(dec!(123.456), dec!(0.01), Round::ToNearest, dec!(123.46))]
+    #[case(dec!(123.456), dec!(2), Round::ToNearest, dec!(124))]
+    #[case(dec!(0), dec!(0.03), Round::ToNearest, dec!(0))]
+    fn round_by_tick(
+        #[case] value: Decimal,
+        #[case] tick: Decimal,
+        #[case] round_to: Round,
+        #[case] expected: Decimal,
+    ) -> Result<()> {
+        let rounded = CurrencyPairMetadata::round_by_tick(value, tick, round_to)?;
+
+        assert_eq!(rounded, expected);
+
+        Ok(())
     }
 }
