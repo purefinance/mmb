@@ -92,8 +92,8 @@ impl OrderRef {
 
 #[derive(Debug)]
 pub struct OrdersPool {
-    pub by_client_id: DashMap<ClientOrderId, OrderRef>,
-    pub by_exchange_id: DashMap<ExchangeOrderId, OrderRef>,
+    pub cache_by_client_id: DashMap<ClientOrderId, OrderRef>,
+    pub cache_by_exchange_id: DashMap<ExchangeOrderId, OrderRef>,
     pub not_finished: DashMap<ClientOrderId, OrderRef>,
     _private: (), // field base constructor shouldn't be accessible from other modules
 }
@@ -103,8 +103,8 @@ impl OrdersPool {
         const ORDERS_INIT_CAPACITY: usize = 100;
 
         Arc::new(OrdersPool {
-            by_client_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
-            by_exchange_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
+            cache_by_client_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
+            cache_by_exchange_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
             not_finished: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
             _private: (),
         })
@@ -115,7 +115,7 @@ impl OrdersPool {
         let client_order_id = snapshot.read().header.client_order_id.clone();
         let order_ref = OrderRef(snapshot.clone());
         let _ = self
-            .by_client_id
+            .cache_by_client_id
             .insert(client_order_id.clone(), order_ref.clone());
         let _ = self.not_finished.insert(client_order_id, order_ref.clone());
 
