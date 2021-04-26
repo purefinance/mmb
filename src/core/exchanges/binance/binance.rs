@@ -186,7 +186,9 @@ impl Binance {
         let client_order_id = json_response["c"]
             .as_str()
             .ok_or(anyhow!("Unable to parse client order id"))?;
-        let exchange_order_id = json_response["i"].to_string();
+        let exchange_order_id = json_response["i"]
+            .as_str()
+            .ok_or(anyhow!("Unable to parse exchange order id"))?;
         let execution_type = json_response["x"]
             .as_str()
             .ok_or(anyhow!("Unable to parse execution type"))?;
@@ -202,7 +204,7 @@ impl Binance {
                 "NEW" => {
                     (&self.order_created_callback).lock()(
                         client_order_id.into(),
-                        exchange_order_id.as_str().into(),
+                        exchange_order_id.into(),
                         EventSourceType::WebSocket,
                     );
                 }
@@ -218,7 +220,7 @@ impl Binance {
                         .ok_or(anyhow!("Unable to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
-                        exchange_order_id.as_str().into(),
+                        exchange_order_id.into(),
                         EventSourceType::WebSocket,
                     );
                 }
@@ -238,7 +240,7 @@ impl Binance {
                         .ok_or(anyhow!("Uanble to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
-                        exchange_order_id.as_str().into(),
+                        exchange_order_id.into(),
                         EventSourceType::WebSocket,
                     );
                 }
@@ -251,8 +253,8 @@ impl Binance {
                 let event_data = self.prepare_data_for_fill_handler(
                     &json_response,
                     execution_type,
-                    ClientOrderId::new(client_order_id.into()),
-                    ExchangeOrderId::new(exchange_order_id.into()),
+                    client_order_id.into(),
+                    exchange_order_id.into(),
                 )?;
 
                 (&self.handle_order_filled_callback).lock()(event_data);
@@ -276,24 +278,19 @@ impl Binance {
             .to_owned();
         let last_filled_price = json_response["L"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse last filled price"))?
-            .to_owned();
+            .ok_or(anyhow!("Unable to parse last filled price"))?;
         let last_filled_amount = json_response["l"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse last filled amount"))?
-            .to_owned();
+            .ok_or(anyhow!("Unable to parse last filled amount"))?;
         let total_filled_amount = json_response["z"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse total filled amount"))?
-            .to_owned();
+            .ok_or(anyhow!("Unable to parse total filled amount"))?;
         let commission_amount = json_response["n"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse last commisstion amount"))?
-            .to_owned();
+            .ok_or(anyhow!("Unable to parse last commission amount"))?;
         let commission_currency = json_response["N"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse last commission currency"))?
-            .to_owned();
+            .ok_or(anyhow!("Unable to parse last commission currency"))?;
         // TODO more complicated get_currency_code() depends on supported_currencies
         let commission_currency_code = CurrencyCode::new(commission_currency.into());
         let is_maker = json_response["m"]
@@ -317,14 +314,14 @@ impl Binance {
             trade_id,
             client_order_id: Some(client_order_id),
             exchange_order_id,
-            fill_price: Decimal::from_str(&last_filled_price)?,
-            fill_amount: Decimal::from_str(&last_filled_amount)?,
+            fill_price: Decimal::from_str(last_filled_price)?,
+            fill_amount: Decimal::from_str(last_filled_amount)?,
             is_diff: true,
-            total_filled_amount: Some(Decimal::from_str(&total_filled_amount)?),
+            total_filled_amount: Some(total_filled_amount.parse()?),
             order_role: Some(order_role),
             commission_currency_code: Some(commission_currency_code),
             commission_rate: None,
-            commission_amount: Some(Decimal::from_str(&commission_amount)?),
+            commission_amount: Some(commission_amount.parse()?),
             fill_type,
             trade_currency_pair: None,
             order_side: Some(order_side),
@@ -334,6 +331,7 @@ impl Binance {
         Ok(event_data)
     }
 
+    // According to https://binance-docs.github.io/apidocs/futures/en/#event-order-update
     fn get_fill_type(raw_type: &str) -> Result<OrderFillType> {
         match raw_type {
             "CALCULATED" => Ok(OrderFillType::Liquidation),

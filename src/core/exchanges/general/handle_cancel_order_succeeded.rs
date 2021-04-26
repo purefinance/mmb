@@ -43,7 +43,7 @@ impl Exchange {
                 // TODO All other code connected BufferedCaceledOrderManager
                 Ok(())
             }
-            Some(order_ref) => self.try_to_update_local_order(
+            Some(order_ref) => self.try_update_local_order(
                 &order_ref,
                 filled_amount,
                 source_type,
@@ -60,8 +60,8 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
     ) -> bool {
         let arg_to_log = match status {
-            OrderStatus::Canceled => "Canceled".to_owned(),
-            OrderStatus::Completed => "Completed".to_owned(),
+            OrderStatus::Canceled => "Canceled",
+            OrderStatus::Completed => "Completed",
             _ => return false,
         };
 
@@ -73,7 +73,7 @@ impl Exchange {
         true
     }
 
-    fn try_to_update_local_order(
+    fn try_update_local_order(
         &self,
         order_ref: &OrderRef,
         filled_amount: Option<Amount>,
@@ -105,7 +105,7 @@ impl Exchange {
         // As soon as we created an order, it was automatically canceled
         // Usually we raise CancelOrderSucceeded in WaitCancelOrder after a check for fills via fallback
         // but in this particular case the cancellation is triggered by exchange itself, so WaitCancelOrder was never called
-        if is_canceling_from_wait_cancel_order {
+        if !is_canceling_from_wait_cancel_order {
             info!("Adding CancelOrderSucceeded event from handle_cancel_order_succeeded() {} {:?} on {}",
                 client_order_id,
                 exchange_order_id,
@@ -229,7 +229,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.try_to_update_local_order(
+        exchange.try_update_local_order(
             &order_ref,
             filled_amount,
             source_type,
@@ -270,7 +270,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.try_to_update_local_order(
+        exchange.try_update_local_order(
             &order_ref,
             filled_amount,
             source_type,
@@ -317,7 +317,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.try_to_update_local_order(
+        exchange.try_update_local_order(
             &order_ref,
             filled_amount,
             source_type,

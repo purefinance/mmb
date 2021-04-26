@@ -192,7 +192,7 @@ impl Exchange {
                         let _ = exchange.handle_order_filled(event_data);
                     }
                     None => info!(
-                        "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
+                        "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
                     ),
                 }
             }));
