@@ -1,4 +1,4 @@
-use crate::control_api::health_check::start_control_server;
+use crate::control_api::endpoints::start_control_server;
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::common::ExchangeId;
 use crate::core::exchanges::events::{ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
