@@ -43,7 +43,7 @@ impl Exchange {
                 // TODO All other code connected BufferedCaceledOrderManager
                 Ok(())
             }
-            Some(order_ref) => self.local_order_exists(
+            Some(order_ref) => self.try_to_update_local_order(
                 &order_ref,
                 filled_amount,
                 source_type,
@@ -73,7 +73,7 @@ impl Exchange {
         true
     }
 
-    fn local_order_exists(
+    fn try_to_update_local_order(
         &self,
         order_ref: &OrderRef,
         filled_amount: Option<Amount>,
@@ -229,7 +229,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.local_order_exists(
+        exchange.try_to_update_local_order(
             &order_ref,
             filled_amount,
             source_type,
@@ -270,7 +270,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.local_order_exists(
+        exchange.try_to_update_local_order(
             &order_ref,
             filled_amount,
             source_type,
@@ -317,7 +317,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.local_order_exists(
+        exchange.try_to_update_local_order(
             &order_ref,
             filled_amount,
             source_type,

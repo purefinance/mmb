@@ -247,68 +247,13 @@ impl Binance {
                     client_order_id, msg_to_log
                 ),
             },
-            // TODO integrational test for that
             "TRADE" | "CALCULATED" => {
-                let trade_id = json_response["t"]
-                    .as_str()
-                    .ok_or(anyhow!("Unable to parse trade id"))?
-                    .to_owned();
-                let last_filled_price = json_response["L"]
-                    .as_str()
-                    .ok_or(anyhow!("Unable to parse last filled price"))?
-                    .to_owned();
-                let last_filled_amount = json_response["l"]
-                    .as_str()
-                    .ok_or(anyhow!("Unable to parse last filled amount"))?
-                    .to_owned();
-                let total_filled_amount = json_response["z"]
-                    .as_str()
-                    .ok_or(anyhow!("Unable to parse total filled amount"))?
-                    .to_owned();
-                let commission_amount = json_response["n"]
-                    .as_str()
-                    .ok_or(anyhow!("Unable to parse last commisstion amount"))?
-                    .to_owned();
-                let commission_currency = json_response["N"]
-                    .as_str()
-                    .ok_or(anyhow!("Unable to parse last commission currency"))?
-                    .to_owned();
-                // TODO more complicated get_currency_code() depends on supported_currencies
-                let commission_currency_code = CurrencyCode::new(commission_currency.into());
-                let is_maker = json_response["m"]
-                    .as_bool()
-                    .ok_or(anyhow!("Unable to parse trade side"))?;
-                let order_side = Self::to_local_order_side(
-                    json_response["S"]
-                        .as_str()
-                        .ok_or(anyhow!("Unable to parse last filled amount"))?,
-                );
-
-                let fill_type = Self::get_fill_type(execution_type)?;
-                let order_role = if is_maker {
-                    OrderRole::Maker
-                } else {
-                    OrderRole::Taker
-                };
-
-                let event_data = FillEventData {
-                    source_type: EventSourceType::WebSocket,
-                    trade_id,
-                    client_order_id: Some(ClientOrderId::new(client_order_id.into())),
-                    exchange_order_id: ExchangeOrderId::new(exchange_order_id.into()),
-                    fill_price: Decimal::from_str(&last_filled_price)?,
-                    fill_amount: Decimal::from_str(&last_filled_amount)?,
-                    is_diff: true,
-                    total_filled_amount: Some(Decimal::from_str(&total_filled_amount)?),
-                    order_role: Some(order_role),
-                    commission_currency_code: Some(commission_currency_code),
-                    commission_rate: None,
-                    commission_amount: Some(Decimal::from_str(&commission_amount)?),
-                    fill_type,
-                    trade_currency_pair: None,
-                    order_side: Some(order_side),
-                    order_amount: None,
-                };
+                let event_data = self.prepare_data_for_fill_handler(
+                    &json_response,
+                    execution_type,
+                    ClientOrderId::new(client_order_id.into()),
+                    ExchangeOrderId::new(exchange_order_id.into()),
+                )?;
 
                 (&self.handle_order_filled_callback).lock()(event_data);
             }
@@ -316,6 +261,77 @@ impl Binance {
         }
 
         Ok(())
+    }
+
+    fn prepare_data_for_fill_handler(
+        &self,
+        json_response: &Value,
+        execution_type: &str,
+        client_order_id: ClientOrderId,
+        exchange_order_id: ExchangeOrderId,
+    ) -> Result<FillEventData> {
+        let trade_id = json_response["t"]
+            .as_str()
+            .ok_or(anyhow!("Unable to parse trade id"))?
+            .to_owned();
+        let last_filled_price = json_response["L"]
+            .as_str()
+            .ok_or(anyhow!("Unable to parse last filled price"))?
+            .to_owned();
+        let last_filled_amount = json_response["l"]
+            .as_str()
+            .ok_or(anyhow!("Unable to parse last filled amount"))?
+            .to_owned();
+        let total_filled_amount = json_response["z"]
+            .as_str()
+            .ok_or(anyhow!("Unable to parse total filled amount"))?
+            .to_owned();
+        let commission_amount = json_response["n"]
+            .as_str()
+            .ok_or(anyhow!("Unable to parse last commisstion amount"))?
+            .to_owned();
+        let commission_currency = json_response["N"]
+            .as_str()
+            .ok_or(anyhow!("Unable to parse last commission currency"))?
+            .to_owned();
+        // TODO more complicated get_currency_code() depends on supported_currencies
+        let commission_currency_code = CurrencyCode::new(commission_currency.into());
+        let is_maker = json_response["m"]
+            .as_bool()
+            .ok_or(anyhow!("Unable to parse trade side"))?;
+        let order_side = Self::to_local_order_side(
+            json_response["S"]
+                .as_str()
+                .ok_or(anyhow!("Unable to parse last filled amount"))?,
+        );
+
+        let fill_type = Self::get_fill_type(execution_type)?;
+        let order_role = if is_maker {
+            OrderRole::Maker
+        } else {
+            OrderRole::Taker
+        };
+
+        let event_data = FillEventData {
+            source_type: EventSourceType::WebSocket,
+            trade_id,
+            client_order_id: Some(client_order_id),
+            exchange_order_id,
+            fill_price: Decimal::from_str(&last_filled_price)?,
+            fill_amount: Decimal::from_str(&last_filled_amount)?,
+            is_diff: true,
+            total_filled_amount: Some(Decimal::from_str(&total_filled_amount)?),
+            order_role: Some(order_role),
+            commission_currency_code: Some(commission_currency_code),
+            commission_rate: None,
+            commission_amount: Some(Decimal::from_str(&commission_amount)?),
+            fill_type,
+            trade_currency_pair: None,
+            order_side: Some(order_side),
+            order_amount: None,
+        };
+
+        Ok(event_data)
     }
 
     fn get_fill_type(raw_type: &str) -> Result<OrderFillType> {
