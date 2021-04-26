@@ -151,6 +151,7 @@ impl Exchange {
 #[cfg(test)]
 mod test {
     use anyhow::Context;
+    use rstest::rstest;
     use rust_decimal_macros::dec;
 
     use super::*;
@@ -186,7 +187,6 @@ mod test {
         }
     }
 
-    use rstest::rstest;
     #[rstest]
     #[case(OrderStatus::Completed, true)]
     #[case(OrderStatus::Canceled, true)]
@@ -310,7 +310,6 @@ mod test {
             order_amount,
             order_side,
         );
-        order_ref.fn_mut(|order| order.internal_props.is_canceling_from_wait_cancel_order = true);
 
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
