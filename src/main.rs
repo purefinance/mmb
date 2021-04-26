@@ -1,14 +1,6 @@
-#[allow(dead_code)]
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig};
 
-//#[actix_web::main]
-//async fn main() -> std::io::Result<()> {
-//    HttpServer::new(|| App::new().service(health))
-//        .bind("127.0.0.1:8080")?
-//        .run()
-//        .await
-//}
-
+#[allow(dead_code)]
 #[actix_web::main]
 async fn main() {
     let engine_config = EngineBuildConfig::standard();
