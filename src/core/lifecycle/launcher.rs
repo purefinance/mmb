@@ -1,3 +1,4 @@
+use crate::control_api::health_check::start_control_server;
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::common::ExchangeId;
 use crate::core::exchanges::events::{ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
@@ -53,6 +54,9 @@ pub async fn launch_trading_engine<TSettings: Default>(build_settings: &EngineBu
         //     async move { ExchangeEvents::start(events_receiver, exchanges_map).await },
         // );
     }
+
+    // TODO how to handle result here? Probably graceful shutdown?
+    let _ = start_control_server("127.0.0.1:8080").await;
 }
 
 async fn load_settings<TSettings: Default>() -> AppSettings<TSettings> {

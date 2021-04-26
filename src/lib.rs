@@ -1,3 +1,4 @@
+pub mod control_api;
 #[allow(dead_code)]
 pub mod core;
 
