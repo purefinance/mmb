@@ -127,7 +127,7 @@ impl OrdersPool {
         if let Some(exchange_order_id) = snapshot.read().props.exchange_order_id.clone() {
             let order_ref = OrderRef(snapshot.clone());
             let _ = self
-                .by_exchange_id
+                .cache_by_exchange_id
                 .insert(exchange_order_id.clone(), order_ref.clone());
         }
     }

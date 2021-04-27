@@ -900,7 +900,7 @@ mod test {
         let order_pool = OrdersPool::new();
         order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
         let order_ref = order_pool
-            .by_client_id
+            .cache_by_client_id
             .get(&client_order_id)
             .expect("in test");
 
