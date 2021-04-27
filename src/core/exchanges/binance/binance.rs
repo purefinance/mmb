@@ -41,8 +41,6 @@ pub struct Binance {
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
 }
 
-impl Binance {}
-
 impl Binance {
     pub fn new(mut settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
         let unified_phbbtc = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
