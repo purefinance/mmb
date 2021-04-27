@@ -1,4 +1,3 @@
-use crate::control_api::endpoints::start_control_server;
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::common::ExchangeId;
 use crate::core::exchanges::events::{ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
@@ -8,6 +7,7 @@ use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::logger::init_logger;
 use crate::core::settings::{AppSettings, CoreSettings};
 use crate::hashmap;
+use crate::rest_api::endpoints::start_rest_api_server;
 use futures::future::join_all;
 use log::info;
 use std::collections::HashMap;
@@ -55,8 +55,9 @@ pub async fn launch_trading_engine<TSettings: Default>(build_settings: &EngineBu
         // );
     }
 
-    // TODO how to handle result here? Probably graceful shutdown?
-    let _ = start_control_server("127.0.0.1:8080").await;
+    if start_rest_api_server("127.0.0.1:8080").await.is_err() {
+        // TODO Graceful shutdown call
+    };
 }
 
 async fn load_settings<TSettings: Default>() -> AppSettings<TSettings> {
@@ -82,6 +83,8 @@ mod tests {
     use super::*;
 
     #[actix_rt::test]
+    // TODO Blocking on web setrver start. Fix after graceful shutdown and stop() endpoind are done
+    #[ignore]
     async fn launch_engine() {
         let config = EngineBuildConfig::standard();
         launch_trading_engine::<()>(&config).await;
