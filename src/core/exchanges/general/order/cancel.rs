@@ -136,7 +136,10 @@ impl Exchange {
                     source_type,
                     filled_amount,
                 )) {
-                    error!("Unable to send thru oneshot channel: {:?}", error);
+                    error!(
+                        "raise_order_cancelled failed: unable to send thru oneshot channel: {:?}",
+                        error
+                    );
                 }
 
                 Ok(())

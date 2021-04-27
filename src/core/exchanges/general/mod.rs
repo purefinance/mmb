@@ -7,4 +7,5 @@ pub mod features;
 pub mod handle_cancel_order_succeeded;
 pub mod handle_order_filled;
 pub mod order;
+#[cfg(test)]
 pub mod test_helper;

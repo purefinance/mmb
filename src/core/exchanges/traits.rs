@@ -1,4 +1,6 @@
 use super::{
+    common::CurrencyCode,
+    common::CurrencyId,
     common::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
@@ -14,6 +16,7 @@ use crate::core::orders::{fill::EventSourceType, order::OrderSnapshot};
 use crate::core::settings::ExchangeSettings;
 use anyhow::Result;
 use async_trait::async_trait;
+use dashmap::DashMap;
 use log::info;
 use std::sync::Arc;
 
@@ -62,6 +65,8 @@ pub trait Support: Send + Sync {
 
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
+
+    fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode>;
 
     fn should_log_message(&self, message: &str) -> bool;
 

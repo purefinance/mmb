@@ -1,5 +1,6 @@
 use super::binance::Binance;
 use crate::core::exchanges::{
+    common::CurrencyCode, common::CurrencyId,
     general::currency_pair_metadata::CurrencyPairMetadata,
     general::handle_order_filled::FillEventData, traits::Support,
 };
@@ -13,6 +14,7 @@ use crate::core::{
 };
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
+use dashmap::DashMap;
 use itertools::Itertools;
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -204,6 +206,10 @@ impl Support for Binance {
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
         self.unified_to_specific[currency_pair].clone()
+    }
+
+    fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode> {
+        &self.supported_currencies
     }
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {

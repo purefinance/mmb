@@ -1,3 +1,4 @@
+#![cfg(test)]
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 

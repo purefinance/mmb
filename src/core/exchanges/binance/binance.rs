@@ -18,15 +18,14 @@ use crate::core::{
     orders::fill::OrderFillType,
 };
 use anyhow::{anyhow, bail, Context, Result};
+use dashmap::DashMap;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use log::error;
 use parking_lot::Mutex;
-use rust_decimal::Decimal;
 use serde_json::Value;
 use sha2::Sha256;
 use std::collections::HashMap;
-use std::str::FromStr;
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -39,7 +38,10 @@ pub struct Binance {
 
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
+    pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
 }
+
+impl Binance {}
 
 impl Binance {
     pub fn new(mut settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
@@ -62,6 +64,7 @@ impl Binance {
             handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
             unified_to_specific,
             specific_to_unified,
+            supported_currencies: Default::default(),
         }
     }
 
@@ -265,6 +268,12 @@ impl Binance {
         Ok(())
     }
 
+    fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
+        self.supported_currencies
+            .get(currency_id)
+            .map(|some| some.value().clone())
+    }
+
     fn prepare_data_for_fill_handler(
         &self,
         json_response: &Value,
@@ -291,8 +300,9 @@ impl Binance {
         let commission_currency = json_response["N"]
             .as_str()
             .ok_or(anyhow!("Unable to parse last commission currency"))?;
-        // TODO more complicated get_currency_code() depends on supported_currencies
-        let commission_currency_code = CurrencyCode::new(commission_currency.into());
+        let commission_currency_code = self
+            .get_currency_code(&commission_currency.into())
+            .ok_or(anyhow!("There are no suck supported currency code"))?;
         let is_maker = json_response["m"]
             .as_bool()
             .ok_or(anyhow!("Unable to parse trade side"))?;

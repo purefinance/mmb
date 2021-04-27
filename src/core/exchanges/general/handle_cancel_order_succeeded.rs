@@ -85,16 +85,13 @@ impl Exchange {
             return Ok(());
         }
 
-        order_ref.fn_mut(|order| {
-            order.internal_props.filled_amount_after_cancellation = filled_amount;
-        });
-
         if source_type == EventSourceType::RestFallback {
             // TODO some metrics
         }
 
         let mut is_canceling_from_wait_cancel_order = false;
         order_ref.fn_mut(|order| {
+            order.internal_props.filled_amount_after_cancellation = filled_amount;
             order.set_status(OrderStatus::Canceled, Utc::now());
             order.internal_props.cancellation_event_source_type = Some(source_type);
             is_canceling_from_wait_cancel_order =
