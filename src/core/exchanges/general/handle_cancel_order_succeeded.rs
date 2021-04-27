@@ -37,7 +37,7 @@ impl Exchange {
             )?;
         }
 
-        match self.orders.by_exchange_id.get(&exchange_order_id) {
+        match self.orders.cache_by_exchange_id.get(&exchange_order_id) {
             None => {
                 // TODO BufferedCanceledOrderManager.add_order(exchange_order_id, self.exchange_account_id)
                 // TODO All other code connected BufferedCaceledOrderManager
