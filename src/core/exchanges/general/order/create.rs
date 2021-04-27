@@ -84,7 +84,7 @@ impl Exchange {
             Success(exchange_order_id) => {
                 let result_order = &*self
                     .orders
-                    .by_exchange_id
+                    .cache_by_exchange_id
                     .get(&exchange_order_id).ok_or_else(||
                         anyhow!("Impossible situation: order was created, but missing in local orders pool")
                     )?;
@@ -185,7 +185,7 @@ impl Exchange {
             bail!("{}", error_msg);
         }
 
-        match self.orders.by_client_id.get(client_order_id) {
+        match self.orders.cache_by_client_id.get(client_order_id) {
             None => {
                 let error_msg = format!(
                 "CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}",
@@ -303,7 +303,7 @@ impl Exchange {
             bail!("{}", error_msg);
         }
 
-        match self.orders.by_client_id.get(client_order_id) {
+        match self.orders.cache_by_client_id.get(client_order_id) {
             None => {
                 warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
 
@@ -354,7 +354,11 @@ impl Exchange {
             OrderStatus::Completed => Self::log_warn("Completed", args_to_log),
             OrderStatus::FailedToCancel => Self::log_warn("FailedToCancel", args_to_log),
             OrderStatus::Creating => {
-                if self.orders.by_exchange_id.contains_key(exchange_order_id) {
+                if self
+                    .orders
+                    .cache_by_exchange_id
+                    .contains_key(exchange_order_id)
+                {
                     info!(
                         "Order has already been added to the local orders pool {:?}",
                         args_to_log
@@ -371,7 +375,7 @@ impl Exchange {
                 });
 
                 self.orders
-                    .by_exchange_id
+                    .cache_by_exchange_id
                     .insert(exchange_order_id.clone(), order_ref.clone());
 
                 if order_ref.order_type() != OrderType::Liquidation {

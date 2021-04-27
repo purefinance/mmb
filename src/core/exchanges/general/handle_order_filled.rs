@@ -685,7 +685,7 @@ impl Exchange {
 
             match self
                 .orders
-                .by_exchange_id
+                .cache_by_exchange_id
                 .get(&event_data.exchange_order_id)
             {
                 Some(order_ref) => {
@@ -900,7 +900,7 @@ mod test {
         let order_pool = OrdersPool::new();
         order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
         let order_ref = order_pool
-            .by_client_id
+            .cache_by_client_id
             .get(&client_order_id)
             .expect("in test");
 
@@ -1084,7 +1084,7 @@ mod test {
                 Ok(_) => {
                     let order = exchange
                         .orders
-                        .by_client_id
+                        .cache_by_client_id
                         .iter()
                         .next()
                         .expect("order should be added already");
@@ -1720,7 +1720,7 @@ mod test {
 
         let order_ref = exchange
             .orders
-            .by_exchange_id
+            .cache_by_exchange_id
             .get(&exchange_order_id)
             .expect("in test");
         let (fills, _filled_amount) = order_ref.get_fills();
@@ -1834,7 +1834,7 @@ mod test {
 
         let order_ref = exchange
             .orders
-            .by_exchange_id
+            .cache_by_exchange_id
             .get(&exchange_order_id)
             .expect("in test");
         let (fills, _filled_amount) = order_ref.get_fills();
@@ -1947,7 +1947,7 @@ mod test {
 
         let order_ref = exchange
             .orders
-            .by_exchange_id
+            .cache_by_exchange_id
             .get(&exchange_order_id)
             .expect("in test");
 
@@ -2066,7 +2066,7 @@ mod test {
 
         let order_ref = exchange
             .orders
-            .by_exchange_id
+            .cache_by_exchange_id
             .get(&exchange_order_id)
             .expect("in test");
 
@@ -2183,7 +2183,7 @@ mod test {
 
         let order_ref = exchange
             .orders
-            .by_exchange_id
+            .cache_by_exchange_id
             .get(&exchange_order_id)
             .expect("in test");
 
