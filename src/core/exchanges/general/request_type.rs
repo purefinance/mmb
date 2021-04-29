@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub enum RequestType {
     CreateOrder,
     CancelOrder,

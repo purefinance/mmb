@@ -5,7 +5,9 @@ use chrono::Duration;
 use log::{error, info};
 use uuid::Uuid;
 
-use crate::core::{exchanges::common::ExchangeAccountId, DateTime};
+use crate::core::{
+    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType, DateTime,
+};
 
 use super::{
     pre_reserved_group::PreReservedGroup, request::Request,
@@ -115,6 +117,81 @@ impl RequestsTimeoutManager {
                 true
             }
         }
+    }
+
+    fn try_reserve_instant(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+        pre_reserved_group_id: Option<Uuid>,
+        // FIXME Some logger context?
+    ) -> Result<bool> {
+        match pre_reserved_group_id {
+            Some(pre_reserved_group_id) => {
+                self.try_reserve_group_instant(request_type, current_time)
+            }
+            None => {
+                self.try_reserve_request_instant(request_type, current_time, pre_reserved_group_id)
+            }
+        }
+    }
+
+    pub fn try_reserve_group_instant(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+    ) -> Result<bool> {
+        // FIXME delete it
+        Ok(false)
+    }
+
+    pub fn try_reserve_request_instant(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+        pre_reserved_group_id: Option<Uuid>,
+    ) -> Result<bool> {
+        // FIXME outer lock probably
+        let current_time = self.get_non_decreasing_time(current_time);
+        self.remove_outdated_requests(current_time)?;
+
+        let all_available_requests_count = self.get_all_available_requests_count();
+        let available_requests_count = self.get_available_requests_count_at_persent(current_time);
+
+        if available_requests_count <= 0 {
+            // TODO save to DataRecorder
+
+            return Ok(false);
+        }
+
+        let request = self.add_request(request_type, current_time, None);
+
+        // FIXME delete it
+        Ok(false)
+    }
+
+    fn add_request(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+        group_id: Option<Uuid>,
+    ) -> Request {
+        let request = Request::new(request_type, current_time, group_id);
+
+        let request_index = self.requests.binary_search_by(|stored_request| {
+            stored_request
+                .allowed_start_time
+                .cmp(&request.allowed_start_time)
+        });
+
+        let request_index =
+            request_index.map_or_else(|error_index| error_index, |ok_index| ok_index);
+
+        self.requests.insert(request_index, request.clone());
+
+        // TODO handle triggers
+
+        request
     }
 
     fn get_available_requests_count_at_persent(&self, current_time: DateTime) -> usize {
