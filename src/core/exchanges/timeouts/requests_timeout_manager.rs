@@ -10,7 +10,7 @@ use crate::core::{
 };
 
 use super::{
-    more_or_equals_available_requests_count_trigger_scheduler::MoreOrEquelsAvailableRequestsCountTriggerScheduler,
+    more_or_equals_available_requests_count_trigger_scheduler::MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     pre_reserved_group::PreReservedGroup, request::Request,
     requests_counts_in_period_result::RequestsCountsInPeriodResult,
     triggers::handle_trigger_trait::TriggerHandler,
@@ -29,7 +29,7 @@ pub struct RequestsTimeoutManager {
 
     less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
     more_or_equals_available_requests_count_trigger_scheduler:
-        MoreOrEquelsAvailableRequestsCountTriggerScheduler,
+        MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     // delay_to_next_time_period: Duration,
     // data_recorder
 }
@@ -39,7 +39,7 @@ impl RequestsTimeoutManager {
         requests_per_period: usize,
         period_duration: Duration,
         exchange_account_id: ExchangeAccountId,
-        more_or_equals_available_requests_count_trigger_scheduler: MoreOrEquelsAvailableRequestsCountTriggerScheduler,
+        more_or_equals_available_requests_count_trigger_scheduler: MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     ) -> Self {
         Self {
             requests_per_period,
@@ -172,7 +172,13 @@ impl RequestsTimeoutManager {
             return Ok(false);
         }
 
-        let request = self.add_request(request_type, current_time, None);
+        let request = self.add_request(request_type.clone(), current_time, None);
+        self.last_time = Some(current_time);
+
+        info!(
+            "Reserved request {:?} without group, instant {:?}",
+            request_type, current_time
+        );
 
         // FIXME delete it
         Ok(false)
