@@ -10,8 +10,10 @@ use crate::core::{
 };
 
 use super::{
+    more_or_equals_available_requests_count_trigger_scheduler::MoreOrEquelsAvailableRequestsCountTriggerScheduler,
     pre_reserved_group::PreReservedGroup, request::Request,
     requests_counts_in_period_result::RequestsCountsInPeriodResult,
+    triggers::handle_trigger_trait::TriggerHandler,
 };
 
 pub struct RequestsTimeoutManager {
@@ -24,7 +26,10 @@ pub struct RequestsTimeoutManager {
 
     pub group_was_reserved: Box<dyn FnMut(PreReservedGroup)>,
     pub group_was_removed: Box<dyn FnMut(PreReservedGroup)>,
-    // more_or_equels_available_requests_count_trigger_scheduler
+
+    less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
+    more_or_equals_available_requests_count_trigger_scheduler:
+        MoreOrEquelsAvailableRequestsCountTriggerScheduler,
     // delay_to_next_time_period: Duration,
     // data_recorder
 }
@@ -34,6 +39,7 @@ impl RequestsTimeoutManager {
         requests_per_period: usize,
         period_duration: Duration,
         exchange_account_id: ExchangeAccountId,
+        more_or_equals_available_requests_count_trigger_scheduler: MoreOrEquelsAvailableRequestsCountTriggerScheduler,
     ) -> Self {
         Self {
             requests_per_period,
@@ -44,6 +50,8 @@ impl RequestsTimeoutManager {
             last_time: None,
             group_was_reserved: Box::new(|_| {}),
             group_was_removed: Box::new(|_| {}),
+            less_or_equals_requests_count_triggers: Default::default(),
+            more_or_equals_available_requests_count_trigger_scheduler,
         }
     }
 
@@ -175,7 +183,7 @@ impl RequestsTimeoutManager {
         request_type: RequestType,
         current_time: DateTime,
         group_id: Option<Uuid>,
-    ) -> Request {
+    ) -> Result<Request> {
         let request = Request::new(request_type, current_time, group_id);
 
         let request_index = self.requests.binary_search_by(|stored_request| {
@@ -189,9 +197,65 @@ impl RequestsTimeoutManager {
 
         self.requests.insert(request_index, request.clone());
 
-        // TODO handle triggers
+        self.handle_all_decreasing_triggers();
+        self.handle_all_increasing_triggers()?;
 
-        request
+        Ok(request)
+    }
+
+    fn handle_all_decreasing_triggers(&mut self) {
+        let available_requests_count = self.get_all_available_requests_count();
+        self.less_or_equals_requests_count_triggers
+            .iter_mut()
+            .for_each(|trigger| trigger.handle(available_requests_count));
+    }
+
+    fn handle_all_increasing_triggers(&self) -> Result<()> {
+        let requests_difference = self.get_available_requests_in_last_period()?;
+        // FIXME what about that? checked_sub on every plase where substitution occured?
+        let available_requests_count_on_last_request_time = if requests_difference >= 0 {
+            requests_difference
+        } else {
+            0
+        };
+
+        self.more_or_equals_available_requests_count_trigger_scheduler
+            .schedule_triggers(
+                available_requests_count_on_last_request_time,
+                self.get_last_request()?.allowed_start_time,
+                self.period_duration,
+            );
+
+        Ok(())
+    }
+
+    fn get_available_requests_in_last_period(&self) -> Result<usize> {
+        let reserved_requests_count = self.get_requests_count_at_last_request_time()?;
+        let reserved_requests_counts_without_group = reserved_requests_count.requests_count
+            - reserved_requests_count.reserved_in_groups_requests_count;
+        let requests_difference = self.requests_per_period
+            - reserved_requests_counts_without_group
+            - reserved_requests_count.vacant_and_reserved_in_groups_requests_count;
+
+        Ok(requests_difference)
+    }
+
+    fn get_requests_count_at_last_request_time(&self) -> Result<RequestsCountsInPeriodResult> {
+        let last_request = self.get_last_request()?;
+        let last_requests_start_time = last_request.allowed_start_time;
+        let period_before_last = last_requests_start_time - self.period_duration;
+
+        let not_period_predicate =
+            |request: &Request, _| period_before_last > request.allowed_start_time;
+
+        Ok(self.reserved_requests_count_in_period(period_before_last, not_period_predicate))
+    }
+
+    fn get_last_request(&self) -> Result<Request> {
+        self.requests
+            .last()
+            .map(|request| request.clone())
+            .ok_or(anyhow!("There are no last request"))
     }
 
     fn get_available_requests_count_at_persent(&self, current_time: DateTime) -> usize {
