@@ -1,7 +1,8 @@
-use chrono::{Duration, Utc};
-use parking_lot::Mutex;
-
 use crate::core::DateTime;
+use chrono::{Duration, Utc};
+use log::error;
+use parking_lot::Mutex;
+use tokio::time::sleep;
 
 pub struct MoreOrEqualsAvailableRequestsCountTriggerScheduler {
     increasing_count_triggers: Mutex<Vec<MoreOrEqualsAvailableRequestsCountTrigger>>,
@@ -56,5 +57,50 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
         period_duration: Duration,
         current_time: DateTime,
     ) {
+        let is_greater = available_requests_count_on_last_request_time >= self.count_threshold;
+
+        if is_greater {
+            return;
+        }
+
+        // Note: suppose that requests restriction same as in RequestsTimeoutManager (requests count in specified time period)
+        // It logical dependency to RequestsTimeoutManager how calculate trigger time
+        // var triggerTime = isGreater ? lastRequestTime : lastRequestTime + periodDuration;
+        let trigger_time = last_request_time + period_duration;
+        let mut delay = trigger_time - current_time;
+        delay = if delay < Duration::zero() {
+            Duration::zero()
+        } else {
+            delay
+        };
+
+        let _async_handler = self.handle_inner(delay);
+        // FIXME How to run that future like in C#
+        // Task.Run(() => task)
+    }
+
+    async fn handle_inner(&self, delay: Duration) {
+        if let Ok(delay) = delay.to_std() {
+            sleep(delay).await;
+            // FIXME Can C# Action throw an exception?
+            (*self.handler)();
+        } else {
+            error!("Unable to convert chrono::Duration to std::Duration");
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use chrono::{NaiveDateTime, Utc};
+    use DateTime;
+
+    use super::*;
+
+    #[test]
+    fn negative_delay() {
+        let trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(5, Box::new(|| {}));
+        let wrong_date_time = DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc);
+        trigger.schedule_handler(3, wrong_date_time, Duration::seconds(5), Utc::now());
     }
 }

@@ -26,6 +26,7 @@ pub struct RequestsTimeoutManager {
 
     pub group_was_reserved: Box<dyn FnMut(PreReservedGroup)>,
     pub group_was_removed: Box<dyn FnMut(PreReservedGroup)>,
+    pub time_has_come_for_request: Box<dyn FnMut(Request)>,
 
     less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
     more_or_equals_available_requests_count_trigger_scheduler:
@@ -50,6 +51,7 @@ impl RequestsTimeoutManager {
             last_time: None,
             group_was_reserved: Box::new(|_| {}),
             group_was_removed: Box::new(|_| {}),
+            time_has_come_for_request: Box::new(|_| {}),
             less_or_equals_requests_count_triggers: Default::default(),
             more_or_equals_available_requests_count_trigger_scheduler,
         }
@@ -79,7 +81,6 @@ impl RequestsTimeoutManager {
         let group = PreReservedGroup::new(group_id, group_type, requests_count);
         self.pre_reserved_groups.push(group.clone());
 
-        // TODO Why do we need some specific logger?
         info!("PreReserved grop {} {} was added", group_id, requests_count);
 
         // TODO save to DataRecorder
@@ -102,7 +103,6 @@ impl RequestsTimeoutManager {
 
         match stored_group {
             None => {
-                // FIXME Why some special logger?
                 error!("Cannot find PreReservedGroup {} for removing", { group_id });
                 // TODO save to DataRecorder
 
@@ -132,15 +132,12 @@ impl RequestsTimeoutManager {
         request_type: RequestType,
         current_time: DateTime,
         pre_reserved_group_id: Option<Uuid>,
-        // FIXME Some logger context?
     ) -> Result<bool> {
         match pre_reserved_group_id {
             Some(pre_reserved_group_id) => {
-                self.try_reserve_group_instant(request_type, current_time)
+                self.try_reserve_group_instant(request_type, current_time, pre_reserved_group_id)
             }
-            None => {
-                self.try_reserve_request_instant(request_type, current_time, pre_reserved_group_id)
-            }
+            None => self.try_reserve_request_instant(request_type, current_time),
         }
     }
 
@@ -148,22 +145,99 @@ impl RequestsTimeoutManager {
         &mut self,
         request_type: RequestType,
         current_time: DateTime,
+        pre_reserved_group_id: Uuid,
     ) -> Result<bool> {
-        // FIXME delete it
-        Ok(false)
+        // FIXME outer lock probably
+
+        let group = self
+            .pre_reserved_groups
+            .iter()
+            .find(|group| group.id == pre_reserved_group_id);
+
+        match group {
+            None => {
+                error!(
+                    "Cannot find PreReservedGroup {} for reserve requests instant {:?}",
+                    pre_reserved_group_id, request_type
+                );
+
+                // TODO save to DataRecorder
+
+                return self.try_reserve_request_instant(request_type, current_time);
+            }
+            Some(group) => {
+                let group = group.clone();
+                let current_time = self.get_non_decreasing_time(current_time);
+                self.remove_outdated_requests(current_time)?;
+
+                let all_available_requests_count = self.get_all_available_requests_count();
+                let available_requests_count_without_group =
+                    self.get_available_requests_count_at_persent(current_time);
+                let reserved_requests_count_for_group = self
+                    .get_reserved_request_count_for_group_to_now(
+                        pre_reserved_group_id,
+                        current_time,
+                    );
+
+                let rest_requests_count_in_group = group
+                    .pre_reserved_requests_count
+                    .saturating_sub(reserved_requests_count_for_group);
+                let available_requests_count =
+                    available_requests_count_without_group + rest_requests_count_in_group;
+
+                if available_requests_count == 0 {
+                    // TODO save to DataRecorder
+
+                    return Ok(false);
+                }
+
+                let request =
+                    self.add_request(request_type.clone(), current_time, Some(group.id))?;
+
+                info!(
+                    "Request {:?} reserved for group {} {} {} {}, instant {}",
+                    request_type,
+                    pre_reserved_group_id,
+                    all_available_requests_count,
+                    self.pre_reserved_groups.len(),
+                    available_requests_count_without_group,
+                    current_time
+                );
+
+                (*self.time_has_come_for_request)(request);
+                Ok(true)
+            }
+        }
+    }
+
+    fn get_reserved_request_count_for_group_to_now(
+        &self,
+        group_id: Uuid,
+        current_time: DateTime,
+    ) -> usize {
+        let mut count = 0;
+
+        for request in &self.requests {
+            if let Some(request_group_id) = request.group_id {
+                if request.allowed_start_time <= current_time && request_group_id == group_id {
+                    count += 1;
+                }
+            }
+        }
+
+        count
     }
 
     pub fn try_reserve_request_instant(
         &mut self,
         request_type: RequestType,
         current_time: DateTime,
-        pre_reserved_group_id: Option<Uuid>,
     ) -> Result<bool> {
         // FIXME outer lock probably
         let current_time = self.get_non_decreasing_time(current_time);
         self.remove_outdated_requests(current_time)?;
 
-        let all_available_requests_count = self.get_all_available_requests_count();
+        let _all_available_requests_count = self.get_all_available_requests_count();
         let available_requests_count = self.get_available_requests_count_at_persent(current_time);
 
         if available_requests_count <= 0 {
@@ -172,7 +246,7 @@ impl RequestsTimeoutManager {
             return Ok(false);
         }
 
-        let request = self.add_request(request_type.clone(), current_time, None);
+        let request = self.add_request(request_type.clone(), current_time, None)?;
         self.last_time = Some(current_time);
 
         info!(
@@ -180,8 +254,10 @@ impl RequestsTimeoutManager {
             request_type, current_time
         );
 
-        // FIXME delete it
-        Ok(false)
+        // TODO save to DataRecorder
+
+        (*self.time_has_come_for_request)(request);
+        Ok(true)
     }
 
     fn add_request(
@@ -346,12 +422,10 @@ impl RequestsTimeoutManager {
     }
 
     fn get_all_available_requests_count(&self) -> usize {
-        let available_requests_number = self.requests_per_period.checked_sub(self.requests.len());
+        let available_requests_number =
+            self.requests_per_period.saturating_sub(self.requests.len());
 
-        match available_requests_number {
-            Some(available_requests_number) => available_requests_number,
-            None => 0,
-        }
+        available_requests_number
     }
 
     fn remove_outdated_requests(&mut self, current_time: DateTime) -> Result<()> {
@@ -403,19 +477,19 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn some_first_test() {
-        let mut requests_timeout_manager = RequestsTimeoutManager::new(
-            1,
-            Duration::seconds(5),
-            ExchangeAccountId::new("test".into(), 0),
-        );
+    //#[test]
+    //fn some_first_test() {
+    //    let mut requests_timeout_manager = RequestsTimeoutManager::new(
+    //        1,
+    //        Duration::seconds(5),
+    //        ExchangeAccountId::new("test".into(), 0),
+    //    );
 
-        requests_timeout_manager.requests = vec![
-            Request::new(RequestType::CreateOrder, Utc::now(), None),
-            Request::new(RequestType::CancelOrder, Utc::now(), None),
-        ];
-        let result = requests_timeout_manager.get_all_available_requests_count();
-        dbg!(&result);
-    }
+    //    requests_timeout_manager.requests = vec![
+    //        Request::new(RequestType::CreateOrder, Utc::now(), None),
+    //        Request::new(RequestType::CancelOrder, Utc::now(), None),
+    //    ];
+    //    let result = requests_timeout_manager.get_all_available_requests_count();
+    //    dbg!(&result);
+    //}
 }
