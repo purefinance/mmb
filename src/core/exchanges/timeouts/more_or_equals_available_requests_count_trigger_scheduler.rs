@@ -10,6 +10,13 @@ pub struct MoreOrEqualsAvailableRequestsCountTriggerScheduler {
 }
 
 impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
+    pub fn new() -> Self {
+        let triggers = Mutex::new(Vec::new());
+        Self {
+            increasing_count_triggers: triggers,
+        }
+    }
+
     pub fn utc_now() -> DateTime {
         Utc::now()
     }

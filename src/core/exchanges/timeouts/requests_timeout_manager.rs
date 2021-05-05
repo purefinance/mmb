@@ -31,7 +31,6 @@ pub struct InnerRequestsTimeoutManager {
     pre_reserved_groups: Vec<PreReservedGroup>,
     last_time: Option<DateTime>,
 
-    // FIXME should it be Option?
     pub group_was_reserved: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
     pub group_was_removed: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
     pub time_has_come_for_request: Option<Box<dyn Fn(Request) -> Result<()>>>,
@@ -175,7 +174,7 @@ impl RequestsTimeoutManager {
 
                 // TODO save to DataRecorder
 
-                return self.try_reserve_request_instant(request_type, current_time);
+                return state.try_reserve_request_instant(request_type, current_time);
             }
             Some(group) => {
                 let group = group.clone();
@@ -228,33 +227,9 @@ impl RequestsTimeoutManager {
         request_type: RequestType,
         current_time: DateTime,
     ) -> Result<bool> {
-        let mut state = self.state.write();
-
-        let current_time = state.get_non_decreasing_time(current_time);
-        state.remove_outdated_requests(current_time)?;
-
-        let _all_available_requests_count = state.get_all_available_requests_count();
-        let available_requests_count = state.get_available_requests_count_at_persent(current_time);
-
-        if available_requests_count == 0 {
-            // TODO save to DataRecorder
-
-            return Ok(false);
-        }
-
-        let request = state.add_request(request_type.clone(), current_time, None)?;
-        state.last_time = Some(current_time);
-
-        info!(
-            "Reserved request {:?} without group, instant {:?}",
-            request_type, current_time
-        );
-
-        // TODO save to DataRecorder
-
-        utils::try_invoke(&state.time_has_come_for_request, request)?;
-
-        Ok(true)
+        self.state
+            .write()
+            .try_reserve_request_instant(request_type, current_time)
     }
 
     pub async fn reserve_when_available(
@@ -315,8 +290,7 @@ impl RequestsTimeoutManager {
         // TODO save to DataRecorder. Delete drop
         drop(available_requests_count_for_period);
 
-        // FIXME uncomment it
-        //self.last_time = Some(current_time);
+        state.last_time = Some(current_time);
 
         drop(state);
 
@@ -361,6 +335,38 @@ impl RequestsTimeoutManager {
 }
 
 impl InnerRequestsTimeoutManager {
+    pub fn try_reserve_request_instant(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+    ) -> Result<bool> {
+        let current_time = self.get_non_decreasing_time(current_time);
+        self.remove_outdated_requests(current_time)?;
+
+        let _all_available_requests_count = self.get_all_available_requests_count();
+        let available_requests_count = self.get_available_requests_count_at_persent(current_time);
+
+        if available_requests_count == 0 {
+            // TODO save to DataRecorder
+
+            return Ok(false);
+        }
+
+        let request = self.add_request(request_type.clone(), current_time, None)?;
+        self.last_time = Some(current_time);
+
+        info!(
+            "Reserved request {:?} without group, instant {:?}",
+            request_type, current_time
+        );
+
+        // TODO save to DataRecorder
+
+        utils::try_invoke(&self.time_has_come_for_request, request)?;
+
+        Ok(true)
+    }
+
     fn get_reserved_request_count_for_group_to_now(
         &self,
         group_id: Uuid,
@@ -583,5 +589,26 @@ impl RequestsCountTpm {
             requests_count: 0,
             pre_reserved_count,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use chrono::Utc;
+
+    use super::*;
+
+    #[test]
+    fn try_reserve_group_instant_test() {
+        let mut manager = RequestsTimeoutManager::new(
+            5,
+            Duration::seconds(1),
+            ExchangeAccountId::new("test".into(), 0),
+            MoreOrEqualsAvailableRequestsCountTriggerScheduler::new(),
+        );
+
+        let result =
+            manager.try_reserve_group_instant(RequestType::CreateOrder, Utc::now(), Uuid::new_v4());
+        dbg!(&result);
     }
 }
