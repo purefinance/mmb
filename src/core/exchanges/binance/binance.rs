@@ -56,15 +56,14 @@ impl Binance {
     }
 
     pub async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
-        let url_path = if self.settings.is_marging_trading {
-            "/sapi/v1/userDataStream"
-        } else {
-            "/api/v3/userDataStream"
+        let url_path = match self.settings.is_marging_trading {
+            true => "/sapi/v1/userDataStream",
+            false => "/api/v3/userDataStream",
         };
 
-        let full_url = format!("{}{}", self.settings.rest_host, url_path);
-        let parameters = rest_client::HttpParams::new();
-        rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
+        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
+        let http_params = rest_client::HttpParams::new();
+        rest_client::send_post_request(full_url, &self.settings.api_key, &http_params).await
     }
 
     pub fn extend_settings(settings: &mut ExchangeSettings) {

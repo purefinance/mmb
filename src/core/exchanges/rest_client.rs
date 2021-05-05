@@ -1,9 +1,7 @@
-use std::pin::Pin;
-
 use super::common::*;
-use actix_web::{client::SendRequestError, dev::Decompress, error::PayloadError};
 use anyhow::{bail, Context, Result};
-use awc::ClientResponse;
+use hyper::{Body, Client, Error, Request, Response, Uri};
+use std::convert::TryInto;
 
 pub type HttpParams = Vec<(String, String)>;
 
@@ -21,25 +19,17 @@ pub fn to_http_string(parameters: &HttpParams) -> String {
     http_string
 }
 
-// Inner awc types. Needed just for unified response handling in hande_response()
-type PinnedStream =
-    Pin<Box<dyn futures::Stream<Item = std::result::Result<bytes::Bytes, PayloadError>>>>;
-type ResponseType = std::result::Result<
-    ClientResponse<Decompress<actix_web::dev::Payload<PinnedStream>>>,
-    SendRequestError,
->;
+// Inner Hyper types. Needed just for unified response handling in handle_response()
+type ResponseType = std::result::Result<Response<Body>, Error>;
 async fn handle_response(response: ResponseType, rest_action: &str) -> Result<RestRequestOutcome> {
     match response {
-        Ok(mut response) => Ok(RestRequestOutcome {
+        Ok(response) => Ok(RestRequestOutcome {
+            status: response.status(),
             content: std::str::from_utf8(
-                &response
-                    .body()
-                    .await
-                    .context("Unable to get response body")?,
+                hyper::body::to_bytes(response.into_body()).await?.as_ref(),
             )
             .context("Unable to parse content string")?
             .to_owned(),
-            status: response.status(),
         }),
         Err(error) => {
             bail!("Unable to send {} request: {}", rest_action, error)
@@ -48,61 +38,101 @@ async fn handle_response(response: ResponseType, rest_action: &str) -> Result<Re
 }
 
 pub async fn send_post_request(
-    url: &str,
+    url: Uri,
     api_key: &str,
-    parameters: &HttpParams,
+    http_params: &HttpParams,
 ) -> Result<RestRequestOutcome> {
-    // let client = awc::Client::default();
-    // let response = client
-    //     .post(url)
-    //     .header("X-MBX-APIKEY", api_key)
-    //     .send_form(&parameters)
-    //     .await;
-    //
-    // handle_response(response, "POST").await
+    let form_encoded = form_urlencoded::Serializer::new(String::new())
+        .extend_pairs(http_params)
+        .finish();
 
-    todo!()
+    let req = Request::post(url)
+        .header("X-MBX-APIKEY", api_key)
+        .body(Body::from(form_encoded))
+        .context("Error during creation of http delete request")?;
+
+    let response = Client::new().request(req).await;
+
+    handle_response(response, "POST").await
 }
 
-pub async fn send_delete_request(
-    url: &str,
-    api_key: &str,
-    parameters: &HttpParams,
-) -> Result<RestRequestOutcome> {
-    let client = awc::Client::default();
-    let response = client
-        .delete(url)
+pub async fn send_delete_request(url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
+    let req = Request::delete(url)
         .header("X-MBX-APIKEY", api_key)
-        .send_form(&parameters)
-        .await;
+        .body(Body::empty())
+        .context("Error during creation of http delete request")?;
+
+    let response = Client::new().request(req).await;
 
     handle_response(response, "DELETE").await
 }
 
 // TODO not implemented correctly
-pub async fn send_get_request(
-    url: &str,
-    api_key: &str,
-    parameters: &HttpParams,
-) -> Result<RestRequestOutcome> {
-    let client = hyper::Client::new();
-
-    let req = hyper::Request::get(url)
+pub async fn send_get_request(url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
+    let req = Request::get(url)
         .header("X-MBX-APIKEY", api_key)
-        .body(hyper::body::Body::empty())
+        .body(Body::empty())
         .context("Error during creation of http GET request")?;
-    let response = client.request(req).await?;
 
-    todo!()
+    let response = Client::new().request(req).await;
 
-    //     let client = awc::Client::default();
-    //     let response = client
-    //         .get(url)
-    //         .header("X-MBX-APIKEY", api_key)
-    //         .query(&parameters)
-    //         .context("Unable to add query")?
-    //         .send()
-    //         .await;
-    //
-    //     handle_response(response, "GET").await
+    handle_response(response, "GET").await
+}
+
+pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Result<Uri> {
+    let mut url = String::with_capacity(1024);
+    url.push_str(host);
+    url.push_str(path);
+
+    if !http_params.is_empty() {
+        url.push('?');
+    }
+
+    let mut is_first = true;
+    for (k, v) in http_params {
+        if !is_first {
+            url.push('&')
+        }
+        url.push_str(k);
+        url.push('=');
+        url.push_str(v);
+
+        is_first = false;
+    }
+
+    url.try_into().context("Unable create url")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn full_uri() {
+        let host = "https://host.com";
+        let path = "/path";
+        let params: HttpParams = vec![("key", "value"), ("key2", "value2")]
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), v.to_owned()))
+            .collect();
+
+        let uri = build_uri(host, path, &params).expect("in test");
+
+        let expected: Uri = "https://host.com/path?key=value&key2=value2"
+            .try_into()
+            .expect("in test");
+        assert_eq!(uri, expected)
+    }
+
+    #[test]
+    pub fn uri_without_params() {
+        let host = "https://host.com";
+        let path = "/path";
+        let params: HttpParams = HttpParams::new();
+
+        let uri = build_uri(host, path, &params).expect("in test");
+
+        let expected: Uri = "https://host.com/path".try_into().expect("in test");
+        assert_eq!(uri, expected)
+    }
 }
