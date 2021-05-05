@@ -1,6 +1,8 @@
 use super::common::*;
 use anyhow::{bail, Context, Result};
+use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error, Request, Response, Uri};
+use hyper_tls::HttpsConnector;
 use std::convert::TryInto;
 
 pub type HttpParams = Vec<(String, String)>;
@@ -51,7 +53,7 @@ pub async fn send_post_request(
         .body(Body::from(form_encoded))
         .context("Error during creation of http delete request")?;
 
-    let response = Client::new().request(req).await;
+    let response = create_client().request(req).await;
 
     handle_response(response, "POST").await
 }
@@ -62,21 +64,26 @@ pub async fn send_delete_request(url: Uri, api_key: &str) -> Result<RestRequestO
         .body(Body::empty())
         .context("Error during creation of http delete request")?;
 
-    let response = Client::new().request(req).await;
+    let response = create_client().request(req).await;
 
     handle_response(response, "DELETE").await
 }
 
-// TODO not implemented correctly
 pub async fn send_get_request(url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
     let req = Request::get(url)
         .header("X-MBX-APIKEY", api_key)
         .body(Body::empty())
         .context("Error during creation of http GET request")?;
 
-    let response = Client::new().request(req).await;
+    let response = create_client().request(req).await;
 
     handle_response(response, "GET").await
+}
+
+fn create_client() -> Client<HttpsConnector<HttpConnector>> {
+    let https = HttpsConnector::new();
+    let client = Client::builder().build::<_, hyper::Body>(https);
+    client
 }
 
 pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Result<Uri> {
