@@ -1,3 +1,4 @@
+use parking_lot::RwLock;
 use std::collections::HashMap;
 use tokio::time::sleep;
 
@@ -19,6 +20,10 @@ use super::{
 };
 
 pub struct RequestsTimeoutManager {
+    pub state: RwLock<InnerRequestsTimeoutManager>,
+}
+
+pub struct InnerRequestsTimeoutManager {
     requests_per_period: usize,
     period_duration: Duration,
     exchange_account_id: ExchangeAccountId,
@@ -45,7 +50,7 @@ impl RequestsTimeoutManager {
         exchange_account_id: ExchangeAccountId,
         more_or_equals_available_requests_count_trigger_scheduler: MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     ) -> Self {
-        Self {
+        let state = InnerRequestsTimeoutManager {
             requests_per_period,
             period_duration,
             exchange_account_id,
@@ -58,6 +63,10 @@ impl RequestsTimeoutManager {
             time_has_come_for_request: None,
             less_or_equals_requests_count_triggers: Default::default(),
             more_or_equals_available_requests_count_trigger_scheduler,
+        };
+
+        Self {
+            state: RwLock::new(state),
         }
     }
 
@@ -68,13 +77,13 @@ impl RequestsTimeoutManager {
         requests_count: usize,
         // call_source: SourceInfo, // TODO not needed until DataRecorder is ready
     ) -> Result<Option<Uuid>> {
-        // FIXME lock maybe
+        let mut state = self.state.write();
 
-        let current_time = self.get_non_decreasing_time(current_time);
-        self.remove_outdated_requests(current_time)?;
+        let current_time = state.get_non_decreasing_time(current_time);
+        state.remove_outdated_requests(current_time)?;
 
-        let _all_available_requests_count = self.get_all_available_requests_count();
-        let available_requests_count = self.get_available_requests_count_at_persent(current_time);
+        let _all_available_requests_count = state.get_all_available_requests_count();
+        let available_requests_count = state.get_available_requests_count_at_persent(current_time);
 
         if available_requests_count < requests_count {
             // TODO save to DataRecorder
@@ -83,24 +92,24 @@ impl RequestsTimeoutManager {
 
         let group_id = Uuid::new_v4();
         let group = PreReservedGroup::new(group_id, group_type, requests_count);
-        self.pre_reserved_groups.push(group.clone());
+        state.pre_reserved_groups.push(group.clone());
 
         info!("PreReserved grop {} {} was added", group_id, requests_count);
 
         // TODO save to DataRecorder
 
-        self.last_time = Some(current_time);
+        state.last_time = Some(current_time);
 
-        utils::try_invoke(&self.group_was_reserved, group)?;
+        utils::try_invoke(&state.group_was_reserved, group)?;
 
         Ok(Some(group_id))
     }
 
     pub fn remove_group(&mut self, group_id: Uuid, _current_time: DateTime) -> Result<bool> {
-        // FIXME outer lock
+        let mut state = self.state.write();
 
-        let _all_available_requests_count = self.get_all_available_requests_count();
-        let stored_group = self
+        let _all_available_requests_count = state.get_all_available_requests_count();
+        let stored_group = state
             .pre_reserved_groups
             .iter()
             .position(|group| group.id == group_id);
@@ -113,9 +122,9 @@ impl RequestsTimeoutManager {
                 Ok(false)
             }
             Some(group_index) => {
-                let group = self.pre_reserved_groups[group_index].clone();
+                let group = state.pre_reserved_groups[group_index].clone();
                 let pre_reserved_requests_count = group.pre_reserved_requests_count;
-                self.pre_reserved_groups.remove(group_index);
+                state.pre_reserved_groups.remove(group_index);
 
                 info!(
                     "PreReservedGroup {} {} was removed",
@@ -124,7 +133,7 @@ impl RequestsTimeoutManager {
 
                 // TODO save to DataRecorder
 
-                utils::try_invoke(&self.group_was_removed, group)?;
+                utils::try_invoke(&state.group_was_removed, group)?;
 
                 Ok(true)
             }
@@ -151,9 +160,8 @@ impl RequestsTimeoutManager {
         current_time: DateTime,
         pre_reserved_group_id: Uuid,
     ) -> Result<bool> {
-        // FIXME outer lock probably
-
-        let group = self
+        let mut state = self.state.write();
+        let group = state
             .pre_reserved_groups
             .iter()
             .find(|group| group.id == pre_reserved_group_id);
@@ -171,13 +179,13 @@ impl RequestsTimeoutManager {
             }
             Some(group) => {
                 let group = group.clone();
-                let current_time = self.get_non_decreasing_time(current_time);
-                self.remove_outdated_requests(current_time)?;
+                let current_time = state.get_non_decreasing_time(current_time);
+                state.remove_outdated_requests(current_time)?;
 
-                let all_available_requests_count = self.get_all_available_requests_count();
+                let all_available_requests_count = state.get_all_available_requests_count();
                 let available_requests_count_without_group =
-                    self.get_available_requests_count_at_persent(current_time);
-                let reserved_requests_count_for_group = self
+                    state.get_available_requests_count_at_persent(current_time);
+                let reserved_requests_count_for_group = state
                     .get_reserved_request_count_for_group_to_now(
                         pre_reserved_group_id,
                         current_time,
@@ -196,19 +204,19 @@ impl RequestsTimeoutManager {
                 }
 
                 let request =
-                    self.add_request(request_type.clone(), current_time, Some(group.id))?;
+                    state.add_request(request_type.clone(), current_time, Some(group.id))?;
 
                 info!(
                     "Request {:?} reserved for group {} {} {} {}, instant {}",
                     request_type,
                     pre_reserved_group_id,
                     all_available_requests_count,
-                    self.pre_reserved_groups.len(),
+                    state.pre_reserved_groups.len(),
                     available_requests_count_without_group,
                     current_time
                 );
 
-                utils::try_invoke(&self.time_has_come_for_request, request)?;
+                utils::try_invoke(&state.time_has_come_for_request, request)?;
 
                 Ok(true)
             }
@@ -216,16 +224,17 @@ impl RequestsTimeoutManager {
     }
 
     pub fn try_reserve_request_instant(
-        &mut self,
+        &self,
         request_type: RequestType,
         current_time: DateTime,
     ) -> Result<bool> {
-        // FIXME outer lock probably
-        let current_time = self.get_non_decreasing_time(current_time);
-        self.remove_outdated_requests(current_time)?;
+        let mut state = self.state.write();
 
-        let _all_available_requests_count = self.get_all_available_requests_count();
-        let available_requests_count = self.get_available_requests_count_at_persent(current_time);
+        let current_time = state.get_non_decreasing_time(current_time);
+        state.remove_outdated_requests(current_time)?;
+
+        let _all_available_requests_count = state.get_all_available_requests_count();
+        let available_requests_count = state.get_available_requests_count_at_persent(current_time);
 
         if available_requests_count == 0 {
             // TODO save to DataRecorder
@@ -233,8 +242,8 @@ impl RequestsTimeoutManager {
             return Ok(false);
         }
 
-        let request = self.add_request(request_type.clone(), current_time, None)?;
-        self.last_time = Some(current_time);
+        let request = state.add_request(request_type.clone(), current_time, None)?;
+        state.last_time = Some(current_time);
 
         info!(
             "Reserved request {:?} without group, instant {:?}",
@@ -243,7 +252,7 @@ impl RequestsTimeoutManager {
 
         // TODO save to DataRecorder
 
-        utils::try_invoke(&self.time_has_come_for_request, request)?;
+        utils::try_invoke(&state.time_has_come_for_request, request)?;
 
         Ok(true)
     }
@@ -261,38 +270,40 @@ impl RequestsTimeoutManager {
         // 1. We check: can we do request now
         // 2. if not form schedule for request where put at start period by requestsPerPeriod requests
 
-        // FIXME outer lock
+        let mut state = self.state.write();
 
-        let current_time = self.get_non_decreasing_time(current_time);
-        self.remove_outdated_requests(current_time)?;
+        let current_time = state.get_non_decreasing_time(current_time);
+        state.remove_outdated_requests(current_time)?;
 
-        let _available_requests_count = self.get_all_available_requests_count();
+        let _available_requests_count = state.get_all_available_requests_count();
 
         // FIXME rewrite it easier
         let mut request_start_time;
         let delay;
         let available_requests_count_for_period;
         let request = {
-            if self.requests.is_empty() {
+            if state.requests.is_empty() {
                 request_start_time = current_time;
                 delay = Duration::zero();
-                available_requests_count_for_period = self.requests_per_period;
-                self.add_request(request_type.clone(), current_time, None)?
+                available_requests_count_for_period = state.requests_per_period;
+                state.add_request(request_type.clone(), current_time, None)?
             } else {
-                let last_request = self.get_last_request()?;
+                let last_request = state.get_last_request()?;
                 let last_requests_start_time = last_request.allowed_start_time;
 
                 available_requests_count_for_period =
-                    self.get_available_requests_in_last_period()?;
+                    state.get_available_requests_in_last_period()?;
                 request_start_time = if available_requests_count_for_period == 0 {
-                    last_requests_start_time + self.period_duration + self.delay_to_next_time_period
+                    last_requests_start_time
+                        + state.period_duration
+                        + state.delay_to_next_time_period
                 } else {
                     last_requests_start_time
                 };
 
                 request_start_time = std::cmp::max(request_start_time, current_time);
                 delay = request_start_time - current_time;
-                self.add_request(request_type.clone(), request_start_time, None)?
+                state.add_request(request_type.clone(), request_start_time, None)?
             }
         };
 
@@ -304,9 +315,10 @@ impl RequestsTimeoutManager {
         // TODO save to DataRecorder. Delete drop
         drop(available_requests_count_for_period);
 
-        self.last_time = Some(current_time);
+        // FIXME uncomment it
+        //self.last_time = Some(current_time);
 
-        // TODO lock is disabled
+        drop(state);
 
         self.wait_for_request_availability(request, delay, cancellation_token)
             .await?;
@@ -315,7 +327,7 @@ impl RequestsTimeoutManager {
     }
 
     async fn wait_for_request_availability(
-        &mut self,
+        &self,
         request: Request,
         delay: Duration,
         cancellation_token: CancellationToken,
@@ -327,13 +339,12 @@ impl RequestsTimeoutManager {
 
                 tokio::select! {
                     _ = sleep_future => {
-                        utils::try_invoke(&self.time_has_come_for_request, request)?;
+                        utils::try_invoke(&self.state.read().time_has_come_for_request, request)?;
                     }
 
                     _ = cancellation_token => {
-                        // FIXME lock here
-                        utils::try_invoke(&self.time_has_come_for_request, request.clone())?;
-                        self.requests.retain(|stored_request| *stored_request != request);
+                        utils::try_invoke(&self.state.read().time_has_come_for_request, request.clone())?;
+                        self.state.write().requests.retain(|stored_request| *stored_request != request);
 
                         bail!("Operation cancelled")
                     }
@@ -347,7 +358,9 @@ impl RequestsTimeoutManager {
             }
         }
     }
+}
 
+impl InnerRequestsTimeoutManager {
     fn get_reserved_request_count_for_group_to_now(
         &self,
         group_id: Uuid,
