@@ -1,12 +1,15 @@
+use futures::pin_mut;
 use std::collections::HashMap;
+use tokio::time::sleep;
 
-use anyhow::{anyhow, Result};
-use chrono::Duration;
+use anyhow::{anyhow, bail, Result};
+use chrono::{Duration, Utc};
 use log::{error, info};
 use uuid::Uuid;
 
 use crate::core::{
-    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType, DateTime,
+    exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
+    exchanges::general::request_type::RequestType, DateTime,
 };
 
 use super::{
@@ -24,14 +27,15 @@ pub struct RequestsTimeoutManager {
     pre_reserved_groups: Vec<PreReservedGroup>,
     last_time: Option<DateTime>,
 
+    // FIXME continue here. Every handler can throw exception
     pub group_was_reserved: Box<dyn FnMut(PreReservedGroup)>,
     pub group_was_removed: Box<dyn FnMut(PreReservedGroup)>,
-    pub time_has_come_for_request: Box<dyn FnMut(Request)>,
+    pub time_has_come_for_request: Box<dyn FnMut(Request) -> Result<()>>,
 
     less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
     more_or_equals_available_requests_count_trigger_scheduler:
         MoreOrEqualsAvailableRequestsCountTriggerScheduler,
-    // delay_to_next_time_period: Duration,
+    delay_to_next_time_period: Duration,
     // data_recorder
 }
 
@@ -49,9 +53,10 @@ impl RequestsTimeoutManager {
             requests: Default::default(),
             pre_reserved_groups: Default::default(),
             last_time: None,
+            delay_to_next_time_period: Duration::milliseconds(1),
             group_was_reserved: Box::new(|_| {}),
             group_was_removed: Box::new(|_| {}),
-            time_has_come_for_request: Box::new(|_| {}),
+            time_has_come_for_request: Box::new(|_| Ok(())),
             less_or_equals_requests_count_triggers: Default::default(),
             more_or_equals_available_requests_count_trigger_scheduler,
         }
@@ -127,7 +132,7 @@ impl RequestsTimeoutManager {
         }
     }
 
-    fn try_reserve_instant(
+    pub fn try_reserve_instant(
         &mut self,
         request_type: RequestType,
         current_time: DateTime,
@@ -204,8 +209,139 @@ impl RequestsTimeoutManager {
                     current_time
                 );
 
-                (*self.time_has_come_for_request)(request);
+                (*self.time_has_come_for_request)(request)?;
                 Ok(true)
+            }
+        }
+    }
+
+    pub fn try_reserve_request_instant(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+    ) -> Result<bool> {
+        // FIXME outer lock probably
+        let current_time = self.get_non_decreasing_time(current_time);
+        self.remove_outdated_requests(current_time)?;
+
+        let _all_available_requests_count = self.get_all_available_requests_count();
+        let available_requests_count = self.get_available_requests_count_at_persent(current_time);
+
+        if available_requests_count == 0 {
+            // TODO save to DataRecorder
+
+            return Ok(false);
+        }
+
+        let request = self.add_request(request_type.clone(), current_time, None)?;
+        self.last_time = Some(current_time);
+
+        info!(
+            "Reserved request {:?} without group, instant {:?}",
+            request_type, current_time
+        );
+
+        // TODO save to DataRecorder
+
+        (*self.time_has_come_for_request)(request)?;
+        Ok(true)
+    }
+
+    pub async fn reserve_when_available(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+        cancellation_token: CancellationToken,
+    ) -> Result<(DateTime, Duration)> {
+        // Note: calculation doesnt' support request cancellation
+        // Note: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
+
+        // Algorithm:
+        // 1. We check: can we do request now
+        // 2. if not form schedule for request where put at start period by requestsPerPeriod requests
+
+        // FIXME outer lock
+
+        let current_time = self.get_non_decreasing_time(current_time);
+        self.remove_outdated_requests(current_time);
+
+        let available_requests_count = self.get_all_available_requests_count();
+
+        // FIXME rewrite it easier
+        let mut request_start_time;
+        let delay;
+        let available_requests_count_for_period;
+        let request = {
+            if self.requests.is_empty() {
+                request_start_time = current_time;
+                delay = Duration::zero();
+                available_requests_count_for_period = self.requests_per_period;
+                self.add_request(request_type.clone(), current_time, None)?
+            } else {
+                let last_request = self.get_last_request()?;
+                let last_requests_start_time = last_request.allowed_start_time;
+
+                available_requests_count_for_period =
+                    self.get_available_requests_in_last_period()?;
+                request_start_time = if available_requests_count_for_period == 0 {
+                    last_requests_start_time + self.period_duration + self.delay_to_next_time_period
+                } else {
+                    last_requests_start_time
+                };
+
+                request_start_time = std::cmp::max(request_start_time, current_time);
+                delay = request_start_time - current_time;
+                self.add_request(request_type.clone(), request_start_time, None)?
+            }
+        };
+
+        info!(
+            "Request {:?} reserved, available {}",
+            request_type, request_start_time
+        );
+
+        // TODO save to DataRecorder
+
+        self.last_time = Some(current_time);
+
+        // TODO lock is disabled
+
+        self.wait_for_request_availability(request, delay, cancellation_token)
+            .await?;
+
+        Ok((request_start_time, delay))
+    }
+
+    async fn wait_for_request_availability(
+        &mut self,
+        request: Request,
+        delay: Duration,
+        cancellation_token: CancellationToken,
+    ) -> Result<()> {
+        match delay.to_std() {
+            Ok(delay) => {
+                let sleep_future = sleep(delay);
+                let cancellation_token = cancellation_token.when_cancelled();
+
+                tokio::select! {
+                    _ = sleep_future => {
+                        (*self.time_has_come_for_request)(request)?;
+                    }
+
+                    _ = cancellation_token => {
+                        // FIXME lock here
+                        (*self.time_has_come_for_request)(request.clone())?;
+                        self.requests.retain(|stored_request| *stored_request != request);
+
+                        bail!("Operation cancelled")
+                    }
+                };
+
+                Ok(())
+            }
+            Err(error) => {
+                error!("Unable to convert chrono::Duration to std::Duration");
+                bail!(error)
             }
         }
     }
@@ -226,38 +362,6 @@ impl RequestsTimeoutManager {
         }
 
         count
-    }
-
-    pub fn try_reserve_request_instant(
-        &mut self,
-        request_type: RequestType,
-        current_time: DateTime,
-    ) -> Result<bool> {
-        // FIXME outer lock probably
-        let current_time = self.get_non_decreasing_time(current_time);
-        self.remove_outdated_requests(current_time)?;
-
-        let _all_available_requests_count = self.get_all_available_requests_count();
-        let available_requests_count = self.get_available_requests_count_at_persent(current_time);
-
-        if available_requests_count <= 0 {
-            // TODO save to DataRecorder
-
-            return Ok(false);
-        }
-
-        let request = self.add_request(request_type.clone(), current_time, None)?;
-        self.last_time = Some(current_time);
-
-        info!(
-            "Reserved request {:?} without group, instant {:?}",
-            request_type, current_time
-        );
-
-        // TODO save to DataRecorder
-
-        (*self.time_has_come_for_request)(request);
-        Ok(true)
     }
 
     fn add_request(
@@ -293,13 +397,8 @@ impl RequestsTimeoutManager {
     }
 
     fn handle_all_increasing_triggers(&self) -> Result<()> {
-        let requests_difference = self.get_available_requests_in_last_period()?;
-        // FIXME what about that? checked_sub on every plase where substitution occured?
-        let available_requests_count_on_last_request_time = if requests_difference >= 0 {
-            requests_difference
-        } else {
-            0
-        };
+        let available_requests_count_on_last_request_time =
+            self.get_available_requests_in_last_period()?;
 
         self.more_or_equals_available_requests_count_trigger_scheduler
             .schedule_triggers(
@@ -313,11 +412,13 @@ impl RequestsTimeoutManager {
 
     fn get_available_requests_in_last_period(&self) -> Result<usize> {
         let reserved_requests_count = self.get_requests_count_at_last_request_time()?;
-        let reserved_requests_counts_without_group = reserved_requests_count.requests_count
-            - reserved_requests_count.reserved_in_groups_requests_count;
-        let requests_difference = self.requests_per_period
-            - reserved_requests_counts_without_group
-            - reserved_requests_count.vacant_and_reserved_in_groups_requests_count;
+        let reserved_requests_counts_without_group = reserved_requests_count
+            .requests_count
+            .saturating_sub(reserved_requests_count.reserved_in_groups_requests_count);
+        let requests_difference = self.requests_per_period.saturating_sub(
+            reserved_requests_counts_without_group
+                + reserved_requests_count.vacant_and_reserved_in_groups_requests_count,
+        );
 
         Ok(requests_difference)
     }
@@ -342,11 +443,13 @@ impl RequestsTimeoutManager {
 
     fn get_available_requests_count_at_persent(&self, current_time: DateTime) -> usize {
         let reserved_requests_count = self.get_reserved_requests_count_at_present(current_time);
-        let reserved_requests_counts_without_group = reserved_requests_count.requests_count
-            - reserved_requests_count.reserved_in_groups_requests_count;
-        let available_requests_count = self.requests_per_period
-            - reserved_requests_counts_without_group
-            - reserved_requests_count.vacant_and_reserved_in_groups_requests_count;
+        let reserved_requests_counts_without_group = reserved_requests_count
+            .requests_count
+            .saturating_sub(reserved_requests_count.reserved_in_groups_requests_count);
+        let available_requests_count = self.requests_per_period.saturating_sub(
+            reserved_requests_counts_without_group
+                + reserved_requests_count.vacant_and_reserved_in_groups_requests_count,
+        );
 
         available_requests_count
     }

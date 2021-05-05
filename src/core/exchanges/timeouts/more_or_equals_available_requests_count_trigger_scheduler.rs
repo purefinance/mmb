@@ -1,4 +1,5 @@
 use crate::core::DateTime;
+use anyhow::Result;
 use chrono::{Duration, Utc};
 use log::error;
 use parking_lot::Mutex;
@@ -13,7 +14,7 @@ impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
         Utc::now()
     }
 
-    pub fn register_trigger(&self, count_threshold: usize, handler: Box<dyn Fn()>) {
+    pub fn register_trigger(&self, count_threshold: usize, handler: Box<dyn Fn() -> Result<()>>) {
         let trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(count_threshold, handler);
         self.increasing_count_triggers.lock().push(trigger);
     }
@@ -39,11 +40,11 @@ impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
 
 struct MoreOrEqualsAvailableRequestsCountTrigger {
     count_threshold: usize,
-    handler: Box<dyn Fn()>,
+    handler: Box<dyn Fn() -> Result<()>>,
 }
 
 impl MoreOrEqualsAvailableRequestsCountTrigger {
-    fn new(count_threshold: usize, handler: Box<dyn Fn()>) -> Self {
+    fn new(count_threshold: usize, handler: Box<dyn Fn() -> Result<()>>) -> Self {
         Self {
             count_threshold,
             handler,
@@ -82,8 +83,12 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
     async fn handle_inner(&self, delay: Duration) {
         if let Ok(delay) = delay.to_std() {
             sleep(delay).await;
-            // FIXME Can C# Action throw an exception?
-            (*self.handler)();
+            if let Err(error) = (*self.handler)() {
+                error!(
+                    "Eror in MoreOrEqualsAvailableRequestsCountTrigger: {}",
+                    error
+                );
+            }
         } else {
             error!("Unable to convert chrono::Duration to std::Duration");
         }
@@ -99,7 +104,8 @@ mod test {
 
     #[test]
     fn negative_delay() {
-        let trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(5, Box::new(|| {}));
+        let handler = Box::new(|| Ok(()));
+        let trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(5, handler);
         let wrong_date_time = DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc);
         trigger.schedule_handler(3, wrong_date_time, Duration::seconds(5), Utc::now());
     }
