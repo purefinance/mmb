@@ -1,15 +1,14 @@
-use futures::pin_mut;
 use std::collections::HashMap;
 use tokio::time::sleep;
 
 use anyhow::{anyhow, bail, Result};
-use chrono::{Duration, Utc};
+use chrono::Duration;
 use log::{error, info};
 use uuid::Uuid;
 
 use crate::core::{
     exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
-    exchanges::general::request_type::RequestType, DateTime,
+    exchanges::general::request_type::RequestType, exchanges::utils, DateTime,
 };
 
 use super::{
@@ -27,10 +26,10 @@ pub struct RequestsTimeoutManager {
     pre_reserved_groups: Vec<PreReservedGroup>,
     last_time: Option<DateTime>,
 
-    // FIXME continue here. Every handler can throw exception
-    pub group_was_reserved: Box<dyn FnMut(PreReservedGroup)>,
-    pub group_was_removed: Box<dyn FnMut(PreReservedGroup)>,
-    pub time_has_come_for_request: Box<dyn FnMut(Request) -> Result<()>>,
+    // FIXME should it be Option?
+    pub group_was_reserved: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
+    pub group_was_removed: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
+    pub time_has_come_for_request: Option<Box<dyn Fn(Request) -> Result<()>>>,
 
     less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
     more_or_equals_available_requests_count_trigger_scheduler:
@@ -54,9 +53,9 @@ impl RequestsTimeoutManager {
             pre_reserved_groups: Default::default(),
             last_time: None,
             delay_to_next_time_period: Duration::milliseconds(1),
-            group_was_reserved: Box::new(|_| {}),
-            group_was_removed: Box::new(|_| {}),
-            time_has_come_for_request: Box::new(|_| Ok(())),
+            group_was_reserved: None,
+            group_was_removed: None,
+            time_has_come_for_request: None,
             less_or_equals_requests_count_triggers: Default::default(),
             more_or_equals_available_requests_count_trigger_scheduler,
         }
@@ -92,12 +91,12 @@ impl RequestsTimeoutManager {
 
         self.last_time = Some(current_time);
 
-        (self.group_was_reserved)(group);
+        utils::try_invoke(&self.group_was_reserved, group)?;
 
         Ok(Some(group_id))
     }
 
-    pub fn remove_group(&mut self, group_id: Uuid, _current_time: DateTime) -> bool {
+    pub fn remove_group(&mut self, group_id: Uuid, _current_time: DateTime) -> Result<bool> {
         // FIXME outer lock
 
         let _all_available_requests_count = self.get_all_available_requests_count();
@@ -111,7 +110,7 @@ impl RequestsTimeoutManager {
                 error!("Cannot find PreReservedGroup {} for removing", { group_id });
                 // TODO save to DataRecorder
 
-                false
+                Ok(false)
             }
             Some(group_index) => {
                 let group = self.pre_reserved_groups[group_index].clone();
@@ -125,9 +124,9 @@ impl RequestsTimeoutManager {
 
                 // TODO save to DataRecorder
 
-                (self.group_was_removed)(group);
+                utils::try_invoke(&self.group_was_removed, group)?;
 
-                true
+                Ok(true)
             }
         }
     }
@@ -209,7 +208,8 @@ impl RequestsTimeoutManager {
                     current_time
                 );
 
-                (*self.time_has_come_for_request)(request)?;
+                utils::try_invoke(&self.time_has_come_for_request, request)?;
+
                 Ok(true)
             }
         }
@@ -243,7 +243,8 @@ impl RequestsTimeoutManager {
 
         // TODO save to DataRecorder
 
-        (*self.time_has_come_for_request)(request)?;
+        utils::try_invoke(&self.time_has_come_for_request, request)?;
+
         Ok(true)
     }
 
@@ -263,9 +264,9 @@ impl RequestsTimeoutManager {
         // FIXME outer lock
 
         let current_time = self.get_non_decreasing_time(current_time);
-        self.remove_outdated_requests(current_time);
+        self.remove_outdated_requests(current_time)?;
 
-        let available_requests_count = self.get_all_available_requests_count();
+        let _available_requests_count = self.get_all_available_requests_count();
 
         // FIXME rewrite it easier
         let mut request_start_time;
@@ -300,7 +301,8 @@ impl RequestsTimeoutManager {
             request_type, request_start_time
         );
 
-        // TODO save to DataRecorder
+        // TODO save to DataRecorder. Delete drop
+        drop(available_requests_count_for_period);
 
         self.last_time = Some(current_time);
 
@@ -325,12 +327,12 @@ impl RequestsTimeoutManager {
 
                 tokio::select! {
                     _ = sleep_future => {
-                        (*self.time_has_come_for_request)(request)?;
+                        utils::try_invoke(&self.time_has_come_for_request, request)?;
                     }
 
                     _ = cancellation_token => {
                         // FIXME lock here
-                        (*self.time_has_come_for_request)(request.clone())?;
+                        utils::try_invoke(&self.time_has_come_for_request, request.clone())?;
                         self.requests.retain(|stored_request| *stored_request != request);
 
                         bail!("Operation cancelled")
@@ -557,7 +559,6 @@ impl RequestsTimeoutManager {
     }
 }
 
-// FIXME Move it somewhere
 struct RequestsCountTpm {
     requests_count: usize,
     pre_reserved_count: usize,
@@ -570,29 +571,4 @@ impl RequestsCountTpm {
             pre_reserved_count,
         }
     }
-}
-
-#[cfg(test)]
-mod test {
-    use chrono::Utc;
-
-    use crate::core::exchanges::general::request_type::RequestType;
-
-    use super::*;
-
-    //#[test]
-    //fn some_first_test() {
-    //    let mut requests_timeout_manager = RequestsTimeoutManager::new(
-    //        1,
-    //        Duration::seconds(5),
-    //        ExchangeAccountId::new("test".into(), 0),
-    //    );
-
-    //    requests_timeout_manager.requests = vec![
-    //        Request::new(RequestType::CreateOrder, Utc::now(), None),
-    //        Request::new(RequestType::CancelOrder, Utc::now(), None),
-    //    ];
-    //    let result = requests_timeout_manager.get_all_available_requests_count();
-    //    dbg!(&result);
-    //}
 }
