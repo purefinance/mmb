@@ -12,7 +12,8 @@ use mmb_lib::core::{
     exchanges::{binance::binance::Binance, common::ExchangeAccountId},
     settings::ExchangeSettings,
 };
-use std::{cell::RefCell, ops::Deref, rc::Rc, time::Duration};
+use parking_lot::Mutex;
+use std::time::Duration;
 use std::{
     pin::Pin,
     sync::{mpsc::channel, Arc},
@@ -55,14 +56,12 @@ pub async fn should_connect_and_reconnect_normally() {
     let exchange_weak = Arc::downgrade(&exchange);
     let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
-    let connected_count = Rc::new(RefCell::new(0));
+    let connected_count = Arc::new(Mutex::new(0));
     {
         let connected_count = connected_count.clone();
         connectivity_manager
             .clone()
-            .set_callback_connected(Box::new(move || {
-                connected_count.replace_with(|x| *x + 1);
-            }));
+            .set_callback_connected(Box::new(move || *connected_count.lock() += 1));
     }
 
     let get_websocket_params = Box::new(move |websocket_role| {
@@ -85,7 +84,7 @@ pub async fn should_connect_and_reconnect_normally() {
     }
 
     assert_eq!(
-        connected_count.deref().replace(0),
+        *connected_count.lock(),
         EXPECTED_CONNECTED_COUNT,
         "we should reconnect expected count times"
     );
