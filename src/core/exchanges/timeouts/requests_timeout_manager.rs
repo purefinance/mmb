@@ -512,4 +512,51 @@ mod test {
             Ok(())
         }
     }
+
+    mod remove_group {
+        use super::*;
+
+        #[rstest]
+        fn group_exists(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+            // Arrange
+            let group_type = "GroupType".to_owned();
+            let current_time = Utc::now();
+
+            let first_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+            let second_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+
+            // Act
+            timeout_manager.remove_group(second_group_id.expect("in test"), current_time)?;
+
+            // Assert
+            assert!(first_group_id.is_some());
+            assert!(second_group_id.is_some());
+
+            assert_eq!(timeout_manager.state.read().pre_reserved_groups.len(), 1);
+
+            let state = timeout_manager.state.read();
+            let group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(group.id, first_group_id.expect("in test"));
+            assert_eq!(group.group_type, group_type);
+            assert_eq!(group.pre_reserved_requests_count, 3);
+
+            Ok(())
+        }
+
+        #[rstest]
+        fn group_not_exists(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+            // Arrange
+            let current_time = Utc::now();
+
+            // Act
+            let removing_result = timeout_manager.remove_group(Uuid::new_v4(), current_time)?;
+
+            // Assert
+            assert!(!removing_result);
+
+            Ok(())
+        }
+    }
 }
