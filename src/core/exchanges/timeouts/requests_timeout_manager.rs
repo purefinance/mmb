@@ -559,4 +559,60 @@ mod test {
             Ok(())
         }
     }
+
+    mod try_reserve_instant {
+        use super::*;
+
+        #[rstest]
+        fn there_are_spare_requests_true(
+            mut timeout_manager: RequestsTimeoutManager,
+        ) -> Result<()> {
+            // Arrange
+            let current_time = Utc::now();
+
+            // Act
+            let first_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
+            let second_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
+
+            // Assert
+            assert!(first_reserved);
+            assert!(second_reserved);
+
+            let state = timeout_manager.state.read();
+
+            let first_request = state.requests.first().expect("in test");
+            assert_eq!(first_request.request_type, RequestType::CreateOrder);
+            assert_eq!(first_request.allowed_start_time, current_time);
+            assert!(first_request.group_id.is_none());
+
+            let second_request = state.requests[1].clone();
+            assert_eq!(second_request.request_type, RequestType::CreateOrder);
+            assert_eq!(second_request.allowed_start_time, current_time);
+            assert!(second_request.group_id.is_none());
+
+            Ok(())
+        }
+
+        #[rstest]
+        fn group_not_exists(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+            // Arrange
+            let current_time = Utc::now();
+
+            // Act
+            let removing_result = timeout_manager.remove_group(Uuid::new_v4(), current_time)?;
+
+            // Assert
+            assert!(!removing_result);
+
+            Ok(())
+        }
+    }
 }
