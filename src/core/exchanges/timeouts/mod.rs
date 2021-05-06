@@ -1,3 +1,4 @@
+pub mod inner_request_manager;
 pub mod more_or_equals_available_requests_count_trigger_scheduler;
 pub mod pre_reserved_group;
 pub mod request;

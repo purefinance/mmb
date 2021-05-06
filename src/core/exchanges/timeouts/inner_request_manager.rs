@@ -1,0 +1,313 @@
+use std::collections::HashMap;
+
+use super::{
+    more_or_equals_available_requests_count_trigger_scheduler::MoreOrEqualsAvailableRequestsCountTriggerScheduler,
+    pre_reserved_group::PreReservedGroup, request::Request,
+    requests_counts_in_period_result::RequestsCountsInPeriodResult,
+    triggers::handle_trigger_trait::TriggerHandler,
+};
+use crate::core::{
+    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType,
+    exchanges::utils, DateTime,
+};
+use anyhow::{anyhow, bail, Result};
+use chrono::Duration;
+use log::info;
+use uuid::Uuid;
+
+pub struct InnerRequestsTimeoutManager {
+    pub requests_per_period: usize,
+    pub period_duration: Duration,
+    pub exchange_account_id: ExchangeAccountId,
+    pub requests: Vec<Request>,
+    pub pre_reserved_groups: Vec<PreReservedGroup>,
+    pub last_time: Option<DateTime>,
+
+    pub group_was_reserved: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
+    pub group_was_removed: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
+    pub time_has_come_for_request: Option<Box<dyn Fn(Request) -> Result<()>>>,
+
+    pub less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
+    pub more_or_equals_available_requests_count_trigger_scheduler:
+        MoreOrEqualsAvailableRequestsCountTriggerScheduler,
+    pub delay_to_next_time_period: Duration,
+    // data_recorder
+}
+
+impl InnerRequestsTimeoutManager {
+    pub(super) fn try_reserve_request_instant(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+    ) -> Result<bool> {
+        let current_time = self.get_non_decreasing_time(current_time);
+        self.remove_outdated_requests(current_time)?;
+
+        let _all_available_requests_count = self.get_all_available_requests_count();
+        let available_requests_count = self.get_available_requests_count_at_persent(current_time);
+
+        if available_requests_count == 0 {
+            // TODO save to DataRecorder
+
+            return Ok(false);
+        }
+
+        let request = self.add_request(request_type.clone(), current_time, None)?;
+        self.last_time = Some(current_time);
+
+        info!(
+            "Reserved request {:?} without group, instant {:?}",
+            request_type, current_time
+        );
+
+        // TODO save to DataRecorder
+
+        utils::try_invoke(&self.time_has_come_for_request, request)?;
+
+        Ok(true)
+    }
+
+    pub(super) fn get_reserved_request_count_for_group_to_now(
+        &self,
+        group_id: Uuid,
+        current_time: DateTime,
+    ) -> usize {
+        let mut count = 0;
+
+        for request in &self.requests {
+            if let Some(request_group_id) = request.group_id {
+                if request.allowed_start_time <= current_time && request_group_id == group_id {
+                    count += 1;
+                }
+            }
+        }
+
+        count
+    }
+
+    pub(super) fn add_request(
+        &mut self,
+        request_type: RequestType,
+        current_time: DateTime,
+        group_id: Option<Uuid>,
+    ) -> Result<Request> {
+        let request = Request::new(request_type, current_time, group_id);
+
+        let request_index = self.requests.binary_search_by(|stored_request| {
+            stored_request
+                .allowed_start_time
+                .cmp(&request.allowed_start_time)
+        });
+
+        let request_index =
+            request_index.map_or_else(|error_index| error_index, |ok_index| ok_index);
+
+        self.requests.insert(request_index, request.clone());
+
+        self.handle_all_decreasing_triggers()?;
+        self.handle_all_increasing_triggers()?;
+
+        Ok(request)
+    }
+
+    pub(super) fn handle_all_decreasing_triggers(&mut self) -> Result<()> {
+        let available_requests_count = self.get_all_available_requests_count();
+        let mut maybe_error = Ok(());
+        self.less_or_equals_requests_count_triggers
+            .iter_mut()
+            .for_each(|trigger| {
+                maybe_error = trigger.handle(available_requests_count);
+            });
+
+        maybe_error?;
+
+        Ok(())
+    }
+
+    pub(super) fn handle_all_increasing_triggers(&self) -> Result<()> {
+        let available_requests_count_on_last_request_time =
+            self.get_available_requests_in_last_period()?;
+
+        self.more_or_equals_available_requests_count_trigger_scheduler
+            .schedule_triggers(
+                available_requests_count_on_last_request_time,
+                self.get_last_request()?.allowed_start_time,
+                self.period_duration,
+            );
+
+        Ok(())
+    }
+
+    pub(super) fn get_available_requests_in_last_period(&self) -> Result<usize> {
+        let reserved_requests_count = self.get_requests_count_at_last_request_time()?;
+        let reserved_requests_counts_without_group = reserved_requests_count
+            .requests_count
+            .saturating_sub(reserved_requests_count.reserved_in_groups_requests_count);
+        let requests_difference = self.requests_per_period.saturating_sub(
+            reserved_requests_counts_without_group
+                + reserved_requests_count.vacant_and_reserved_in_groups_requests_count,
+        );
+
+        Ok(requests_difference)
+    }
+
+    pub(super) fn get_requests_count_at_last_request_time(
+        &self,
+    ) -> Result<RequestsCountsInPeriodResult> {
+        let last_request = self.get_last_request()?;
+        let last_requests_start_time = last_request.allowed_start_time;
+        let period_before_last = last_requests_start_time - self.period_duration;
+
+        let not_period_predicate =
+            |request: &Request, _| period_before_last > request.allowed_start_time;
+
+        Ok(self.reserved_requests_count_in_period(period_before_last, not_period_predicate))
+    }
+
+    pub(super) fn get_last_request(&self) -> Result<Request> {
+        self.requests
+            .last()
+            .map(|request| request.clone())
+            .ok_or(anyhow!("There are no last request"))
+    }
+
+    pub(super) fn get_available_requests_count_at_persent(&self, current_time: DateTime) -> usize {
+        let reserved_requests_count = self.get_reserved_requests_count_at_present(current_time);
+        let reserved_requests_counts_without_group = reserved_requests_count
+            .requests_count
+            .saturating_sub(reserved_requests_count.reserved_in_groups_requests_count);
+        let available_requests_count = self.requests_per_period.saturating_sub(
+            reserved_requests_counts_without_group
+                + reserved_requests_count.vacant_and_reserved_in_groups_requests_count,
+        );
+
+        available_requests_count
+    }
+
+    pub(super) fn get_reserved_requests_count_at_present(
+        &self,
+        current_time: DateTime,
+    ) -> RequestsCountsInPeriodResult {
+        let not_period_predicate = |request: &Request, time| request.allowed_start_time > time;
+        self.reserved_requests_count_in_period(current_time, not_period_predicate)
+    }
+
+    pub(super) fn reserved_requests_count_in_period<F>(
+        &self,
+        current_time: DateTime,
+        not_period_predicate: F,
+    ) -> RequestsCountsInPeriodResult
+    where
+        F: Fn(&Request, DateTime) -> bool,
+    {
+        let pre_reserved_groups = &self.pre_reserved_groups;
+        let mut requests_count_by_group_id = HashMap::with_capacity(pre_reserved_groups.len());
+
+        pre_reserved_groups.iter().for_each(|pre_reserved_group| {
+            requests_count_by_group_id.insert(
+                pre_reserved_group.id,
+                RequestsCountTpm::new(pre_reserved_group.pre_reserved_requests_count),
+            );
+        });
+
+        let mut requests_count = 0;
+        let mut requests_count_in_group = 0;
+        for request in self.requests.iter() {
+            if not_period_predicate(request, current_time) {
+                continue;
+            }
+
+            requests_count += 1;
+
+            match request.group_id {
+                None => continue,
+                Some(group_id) => {
+                    match requests_count_by_group_id.get_mut(&group_id) {
+                        None => {
+                            // if some requests from removed groups there are in current period we count its
+                            // as requests out of group
+                            continue;
+                        }
+                        Some(requests_count_tmp) => {
+                            requests_count_in_group += 1;
+
+                            requests_count_tmp.requests_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        let mut vacant_and_reserved_count = 0;
+        for pair in requests_count_by_group_id {
+            let requests_count_tmp = pair.1;
+            if requests_count_tmp.requests_count <= requests_count_tmp.pre_reserved_count {
+                vacant_and_reserved_count += requests_count_tmp.pre_reserved_count;
+            } else {
+                vacant_and_reserved_count += requests_count_tmp.requests_count;
+            }
+        }
+
+        RequestsCountsInPeriodResult::new(
+            requests_count,
+            requests_count_in_group,
+            vacant_and_reserved_count,
+        )
+    }
+
+    pub(super) fn get_all_available_requests_count(&self) -> usize {
+        let available_requests_number =
+            self.requests_per_period.saturating_sub(self.requests.len());
+
+        available_requests_number
+    }
+
+    pub(super) fn remove_outdated_requests(&mut self, current_time: DateTime) -> Result<()> {
+        let deadline = current_time
+            .checked_sub_signed(self.period_duration)
+            .ok_or(anyhow!("Unable to substract time periods"))?;
+        self.requests
+            .retain(|request| request.allowed_start_time >= deadline);
+
+        Ok(())
+    }
+
+    pub(super) fn get_non_decreasing_time(&self, time: DateTime) -> DateTime {
+        let last_time = self.last_time;
+
+        match last_time {
+            None => time,
+            Some(time_value) => {
+                if time_value < time {
+                    time
+                } else {
+                    time_value
+                }
+            }
+        }
+    }
+
+    pub(super) fn check_threshold(&self, count_threshold: usize) -> Result<()> {
+        if self.requests_per_period < count_threshold {
+            bail!("Unable to register trigger with count threshold more then available request for period. {} > {} for {}",
+                count_threshold,
+                self.requests_per_period,
+                self.exchange_account_id)
+        }
+
+        Ok(())
+    }
+}
+
+struct RequestsCountTpm {
+    requests_count: usize,
+    pre_reserved_count: usize,
+}
+
+impl RequestsCountTpm {
+    fn new(pre_reserved_count: usize) -> Self {
+        Self {
+            requests_count: 0,
+            pre_reserved_count,
+        }
+    }
+}
