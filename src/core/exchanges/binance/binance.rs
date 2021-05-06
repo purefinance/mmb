@@ -1,7 +1,8 @@
 use super::support::BinanceOrderInfo;
+use crate::core::exchanges::general::exchange::BoxExchangeClient;
 use crate::core::exchanges::general::features::{ExchangeFeatures, OpenOrdersType};
 use crate::core::exchanges::rest_client;
-use crate::core::exchanges::traits::{ExchangeClient, ExchangeClientBuilder};
+use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::exchanges::utils;
 use crate::core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
@@ -23,9 +24,9 @@ pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
     pub order_created_callback:
-        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>>,
+        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub order_cancelled_callback:
-        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>>,
+        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
 
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
@@ -55,15 +56,14 @@ impl Binance {
     }
 
     pub async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
-        let url_path = if self.settings.is_marging_trading {
-            "/sapi/v1/userDataStream"
-        } else {
-            "/api/v3/userDataStream"
+        let url_path = match self.settings.is_marging_trading {
+            true => "/sapi/v1/userDataStream",
+            false => "/api/v3/userDataStream",
         };
 
-        let full_url = format!("{}{}", self.settings.rest_host, url_path);
-        let parameters = rest_client::HttpParams::new();
-        rest_client::send_post_request(&full_url, &self.settings.api_key, &parameters).await
+        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
+        let http_params = rest_client::HttpParams::new();
+        rest_client::send_post_request(full_url, &self.settings.api_key, &http_params).await
     }
 
     pub fn extend_settings(settings: &mut ExchangeSettings) {
@@ -251,12 +251,11 @@ impl ExchangeClientBuilder for BinanceBuilder {
     fn create_exchange_client(
         &self,
         exchange_settings: ExchangeSettings,
-    ) -> (Box<dyn ExchangeClient>, ExchangeFeatures) {
+    ) -> (BoxExchangeClient, ExchangeFeatures) {
         let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
         (
-            Box::new(Binance::new(exchange_settings, exchange_account_id))
-                as Box<dyn ExchangeClient>,
+            Box::new(Binance::new(exchange_settings, exchange_account_id)) as BoxExchangeClient,
             ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 false,

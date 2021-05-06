@@ -38,21 +38,20 @@ pub async fn launch_trading_engine<TSettings: Default>(build_settings: &EngineBu
 
     let settings = load_settings::<TSettings>().await;
     let exchanges = create_exchanges(&settings.core, build_settings).await;
-    let _exchanges_map: HashMap<_, _> = exchanges
+    let exchanges_map: HashMap<_, _> = exchanges
         .into_iter()
         .map(|x| (x.exchange_account_id.clone(), x))
         .collect();
 
-    let (events_sender, _events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
+    let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
     let _exchange_events = ExchangeEvents::new(events_sender);
 
     {
-        // TODO uncomment when will be implemented Send for Exchange;
-        // let exchanges_map = exchanges_map.clone();
-        // let _ = tokio::spawn(
-        //     async move { ExchangeEvents::start(events_receiver, exchanges_map).await },
-        // );
+        let exchanges_map = exchanges_map.clone();
+        let _ = tokio::spawn(
+            async move { ExchangeEvents::start(events_receiver, exchanges_map).await },
+        );
     }
 
     if start_rest_api_server("127.0.0.1:8080").await.is_err() {
@@ -83,7 +82,7 @@ mod tests {
     use super::*;
 
     #[actix_rt::test]
-    // TODO Blocking on web setrver start. Fix after graceful shutdown and stop() endpoind are done
+    // TODO Blocking on web server start. Fix after graceful shutdown and stop() endpoind are done
     #[ignore]
     async fn launch_engine() {
         let config = EngineBuildConfig::standard();

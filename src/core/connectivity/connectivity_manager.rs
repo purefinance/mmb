@@ -68,13 +68,14 @@ impl WebSockets {
 }
 
 // TODO Find more clear names in the future
-type Callback0 = Box<dyn FnMut()>;
-type Callback1<T, U> = Box<dyn FnMut(T) -> U>;
-type GetWSParamsCallback =
-    Box<dyn FnMut(WebSocketRole) -> Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>>;
-type WSMessageReceived = Box<dyn FnMut(&str)>;
+type Callback0 = Box<dyn Fn() + Send>;
+type Callback1<T, U> = Box<dyn Fn(T) -> U + Send>;
+pub type GetWSParamsCallback = Box<
+    dyn Fn(WebSocketRole) -> Pin<Box<dyn Future<Output = Result<WebSocketParams>>>> + Send + Sync,
+>;
+type WSMessageReceived = Box<dyn Fn(&str) + Send>;
 
-pub type MsgReceivedCallback = Box<dyn FnMut(String)>;
+pub type MsgReceivedCallback = Box<dyn Fn(String)>;
 
 pub struct ConnectivityManager {
     exchange_account_id: ExchangeAccountId,
@@ -382,7 +383,7 @@ impl ConnectivityManagerNotifier {
             match connectivity_manager.upgrade() {
                 Some(connectivity_manager) => connectivity_manager.notify_connection_closed(self.websocket_role),
                 None => info!(
-                    "Unable to upgrade weak referene to ConnectivityManager instance. Probably it's dead",
+                    "Unable to upgrade weak reference to ConnectivityManager instance. Probably it's dead",
                 ),
             }
         } else {
@@ -398,7 +399,7 @@ impl ConnectivityManagerNotifier {
             match connectivity_manager.upgrade() {
                 Some(connectivity_manager) => connectivity_manager.callback_msg_received.lock()(data),
                 None => info!(
-                    "Unable to upgrade weak referene to ConnectivityManager instance. Probably it's dead",
+                    "Unable to upgrade weak reference to ConnectivityManager instance. Probably it's dead",
                 ),
             }
         } else {

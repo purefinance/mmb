@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futures::pin_mut;
 use log::{error, info};
 use tokio::sync::oneshot;
 
@@ -24,50 +23,39 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Option<CreateOrderResult> {
         let client_order_id = order.header.client_order_id.clone();
-        let (tx, websocket_event_receiver) = oneshot::channel();
+        let (tx, mut websocket_event_receiver) = oneshot::channel();
 
         self.order_creation_events
             .insert(client_order_id.clone(), (tx, None));
 
         let order_create_future = self.exchange_client.create_order(&order);
-        let cancellation_token = cancellation_token.when_cancelled();
-
-        pin_mut!(order_create_future);
-        pin_mut!(cancellation_token);
-        pin_mut!(websocket_event_receiver);
 
         tokio::select! {
-            rest_request_outcome = &mut order_create_future => {
+            rest_request_outcome = order_create_future => {
                 let create_order_result = self.handle_create_order_response(&rest_request_outcome, &order);
                 match create_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
                         return Some(create_order_result);
                     }
-
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
                                 return websocket_outcome.ok()
                             }
-
-                            _ = &mut cancellation_token => {
+                            _ = cancellation_token.when_cancelled() => {
                                 return None;
                             }
-
                         }
                     }
                 }
             }
-
-            _ = &mut cancellation_token => {
+            _ = cancellation_token.when_cancelled() => {
                 return None;
             }
-
             websocket_outcome = &mut websocket_event_receiver => {
                 return websocket_outcome.ok();
             }
-
         };
     }
 

@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 /// Time interval between heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
-/// Time interval  before lack of client response causes a timeout
+/// Time interval before lack of client response causes a timeout
 const HEARTBEAT_FAIL_TIMEOUT: Duration = Duration::from_secs(10);
 
 const PING_MESSAGE: &'static [u8; 9] = b"heartbeat";
