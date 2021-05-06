@@ -16,7 +16,9 @@ use super::{
     more_or_equals_available_requests_count_trigger_scheduler::MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     pre_reserved_group::PreReservedGroup, request::Request,
     requests_counts_in_period_result::RequestsCountsInPeriodResult,
+    triggers::every_requests_count_change_trigger::EveryRequestsCountChangeTrigger,
     triggers::handle_trigger_trait::TriggerHandler,
+    triggers::less_or_equals_requests_count_trigger::LessOrEqualsRequestsCountTrigger,
 };
 
 pub struct RequestsTimeoutManager {
@@ -300,6 +302,46 @@ impl RequestsTimeoutManager {
         Ok((request_start_time, delay))
     }
 
+    pub fn register_trigger_on_more_or_equals(
+        &self,
+        available_requests_count_threshold: usize,
+        handler: Box<dyn Fn() -> Result<()>>,
+    ) -> Result<()> {
+        let state = self.state.read();
+        state.check_threshold(available_requests_count_threshold)?;
+        state
+            .more_or_equals_available_requests_count_trigger_scheduler
+            .register_trigger(available_requests_count_threshold, handler);
+
+        Ok(())
+    }
+
+    pub fn register_trigger_on_less_or_equals(
+        &self,
+        available_requests_count_threshold: usize,
+        handler: Box<dyn Fn() -> Result<()>>,
+    ) -> Result<()> {
+        let mut state = self.state.write();
+
+        state.check_threshold(available_requests_count_threshold)?;
+        let trigger =
+            LessOrEqualsRequestsCountTrigger::new(available_requests_count_threshold, handler);
+        state
+            .less_or_equals_requests_count_triggers
+            .push(Box::new(trigger));
+
+        Ok(())
+    }
+
+    pub fn register_trigger_on_every_change(&self, handler: Box<dyn Fn(usize) -> Result<()>>) {
+        let mut state = self.state.write();
+
+        let trigger = EveryRequestsCountChangeTrigger::new(handler);
+        state
+            .less_or_equals_requests_count_triggers
+            .push(Box::new(trigger));
+    }
+
     async fn wait_for_request_availability(
         &self,
         request: Request,
@@ -404,17 +446,24 @@ impl InnerRequestsTimeoutManager {
 
         self.requests.insert(request_index, request.clone());
 
-        self.handle_all_decreasing_triggers();
+        self.handle_all_decreasing_triggers()?;
         self.handle_all_increasing_triggers()?;
 
         Ok(request)
     }
 
-    fn handle_all_decreasing_triggers(&mut self) {
+    fn handle_all_decreasing_triggers(&mut self) -> Result<()> {
         let available_requests_count = self.get_all_available_requests_count();
+        let mut maybe_error = Ok(());
         self.less_or_equals_requests_count_triggers
             .iter_mut()
-            .for_each(|trigger| trigger.handle(available_requests_count));
+            .for_each(|trigger| {
+                maybe_error = trigger.handle(available_requests_count);
+            });
+
+        maybe_error?;
+
+        Ok(())
     }
 
     fn handle_all_increasing_triggers(&self) -> Result<()> {
@@ -575,6 +624,17 @@ impl InnerRequestsTimeoutManager {
                 }
             }
         }
+    }
+
+    fn check_threshold(&self, count_threshold: usize) -> Result<()> {
+        if self.requests_per_period < count_threshold {
+            bail!("Unable to register trigger with count threshold more then available request for period. {} > {} for {}",
+                count_threshold,
+                self.requests_per_period,
+                self.exchange_account_id)
+        }
+
+        Ok(())
     }
 }
 
