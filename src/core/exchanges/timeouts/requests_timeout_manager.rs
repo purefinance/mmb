@@ -381,6 +381,76 @@ mod test {
         use super::*;
 
         #[rstest]
+        fn when_can_reserve(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+            // Arrange
+            let current_time = Utc::now();
+            let group_type = "GroupType".to_owned();
+
+            // Act
+            let first_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+            let second_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+
+            // Assert
+            assert!(first_group_id.is_some());
+            assert!(second_group_id.is_some());
+
+            assert_eq!(timeout_manager.state.read().pre_reserved_groups.len(), 2);
+            let state = timeout_manager.state.read();
+            let first_group = state.pre_reserved_groups.first().expect("in test");
+
+            assert_eq!(first_group.id, first_group_id.expect("in test"));
+            assert_eq!(first_group.group_type, group_type);
+            assert_eq!(first_group.pre_reserved_requests_count, 3);
+
+            let second_group = state.pre_reserved_groups[1].clone();
+
+            assert_eq!(second_group.id, second_group_id.expect("in test"));
+            assert_eq!(second_group.group_type, group_type);
+            assert_eq!(second_group.pre_reserved_requests_count, 2);
+
+            Ok(())
+        }
+
+        #[rstest]
+        fn not_enought_requests(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+            // Arrange
+            let current_time = Utc::now();
+            let group_type = "GroupType".to_owned();
+
+            let first_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+            let second_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+
+            // Act
+            let third_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 1)?;
+
+            // Assert
+            assert!(first_group_id.is_some());
+            assert!(second_group_id.is_some());
+            assert!(third_group_id.is_none());
+
+            assert_eq!(timeout_manager.state.read().pre_reserved_groups.len(), 2);
+            let state = timeout_manager.state.read();
+            let first_group = state.pre_reserved_groups.first().expect("in test");
+
+            assert_eq!(first_group.id, first_group_id.expect("in test"));
+            assert_eq!(first_group.group_type, group_type);
+            assert_eq!(first_group.pre_reserved_requests_count, 3);
+
+            let second_group = state.pre_reserved_groups[1].clone();
+
+            assert_eq!(second_group.id, second_group_id.expect("in test"));
+            assert_eq!(second_group.group_type, group_type);
+            assert_eq!(second_group.pre_reserved_requests_count, 2);
+
+            Ok(())
+        }
+
+        #[rstest]
         fn when_reserve_after_remove(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
@@ -413,7 +483,9 @@ mod test {
         }
 
         #[rstest]
-        fn not_enough_requests(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn when_requests_reserved_and_not_enough_requests(
+            mut timeout_manager: RequestsTimeoutManager,
+        ) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
