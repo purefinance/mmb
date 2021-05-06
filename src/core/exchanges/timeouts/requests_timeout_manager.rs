@@ -357,21 +357,87 @@ impl RequestsTimeoutManager {
 
 #[cfg(test)]
 mod test {
+    use crate::core::exchanges::timeouts::requests_timeout_manager_factory::{
+        RequestTimeoutArguments, RequestsTimeoutManagerFactory,
+    };
     use chrono::Utc;
 
     use super::*;
+    use rstest::{fixture, rstest};
 
-    #[test]
-    fn try_reserve_group_instant_test() {
-        let mut manager = RequestsTimeoutManager::new(
-            5,
-            Duration::seconds(1),
-            ExchangeAccountId::new("test".into(), 0),
-            MoreOrEqualsAvailableRequestsCountTriggerScheduler::new(),
+    #[fixture]
+    fn timeout_manager() -> RequestsTimeoutManager {
+        let requests_per_period = 5;
+        let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id".into(), 0);
+        let timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
+            RequestTimeoutArguments::from_requests_per_minute(requests_per_period),
+            exchange_account_id,
         );
 
-        let result =
-            manager.try_reserve_group_instant(RequestType::CreateOrder, Utc::now(), Uuid::new_v4());
-        dbg!(&result);
+        timeout_manager
+    }
+
+    mod try_reserve_group {
+        use super::*;
+
+        #[rstest]
+        fn when_reserve_after_remove(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+            // Arrange
+            let current_time = Utc::now();
+            let group_type = "GroupType".to_owned();
+            let first_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+            let second_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+
+            let remove_result =
+                timeout_manager.remove_group(second_group_id.expect("in test"), current_time)?;
+            assert!(remove_result);
+
+            // Act
+            let third_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+
+            // Assert
+            assert!(third_group_id.is_none());
+
+            assert_eq!(timeout_manager.state.read().pre_reserved_groups.len(), 1);
+            let state = timeout_manager.state.read();
+            let group = state.pre_reserved_groups.first().expect("in test");
+
+            assert_eq!(group.id, first_group_id.expect("in test"));
+            assert_eq!(group.group_type, group_type);
+            assert_eq!(group.pre_reserved_requests_count, 3);
+
+            Ok(())
+        }
+
+        #[rstest]
+        fn not_enough_requests(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+            // Arrange
+            let current_time = Utc::now();
+            let group_type = "GroupType".to_owned();
+            let first_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
+
+            // Act
+            let second_group_id =
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+
+            // Assert
+            assert!(first_group_id.is_some());
+            assert!(second_group_id.is_none());
+
+            assert_eq!(timeout_manager.state.read().requests.len(), 1);
+
+            let state = timeout_manager.state.read();
+            let group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(group.id, first_group_id.expect("in test"));
+            assert_eq!(group.group_type, group_type);
+            assert_eq!(group.pre_reserved_requests_count, 3);
+
+            Ok(())
+        }
     }
 }
