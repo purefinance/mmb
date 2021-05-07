@@ -1,10 +1,10 @@
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::general::exchange::BoxExchangeClient;
+use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
     common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
 };
-use crate::core::exchanges::traits::ExchangeClientBuilder;
+use crate::core::exchanges::{common::CurrencyId, general::exchange::BoxExchangeClient};
 use crate::core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
     events::AllowedEventSourceType,
@@ -13,10 +13,7 @@ use crate::core::exchanges::{general::handle_order_filled::FillEventData, utils}
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
-use crate::core::{
-    exchanges::traits::{ExchangeClient, ExchangeClientBuilder},
-    orders::fill::OrderFillType,
-};
+use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
 use hex;
