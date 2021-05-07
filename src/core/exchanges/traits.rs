@@ -54,7 +54,10 @@ pub trait Support: Send + Sync {
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     );
 
-    fn set_handle_order_filled_callback(&self, callback: Box<dyn FnMut(FillEventData)>);
+    fn set_handle_order_filled_callback(
+        &self,
+        callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
+    );
 
     fn build_ws_main_path(
         &self,

@@ -161,7 +161,10 @@ impl Support for Binance {
         *self.order_cancelled_callback.lock() = callback;
     }
 
-    fn set_handle_order_filled_callback(&self, callback: Box<dyn FnMut(FillEventData)>) {
+    fn set_handle_order_filled_callback(
+        &self,
+        callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
+    ) {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
