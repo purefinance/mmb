@@ -146,7 +146,7 @@ impl Exchange {
 }
 
 #[cfg(test)]
-mod test_test_test {
+mod test {
     use anyhow::Context;
     use rstest::rstest;
     use rust_decimal_macros::dec;
