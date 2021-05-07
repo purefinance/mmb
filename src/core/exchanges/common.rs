@@ -132,7 +132,7 @@ impl From<&str> for SpecificCurrencyPair {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct CurrencyId(String4);
 

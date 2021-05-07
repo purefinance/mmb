@@ -1,8 +1,11 @@
 use super::{
+    common::CurrencyCode,
+    common::CurrencyId,
     common::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
     general::currency_pair_metadata::CurrencyPairMetadata,
+    general::handle_order_filled::FillEventData,
 };
 use crate::core::exchanges::general::exchange::BoxExchangeClient;
 use crate::core::exchanges::general::features::ExchangeFeatures;
@@ -13,6 +16,7 @@ use crate::core::orders::{fill::EventSourceType, order::OrderSnapshot};
 use crate::core::settings::ExchangeSettings;
 use anyhow::Result;
 use async_trait::async_trait;
+use dashmap::DashMap;
 use log::info;
 use std::sync::Arc;
 
@@ -50,6 +54,11 @@ pub trait Support: Send + Sync {
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     );
 
+    fn set_handle_order_filled_callback(
+        &self,
+        callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
+    );
+
     fn build_ws_main_path(
         &self,
         specific_currency_pairs: &[SpecificCurrencyPair],
@@ -59,6 +68,8 @@ pub trait Support: Send + Sync {
 
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
+
+    fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode>;
 
     fn should_log_message(&self, message: &str) -> bool;
 

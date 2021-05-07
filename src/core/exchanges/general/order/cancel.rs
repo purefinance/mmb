@@ -127,15 +127,29 @@ impl Exchange {
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
-    ) {
-        if let Some((_, (tx, _))) = self.order_cancellation_events.remove(&exchange_order_id) {
-            if let Err(error) = tx.send(CancelOrderResult::successed(
-                client_order_id,
-                source_type,
-                None,
-            )) {
-                error!("Unable to send thru oneshot channel: {:?}", error);
+    ) -> Result<()> {
+        let filled_amount = None;
+        match self.order_cancellation_events.remove(&exchange_order_id) {
+            Some((_, (tx, _))) => {
+                if let Err(error) = tx.send(CancelOrderResult::successed(
+                    client_order_id,
+                    source_type,
+                    filled_amount,
+                )) {
+                    error!(
+                        "raise_order_cancelled failed: unable to send thru oneshot channel: {:?}",
+                        error
+                    );
+                }
+
+                Ok(())
             }
+            None => self.handle_cancel_order_succeeded(
+                &client_order_id,
+                &exchange_order_id,
+                filled_amount,
+                source_type,
+            ),
         }
     }
 }

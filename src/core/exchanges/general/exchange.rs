@@ -22,7 +22,7 @@ use crate::core::{
     orders::order::ClientOrderId,
 };
 use crate::core::{
-    exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
+    exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
 use anyhow::{bail, Context, Error, Result};
@@ -92,7 +92,6 @@ pub struct Exchange {
     pub(super) event_channel: Mutex<mpsc::Sender<OrderEvent>>,
     application_manager: ApplicationManager,
     pub(super) commission: Commission,
-    pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
@@ -124,7 +123,6 @@ impl Exchange {
             connectivity_manager,
             order_creation_events: DashMap::new(),
             order_cancellation_events: DashMap::new(),
-            supported_currencies: Default::default(),
             supported_symbols: Default::default(),
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
@@ -170,13 +168,32 @@ impl Exchange {
         self.exchange_client.set_order_cancelled_callback(Box::new(
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
-                    exchange.raise_order_cancelled(client_order_id, exchange_order_id, source_type)
+                    // TODO Log error and graceful shutdown
+                    let _ = exchange.raise_order_cancelled(
+                        client_order_id,
+                        exchange_order_id,
+                        source_type,
+                    );
                 }
                 None => info!(
                     "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
                 ),
             },
         ));
+
+        let exchange_weak = Arc::downgrade(&self);
+        self.exchange_client
+            .set_handle_order_filled_callback(Box::new(move |event_data| {
+                match exchange_weak.upgrade() {
+                    Some(exchange) => {
+                        // TODO Log error and graceful shutdown
+                        let _ = exchange.handle_order_filled(event_data);
+                    }
+                    None => info!(
+                        "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
+                    ),
+                }
+            }));
     }
 
     fn on_websocket_message(&self, msg: &str) {

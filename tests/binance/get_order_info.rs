@@ -46,6 +46,7 @@ async fn get_order_info() {
             false,
             true,
             AllowedEventSourceType::default(),
+            AllowedEventSourceType::default(),
         ),
         tx,
         Commission::default(),

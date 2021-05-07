@@ -53,7 +53,9 @@ impl Exchange {
 
     fn set_supported_currencies(&self, supported_currencies: DashMap<CurrencyCode, CurrencyId>) {
         for (currency_code, currency_id) in supported_currencies {
-            self.supported_currencies.insert(currency_code, currency_id);
+            self.exchange_client
+                .get_supported_currencies()
+                .insert(currency_id, currency_code);
         }
     }
 
