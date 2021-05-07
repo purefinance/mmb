@@ -146,7 +146,7 @@ impl Exchange {
 }
 
 #[cfg(test)]
-mod test {
+mod test_test_test {
     use anyhow::Context;
     use rstest::rstest;
     use rust_decimal_macros::dec;
@@ -198,6 +198,46 @@ mod test {
             exchange.order_already_closed(status, &client_order_id, &exchange_order_id);
 
         assert_eq!(already_closed, expected);
+    }
+
+    #[test]
+    fn return_if_order_already_closed() -> Result<()> {
+        let (exchange, _rx) = test_helper::get_test_exchange(false);
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let order_side = OrderSide::Buy;
+        let order_amount = dec!(12);
+        let order_role = OrderRole::Maker;
+        let fill_price = dec!(0.8);
+
+        let order_ref = test_helper::create_order_ref(
+            &client_order_id,
+            Some(order_role),
+            &exchange.exchange_account_id.clone(),
+            &currency_pair.clone(),
+            fill_price,
+            order_amount,
+            order_side,
+        );
+        order_ref.fn_mut(|order| order.set_status(OrderStatus::Completed, Utc::now()));
+
+        test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
+
+        let exchange_order_id = ExchangeOrderId::new("".into());
+        let filled_amount = Some(dec!(5));
+        let source_type = EventSourceType::Rest;
+        let updating_result = exchange.try_update_local_order(
+            &order_ref,
+            filled_amount,
+            source_type,
+            &client_order_id,
+            &exchange_order_id,
+        );
+
+        assert!(updating_result.is_ok());
+
+        Ok(())
     }
 
     #[test]
