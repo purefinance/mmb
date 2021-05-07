@@ -602,15 +602,116 @@ mod test {
         }
 
         #[rstest]
-        fn group_not_exists(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        #[tokio::test]
+        async fn there_are_requests_from_future_false(
+            mut timeout_manager: RequestsTimeoutManager,
+        ) -> Result<()> {
             // Arrange
+            timeout_manager.state.write().requests_per_period = 2;
+            let current_time = Utc::now();
+            let before_now = current_time - Duration::seconds(59);
+
+            timeout_manager
+                .reserve_when_available(
+                    RequestType::CreateOrder,
+                    before_now,
+                    CancellationToken::default(),
+                )
+                .await?;
+            timeout_manager
+                .reserve_when_available(
+                    RequestType::CreateOrder,
+                    before_now,
+                    CancellationToken::default(),
+                )
+                .await?;
+            timeout_manager
+                .reserve_when_available(
+                    RequestType::CreateOrder,
+                    before_now,
+                    CancellationToken::default(),
+                )
+                .await?;
+
+            //// Act
+            //let reserve_result = timeout_manager.try_reserve_instant(
+            //    RequestType::CreateOrder,
+            //    current_time,
+            //    None,
+            //)?;
+
+            //// Assert
+            //assert!(!reserve_result);
+
+            //let state = timeout_manager.state.read();
+            //assert_eq!(state.requests.len(), 3);
+
+            //let first_request = state.requests.first().expect("in test");
+            //assert_eq!(first_request.request_type, RequestType::CreateOrder);
+            //assert_eq!(
+            //    first_request.allowed_start_time,
+            //    current_time - Duration::seconds(59)
+            //);
+            //assert!(first_request.group_id.is_none());
+
+            //let second_request = state.requests[1].clone();
+            //assert_eq!(second_request.request_type, RequestType::CreateOrder);
+            //assert_eq!(
+            //    second_request.allowed_start_time,
+            //    current_time - Duration::seconds(59)
+            //);
+            //assert!(second_request.group_id.is_none());
+
+            //let third_request = state.requests[2].clone();
+            //assert_eq!(third_request.request_type, RequestType::CreateOrder);
+            //assert_eq!(
+            //    third_request.allowed_start_time,
+            //    current_time + Duration::seconds(1) + Duration::milliseconds(1)
+            //);
+            //assert!(second_request.group_id.is_none());
+
+            Ok(())
+        }
+
+        #[rstest]
+        fn there_are_no_requests_false(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+            // Arrange
+            timeout_manager.state.write().requests_per_period = 2;
             let current_time = Utc::now();
 
             // Act
-            let removing_result = timeout_manager.remove_group(Uuid::new_v4(), current_time)?;
+            let first_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
+            let second_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
+            let third_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
 
             // Assert
-            assert!(!removing_result);
+            assert!(first_reserved);
+            assert!(second_reserved);
+            assert!(!third_reserved);
+
+            let state = timeout_manager.state.read();
+
+            let first_request = state.requests.first().expect("in test");
+            assert_eq!(first_request.request_type, RequestType::CreateOrder);
+            assert_eq!(first_request.allowed_start_time, current_time);
+            assert!(first_request.group_id.is_none());
+
+            let second_request = state.requests[1].clone();
+            assert_eq!(second_request.request_type, RequestType::CreateOrder);
+            assert_eq!(second_request.allowed_start_time, current_time);
+            assert!(second_request.group_id.is_none());
 
             Ok(())
         }
