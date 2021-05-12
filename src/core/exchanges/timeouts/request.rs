@@ -2,7 +2,7 @@ use uuid::Uuid;
 
 use crate::core::{exchanges::general::request_type::RequestType, DateTime};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Request {
     pub(crate) request_type: RequestType,
     pub(crate) allowed_start_time: DateTime,
