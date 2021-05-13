@@ -1,9 +1,7 @@
-// FIXME Strange name and not clear responsobility
 #[derive(Default)]
 pub struct RequestsCountsInPeriodResult {
     pub(crate) requests_count: usize,
     pub(crate) reserved_in_groups_requests_count: usize,
-    // FIXME bad name
     pub(crate) vacant_and_reserved_in_groups_requests_count: usize,
 }
 

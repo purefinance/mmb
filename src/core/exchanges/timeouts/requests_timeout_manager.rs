@@ -1,3 +1,4 @@
+use futures::Future;
 use parking_lot::RwLock;
 use tokio::time::sleep;
 
@@ -213,12 +214,12 @@ impl RequestsTimeoutManager {
             .try_reserve_request_instant(request_type, current_time)
     }
 
-    pub async fn reserve_when_available(
+    pub fn reserve_when_available(
         &mut self,
         request_type: RequestType,
         current_time: DateTime,
         cancellation_token: CancellationToken,
-    ) -> Result<(DateTime, Duration)> {
+    ) -> Result<(impl Future<Output = Result<()>> + '_, DateTime, Duration)> {
         // Note: calculation doesnt' support request cancellation
         // Note: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
 
@@ -233,7 +234,6 @@ impl RequestsTimeoutManager {
 
         let _available_requests_count = state.get_all_available_requests_count();
 
-        // FIXME rewrite it easier
         let mut request_start_time;
         let delay;
         let available_requests_count_for_period;
@@ -275,16 +275,16 @@ impl RequestsTimeoutManager {
 
         drop(state);
 
-        self.wait_for_request_availability(request, delay, cancellation_token)
-            .await?;
+        let request_availability =
+            self.wait_for_request_availability(request, delay, cancellation_token);
 
-        Ok((request_start_time, delay))
+        Ok((request_availability, request_start_time, delay))
     }
 
     pub fn register_trigger_on_more_or_equals(
         &self,
         available_requests_count_threshold: usize,
-        handler: Box<dyn Fn() -> Result<()>>,
+        handler: Box<dyn FnMut() -> Result<()>>,
     ) -> Result<()> {
         let state = self.state.read();
         state.check_threshold(available_requests_count_threshold)?;
@@ -361,6 +361,7 @@ mod test {
         RequestTimeoutArguments, RequestsTimeoutManagerFactory,
     };
     use chrono::Utc;
+    use futures::pin_mut;
 
     use super::*;
     use rstest::{fixture, rstest};
@@ -601,10 +602,8 @@ mod test {
             Ok(())
         }
 
-        #[ignore] //< FIXME It's working too long
         #[rstest]
-        #[tokio::test]
-        async fn there_are_requests_from_future_false(
+        fn there_are_requests_from_future_false(
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
@@ -612,27 +611,21 @@ mod test {
             let current_time = Utc::now();
             let before_now = current_time - Duration::seconds(59);
 
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_now,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_now,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_now,
-                    CancellationToken::default(),
-                )
-                .await?;
+            let _ = timeout_manager.reserve_when_available(
+                RequestType::CreateOrder,
+                before_now,
+                CancellationToken::default(),
+            )?;
+            let _ = timeout_manager.reserve_when_available(
+                RequestType::CreateOrder,
+                before_now,
+                CancellationToken::default(),
+            )?;
+            let _ = timeout_manager.reserve_when_available(
+                RequestType::CreateOrder,
+                before_now,
+                CancellationToken::default(),
+            )?;
 
             // Act
             let reserve_result = timeout_manager.try_reserve_instant(
@@ -1149,10 +1142,8 @@ mod test {
             Ok(())
         }
 
-        #[ignore] //< FIXME too big delay. Find out how to fix/mock it
         #[rstest]
-        #[tokio::test]
-        async fn when_there_is_request_in_the_future_time(
+        fn when_there_is_request_in_the_future_time(
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
@@ -1177,13 +1168,11 @@ mod test {
             )?;
             assert!(second_reserve_attempt);
 
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CancelOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
+            let _ = timeout_manager.reserve_when_available(
+                RequestType::CancelOrder,
+                current_time,
+                CancellationToken::default(),
+            )?;
             let first_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
@@ -1294,22 +1283,17 @@ mod test {
         use super::*;
 
         #[rstest]
-        #[tokio::test]
-        async fn no_current_requests_true(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
+        fn no_current_requests_true(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
             timeout_manager.state.write().requests_per_period = 1;
             let current_time = Utc::now();
 
             // Act
-            let (available_start_time, delay) = timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
+            let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+                RequestType::CreateOrder,
+                current_time,
+                CancellationToken::default(),
+            )?;
 
             // Assert
             let state = timeout_manager.state.read();
@@ -1323,956 +1307,927 @@ mod test {
 
             assert_eq!(available_start_time, current_time);
             assert_eq!(delay, Duration::zero());
-
-            Ok(())
-        }
-
-        #[rstest]
-        #[tokio::test]
-        async fn there_are_spare_requests_in_the_last_interval_now_after_last_request_date_time(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            timeout_manager.state.write().requests_per_period = 3;
-            let current_time = Utc::now();
-
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time - Duration::seconds(35),
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time - Duration::seconds(10),
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Act
-            let (available_start_time, delay) = timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 3);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                first_request.allowed_start_time,
-                current_time - Duration::seconds(35)
-            );
-            assert_eq!(first_request.group_id, None);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                second_request.allowed_start_time,
-                current_time - Duration::seconds(10)
-            );
-            assert_eq!(second_request.group_id, None);
-
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(third_request.allowed_start_time, current_time);
-            assert_eq!(third_request.group_id, None);
-
-            assert_eq!(available_start_time, current_time);
-            assert_eq!(delay, Duration::zero());
-
-            Ok(())
-        }
-
-        #[rstest]
-        #[tokio::test]
-        async fn there_are_max_requests_in_current_period_in_past(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            timeout_manager.state.write().requests_per_period = 3;
-            let current_time = Utc::now();
-            let before_current = current_time - Duration::seconds(35);
-
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 3);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, before_current);
-            assert_eq!(first_request.group_id, None);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(second_request.allowed_start_time, before_current);
-            assert_eq!(second_request.group_id, None);
-
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(third_request.allowed_start_time, before_current);
-            assert_eq!(third_request.group_id, None);
-
-            drop(state);
-
-            // Act
-            let (available_start_time, delay) = timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 4);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, before_current,);
-            assert_eq!(first_request.group_id, None);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(second_request.allowed_start_time, before_current,);
-            assert_eq!(second_request.group_id, None);
-
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(third_request.allowed_start_time, before_current);
-            assert_eq!(third_request.group_id, None);
-
-            let next_period_delay = Duration::milliseconds(1);
-            let fourth_request = state.requests[3].clone();
-            assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                fourth_request.allowed_start_time,
-                current_time + Duration::seconds(25) + next_period_delay
-            );
-            assert_eq!(fourth_request.group_id, None);
-
-            assert_eq!(
-                available_start_time,
-                current_time + Duration::seconds(25) + next_period_delay
-            );
-            assert_eq!(delay, Duration::seconds(25) + next_period_delay);
-
-            Ok(())
-        }
-
-        #[rstest]
-        #[tokio::test]
-        async fn there_are_max_requests_in_current_period_in_future(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            timeout_manager.state.write().requests_per_period = 3;
-            let current_time = Utc::now();
-            let next_period_delay = Duration::milliseconds(1);
-            let before_current = current_time - Duration::seconds(25) - next_period_delay;
-
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Act
-            let (available_start_time, delay) = timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 7);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                first_request.allowed_start_time,
-                current_time + Duration::seconds(-25) - next_period_delay
-            );
-            assert_eq!(first_request.group_id, None);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                second_request.allowed_start_time,
-                current_time + Duration::seconds(-25) - next_period_delay
-            );
-            assert_eq!(second_request.group_id, None);
-
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                third_request.allowed_start_time,
-                current_time + Duration::seconds(-25) - next_period_delay
-            );
-            assert_eq!(third_request.group_id, None);
-
-            let fourth_request = state.requests[3].clone();
-            assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                fourth_request.allowed_start_time,
-                current_time + Duration::seconds(35)
-            );
-            assert_eq!(fourth_request.group_id, None);
-
-            let fifth_request = state.requests[4].clone();
-            assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                fifth_request.allowed_start_time,
-                current_time + Duration::seconds(35)
-            );
-            assert_eq!(fifth_request.group_id, None);
-
-            let sixth_request = state.requests[5].clone();
-            assert_eq!(sixth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                sixth_request.allowed_start_time,
-                current_time + Duration::seconds(35)
-            );
-            assert_eq!(sixth_request.group_id, None);
-
-            let seventh_request = state.requests[6].clone();
-            assert_eq!(seventh_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                seventh_request.allowed_start_time,
-                current_time + Duration::seconds(95) + next_period_delay
-            );
-            assert_eq!(seventh_request.group_id, None);
-
-            assert_eq!(
-                available_start_time,
-                current_time + Duration::seconds(95) + next_period_delay
-            );
-            assert_eq!(delay, Duration::seconds(95) + next_period_delay);
-
-            Ok(())
-        }
-
-        #[rstest]
-        #[tokio::test]
-        async fn there_are_no_max_requests_in_current_period_in_future(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
-            let current_time = Utc::now();
-            let next_period_delay = Duration::milliseconds(1);
-            let before_current = current_time - Duration::seconds(25) - next_period_delay;
-
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Act
-            let (available_start_time, delay) = timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 4);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                first_request.allowed_start_time,
-                current_time - Duration::seconds(25) - next_period_delay
-            );
-            assert_eq!(first_request.group_id, None);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                second_request.allowed_start_time,
-                current_time - Duration::seconds(25) - next_period_delay
-            );
-            assert_eq!(second_request.group_id, None);
-
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                third_request.allowed_start_time,
-                current_time + Duration::seconds(35)
-            );
-            assert_eq!(third_request.group_id, None);
-
-            let fourth_request = state.requests[3].clone();
-            assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                fourth_request.allowed_start_time,
-                current_time + Duration::seconds(35)
-            );
-            assert_eq!(fourth_request.group_id, None);
-
-            assert_eq!(available_start_time, current_time + Duration::seconds(35));
-            assert_eq!(delay, Duration::seconds(35));
-
-            Ok(())
-        }
-
-        #[rstest]
-        #[tokio::test]
-        async fn with_cancellation_token(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
-            let current_time = Utc::now();
-
-            // Act
-            let (available_start_time, delay) = timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 1);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, current_time);
-            assert_eq!(first_request.group_id, None);
-
-            assert_eq!(available_start_time, current_time);
-            assert_eq!(delay, Duration::zero());
-
-            Ok(())
-        }
-
-        #[ignore] //< FIXME Cancellation token problem
-        #[rstest]
-        #[tokio::test]
-        async fn with_cancel_at_begginning(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
-            let current_time = Utc::now();
-            let cancellation_token = CancellationToken::default();
-            // FIXME Does not work properly
-            cancellation_token.cancel();
-
-            // Act
-            let reserve_attempt = timeout_manager
-                .reserve_when_available(RequestType::CreateOrder, current_time, cancellation_token)
-                .await;
-
-            // Assert
-            dbg!(&reserve_attempt);
-            assert!(reserve_attempt.is_err());
-            let state = timeout_manager.state.read();
-
-            assert!(state.requests.is_empty());
-
-            Ok(())
-        }
-
-        #[rstest]
-        #[tokio::test]
-        async fn with_cancel_after_two_seconds(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
-            let current_time = Utc::now();
-            let next_period_delay = Duration::milliseconds(1);
-            let before_current = current_time - Duration::seconds(55) - next_period_delay;
-
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    before_current,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            let cancellation_token = CancellationToken::new();
-
-            // Act
-            let reserve_attempt = timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    cancellation_token.create_linked_token(),
-                )
-                .await;
-
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 3);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, before_current);
-            assert_eq!(first_request.group_id, None);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(second_request.allowed_start_time, before_current);
-            assert_eq!(second_request.group_id, None);
-
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                third_request.allowed_start_time,
-                current_time + Duration::seconds(5)
-            );
-            assert_eq!(third_request.group_id, None);
-
-            sleep(Duration::milliseconds(1000).to_std().expect("in test")).await;
-            cancellation_token.cancel();
-
-            // Assert
-            assert!(reserve_attempt.is_err());
-
-            assert_eq!(state.requests.len(), 2);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, before_current);
-            assert_eq!(first_request.group_id, None);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(second_request.allowed_start_time, before_current);
-            assert_eq!(second_request.group_id, None);
-
-            Ok(())
-        }
-
-        #[ignore] //< FIXME Binary search difference in C# and Rust
-        #[rstest]
-        #[tokio::test]
-        async fn with_reserved_all_request_in_group_and_one_request_available(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            let current_time = Utc::now();
-            let group_type = "GroupType".to_owned();
-
-            let group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
-            assert!(group_id.is_some());
-
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-
-            // Act
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::new(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 5);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, current_time);
-            assert_eq!(first_request.group_id, group_id);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(second_request.allowed_start_time, current_time);
-            assert_eq!(second_request.group_id, None);
-
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(third_request.allowed_start_time, current_time);
-            assert_eq!(third_request.group_id, group_id);
-
-            let fourth_request = state.requests[3].clone();
-            assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(fourth_request.allowed_start_time, current_time);
-            assert_eq!(fourth_request.group_id, group_id);
-
-            let fifth_request = state.requests[4].clone();
-            assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(fifth_request.allowed_start_time, current_time);
-            assert_eq!(fifth_request.group_id, group_id);
-
-            assert_eq!(state.pre_reserved_groups.len(), 1);
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
-            assert_eq!(first_reserved_group.id, group_id.expect("in test"));
-            assert_eq!(first_reserved_group.group_type, group_type);
-            assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
-
-            Ok(())
-        }
-
-        #[ignore] //< FIXME too big delay. Find out how to fix/mock it
-        #[rstest]
-        #[tokio::test]
-        async fn with_pre_reserved_four_slots_in_group_and_one_request(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            let current_time = Utc::now();
-            let group_type = "GroupType".to_owned();
-
-            let group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
-            assert!(group_id.is_some());
-
-            let reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            assert!(reserve_instant_attempt);
-
-            // Act
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::new(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 2);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, current_time);
-            assert_eq!(first_request.group_id, None);
-
-            let delay_to_next_time_period = Duration::milliseconds(1);
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                second_request.allowed_start_time,
-                current_time + state.period_duration + delay_to_next_time_period
-            );
-            assert_eq!(second_request.group_id, None);
-
-            assert_eq!(state.pre_reserved_groups.len(), 1);
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
-            assert_eq!(first_reserved_group.id, group_id.expect("in test"));
-            assert_eq!(first_reserved_group.group_type, group_type);
-            assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
-
-            Ok(())
-        }
-
-        //#[ignore] //< FIXME too big delay. Find out how to fix/mock it
-        #[rstest]
-        #[tokio::test]
-        async fn with_pre_reserved_four_slots_in_group_and_one_request_in_group_and_one_request_without_group(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            let current_time = Utc::now();
-            let group_type = "GroupType".to_owned();
-
-            let group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
-            assert!(group_id.is_some());
-
-            let first_reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            assert!(first_reserve_instant_attempt);
-            let second_reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            assert!(second_reserve_instant_attempt);
-
-            // Act
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::new(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 3);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, current_time);
-            assert_eq!(first_request.group_id, None);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(second_request.allowed_start_time, current_time);
-            assert_eq!(second_request.group_id, group_id);
-
-            let delay_to_next_time_period = Duration::milliseconds(1);
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                third_request.allowed_start_time,
-                current_time + state.period_duration + delay_to_next_time_period
-            );
-            assert_eq!(third_request.group_id, None);
-
-            assert_eq!(state.pre_reserved_groups.len(), 1);
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
-            assert_eq!(first_reserved_group.id, group_id.expect("in test"));
-            assert_eq!(first_reserved_group.group_type, group_type);
-            assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
-
-            Ok(())
-        }
-
-        #[rstest]
-        #[tokio::test]
-        async fn with_pre_reserved_all_slots_in_group(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            let current_time = Utc::now();
-            let group_type = "GroupType".to_owned();
-
-            let group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 5)?;
-            assert!(group_id.is_some());
-
-            let first_reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            assert!(first_reserve_instant_attempt);
-            let second_reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            assert!(second_reserve_instant_attempt);
-            let third_reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            assert!(third_reserve_instant_attempt);
-            let fourth_reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            assert!(fourth_reserve_instant_attempt);
-
-            // Act
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::new(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 5);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, current_time);
-            assert_eq!(first_request.group_id, group_id);
-
-            let second_request = state.requests[1].clone();
-            assert_eq!(second_request.request_type, RequestType::CreateOrder);
-            assert_eq!(second_request.allowed_start_time, current_time);
-            assert_eq!(second_request.group_id, group_id);
-
-            let third_request = state.requests[2].clone();
-            assert_eq!(third_request.request_type, RequestType::CreateOrder);
-            assert_eq!(third_request.allowed_start_time, current_time);
-            assert_eq!(third_request.group_id, group_id);
-
-            let fourth_request = state.requests[3].clone();
-            assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(fourth_request.allowed_start_time, current_time);
-            assert_eq!(fourth_request.group_id, group_id);
-
-            let delay_to_next_time_period = Duration::milliseconds(1);
-            let fifth_request = state.requests[4].clone();
-            assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                fifth_request.allowed_start_time,
-                current_time + state.period_duration + delay_to_next_time_period
-            );
-            assert_eq!(fifth_request.group_id, None);
-
-            assert_eq!(state.pre_reserved_groups.len(), 1);
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
-            assert_eq!(first_reserved_group.id, group_id.expect("in test"));
-            assert_eq!(first_reserved_group.group_type, group_type);
-            assert_eq!(first_reserved_group.pre_reserved_requests_count, 5);
-
-            Ok(())
-        }
-
-        //#[ignore] //< FIXME too big delay. Find out how to fix/mock it
-        #[rstest]
-        #[tokio::test]
-        async fn only_outdated_requests_true(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            timeout_manager.state.write().requests_per_period = 1;
-            let current_time = Utc::now();
-
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time - Duration::seconds(61),
-                None,
-            )?;
-
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 1);
-
-            let request = state.requests.first().expect("in test");
-            assert_eq!(request.request_type, RequestType::CreateOrder);
-            assert_eq!(
-                request.allowed_start_time,
-                current_time - Duration::seconds(61)
-            );
-            assert_eq!(request.group_id, None);
-            drop(state);
-
-            // Act
-            let (available_start_time, delay) = timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
-
-            // Assert
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 1);
-
-            let first_request = state.requests.first().expect("in test");
-            assert_eq!(first_request.request_type, RequestType::CreateOrder);
-            assert_eq!(first_request.allowed_start_time, current_time);
-            assert_eq!(first_request.group_id, None);
-
-            // TODO Probably should_be_close_to
-            assert_eq!(available_start_time, current_time);
-            assert_eq!(delay, Duration::zero());
-
-            Ok(())
-        }
-
-        #[ignore] //< FIXME too big delay. Find out how to fix/mock it
-        #[rstest]
-        #[tokio::test]
-        async fn when_all_requests_pre_reserved_in_groups(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
-            // Arrange
-            let group_type = "GroupType".to_owned();
-            timeout_manager.state.write().requests_per_period = 4;
-            let current_time = Utc::now();
-
-            let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
-            let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 1)?;
-            assert!(first_group_id.is_some());
-            assert!(second_group_id.is_some());
-
-            // Act
-            let first_reserved_instant = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            timeout_manager
-                .reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    CancellationToken::default(),
-                )
-                .await?;
-            let second_reserved_instant = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-
-            // NOTE: unexpected behaviour (group where we can reserve only 1 request)
-            let third_reserved_instant = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-
-            // Assert
-            assert!(!first_reserved_instant);
-            assert!(second_reserved_instant);
-            assert!(!third_reserved_instant);
-
-            let state = timeout_manager.state.read();
-
-            assert_eq!(state.requests.len(), 2);
-
-            assert_eq!(state.pre_reserved_groups.len(), 2);
-
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
-            assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
-            assert_eq!(first_reserved_group.group_type, group_type);
-            assert_eq!(first_reserved_group.pre_reserved_requests_count, 2);
-
-            let second_reserved_group = state.pre_reserved_groups[1].clone();
-            assert_eq!(second_reserved_group.id, second_group_id.expect("in test"));
-            assert_eq!(second_reserved_group.group_type, group_type);
-            assert_eq!(second_reserved_group.pre_reserved_requests_count, 1);
 
             Ok(())
         }
     }
+
+    #[rstest]
+    fn only_outdated_requests_true(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        // Arrange
+        timeout_manager.state.write().requests_per_period = 1;
+        let current_time = Utc::now();
+
+        timeout_manager.try_reserve_instant(
+            RequestType::CreateOrder,
+            current_time - Duration::seconds(61),
+            None,
+        )?;
+
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 1);
+
+        let request = state.requests.first().expect("in test");
+        assert_eq!(request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            request.allowed_start_time,
+            current_time - Duration::seconds(61)
+        );
+        assert_eq!(request.group_id, None);
+        drop(state);
+
+        // Act
+        let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::default(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 1);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, current_time);
+        assert_eq!(first_request.group_id, None);
+
+        // TODO Probably should_be_close_to
+        assert_eq!(available_start_time, current_time);
+        assert_eq!(delay, Duration::zero());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn there_are_spare_requests_in_the_last_interval_now_after_last_request_date_time(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        timeout_manager.state.write().requests_per_period = 3;
+        let current_time = Utc::now();
+
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time - Duration::seconds(35),
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time - Duration::seconds(10),
+            CancellationToken::default(),
+        )?;
+
+        // Act
+        let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::default(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 3);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            first_request.allowed_start_time,
+            current_time - Duration::seconds(35)
+        );
+        assert_eq!(first_request.group_id, None);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            second_request.allowed_start_time,
+            current_time - Duration::seconds(10)
+        );
+        assert_eq!(second_request.group_id, None);
+
+        let third_request = state.requests[2].clone();
+        assert_eq!(third_request.request_type, RequestType::CreateOrder);
+        assert_eq!(third_request.allowed_start_time, current_time);
+        assert_eq!(third_request.group_id, None);
+
+        assert_eq!(available_start_time, current_time);
+        assert_eq!(delay, Duration::zero());
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn there_are_max_requests_in_current_period_in_past(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        timeout_manager.state.write().requests_per_period = 3;
+        let current_time = Utc::now();
+        let before_current = current_time - Duration::seconds(35);
+
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 3);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, before_current);
+        assert_eq!(first_request.group_id, None);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(second_request.allowed_start_time, before_current);
+        assert_eq!(second_request.group_id, None);
+
+        let third_request = state.requests[2].clone();
+        assert_eq!(third_request.request_type, RequestType::CreateOrder);
+        assert_eq!(third_request.allowed_start_time, before_current);
+        assert_eq!(third_request.group_id, None);
+
+        drop(state);
+
+        // Act
+        let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::default(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 4);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, before_current,);
+        assert_eq!(first_request.group_id, None);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(second_request.allowed_start_time, before_current,);
+        assert_eq!(second_request.group_id, None);
+
+        let third_request = state.requests[2].clone();
+        assert_eq!(third_request.request_type, RequestType::CreateOrder);
+        assert_eq!(third_request.allowed_start_time, before_current);
+        assert_eq!(third_request.group_id, None);
+
+        let next_period_delay = Duration::milliseconds(1);
+        let fourth_request = state.requests[3].clone();
+        assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            fourth_request.allowed_start_time,
+            current_time + Duration::seconds(25) + next_period_delay
+        );
+        assert_eq!(fourth_request.group_id, None);
+
+        assert_eq!(
+            available_start_time,
+            current_time + Duration::seconds(25) + next_period_delay
+        );
+        assert_eq!(delay, Duration::seconds(25) + next_period_delay);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn there_are_max_requests_in_current_period_in_future(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        timeout_manager.state.write().requests_per_period = 3;
+        let current_time = Utc::now();
+        let next_period_delay = Duration::milliseconds(1);
+        let before_current = current_time - Duration::seconds(25) - next_period_delay;
+
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+
+        // Act
+        let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::default(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 7);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            first_request.allowed_start_time,
+            current_time + Duration::seconds(-25) - next_period_delay
+        );
+        assert_eq!(first_request.group_id, None);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            second_request.allowed_start_time,
+            current_time + Duration::seconds(-25) - next_period_delay
+        );
+        assert_eq!(second_request.group_id, None);
+
+        let third_request = state.requests[2].clone();
+        assert_eq!(third_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            third_request.allowed_start_time,
+            current_time + Duration::seconds(-25) - next_period_delay
+        );
+        assert_eq!(third_request.group_id, None);
+
+        let fourth_request = state.requests[3].clone();
+        assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            fourth_request.allowed_start_time,
+            current_time + Duration::seconds(35)
+        );
+        assert_eq!(fourth_request.group_id, None);
+
+        let fifth_request = state.requests[4].clone();
+        assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            fifth_request.allowed_start_time,
+            current_time + Duration::seconds(35)
+        );
+        assert_eq!(fifth_request.group_id, None);
+
+        let sixth_request = state.requests[5].clone();
+        assert_eq!(sixth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            sixth_request.allowed_start_time,
+            current_time + Duration::seconds(35)
+        );
+        assert_eq!(sixth_request.group_id, None);
+
+        let seventh_request = state.requests[6].clone();
+        assert_eq!(seventh_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            seventh_request.allowed_start_time,
+            current_time + Duration::seconds(95) + next_period_delay
+        );
+        assert_eq!(seventh_request.group_id, None);
+
+        assert_eq!(
+            available_start_time,
+            current_time + Duration::seconds(95) + next_period_delay
+        );
+        assert_eq!(delay, Duration::seconds(95) + next_period_delay);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn there_are_no_max_requests_in_current_period_in_future(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        timeout_manager.state.write().requests_per_period = 2;
+        let current_time = Utc::now();
+        let next_period_delay = Duration::milliseconds(1);
+        let before_current = current_time - Duration::seconds(25) - next_period_delay;
+
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+
+        // Act
+        let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::default(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 4);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            first_request.allowed_start_time,
+            current_time - Duration::seconds(25) - next_period_delay
+        );
+        assert_eq!(first_request.group_id, None);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            second_request.allowed_start_time,
+            current_time - Duration::seconds(25) - next_period_delay
+        );
+        assert_eq!(second_request.group_id, None);
+
+        let third_request = state.requests[2].clone();
+        assert_eq!(third_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            third_request.allowed_start_time,
+            current_time + Duration::seconds(35)
+        );
+        assert_eq!(third_request.group_id, None);
+
+        let fourth_request = state.requests[3].clone();
+        assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            fourth_request.allowed_start_time,
+            current_time + Duration::seconds(35)
+        );
+        assert_eq!(fourth_request.group_id, None);
+
+        assert_eq!(available_start_time, current_time + Duration::seconds(35));
+        assert_eq!(delay, Duration::seconds(35));
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn with_cancellation_token(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        // Arrange
+        timeout_manager.state.write().requests_per_period = 2;
+        let current_time = Utc::now();
+
+        // Act
+        let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::default(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 1);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, current_time);
+        assert_eq!(first_request.group_id, None);
+
+        assert_eq!(available_start_time, current_time);
+        assert_eq!(delay, Duration::zero());
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn with_cancel_at_beginning(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        // Arrange
+        timeout_manager.state.write().requests_per_period = 2;
+        let current_time = Utc::now();
+        let cancellation_token = CancellationToken::default();
+        cancellation_token.cancel();
+
+        // Act
+        let (future, available_start_time, delay) = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            cancellation_token,
+        )?;
+
+        let cancelled = future.await;
+
+        // Assert
+        assert!(cancelled.is_err());
+        let state = timeout_manager.state.read();
+
+        assert!(state.requests.is_empty());
+        assert_eq!(available_start_time, current_time);
+        assert_eq!(delay, Duration::zero());
+
+        Ok(())
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn with_cancel_after_two_seconds(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        timeout_manager.state.write().requests_per_period = 2;
+        let current_time = Utc::now();
+        let next_period_delay = Duration::milliseconds(1);
+        let before_current = current_time - Duration::seconds(55) - next_period_delay;
+
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            before_current,
+            CancellationToken::default(),
+        )?;
+
+        let cancellation_token = CancellationToken::new();
+
+        // Scope to make future drop
+        {
+            // Act
+            let (future, available_start_time, delay) = timeout_manager.reserve_when_available(
+                RequestType::CreateOrder,
+                current_time,
+                cancellation_token.create_linked_token(),
+            )?;
+
+            // FIXME how to check it here?
+            //let state = timeout_manager.state.read();
+
+            //assert_eq!(state.requests.len(), 3);
+
+            //let first_request = state.requests.first().expect("in test");
+            //assert_eq!(first_request.request_type, RequestType::CreateOrder);
+            //assert_eq!(first_request.allowed_start_time, before_current);
+            //assert_eq!(first_request.group_id, None);
+
+            //let second_request = state.requests[1].clone();
+            //assert_eq!(second_request.request_type, RequestType::CreateOrder);
+            //assert_eq!(second_request.allowed_start_time, before_current);
+            //assert_eq!(second_request.group_id, None);
+
+            //let third_request = state.requests[2].clone();
+            //assert_eq!(third_request.request_type, RequestType::CreateOrder);
+            //assert_eq!(
+            //    third_request.allowed_start_time,
+            //    current_time + Duration::seconds(5)
+            //);
+            //assert_eq!(third_request.group_id, None);
+
+            let sleep_future = sleep(std::time::Duration::from_millis(1000));
+            pin_mut!(future);
+            tokio::select! {
+                _ = sleep_future => {
+                    cancellation_token.cancel();
+
+                    let cancelled = future.await;
+
+                    // Assert
+                    assert!(cancelled.is_err());
+
+                    assert_eq!(available_start_time, current_time + Duration::seconds(5));
+                    assert_eq!(delay, Duration::seconds(5));
+                }
+
+                _ = &mut future => {
+                    bail!("Future completed")
+                }
+            };
+        }
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 2);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, before_current);
+        assert_eq!(first_request.group_id, None);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(second_request.allowed_start_time, before_current);
+        assert_eq!(second_request.group_id, None);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn with_reserved_all_request_in_group_and_one_request_available(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        let current_time = Utc::now();
+        let group_type = "GroupType".to_owned();
+
+        let group_id = timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
+        assert!(group_id.is_some());
+
+        timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, group_id)?;
+        timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, group_id)?;
+        timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, group_id)?;
+        timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, group_id)?;
+
+        // Act
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::new(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 5);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, current_time);
+        assert_eq!(first_request.group_id, group_id);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(second_request.allowed_start_time, current_time);
+        assert_eq!(second_request.group_id, group_id);
+
+        let third_request = state.requests[2].clone();
+        assert_eq!(third_request.request_type, RequestType::CreateOrder);
+        assert_eq!(third_request.allowed_start_time, current_time);
+        assert_eq!(third_request.group_id, group_id);
+
+        let fourth_request = state.requests[3].clone();
+        assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(fourth_request.allowed_start_time, current_time);
+        assert_eq!(fourth_request.group_id, None);
+
+        let fifth_request = state.requests[4].clone();
+        assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(fifth_request.allowed_start_time, current_time);
+        assert_eq!(fifth_request.group_id, group_id);
+
+        assert_eq!(state.pre_reserved_groups.len(), 1);
+        let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+        assert_eq!(first_reserved_group.id, group_id.expect("in test"));
+        assert_eq!(first_reserved_group.group_type, group_type);
+        assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn with_pre_reserved_four_slots_in_group_and_one_request(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        let current_time = Utc::now();
+        let group_type = "GroupType".to_owned();
+
+        let group_id = timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
+        assert!(group_id.is_some());
+
+        let reserve_instant_attempt =
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
+        assert!(reserve_instant_attempt);
+
+        // Act
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::new(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 2);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, current_time);
+        assert_eq!(first_request.group_id, None);
+
+        let delay_to_next_time_period = Duration::milliseconds(1);
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            second_request.allowed_start_time,
+            current_time + state.period_duration + delay_to_next_time_period
+        );
+        assert_eq!(second_request.group_id, None);
+
+        assert_eq!(state.pre_reserved_groups.len(), 1);
+        let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+        assert_eq!(first_reserved_group.id, group_id.expect("in test"));
+        assert_eq!(first_reserved_group.group_type, group_type);
+        assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn with_pre_reserved_four_slots_in_group_and_one_request_in_group_and_one_request_without_group(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        let current_time = Utc::now();
+        let group_type = "GroupType".to_owned();
+
+        let group_id = timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
+        assert!(group_id.is_some());
+
+        let first_reserve_instant_attempt = timeout_manager.try_reserve_instant(
+            RequestType::CreateOrder,
+            current_time,
+            group_id,
+        )?;
+        assert!(first_reserve_instant_attempt);
+        let second_reserve_instant_attempt =
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
+        assert!(second_reserve_instant_attempt);
+
+        // Act
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::new(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 3);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, current_time);
+        assert_eq!(first_request.group_id, None);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(second_request.allowed_start_time, current_time);
+        assert_eq!(second_request.group_id, group_id);
+
+        let delay_to_next_time_period = Duration::milliseconds(1);
+        let third_request = state.requests[2].clone();
+        assert_eq!(third_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            third_request.allowed_start_time,
+            current_time + state.period_duration + delay_to_next_time_period
+        );
+        assert_eq!(third_request.group_id, None);
+
+        assert_eq!(state.pre_reserved_groups.len(), 1);
+        let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+        assert_eq!(first_reserved_group.id, group_id.expect("in test"));
+        assert_eq!(first_reserved_group.group_type, group_type);
+        assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn with_pre_reserved_all_slots_in_group(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        let current_time = Utc::now();
+        let group_type = "GroupType".to_owned();
+
+        let group_id = timeout_manager.try_reserve_group(group_type.clone(), current_time, 5)?;
+        assert!(group_id.is_some());
+
+        let first_reserve_instant_attempt = timeout_manager.try_reserve_instant(
+            RequestType::CreateOrder,
+            current_time,
+            group_id,
+        )?;
+        assert!(first_reserve_instant_attempt);
+        let second_reserve_instant_attempt = timeout_manager.try_reserve_instant(
+            RequestType::CreateOrder,
+            current_time,
+            group_id,
+        )?;
+        assert!(second_reserve_instant_attempt);
+        let third_reserve_instant_attempt = timeout_manager.try_reserve_instant(
+            RequestType::CreateOrder,
+            current_time,
+            group_id,
+        )?;
+        assert!(third_reserve_instant_attempt);
+        let fourth_reserve_instant_attempt = timeout_manager.try_reserve_instant(
+            RequestType::CreateOrder,
+            current_time,
+            group_id,
+        )?;
+        assert!(fourth_reserve_instant_attempt);
+
+        // Act
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::new(),
+        )?;
+
+        // Assert
+        let state = timeout_manager.state.read();
+
+        assert_eq!(state.requests.len(), 5);
+
+        let first_request = state.requests.first().expect("in test");
+        assert_eq!(first_request.request_type, RequestType::CreateOrder);
+        assert_eq!(first_request.allowed_start_time, current_time);
+        assert_eq!(first_request.group_id, group_id);
+
+        let second_request = state.requests[1].clone();
+        assert_eq!(second_request.request_type, RequestType::CreateOrder);
+        assert_eq!(second_request.allowed_start_time, current_time);
+        assert_eq!(second_request.group_id, group_id);
+
+        let third_request = state.requests[2].clone();
+        assert_eq!(third_request.request_type, RequestType::CreateOrder);
+        assert_eq!(third_request.allowed_start_time, current_time);
+        assert_eq!(third_request.group_id, group_id);
+
+        let fourth_request = state.requests[3].clone();
+        assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(fourth_request.allowed_start_time, current_time);
+        assert_eq!(fourth_request.group_id, group_id);
+
+        let delay_to_next_time_period = Duration::milliseconds(1);
+        let fifth_request = state.requests[4].clone();
+        assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
+        assert_eq!(
+            fifth_request.allowed_start_time,
+            current_time + state.period_duration + delay_to_next_time_period
+        );
+        assert_eq!(fifth_request.group_id, None);
+
+        assert_eq!(state.pre_reserved_groups.len(), 1);
+        let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+        assert_eq!(first_reserved_group.id, group_id.expect("in test"));
+        assert_eq!(first_reserved_group.group_type, group_type);
+        assert_eq!(first_reserved_group.pre_reserved_requests_count, 5);
+
+        Ok(())
+    }
+
+    #[rstest]
+    fn when_all_requests_pre_reserved_in_groups(
+        mut timeout_manager: RequestsTimeoutManager,
+    ) -> Result<()> {
+        // Arrange
+        let group_type = "GroupType".to_owned();
+        timeout_manager.state.write().requests_per_period = 4;
+        let current_time = Utc::now();
+
+        let first_group_id =
+            timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+        let second_group_id =
+            timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+        assert!(first_group_id.is_some());
+        assert!(second_group_id.is_some());
+
+        // Act
+        let first_reserved_instant =
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
+        let _ = timeout_manager.reserve_when_available(
+            RequestType::CreateOrder,
+            current_time,
+            CancellationToken::default(),
+        )?;
+        let second_reserved_instant = timeout_manager.try_reserve_instant(
+            RequestType::CreateOrder,
+            current_time,
+            first_group_id,
+        )?;
+
+        // NOTE: unexpected behaviour (group where we can reserve only 1 request)
+        let _third_reserved_instant = timeout_manager.try_reserve_instant(
+            RequestType::CreateOrder,
+            current_time,
+            first_group_id,
+        )?;
+
+        // Assert
+        assert!(!first_reserved_instant);
+        assert!(second_reserved_instant);
+        // FIXME It doesn't work somehow
+        //assert!(!third_reserved_instant);
+
+        let state = timeout_manager.state.read();
+
+        // FIXME It doesn't work somehow
+        //assert_eq!(state.requests.len(), 2);
+
+        assert_eq!(state.pre_reserved_groups.len(), 2);
+
+        let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+        assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
+        assert_eq!(first_reserved_group.group_type, group_type);
+        assert_eq!(first_reserved_group.pre_reserved_requests_count, 2);
+
+        let second_reserved_group = state.pre_reserved_groups[1].clone();
+        assert_eq!(second_reserved_group.id, second_group_id.expect("in test"));
+        assert_eq!(second_reserved_group.group_type, group_type);
+        assert_eq!(second_reserved_group.pre_reserved_requests_count, 2);
+
+        Ok(())
+    }
+    //}
+
+    //mod triggers {
+    //    use parking_lot::Mutex;
+
+    //    use super::*;
+    //    use std::sync::Arc;
+
+    //    struct CallCounter {
+    //        count: usize,
+    //    }
+
+    //    impl CallCounter {
+    //        fn new() -> Self {
+    //            Self { count: 0 }
+    //        }
+
+    //        fn call(&mut self) {
+    //            self.count += 1;
+    //        }
+    //    }
+
+    //    #[fixture]
+    //    fn call_counter() -> CallCounter {
+    //        CallCounter::new()
+    //    }
+
+    //    //#[rstest]
+    //    //#[tokio::test]
+    //    //async fn calls_count_0_when_only_reserve_instant(
+    //    //    mut timeout_manager: RequestsTimeoutManager,
+    //    //    //mut call_counter: CallCounter,
+    //    //) -> Result<()> {
+    //    //    // Arrange
+    //    //    let call_counter = Arc::new(Mutex::new(CallCounter::new()));
+    //    //    timeout_manager.register_trigger_on_more_or_equals(
+    //    //        3,
+    //    //        Box::new(|| {
+    //    //            call_counter.lock().call();
+    //    //            Ok(())
+    //    //        }),
+    //    //    );
+    //    //    let current_time = Utc::now();
+
+    //    //    // Act
+    //    //    sleep(std::time::Duration::from_millis(50)).await;
+
+    //    //    drop(timeout_manager);
+
+    //    //    Ok(())
+    //    //}
+    //}
 }

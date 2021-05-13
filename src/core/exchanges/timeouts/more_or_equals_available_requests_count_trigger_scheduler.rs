@@ -21,7 +21,11 @@ impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
         Utc::now()
     }
 
-    pub fn register_trigger(&self, count_threshold: usize, handler: Box<dyn Fn() -> Result<()>>) {
+    pub fn register_trigger(
+        &self,
+        count_threshold: usize,
+        handler: Box<dyn FnMut() -> Result<()>>,
+    ) {
         let trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(count_threshold, handler);
         self.increasing_count_triggers.lock().push(trigger);
     }
@@ -34,7 +38,7 @@ impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
     ) {
         let current_time = Self::utc_now();
 
-        for trigger in self.increasing_count_triggers.lock().iter() {
+        for trigger in self.increasing_count_triggers.lock().iter_mut() {
             trigger.schedule_handler(
                 available_requests_count_on_last_request_time,
                 last_request_time,
@@ -47,11 +51,11 @@ impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
 
 struct MoreOrEqualsAvailableRequestsCountTrigger {
     count_threshold: usize,
-    handler: Box<dyn Fn() -> Result<()>>,
+    handler: Box<dyn FnMut() -> Result<()>>,
 }
 
 impl MoreOrEqualsAvailableRequestsCountTrigger {
-    fn new(count_threshold: usize, handler: Box<dyn Fn() -> Result<()>>) -> Self {
+    fn new(count_threshold: usize, handler: Box<dyn FnMut() -> Result<()>>) -> Self {
         Self {
             count_threshold,
             handler,
@@ -59,7 +63,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
     }
 
     pub fn schedule_handler(
-        &self,
+        &mut self,
         available_requests_count_on_last_request_time: usize,
         last_request_time: DateTime,
         period_duration: Duration,
@@ -87,7 +91,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
         // Task.Run(() => task)
     }
 
-    async fn handle_inner(&self, delay: Duration) {
+    async fn handle_inner(&mut self, delay: Duration) {
         if let Ok(delay) = delay.to_std() {
             sleep(delay).await;
             if let Err(error) = (*self.handler)() {
@@ -112,7 +116,7 @@ mod test {
     #[test]
     fn negative_delay() {
         let handler = Box::new(|| Ok(()));
-        let trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(5, handler);
+        let mut trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(5, handler);
         let wrong_date_time = DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc);
         trigger.schedule_handler(3, wrong_date_time, Duration::seconds(5), Utc::now());
     }

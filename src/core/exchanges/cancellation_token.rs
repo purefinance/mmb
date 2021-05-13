@@ -39,7 +39,11 @@ impl CancellationToken {
     }
 
     pub async fn when_cancelled(&self) {
-        self.state.clone().signal.notified().await;
+        if self.state.is_cancellation_requested.load(Ordering::SeqCst) == true {
+            return;
+        } else {
+            self.state.clone().signal.notified().await;
+        }
     }
 
     pub fn create_linked_token(&self) -> Self {
