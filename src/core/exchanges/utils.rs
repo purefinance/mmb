@@ -9,7 +9,11 @@ pub(crate) fn get_current_milliseconds() -> u128 {
 }
 
 pub(crate) fn try_invoke<T>(callback: &Option<Box<dyn Fn(T) -> Result<()>>>, arg: T) -> Result<()> {
+    if callback.is_none() {
+        dbg!(&"Nothing");
+    }
     if let Some(callback) = callback {
+        dbg!(&"Invoked");
         (callback)(arg)?;
     }
 

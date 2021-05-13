@@ -2180,54 +2180,157 @@ mod test {
     }
     //}
 
-    //mod triggers {
-    //    use parking_lot::Mutex;
+    mod triggers {
+        use parking_lot::Mutex;
 
-    //    use super::*;
-    //    use std::sync::Arc;
+        use super::*;
+        use std::sync::Arc;
 
-    //    struct CallCounter {
-    //        count: usize,
-    //    }
+        struct CallCounter {
+            count: usize,
+        }
 
-    //    impl CallCounter {
-    //        fn new() -> Self {
-    //            Self { count: 0 }
-    //        }
+        impl CallCounter {
+            fn new() -> Self {
+                Self { count: 0 }
+            }
 
-    //        fn call(&mut self) {
-    //            self.count += 1;
-    //        }
-    //    }
+            fn call(&mut self) {
+                dbg!(&"Daa");
+                self.count += 1;
+            }
 
-    //    #[fixture]
-    //    fn call_counter() -> CallCounter {
-    //        CallCounter::new()
-    //    }
+            fn count(&self) -> usize {
+                self.count
+            }
+        }
 
-    //    //#[rstest]
-    //    //#[tokio::test]
-    //    //async fn calls_count_0_when_only_reserve_instant(
-    //    //    mut timeout_manager: RequestsTimeoutManager,
-    //    //    //mut call_counter: CallCounter,
-    //    //) -> Result<()> {
-    //    //    // Arrange
-    //    //    let call_counter = Arc::new(Mutex::new(CallCounter::new()));
-    //    //    timeout_manager.register_trigger_on_more_or_equals(
-    //    //        3,
-    //    //        Box::new(|| {
-    //    //            call_counter.lock().call();
-    //    //            Ok(())
-    //    //        }),
-    //    //    );
-    //    //    let current_time = Utc::now();
+        #[fixture]
+        fn call_counter() -> CallCounter {
+            CallCounter::new()
+        }
 
-    //    //    // Act
-    //    //    sleep(std::time::Duration::from_millis(50)).await;
+        #[rstest]
+        #[tokio::test]
+        async fn calls_count_zero_when_only_reserve_instant(
+            mut timeout_manager: RequestsTimeoutManager,
+            // FIXME sort fixture out
+            //mut call_counter: CallCounter,
+        ) -> Result<()> {
+            // Arrange
+            let call_counter = Arc::new(Mutex::new(CallCounter::new()));
+            let cloned_counter = call_counter.clone();
+            timeout_manager.register_trigger_on_more_or_equals(
+                3,
+                Box::new(move || {
+                    cloned_counter.lock().call();
+                    Ok(())
+                }),
+            )?;
+            let current_time = Utc::now();
 
-    //    //    drop(timeout_manager);
+            // Act
+            let first_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
+            let second_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
 
-    //    //    Ok(())
-    //    //}
-    //}
+            // Assert
+            sleep(std::time::Duration::from_millis(50)).await;
+
+            let state = timeout_manager.state.read();
+
+            assert_eq!(state.requests.len(), 2);
+
+            let first_request = state.requests.first().expect("in test");
+            assert_eq!(first_request.request_type, RequestType::CreateOrder);
+            assert_eq!(first_request.allowed_start_time, current_time);
+            assert_eq!(first_request.group_id, None);
+
+            let second_request = state.requests[1].clone();
+            assert_eq!(second_request.request_type, RequestType::CreateOrder);
+            assert_eq!(second_request.allowed_start_time, current_time);
+            assert_eq!(second_request.group_id, None);
+
+            assert!(first_reserved);
+            assert!(second_reserved);
+
+            assert_eq!(call_counter.lock().count(), 0);
+
+            Ok(())
+        }
+
+        #[rstest]
+        #[tokio::test]
+        async fn calls_count_one_when_only_reserve_instant(
+            mut timeout_manager: RequestsTimeoutManager,
+            // FIXME sort fixture out
+            //mut call_counter: CallCounter,
+        ) -> Result<()> {
+            // Arrange
+            let call_counter = Arc::new(Mutex::new(CallCounter::new()));
+            let cloned_counter = call_counter.clone();
+            timeout_manager.register_trigger_on_more_or_equals(
+                3,
+                Box::new(move || {
+                    cloned_counter.lock().call();
+                    Ok(())
+                }),
+            )?;
+            let current_time = Utc::now();
+
+            // Act
+            let first_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
+            let second_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
+            let third_reserved = timeout_manager.try_reserve_instant(
+                RequestType::CreateOrder,
+                current_time,
+                None,
+            )?;
+
+            // Assert
+            sleep(std::time::Duration::from_millis(50)).await;
+
+            let state = timeout_manager.state.read();
+
+            assert_eq!(state.requests.len(), 3);
+
+            let first_request = state.requests.first().expect("in test");
+            assert_eq!(first_request.request_type, RequestType::CreateOrder);
+            assert_eq!(first_request.allowed_start_time, current_time);
+            assert_eq!(first_request.group_id, None);
+
+            let second_request = state.requests[1].clone();
+            assert_eq!(second_request.request_type, RequestType::CreateOrder);
+            assert_eq!(second_request.allowed_start_time, current_time);
+            assert_eq!(second_request.group_id, None);
+
+            let third_request = state.requests[1].clone();
+            assert_eq!(third_request.request_type, RequestType::CreateOrder);
+            assert_eq!(third_request.allowed_start_time, current_time);
+            assert_eq!(third_request.group_id, None);
+
+            assert!(first_reserved);
+            assert!(second_reserved);
+            assert!(third_reserved);
+
+            assert_eq!(call_counter.lock().count(), 1);
+
+            Ok(())
+        }
+    }
 }
