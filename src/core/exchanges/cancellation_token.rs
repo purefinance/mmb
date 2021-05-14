@@ -39,6 +39,7 @@ impl CancellationToken {
     }
 
     pub async fn when_cancelled(&self) {
+        // TODO fix it to avoid potentially race condition
         if self.state.is_cancellation_requested.load(Ordering::SeqCst) == true {
             return;
         } else {
