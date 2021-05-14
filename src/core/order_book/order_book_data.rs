@@ -1,7 +1,6 @@
 use crate::core::exchanges::common::*;
 use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use chrono::Utc;
-use rust_decimal::prelude::*;
 
 /// Main asks and bids storage
 #[derive(Debug, Clone)]

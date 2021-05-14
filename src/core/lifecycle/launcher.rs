@@ -4,10 +4,11 @@ use crate::core::exchanges::events::{ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
+use crate::core::internal_events_loop::InternalEventsLoop;
+use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::logger::init_logger;
 use crate::core::settings::{AppSettings, CoreSettings};
 use crate::hashmap;
-use crate::rest_api::endpoints::start_rest_api_server;
 use futures::future::join_all;
 use log::info;
 use std::collections::HashMap;
@@ -30,7 +31,9 @@ impl EngineBuildConfig {
     }
 }
 
-pub async fn launch_trading_engine<TSettings: Default>(build_settings: &EngineBuildConfig) {
+pub async fn launch_trading_engine<TSettings: Default + Clone>(
+    build_settings: &EngineBuildConfig,
+) -> Arc<EngineContext> {
     init_logger();
 
     info!("*****************************");
@@ -44,22 +47,34 @@ pub async fn launch_trading_engine<TSettings: Default>(build_settings: &EngineBu
         .collect();
 
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
+    let exchange_events = ExchangeEvents::new(events_sender);
 
-    let _exchange_events = ExchangeEvents::new(events_sender);
+    let engine_context = EngineContext::new(settings.core.clone(), exchange_events);
 
     {
         let exchanges_map = exchanges_map.clone();
-        let _ = tokio::spawn(
-            async move { ExchangeEvents::start(events_receiver, exchanges_map).await },
-        );
+        let internal_events_loop = InternalEventsLoop::new();
+        engine_context
+            .shutdown_service
+            .register_service(internal_events_loop.clone());
+        let _ = tokio::spawn(internal_events_loop.start(
+            events_receiver,
+            exchanges_map,
+            engine_context.application_manager.stop_token(),
+        ));
     }
 
-    if start_rest_api_server("127.0.0.1:8080").await.is_err() {
-        // TODO Graceful shutdown call
-    };
+    // TODO need implement trading_engine::Service trait
+    // let _ = tokio::spawn(async move {
+    //     if start_rest_api_server("127.0.0.1:8080").await.is_err() {
+    //         // TODO Graceful shutdown call
+    //     };
+    // });
+
+    engine_context
 }
 
-async fn load_settings<TSettings: Default>() -> AppSettings<TSettings> {
+async fn load_settings<TSettings: Default + Clone>() -> AppSettings<TSettings> {
     // TODO implement load settings
     AppSettings::default()
 }
@@ -75,17 +90,4 @@ pub async fn create_exchanges(
             .map(|x| create_exchange(x, build_settings)),
     )
     .await
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[actix_rt::test]
-    // TODO Blocking on web server start. Fix after graceful shutdown and stop() endpoind are done
-    #[ignore]
-    async fn launch_engine() {
-        let config = EngineBuildConfig::standard();
-        launch_trading_engine::<()>(&config).await;
-    }
 }
