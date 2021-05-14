@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::core::DateTime;
 use anyhow::Result;
 use chrono::{Duration, Utc};
@@ -5,8 +7,10 @@ use log::error;
 use parking_lot::Mutex;
 use tokio::time::sleep;
 
+pub type TriggerHandler = Mutex<Box<dyn FnMut() -> Result<()> + Send>>;
+
 pub struct MoreOrEqualsAvailableRequestsCountTriggerScheduler {
-    increasing_count_triggers: Mutex<Vec<MoreOrEqualsAvailableRequestsCountTrigger>>,
+    increasing_count_triggers: Mutex<Vec<Arc<MoreOrEqualsAvailableRequestsCountTrigger>>>,
 }
 
 impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
@@ -21,12 +25,11 @@ impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
         Utc::now()
     }
 
-    pub fn register_trigger(
-        &self,
-        count_threshold: usize,
-        handler: Box<dyn FnMut() -> Result<()>>,
-    ) {
-        let trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(count_threshold, handler);
+    pub fn register_trigger(&self, count_threshold: usize, handler: TriggerHandler) {
+        let trigger = Arc::new(MoreOrEqualsAvailableRequestsCountTrigger::new(
+            count_threshold,
+            handler,
+        ));
         self.increasing_count_triggers.lock().push(trigger);
     }
 
@@ -38,8 +41,8 @@ impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
     ) {
         let current_time = Self::utc_now();
 
-        for trigger in self.increasing_count_triggers.lock().iter_mut() {
-            trigger.schedule_handler(
+        for trigger in self.increasing_count_triggers.lock().iter() {
+            trigger.clone().schedule_handler(
                 available_requests_count_on_last_request_time,
                 last_request_time,
                 period_duration,
@@ -51,11 +54,11 @@ impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
 
 struct MoreOrEqualsAvailableRequestsCountTrigger {
     count_threshold: usize,
-    handler: Box<dyn FnMut() -> Result<()>>,
+    handler: TriggerHandler,
 }
 
 impl MoreOrEqualsAvailableRequestsCountTrigger {
-    fn new(count_threshold: usize, handler: Box<dyn FnMut() -> Result<()>>) -> Self {
+    fn new(count_threshold: usize, handler: TriggerHandler) -> Self {
         Self {
             count_threshold,
             handler,
@@ -63,7 +66,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
     }
 
     pub fn schedule_handler(
-        &mut self,
+        self: Arc<Self>,
         available_requests_count_on_last_request_time: usize,
         last_request_time: DateTime,
         period_duration: Duration,
@@ -86,38 +89,26 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
             delay
         };
 
-        let _async_handler = self.handle_inner(delay);
-        // FIXME How to run that future like in C#
-        // Task.Run(() => task)
+        tokio::spawn(async move { self.clone().handle_inner(delay).await });
     }
 
-    async fn handle_inner(&mut self, delay: Duration) {
-        if let Ok(delay) = delay.to_std() {
-            sleep(delay).await;
-            if let Err(error) = (*self.handler)() {
+    async fn handle_inner(&self, delay: Duration) {
+        match delay.to_std() {
+            Ok(delay) => {
+                sleep(delay).await;
+                if let Err(error) = (*self.handler.lock())() {
+                    error!(
+                        "Eror in MoreOrEqualsAvailableRequestsCountTrigger: {}",
+                        error
+                    );
+                }
+            }
+            Err(error) => {
                 error!(
-                    "Eror in MoreOrEqualsAvailableRequestsCountTrigger: {}",
+                    "Unable to convert chrono::Duration to std::Duration: {}",
                     error
                 );
             }
-        } else {
-            error!("Unable to convert chrono::Duration to std::Duration");
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use chrono::{NaiveDateTime, Utc};
-    use DateTime;
-
-    use super::*;
-
-    #[test]
-    fn negative_delay() {
-        let handler = Box::new(|| Ok(()));
-        let mut trigger = MoreOrEqualsAvailableRequestsCountTrigger::new(5, handler);
-        let wrong_date_time = DateTime::from_utc(NaiveDateTime::from_timestamp(0, 0), Utc);
-        trigger.schedule_handler(3, wrong_date_time, Duration::seconds(5), Utc::now());
     }
 }
