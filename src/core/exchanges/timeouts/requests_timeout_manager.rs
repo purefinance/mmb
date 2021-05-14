@@ -1353,7 +1353,6 @@ mod test {
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
 
-            // TODO Probably should_be_close_to
             assert_eq!(available_start_time, current_time);
             assert_eq!(delay, Duration::zero());
 
