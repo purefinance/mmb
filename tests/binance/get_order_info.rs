@@ -12,6 +12,8 @@ use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use std::env;
 use std::sync::mpsc::channel;
+use std::time::Duration;
+use tokio::time::sleep;
 
 #[actix_rt::test]
 async fn get_order_info() {
@@ -43,6 +45,7 @@ async fn get_order_info() {
             OpenOrdersType::AllCurrencyPair,
             false,
             true,
+            AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
         tx,
@@ -82,6 +85,9 @@ async fn get_order_info() {
         .expect("in test");
 
     let order = created_order.deep_clone();
+
+    // it seems that it does not have time to create the order without delay
+    sleep(Duration::from_millis(200)).await;
 
     let order_info = exchange
         .get_order_info(&order.clone())

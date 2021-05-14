@@ -1,6 +1,9 @@
-use super::order::create::CreateOrderResult;
-use super::{commission::Commission, features::ExchangeFeatures};
-use super::{currency_pair_metadata::CurrencyPairMetadata, order::cancel::CancelOrderResult};
+use super::commission::Commission;
+use super::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
+use crate::core::exchanges::general::features::ExchangeFeatures;
+use crate::core::exchanges::general::order::cancel::CancelOrderResult;
+use crate::core::exchanges::general::order::create::CreateOrderResult;
 use crate::core::orders::order::{OrderEventType, OrderHeader};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
@@ -19,7 +22,7 @@ use crate::core::{
     orders::order::ClientOrderId,
 };
 use crate::core::{
-    exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
+    exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
 use anyhow::{bail, Context, Error, Result};
@@ -69,7 +72,7 @@ pub struct Exchange {
 
     // It allows to send and receive notification about event in websocket channel
     // Websocket event is main source detecting order creation result
-    // Rest response using only for unsuccsessful operations as error
+    // Rest response using only for unsuccessful operations as error
     pub(super) order_creation_events: DashMap<
         ClientOrderId,
         (
@@ -86,15 +89,16 @@ pub struct Exchange {
         ),
     >,
     pub(super) features: ExchangeFeatures,
-    pub(super) event_channel: mpsc::Sender<OrderEvent>,
+    pub(super) event_channel: Mutex<mpsc::Sender<OrderEvent>>,
     application_manager: ApplicationManager,
     pub(super) commission: Commission,
-    pub(super) supported_currencies: DashMap<CurrencyCode, CurrencyId>,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
 }
+
+pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
 
 impl Exchange {
     pub fn new(
@@ -102,7 +106,7 @@ impl Exchange {
         websocket_host: String,
         specific_currency_pairs: Vec<SpecificCurrencyPair>,
         websocket_channels: Vec<String>,
-        exchange_client: Box<dyn ExchangeClient>,
+        exchange_client: BoxExchangeClient,
         features: ExchangeFeatures,
         event_channel: mpsc::Sender<OrderEvent>,
         commission: Commission,
@@ -119,12 +123,11 @@ impl Exchange {
             connectivity_manager,
             order_creation_events: DashMap::new(),
             order_cancellation_events: DashMap::new(),
-            supported_currencies: Default::default(),
             supported_symbols: Default::default(),
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::default(),
             features,
-            event_channel,
+            event_channel: Mutex::new(event_channel),
             commission,
             symbols: Default::default(),
             currencies: Default::default(),
@@ -143,7 +146,7 @@ impl Exchange {
             .set_callback_msg_received(Box::new(move |data| match exchange_weak.upgrade() {
                 Some(exchange) => exchange.on_websocket_message(data),
                 None => info!(
-                    "Unable to upgrade weak referene to Exchange instance. Probably it's dead"
+                    "Unable to upgrade weak reference to Exchange instance. Probably it's dead"
                 ),
             }));
     }
@@ -156,7 +159,7 @@ impl Exchange {
                     exchange.raise_order_created(client_order_id, exchange_order_id, source_type)
                 }
                 None => info!(
-                    "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
+                    "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
                 ),
             },
         ));
@@ -165,13 +168,32 @@ impl Exchange {
         self.exchange_client.set_order_cancelled_callback(Box::new(
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
-                    exchange.raise_order_cancelled(client_order_id, exchange_order_id, source_type)
+                    // TODO Log error and graceful shutdown
+                    let _ = exchange.raise_order_cancelled(
+                        client_order_id,
+                        exchange_order_id,
+                        source_type,
+                    );
                 }
                 None => info!(
-                    "Unable to upgrade weak referene to Exchange instance. Probably it's dead",
+                    "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
                 ),
             },
         ));
+
+        let exchange_weak = Arc::downgrade(&self);
+        self.exchange_client
+            .set_handle_order_filled_callback(Box::new(move |event_data| {
+                match exchange_weak.upgrade() {
+                    Some(exchange) => {
+                        // TODO Log error and graceful shutdown
+                        let _ = exchange.handle_order_filled(event_data);
+                    }
+                    None => info!(
+                        "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
+                    ),
+                }
+            }));
     }
 
     fn on_websocket_message(&self, msg: &str) {
@@ -190,7 +212,7 @@ impl Exchange {
         let callback_outcome = self.exchange_client.on_websocket_message(msg);
         if let Err(error) = callback_outcome {
             warn!(
-                "Error occured while websocket message processing: {}",
+                "Error occurred while websocket message processing: {}",
                 error
             );
         }
@@ -230,7 +252,7 @@ impl Exchange {
                 .expect("Unable to upgrade reference to Exchange");
             let params = exchange.get_websocket_params(websocket_role);
             Box::pin(params) as Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
-        });
+        }) as GetWSParamsCallback;
 
         let is_connected = self
             .connectivity_manager
@@ -337,7 +359,7 @@ impl Exchange {
 
     fn check_content(content: &str) -> CheckContent {
         // TODO is that OK to deserialize it each time here?
-        match serde_json::from_str::<Value>(&content) {
+        return match serde_json::from_str::<Value>(&content) {
             Ok(data) => {
                 match data {
                     Value::Null => return CheckContent::Empty,
@@ -356,16 +378,14 @@ impl Exchange {
                     }
                 };
 
-                return CheckContent::Usable;
+                CheckContent::Usable
             }
-            Err(_) => {
-                return CheckContent::Err(ExchangeError::new(
-                    ExchangeErrorType::Unknown,
-                    "Unable to parse response".to_owned(),
-                    None,
-                ));
-            }
-        }
+            Err(_) => CheckContent::Err(ExchangeError::new(
+                ExchangeErrorType::Unknown,
+                "Unable to parse response".to_owned(),
+                None,
+            )),
+        };
     }
 
     pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> anyhow::Result<()> {
@@ -447,6 +467,7 @@ impl Exchange {
 
         let order_event = OrderEvent::new(order_ref.clone(), order_ref.status(), event_type, None);
         self.event_channel
+            .lock()
             .send(order_event)
             .context("Unable to send event. Probably receiver is already dead")?;
 

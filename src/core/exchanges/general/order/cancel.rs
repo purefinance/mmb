@@ -1,5 +1,4 @@
 use anyhow::Result;
-use futures::pin_mut;
 use log::{error, info};
 use tokio::sync::oneshot;
 
@@ -49,52 +48,42 @@ impl CancelOrderResult {
 impl Exchange {
     pub async fn cancel_order(
         &self,
-        // TODO Here has to be common Order (or ORderRef) cause it's more natural way:
-        // When user whant to cancle_order he already has that order data somewhere
+        // TODO Here has to be common Order (or OrderRef) cause it's more natural way:
+        // When user want to cancel_order he already has that order data somewhere
         order: &OrderCancelling,
         cancellation_token: CancellationToken,
     ) -> Option<CancelOrderResult> {
         let exchange_order_id = order.exchange_order_id.clone();
-        let (tx, websocket_event_receiver) = oneshot::channel();
+        let (tx, mut websocket_event_receiver) = oneshot::channel();
 
         self.order_cancellation_events
             .insert(exchange_order_id.clone(), (tx, None));
 
         let order_cancel_future = self.exchange_client.request_cancel_order(&order);
-        let cancellation_token = cancellation_token.when_cancelled();
-
-        pin_mut!(order_cancel_future);
-        pin_mut!(cancellation_token);
-        pin_mut!(websocket_event_receiver);
 
         tokio::select! {
-            rest_request_outcome = &mut order_cancel_future => {
+            rest_request_outcome = order_cancel_future => {
                 let cancel_order_result = self.handle_cancel_order_response(&rest_request_outcome, &order);
                 match cancel_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
                         return Some(cancel_order_result);
                     }
-
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
                                 return websocket_outcome.ok()
                             }
-
-                            _ = &mut cancellation_token => {
+                            _ = cancellation_token.when_cancelled() => {
                                 return None;
                             }
-
                         }
                     }
                 }
             }
-
-            _ = &mut cancellation_token => {
+            _ = cancellation_token.when_cancelled() => {
                 return None;
             }
-
             websocket_outcome = &mut websocket_event_receiver => {
                 return websocket_outcome.ok()
             }
@@ -138,15 +127,29 @@ impl Exchange {
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
-    ) {
-        if let Some((_, (tx, _))) = self.order_cancellation_events.remove(&exchange_order_id) {
-            if let Err(error) = tx.send(CancelOrderResult::successed(
-                client_order_id,
-                source_type,
-                None,
-            )) {
-                error!("Unable to send thru oneshot channel: {:?}", error);
+    ) -> Result<()> {
+        let filled_amount = None;
+        match self.order_cancellation_events.remove(&exchange_order_id) {
+            Some((_, (tx, _))) => {
+                if let Err(error) = tx.send(CancelOrderResult::successed(
+                    client_order_id,
+                    source_type,
+                    filled_amount,
+                )) {
+                    error!(
+                        "raise_order_cancelled failed: unable to send thru oneshot channel: {:?}",
+                        error
+                    );
+                }
+
+                Ok(())
             }
+            None => self.handle_cancel_order_succeeded(
+                &client_order_id,
+                &exchange_order_id,
+                filled_amount,
+                source_type,
+            ),
         }
     }
 }

@@ -43,6 +43,7 @@ async fn create_successfully() {
             false,
             true,
             AllowedEventSourceType::default(),
+            AllowedEventSourceType::default(),
         ),
         tx,
         Commission::default(),
@@ -122,7 +123,7 @@ async fn should_fail() {
 
     let binance = Binance::new(settings, exchange_account_id);
 
-    let (tx, _) = channel();
+    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
@@ -133,6 +134,7 @@ async fn should_fail() {
             OpenOrdersType::AllCurrencyPair,
             false,
             true,
+            AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
         tx,

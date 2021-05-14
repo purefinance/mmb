@@ -18,13 +18,13 @@ pub fn init_logger() {
             })
             .chain(
                 fern::Dispatch::new()
-                    .level(LevelFilter::Warn)
-                    .level_for("mmb", LevelFilter::Warn)
-                    .level_for("mmb_lib", LevelFilter::Warn)
+                    .level(LevelFilter::Trace)
+                    .level_for("mmb", LevelFilter::Trace)
+                    .level_for("mmb_lib", LevelFilter::Trace)
                     .chain(std::io::stdout()),
             )
             .chain(
-                fern::Dispatch::new().level(LevelFilter::Warn).chain(
+                fern::Dispatch::new().level(LevelFilter::Trace).chain(
                     std::fs::OpenOptions::new()
                         .write(true)
                         .create(true)

@@ -122,16 +122,6 @@ impl OrdersPool {
         order_ref
     }
 
-    // Using for tests
-    pub(crate) fn try_add_snapshot_by_exchange_id(&self, snapshot: Arc<RwLock<OrderSnapshot>>) {
-        if let Some(exchange_order_id) = snapshot.read().props.exchange_order_id.clone() {
-            let order_ref = OrderRef(snapshot.clone());
-            let _ = self
-                .cache_by_exchange_id
-                .insert(exchange_order_id.clone(), order_ref.clone());
-        }
-    }
-
     /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
     pub fn add_simple_initial(&self, header: Arc<OrderHeader>, price: Option<Decimal>) -> OrderRef {
         let snapshot = Arc::new(RwLock::new(OrderSnapshot {

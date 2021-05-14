@@ -1,6 +1,8 @@
 use super::binance::Binance;
 use crate::core::exchanges::{
-    general::currency_pair_metadata::CurrencyPairMetadata, traits::Support,
+    common::CurrencyCode, common::CurrencyId,
+    general::currency_pair_metadata::CurrencyPairMetadata,
+    general::handle_order_filled::FillEventData, traits::Support,
 };
 use crate::core::orders::order::*;
 use crate::core::{
@@ -12,6 +14,7 @@ use crate::core::{
 };
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
+use dashmap::DashMap;
 use itertools::Itertools;
 use log::info;
 use serde::{Deserialize, Serialize};
@@ -35,7 +38,7 @@ pub struct BinanceOrderInfo {
     pub side: String,
 }
 
-#[async_trait(?Send)]
+#[async_trait]
 impl Support for Binance {
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
         //Binance is a little inconsistent: for failed responses sometimes they include
@@ -146,16 +149,23 @@ impl Support for Binance {
 
     fn set_order_created_callback(
         &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     ) {
         *self.order_created_callback.lock() = callback;
     }
 
     fn set_order_cancelled_callback(
         &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType)>,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     ) {
         *self.order_cancelled_callback.lock() = callback;
+    }
+
+    fn set_handle_order_filled_callback(
+        &self,
+        callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
+    ) {
+        *self.handle_order_filled_callback.lock() = callback;
     }
 
     fn build_ws_main_path(
@@ -199,6 +209,10 @@ impl Support for Binance {
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
         self.unified_to_specific[currency_pair].clone()
+    }
+
+    fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode> {
+        &self.supported_currencies
     }
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
