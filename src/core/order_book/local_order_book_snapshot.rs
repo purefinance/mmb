@@ -2,7 +2,6 @@ use crate::core::exchanges::common::*;
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::order::*;
 use crate::core::DateTime;
-use rust_decimal::prelude::*;
 
 /// Fields from OrderSnapshot for exclude order
 pub struct DataToExcludeOrder {

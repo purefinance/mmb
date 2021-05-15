@@ -276,14 +276,14 @@ impl ConnectivityManager {
 
         let mut attempt = 0;
 
-        while !cancel_websocket_connecting.check_cancellation_requested() {
+        while !cancel_websocket_connecting.is_cancellation_requested() {
             trace!(
                 "Getting WebSocket parameters for {}",
                 self.exchange_account_id.clone()
             );
             let params = self.try_get_websocket_params(role).await;
             if let Ok(params) = params {
-                if cancel_websocket_connecting.check_cancellation_requested() {
+                if cancel_websocket_connecting.is_cancellation_requested() {
                     return false;
                 }
 
@@ -311,7 +311,7 @@ impl ConnectivityManager {
                             );
                         }
 
-                        if cancel_websocket_connecting.check_cancellation_requested() {
+                        if cancel_websocket_connecting.is_cancellation_requested() {
                             if let WebSocketState::Connected {
                                 websocket_actor, ..
                             } = &websocket_connectivity.lock().borrow().state

@@ -184,9 +184,8 @@ impl Binance {
         let client_order_id = json_response["c"]
             .as_str()
             .ok_or(anyhow!("Unable to parse client order id"))?;
-        let exchange_order_id = json_response["i"]
-            .as_str()
-            .ok_or(anyhow!("Unable to parse exchange order id"))?;
+        let exchange_order_id = json_response["i"].to_string();
+        let exchange_order_id = exchange_order_id.as_str();
         let execution_type = json_response["x"]
             .as_str()
             .ok_or(anyhow!("Unable to parse execution type"))?;

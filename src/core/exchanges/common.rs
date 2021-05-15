@@ -45,7 +45,7 @@ impl ExchangeAccountId {
 impl FromStr for ExchangeAccountId {
     type Err = ExchangeIdParseError;
 
-    fn from_str(text: &str) -> Result<Self, Self::Err> {
+    fn from_str(text: &str) -> std::result::Result<Self, Self::Err> {
         let regex = Regex::new(r"(^[A-Za-z]+)(\d+$)")
             .map_err(|err| ExchangeIdParseError(err.to_string()))?;
 
@@ -284,7 +284,7 @@ impl RestRequestOutcome {
     }
 }
 
-pub type RestRequestResult = Result<String, RestRequestError>;
+pub type RestRequestResult = std::result::Result<String, RestRequestError>;
 
 #[cfg(test)]
 mod tests {

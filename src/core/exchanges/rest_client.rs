@@ -33,9 +33,7 @@ async fn handle_response(response: ResponseType, rest_action: &str) -> Result<Re
             .context("Unable to parse content string")?
             .to_owned(),
         }),
-        Err(error) => {
-            bail!("Unable to send {} request: {}", rest_action, error)
-        }
+        Err(error) => bail!("Unable to send {} request: {}", rest_action, error),
     }
 }
 

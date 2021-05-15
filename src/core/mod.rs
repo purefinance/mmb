@@ -6,7 +6,8 @@ pub mod logger;
 pub mod orders;
 
 pub mod async_event;
-pub mod events;
+pub(crate) mod events;
+pub(crate) mod internal_events_loop;
 pub mod lifecycle;
 pub mod math;
 pub mod order_book;

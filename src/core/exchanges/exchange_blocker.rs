@@ -31,7 +31,7 @@ pub enum ExchangeBlockerMoment {
 pub struct BlockReason(&'static str);
 
 impl BlockReason {
-    const fn new(value: &'static str) -> Self {
+    pub const fn new(value: &'static str) -> Self {
         BlockReason(value)
     }
 }
@@ -250,7 +250,7 @@ impl ExchangeBlockerEventsProcessor {
         mut events_receiver: mpsc::Receiver<ExchangeBlockerInternalEvent>,
         mut ctx: ProcessingCtx,
     ) {
-        while !ctx.cancellation_token.check_cancellation_requested() {
+        while !ctx.cancellation_token.is_cancellation_requested() {
             let event = events_receiver.recv().await;
             let event = match event {
                 None => {

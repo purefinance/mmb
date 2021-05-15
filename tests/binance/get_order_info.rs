@@ -87,7 +87,7 @@ async fn get_order_info() {
     let order = created_order.deep_clone();
 
     // it seems that it does not have time to create the order without delay
-    sleep(Duration::from_millis(200)).await;
+    sleep(Duration::from_millis(500)).await;
 
     let order_info = exchange
         .get_order_info(&order.clone())

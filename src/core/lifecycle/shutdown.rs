@@ -1,8 +1,11 @@
-use crate::core::lifecycle::bot::Service;
+use crate::core::lifecycle::trading_engine::Service;
 use crate::core::text;
 use actix::Recipient;
 use actix::{Message, System};
+use anyhow::Result;
 use futures::future::join_all;
+use futures::FutureExt;
+use itertools::Itertools;
 use log::{error, info, trace};
 use parking_lot::Mutex;
 use std::sync::Arc;
@@ -13,88 +16,157 @@ use tokio::time::{sleep, Duration};
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct GracefulShutdownMsg {
-    pub service_finished: Sender<()>,
+    pub service_finished: Sender<Result<()>>,
 }
 
+struct ActorInfo {
+    name: String,
+    actor: Recipient<GracefulShutdownMsg>,
+}
+
+#[derive(Default)]
 struct State {
     services: Vec<Arc<dyn Service>>,
-    actors: Vec<Recipient<GracefulShutdownMsg>>,
+    actors: Vec<ActorInfo>,
 }
 
+#[derive(Default)]
 pub struct ShutdownService {
     state: Mutex<State>,
 }
 
 impl ShutdownService {
-    pub fn new() -> Arc<Self> {
-        Arc::new(ShutdownService {
-            state: Mutex::new(State {
-                services: vec![],
-                actors: vec![],
-            }),
-        })
-    }
-
     pub fn register_service(&self, service: Arc<dyn Service>) {
+        trace!("Registered in ShutdownService service '{}'", service.name());
         self.state.lock().services.push(service);
     }
 
-    pub fn register_actor(&self, actor: Recipient<GracefulShutdownMsg>) {
-        self.state.lock().actors.push(actor);
+    pub fn register_actor(&self, name: String, actor: Recipient<GracefulShutdownMsg>) {
+        trace!("Registered in ShutdownService actor '{}'", name);
+        self.state.lock().actors.push(ActorInfo { name, actor });
     }
 
-    pub async fn start_graceful_shutdown(&self) -> Vec<String> {
-        let mut weak_services = Vec::new();
+    pub async fn graceful_shutdown(&self) -> Vec<String> {
         let mut finish_receivers = Vec::new();
 
+        trace!("Prepare to drop services in ShutdownService started");
+
         {
-            let mut state_guard = self.state.lock();
-            for actor in &state_guard.actors {
-                let (sender, receiver) = oneshot::channel::<()>();
-                let _ = actor.try_send(GracefulShutdownMsg {
-                    service_finished: sender,
-                });
-                finish_receivers.push(receiver);
+            trace!("Running graceful shutdown for actors started");
+
+            let state_guard = self.state.lock();
+            for actor_info in &state_guard.actors {
+                let (service_finished, receiver) = oneshot::channel::<Result<()>>();
+                let _ = actor_info
+                    .actor
+                    .try_send(GracefulShutdownMsg { service_finished });
+
+                let actor_name = format!("actor {}", actor_info.name);
+
+                trace!("Waiting graceful shutdown finishing for {}", actor_name);
+                finish_receivers.push((actor_name, receiver));
             }
 
-            // try drop services
-            for service in state_guard.services.drain(..) {
-                let (sender, receiver) = oneshot::channel::<()>();
-                service.graceful_shutdown(sender);
-                let weak_service = Arc::downgrade(&service);
-                weak_services.push(weak_service);
-                finish_receivers.push(receiver);
-            }
-        }
+            trace!("Running graceful shutdown for actors finished");
 
-        let timeout = Duration::from_secs(5);
-        tokio::select! {
-            _ = join_all(finish_receivers) => trace!("All services sent finished marker at given time"),
-            _ = sleep(timeout) => error!("Not all services finished after timeout ({} sec)", timeout.as_secs()),
-        }
+            trace!("Running graceful shutdown for services started");
+            for service in &state_guard.services {
+                let receiver = service.clone().graceful_shutdown();
 
-        System::current().stop();
+                if let Some(receiver) = receiver {
+                    let service_name = format!("service {}", service.name());
 
-        let mut not_dropped_services = Vec::new();
-        for weak_service in weak_services {
-            if weak_service.strong_count() > 0 {
-                match weak_service.upgrade() {
-                    None => { /* Nothing to do. Object is dropped. It is ok. */ }
-                    Some(service) => {
-                        not_dropped_services.push(service.name().to_string());
-                    }
+                    trace!("Waiting finishing graceful shutdown for {}", service_name);
+                    finish_receivers.push((service_name, receiver));
+                } else {
+                    trace!(
+                        "Service {} not needed waiting graceful shutdown or already finished",
+                        service.name()
+                    )
                 }
             }
+            trace!("Running graceful shutdown for services finished");
         }
 
-        if !not_dropped_services.is_empty() {
+        // log errors when its came
+        let finishing_services_futures = finish_receivers
+            .into_iter()
+            .map(|(service_name, receiver)| {
+                receiver.map(
+                    move |finishing_service_send_result| match finishing_service_send_result {
+                        Err(err) => {
+                            error!(
+                                "Can't receive message for finishing graceful shutdown in {} because of error: {}",
+                                service_name,
+                                err
+                            );
+                        },
+                        Ok(finishing_service_result) => match finishing_service_result {
+                            Err(err) => {
+                                error!(
+                                    "{} finished on graceful shutdown with error: {}",
+                                    service_name,
+                                    err
+                                );
+                            }
+                            Ok(_) => {
+                                trace!(
+                                    "Graceful shutdown for {} completed successfully",
+                                    service_name
+                                );
+                            },
+                        },
+                    },
+                )
+            })
+            .collect_vec();
+
+        const TIMEOUT: Duration = Duration::from_secs(3);
+        tokio::select! {
+            _ = join_all(finishing_services_futures) => trace!("All services sent finished marker at given time"),
+            _ = sleep(TIMEOUT) => error!("Not all services finished after timeout ({} sec)", TIMEOUT.as_secs()),
+        }
+
+        trace!("Prepare to drop services in ShutdownService finished");
+
+        trace!("Stopping actor system");
+        System::current().stop();
+
+        trace!("Drop services in ShutdownService started");
+
+        let weak_services;
+        {
+            let mut state_guard = self.state.lock();
+            weak_services = state_guard
+                .services
+                .drain(..)
+                .map(|x| Arc::downgrade(&x))
+                .collect_vec();
+        }
+
+        trace!("Drop services in ShutdownService finished");
+
+        let not_dropped_services = weak_services
+            .iter()
+            .filter_map(|weak_service| {
+                if weak_service.strong_count() > 0 {
+                    weak_service
+                        .upgrade()
+                        .map(|service| service.name().to_string())
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
+
+        if not_dropped_services.is_empty() {
+            info!("After graceful shutdown all services dropped completely")
+        } else {
             error!(
                 "After graceful shutdown follow services wasn't dropped:{}{}",
                 text::LINE_ENDING,
                 not_dropped_services.join(text::LINE_ENDING)
             )
-        } else {
-            info!("After graceful shutdown all services dropped completely")
         }
 
         not_dropped_services
@@ -105,9 +177,12 @@ impl ShutdownService {
 mod tests {
     use super::*;
     use crate::core::logger::init_logger;
+    use tokio::sync::oneshot::Receiver;
 
     #[actix_rt::test]
     pub async fn success() {
+        init_logger();
+
         pub struct TestService;
 
         impl TestService {
@@ -120,21 +195,25 @@ mod tests {
             fn name(&self) -> &str {
                 "SomeTestService"
             }
+
+            fn graceful_shutdown(self: Arc<Self>) -> Option<Receiver<Result<()>>> {
+                None
+            }
         }
 
-        init_logger();
-
-        let shutdown_service = ShutdownService::new();
+        let shutdown_service = ShutdownService::default();
 
         let test = TestService::new();
         shutdown_service.register_service(test);
 
-        let not_dropped_services = shutdown_service.start_graceful_shutdown().await;
+        let not_dropped_services = shutdown_service.graceful_shutdown().await;
         assert_eq!(not_dropped_services.len(), 0);
     }
 
     #[actix_rt::test]
     pub async fn failed() {
+        init_logger();
+
         const REF_TEST_SERVICE: &str = "RefTestService";
         pub struct RefTestService(Mutex<Option<Arc<RefTestService>>>);
 
@@ -152,18 +231,20 @@ mod tests {
             fn name(&self) -> &str {
                 REF_TEST_SERVICE
             }
+
+            fn graceful_shutdown(self: Arc<Self>) -> Option<Receiver<Result<()>>> {
+                None
+            }
         }
 
-        init_logger();
-
-        let shutdown_service = ShutdownService::new();
+        let shutdown_service = ShutdownService::default();
 
         let test = RefTestService::new();
         let clone = test.clone();
         test.set_ref(clone);
         shutdown_service.register_service(test);
 
-        let not_dropped_services = shutdown_service.start_graceful_shutdown().await;
+        let not_dropped_services = shutdown_service.graceful_shutdown().await;
         assert_eq!(not_dropped_services, vec![REF_TEST_SERVICE.to_string()]);
     }
 }
