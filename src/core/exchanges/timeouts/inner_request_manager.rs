@@ -6,8 +6,7 @@ use super::{
     triggers::handle_trigger_trait::TriggerHandler,
 };
 use crate::core::{
-    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType,
-    exchanges::utils, DateTime,
+    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType, DateTime,
 };
 use anyhow::{anyhow, bail, Result};
 use chrono::Duration;
@@ -22,9 +21,9 @@ pub struct InnerRequestsTimeoutManager {
     pub pre_reserved_groups: Vec<PreReservedGroup>,
     pub(crate) last_time: Option<DateTime>,
 
-    pub group_was_reserved: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
-    pub group_was_removed: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
-    pub time_has_come_for_request: Option<Box<dyn Fn(Request) -> Result<()>>>,
+    pub group_was_reserved: Box<dyn Fn(PreReservedGroup) -> Result<()>>,
+    pub group_was_removed: Box<dyn Fn(PreReservedGroup) -> Result<()>>,
+    pub time_has_come_for_request: Box<dyn Fn(Request) -> Result<()>>,
 
     pub(crate) less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
     pub(crate) more_or_equals_available_requests_count_trigger_scheduler:
@@ -61,7 +60,7 @@ impl InnerRequestsTimeoutManager {
 
         // TODO save to DataRecorder
 
-        utils::try_invoke(&self.time_has_come_for_request, request)?;
+        (self.time_has_come_for_request)(request)?;
 
         Ok(true)
     }
@@ -159,8 +158,8 @@ impl InnerRequestsTimeoutManager {
             .last()
             .map(|request| request.clone())
             .ok_or(anyhow!(
-                "There are no stored request at all, so unable to get the last one"
-            ))
+            "There are no stored request at all in TimeoutManager, so unable to get the last one"
+        ))
     }
 
     pub(super) fn get_available_requests_count_at_present(&self, current_time: DateTime) -> usize {

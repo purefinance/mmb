@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::core::{
     exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
-    exchanges::general::request_type::RequestType, exchanges::utils, DateTime,
+    exchanges::general::request_type::RequestType, DateTime,
 };
 
 use super::{
@@ -39,9 +39,9 @@ impl RequestsTimeoutManager {
             pre_reserved_groups: Default::default(),
             last_time: None,
             delay_to_next_time_period: Duration::milliseconds(1),
-            group_was_reserved: None,
-            group_was_removed: None,
-            time_has_come_for_request: None,
+            group_was_reserved: Box::new(|_| Ok(())),
+            group_was_removed: Box::new(|_| Ok(())),
+            time_has_come_for_request: Box::new(|_| Ok(())),
             less_or_equals_requests_count_triggers: Default::default(),
             more_or_equals_available_requests_count_trigger_scheduler,
         };
@@ -84,7 +84,7 @@ impl RequestsTimeoutManager {
 
         inner.last_time = Some(current_time);
 
-        utils::try_invoke(&inner.group_was_reserved, group)?;
+        (inner.group_was_reserved)(group)?;
 
         Ok(Some(group_id))
     }
@@ -117,7 +117,7 @@ impl RequestsTimeoutManager {
 
                 // TODO save to DataRecorder
 
-                utils::try_invoke(&inner.group_was_removed, group)?;
+                (inner.group_was_removed)(group)?;
 
                 Ok(true)
             }
@@ -203,7 +203,7 @@ impl RequestsTimeoutManager {
                     current_time
                 );
 
-                utils::try_invoke(&inner.time_has_come_for_request, request)?;
+                (inner.time_has_come_for_request)(request)?;
 
                 Ok(true)
             }
@@ -335,12 +335,13 @@ impl RequestsTimeoutManager {
 
                 tokio::select! {
                     _ = sleep_future => {
-                        utils::try_invoke(&self.inner.lock().time_has_come_for_request, request)?;
+                        (self.inner.lock().time_has_come_for_request)(request)?;
                     }
 
                     _ = cancellation_token => {
-                        utils::try_invoke(&self.inner.lock().time_has_come_for_request, request.clone())?;
-                        self.inner.lock().requests.retain(|stored_request| *stored_request != request);
+                        let mut inner = self.inner.lock();
+                        (inner.time_has_come_for_request)(request.clone())?;
+                        inner.requests.retain(|stored_request| *stored_request != request);
 
                         bail!("Operation cancelled")
                     }
@@ -2177,8 +2178,7 @@ mod test {
                 first_group_id,
             )?;
 
-            // NOTE: unexpected behaviour (group where we can reserve only 1 request)
-            let _third_reserved_instant = timeout_manager.try_reserve_instant(
+            let third_reserved_instant = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
@@ -2187,13 +2187,11 @@ mod test {
             // Assert
             assert!(!first_reserved_instant);
             assert!(second_reserved_instant);
-            // FIXME It doesn't work somehow
-            //assert!(!third_reserved_instant);
+            assert!(third_reserved_instant);
 
             let inner = timeout_manager.inner.lock();
 
-            // FIXME It doesn't work somehow
-            //assert_eq!(inner.requests.len(), 2);
+            assert_eq!(inner.requests.len(), 3);
 
             assert_eq!(inner.pre_reserved_groups.len(), 2);
 
@@ -2206,6 +2204,11 @@ mod test {
             assert_eq!(second_reserved_group.id, second_group_id.expect("in test"));
             assert_eq!(second_reserved_group.group_type, group_type);
             assert_eq!(second_reserved_group.pre_reserved_requests_count, 2);
+
+            let third_reserved_group = inner.pre_reserved_groups[1].clone();
+            assert_eq!(third_reserved_group.id, second_group_id.expect("in test"));
+            assert_eq!(third_reserved_group.group_type, group_type);
+            assert_eq!(third_reserved_group.pre_reserved_requests_count, 2);
 
             Ok(())
         }
