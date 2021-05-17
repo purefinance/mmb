@@ -43,8 +43,7 @@ impl CancellationToken {
             return;
         }
 
-            self.state.clone().signal.notified().await;
-        }
+        self.state.clone().signal.notified().await;
     }
 
     pub fn create_linked_token(&self) -> Self {

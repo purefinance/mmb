@@ -1916,12 +1916,12 @@ mod test {
             let third_request = state.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(third_request.allowed_start_time, current_time);
-            assert_eq!(third_request.group_id, group_id);
+            assert_eq!(third_request.group_id, None);
 
             let fourth_request = state.requests[3].clone();
             assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
             assert_eq!(fourth_request.allowed_start_time, current_time);
-            assert_eq!(fourth_request.group_id, None);
+            assert_eq!(fourth_request.group_id, group_id);
 
             let fifth_request = state.requests[4].clone();
             assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
