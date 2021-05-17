@@ -18,7 +18,7 @@ use chrono::Utc;
 use commission::Percent;
 use log::{error, info, warn};
 use parking_lot::RwLock;
-use rust_decimal::{prelude::Zero, Decimal};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 

@@ -1,12 +1,12 @@
 use crate::core::exchanges::common::{CurrencyCode, ExchangeAccountId};
 
-#[derive(Debug, Default)]
-pub struct AppSettings<TBotSettings> {
+#[derive(Debug, Default, Clone)]
+pub struct AppSettings<TBotSettings: Clone> {
     pub bot: TBotSettings,
     pub core: CoreSettings,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CoreSettings {
     pub exchanges: Vec<ExchangeSettings>,
 }

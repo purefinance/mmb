@@ -1,16 +1,11 @@
 use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price,
 };
-use crate::core::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
 use crate::core::order_book::event::OrderBookEvent;
-use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::event::OrderEvent;
-use crate::core::orders::order::{OrderSide, OrderType};
+use crate::core::orders::order::OrderSide;
 use crate::core::DateTime;
-use anyhow::{Context, Result};
 use rust_decimal::Decimal;
-use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::sync::broadcast;
 
 pub const CHANNEL_MAX_EVENTS_COUNT: usize = 200_000;
@@ -111,70 +106,6 @@ impl ExchangeEvents {
 
     pub fn get_events_channel(&self) -> broadcast::Receiver<ExchangeEvent> {
         self.events_sender.subscribe()
-    }
-
-    pub async fn start(
-        mut events_receiver: broadcast::Receiver<ExchangeEvent>,
-        exchanges_map: HashMap<ExchangeAccountId, Arc<Exchange>>,
-    ) -> Result<()> {
-        let mut local_snapshots_service = LocalSnapshotsService::default();
-
-        loop {
-            let event = events_receiver
-                .recv()
-                .await
-                .context("Error during receiving event in ExchangeEvents event loop")?;
-
-            match event {
-                ExchangeEvent::OrderBookEvent(order_book_event) => {
-                    update_order_book_top_for_exchange(
-                        order_book_event,
-                        &mut local_snapshots_service,
-                        &exchanges_map,
-                    )
-                }
-                ExchangeEvent::OrderEvent(order_event) => {
-                    if let OrderType::Liquidation = order_event.order.order_type() {
-                        // TODO react on order liquidation
-                    }
-                }
-                ExchangeEvent::BalanceUpdate(_) => {
-                    // TODO add update exchange balance
-                }
-                ExchangeEvent::LiquidationPrice(_) => {}
-                ExchangeEvent::Trades(_) => {}
-            }
-        }
-    }
-}
-
-fn update_order_book_top_for_exchange(
-    order_book_event: OrderBookEvent,
-    local_snapshots_service: &mut LocalSnapshotsService,
-    exchanges_map: &HashMap<ExchangeAccountId, Arc<Exchange>>,
-) {
-    let trade_place_account = local_snapshots_service.update(order_book_event);
-    if let Some(trade_place_account) = &trade_place_account {
-        let snapshot = local_snapshots_service
-            .get_snapshot(trade_place_account.clone())
-            .expect("snapshot should exists because we just added one");
-
-        let order_book_top = OrderBookTop {
-            ask: snapshot
-                .get_top_ask()
-                .map(|(price, amount)| PriceLevel { price, amount }),
-            bid: snapshot
-                .get_top_bid()
-                .map(|(price, amount)| PriceLevel { price, amount }),
-        };
-
-        exchanges_map
-            .get(&trade_place_account.exchange_account_id)
-            .map(|exchange| {
-                exchange
-                    .order_book_top
-                    .insert(trade_place_account.currency_pair.clone(), order_book_top)
-            });
     }
 }
 

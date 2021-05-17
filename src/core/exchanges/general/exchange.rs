@@ -1,6 +1,7 @@
 use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
+use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
@@ -90,7 +91,7 @@ pub struct Exchange {
     >,
     pub(super) features: ExchangeFeatures,
     pub(super) event_channel: Mutex<mpsc::Sender<OrderEvent>>,
-    application_manager: ApplicationManager,
+    application_manager: Arc<ApplicationManager>,
     pub(super) commission: Commission,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
@@ -125,7 +126,7 @@ impl Exchange {
             order_cancellation_events: DashMap::new(),
             supported_symbols: Default::default(),
             // TODO in the future application_manager have to be passed as parameter
-            application_manager: ApplicationManager::default(),
+            application_manager: ApplicationManager::new(CancellationToken::new()),
             features,
             event_channel: Mutex::new(event_channel),
             commission,
@@ -199,8 +200,8 @@ impl Exchange {
     fn on_websocket_message(&self, msg: &str) {
         if self
             .application_manager
-            .cancellation_token
-            .check_cancellation_requested()
+            .stop_token()
+            .is_cancellation_requested()
         {
             return;
         }
@@ -472,5 +473,9 @@ impl Exchange {
             .context("Unable to send event. Probably receiver is already dead")?;
 
         Ok(())
+    }
+
+    pub async fn cancel_opened_orders(self: Arc<Self>) {
+        // TODO should be implemented
     }
 }

@@ -257,7 +257,6 @@ impl WriteHandler<WsProtocolError> for WebSocketActor {}
 mod tests {
     use super::*;
     use crate::core::logger::init_logger;
-    use actix::Arbiter;
 
     // TODO It is not UNIT test
     #[actix_rt::test]
@@ -273,7 +272,7 @@ mod tests {
         let (websocket_sender, websocket_receiver) = oneshot::channel::<Addr<_>>();
         let (finish_sender, finish_receiver) = oneshot::channel();
 
-        Arbiter::spawn(async {
+        actix_rt::spawn(async {
             let websocket_addr = websocket_receiver.await.expect("in test");
 
             tokio::time::sleep(Duration::from_secs(1)).await;
@@ -304,7 +303,7 @@ mod tests {
             let _ = finish_sender.send(());
         });
 
-        Arbiter::spawn(async {
+        actix_rt::spawn(async {
             let exchange_id = "Binance0".parse().expect("in test");
             let websocket_addr = WebSocketActor::open_connection(
                 exchange_id,
