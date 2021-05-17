@@ -83,11 +83,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
         // var triggerTime = isGreater ? lastRequestTime : lastRequestTime + periodDuration;
         let trigger_time = last_request_time + period_duration;
         let mut delay = trigger_time - current_time;
-        delay = if delay < Duration::zero() {
-            Duration::zero()
-        } else {
-            delay
-        };
+        delay = delay.max(Duration::zero());
 
         tokio::spawn(async move { self.clone().handle_inner(delay).await });
     }
@@ -98,7 +94,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
                 sleep(delay).await;
                 if let Err(error) = (*self.handler.lock())() {
                     error!(
-                        "Eror in MoreOrEqualsAvailableRequestsCountTrigger: {}",
+                        "Error in MoreOrEqualsAvailableRequestsCountTrigger: {}",
                         error
                     );
                 }

@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use super::{
     more_or_equals_available_requests_count_trigger_scheduler::MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     pre_reserved_group::PreReservedGroup, request::Request,
-    requests_counts_in_period_result::RequestsCountsInPeriodResult,
     triggers::handle_trigger_trait::TriggerHandler,
 };
 use crate::core::{
@@ -16,19 +15,19 @@ use log::info;
 use uuid::Uuid;
 
 pub struct InnerRequestsTimeoutManager {
-    pub requests_per_period: usize,
-    pub period_duration: Duration,
-    pub exchange_account_id: ExchangeAccountId,
+    pub(crate) requests_per_period: usize,
+    pub(crate) period_duration: Duration,
+    pub(crate) exchange_account_id: ExchangeAccountId,
     pub requests: Vec<Request>,
     pub pre_reserved_groups: Vec<PreReservedGroup>,
-    pub last_time: Option<DateTime>,
+    pub(crate) last_time: Option<DateTime>,
 
     pub group_was_reserved: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
     pub group_was_removed: Option<Box<dyn Fn(PreReservedGroup) -> Result<()>>>,
     pub time_has_come_for_request: Option<Box<dyn Fn(Request) -> Result<()>>>,
 
-    pub less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
-    pub more_or_equals_available_requests_count_trigger_scheduler:
+    pub(crate) less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
+    pub(crate) more_or_equals_available_requests_count_trigger_scheduler:
         MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     pub delay_to_next_time_period: Duration,
     // data_recorder
@@ -44,7 +43,7 @@ impl InnerRequestsTimeoutManager {
         self.remove_outdated_requests(current_time)?;
 
         let _all_available_requests_count = self.get_all_available_requests_count();
-        let available_requests_count = self.get_available_requests_count_at_persent(current_time);
+        let available_requests_count = self.get_available_requests_count_at_present(current_time);
 
         if available_requests_count == 0 {
             // TODO save to DataRecorder
@@ -52,11 +51,11 @@ impl InnerRequestsTimeoutManager {
             return Ok(false);
         }
 
-        let request = self.add_request(request_type.clone(), current_time, None)?;
+        let request = self.add_request(request_type, current_time, None)?;
         self.last_time = Some(current_time);
 
         info!(
-            "Reserved request {:?} without group, instant {:?}",
+            "Reserved request {:?} without group, instant {}",
             request_type, current_time
         );
 
@@ -74,11 +73,10 @@ impl InnerRequestsTimeoutManager {
     ) -> usize {
         let mut count = 0;
 
+        let group_id = Some(group_id);
         for request in &self.requests {
-            if let Some(request_group_id) = request.group_id {
-                if request.allowed_start_time <= current_time && request_group_id == group_id {
-                    count += 1;
-                }
+            if request.allowed_start_time <= current_time && request.group_id == group_id {
+                count += 1;
             }
         }
 
@@ -93,14 +91,12 @@ impl InnerRequestsTimeoutManager {
     ) -> Result<Request> {
         let request = Request::new(request_type, current_time, group_id);
 
-        let request_index = self.requests.binary_search_by(|stored_request| {
-            stored_request
-                .allowed_start_time
-                .cmp(&request.allowed_start_time)
-        });
-
-        let request_index =
-            request_index.map_or_else(|error_index| error_index, |ok_index| ok_index);
+        let request_index = self
+            .requests
+            .binary_search_by_key(&request.allowed_start_time, |stored_request| {
+                stored_request.allowed_start_time
+            })
+            .map_or_else(|error_index| error_index, |ok_index| ok_index);
 
         self.requests.insert(request_index, request.clone());
 
@@ -112,14 +108,10 @@ impl InnerRequestsTimeoutManager {
 
     pub(super) fn handle_all_decreasing_triggers(&mut self) -> Result<()> {
         let available_requests_count = self.get_all_available_requests_count();
-        let mut maybe_error = Ok(());
-        self.less_or_equals_requests_count_triggers
-            .iter_mut()
-            .for_each(|trigger| {
-                maybe_error = trigger.handle(available_requests_count);
-            });
 
-        maybe_error?;
+        for trigger in self.less_or_equals_requests_count_triggers.iter_mut() {
+            trigger.handle(available_requests_count)?
+        }
 
         Ok(())
     }
@@ -151,9 +143,7 @@ impl InnerRequestsTimeoutManager {
         Ok(requests_difference)
     }
 
-    pub(super) fn get_requests_count_at_last_request_time(
-        &self,
-    ) -> Result<RequestsCountsInPeriodResult> {
+    fn get_requests_count_at_last_request_time(&self) -> Result<RequestsCountsInPeriodResult> {
         let last_request = self.get_last_request()?;
         let last_requests_start_time = last_request.allowed_start_time;
         let period_before_last = last_requests_start_time - self.period_duration;
@@ -168,10 +158,12 @@ impl InnerRequestsTimeoutManager {
         self.requests
             .last()
             .map(|request| request.clone())
-            .ok_or(anyhow!("There are no last request"))
+            .ok_or(anyhow!(
+                "There are no stored request at all, so unable to get the last one"
+            ))
     }
 
-    pub(super) fn get_available_requests_count_at_persent(&self, current_time: DateTime) -> usize {
+    pub(super) fn get_available_requests_count_at_present(&self, current_time: DateTime) -> usize {
         let reserved_requests_count = self.get_reserved_requests_count_at_present(current_time);
         let reserved_requests_counts_without_group = reserved_requests_count
             .requests_count
@@ -184,7 +176,7 @@ impl InnerRequestsTimeoutManager {
         available_requests_count
     }
 
-    pub(super) fn get_reserved_requests_count_at_present(
+    fn get_reserved_requests_count_at_present(
         &self,
         current_time: DateTime,
     ) -> RequestsCountsInPeriodResult {
@@ -192,7 +184,7 @@ impl InnerRequestsTimeoutManager {
         self.reserved_requests_count_in_period(current_time, not_period_predicate)
     }
 
-    pub(super) fn reserved_requests_count_in_period<F>(
+    fn reserved_requests_count_in_period<F>(
         &self,
         current_time: DateTime,
         not_period_predicate: F,
@@ -264,7 +256,7 @@ impl InnerRequestsTimeoutManager {
     pub(super) fn remove_outdated_requests(&mut self, current_time: DateTime) -> Result<()> {
         let deadline = current_time
             .checked_sub_signed(self.period_duration)
-            .ok_or(anyhow!("Unable to substract time periods"))?;
+            .ok_or(anyhow!("Unable to subtract time periods"))?;
         self.requests
             .retain(|request| request.allowed_start_time >= deadline);
 
@@ -295,6 +287,27 @@ impl InnerRequestsTimeoutManager {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Default)]
+struct RequestsCountsInPeriodResult {
+    requests_count: usize,
+    reserved_in_groups_requests_count: usize,
+    vacant_and_reserved_in_groups_requests_count: usize,
+}
+
+impl RequestsCountsInPeriodResult {
+    pub fn new(
+        requests_count: usize,
+        reserved_in_groups_requests_count: usize,
+        vacant_and_reserved_in_groups_requests_count: usize,
+    ) -> Self {
+        Self {
+            requests_count,
+            reserved_in_groups_requests_count,
+            vacant_and_reserved_in_groups_requests_count,
+        }
     }
 }
 

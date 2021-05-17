@@ -1,5 +1,5 @@
 use futures::Future;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 use tokio::time::sleep;
 
 use anyhow::{bail, Result};
@@ -21,7 +21,7 @@ use super::{
 };
 
 pub struct RequestsTimeoutManager {
-    pub state: RwLock<InnerRequestsTimeoutManager>,
+    pub inner: Mutex<InnerRequestsTimeoutManager>,
 }
 
 impl RequestsTimeoutManager {
@@ -31,7 +31,7 @@ impl RequestsTimeoutManager {
         exchange_account_id: ExchangeAccountId,
         more_or_equals_available_requests_count_trigger_scheduler: MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     ) -> Self {
-        let state = InnerRequestsTimeoutManager {
+        let inner = InnerRequestsTimeoutManager {
             requests_per_period,
             period_duration,
             exchange_account_id,
@@ -47,7 +47,7 @@ impl RequestsTimeoutManager {
         };
 
         Self {
-            state: RwLock::new(state),
+            inner: Mutex::new(inner),
         }
     }
 
@@ -58,13 +58,13 @@ impl RequestsTimeoutManager {
         requests_count: usize,
         // call_source: SourceInfo, // TODO not needed until DataRecorder is ready
     ) -> Result<Option<Uuid>> {
-        let mut state = self.state.write();
+        let mut inner = self.inner.lock();
 
-        let current_time = state.get_non_decreasing_time(current_time);
-        state.remove_outdated_requests(current_time)?;
+        let current_time = inner.get_non_decreasing_time(current_time);
+        inner.remove_outdated_requests(current_time)?;
 
-        let _all_available_requests_count = state.get_all_available_requests_count();
-        let available_requests_count = state.get_available_requests_count_at_persent(current_time);
+        let _all_available_requests_count = inner.get_all_available_requests_count();
+        let available_requests_count = inner.get_available_requests_count_at_present(current_time);
 
         if available_requests_count < requests_count {
             // TODO save to DataRecorder
@@ -73,24 +73,27 @@ impl RequestsTimeoutManager {
 
         let group_id = Uuid::new_v4();
         let group = PreReservedGroup::new(group_id, group_type, requests_count);
-        state.pre_reserved_groups.push(group.clone());
+        inner.pre_reserved_groups.push(group.clone());
 
-        info!("PreReserved grop {} {} was added", group_id, requests_count);
+        info!(
+            "PreReserved group with group_id {} and request_count {} was added",
+            group_id, requests_count
+        );
 
         // TODO save to DataRecorder
 
-        state.last_time = Some(current_time);
+        inner.last_time = Some(current_time);
 
-        utils::try_invoke(&state.group_was_reserved, group)?;
+        utils::try_invoke(&inner.group_was_reserved, group)?;
 
         Ok(Some(group_id))
     }
 
     pub fn remove_group(&mut self, group_id: Uuid, _current_time: DateTime) -> Result<bool> {
-        let mut state = self.state.write();
+        let mut inner = self.inner.lock();
 
-        let _all_available_requests_count = state.get_all_available_requests_count();
-        let stored_group = state
+        let _all_available_requests_count = inner.get_all_available_requests_count();
+        let stored_group = inner
             .pre_reserved_groups
             .iter()
             .position(|group| group.id == group_id);
@@ -103,18 +106,18 @@ impl RequestsTimeoutManager {
                 Ok(false)
             }
             Some(group_index) => {
-                let group = state.pre_reserved_groups[group_index].clone();
+                let group = inner.pre_reserved_groups[group_index].clone();
                 let pre_reserved_requests_count = group.pre_reserved_requests_count;
-                state.pre_reserved_groups.remove(group_index);
+                inner.pre_reserved_groups.remove(group_index);
 
                 info!(
-                    "PreReservedGroup {} {} was removed",
+                    "PreReservedGroup with group_id {} and pre_reserved_requests_count {} was removed",
                     group_id, pre_reserved_requests_count
                 );
 
                 // TODO save to DataRecorder
 
-                utils::try_invoke(&state.group_was_removed, group)?;
+                utils::try_invoke(&inner.group_was_removed, group)?;
 
                 Ok(true)
             }
@@ -141,8 +144,8 @@ impl RequestsTimeoutManager {
         current_time: DateTime,
         pre_reserved_group_id: Uuid,
     ) -> Result<bool> {
-        let mut state = self.state.write();
-        let group = state
+        let mut inner = self.inner.lock();
+        let group = inner
             .pre_reserved_groups
             .iter()
             .find(|group| group.id == pre_reserved_group_id);
@@ -156,17 +159,17 @@ impl RequestsTimeoutManager {
 
                 // TODO save to DataRecorder
 
-                return state.try_reserve_request_instant(request_type, current_time);
+                return inner.try_reserve_request_instant(request_type, current_time);
             }
             Some(group) => {
                 let group = group.clone();
-                let current_time = state.get_non_decreasing_time(current_time);
-                state.remove_outdated_requests(current_time)?;
+                let current_time = inner.get_non_decreasing_time(current_time);
+                inner.remove_outdated_requests(current_time)?;
 
-                let all_available_requests_count = state.get_all_available_requests_count();
+                let all_available_requests_count = inner.get_all_available_requests_count();
                 let available_requests_count_without_group =
-                    state.get_available_requests_count_at_persent(current_time);
-                let reserved_requests_count_for_group = state
+                    inner.get_available_requests_count_at_present(current_time);
+                let reserved_requests_count_for_group = inner
                     .get_reserved_request_count_for_group_to_now(
                         pre_reserved_group_id,
                         current_time,
@@ -184,20 +187,23 @@ impl RequestsTimeoutManager {
                     return Ok(false);
                 }
 
-                let request =
-                    state.add_request(request_type.clone(), current_time, Some(group.id))?;
+                let request = inner.add_request(request_type, current_time, Some(group.id))?;
 
                 info!(
-                    "Request {:?} reserved for group {} {} {} {}, instant {}",
+                    "Request {:?} reserved for group with pre_reserved_group_id {},
+                    all_available_requests_count {},
+                    pre_reserved_groups.len() {},
+                    available_requests_count_without_group {},
+                    in time {}",
                     request_type,
                     pre_reserved_group_id,
                     all_available_requests_count,
-                    state.pre_reserved_groups.len(),
+                    inner.pre_reserved_groups.len(),
                     available_requests_count_without_group,
                     current_time
                 );
 
-                utils::try_invoke(&state.time_has_come_for_request, request)?;
+                utils::try_invoke(&inner.time_has_come_for_request, request)?;
 
                 Ok(true)
             }
@@ -209,8 +215,8 @@ impl RequestsTimeoutManager {
         request_type: RequestType,
         current_time: DateTime,
     ) -> Result<bool> {
-        self.state
-            .write()
+        self.inner
+            .lock()
             .try_reserve_request_instant(request_type, current_time)
     }
 
@@ -227,53 +233,48 @@ impl RequestsTimeoutManager {
         // 1. We check: can we do request now
         // 2. if not form schedule for request where put at start period by requestsPerPeriod requests
 
-        let mut state = self.state.write();
+        let mut inner = self.inner.lock();
 
-        let current_time = state.get_non_decreasing_time(current_time);
-        state.remove_outdated_requests(current_time)?;
+        let current_time = inner.get_non_decreasing_time(current_time);
+        inner.remove_outdated_requests(current_time)?;
 
-        let _available_requests_count = state.get_all_available_requests_count();
+        let _available_requests_count = inner.get_all_available_requests_count();
 
         let mut request_start_time;
         let delay;
         let available_requests_count_for_period;
-        let request = {
-            if state.requests.is_empty() {
-                request_start_time = current_time;
-                delay = Duration::zero();
-                available_requests_count_for_period = state.requests_per_period;
-                state.add_request(request_type.clone(), current_time, None)?
+        let request = if inner.requests.is_empty() {
+            request_start_time = current_time;
+            delay = Duration::zero();
+            available_requests_count_for_period = inner.requests_per_period;
+            inner.add_request(request_type, current_time, None)?
+        } else {
+            let last_request = inner.get_last_request()?;
+            let last_requests_start_time = last_request.allowed_start_time;
+
+            available_requests_count_for_period = inner.get_available_requests_in_last_period()?;
+            request_start_time = if available_requests_count_for_period == 0 {
+                last_requests_start_time + inner.period_duration + inner.delay_to_next_time_period
             } else {
-                let last_request = state.get_last_request()?;
-                let last_requests_start_time = last_request.allowed_start_time;
+                last_requests_start_time
+            };
 
-                available_requests_count_for_period =
-                    state.get_available_requests_in_last_period()?;
-                request_start_time = if available_requests_count_for_period == 0 {
-                    last_requests_start_time
-                        + state.period_duration
-                        + state.delay_to_next_time_period
-                } else {
-                    last_requests_start_time
-                };
-
-                request_start_time = std::cmp::max(request_start_time, current_time);
-                delay = request_start_time - current_time;
-                state.add_request(request_type.clone(), request_start_time, None)?
-            }
+            request_start_time = std::cmp::max(request_start_time, current_time);
+            delay = request_start_time - current_time;
+            inner.add_request(request_type, request_start_time, None)?
         };
 
         info!(
-            "Request {:?} reserved, available {}",
+            "Request {:?} reserved, available in request_start_time {}",
             request_type, request_start_time
         );
 
         // TODO save to DataRecorder. Delete drop
         drop(available_requests_count_for_period);
 
-        state.last_time = Some(current_time);
+        inner.last_time = Some(current_time);
 
-        drop(state);
+        drop(inner);
 
         let request_availability =
             self.wait_for_request_availability(request, delay, cancellation_token);
@@ -286,9 +287,9 @@ impl RequestsTimeoutManager {
         available_requests_count_threshold: usize,
         handler: Box<dyn FnMut() -> Result<()> + Send>,
     ) -> Result<()> {
-        let state = self.state.read();
-        state.check_threshold(available_requests_count_threshold)?;
-        state
+        let inner = self.inner.lock();
+        inner.check_threshold(available_requests_count_threshold)?;
+        inner
             .more_or_equals_available_requests_count_trigger_scheduler
             .register_trigger(available_requests_count_threshold, Mutex::new(handler));
 
@@ -300,12 +301,12 @@ impl RequestsTimeoutManager {
         available_requests_count_threshold: usize,
         handler: Box<dyn Fn() -> Result<()>>,
     ) -> Result<()> {
-        let mut state = self.state.write();
+        let mut inner = self.inner.lock();
 
-        state.check_threshold(available_requests_count_threshold)?;
+        inner.check_threshold(available_requests_count_threshold)?;
         let trigger =
             LessOrEqualsRequestsCountTrigger::new(available_requests_count_threshold, handler);
-        state
+        inner
             .less_or_equals_requests_count_triggers
             .push(Box::new(trigger));
 
@@ -313,10 +314,10 @@ impl RequestsTimeoutManager {
     }
 
     pub fn register_trigger_on_every_change(&self, handler: Box<dyn Fn(usize) -> Result<()>>) {
-        let mut state = self.state.write();
+        let mut inner = self.inner.lock();
 
         let trigger = EveryRequestsCountChangeTrigger::new(handler);
-        state
+        inner
             .less_or_equals_requests_count_triggers
             .push(Box::new(trigger));
     }
@@ -334,12 +335,12 @@ impl RequestsTimeoutManager {
 
                 tokio::select! {
                     _ = sleep_future => {
-                        utils::try_invoke(&self.state.read().time_has_come_for_request, request)?;
+                        utils::try_invoke(&self.inner.lock().time_has_come_for_request, request)?;
                     }
 
                     _ = cancellation_token => {
-                        utils::try_invoke(&self.state.read().time_has_come_for_request, request.clone())?;
-                        self.state.write().requests.retain(|stored_request| *stored_request != request);
+                        utils::try_invoke(&self.inner.lock().time_has_come_for_request, request.clone())?;
+                        self.inner.lock().requests.retain(|stored_request| *stored_request != request);
 
                         bail!("Operation cancelled")
                     }
@@ -397,15 +398,15 @@ mod test {
             assert!(first_group_id.is_some());
             assert!(second_group_id.is_some());
 
-            assert_eq!(timeout_manager.state.read().pre_reserved_groups.len(), 2);
-            let state = timeout_manager.state.read();
-            let first_group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(timeout_manager.inner.lock().pre_reserved_groups.len(), 2);
+            let inner = timeout_manager.inner.lock();
+            let first_group = inner.pre_reserved_groups.first().expect("in test");
 
             assert_eq!(first_group.id, first_group_id.expect("in test"));
             assert_eq!(first_group.group_type, group_type);
             assert_eq!(first_group.pre_reserved_requests_count, 3);
 
-            let second_group = state.pre_reserved_groups[1].clone();
+            let second_group = inner.pre_reserved_groups[1].clone();
 
             assert_eq!(second_group.id, second_group_id.expect("in test"));
             assert_eq!(second_group.group_type, group_type);
@@ -434,15 +435,15 @@ mod test {
             assert!(second_group_id.is_some());
             assert!(third_group_id.is_none());
 
-            assert_eq!(timeout_manager.state.read().pre_reserved_groups.len(), 2);
-            let state = timeout_manager.state.read();
-            let first_group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(timeout_manager.inner.lock().pre_reserved_groups.len(), 2);
+            let inner = timeout_manager.inner.lock();
+            let first_group = inner.pre_reserved_groups.first().expect("in test");
 
             assert_eq!(first_group.id, first_group_id.expect("in test"));
             assert_eq!(first_group.group_type, group_type);
             assert_eq!(first_group.pre_reserved_requests_count, 3);
 
-            let second_group = state.pre_reserved_groups[1].clone();
+            let second_group = inner.pre_reserved_groups[1].clone();
 
             assert_eq!(second_group.id, second_group_id.expect("in test"));
             assert_eq!(second_group.group_type, group_type);
@@ -472,9 +473,9 @@ mod test {
             // Assert
             assert!(third_group_id.is_none());
 
-            assert_eq!(timeout_manager.state.read().pre_reserved_groups.len(), 1);
-            let state = timeout_manager.state.read();
-            let group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(timeout_manager.inner.lock().pre_reserved_groups.len(), 1);
+            let inner = timeout_manager.inner.lock();
+            let group = inner.pre_reserved_groups.first().expect("in test");
 
             assert_eq!(group.id, first_group_id.expect("in test"));
             assert_eq!(group.group_type, group_type);
@@ -502,10 +503,10 @@ mod test {
             assert!(first_group_id.is_some());
             assert!(second_group_id.is_none());
 
-            assert_eq!(timeout_manager.state.read().requests.len(), 1);
+            assert_eq!(timeout_manager.inner.lock().requests.len(), 1);
 
-            let state = timeout_manager.state.read();
-            let group = state.pre_reserved_groups.first().expect("in test");
+            let inner = timeout_manager.inner.lock();
+            let group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(group.id, first_group_id.expect("in test"));
             assert_eq!(group.group_type, group_type);
             assert_eq!(group.pre_reserved_requests_count, 3);
@@ -535,10 +536,10 @@ mod test {
             assert!(first_group_id.is_some());
             assert!(second_group_id.is_some());
 
-            assert_eq!(timeout_manager.state.read().pre_reserved_groups.len(), 1);
+            assert_eq!(timeout_manager.inner.lock().pre_reserved_groups.len(), 1);
 
-            let state = timeout_manager.state.read();
-            let group = state.pre_reserved_groups.first().expect("in test");
+            let inner = timeout_manager.inner.lock();
+            let group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(group.id, first_group_id.expect("in test"));
             assert_eq!(group.group_type, group_type);
             assert_eq!(group.pre_reserved_requests_count, 3);
@@ -587,14 +588,14 @@ mod test {
             assert!(first_reserved);
             assert!(second_reserved);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert!(first_request.group_id.is_none());
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert!(second_request.group_id.is_none());
@@ -607,7 +608,7 @@ mod test {
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
+            timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
             let before_now = current_time - Duration::seconds(59);
 
@@ -637,10 +638,10 @@ mod test {
             // Assert
             assert!(!reserve_result);
 
-            let state = timeout_manager.state.read();
-            assert_eq!(state.requests.len(), 3);
+            let inner = timeout_manager.inner.lock();
+            assert_eq!(inner.requests.len(), 3);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 first_request.allowed_start_time,
@@ -648,7 +649,7 @@ mod test {
             );
             assert!(first_request.group_id.is_none());
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 second_request.allowed_start_time,
@@ -656,7 +657,7 @@ mod test {
             );
             assert!(second_request.group_id.is_none());
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 third_request.allowed_start_time,
@@ -672,7 +673,7 @@ mod test {
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
+            timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
 
             // Act
@@ -697,14 +698,14 @@ mod test {
             assert!(second_reserved);
             assert!(!third_reserved);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert!(first_request.group_id.is_none());
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert!(second_request.group_id.is_none());
@@ -715,7 +716,7 @@ mod test {
         #[rstest]
         fn outdated_request_get_removed(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
+            timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
             let before_now = current_time - Duration::seconds(71);
 
@@ -726,9 +727,9 @@ mod test {
             )?;
             timeout_manager.try_reserve_instant(RequestType::CreateOrder, before_now, None)?;
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 first_request.allowed_start_time,
@@ -736,7 +737,7 @@ mod test {
             );
             assert!(first_request.group_id.is_none());
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 second_request.allowed_start_time,
@@ -744,7 +745,7 @@ mod test {
             );
             assert!(second_request.group_id.is_none());
 
-            drop(state);
+            drop(inner);
 
             // Act
             let first_reserved = timeout_manager.try_reserve_instant(
@@ -768,14 +769,14 @@ mod test {
             assert!(second_reserved);
             assert!(!third_reserved);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert!(first_request.group_id.is_none());
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert!(second_request.group_id.is_none());
@@ -828,12 +829,12 @@ mod test {
             assert!(second_reserved);
             assert!(!third_reserved);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            let requests_len = state.requests.len();
+            let requests_len = inner.requests.len();
             assert_eq!(requests_len, 2);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 3);
@@ -855,7 +856,7 @@ mod test {
 
             timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
             timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
-            assert_eq!(timeout_manager.state.read().requests.len(), 2);
+            assert_eq!(timeout_manager.inner.lock().requests.len(), 2);
 
             // Act
             let reserved_instant = timeout_manager.try_reserve_instant(
@@ -867,12 +868,12 @@ mod test {
             // Assert
             assert!(!reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            let requests_len = state.requests.len();
+            let requests_len = inner.requests.len();
             assert_eq!(requests_len, 2);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 3);
@@ -900,7 +901,7 @@ mod test {
                 None,
             )?;
             assert!(!reserved_instant);
-            assert_eq!(timeout_manager.state.read().requests.len(), 2);
+            assert_eq!(timeout_manager.inner.lock().requests.len(), 2);
 
             // Act
             let reserved_instant = timeout_manager.try_reserve_instant(
@@ -912,12 +913,12 @@ mod test {
             // Assert
             assert!(reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            let requests_len = state.requests.len();
+            let requests_len = inner.requests.len();
             assert_eq!(requests_len, 3);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 3);
@@ -964,7 +965,7 @@ mod test {
             )?;
             assert!(sixth_reserve_attempt);
 
-            assert_eq!(timeout_manager.state.read().requests.len(), 5);
+            assert_eq!(timeout_manager.inner.lock().requests.len(), 5);
 
             // Act
             let reserved_instant = timeout_manager.try_reserve_instant(
@@ -976,11 +977,11 @@ mod test {
             // Assert
             assert!(!reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 5);
+            assert_eq!(inner.requests.len(), 5);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 3);
@@ -1027,10 +1028,10 @@ mod test {
             )?;
             assert!(sixth_reserve_attempt);
 
-            assert_eq!(timeout_manager.state.read().requests.len(), 5);
+            assert_eq!(timeout_manager.inner.lock().requests.len(), 5);
 
             let delay_to_next_time_period = Duration::milliseconds(1);
-            let period_duration = timeout_manager.state.read().period_duration;
+            let period_duration = timeout_manager.inner.lock().period_duration;
 
             // Act
             let reserved_instant = timeout_manager.try_reserve_instant(
@@ -1042,12 +1043,12 @@ mod test {
             // Assert
             assert!(reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 1);
-            assert_eq!(state.pre_reserved_groups.len(), 1);
+            assert_eq!(inner.requests.len(), 1);
+            assert_eq!(inner.pre_reserved_groups.len(), 1);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 3);
@@ -1074,10 +1075,10 @@ mod test {
             // Assert
             assert!(reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 1);
-            assert!(state.pre_reserved_groups.is_empty());
+            assert_eq!(inner.requests.len(), 1);
+            assert!(inner.pre_reserved_groups.is_empty());
 
             Ok(())
         }
@@ -1088,7 +1089,7 @@ mod test {
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
-            timeout_manager.state.write().requests_per_period = 4;
+            timeout_manager.inner.lock().requests_per_period = 4;
             let current_time = Utc::now();
 
             let first_group_id =
@@ -1111,7 +1112,7 @@ mod test {
             )?;
             assert!(second_reserve_attempt);
 
-            assert_eq!(timeout_manager.state.read().requests.len(), 2);
+            assert_eq!(timeout_manager.inner.lock().requests.len(), 2);
 
             // Act
             let reserved_instant = timeout_manager.try_reserve_instant(
@@ -1123,18 +1124,18 @@ mod test {
             // Assert
             assert!(!reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 2);
+            assert_eq!(inner.requests.len(), 2);
 
-            assert_eq!(state.pre_reserved_groups.len(), 2);
+            assert_eq!(inner.pre_reserved_groups.len(), 2);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 2);
 
-            let second_reserved_group = state.pre_reserved_groups[1].clone();
+            let second_reserved_group = inner.pre_reserved_groups[1].clone();
             assert_eq!(second_reserved_group.id, second_group_id.expect("in test"));
             assert_eq!(second_reserved_group.group_type, group_type);
             assert_eq!(second_reserved_group.pre_reserved_requests_count, 2);
@@ -1148,7 +1149,7 @@ mod test {
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
-            timeout_manager.state.write().requests_per_period = 4;
+            timeout_manager.inner.lock().requests_per_period = 4;
             let current_time = Utc::now();
 
             let first_group_id =
@@ -1180,7 +1181,7 @@ mod test {
             )?;
             assert!(first_reserve_attempt);
 
-            assert_eq!(timeout_manager.state.read().requests.len(), 4);
+            assert_eq!(timeout_manager.inner.lock().requests.len(), 4);
 
             // Act
             let reserved_instant = timeout_manager.try_reserve_instant(
@@ -1192,13 +1193,13 @@ mod test {
             // Assert
             assert!(reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 5);
+            assert_eq!(inner.requests.len(), 5);
 
-            assert_eq!(state.pre_reserved_groups.len(), 1);
+            assert_eq!(inner.pre_reserved_groups.len(), 1);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 2);
@@ -1212,7 +1213,7 @@ mod test {
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
-            timeout_manager.state.write().requests_per_period = 4;
+            timeout_manager.inner.lock().requests_per_period = 4;
             let current_time = Utc::now();
 
             let first_group_id =
@@ -1247,7 +1248,7 @@ mod test {
             )?;
             assert!(fourth_reserve_attempt);
 
-            assert_eq!(timeout_manager.state.read().requests.len(), 4);
+            assert_eq!(timeout_manager.inner.lock().requests.len(), 4);
 
             // Act
             let reserved_instant = timeout_manager.try_reserve_instant(
@@ -1259,18 +1260,18 @@ mod test {
             // Assert
             assert!(!reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 4);
+            assert_eq!(inner.requests.len(), 4);
 
-            assert_eq!(state.pre_reserved_groups.len(), 2);
+            assert_eq!(inner.pre_reserved_groups.len(), 2);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 2);
 
-            let second_reserved_group = state.pre_reserved_groups[1].clone();
+            let second_reserved_group = inner.pre_reserved_groups[1].clone();
             assert_eq!(second_reserved_group.id, second_group_id.expect("in test"));
             assert_eq!(second_reserved_group.group_type, group_type);
             assert_eq!(second_reserved_group.pre_reserved_requests_count, 1);
@@ -1285,7 +1286,7 @@ mod test {
         #[rstest]
         fn no_current_requests_true(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 1;
+            timeout_manager.inner.lock().requests_per_period = 1;
             let current_time = Utc::now();
 
             // Act
@@ -1296,11 +1297,11 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 1);
+            assert_eq!(inner.requests.len(), 1);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
@@ -1314,7 +1315,7 @@ mod test {
         #[rstest]
         fn only_outdated_requests_true(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 1;
+            timeout_manager.inner.lock().requests_per_period = 1;
             let current_time = Utc::now();
 
             timeout_manager.try_reserve_instant(
@@ -1323,18 +1324,18 @@ mod test {
                 None,
             )?;
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 1);
+            assert_eq!(inner.requests.len(), 1);
 
-            let request = state.requests.first().expect("in test");
+            let request = inner.requests.first().expect("in test");
             assert_eq!(request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 request.allowed_start_time,
                 current_time - Duration::seconds(61)
             );
             assert_eq!(request.group_id, None);
-            drop(state);
+            drop(inner);
 
             // Act
             let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
@@ -1344,11 +1345,11 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 1);
+            assert_eq!(inner.requests.len(), 1);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
@@ -1364,7 +1365,7 @@ mod test {
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 3;
+            timeout_manager.inner.lock().requests_per_period = 3;
             let current_time = Utc::now();
 
             let _ = timeout_manager.reserve_when_available(
@@ -1386,11 +1387,11 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 3);
+            assert_eq!(inner.requests.len(), 3);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 first_request.allowed_start_time,
@@ -1398,7 +1399,7 @@ mod test {
             );
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 second_request.allowed_start_time,
@@ -1406,7 +1407,7 @@ mod test {
             );
             assert_eq!(second_request.group_id, None);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(third_request.allowed_start_time, current_time);
             assert_eq!(third_request.group_id, None);
@@ -1422,7 +1423,7 @@ mod test {
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 3;
+            timeout_manager.inner.lock().requests_per_period = 3;
             let current_time = Utc::now();
             let before_current = current_time - Duration::seconds(35);
 
@@ -1442,26 +1443,26 @@ mod test {
                 CancellationToken::default(),
             )?;
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 3);
+            assert_eq!(inner.requests.len(), 3);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, before_current);
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, before_current);
             assert_eq!(second_request.group_id, None);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(third_request.allowed_start_time, before_current);
             assert_eq!(third_request.group_id, None);
 
-            drop(state);
+            drop(inner);
 
             // Act
             let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
@@ -1471,27 +1472,27 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 4);
+            assert_eq!(inner.requests.len(), 4);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, before_current,);
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, before_current,);
             assert_eq!(second_request.group_id, None);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(third_request.allowed_start_time, before_current);
             assert_eq!(third_request.group_id, None);
 
             let next_period_delay = Duration::milliseconds(1);
-            let fourth_request = state.requests[3].clone();
+            let fourth_request = inner.requests[3].clone();
             assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 fourth_request.allowed_start_time,
@@ -1513,7 +1514,7 @@ mod test {
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 3;
+            timeout_manager.inner.lock().requests_per_period = 3;
             let current_time = Utc::now();
             let next_period_delay = Duration::milliseconds(1);
             let before_current = current_time - Duration::seconds(25) - next_period_delay;
@@ -1557,11 +1558,11 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 7);
+            assert_eq!(inner.requests.len(), 7);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 first_request.allowed_start_time,
@@ -1569,7 +1570,7 @@ mod test {
             );
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 second_request.allowed_start_time,
@@ -1577,7 +1578,7 @@ mod test {
             );
             assert_eq!(second_request.group_id, None);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 third_request.allowed_start_time,
@@ -1585,7 +1586,7 @@ mod test {
             );
             assert_eq!(third_request.group_id, None);
 
-            let fourth_request = state.requests[3].clone();
+            let fourth_request = inner.requests[3].clone();
             assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 fourth_request.allowed_start_time,
@@ -1593,7 +1594,7 @@ mod test {
             );
             assert_eq!(fourth_request.group_id, None);
 
-            let fifth_request = state.requests[4].clone();
+            let fifth_request = inner.requests[4].clone();
             assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 fifth_request.allowed_start_time,
@@ -1601,7 +1602,7 @@ mod test {
             );
             assert_eq!(fifth_request.group_id, None);
 
-            let sixth_request = state.requests[5].clone();
+            let sixth_request = inner.requests[5].clone();
             assert_eq!(sixth_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 sixth_request.allowed_start_time,
@@ -1609,7 +1610,7 @@ mod test {
             );
             assert_eq!(sixth_request.group_id, None);
 
-            let seventh_request = state.requests[6].clone();
+            let seventh_request = inner.requests[6].clone();
             assert_eq!(seventh_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 seventh_request.allowed_start_time,
@@ -1631,7 +1632,7 @@ mod test {
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
+            timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
             let next_period_delay = Duration::milliseconds(1);
             let before_current = current_time - Duration::seconds(25) - next_period_delay;
@@ -1660,11 +1661,11 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 4);
+            assert_eq!(inner.requests.len(), 4);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 first_request.allowed_start_time,
@@ -1672,7 +1673,7 @@ mod test {
             );
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 second_request.allowed_start_time,
@@ -1680,7 +1681,7 @@ mod test {
             );
             assert_eq!(second_request.group_id, None);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 third_request.allowed_start_time,
@@ -1688,7 +1689,7 @@ mod test {
             );
             assert_eq!(third_request.group_id, None);
 
-            let fourth_request = state.requests[3].clone();
+            let fourth_request = inner.requests[3].clone();
             assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 fourth_request.allowed_start_time,
@@ -1705,7 +1706,7 @@ mod test {
         #[rstest]
         fn with_cancellation_token(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
+            timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
 
             // Act
@@ -1716,11 +1717,11 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 1);
+            assert_eq!(inner.requests.len(), 1);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
@@ -1737,7 +1738,7 @@ mod test {
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
+            timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
             let cancellation_token = CancellationToken::default();
             cancellation_token.cancel();
@@ -1753,9 +1754,9 @@ mod test {
 
             // Assert
             assert!(cancelled.is_err());
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert!(state.requests.is_empty());
+            assert!(inner.requests.is_empty());
             assert_eq!(available_start_time, current_time);
             assert_eq!(delay, Duration::zero());
 
@@ -1768,7 +1769,7 @@ mod test {
             mut timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
-            timeout_manager.state.write().requests_per_period = 2;
+            timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
             let next_period_delay = Duration::milliseconds(1);
             let before_current = current_time - Duration::seconds(55) - next_period_delay;
@@ -1797,21 +1798,21 @@ mod test {
                     )?;
 
                 // FIXME how to check it here?
-                //let state = timeout_manager.state.read();
+                //let inner = timeout_manager.inner.lock();
 
-                //assert_eq!(state.requests.len(), 3);
+                //assert_eq!(inner.requests.len(), 3);
 
-                //let first_request = state.requests.first().expect("in test");
+                //let first_request = inner.requests.first().expect("in test");
                 //assert_eq!(first_request.request_type, RequestType::CreateOrder);
                 //assert_eq!(first_request.allowed_start_time, before_current);
                 //assert_eq!(first_request.group_id, None);
 
-                //let second_request = state.requests[1].clone();
+                //let second_request = inner.requests[1].clone();
                 //assert_eq!(second_request.request_type, RequestType::CreateOrder);
                 //assert_eq!(second_request.allowed_start_time, before_current);
                 //assert_eq!(second_request.group_id, None);
 
-                //let third_request = state.requests[2].clone();
+                //let third_request = inner.requests[2].clone();
                 //assert_eq!(third_request.request_type, RequestType::CreateOrder);
                 //assert_eq!(
                 //    third_request.allowed_start_time,
@@ -1841,16 +1842,16 @@ mod test {
             }
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 2);
+            assert_eq!(inner.requests.len(), 2);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, before_current);
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, before_current);
             assert_eq!(second_request.group_id, None);
@@ -1899,37 +1900,37 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 5);
+            assert_eq!(inner.requests.len(), 5);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, group_id);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert_eq!(second_request.group_id, group_id);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(third_request.allowed_start_time, current_time);
             assert_eq!(third_request.group_id, None);
 
-            let fourth_request = state.requests[3].clone();
+            let fourth_request = inner.requests[3].clone();
             assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
             assert_eq!(fourth_request.allowed_start_time, current_time);
             assert_eq!(fourth_request.group_id, group_id);
 
-            let fifth_request = state.requests[4].clone();
+            let fifth_request = inner.requests[4].clone();
             assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
             assert_eq!(fifth_request.allowed_start_time, current_time);
             assert_eq!(fifth_request.group_id, group_id);
 
-            assert_eq!(state.pre_reserved_groups.len(), 1);
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(inner.pre_reserved_groups.len(), 1);
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
@@ -1964,26 +1965,26 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 2);
+            assert_eq!(inner.requests.len(), 2);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
 
             let delay_to_next_time_period = Duration::milliseconds(1);
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 second_request.allowed_start_time,
-                current_time + state.period_duration + delay_to_next_time_period
+                current_time + inner.period_duration + delay_to_next_time_period
             );
             assert_eq!(second_request.group_id, None);
 
-            assert_eq!(state.pre_reserved_groups.len(), 1);
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(inner.pre_reserved_groups.len(), 1);
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
@@ -2024,31 +2025,31 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 3);
+            assert_eq!(inner.requests.len(), 3);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert_eq!(second_request.group_id, group_id);
 
             let delay_to_next_time_period = Duration::milliseconds(1);
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 third_request.allowed_start_time,
-                current_time + state.period_duration + delay_to_next_time_period
+                current_time + inner.period_duration + delay_to_next_time_period
             );
             assert_eq!(third_request.group_id, None);
 
-            assert_eq!(state.pre_reserved_groups.len(), 1);
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(inner.pre_reserved_groups.len(), 1);
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 4);
@@ -2101,41 +2102,41 @@ mod test {
             )?;
 
             // Assert
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 5);
+            assert_eq!(inner.requests.len(), 5);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, group_id);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert_eq!(second_request.group_id, group_id);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(third_request.allowed_start_time, current_time);
             assert_eq!(third_request.group_id, group_id);
 
-            let fourth_request = state.requests[3].clone();
+            let fourth_request = inner.requests[3].clone();
             assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
             assert_eq!(fourth_request.allowed_start_time, current_time);
             assert_eq!(fourth_request.group_id, group_id);
 
             let delay_to_next_time_period = Duration::milliseconds(1);
-            let fifth_request = state.requests[4].clone();
+            let fifth_request = inner.requests[4].clone();
             assert_eq!(fifth_request.request_type, RequestType::CreateOrder);
             assert_eq!(
                 fifth_request.allowed_start_time,
-                current_time + state.period_duration + delay_to_next_time_period
+                current_time + inner.period_duration + delay_to_next_time_period
             );
             assert_eq!(fifth_request.group_id, None);
 
-            assert_eq!(state.pre_reserved_groups.len(), 1);
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            assert_eq!(inner.pre_reserved_groups.len(), 1);
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 5);
@@ -2149,7 +2150,7 @@ mod test {
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
-            timeout_manager.state.write().requests_per_period = 4;
+            timeout_manager.inner.lock().requests_per_period = 4;
             let current_time = Utc::now();
 
             let first_group_id =
@@ -2189,19 +2190,19 @@ mod test {
             // FIXME It doesn't work somehow
             //assert!(!third_reserved_instant);
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
             // FIXME It doesn't work somehow
-            //assert_eq!(state.requests.len(), 2);
+            //assert_eq!(inner.requests.len(), 2);
 
-            assert_eq!(state.pre_reserved_groups.len(), 2);
+            assert_eq!(inner.pre_reserved_groups.len(), 2);
 
-            let first_reserved_group = state.pre_reserved_groups.first().expect("in test");
+            let first_reserved_group = inner.pre_reserved_groups.first().expect("in test");
             assert_eq!(first_reserved_group.id, first_group_id.expect("in test"));
             assert_eq!(first_reserved_group.group_type, group_type);
             assert_eq!(first_reserved_group.pre_reserved_requests_count, 2);
 
-            let second_reserved_group = state.pre_reserved_groups[1].clone();
+            let second_reserved_group = inner.pre_reserved_groups[1].clone();
             assert_eq!(second_reserved_group.id, second_group_id.expect("in test"));
             assert_eq!(second_reserved_group.group_type, group_type);
             assert_eq!(second_reserved_group.pre_reserved_requests_count, 2);
@@ -2278,16 +2279,16 @@ mod test {
             // Assert
             sleep(std::time::Duration::from_millis(50)).await;
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 2);
+            assert_eq!(inner.requests.len(), 2);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert_eq!(second_request.group_id, None);
@@ -2340,21 +2341,21 @@ mod test {
             // Assert
             sleep(std::time::Duration::from_millis(50)).await;
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 3);
+            assert_eq!(inner.requests.len(), 3);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert_eq!(second_request.group_id, None);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(third_request.allowed_start_time, current_time);
             assert_eq!(third_request.group_id, None);
@@ -2410,26 +2411,26 @@ mod test {
             // Assert
             sleep(std::time::Duration::from_millis(50)).await;
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 4);
+            assert_eq!(inner.requests.len(), 4);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);
 
-            let second_request = state.requests[1].clone();
+            let second_request = inner.requests[1].clone();
             assert_eq!(second_request.request_type, RequestType::CreateOrder);
             assert_eq!(second_request.allowed_start_time, current_time);
             assert_eq!(second_request.group_id, None);
 
-            let third_request = state.requests[2].clone();
+            let third_request = inner.requests[2].clone();
             assert_eq!(third_request.request_type, RequestType::CreateOrder);
             assert_eq!(third_request.allowed_start_time, current_time);
             assert_eq!(third_request.group_id, None);
 
-            let fourth_request = state.requests[2].clone();
+            let fourth_request = inner.requests[2].clone();
             assert_eq!(fourth_request.request_type, RequestType::CreateOrder);
             assert_eq!(fourth_request.allowed_start_time, current_time);
             assert_eq!(fourth_request.group_id, None);
@@ -2471,11 +2472,11 @@ mod test {
             // Assert
             sleep(std::time::Duration::from_millis(50)).await;
 
-            let state = timeout_manager.state.read();
+            let inner = timeout_manager.inner.lock();
 
-            assert_eq!(state.requests.len(), 1);
+            assert_eq!(inner.requests.len(), 1);
 
-            let first_request = state.requests.first().expect("in test");
+            let first_request = inner.requests.first().expect("in test");
             assert_eq!(first_request.request_type, RequestType::CreateOrder);
             assert_eq!(first_request.allowed_start_time, current_time);
             assert_eq!(first_request.group_id, None);

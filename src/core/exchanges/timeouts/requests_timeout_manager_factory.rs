@@ -72,7 +72,7 @@ impl Display for RequestTimeoutArguments {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Request per period: {}, period: {}",
+            "Requests per period: {}, period: {}",
             self.requests_per_period, self.period
         )
     }
