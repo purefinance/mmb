@@ -3,14 +3,14 @@ use anyhow::Result;
 
 pub struct LessOrEqualsRequestsCountTrigger {
     available_requests_count_threshold: usize,
-    handler: Box<dyn Fn() -> Result<()>>,
+    handler: Box<dyn Fn() -> Result<()> + Send>,
     last_is_less: bool,
 }
 
 impl LessOrEqualsRequestsCountTrigger {
     pub fn new(
         available_requests_count_threshold: usize,
-        handler: Box<dyn Fn() -> Result<()>>,
+        handler: Box<dyn Fn() -> Result<()> + Send>,
     ) -> Self {
         Self {
             available_requests_count_threshold,

@@ -13,20 +13,20 @@ use chrono::Duration;
 use log::info;
 use uuid::Uuid;
 
-pub struct InnerRequestsTimeoutManager {
-    pub(crate) requests_per_period: usize,
-    pub(crate) period_duration: Duration,
-    pub(crate) exchange_account_id: ExchangeAccountId,
+pub(super) struct InnerRequestsTimeoutManager {
+    pub(super) requests_per_period: usize,
+    pub(super) period_duration: Duration,
+    pub(super) exchange_account_id: ExchangeAccountId,
     pub requests: Vec<Request>,
     pub pre_reserved_groups: Vec<PreReservedGroup>,
-    pub(crate) last_time: Option<DateTime>,
+    pub(super) last_time: Option<DateTime>,
 
-    pub group_was_reserved: Box<dyn Fn(PreReservedGroup) -> Result<()>>,
-    pub group_was_removed: Box<dyn Fn(PreReservedGroup) -> Result<()>>,
-    pub time_has_come_for_request: Box<dyn Fn(Request) -> Result<()>>,
+    pub group_was_reserved: Box<dyn Fn(PreReservedGroup) -> Result<()> + Send>,
+    pub group_was_removed: Box<dyn Fn(PreReservedGroup) -> Result<()> + Send>,
+    pub time_has_come_for_request: Box<dyn Fn(Request) -> Result<()> + Send>,
 
-    pub(crate) less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler>>,
-    pub(crate) more_or_equals_available_requests_count_trigger_scheduler:
+    pub(super) less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler + Send>>,
+    pub(super) more_or_equals_available_requests_count_trigger_scheduler:
         MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     pub delay_to_next_time_period: Duration,
     // data_recorder

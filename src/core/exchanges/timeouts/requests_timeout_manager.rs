@@ -9,7 +9,8 @@ use uuid::Uuid;
 
 use crate::core::{
     exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
-    exchanges::general::request_type::RequestType, DateTime,
+    exchanges::common::OPERATION_CANCELED_MSG, exchanges::general::request_type::RequestType,
+    DateTime,
 };
 
 use super::{
@@ -21,7 +22,7 @@ use super::{
 };
 
 pub struct RequestsTimeoutManager {
-    pub inner: Mutex<InnerRequestsTimeoutManager>,
+    inner: Mutex<InnerRequestsTimeoutManager>,
 }
 
 impl RequestsTimeoutManager {
@@ -221,7 +222,7 @@ impl RequestsTimeoutManager {
     }
 
     pub fn reserve_when_available(
-        &mut self,
+        &self,
         request_type: RequestType,
         current_time: DateTime,
         cancellation_token: CancellationToken,
@@ -276,6 +277,12 @@ impl RequestsTimeoutManager {
 
         drop(inner);
 
+        //let request_availability = tokio::spawn(async {
+        //    // FIXME Probably Arc<Self> instead self
+        //    //self.wait_for_request_availability(request, delay, cancellation_token)
+        //});
+
+        // FIXME DELETE
         let request_availability =
             self.wait_for_request_availability(request, delay, cancellation_token);
 
@@ -299,7 +306,7 @@ impl RequestsTimeoutManager {
     pub fn register_trigger_on_less_or_equals(
         &self,
         available_requests_count_threshold: usize,
-        handler: Box<dyn Fn() -> Result<()>>,
+        handler: Box<dyn Fn() -> Result<()> + Send>,
     ) -> Result<()> {
         let mut inner = self.inner.lock();
 
@@ -313,7 +320,10 @@ impl RequestsTimeoutManager {
         Ok(())
     }
 
-    pub fn register_trigger_on_every_change(&self, handler: Box<dyn Fn(usize) -> Result<()>>) {
+    pub fn register_trigger_on_every_change(
+        &self,
+        handler: Box<dyn Fn(usize) -> Result<()> + Send>,
+    ) {
         let mut inner = self.inner.lock();
 
         let trigger = EveryRequestsCountChangeTrigger::new(handler);
@@ -343,7 +353,7 @@ impl RequestsTimeoutManager {
                         (inner.time_has_come_for_request)(request.clone())?;
                         inner.requests.retain(|stored_request| *stored_request != request);
 
-                        bail!("Operation cancelled")
+                        bail!(OPERATION_CANCELED_MSG)
                     }
                 };
 
@@ -1285,7 +1295,7 @@ mod test {
         use super::*;
 
         #[rstest]
-        fn no_current_requests_true(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn no_current_requests_true(timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 1;
             let current_time = Utc::now();
@@ -1363,7 +1373,7 @@ mod test {
 
         #[rstest]
         fn there_are_spare_requests_in_the_last_interval_now_after_last_request_date_time(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
@@ -1421,7 +1431,7 @@ mod test {
 
         #[rstest]
         fn there_are_max_requests_in_current_period_in_past(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
@@ -1512,7 +1522,7 @@ mod test {
 
         #[rstest]
         fn there_are_max_requests_in_current_period_in_future(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
@@ -1630,7 +1640,7 @@ mod test {
 
         #[rstest]
         fn there_are_no_max_requests_in_current_period_in_future(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1705,7 +1715,7 @@ mod test {
         }
 
         #[rstest]
-        fn with_cancellation_token(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn with_cancellation_token(timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
@@ -1735,9 +1745,7 @@ mod test {
 
         #[rstest]
         #[tokio::test]
-        async fn with_cancel_at_beginning(
-            mut timeout_manager: RequestsTimeoutManager,
-        ) -> Result<()> {
+        async fn with_cancel_at_beginning(timeout_manager: RequestsTimeoutManager) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
@@ -1767,7 +1775,7 @@ mod test {
         #[rstest]
         #[tokio::test]
         async fn with_cancel_after_two_seconds(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: RequestsTimeoutManager,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1798,28 +1806,29 @@ mod test {
                         cancellation_token.create_linked_token(),
                     )?;
 
-                // FIXME how to check it here?
-                //let inner = timeout_manager.inner.lock();
+                let inner = timeout_manager.inner.lock();
 
-                //assert_eq!(inner.requests.len(), 3);
+                assert_eq!(inner.requests.len(), 3);
 
-                //let first_request = inner.requests.first().expect("in test");
-                //assert_eq!(first_request.request_type, RequestType::CreateOrder);
-                //assert_eq!(first_request.allowed_start_time, before_current);
-                //assert_eq!(first_request.group_id, None);
+                let first_request = inner.requests.first().expect("in test");
+                assert_eq!(first_request.request_type, RequestType::CreateOrder);
+                assert_eq!(first_request.allowed_start_time, before_current);
+                assert_eq!(first_request.group_id, None);
 
-                //let second_request = inner.requests[1].clone();
-                //assert_eq!(second_request.request_type, RequestType::CreateOrder);
-                //assert_eq!(second_request.allowed_start_time, before_current);
-                //assert_eq!(second_request.group_id, None);
+                let second_request = inner.requests[1].clone();
+                assert_eq!(second_request.request_type, RequestType::CreateOrder);
+                assert_eq!(second_request.allowed_start_time, before_current);
+                assert_eq!(second_request.group_id, None);
 
-                //let third_request = inner.requests[2].clone();
-                //assert_eq!(third_request.request_type, RequestType::CreateOrder);
-                //assert_eq!(
-                //    third_request.allowed_start_time,
-                //    current_time + Duration::seconds(5)
-                //);
-                //assert_eq!(third_request.group_id, None);
+                let third_request = inner.requests[2].clone();
+                assert_eq!(third_request.request_type, RequestType::CreateOrder);
+                assert_eq!(
+                    third_request.allowed_start_time,
+                    current_time + Duration::seconds(5)
+                );
+                assert_eq!(third_request.group_id, None);
+
+                drop(inner);
 
                 let sleep_future = sleep(std::time::Duration::from_millis(1000));
                 pin_mut!(future);
