@@ -1,4 +1,7 @@
-use std::fmt::{self, Display, Formatter};
+use std::{
+    fmt::{self, Display, Formatter},
+    sync::Arc,
+};
 
 use chrono::{Duration, Utc};
 
@@ -19,7 +22,7 @@ impl RequestsTimeoutManagerFactory {
     pub fn from_requests_per_period(
         timeout_arguments: RequestTimeoutArguments,
         exchange_account_id: ExchangeAccountId,
-    ) -> RequestsTimeoutManager {
+    ) -> Arc<RequestsTimeoutManager> {
         let trigger_scheduler = MoreOrEqualsAvailableRequestsCountTriggerScheduler::new();
         RequestsTimeoutManager::new(
             timeout_arguments.requests_per_period,

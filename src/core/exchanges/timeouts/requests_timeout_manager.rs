@@ -1,5 +1,7 @@
-use futures::Future;
+use std::sync::Arc;
+
 use parking_lot::Mutex;
+use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use anyhow::{bail, Result};
@@ -31,7 +33,7 @@ impl RequestsTimeoutManager {
         period_duration: Duration,
         exchange_account_id: ExchangeAccountId,
         more_or_equals_available_requests_count_trigger_scheduler: MoreOrEqualsAvailableRequestsCountTriggerScheduler,
-    ) -> Self {
+    ) -> Arc<Self> {
         let inner = InnerRequestsTimeoutManager {
             requests_per_period,
             period_duration,
@@ -47,13 +49,13 @@ impl RequestsTimeoutManager {
             more_or_equals_available_requests_count_trigger_scheduler,
         };
 
-        Self {
+        Arc::new(Self {
             inner: Mutex::new(inner),
-        }
+        })
     }
 
     pub fn try_reserve_group(
-        &mut self,
+        &self,
         group_type: String,
         current_time: DateTime,
         requests_count: usize,
@@ -90,7 +92,7 @@ impl RequestsTimeoutManager {
         Ok(Some(group_id))
     }
 
-    pub fn remove_group(&mut self, group_id: Uuid, _current_time: DateTime) -> Result<bool> {
+    pub fn remove_group(&self, group_id: Uuid, _current_time: DateTime) -> Result<bool> {
         let mut inner = self.inner.lock();
 
         let _all_available_requests_count = inner.get_all_available_requests_count();
@@ -126,7 +128,7 @@ impl RequestsTimeoutManager {
     }
 
     pub fn try_reserve_instant(
-        &mut self,
+        &self,
         request_type: RequestType,
         current_time: DateTime,
         pre_reserved_group_id: Option<Uuid>,
@@ -140,7 +142,7 @@ impl RequestsTimeoutManager {
     }
 
     pub fn try_reserve_group_instant(
-        &mut self,
+        &self,
         request_type: RequestType,
         current_time: DateTime,
         pre_reserved_group_id: Uuid,
@@ -222,11 +224,11 @@ impl RequestsTimeoutManager {
     }
 
     pub fn reserve_when_available(
-        &self,
+        self: Arc<Self>,
         request_type: RequestType,
         current_time: DateTime,
         cancellation_token: CancellationToken,
-    ) -> Result<(impl Future<Output = Result<()>> + '_, DateTime, Duration)> {
+    ) -> Result<(JoinHandle<Result<()>>, DateTime, Duration)> {
         // Note: calculation doesnt' support request cancellation
         // Note: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
 
@@ -277,14 +279,16 @@ impl RequestsTimeoutManager {
 
         drop(inner);
 
-        //let request_availability = tokio::spawn(async {
-        //    // FIXME Probably Arc<Self> instead self
-        //    //self.wait_for_request_availability(request, delay, cancellation_token)
-        //});
+        let request_availability = tokio::spawn(async move {
+            // FIXME Probably Arc<Self> instead self
+            self.clone()
+                .wait_for_request_availability(request, delay, cancellation_token)
+                .await
+        });
 
-        // FIXME DELETE
-        let request_availability =
-            self.wait_for_request_availability(request, delay, cancellation_token);
+        //// FIXME DELETE
+        //let request_availability =
+        //    self.wait_for_request_availability(request, delay, cancellation_token);
 
         Ok((request_availability, request_start_time, delay))
     }
@@ -333,7 +337,7 @@ impl RequestsTimeoutManager {
     }
 
     async fn wait_for_request_availability(
-        &self,
+        self: Arc<Self>,
         request: Request,
         delay: Duration,
         cancellation_token: CancellationToken,
@@ -379,7 +383,7 @@ mod test {
     use rstest::{fixture, rstest};
 
     #[fixture]
-    fn timeout_manager() -> RequestsTimeoutManager {
+    fn timeout_manager() -> Arc<RequestsTimeoutManager> {
         let requests_per_period = 5;
         let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id".into(), 0);
         let timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
@@ -394,7 +398,7 @@ mod test {
         use super::*;
 
         #[rstest]
-        fn when_can_reserve(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn when_can_reserve(timeout_manager: Arc<RequestsTimeoutManager>) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
@@ -427,7 +431,7 @@ mod test {
         }
 
         #[rstest]
-        fn not_enought_requests(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn not_enought_requests(timeout_manager: Arc<RequestsTimeoutManager>) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
@@ -464,7 +468,7 @@ mod test {
         }
 
         #[rstest]
-        fn when_reserve_after_remove(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn when_reserve_after_remove(timeout_manager: Arc<RequestsTimeoutManager>) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
@@ -497,7 +501,7 @@ mod test {
 
         #[rstest]
         fn when_requests_reserved_and_not_enough_requests(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
@@ -530,7 +534,7 @@ mod test {
         use super::*;
 
         #[rstest]
-        fn group_exists(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn group_exists(timeout_manager: Arc<RequestsTimeoutManager>) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
             let current_time = Utc::now();
@@ -559,7 +563,7 @@ mod test {
         }
 
         #[rstest]
-        fn group_not_exists(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn group_not_exists(timeout_manager: Arc<RequestsTimeoutManager>) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
 
@@ -578,7 +582,7 @@ mod test {
 
         #[rstest]
         fn there_are_spare_requests_true(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
@@ -615,25 +619,26 @@ mod test {
         }
 
         #[rstest]
-        fn there_are_requests_from_future_false(
-            mut timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn there_are_requests_from_future_false(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
             let before_now = current_time - Duration::seconds(59);
 
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_now,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_now,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_now,
                 CancellationToken::default(),
@@ -681,7 +686,7 @@ mod test {
 
         #[rstest]
         fn there_are_no_spare_requests_false(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -725,7 +730,9 @@ mod test {
         }
 
         #[rstest]
-        fn outdated_request_get_removed(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        fn outdated_request_get_removed(
+            timeout_manager: Arc<RequestsTimeoutManager>,
+        ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
@@ -797,7 +804,7 @@ mod test {
 
         #[rstest]
         fn when_remove_group_which_blocked_last_request(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -855,7 +862,7 @@ mod test {
 
         #[rstest]
         fn when_cant_reserve_request_in_common_queue_because_of_group_reservations(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -894,7 +901,7 @@ mod test {
 
         #[rstest]
         fn when_cant_reserve_request_without_group(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -939,7 +946,7 @@ mod test {
 
         #[rstest]
         fn when_cant_reserve_request_in_group(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -1002,7 +1009,7 @@ mod test {
 
         #[rstest]
         fn when_recapturing_vacant_request_in_group_after_exhaustion(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -1069,7 +1076,7 @@ mod test {
 
         #[rstest]
         fn when_trying_reserve_without_group(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
@@ -1096,7 +1103,7 @@ mod test {
 
         #[rstest]
         fn when_another_group_occupied_last_requests(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -1155,8 +1162,9 @@ mod test {
         }
 
         #[rstest]
-        fn when_there_is_request_in_the_future_time(
-            mut timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn when_there_is_request_in_the_future_time(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -1180,7 +1188,7 @@ mod test {
             )?;
             assert!(second_reserve_attempt);
 
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CancelOrder,
                 current_time,
                 CancellationToken::default(),
@@ -1220,7 +1228,7 @@ mod test {
 
         #[rstest]
         fn when_group_has_more_requests_then_preffered_count(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -1295,13 +1303,16 @@ mod test {
         use super::*;
 
         #[rstest]
-        fn no_current_requests_true(timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        #[tokio::test]
+        async fn no_current_requests_true(
+            timeout_manager: Arc<RequestsTimeoutManager>,
+        ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 1;
             let current_time = Utc::now();
 
             // Act
-            let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
@@ -1324,7 +1335,10 @@ mod test {
         }
 
         #[rstest]
-        fn only_outdated_requests_true(mut timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        #[tokio::test]
+        async fn only_outdated_requests_true(
+            timeout_manager: Arc<RequestsTimeoutManager>,
+        ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 1;
             let current_time = Utc::now();
@@ -1349,7 +1363,7 @@ mod test {
             drop(inner);
 
             // Act
-            let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
@@ -1372,26 +1386,27 @@ mod test {
         }
 
         #[rstest]
-        fn there_are_spare_requests_in_the_last_interval_now_after_last_request_date_time(
-            timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn there_are_spare_requests_in_the_last_interval_now_after_last_request_date_time(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
             let current_time = Utc::now();
 
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time - Duration::seconds(35),
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time - Duration::seconds(10),
                 CancellationToken::default(),
             )?;
 
             // Act
-            let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
@@ -1430,25 +1445,26 @@ mod test {
         }
 
         #[rstest]
-        fn there_are_max_requests_in_current_period_in_past(
-            timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn there_are_max_requests_in_current_period_in_past(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
             let current_time = Utc::now();
             let before_current = current_time - Duration::seconds(35);
 
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
@@ -1476,7 +1492,7 @@ mod test {
             drop(inner);
 
             // Act
-            let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
@@ -1521,8 +1537,9 @@ mod test {
         }
 
         #[rstest]
-        fn there_are_max_requests_in_current_period_in_future(
-            timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn there_are_max_requests_in_current_period_in_future(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
@@ -1530,39 +1547,39 @@ mod test {
             let next_period_delay = Duration::milliseconds(1);
             let before_current = current_time - Duration::seconds(25) - next_period_delay;
 
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
 
             // Act
-            let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
@@ -1639,8 +1656,9 @@ mod test {
         }
 
         #[rstest]
-        fn there_are_no_max_requests_in_current_period_in_future(
-            timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn there_are_no_max_requests_in_current_period_in_future(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1648,24 +1666,24 @@ mod test {
             let next_period_delay = Duration::milliseconds(1);
             let before_current = current_time - Duration::seconds(25) - next_period_delay;
 
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
 
             // Act
-            let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
@@ -1715,13 +1733,16 @@ mod test {
         }
 
         #[rstest]
-        fn with_cancellation_token(timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        #[tokio::test]
+        async fn with_cancellation_token(
+            timeout_manager: Arc<RequestsTimeoutManager>,
+        ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
 
             // Act
-            let (_, available_start_time, delay) = timeout_manager.reserve_when_available(
+            let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
@@ -1745,7 +1766,9 @@ mod test {
 
         #[rstest]
         #[tokio::test]
-        async fn with_cancel_at_beginning(timeout_manager: RequestsTimeoutManager) -> Result<()> {
+        async fn with_cancel_at_beginning(
+            timeout_manager: Arc<RequestsTimeoutManager>,
+        ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
             let current_time = Utc::now();
@@ -1753,13 +1776,14 @@ mod test {
             cancellation_token.cancel();
 
             // Act
-            let (future, available_start_time, delay) = timeout_manager.reserve_when_available(
-                RequestType::CreateOrder,
-                current_time,
-                cancellation_token,
-            )?;
+            let (future_handler, available_start_time, delay) =
+                timeout_manager.clone().reserve_when_available(
+                    RequestType::CreateOrder,
+                    current_time,
+                    cancellation_token,
+                )?;
 
-            let cancelled = future.await;
+            let cancelled = future_handler.await?;
 
             // Assert
             assert!(cancelled.is_err());
@@ -1775,7 +1799,7 @@ mod test {
         #[rstest]
         #[tokio::test]
         async fn with_cancel_after_two_seconds(
-            timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1783,12 +1807,12 @@ mod test {
             let next_period_delay = Duration::milliseconds(1);
             let before_current = current_time - Duration::seconds(55) - next_period_delay;
 
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
@@ -1799,8 +1823,8 @@ mod test {
             // Scope to make future drop
             {
                 // Act
-                let (future, available_start_time, delay) = timeout_manager
-                    .reserve_when_available(
+                let (future_handler, available_start_time, delay) =
+                    timeout_manager.clone().reserve_when_available(
                         RequestType::CreateOrder,
                         current_time,
                         cancellation_token.create_linked_token(),
@@ -1831,12 +1855,12 @@ mod test {
                 drop(inner);
 
                 let sleep_future = sleep(std::time::Duration::from_millis(1000));
-                pin_mut!(future);
+                pin_mut!(future_handler);
                 tokio::select! {
                     _ = sleep_future => {
                         cancellation_token.cancel();
 
-                        let cancelled = future.await;
+                        let cancelled = future_handler.await?;
 
                         // Assert
                         assert!(cancelled.is_err());
@@ -1845,7 +1869,7 @@ mod test {
                         assert_eq!(delay, Duration::seconds(5));
                     }
 
-                    _ = &mut future => {
+                    _ = &mut future_handler => {
                         bail!("Future completed")
                     }
                 };
@@ -1870,8 +1894,9 @@ mod test {
         }
 
         #[rstest]
-        fn with_reserved_all_request_in_group_and_one_request_available(
-            mut timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn with_reserved_all_request_in_group_and_one_request_available(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
@@ -1903,7 +1928,7 @@ mod test {
             )?;
 
             // Act
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::new(),
@@ -1949,8 +1974,9 @@ mod test {
         }
 
         #[rstest]
-        fn with_pre_reserved_four_slots_in_group_and_one_request(
-            mut timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn with_pre_reserved_four_slots_in_group_and_one_request(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
@@ -1968,7 +1994,7 @@ mod test {
             assert!(reserve_instant_attempt);
 
             // Act
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::new(),
@@ -2003,8 +2029,9 @@ mod test {
         }
 
         #[rstest]
-        fn with_pre_reserved_four_slots_in_group_and_one_request_in_group_and_one_request_without_group(
-            mut timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn with_pre_reserved_four_slots_in_group_and_one_request_in_group_and_one_request_without_group(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
@@ -2028,7 +2055,7 @@ mod test {
             assert!(second_reserve_instant_attempt);
 
             // Act
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::new(),
@@ -2068,8 +2095,9 @@ mod test {
         }
 
         #[rstest]
-        fn with_pre_reserved_all_slots_in_group(
-            mut timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn with_pre_reserved_all_slots_in_group(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
@@ -2105,7 +2133,7 @@ mod test {
             assert!(fourth_reserve_instant_attempt);
 
             // Act
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::new(),
@@ -2155,8 +2183,9 @@ mod test {
         }
 
         #[rstest]
-        fn when_all_requests_pre_reserved_in_groups(
-            mut timeout_manager: RequestsTimeoutManager,
+        #[tokio::test]
+        async fn when_all_requests_pre_reserved_in_groups(
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -2176,7 +2205,7 @@ mod test {
                 current_time,
                 None,
             )?;
-            let _ = timeout_manager.reserve_when_available(
+            let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
@@ -2230,7 +2259,7 @@ mod test {
         use std::sync::Arc;
 
         #[fixture]
-        fn timeout_manager() -> RequestsTimeoutManager {
+        fn timeout_manager() -> Arc<RequestsTimeoutManager> {
             let requests_per_period = 5;
             let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id".into(), 0);
             let timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
@@ -2262,7 +2291,7 @@ mod test {
         #[rstest]
         #[tokio::test]
         async fn calls_count_zero_when_only_reserve_instant(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let call_counter = Arc::new(Mutex::new(CallCounter::new()));
@@ -2316,7 +2345,7 @@ mod test {
         #[rstest]
         #[tokio::test]
         async fn calls_count_one_when_only_reserve_instant(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let call_counter = Arc::new(Mutex::new(CallCounter::new()));
@@ -2380,7 +2409,7 @@ mod test {
         #[rstest]
         #[tokio::test]
         async fn calls_count_two_when_one_extra_request(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let call_counter = Arc::new(Mutex::new(CallCounter::new()));
@@ -2455,7 +2484,7 @@ mod test {
         #[rstest]
         #[tokio::test]
         async fn calls_count_one_when_there_are_prereserved_group(
-            mut timeout_manager: RequestsTimeoutManager,
+            timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
             let group_type = "GroupType".to_owned();
