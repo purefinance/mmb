@@ -36,7 +36,7 @@ impl ControlPanel {
     }
 
     fn start_server(&self) -> std::io::Result<()> {
-        let system = rt::System::new();
+        //let system = rt::System::new();
 
         let server = HttpServer::new(|| App::new().service(health).service(stop).service(stats))
             .bind(&self.address)
@@ -45,7 +45,9 @@ impl ControlPanel {
             .workers(1)
             .run();
 
-        system.block_on(server)
+        //system.block_on(server)
+
+        Ok(())
     }
 }
 

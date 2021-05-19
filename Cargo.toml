@@ -26,10 +26,10 @@ parking_lot = { version = "0.11", features = ["serde"]}
 tokio = { version = "1", features = ["macros", "time", "sync", "rt"]}
 
 actix = "0.11.1"
-actix-codec = "0.4.0-beta.1"
-actix-web = { version = "4.0.0-beta.1", features = ["rustls"]}
+actix-codec = "0.4.0"
+actix-web = { version = "4.0.0-beta.6", features = ["rustls"]}
 # because https://github.com/actix/actix-web/issues/2195
-actix-web-actors = { git = "https://github.com/actix/actix-web" }
+actix-web-actors = { git = "https://github.com/actix/actix-web", tag = "web-v4.0.0-beta.6" }
 
 libc = "0.2.93"
 awc = "3.0.0-beta.1"
@@ -57,7 +57,7 @@ nanoid = "0.3.0"
 
 [dev-dependencies]
 rand = "0.8"
-actix-rt = "2.1"
+actix-rt = "2"
 pretty_assertions = "0.6"
 rstest = "0.7.0"
 
