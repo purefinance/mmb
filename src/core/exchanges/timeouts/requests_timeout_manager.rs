@@ -372,7 +372,6 @@ mod test {
         RequestTimeoutArguments, RequestsTimeoutManagerFactory,
     };
     use chrono::Utc;
-    use futures::pin_mut;
 
     use super::*;
     use rstest::{fixture, rstest};
@@ -1818,7 +1817,7 @@ mod test {
             // Scope to make future drop
             {
                 // Act
-                let (future_handler, available_start_time, delay) =
+                let (mut future_handler, available_start_time, delay) =
                     timeout_manager.clone().reserve_when_available(
                         RequestType::CreateOrder,
                         current_time,
@@ -1850,7 +1849,6 @@ mod test {
                 drop(inner);
 
                 let sleep_future = sleep(std::time::Duration::from_millis(1000));
-                pin_mut!(future_handler);
                 tokio::select! {
                     _ = sleep_future => {
                         cancellation_token.cancel();
