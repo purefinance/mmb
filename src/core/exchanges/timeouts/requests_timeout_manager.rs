@@ -280,15 +280,10 @@ impl RequestsTimeoutManager {
         drop(inner);
 
         let request_availability = tokio::spawn(async move {
-            // FIXME Probably Arc<Self> instead self
             self.clone()
                 .wait_for_request_availability(request, delay, cancellation_token)
                 .await
         });
-
-        //// FIXME DELETE
-        //let request_availability =
-        //    self.wait_for_request_availability(request, delay, cancellation_token);
 
         Ok((request_availability, request_start_time, delay))
     }
