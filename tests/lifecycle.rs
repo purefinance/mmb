@@ -11,6 +11,6 @@ async fn launch_engine() {
 
     engine_context
         .application_manager
-        .start_graceful_shutdown("test")
+        .run_graceful_shutdown("test")
         .await;
 }
