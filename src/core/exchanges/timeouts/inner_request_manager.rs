@@ -17,8 +17,8 @@ pub(super) struct InnerRequestsTimeoutManager {
     pub(super) requests_per_period: usize,
     pub(super) period_duration: Duration,
     pub(super) exchange_account_id: ExchangeAccountId,
-    pub requests: Vec<Request>,
-    pub pre_reserved_groups: Vec<PreReservedGroup>,
+    pub(super) requests: Vec<Request>,
+    pub(super) pre_reserved_groups: Vec<PreReservedGroup>,
     pub(super) last_time: Option<DateTime>,
 
     pub(super) group_was_reserved: Box<dyn Fn(PreReservedGroup) -> Result<()> + Send>,
