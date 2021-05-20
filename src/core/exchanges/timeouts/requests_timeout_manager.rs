@@ -279,14 +279,13 @@ impl RequestsTimeoutManager {
 
         drop(inner);
 
-        let request_availability = tokio::spawn(async move {
+        let request_availability = tokio::spawn({
             Self::wait_for_request_availability(
                 Arc::downgrade(&self),
                 request,
                 delay,
                 cancellation_token,
             )
-            .await
         });
 
         Ok((request_availability, request_start_time, delay))
@@ -298,37 +297,45 @@ impl RequestsTimeoutManager {
         delay: Duration,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        match weak_self.upgrade() {
-            Some(strong_self) => match delay.to_std() {
-                Ok(delay) => {
-                    let sleep_future = sleep(delay);
-                    let cancellation_token = cancellation_token.when_cancelled();
+        match delay.to_std() {
+            Ok(delay) => {
+                let sleep_future = sleep(delay);
+                let cancellation_token = cancellation_token.when_cancelled();
 
-                    tokio::select! {
-                        _ = sleep_future => {
-                            (strong_self.inner.lock().time_has_come_for_request)(request)?;
+                tokio::select! {
+                    _ = sleep_future => {
+                        let strong_self = Self::try_to_get_strong(weak_self)?;
+                        (strong_self.inner.lock().time_has_come_for_request)(request)?;
+                    }
+
+                    _ = cancellation_token => {
+                        let strong_self = Self::try_to_get_strong(weak_self)?;
+                        let mut inner = strong_self.inner.lock();
+                        (inner.time_has_come_for_request)(request.clone())?;
+                        if let Some(position) = inner.requests.iter().position(|stored_request| *stored_request == request) {
+                            inner.requests.remove(position);
                         }
 
-                        _ = cancellation_token => {
-                            let mut inner = strong_self.inner.lock();
-                            (inner.time_has_come_for_request)(request.clone())?;
-                            if let Some(position) = inner.requests.iter().position(|stored_request| *stored_request == request) {
-                                inner.requests.remove(position);
-                            }
+                        bail!(OPERATION_CANCELED_MSG)
+                    }
+                };
 
-                            bail!(OPERATION_CANCELED_MSG)
-                        }
-                    };
+                Ok(())
+            }
+            Err(error) => {
+                error!("Unable to convert chrono::Duration to std::Duration");
+                bail!(error)
+            }
+        }
+    }
 
-                    Ok(())
-                }
-                Err(error) => {
-                    error!("Unable to convert chrono::Duration to std::Duration");
-                    bail!(error)
-                }
-            },
+    fn try_to_get_strong(
+        weak_timout_manager: Weak<RequestsTimeoutManager>,
+    ) -> Result<Arc<RequestsTimeoutManager>> {
+        match weak_timout_manager.upgrade() {
+            Some(strong) => Ok(strong),
             None => {
-                let error_message = "Unable to upgrade weak reference to RequestsTimeoutManager instance. Probably it's dead";
+                let error_message = "Unable to upgrade weak reference to RequestsTimeoutManager instance. Probably it's dropped";
                 info!("{}", error_message);
                 bail!(error_message)
             }

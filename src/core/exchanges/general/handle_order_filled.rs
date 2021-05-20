@@ -448,7 +448,7 @@ impl Exchange {
         order_fill: &OrderFill,
     ) -> Result<()> {
         self.add_event_on_order_change(order_ref, OrderEventType::OrderFilled)
-            .context("Unable to send event, probably receiver is dead already")?;
+            .context("Unable to send event, probably receiver is dropped already")?;
 
         info!(
             "Added a fill {} {} {} {:?} {:?}",
@@ -472,7 +472,7 @@ impl Exchange {
                 order.set_status(OrderStatus::Completed, Utc::now());
             });
             self.add_event_on_order_change(order_ref, OrderEventType::OrderCompleted)
-                .context("Unable to send event, probably receiver is dead already")?;
+                .context("Unable to send event, probably receiver is dropped already")?;
         }
 
         Ok(())

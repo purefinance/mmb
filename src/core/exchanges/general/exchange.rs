@@ -147,7 +147,7 @@ impl Exchange {
             .set_callback_msg_received(Box::new(move |data| match exchange_weak.upgrade() {
                 Some(exchange) => exchange.on_websocket_message(data),
                 None => info!(
-                    "Unable to upgrade weak reference to Exchange instance. Probably it's dead"
+                    "Unable to upgrade weak reference to Exchange instance. Probably it's dropped"
                 ),
             }));
     }
@@ -160,7 +160,7 @@ impl Exchange {
                     exchange.raise_order_created(client_order_id, exchange_order_id, source_type)
                 }
                 None => info!(
-                    "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
+                    "Unable to upgrade weak reference to Exchange instance. Probably it's dropped",
                 ),
             },
         ));
@@ -177,7 +177,7 @@ impl Exchange {
                     );
                 }
                 None => info!(
-                    "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
+                    "Unable to upgrade weak reference to Exchange instance. Probably it's dropped",
                 ),
             },
         ));
@@ -191,7 +191,7 @@ impl Exchange {
                         let _ = exchange.handle_order_filled(event_data);
                     }
                     None => info!(
-                        "Unable to upgrade weak reference to Exchange instance. Probably it's dead",
+                        "Unable to upgrade weak reference to Exchange instance. Probably it's dropped",
                     ),
                 }
             }));
@@ -470,7 +470,7 @@ impl Exchange {
         self.event_channel
             .lock()
             .send(order_event)
-            .context("Unable to send event. Probably receiver is already dead")?;
+            .context("Unable to send event. Probably receiver is already dropped")?;
 
         Ok(())
     }
