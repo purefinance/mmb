@@ -7,6 +7,7 @@ use std::{
 };
 
 use actix_web::{dev::Server, get, rt, App, HttpResponse, HttpServer, Responder};
+use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 
 use crate::core::lifecycle::trading_engine::Service;
@@ -36,7 +37,8 @@ impl ControlPanel {
     }
 
     fn start_server(&self) -> std::io::Result<()> {
-        //let system = rt::System::new();
+        let system = rt::System::new();
+        //let rt = Runtime::new()?;
 
         let server = HttpServer::new(|| App::new().service(health).service(stop).service(stats))
             .bind(&self.address)
@@ -45,7 +47,7 @@ impl ControlPanel {
             .workers(1)
             .run();
 
-        //system.block_on(server)
+        //rt.block_on(server);
 
         Ok(())
     }
