@@ -1,21 +1,25 @@
+use std::fmt;
+use std::fmt::{Display, Formatter};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+
+use chrono::Utc;
+use enum_map::Enum;
+use nanoid::nanoid;
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use smallstr::SmallString;
+use uuid::Uuid;
+
 use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::DateTime;
-use chrono::Utc;
-use nanoid::nanoid;
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
-use smallstr::SmallString;
-use std::fmt;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use uuid::Uuid;
 
 type String16 = SmallString<[u8; 16]>;
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash, Enum)]
 pub enum OrderSide {
     Buy = 1,
     Sell = 2,
@@ -30,11 +34,22 @@ impl OrderSide {
     }
 }
 
-pub trait OptionOrderSideEx {
+impl Display for OrderSide {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let side = match self {
+            OrderSide::Buy => "Buy",
+            OrderSide::Sell => "Sell",
+        };
+
+        write!(f, "{}", side)
+    }
+}
+
+pub trait OptionOrderSideExt {
     fn change_side_opt(&self) -> Option<OrderSide>;
 }
 
-impl OptionOrderSideEx for Option<OrderSide> {
+impl OptionOrderSideExt for Option<OrderSide> {
     fn change_side_opt(&self) -> Option<OrderSide> {
         match self {
             None => None,
@@ -67,16 +82,15 @@ pub enum OrderType {
     StopLoss = 3,
     TrailingStop = 4,
     Liquidation = 5,
+    ClosePosition = 6,
+    MissedFill = 7,
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
-pub enum OrderEventType {
-    CreateOrderSucceeded,
-    CreateOrderFailed,
-    OrderFilled,
-    OrderCompleted,
-    CancelOrderSucceeded,
-    CancelOrderFailed,
+impl OrderType {
+    pub fn is_external_order(&self) -> bool {
+        use OrderType::*;
+        matches!(*self, Liquidation | ClosePosition | MissedFill)
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
@@ -176,10 +190,8 @@ impl Default for OrderStatus {
 
 impl OrderStatus {
     pub fn is_finished(&self) -> bool {
-        let status = *self;
-        status == OrderStatus::FailedToCreate
-            || status == OrderStatus::Canceled
-            || status == OrderStatus::Completed
+        use OrderStatus::*;
+        matches!(*self, FailedToCreate | Canceled | Completed)
     }
 }
 
@@ -189,7 +201,7 @@ impl OrderStatus {
 pub struct ReservationId(u64);
 
 impl ReservationId {
-    pub fn gen_new() -> Self {
+    pub fn generate() -> Self {
         static RESERVATION_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 
         let new_id = RESERVATION_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
@@ -238,8 +250,8 @@ impl OrderHeader {
         reservation_id: Option<ReservationId>,
         signal_id: Option<String>,
         strategy_name: String,
-    ) -> Self {
-        Self {
+    ) -> Arc<Self> {
+        Arc::new(Self {
             version: CURRENT_ORDER_VERSION,
             client_order_id,
             init_time,
@@ -252,7 +264,7 @@ impl OrderHeader {
             reservation_id,
             signal_id,
             strategy_name,
-        }
+        })
     }
 
     pub fn version(&self) -> u32 {
@@ -427,7 +439,7 @@ impl OrderInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCreating {
-    pub header: OrderHeader,
+    pub header: Arc<OrderHeader>,
     pub price: Price,
 }
 
@@ -493,7 +505,7 @@ impl OrderSnapshot {
         props.role = order_role;
 
         Self::new(
-            Arc::new(header),
+            header,
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
@@ -521,5 +533,15 @@ impl OrderSnapshot {
             self.header.client_order_id.as_str()
         );
         self.props.raw_price.expect(&error_msg)
+    }
+
+    pub fn amount(&self) -> Amount {
+        self.header.amount
+    }
+    pub fn filled_amount(&self) -> Amount {
+        self.fills.filled_amount
+    }
+    pub fn status(&self) -> OrderStatus {
+        self.props.status
     }
 }

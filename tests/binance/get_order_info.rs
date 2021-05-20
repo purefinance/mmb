@@ -1,4 +1,7 @@
-use crate::get_binance_credentials_or_exit;
+use std::env;
+use std::sync::mpsc::channel;
+use std::time::Duration;
+
 use chrono::Utc;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
@@ -10,10 +13,9 @@ use mmb_lib::core::exchanges::{
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::env;
-use std::sync::mpsc::channel;
-use std::time::Duration;
 use tokio::time::sleep;
+
+use crate::get_binance_credentials_or_exit;
 
 #[actix_rt::test]
 async fn get_order_info() {
@@ -65,7 +67,7 @@ async fn get_order_info() {
         OrderSide::Buy,
         dec!(10000),
         OrderExecutionType::None,
-        Some(ReservationId::gen_new()),
+        Some(ReservationId::generate()),
         None,
         "".into(),
     );

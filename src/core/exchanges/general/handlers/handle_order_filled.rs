@@ -1,24 +1,26 @@
-use std::sync::Arc;
-
-use crate::core::{
-    exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
-    exchanges::common::ExchangeAccountId, exchanges::common::Price,
-    exchanges::events::AllowedEventSourceType, exchanges::general::commission::Percent,
-    exchanges::general::currency_pair_metadata::CurrencyPairMetadata,
-    exchanges::general::currency_pair_metadata::Round, exchanges::general::exchange::Exchange,
-    math::ConvertPercentToRate, orders::fill::EventSourceType, orders::fill::OrderFill,
-    orders::fill::OrderFillType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
-    orders::order::OrderEventType, orders::order::OrderRole, orders::order::OrderSide,
-    orders::order::OrderSnapshot, orders::order::OrderStatus, orders::order::OrderType,
-    orders::pool::OrderRef,
-};
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use parking_lot::RwLock;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use std::sync::Arc;
 use uuid::Uuid;
+
+use crate::core::{
+    exchanges::{
+        common::Amount, common::CurrencyCode, common::CurrencyPair, common::ExchangeAccountId,
+        common::Price, events::AllowedEventSourceType, general::commission::Percent,
+        general::currency_pair_metadata::CurrencyPairMetadata,
+        general::currency_pair_metadata::Round, general::exchange::Exchange,
+    },
+    math::ConvertPercentToRate,
+    orders::{
+        event::OrderEventType, fill::EventSourceType, fill::OrderFill, fill::OrderFillType,
+        order::ClientOrderId, order::ExchangeOrderId, order::OrderRole, order::OrderSide,
+        order::OrderSnapshot, order::OrderStatus, order::OrderType, pool::OrderRef,
+    },
+};
 
 type ArgsToLog = (
     ExchangeAccountId,
@@ -445,7 +447,8 @@ impl Exchange {
         order_ref: &OrderRef,
         order_fill: &OrderFill,
     ) -> Result<()> {
-        self.add_event_on_order_change(order_ref, OrderEventType::OrderFilled)
+        let cloned_order = Arc::new(order_ref.deep_clone());
+        self.add_event_on_order_change(order_ref, OrderEventType::OrderFilled { cloned_order })
             .context("Unable to send event, probably receiver is dropped already")?;
 
         info!(
@@ -469,8 +472,13 @@ impl Exchange {
             order_ref.fn_mut(|order| {
                 order.set_status(OrderStatus::Completed, Utc::now());
             });
-            self.add_event_on_order_change(order_ref, OrderEventType::OrderCompleted)
-                .context("Unable to send event, probably receiver is dropped already")?;
+
+            let cloned_order = Arc::new(order_ref.deep_clone());
+            self.add_event_on_order_change(
+                order_ref,
+                OrderEventType::OrderCompleted { cloned_order },
+            )
+            .context("Unable to send event, probably receiver is dropped already")?;
         }
 
         Ok(())
@@ -580,7 +588,7 @@ impl Exchange {
 
         let commission_currency_code = match &event_data.commission_currency_code {
             Some(commission_currency_code) => commission_currency_code.clone(),
-            None => currency_pair_metadata.get_commision_currency_code(order_ref.side()),
+            None => currency_pair_metadata.get_commission_currency_code(order_ref.side()),
         };
 
         let order_role = Self::get_order_role(event_data, order_ref)?;
@@ -626,7 +634,7 @@ impl Exchange {
         )?;
 
         // This order fields updated, so let's use actual values
-        let (_, order_filled_amount) = order_ref.get_fills();
+        let order_filled_amount = order_ref.filled_amount();
 
         self.check_fill_amounts_comformity(order_filled_amount, order_ref)?;
 
@@ -1552,7 +1560,7 @@ mod test {
             None,
         );
         let order = OrderSnapshot::new(
-            Arc::new(header),
+            header,
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
@@ -1666,7 +1674,7 @@ mod test {
             None,
         );
         let order = OrderSnapshot::new(
-            Arc::new(header),
+            header,
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
@@ -1780,7 +1788,7 @@ mod test {
             None,
         );
         let order = OrderSnapshot::new(
-            Arc::new(header),
+            header,
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
@@ -1899,7 +1907,7 @@ mod test {
             None,
         );
         let order = OrderSnapshot::new(
-            Arc::new(header),
+            header,
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
@@ -2016,7 +2024,7 @@ mod test {
             None,
         );
         let order = OrderSnapshot::new(
-            Arc::new(header),
+            header,
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
@@ -2825,7 +2833,6 @@ mod test {
     }
 
     mod add_fill {
-
         use super::*;
 
         #[test]
@@ -2854,7 +2861,7 @@ mod test {
             let currency_pair_metadata =
                 exchange.get_currency_pair_metadata(&currency_pair.clone())?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commision_currency_code(order_side);
+                currency_pair_metadata.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);
@@ -2916,7 +2923,7 @@ mod test {
             let currency_pair_metadata =
                 exchange.get_currency_pair_metadata(&currency_pair.clone())?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commision_currency_code(order_side);
+                currency_pair_metadata.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);
@@ -2977,7 +2984,7 @@ mod test {
             let currency_pair_metadata =
                 exchange.get_currency_pair_metadata(&currency_pair.clone())?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commision_currency_code(order_side);
+                currency_pair_metadata.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);

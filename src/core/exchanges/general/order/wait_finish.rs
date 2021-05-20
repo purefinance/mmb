@@ -1,8 +1,8 @@
 use anyhow::Result;
 use log::{info, trace};
 use tokio::sync::oneshot;
-use uuid::Uuid;
 
+use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::{
     exchanges::cancellation_token::CancellationToken, exchanges::general::exchange::Exchange,
     orders::pool::OrderRef,
@@ -14,7 +14,7 @@ impl Exchange {
         &self,
         _order: &OrderRef,
         _exit_on_order_is_finished_even_if_fills_didnt_received: bool,
-        _pre_reserved_group_id: Option<Uuid>,
+        _pre_reserved_group_id: Option<RequestGroupId>,
         _cancellation_token: CancellationToken,
     ) {
     }

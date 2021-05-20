@@ -1,12 +1,17 @@
-use crate::core::{
-    exchanges::common::Amount, exchanges::common::ExchangeAccountId,
-    exchanges::events::AllowedEventSourceType, exchanges::general::exchange::Exchange,
-    orders::fill::EventSourceType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
-    orders::order::OrderEventType, orders::order::OrderStatus, orders::pool::OrderRef,
-};
 use anyhow::{bail, Result};
 use chrono::Utc;
 use log::{error, info, warn};
+
+use crate::core::{
+    exchanges::common::Amount,
+    exchanges::common::ExchangeAccountId,
+    exchanges::events::AllowedEventSourceType,
+    exchanges::general::exchange::Exchange,
+    orders::{
+        event::OrderEventType, fill::EventSourceType, order::ClientOrderId, order::ExchangeOrderId,
+        order::OrderStatus, pool::OrderRef,
+    },
+};
 
 impl Exchange {
     pub(crate) fn handle_cancel_order_succeeded(
@@ -156,15 +161,14 @@ impl Exchange {
 
 #[cfg(test)]
 mod test {
-    use anyhow::Context;
-    use rstest::rstest;
-    use rust_decimal_macros::dec;
-
     use super::*;
     use crate::core::{
         exchanges::common::CurrencyPair, exchanges::general::test_helper, orders::order::OrderRole,
         orders::order::OrderSide,
     };
+    use anyhow::Context;
+    use rstest::rstest;
+    use rust_decimal_macros::dec;
 
     #[test]
     fn empty_exchange_order_id() {
@@ -283,7 +287,8 @@ mod test {
             &exchange_order_id,
         )?;
 
-        let changed_amount = order_ref.internal_props().filled_amount_after_cancellation;
+        let changed_amount =
+            order_ref.fn_ref(|x| x.internal_props.filled_amount_after_cancellation);
         let expected = filled_amount;
         assert_eq!(changed_amount, expected);
 
@@ -328,8 +333,7 @@ mod test {
         assert_eq!(order_status, OrderStatus::Canceled);
 
         let order_event_source_type = order_ref
-            .internal_props()
-            .cancellation_event_source_type
+            .fn_ref(|x| x.internal_props.cancellation_event_source_type)
             .expect("in test");
         assert_eq!(order_event_source_type, source_type);
 
@@ -370,9 +374,8 @@ mod test {
             &exchange_order_id,
         )?;
 
-        let canceled_not_from_wait_cancel_order = order_ref
-            .internal_props()
-            .canceled_not_from_wait_cancel_order;
+        let canceled_not_from_wait_cancel_order =
+            order_ref.fn_ref(|x| x.internal_props.canceled_not_from_wait_cancel_order);
         assert_eq!(canceled_not_from_wait_cancel_order, true);
 
         let gotten_id = event_receiver

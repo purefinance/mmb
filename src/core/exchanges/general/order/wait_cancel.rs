@@ -1,28 +1,29 @@
-use crate::core::nothing_to_do;
-use std::time::Duration;
-
-use crate::core::{
-    exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeError,
-    exchanges::common::ExchangeErrorType, exchanges::events::AllowedEventSourceType,
-    exchanges::general::exchange::Exchange, exchanges::general::exchange::RequestResult,
-    orders::fill::EventSourceType, orders::order::OrderEventType, orders::order::OrderStatus,
-    orders::pool::OrderRef,
-};
 use anyhow::{bail, Result};
 use chrono::Utc;
 use log::{error, info, trace, warn};
 use scopeguard;
+use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
-use uuid::Uuid;
 
 use super::cancel::CancelOrderResult;
+use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::{
+    core::nothing_to_do,
+    core::orders::event::OrderEventType,
+    core::{
+        exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeError,
+        exchanges::common::ExchangeErrorType, exchanges::events::AllowedEventSourceType,
+        exchanges::general::exchange::Exchange, exchanges::general::exchange::RequestResult,
+        orders::fill::EventSourceType, orders::order::OrderStatus, orders::pool::OrderRef,
+    },
+};
 
 impl Exchange {
     pub async fn wait_cancel_order(
         &self,
         order: OrderRef,
-        pre_reservation_group_id: Option<Uuid>,
+        pre_reservation_group_id: Option<RequestGroupId>,
         check_order_fills: bool,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
@@ -70,7 +71,7 @@ impl Exchange {
     async fn wait_cancel_order_work(
         &self,
         order: &OrderRef,
-        pre_reservation_group_id: Option<Uuid>,
+        pre_reservation_group_id: Option<RequestGroupId>,
         check_order_fills: bool,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
@@ -161,9 +162,13 @@ impl Exchange {
 
         let order_has_missed_fills = self.has_missed_fill(order);
 
-        let order_cancellation_event_source_type =
-            order.internal_props().cancellation_event_source_type;
-        let order_last_cancellation_error = order.internal_props().last_cancellation_error;
+        let (order_cancellation_event_source_type, order_last_cancellation_error) =
+            order.fn_ref(|s| {
+                (
+                    s.internal_props.cancellation_event_source_type,
+                    s.internal_props.last_cancellation_error,
+                )
+            });
 
         trace!(
             "Order data in wait_cancel_order_work(): client_order_id: {}, exchange_order_id: {:?},
@@ -199,7 +204,7 @@ impl Exchange {
             .await;
         }
 
-        if order.internal_props().canceled_not_from_wait_cancel_order
+        if order.fn_ref(|s| s.internal_props.canceled_not_from_wait_cancel_order)
             && order.status() != OrderStatus::Completed
         {
             info!("Adding cancel_orderSucceeded event from wait_cancel_order() fro order {} {:?} on {}",
@@ -216,7 +221,7 @@ impl Exchange {
     async fn order_cancelled(
         &self,
         order: &OrderRef,
-        pre_reservation_group_id: Option<Uuid>,
+        pre_reservation_group_id: Option<RequestGroupId>,
         cancel_order_outcome: Option<CancelOrderResult>,
         cancellation_token: CancellationToken,
         order_is_finished_token: CancellationToken,
@@ -246,7 +251,7 @@ impl Exchange {
                     ExchangeErrorType::OrderCompleted => {
                         // Happens when an order is completed while we are waiting for cancellation
                         // For exchanges with order_was_completed_error_for_cancellation feature is ignore
-                        // cancellatio error (otherwise we have a chance of skipping a fill) and without
+                        // cancellation error (otherwise we have a chance of skipping a fill) and without
                         // order_finish_task we would exit wait_cancel_order() only via fallback which is slow
                         self.create_order_finish_future(order, order_is_finished_token.clone())
                             .await?;
@@ -263,7 +268,7 @@ impl Exchange {
         &self,
         order: &OrderRef,
         exchange_error: Option<ExchangeError>,
-        pre_reserved_group_id: Option<Uuid>,
+        pre_reserved_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         while !cancellation_token.is_cancellation_requested() {
@@ -374,12 +379,15 @@ impl Exchange {
     }
 
     fn has_missed_fill(&self, order: &OrderRef) -> bool {
-        let order_filled_amount_after_cancellation =
-            order.internal_props().filled_amount_after_cancellation;
-        let (_, order_filled_amount) = order.get_fills();
+        let (order_filled_amount_after_cancellation, order_filled_amount) = order.fn_ref(|s| {
+            (
+                s.internal_props.filled_amount_after_cancellation,
+                s.fills.filled_amount,
+            )
+        });
 
         info!(
-            "Order with {}, {:?} order_filled_amount_after_cancellatio: {:?}, order_filed_amount: {}",
+            "Order with {}, {:?} order_filled_amount_after_cancellation: {:?}, order_filed_amount: {}",
             order.client_order_id(),
             order.exchange_order_id(),
             order_filled_amount_after_cancellation,

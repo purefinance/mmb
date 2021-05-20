@@ -1,29 +1,28 @@
-use crate::core::orders::fill::OrderFill;
-use crate::core::orders::order::OrderEventType;
+use std::sync::Arc;
+
+use serde::{Deserialize, Serialize};
+
+use crate::core::orders::order::OrderSnapshot;
 use crate::core::orders::pool::OrderRef;
 
-use super::order::OrderStatus;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum OrderEventType {
+    CreateOrderSucceeded,
+    CreateOrderFailed,
+    OrderFilled { cloned_order: Arc<OrderSnapshot> },
+    OrderCompleted { cloned_order: Arc<OrderSnapshot> },
+    CancelOrderSucceeded,
+    CancelOrderFailed,
+}
 
 #[derive(Debug, Clone)]
 pub struct OrderEvent {
     pub order: OrderRef,
-    pub status: OrderStatus,
     pub event_type: OrderEventType,
-    pub order_fill: Option<OrderFill>,
 }
 
 impl OrderEvent {
-    pub fn new(
-        order: OrderRef,
-        status: OrderStatus,
-        event_type: OrderEventType,
-        order_fill: Option<OrderFill>,
-    ) -> Self {
-        Self {
-            order,
-            status,
-            event_type,
-            order_fill,
-        }
+    pub fn new(order: OrderRef, event_type: OrderEventType) -> Self {
+        Self { order, event_type }
     }
 }

@@ -1,13 +1,13 @@
-use crate::core::{
-    exchanges::common::ExchangeError, exchanges::common::ExchangeErrorType,
-    exchanges::general::exchange::Exchange, orders::fill::EventSourceType,
-    orders::order::ExchangeOrderId, orders::order::OrderEventType, orders::order::OrderStatus,
-    orders::pool::OrderRef,
-};
-
 use anyhow::Result;
 use chrono::Utc;
 use log::{error, warn};
+
+use crate::core::{
+    exchanges::common::ExchangeError, exchanges::common::ExchangeErrorType,
+    exchanges::general::exchange::Exchange, orders::event::OrderEventType,
+    orders::fill::EventSourceType, orders::order::ExchangeOrderId, orders::order::OrderStatus,
+    orders::pool::OrderRef,
+};
 
 impl Exchange {
     pub(crate) fn handle_cancel_order_failed(
@@ -135,16 +135,10 @@ impl Exchange {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::core::exchanges::{
         common::ExchangeErrorType, general::test_helper::get_test_exchange,
     };
-
-    use super::*;
-    use std::sync::Arc;
-
-    use parking_lot::RwLock;
-    use rust_decimal_macros::dec;
-
     use crate::core::{
         exchanges::common::CurrencyPair,
         exchanges::general::test_helper,
@@ -156,6 +150,10 @@ mod test {
         },
         orders::pool::OrdersPool,
     };
+    use parking_lot::RwLock;
+    use rust_decimal_macros::dec;
+    use std::mem::discriminant;
+    use std::sync::Arc;
 
     #[test]
     fn no_such_order_in_local_pool() {
@@ -219,7 +217,7 @@ mod test {
                 None,
             );
             let order = OrderSnapshot::new(
-                Arc::new(header),
+                header,
                 props,
                 OrderFills::default(),
                 OrderStatusHistory::default(),
@@ -282,7 +280,7 @@ mod test {
                 None,
             );
             let order = OrderSnapshot::new(
-                Arc::new(header),
+                header,
                 props,
                 OrderFills::default(),
                 OrderStatusHistory::default(),
@@ -311,6 +309,7 @@ mod test {
 
     mod order_not_found {
         use super::*;
+        use std::mem::discriminant;
 
         #[test]
         fn error_type_not_found_no_event() {
@@ -347,7 +346,7 @@ mod test {
                 None,
             );
             let mut order = OrderSnapshot::new(
-                Arc::new(header),
+                header,
                 props,
                 OrderFills::default(),
                 OrderStatusHistory::default(),
@@ -377,15 +376,13 @@ mod test {
             assert_eq!(order_ref.status(), OrderStatus::Canceled);
             assert_eq!(
                 order_ref
-                    .internal_props()
-                    .last_cancellation_error
+                    .fn_ref(|x| x.internal_props.last_cancellation_error)
                     .expect("in test"),
                 error.error_type
             );
             assert_eq!(
                 order_ref
-                    .internal_props()
-                    .cancellation_event_source_type
+                    .fn_ref(|x| x.internal_props.cancellation_event_source_type)
                     .expect("in test"),
                 EventSourceType::WebSocket,
             );
@@ -431,7 +428,7 @@ mod test {
                 None,
             );
             let mut order = OrderSnapshot::new(
-                Arc::new(header),
+                header,
                 props,
                 OrderFills::default(),
                 OrderStatusHistory::default(),
@@ -461,23 +458,21 @@ mod test {
             assert_eq!(order_ref.status(), OrderStatus::Canceled);
             assert_eq!(
                 order_ref
-                    .internal_props()
-                    .last_cancellation_error
+                    .fn_ref(|x| x.internal_props.last_cancellation_error)
                     .expect("in test"),
                 error.error_type
             );
             assert_eq!(
                 order_ref
-                    .internal_props()
-                    .cancellation_event_source_type
+                    .fn_ref(|x| x.internal_props.cancellation_event_source_type)
                     .expect("in test"),
                 EventSourceType::WebSocket,
             );
 
             let received_event = event_receiver.recv().expect("in test");
             assert_eq!(
-                received_event.event_type,
-                OrderEventType::CancelOrderSucceeded
+                discriminant(&received_event.event_type),
+                discriminant(&OrderEventType::CancelOrderSucceeded)
             );
         }
     }
@@ -517,7 +512,7 @@ mod test {
             None,
         );
         let order = OrderSnapshot::new(
-            Arc::new(header),
+            header,
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
@@ -546,15 +541,13 @@ mod test {
         assert_eq!(order_ref.status(), OrderStatus::Created);
         assert_eq!(
             order_ref
-                .internal_props()
-                .last_cancellation_error
+                .fn_ref(|x| x.internal_props.last_cancellation_error)
                 .expect("in test"),
             error.error_type
         );
         assert_eq!(
             order_ref
-                .internal_props()
-                .cancellation_event_source_type
+                .fn_ref(|x| x.internal_props.cancellation_event_source_type)
                 .expect("in test"),
             EventSourceType::WebSocket,
         );
@@ -600,7 +593,7 @@ mod test {
             None,
         );
         let order = OrderSnapshot::new(
-            Arc::new(header),
+            header,
             props,
             OrderFills::default(),
             OrderStatusHistory::default(),
@@ -629,20 +622,21 @@ mod test {
         assert_eq!(order_ref.status(), OrderStatus::FailedToCancel);
         assert_eq!(
             order_ref
-                .internal_props()
-                .last_cancellation_error
+                .fn_ref(|x| x.internal_props.last_cancellation_error)
                 .expect("in test"),
             error.error_type
         );
         assert_eq!(
             order_ref
-                .internal_props()
-                .cancellation_event_source_type
+                .fn_ref(|x| x.internal_props.cancellation_event_source_type)
                 .expect("in test"),
             EventSourceType::WebSocket,
         );
 
         let received_event = event_receiver.recv().expect("in test");
-        assert_eq!(received_event.event_type, OrderEventType::CancelOrderFailed);
+        assert_eq!(
+            discriminant(&received_event.event_type),
+            discriminant(&OrderEventType::CancelOrderFailed)
+        );
     }
 }

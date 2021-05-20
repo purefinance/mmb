@@ -1,4 +1,11 @@
+use anyhow::{anyhow, bail, Result};
+use chrono::Utc;
+use log::{error, info, warn};
+use tokio::sync::oneshot;
+
+use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
 use crate::core::nothing_to_do;
+use crate::core::orders::event::OrderEventType;
 use crate::core::{
     exchanges::cancellation_token::CancellationToken,
     exchanges::common::ExchangeAccountId,
@@ -8,19 +15,11 @@ use crate::core::{
     exchanges::general::exchange::RequestResult,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
-    orders::order::OrderEventType,
     orders::order::OrderStatus,
     orders::order::OrderType,
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
-use anyhow::{anyhow, bail, Result};
-use chrono::Utc;
-use log::{error, info, warn};
-use std::sync::Arc;
-use tokio::sync::oneshot;
-
-use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CreateOrderResult {
@@ -51,10 +50,8 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
         info!("Submitting order {:?}", order_to_create);
-        self.orders.add_simple_initial(
-            Arc::new(order_to_create.header.clone()),
-            Some(order_to_create.price),
-        );
+        self.orders
+            .add_simple_initial(order_to_create.header.clone(), Some(order_to_create.price));
 
         let _linked_cancellation_token = cancellation_token.create_linked_token();
 

@@ -5,13 +5,13 @@ use super::{
     pre_reserved_group::PreReservedGroup, request::Request,
     triggers::handle_trigger_trait::TriggerHandler,
 };
+use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::{
     exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType, DateTime,
 };
 use anyhow::{anyhow, bail, Result};
 use chrono::Duration;
 use log::info;
-use uuid::Uuid;
 
 pub(super) struct InnerRequestsTimeoutManager {
     pub(super) requests_per_period: usize,
@@ -67,7 +67,7 @@ impl InnerRequestsTimeoutManager {
 
     pub(super) fn get_reserved_request_count_for_group_to_now(
         &self,
-        group_id: Uuid,
+        group_id: RequestGroupId,
         current_time: DateTime,
     ) -> usize {
         let mut count = 0;
@@ -86,7 +86,7 @@ impl InnerRequestsTimeoutManager {
         &mut self,
         request_type: RequestType,
         current_time: DateTime,
-        group_id: Option<Uuid>,
+        group_id: Option<RequestGroupId>,
     ) -> Result<Request> {
         let request = Request::new(request_type, current_time, group_id);
 

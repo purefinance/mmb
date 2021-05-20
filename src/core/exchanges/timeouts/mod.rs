@@ -4,4 +4,5 @@ pub mod pre_reserved_group;
 pub mod request;
 pub mod requests_timeout_manager;
 pub mod requests_timeout_manager_factory;
+pub mod timeout_manager;
 pub mod triggers;

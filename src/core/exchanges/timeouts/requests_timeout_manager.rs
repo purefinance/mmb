@@ -1,19 +1,13 @@
+use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Weak};
-
-use parking_lot::Mutex;
-use tokio::task::JoinHandle;
-use tokio::time::sleep;
 
 use anyhow::{bail, Result};
 use chrono::Duration;
 use log::{error, info};
+use parking_lot::Mutex;
+use tokio::task::JoinHandle;
+use tokio::time::sleep;
 use uuid::Uuid;
-
-use crate::core::{
-    exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
-    exchanges::common::OPERATION_CANCELED_MSG, exchanges::general::request_type::RequestType,
-    DateTime,
-};
 
 use super::{
     inner_request_manager::InnerRequestsTimeoutManager,
@@ -22,6 +16,26 @@ use super::{
     triggers::every_requests_count_change_trigger::EveryRequestsCountChangeTrigger,
     triggers::less_or_equals_requests_count_trigger::LessOrEqualsRequestsCountTrigger,
 };
+use crate::core::{
+    exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
+    exchanges::common::OPERATION_CANCELED_MSG, exchanges::general::request_type::RequestType,
+    DateTime,
+};
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub struct RequestGroupId(Uuid);
+
+impl RequestGroupId {
+    pub fn generate() -> Self {
+        RequestGroupId(Uuid::new_v4())
+    }
+}
+
+impl Display for RequestGroupId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 pub struct RequestsTimeoutManager {
     inner: Mutex<InnerRequestsTimeoutManager>,
@@ -60,7 +74,7 @@ impl RequestsTimeoutManager {
         current_time: DateTime,
         requests_count: usize,
         // call_source: SourceInfo, // TODO not needed until DataRecorder is ready
-    ) -> Result<Option<Uuid>> {
+    ) -> Result<Option<RequestGroupId>> {
         let mut inner = self.inner.lock();
 
         let current_time = inner.get_non_decreasing_time(current_time);
@@ -74,7 +88,7 @@ impl RequestsTimeoutManager {
             return Ok(None);
         }
 
-        let group_id = Uuid::new_v4();
+        let group_id = RequestGroupId::generate();
         let group = PreReservedGroup::new(group_id, group_type, requests_count);
         inner.pre_reserved_groups.push(group.clone());
 
@@ -92,7 +106,7 @@ impl RequestsTimeoutManager {
         Ok(Some(group_id))
     }
 
-    pub fn remove_group(&self, group_id: Uuid, _current_time: DateTime) -> Result<bool> {
+    pub fn remove_group(&self, group_id: RequestGroupId, _current_time: DateTime) -> Result<bool> {
         let mut inner = self.inner.lock();
 
         let _all_available_requests_count = inner.get_all_available_requests_count();
@@ -131,7 +145,7 @@ impl RequestsTimeoutManager {
         &self,
         request_type: RequestType,
         current_time: DateTime,
-        pre_reserved_group_id: Option<Uuid>,
+        pre_reserved_group_id: Option<RequestGroupId>,
     ) -> Result<bool> {
         match pre_reserved_group_id {
             Some(pre_reserved_group_id) => {
@@ -145,7 +159,7 @@ impl RequestsTimeoutManager {
         &self,
         request_type: RequestType,
         current_time: DateTime,
-        pre_reserved_group_id: Uuid,
+        pre_reserved_group_id: RequestGroupId,
     ) -> Result<bool> {
         let mut inner = self.inner.lock();
         let group = inner
@@ -580,7 +594,8 @@ mod test {
             let current_time = Utc::now();
 
             // Act
-            let removing_result = timeout_manager.remove_group(Uuid::new_v4(), current_time)?;
+            let removing_result =
+                timeout_manager.remove_group(RequestGroupId::generate(), current_time)?;
 
             // Assert
             assert!(!removing_result);
@@ -1099,7 +1114,7 @@ mod test {
             let reserved_instant = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
-                Some(Uuid::new_v4()),
+                Some(RequestGroupId::generate()),
             )?;
 
             // Assert
