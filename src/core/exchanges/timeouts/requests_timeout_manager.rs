@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
@@ -288,6 +288,41 @@ impl RequestsTimeoutManager {
         Ok((request_availability, request_start_time, delay))
     }
 
+    async fn wait_for_request_availability(
+        weak_self: Weak<Self>,
+        request: Request,
+        delay: Duration,
+        cancellation_token: CancellationToken,
+    ) -> Result<()> {
+        let strong_self = weak_self.upgrade().expect("wow");
+        match delay.to_std() {
+            Ok(delay) => {
+                let sleep_future = sleep(delay);
+                let cancellation_token = cancellation_token.when_cancelled();
+
+                tokio::select! {
+                    _ = sleep_future => {
+                        (strong_self.inner.lock().time_has_come_for_request)(request)?;
+                    }
+
+                    _ = cancellation_token => {
+                        let mut inner = strong_self.inner.lock();
+                        (inner.time_has_come_for_request)(request.clone())?;
+                        inner.requests.retain(|stored_request| *stored_request != request);
+
+                        bail!(OPERATION_CANCELED_MSG)
+                    }
+                };
+
+                Ok(())
+            }
+            Err(error) => {
+                error!("Unable to convert chrono::Duration to std::Duration");
+                bail!(error)
+            }
+        }
+    }
+
     pub fn register_trigger_on_more_or_equals(
         &self,
         available_requests_count_threshold: usize,
@@ -329,40 +364,6 @@ impl RequestsTimeoutManager {
         inner
             .less_or_equals_requests_count_triggers
             .push(Box::new(trigger));
-    }
-
-    async fn wait_for_request_availability(
-        self: Arc<Self>,
-        request: Request,
-        delay: Duration,
-        cancellation_token: CancellationToken,
-    ) -> Result<()> {
-        match delay.to_std() {
-            Ok(delay) => {
-                let sleep_future = sleep(delay);
-                let cancellation_token = cancellation_token.when_cancelled();
-
-                tokio::select! {
-                    _ = sleep_future => {
-                        (self.inner.lock().time_has_come_for_request)(request)?;
-                    }
-
-                    _ = cancellation_token => {
-                        let mut inner = self.inner.lock();
-                        (inner.time_has_come_for_request)(request.clone())?;
-                        inner.requests.retain(|stored_request| *stored_request != request);
-
-                        bail!(OPERATION_CANCELED_MSG)
-                    }
-                };
-
-                Ok(())
-            }
-            Err(error) => {
-                error!("Unable to convert chrono::Duration to std::Duration");
-                bail!(error)
-            }
-        }
     }
 }
 
