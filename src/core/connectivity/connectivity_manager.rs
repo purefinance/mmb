@@ -383,7 +383,7 @@ impl ConnectivityManagerNotifier {
             match connectivity_manager.upgrade() {
                 Some(connectivity_manager) => connectivity_manager.notify_connection_closed(self.websocket_role),
                 None => info!(
-                    "Unable to upgrade weak reference to ConnectivityManager instance. Probably it's dead",
+                    "Unable to upgrade weak reference to ConnectivityManager instance. Probably it's dropped",
                 ),
             }
         } else {
@@ -399,7 +399,7 @@ impl ConnectivityManagerNotifier {
             match connectivity_manager.upgrade() {
                 Some(connectivity_manager) => connectivity_manager.callback_msg_received.lock()(data),
                 None => info!(
-                    "Unable to upgrade weak reference to ConnectivityManager instance. Probably it's dead",
+                    "Unable to upgrade weak reference to ConnectivityManager instance. Probably it's dropped",
                 ),
             }
         } else {
