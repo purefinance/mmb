@@ -97,6 +97,9 @@ pub struct Exchange {
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
+    //pub(crate) timeout_manager: Arc<RequestsTimeoutManager,
+    pub(crate) futures_to_wait_cancel_order_by_client_order_id:
+        DashMap<ClientOrderId, Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -133,6 +136,7 @@ impl Exchange {
             symbols: Default::default(),
             currencies: Default::default(),
             order_book_top: Default::default(),
+            futures_to_wait_cancel_order_by_client_order_id: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();

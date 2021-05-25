@@ -432,7 +432,7 @@ pub struct OrderCreating {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderCancelling {
-    pub header: OrderHeader,
+    pub header: Arc<OrderHeader>,
     pub exchange_order_id: ExchangeOrderId,
 }
 

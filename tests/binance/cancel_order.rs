@@ -11,8 +11,8 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::env;
 use std::sync::mpsc::channel;
+use std::{env, sync::Arc};
 use tokio::time::Duration;
 
 #[actix_rt::test]
@@ -92,7 +92,7 @@ async fn cancelled_successfully() {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
-                header: order_header,
+                header: Arc::new(order_header),
                 exchange_order_id,
             };
 
@@ -170,7 +170,7 @@ async fn nothing_to_cancel() {
     );
 
     let order_to_cancel = OrderCancelling {
-        header: order_header,
+        header: Arc::new(order_header),
         exchange_order_id: "1234567890".into(),
     };
 
