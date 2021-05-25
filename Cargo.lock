@@ -218,7 +218,7 @@ dependencies = [
 [[package]]
 name = "actix-web-actors"
 version = "4.0.0-beta.4"
-source = "git+https://github.com/actix/actix-web?tag=web-v4.0.0-beta.6#5a162932f3ce79ad81381eccdab38dd4cef68f0c"
+source = "git+https://github.com/actix/actix-web#bb7d33c9d41acef3b8d57dafc167c4077875374c"
 dependencies = [
  "actix",
  "actix-codec",
