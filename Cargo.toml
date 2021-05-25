@@ -23,7 +23,7 @@ serde_json = "1.0"
 
 parking_lot = { version = "0.11", features = ["serde"]}
 
-tokio = { version = "1", features = ["macros", "time", "sync", "rt-multi-thread"]}
+tokio = { version = "1", features = ["macros", "time", "sync", "rt"]}
 
 actix = "0.11.1"
 actix-codec = "0.4.0"

@@ -64,17 +64,7 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
         ));
     }
 
-    // TODO need implement trading_engine::Service trait
-    // let _ = tokio::spawn(async move {
-    //     if start_rest_api_server("127.0.0.1:8080").await.is_err() {
-    //         // TODO Graceful shutdown call
-    //     };
-    // });
-
-    let rest_api = ControlPanel::new("127.0.0.1:8080");
-    if rest_api.start().await.is_err() {
-        // TODO Graceful shutdown call
-    };
+    ControlPanel::new("127.0.0.1:8080").start();
 
     engine_context
 }
