@@ -4,8 +4,8 @@ use crate::core::{
     exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType, exchanges::events::AllowedEventSourceType,
     exchanges::general::exchange::Exchange, exchanges::general::exchange::RequestResult,
-    orders::fill::EventSourceType, orders::order::OrderEventType, orders::order::OrderStatus,
-    orders::pool::OrderRef,
+    orders::fill::EventSourceType, orders::order::ExchangeOrderId, orders::order::OrderEventType,
+    orders::order::OrderStatus, orders::pool::OrderRef,
 };
 use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
@@ -121,7 +121,7 @@ impl Exchange {
                         if let RequestResult::Error(error) = cancel_order_outcome.outcome {
                             match error.error_type {
                                 ExchangeErrorType::ParsingError => {
-                                    self.check_order_cancellation_status(order, &error, pre_reservation_group_id, cancellation_token.clone()).await;
+                                    self.check_order_cancellation_status(order, Some(error), pre_reservation_group_id, cancellation_token.clone()).await?;
                                 }
                                 ExchangeErrorType::PendingError => {
                                     sleep(error.pending_time).await;
@@ -262,13 +262,13 @@ impl Exchange {
     async fn check_order_cancellation_status(
         &self,
         order: &OrderRef,
-        error: &ExchangeError,
+        exchange_error: Option<ExchangeError>,
         pre_reserved_group_id: Option<Uuid>,
         cancellation_token: CancellationToken,
-    ) {
+    ) -> Result<()> {
         while !cancellation_token.is_cancellation_requested() {
             if order.is_finished() {
-                return;
+                return Ok(());
             }
 
             // FIXME Does the DateTimeService needed?
@@ -282,7 +282,7 @@ impl Exchange {
             // let reverve_result = TimeoutManger...
 
             if order.is_finished() {
-                return;
+                return Ok(());
             }
 
             info!(
@@ -292,17 +292,88 @@ impl Exchange {
                 self.exchange_account_id
             );
 
-            let order_info = self.get_order_info(order);
+            let cloned_order = order.deep_clone();
+            let order_info = self.get_order_info(&cloned_order).await;
 
             if order.is_finished() {
-                return;
+                return Ok(());
             }
 
             match order_info {
-                Ok(_) => {}
-                Err(_) => {}
+                Err(error) => {
+                    if error.error_type == ExchangeErrorType::OrderNotFound {
+                        let new_error = match exchange_error {
+                            Some(gotten_error) => gotten_error,
+                            None => ExchangeError::new(
+                                ExchangeErrorType::Unknown,
+                                "There are no any response from an exchange, so probably this order was not canceling".to_owned(),
+                                None)
+                        };
+
+                        self.handle_cancel_order_failed(
+                            order.exchange_order_id(),
+                            new_error,
+                            EventSourceType::RestFallback,
+                        );
+
+                        break;
+                    }
+
+                    warn!(
+                        "Error for order_info was received {} {:?} {} {:?} {:?}",
+                        order.client_order_id(),
+                        order.exchange_order_id(),
+                        self.exchange_account_id,
+                        order.currency_pair(),
+                        error
+                    );
+
+                    continue;
+                }
+                Ok(order_info) => {
+                    match order_info.order_status {
+                        OrderStatus::Canceled => {
+                            if let Some(exchange_order_id) = order.exchange_order_id() {
+                                self.handle_cancel_order_succeeded(
+                                    &order.client_order_id(),
+                                    &exchange_order_id,
+                                    Some(order_info.filled_amount),
+                                    EventSourceType::RestFallback,
+                                )?;
+                            }
+                        }
+                        OrderStatus::Completed => {
+                            // Looks like we've missed a fill while we were cancelling, it can happen in two scenarios:
+                            // 1. Test ShouldCheckFillsForCompletedOrders. There we clear a completed order to be able to
+                            // test a case of cancelling a completed order which involves calling CheckOrderFills in case of OrderCompleted
+                            // 2. We've received OrderCompleted during cancelling but a fill message was lost
+                            self.check_order_fills(
+                                order,
+                                false,
+                                pre_reserved_group_id,
+                                cancellation_token,
+                            )
+                            .await;
+                        }
+                        _ => {}
+                    }
+
+                    break;
+                }
             }
         }
+
+        Ok(())
+    }
+
+    // FIXME implement
+    // FIXME move to other file
+    fn handle_cancel_order_failed(
+        &self,
+        _exchange_order_id: Option<ExchangeOrderId>,
+        _error: ExchangeError,
+        _event_source_type: EventSourceType,
+    ) {
     }
 
     // FIXME implement
