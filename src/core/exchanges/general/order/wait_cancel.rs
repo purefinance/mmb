@@ -8,7 +8,7 @@ use crate::core::{
     orders::pool::OrderRef,
 };
 use anyhow::{anyhow, bail, Result};
-use log::{error, trace, warn};
+use log::{error, info, warn};
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -20,7 +20,7 @@ impl Exchange {
         check_order_fills: bool,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        trace!(
+        info!(
             "Executing wait_cancel_order() with order: {} {:?} {}",
             order.client_order_id(),
             order.exchange_order_id(),
@@ -83,7 +83,7 @@ impl Exchange {
             attempts_number += 1;
 
             let log_event_level = if attempts_number == 1 {
-                log::Level::Trace
+                log::Level::Info
             } else {
                 log::Level::Warn
             };
@@ -112,7 +112,7 @@ impl Exchange {
             let timeout_future = sleep(cancel_delay);
             tokio::select! {
                 cancel_order_outcome = cancel_order_task => {
-                    trace!("Cancel order future finished first on order {}, {:?} {}",
+                    info!("Cancel order future finished first on order {}, {:?} {}",
                         order.client_order_id(),
                         order.exchange_order_id(),
                         self.exchange_account_id);
@@ -164,7 +164,7 @@ impl Exchange {
             order.internal_props().cancellation_event_source_type;
         let order_last_cancellation_error = order.internal_props().last_cancellation_error;
 
-        trace!(
+        info!(
             "client_order_id: {}, exchange_order_id: {:?},
             checked_order_fills: {}, order_has_missed_fills: {:?},
             order_cancellation_event_source_type: {:?}, last_cancellation_error: {:?},
@@ -202,7 +202,7 @@ impl Exchange {
         if order.internal_props().canceled_not_from_wait_cancel_order
             && order.status() != OrderStatus::Completed
         {
-            trace!("Adding cancel_orderSucceeded event from wait_cancel_order() fro order {} {:?} on {}",
+            info!("Adding cancel_orderSucceeded event from wait_cancel_order() fro order {} {:?} on {}",
                 order.client_order_id(),
                 order.exchange_order_id(),
                 self.exchange_account_id);
@@ -239,8 +239,35 @@ impl Exchange {
     ) {
     }
 
-    // FIXME implement
-    fn has_missed_fill(&self, _order: &OrderRef) -> bool {
-        true
+    fn has_missed_fill(&self, order: &OrderRef) -> bool {
+        let order_filled_amount_after_cancellation =
+            order.internal_props().filled_amount_after_cancellation;
+        let (_, order_filled_amount) = order.get_fills();
+
+        info!(
+            "Order with {}, {:?} order_filled_amount_after_cancellatio: {:?}, order_filed_amount: {}",
+            order.client_order_id(),
+            order.exchange_order_id(),
+            order_filled_amount_after_cancellation,
+            order_filled_amount
+        );
+
+        match order_filled_amount_after_cancellation {
+            Some(order_filled_amount_after_cancellation) => {
+                if order_filled_amount_after_cancellation < order_filled_amount {
+                    error!("Received order with filled amount {} less then order.filled_amount {} {} {:?} on {}",
+                        order_filled_amount_after_cancellation,
+                        order_filled_amount,
+                        order.client_order_id(),
+                        order.exchange_order_id(),
+                        self.exchange_account_id);
+
+                    return false;
+                }
+
+                order_filled_amount_after_cancellation > order_filled_amount
+            }
+            None => false,
+        }
     }
 }
