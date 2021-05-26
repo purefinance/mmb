@@ -1,4 +1,5 @@
 use crate::core::nothing_to_do;
+use anyhow::{bail, Result};
 use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -36,6 +37,15 @@ impl CancellationToken {
     /// Returns true if cancellation requested, otherwise false
     pub fn is_cancellation_requested(&self) -> bool {
         self.state.is_cancellation_requested.load(Ordering::SeqCst)
+    }
+
+    /// Returns Result::Err() if cancellation requested, otherwise Ok(())
+    pub fn error_if_cancellation_requested(&self) -> Result<()> {
+        if self.is_cancellation_requested() {
+            bail!("Cancellation was already requested")
+        }
+
+        Ok(())
     }
 
     pub async fn when_cancelled(&self) {

@@ -8,6 +8,7 @@ use crate::core::{
     orders::pool::OrderRef,
 };
 use anyhow::{anyhow, bail, Result};
+use chrono::Utc;
 use log::{error, info, warn};
 use tokio::time::sleep;
 use uuid::Uuid;
@@ -52,9 +53,8 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         if order.status() == OrderStatus::Creating {
-            // FIXME todo
             self.create_order_created_task(order, cancellation_token.clone())
-                .await;
+                .await?;
         }
 
         if order.is_finished() {
@@ -198,7 +198,6 @@ impl Exchange {
             .await;
         }
 
-        // FIXME Maybe _sync_object
         if order.internal_props().canceled_not_from_wait_cancel_order
             && order.status() != OrderStatus::Completed
         {
@@ -216,19 +215,94 @@ impl Exchange {
     // FIXME implement
     async fn create_order_created_task(
         &self,
-        _order: &OrderRef,
-        _cancellation_token: CancellationToken,
-    ) {
+        order: &OrderRef,
+        cancellation_token: CancellationToken,
+    ) -> Result<()> {
+        if order.status() != OrderStatus::Creating {
+            info!("Instantly exiting create_order_created_task brcause order's statis is {:?} {} {:?} on {}",
+                order.status(),
+                order.client_order_id(),
+                order.exchange_order_id(),
+                self.exchange_account_id);
+
+            return Ok(());
+        }
+
+        cancellation_token.error_if_cancellation_requested()?;
+
+        // FIXME something with TaskCompletionSource
+
+        if order.status() != OrderStatus::Creating {
+            info!("Exiting create_order_created_task because order's status turned {:?} while tcs were creating {} {:?} on {}",
+                order.status(),
+                order.client_order_id(),
+                order.exchange_order_id(),
+                self.exchange_account_id);
+
+            self.create_order_task(order);
+            return Ok(());
+        }
+
+        // FIXME let currentTcs = new TaskCompletionSource...
+
+        Ok(())
+    }
+
+    // FIXME implement
+    // FIXME and move to other file
+    // FIXME rename all task to future
+    fn create_order_task(&self, _order: &OrderRef) {
+        // FIXME implement
+        //if self.order_created_task.try_remove(order.client_order_id())
+
+        // FIXME HealthCheckStorage.mark_event()
     }
 
     // FIXME implement
     async fn check_order_cancellation_status(
         &self,
-        _order: &OrderRef,
-        _error: &ExchangeError,
-        _pre_reserved_group_id: Option<Uuid>,
-        _cancellation_token: CancellationToken,
+        order: &OrderRef,
+        error: &ExchangeError,
+        pre_reserved_group_id: Option<Uuid>,
+        cancellation_token: CancellationToken,
     ) {
+        while !cancellation_token.is_cancellation_requested() {
+            if order.is_finished() {
+                return;
+            }
+
+            // FIXME Does the DateTimeService needed?
+            order.fn_mut(|order| {
+                order
+                    .internal_props
+                    .last_order_cancellation_status_request_time = Some(Utc::now())
+            });
+
+            // FIXME Add TimeoutManager
+            // let reverve_result = TimeoutManger...
+
+            if order.is_finished() {
+                return;
+            }
+
+            info!(
+                "Checking order status in check_order_cancellation_status with order {} {:?} {}",
+                order.client_order_id(),
+                order.exchange_order_id(),
+                self.exchange_account_id
+            );
+
+            let order_info = self.get_order_info(order);
+
+            if order.is_finished() {
+                return;
+            }
+
+            match order_info {
+                Ok(_) => {}
+                Err(_) => {}
+            }
+        }
     }
 
     // FIXME implement
