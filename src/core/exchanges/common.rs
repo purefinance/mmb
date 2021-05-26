@@ -4,9 +4,9 @@ use regex::Regex;
 use rust_decimal::*;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
-use std::collections::BTreeMap;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
+use std::{collections::BTreeMap, time::Duration};
 
 pub type Price = Decimal;
 pub type Amount = Decimal;
@@ -241,6 +241,8 @@ pub struct ExchangeError {
     pub error_type: ExchangeErrorType,
     pub message: String,
     pub code: Option<i64>,
+    // FIXME Where should it be set?
+    pub pending_time: Duration,
 }
 
 impl ExchangeError {
@@ -249,6 +251,7 @@ impl ExchangeError {
             error_type,
             message,
             code,
+            pending_time: Duration::from_secs(0),
         }
     }
 }
