@@ -10,6 +10,8 @@ use crate::core::{
 use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use log::{error, info, warn};
+use scopeguard;
+use tokio::sync::oneshot;
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -28,19 +30,41 @@ impl Exchange {
             self.exchange_account_id,
         );
 
-        // FIXME is that really analog of C# GetOrAdd? Or AddOrUpdate?
-        //self.futures_to_wait_cancel_order_by_client_order_id.insert(order.client_order_id(), )
+        // Implement get_or_add logic
+        match self
+            .wait_cancel_order_by_client_order_id
+            .entry(order.client_order_id())
+        {
+            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
+                let rx = entry.get_mut();
+                // Just wait until order cancelling future completed or operation cancelled
+                tokio::select! {
+                    _ = rx => {}
+                    _ = cancellation_token.when_cancelled() => {}
+                }
+            }
+            dashmap::mapref::entry::Entry::Vacant(vacant_entry) => {
+                // Be sure value will be removed anyway
+                let _guard = scopeguard::guard((), |_| {
+                    let _ = self
+                        .wait_cancel_order_by_client_order_id
+                        .remove(&order.client_order_id());
+                });
+                let (tx, rx) = oneshot::channel();
 
-        let _result = self
-            .wait_cancel_order_work(
-                &order,
-                pre_reservation_group_id,
-                check_order_fills,
-                cancellation_token,
-            )
-            .await;
+                let outcome = self
+                    .wait_cancel_order_work(
+                        &order,
+                        pre_reservation_group_id,
+                        check_order_fills,
+                        cancellation_token,
+                    )
+                    .await;
 
-        // FIXME try-catch-finally
+                let _ = tx.send(outcome);
+                let _ = *vacant_entry.insert(rx);
+            }
+        }
 
         Ok(())
     }
@@ -131,7 +155,7 @@ impl Exchange {
                                     // For exchanges with order_was_completed_error_for_cancellation feature is ignore
                                     // cancellatio error (otherwise we have a chance of skipping a fill) and without
                                     // order_finish_task we would exit wait_cancel_order() only via fallback which is slow
-                                    self.create_order_finish_future(order, order_is_finished_token.clone()).await;
+                                    self.create_order_finish_future(order, order_is_finished_token.clone()).await?;
                                 }
                                 _ => {}
                             }
@@ -379,9 +403,25 @@ impl Exchange {
     // FIXME implement
     async fn create_order_finish_future(
         &self,
-        _order: &OrderRef,
-        _cancellation_token: CancellationToken,
-    ) {
+        order: &OrderRef,
+        cancellation_token: CancellationToken,
+    ) -> Result<()> {
+        if order.is_finished() {
+            info!(
+                "Instantly exiting create_order_finish_future() because status is {:?} {} {:?} {}",
+                order.status(),
+                order.client_order_id(),
+                order.exchange_order_id(),
+                self.exchange_account_id
+            );
+
+            return Ok(());
+        }
+
+        cancellation_token.error_if_cancellation_requested()?;
+
+        // FIXME continue here with TaskCompletionSource
+        Ok(())
     }
 
     fn has_missed_fill(&self, order: &OrderRef) -> bool {

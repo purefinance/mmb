@@ -100,6 +100,8 @@ pub struct Exchange {
     //pub(crate) timeout_manager: Arc<RequestsTimeoutManager,
     pub(crate) futures_to_wait_cancel_order_by_client_order_id:
         DashMap<ClientOrderId, Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>>,
+    pub(super) wait_cancel_order_by_client_order_id:
+        DashMap<ClientOrderId, oneshot::Receiver<Result<()>>>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -137,6 +139,7 @@ impl Exchange {
             currencies: Default::default(),
             order_book_top: Default::default(),
             futures_to_wait_cancel_order_by_client_order_id: DashMap::new(),
+            wait_cancel_order_by_client_order_id: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();
