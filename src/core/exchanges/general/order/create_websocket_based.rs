@@ -25,6 +25,8 @@ impl Exchange {
         let client_order_id = order.header.client_order_id.clone();
         let (tx, mut websocket_event_receiver) = oneshot::channel();
 
+        // TODO insert is not analog of C# GetOrAd!
+        // Here has to be entry().or_insert()
         self.order_creation_events
             .insert(client_order_id.clone(), (tx, None));
 

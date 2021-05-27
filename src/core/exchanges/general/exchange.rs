@@ -102,6 +102,8 @@ pub struct Exchange {
         DashMap<ClientOrderId, Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>>,
     pub(super) wait_cancel_order_by_client_order_id:
         DashMap<ClientOrderId, oneshot::Receiver<Result<()>>>,
+    pub(super) orders_finish_futures_by_client_order_id:
+        DashMap<ClientOrderId, oneshot::Sender<OrderRef>>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -140,6 +142,7 @@ impl Exchange {
             order_book_top: Default::default(),
             futures_to_wait_cancel_order_by_client_order_id: DashMap::new(),
             wait_cancel_order_by_client_order_id: DashMap::new(),
+            orders_finish_futures_by_client_order_id: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();

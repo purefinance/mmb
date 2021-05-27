@@ -56,6 +56,8 @@ impl Exchange {
         let exchange_order_id = order.exchange_order_id.clone();
         let (tx, mut websocket_event_receiver) = oneshot::channel();
 
+        // TODO insert is not analog of C# GetOrAd!
+        // Here has to be entry().or_insert()
         self.order_cancellation_events
             .insert(exchange_order_id.clone(), (tx, None));
 

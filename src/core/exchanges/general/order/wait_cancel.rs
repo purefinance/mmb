@@ -40,6 +40,7 @@ impl Exchange {
                 // Just wait until order cancelling future completed or operation cancelled
                 tokio::select! {
                     _ = rx => {}
+                    // TODO Evgeniy, is that compatibale according C# code?
                     _ = cancellation_token.when_cancelled() => {}
                 }
             }
@@ -398,30 +399,6 @@ impl Exchange {
         _error: ExchangeError,
         _event_source_type: EventSourceType,
     ) {
-    }
-
-    // FIXME implement
-    async fn create_order_finish_future(
-        &self,
-        order: &OrderRef,
-        cancellation_token: CancellationToken,
-    ) -> Result<()> {
-        if order.is_finished() {
-            info!(
-                "Instantly exiting create_order_finish_future() because status is {:?} {} {:?} {}",
-                order.status(),
-                order.client_order_id(),
-                order.exchange_order_id(),
-                self.exchange_account_id
-            );
-
-            return Ok(());
-        }
-
-        cancellation_token.error_if_cancellation_requested()?;
-
-        // FIXME continue here with TaskCompletionSource
-        Ok(())
     }
 
     fn has_missed_fill(&self, order: &OrderRef) -> bool {
