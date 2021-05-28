@@ -447,9 +447,5 @@ impl Exchange {
             // FIXME Why do we need send order here? Mayby just () type?
             let _ = tx.send(order.clone());
         }
-
-        if order.status() == OrderStatus::Created {
-            //TODO HealthCheckStorage.mark_event()
-        }
     }
 }

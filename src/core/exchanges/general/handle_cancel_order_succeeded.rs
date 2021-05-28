@@ -81,6 +81,7 @@ impl Exchange {
         client_order_id: &ClientOrderId,
         exchange_order_id: &ExchangeOrderId,
     ) -> Result<()> {
+        dbg!(&"WWWWAA");
         if self.order_already_closed(order_ref.status(), client_order_id, exchange_order_id) {
             return Ok(());
         }

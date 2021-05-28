@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::Utc;
 use log::{error, info};
 use tokio::sync::oneshot;
 
@@ -12,6 +13,8 @@ use crate::core::{
     exchanges::general::exchange::RequestResult,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
+    orders::order::OrderStatus,
+    orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCancelling},
 };
 
@@ -46,6 +49,57 @@ impl CancelOrderResult {
 }
 
 impl Exchange {
+    pub async fn start_cancel_order(
+        &self,
+        // TODO Here has to be common Order (or OrderRef) cause it's more natural way:
+        // When user want to cancel_order he already has that order data somewhere
+        order: &OrderRef,
+        cancellation_token: CancellationToken,
+    ) -> Option<CancelOrderResult> {
+        if order.status() == OrderStatus::Canceled {
+            info!(
+                "This order {} {:?} are already canceled",
+                order.client_order_id(),
+                order.exchange_order_id()
+            );
+
+            return None;
+        }
+
+        if order.status() == OrderStatus::Completed {
+            info!(
+                "This order {} {:?} are already completed",
+                order.client_order_id(),
+                order.exchange_order_id()
+            );
+
+            return None;
+        }
+
+        order.fn_mut(|order| order.set_status(OrderStatus::Canceling, Utc::now()));
+
+        info!(
+            "Submitting order cancellation {} {:?} on {}",
+            order.client_order_id(),
+            order.exchange_order_id(),
+            self.exchange_account_id
+        );
+
+        let order_to_cancel = order.to_order_cancelling()?;
+        let order_cancellation_outcome = self
+            .cancel_order(&order_to_cancel, cancellation_token)
+            .await;
+
+        info!(
+            "Submitted order cancellation {} {:?} on {}",
+            order.client_order_id(),
+            order.exchange_order_id(),
+            self.exchange_account_id
+        );
+
+        return order_cancellation_outcome;
+    }
+
     pub async fn cancel_order(
         &self,
         // TODO Here has to be common Order (or OrderRef) cause it's more natural way:

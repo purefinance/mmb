@@ -7,7 +7,7 @@ use crate::core::{
     orders::fill::EventSourceType, orders::order::OrderEventType, orders::order::OrderStatus,
     orders::pool::OrderRef,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use scopeguard;
@@ -121,11 +121,7 @@ impl Exchange {
 
             // TODO timeout_manager.reserver_when_available()
 
-            let order_to_cancel = order
-                .to_order_cancelling()
-                .ok_or(anyhow!("Order has no exchange order id"))?;
-
-            let cancel_order_task = self.cancel_order(&order_to_cancel, cancellation_token.clone());
+            let cancel_order_task = self.start_cancel_order(&order, cancellation_token.clone());
 
             // TODO select cance_order_task only if Exchange.AllowedCancelEventSourceType != AllowedEventSourceType.OnlyFallback
 
@@ -133,6 +129,7 @@ impl Exchange {
             let timeout_future = sleep(cancel_delay);
             tokio::select! {
                 cancel_order_outcome = cancel_order_task => {
+                    dbg!(&cancel_order_outcome);
                     self.order_cancelled(
                         &order,
                         pre_reservation_group_id,
@@ -267,6 +264,8 @@ impl Exchange {
         pre_reserved_group_id: Option<Uuid>,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
+        dbg!(&"WTF");
+
         while !cancellation_token.is_cancellation_requested() {
             if order.is_finished() {
                 return Ok(());
@@ -299,6 +298,7 @@ impl Exchange {
                 return Ok(());
             }
 
+            dbg!(&order_info);
             match order_info {
                 Err(error) => {
                     if error.error_type == ExchangeErrorType::OrderNotFound {
