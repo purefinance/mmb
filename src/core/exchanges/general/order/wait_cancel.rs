@@ -129,7 +129,6 @@ impl Exchange {
             let timeout_future = sleep(cancel_delay);
             tokio::select! {
                 cancel_order_outcome = cancel_order_task => {
-                    dbg!(&cancel_order_outcome);
                     self.order_cancelled(
                         &order,
                         pre_reservation_group_id,
@@ -264,8 +263,6 @@ impl Exchange {
         pre_reserved_group_id: Option<Uuid>,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        dbg!(&"WTF");
-
         while !cancellation_token.is_cancellation_requested() {
             if order.is_finished() {
                 return Ok(());
@@ -298,7 +295,6 @@ impl Exchange {
                 return Ok(());
             }
 
-            dbg!(&order_info);
             match order_info {
                 Err(error) => {
                     if error.error_type == ExchangeErrorType::OrderNotFound {
