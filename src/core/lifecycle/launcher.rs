@@ -8,7 +8,9 @@ use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::logger::init_logger;
 use crate::core::settings::{AppSettings, CoreSettings};
 use crate::hashmap;
-use crate::{core::exchanges::binance::binance::BinanceBuilder, rest_api::endpoints::ControlPanel};
+use crate::{
+    core::exchanges::binance::binance::BinanceBuilder, rest_api::control_panel::ControlPanel,
+};
 use futures::future::join_all;
 use log::info;
 use std::collections::HashMap;
