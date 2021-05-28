@@ -17,6 +17,7 @@ use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use std::sync::Arc;
+use tokio::sync::oneshot;
 
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
 
@@ -394,6 +395,61 @@ impl Exchange {
 
                 Ok(())
             }
+        }
+    }
+
+    pub(super) async fn create_order_created_task(
+        &self,
+        order: &OrderRef,
+        cancellation_token: CancellationToken,
+    ) -> Result<()> {
+        if order.status() != OrderStatus::Creating {
+            info!("Instantly exiting create_order_created_task brcause order's statis is {:?} {} {:?} on {}",
+                order.status(),
+                order.client_order_id(),
+                order.exchange_order_id(),
+                self.exchange_account_id);
+
+            return Ok(());
+        }
+
+        cancellation_token.error_if_cancellation_requested()?;
+
+        // Implement get_or_add logic
+        let (tx, rx) = oneshot::channel();
+        self.orders_created_events
+            .entry(order.client_order_id())
+            .or_insert(tx);
+
+        if order.status() != OrderStatus::Creating {
+            info!("Exiting create_order_created_task because order's status turned {:?} while tcs were creating {} {:?} on {}",
+                order.status(),
+                order.client_order_id(),
+                order.exchange_order_id(),
+                self.exchange_account_id);
+
+            self.create_order_task(order);
+
+            return Ok(());
+        }
+
+        tokio::select! {
+            _ = rx => {}
+            // FIXME Evgeniy, is that compatibale according C# code?
+            _ = cancellation_token.when_cancelled() => {}
+        }
+
+        Ok(())
+    }
+
+    fn create_order_task(&self, order: &OrderRef) {
+        if let Some((_, tx)) = self.orders_created_events.remove(&order.client_order_id()) {
+            // FIXME Why do we need send order here? Mayby just () type?
+            let _ = tx.send(order.clone());
+        }
+
+        if order.status() == OrderStatus::Created {
+            //TODO HealthCheckStorage.mark_event()
         }
     }
 }

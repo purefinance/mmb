@@ -4,8 +4,8 @@ use crate::core::{
     exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType, exchanges::events::AllowedEventSourceType,
     exchanges::general::exchange::Exchange, exchanges::general::exchange::RequestResult,
-    orders::fill::EventSourceType, orders::order::ExchangeOrderId, orders::order::OrderEventType,
-    orders::order::OrderStatus, orders::pool::OrderRef,
+    orders::fill::EventSourceType, orders::order::OrderEventType, orders::order::OrderStatus,
+    orders::pool::OrderRef,
 };
 use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
@@ -14,6 +14,8 @@ use scopeguard;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
 use uuid::Uuid;
+
+use super::cancel::CancelOrderResult;
 
 impl Exchange {
     pub async fn wait_cancel_order(
@@ -31,25 +33,20 @@ impl Exchange {
         );
 
         // Implement get_or_add logic
-        match self
-            .wait_cancel_order_by_client_order_id
-            .entry(order.client_order_id())
-        {
+        match self.wait_cancel_order.entry(order.client_order_id()) {
             dashmap::mapref::entry::Entry::Occupied(mut entry) => {
                 let rx = entry.get_mut();
                 // Just wait until order cancelling future completed or operation cancelled
                 tokio::select! {
                     _ = rx => {}
-                    // TODO Evgeniy, is that compatibale according C# code?
+                    // FIXME Evgeniy, is that compatibale according C# code?
                     _ = cancellation_token.when_cancelled() => {}
                 }
             }
             dashmap::mapref::entry::Entry::Vacant(vacant_entry) => {
                 // Be sure value will be removed anyway
                 let _guard = scopeguard::guard((), |_| {
-                    let _ = self
-                        .wait_cancel_order_by_client_order_id
-                        .remove(&order.client_order_id());
+                    let _ = self.wait_cancel_order.remove(&order.client_order_id());
                 });
                 let (tx, rx) = oneshot::channel();
 
@@ -132,37 +129,17 @@ impl Exchange {
 
             // TODO select cance_order_task only if Exchange.AllowedCancelEventSourceType != AllowedEventSourceType.OnlyFallback
 
-            // FIXME
             let cancel_delay = Duration::from_secs(10);
             let timeout_future = sleep(cancel_delay);
             tokio::select! {
                 cancel_order_outcome = cancel_order_task => {
-                    info!("Cancel order future finished first on order {}, {:?} {}",
-                        order.client_order_id(),
-                        order.exchange_order_id(),
-                        self.exchange_account_id);
-
-                    if let  Some(cancel_order_outcome) = cancel_order_outcome {
-                        if let RequestResult::Error(error) = cancel_order_outcome.outcome {
-                            match error.error_type {
-                                ExchangeErrorType::ParsingError => {
-                                    self.check_order_cancellation_status(order, Some(error), pre_reservation_group_id, cancellation_token.clone()).await?;
-                                }
-                                ExchangeErrorType::PendingError => {
-                                    sleep(error.pending_time).await;
-                                }
-                                ExchangeErrorType::OrderCompleted => {
-                                    // Happens when an order is completed while we are waiting for cancellation
-                                    // For exchanges with order_was_completed_error_for_cancellation feature is ignore
-                                    // cancellatio error (otherwise we have a chance of skipping a fill) and without
-                                    // order_finish_task we would exit wait_cancel_order() only via fallback which is slow
-                                    self.create_order_finish_future(order, order_is_finished_token.clone()).await?;
-                                }
-                                _ => {}
-                            }
-                        }
-
-                    }
+                    self.order_cancelled(
+                        &order,
+                        pre_reservation_group_id,
+                        cancel_order_outcome,
+                        cancellation_token.clone(),
+                        order_is_finished_token.clone())
+                        .await?;
                 }
                 _ = timeout_future => {
                     if self.features.allowed_cancel_event_source_type != AllowedEventSourceType::All {
@@ -237,53 +214,52 @@ impl Exchange {
         Ok(())
     }
 
-    // FIXME implement
-    async fn create_order_created_task(
+    async fn order_cancelled(
         &self,
         order: &OrderRef,
+        pre_reservation_group_id: Option<Uuid>,
+        cancel_order_outcome: Option<CancelOrderResult>,
         cancellation_token: CancellationToken,
+        order_is_finished_token: CancellationToken,
     ) -> Result<()> {
-        if order.status() != OrderStatus::Creating {
-            info!("Instantly exiting create_order_created_task brcause order's statis is {:?} {} {:?} on {}",
-                order.status(),
-                order.client_order_id(),
-                order.exchange_order_id(),
-                self.exchange_account_id);
+        info!(
+            "Cancel order future finished first on order {}, {:?} {}",
+            order.client_order_id(),
+            order.exchange_order_id(),
+            self.exchange_account_id
+        );
 
-            return Ok(());
+        if let Some(cancel_order_outcome) = cancel_order_outcome {
+            if let RequestResult::Error(error) = cancel_order_outcome.outcome {
+                match error.error_type {
+                    ExchangeErrorType::ParsingError => {
+                        self.check_order_cancellation_status(
+                            order,
+                            Some(error),
+                            pre_reservation_group_id,
+                            cancellation_token.clone(),
+                        )
+                        .await?;
+                    }
+                    ExchangeErrorType::PendingError => {
+                        sleep(error.pending_time).await;
+                    }
+                    ExchangeErrorType::OrderCompleted => {
+                        // Happens when an order is completed while we are waiting for cancellation
+                        // For exchanges with order_was_completed_error_for_cancellation feature is ignore
+                        // cancellatio error (otherwise we have a chance of skipping a fill) and without
+                        // order_finish_task we would exit wait_cancel_order() only via fallback which is slow
+                        self.create_order_finish_future(order, order_is_finished_token.clone())
+                            .await?;
+                    }
+                    _ => {}
+                }
+            }
         }
-
-        cancellation_token.error_if_cancellation_requested()?;
-
-        // FIXME something with TaskCompletionSource
-
-        if order.status() != OrderStatus::Creating {
-            info!("Exiting create_order_created_task because order's status turned {:?} while tcs were creating {} {:?} on {}",
-                order.status(),
-                order.client_order_id(),
-                order.exchange_order_id(),
-                self.exchange_account_id);
-
-            self.create_order_task(order);
-            return Ok(());
-        }
-
-        // FIXME let currentTcs = new TaskCompletionSource...
 
         Ok(())
     }
 
-    // FIXME implement
-    // FIXME and move to other file
-    // FIXME rename all task to future
-    fn create_order_task(&self, _order: &OrderRef) {
-        // FIXME implement
-        //if self.order_created_task.try_remove(order.client_order_id())
-
-        // FIXME HealthCheckStorage.mark_event()
-    }
-
-    // FIXME implement
     async fn check_order_cancellation_status(
         &self,
         order: &OrderRef,
@@ -303,8 +279,7 @@ impl Exchange {
                     .last_order_cancellation_status_request_time = Some(Utc::now())
             });
 
-            // FIXME Add TimeoutManager
-            // let reverve_result = TimeoutManger...
+            // TODO Add TimeoutManager::reserve_when_available
 
             if order.is_finished() {
                 return Ok(());
@@ -389,16 +364,6 @@ impl Exchange {
         }
 
         Ok(())
-    }
-
-    // FIXME implement
-    // FIXME move to other file
-    fn handle_cancel_order_failed(
-        &self,
-        _exchange_order_id: Option<ExchangeOrderId>,
-        _error: ExchangeError,
-        _event_source_type: EventSourceType,
-    ) {
     }
 
     fn has_missed_fill(&self, order: &OrderRef) -> bool {

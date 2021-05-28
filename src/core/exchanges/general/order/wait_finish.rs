@@ -40,7 +40,7 @@ impl Exchange {
 
         // Implement get_or_add logic
         let (tx, rx) = oneshot::channel();
-        self.orders_finish_futures_by_client_order_id
+        self.orders_finish_events
             .entry(order.client_order_id())
             .or_insert(tx);
 
@@ -69,10 +69,7 @@ impl Exchange {
     }
 
     fn finish_order_future(&self, order: &OrderRef) {
-        if let Some((_, tx)) = self
-            .orders_finish_futures_by_client_order_id
-            .remove(&order.client_order_id())
-        {
+        if let Some((_, tx)) = self.orders_finish_events.remove(&order.client_order_id()) {
             // TODO Why do we need send order here? Mayby just () type?
             let _ = tx.send(order.clone());
         }

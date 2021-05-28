@@ -97,13 +97,9 @@ pub struct Exchange {
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
-    //pub(crate) timeout_manager: Arc<RequestsTimeoutManager,
-    pub(crate) futures_to_wait_cancel_order_by_client_order_id:
-        DashMap<ClientOrderId, Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>>,
-    pub(super) wait_cancel_order_by_client_order_id:
-        DashMap<ClientOrderId, oneshot::Receiver<Result<()>>>,
-    pub(super) orders_finish_futures_by_client_order_id:
-        DashMap<ClientOrderId, oneshot::Sender<OrderRef>>,
+    pub(super) wait_cancel_order: DashMap<ClientOrderId, oneshot::Receiver<Result<()>>>,
+    pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<OrderRef>>,
+    pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<OrderRef>>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -140,9 +136,9 @@ impl Exchange {
             symbols: Default::default(),
             currencies: Default::default(),
             order_book_top: Default::default(),
-            futures_to_wait_cancel_order_by_client_order_id: DashMap::new(),
-            wait_cancel_order_by_client_order_id: DashMap::new(),
-            orders_finish_futures_by_client_order_id: DashMap::new(),
+            wait_cancel_order: DashMap::new(),
+            orders_finish_events: DashMap::new(),
+            orders_created_events: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();
