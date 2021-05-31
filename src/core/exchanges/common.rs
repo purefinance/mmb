@@ -241,7 +241,7 @@ pub struct ExchangeError {
     pub error_type: ExchangeErrorType,
     pub message: String,
     pub code: Option<i64>,
-    // FIXME Where should it be set?
+    // TODO Set it in the rest_client
     pub pending_time: Duration,
 }
 

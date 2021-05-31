@@ -54,50 +54,53 @@ impl Exchange {
         order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Result<Option<CancelOrderResult>> {
-        if order.status() == OrderStatus::Canceled {
-            info!(
-                "This order {} {:?} are already canceled",
-                order.client_order_id(),
-                order.exchange_order_id()
-            );
+        match order.status() {
+            OrderStatus::Canceled => {
+                info!(
+                    "This order {} {:?} are already canceled",
+                    order.client_order_id(),
+                    order.exchange_order_id()
+                );
 
-            return Ok(None);
+                Ok(None)
+            }
+            OrderStatus::Completed => {
+                info!(
+                    "This order {} {:?} are already completed",
+                    order.client_order_id(),
+                    order.exchange_order_id()
+                );
+
+                Ok(None)
+            }
+            _ => {
+                order.fn_mut(|order| order.set_status(OrderStatus::Canceling, Utc::now()));
+
+                info!(
+                    "Submitting order cancellation {} {:?} on {}",
+                    order.client_order_id(),
+                    order.exchange_order_id(),
+                    self.exchange_account_id
+                );
+
+                let order_to_cancel = order
+                    .to_order_cancelling()
+                    .ok_or(anyhow!("Unable to convert order to order_to_cancel"))?;
+                let order_cancellation_outcome = self
+                    .cancel_order(&order_to_cancel, cancellation_token)
+                    .await?;
+
+                info!(
+                    "Submitted order cancellation {} {:?} on {}: {:?}",
+                    order.client_order_id(),
+                    order.exchange_order_id(),
+                    self.exchange_account_id,
+                    order_cancellation_outcome
+                );
+
+                Ok(order_cancellation_outcome)
+            }
         }
-
-        if order.status() == OrderStatus::Completed {
-            info!(
-                "This order {} {:?} are already completed",
-                order.client_order_id(),
-                order.exchange_order_id()
-            );
-
-            return Ok(None);
-        }
-
-        order.fn_mut(|order| order.set_status(OrderStatus::Canceling, Utc::now()));
-
-        info!(
-            "Submitting order cancellation {} {:?} on {}",
-            order.client_order_id(),
-            order.exchange_order_id(),
-            self.exchange_account_id
-        );
-
-        let order_to_cancel = order
-            .to_order_cancelling()
-            .ok_or(anyhow!("Unable to convert order to order_to_cancel"))?;
-        let order_cancellation_outcome = self
-            .cancel_order(&order_to_cancel, cancellation_token)
-            .await?;
-
-        info!(
-            "Submitted order cancellation {} {:?} on {}",
-            order.client_order_id(),
-            order.exchange_order_id(),
-            self.exchange_account_id
-        );
-
-        return Ok(order_cancellation_outcome);
     }
 
     pub async fn cancel_order(

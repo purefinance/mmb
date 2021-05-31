@@ -98,8 +98,8 @@ pub struct Exchange {
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
     pub(super) wait_cancel_order: DashMap<ClientOrderId, oneshot::Receiver<Result<()>>>,
-    pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<OrderRef>>,
-    pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<OrderRef>>,
+    pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
+    pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;

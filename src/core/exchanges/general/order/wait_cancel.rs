@@ -9,7 +9,7 @@ use crate::core::{
 };
 use anyhow::{bail, Result};
 use chrono::Utc;
-use log::{error, info, warn};
+use log::{error, info, trace, warn};
 use scopeguard;
 use tokio::sync::oneshot;
 use tokio::time::sleep;
@@ -32,7 +32,6 @@ impl Exchange {
             self.exchange_account_id,
         );
 
-        // Implement get_or_add logic
         match self.wait_cancel_order.entry(order.client_order_id()) {
             dashmap::mapref::entry::Entry::Occupied(mut entry) => {
                 let rx = entry.get_mut();
@@ -48,6 +47,7 @@ impl Exchange {
                     let _ = self.wait_cancel_order.remove(&order.client_order_id());
                 });
                 let (tx, rx) = oneshot::channel();
+                let _ = *vacant_entry.insert(rx);
 
                 let outcome = self
                     .wait_cancel_order_work(
@@ -59,7 +59,6 @@ impl Exchange {
                     .await;
 
                 let _ = tx.send(outcome);
-                let _ = *vacant_entry.insert(rx);
             }
         }
 
@@ -84,7 +83,7 @@ impl Exchange {
 
         if order.is_canceling_from_wait_cancel_order() {
             error!(
-                "Order {} {:?} is already cancelling by waitt_cancel_order",
+                "Order {} {:?} is already cancelling by wait_cancel_order",
                 order.client_order_id(),
                 order.exchange_order_id()
             );
@@ -98,12 +97,12 @@ impl Exchange {
 
         // TODO Fallback
 
-        let mut attempts_number = 0;
+        let mut attempt_number = 0;
 
         while !cancellation_token.is_cancellation_requested() {
-            attempts_number += 1;
+            attempt_number += 1;
 
-            let log_event_level = if attempts_number == 1 {
+            let log_event_level = if attempt_number == 1 {
                 log::Level::Info
             } else {
                 log::Level::Warn
@@ -112,7 +111,7 @@ impl Exchange {
             log::log!(
                 log_event_level,
                 "Cancellation iteration is {} on {} {:?} {}",
-                attempts_number,
+                attempt_number,
                 order.client_order_id(),
                 order.exchange_order_id(),
                 self.exchange_account_id
@@ -120,14 +119,12 @@ impl Exchange {
 
             // TODO timeout_manager.reserver_when_available()
 
-            let cancel_order_task = self.start_cancel_order(&order, cancellation_token.clone());
+            let cancel_order_future = self.start_cancel_order(&order, cancellation_token.clone());
 
             // TODO select cance_order_task only if Exchange.AllowedCancelEventSourceType != AllowedEventSourceType.OnlyFallback
 
-            let cancel_delay = Duration::from_secs(10);
-            let timeout_future = sleep(cancel_delay);
             tokio::select! {
-                cancel_order_outcome = cancel_order_task => {
+                cancel_order_outcome = cancel_order_future => {
                     let cancel_order_outcome = cancel_order_outcome?;
                     self.order_cancelled(
                         &order,
@@ -137,7 +134,7 @@ impl Exchange {
                         order_is_finished_token.clone())
                         .await?;
                 }
-                _ = timeout_future => {
+                _ = sleep(Duration::from_secs(10)) => {
                     if self.features.allowed_cancel_event_source_type != AllowedEventSourceType::All {
                         bail!("Order was expected to cancel explicity via Rest or Web Socket but got timeout instead")
                     }
@@ -162,8 +159,8 @@ impl Exchange {
             order.internal_props().cancellation_event_source_type;
         let order_last_cancellation_error = order.internal_props().last_cancellation_error;
 
-        info!(
-            "client_order_id: {}, exchange_order_id: {:?},
+        trace!(
+            "Order data in wait_cancel_order_work(): client_order_id: {}, exchange_order_id: {:?},
             checked_order_fills: {}, order_has_missed_fills: {:?},
             order_cancellation_event_source_type: {:?}, last_cancellation_error: {:?},
             order_status: {:?}",
@@ -281,7 +278,7 @@ impl Exchange {
                 return Ok(());
             }
 
-            info!(
+            trace!(
                 "Checking order status in check_order_cancellation_status with order {} {:?} {}",
                 order.client_order_id(),
                 order.exchange_order_id(),

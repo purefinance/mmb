@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::info;
+use log::{info, trace};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
@@ -38,14 +38,13 @@ impl Exchange {
 
         cancellation_token.error_if_cancellation_requested()?;
 
-        // Implement get_or_add logic
         let (tx, rx) = oneshot::channel();
         self.orders_finish_events
             .entry(order.client_order_id())
             .or_insert(tx);
 
         if order.is_finished() {
-            info!(
+            trace!(
                 "Exiting create_order_finish_task because order's status turned {:?} {} {:?} {}",
                 order.status(),
                 order.client_order_id(),
@@ -61,7 +60,6 @@ impl Exchange {
         // Just wait until order cancelling future completed or operation cancelled
         tokio::select! {
             _ = rx => {}
-            // TODO Evgeniy, is that compatibale according C# code?
             _ = cancellation_token.when_cancelled() => {}
         }
 
@@ -71,7 +69,7 @@ impl Exchange {
     fn finish_order_future(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_finish_events.remove(&order.client_order_id()) {
             // TODO Why do we need send order here? Mayby just () type?
-            let _ = tx.send(order.clone());
+            let _ = tx.send(());
         }
     }
 }

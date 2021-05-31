@@ -1,3 +1,4 @@
+use crate::core::nothing_to_do;
 use crate::core::{
     exchanges::cancellation_token::CancellationToken,
     exchanges::common::ExchangeAccountId,
@@ -404,7 +405,7 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         if order.status() != OrderStatus::Creating {
-            info!("Instantly exiting create_order_created_task brcause order's statis is {:?} {} {:?} on {}",
+            info!("Instantly exiting create_order_created_task because order's status is {:?} {} {:?} on {}",
                 order.status(),
                 order.client_order_id(),
                 order.exchange_order_id(),
@@ -415,14 +416,13 @@ impl Exchange {
 
         cancellation_token.error_if_cancellation_requested()?;
 
-        // Implement get_or_add logic
         let (tx, rx) = oneshot::channel();
         self.orders_created_events
             .entry(order.client_order_id())
             .or_insert(tx);
 
         if order.status() != OrderStatus::Creating {
-            info!("Exiting create_order_created_task because order's status turned {:?} while tcs were creating {} {:?} on {}",
+            info!("Exiting create_order_created_task because order's status turned {:?} while oneshot::channel were creating {} {:?} on {}",
                 order.status(),
                 order.client_order_id(),
                 order.exchange_order_id(),
@@ -434,9 +434,8 @@ impl Exchange {
         }
 
         tokio::select! {
-            _ = rx => {}
-            // FIXME Evgeniy, is that compatibale according C# code?
-            _ = cancellation_token.when_cancelled() => {}
+            _ = rx => nothing_to_do(),
+            _ = cancellation_token.when_cancelled() => nothing_to_do(),
         }
 
         Ok(())
@@ -445,7 +444,7 @@ impl Exchange {
     fn create_order_task(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_created_events.remove(&order.client_order_id()) {
             // FIXME Why do we need send order here? Mayby just () type?
-            let _ = tx.send(order.clone());
+            let _ = tx.send(());
         }
     }
 }
