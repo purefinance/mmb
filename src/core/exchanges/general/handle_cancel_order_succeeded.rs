@@ -179,7 +179,7 @@ mod test {
         let source_type = EventSourceType::Rest;
 
         let maybe_error = exchange.handle_cancel_order_succeeded(
-            &client_order_id,
+            Some(&client_order_id),
             &exchange_order_id,
             Some(filled_amount),
             source_type,
@@ -207,7 +207,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
 
         let already_closed =
-            exchange.order_already_closed(status, &client_order_id, &exchange_order_id);
+            exchange.order_already_closed(status, Some(&client_order_id), &exchange_order_id);
 
         assert_eq!(already_closed, expected);
     }
@@ -243,7 +243,7 @@ mod test {
             &order_ref,
             filled_amount,
             source_type,
-            &client_order_id,
+            Some(&client_order_id),
             &exchange_order_id,
         );
 
@@ -282,7 +282,7 @@ mod test {
             &order_ref,
             filled_amount,
             source_type,
-            &client_order_id,
+            Some(&client_order_id),
             &exchange_order_id,
         )?;
 
@@ -323,7 +323,7 @@ mod test {
             &order_ref,
             filled_amount,
             source_type,
-            &client_order_id,
+            Some(&client_order_id),
             &exchange_order_id,
         )?;
 
@@ -369,7 +369,7 @@ mod test {
             &order_ref,
             filled_amount,
             source_type,
-            &client_order_id,
+            Some(&client_order_id),
             &exchange_order_id,
         )?;
 

@@ -308,11 +308,13 @@ impl Exchange {
                         };
 
                         match order.exchange_order_id() {
-                            Some(exchange_order_id) => self.handle_cancel_order_failed(
-                                exchange_order_id,
+                            Some(exchange_order_id) => {
+                                self.handle_cancel_order_failed(
+                                    &exchange_order_id,
                                 new_error,
                                 EventSourceType::RestFallback,
-                            )?,
+                                )?;
+                            }
                             None => bail!(
                                 "There are no exchange_order_id in order {} {:?} on {}",
                                 order.client_order_id(),
