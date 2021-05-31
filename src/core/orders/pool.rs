@@ -89,10 +89,6 @@ impl OrderRef {
         self.fn_ref(|order| order.internal_props.clone())
     }
 
-    pub fn is_canceling_from_wait_cancel_order(&self) -> bool {
-        self.fn_mut(|order| order.internal_props.is_canceling_from_wait_cancel_order)
-    }
-
     pub fn to_order_cancelling(&self) -> Option<OrderCancelling> {
         self.fn_ref(|order| {
             order

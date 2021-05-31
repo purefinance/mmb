@@ -68,7 +68,6 @@ impl Exchange {
 
     fn finish_order_future(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_finish_events.remove(&order.client_order_id()) {
-            // TODO Why do we need send order here? Mayby just () type?
             let _ = tx.send(());
         }
     }

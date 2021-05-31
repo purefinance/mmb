@@ -81,7 +81,9 @@ impl Exchange {
             return Ok(());
         }
 
-        if order.is_canceling_from_wait_cancel_order() {
+        let is_canceling_from_wait_cancel_order =
+            order.fn_mut(|order| order.internal_props.is_canceling_from_wait_cancel_order);
+        if is_canceling_from_wait_cancel_order {
             error!(
                 "Order {} {:?} is already cancelling by wait_cancel_order",
                 order.client_order_id(),
