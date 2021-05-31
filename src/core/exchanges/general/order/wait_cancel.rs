@@ -287,8 +287,7 @@ impl Exchange {
                 self.exchange_account_id
             );
 
-            let cloned_order = order.deep_clone();
-            let order_info = self.get_order_info(&cloned_order).await;
+            let order_info = self.get_order_info(&order).await;
 
             if order.is_finished() {
                 return Ok(());
