@@ -160,22 +160,37 @@ mod test {
     }
 
     mod order_status {
+        use super::*;
         use std::sync::Arc;
 
         use parking_lot::RwLock;
+        use rust_decimal_macros::dec;
 
-        use crate::core::orders::order::{
-            OrderFills, OrderHeader, OrderSide, OrderSnapshot, OrderStatusHistory, OrderType,
-            SystemInternalOrderProps,
+        use crate::core::{
+            exchanges::common::CurrencyPair,
+            exchanges::general::test_helper,
+            orders::order::OrderRole,
+            orders::order::{
+                ClientOrderId, OrderExecutionType, OrderFills, OrderHeader, OrderSide,
+                OrderSimpleProps, OrderSnapshot, OrderStatusHistory, OrderType,
+                SystemInternalOrderProps,
+            },
+            orders::pool::OrdersPool,
         };
 
         #[test]
         fn order_canceled() {
             // Arrange
-            let (exchange, _) = get_test_exchange(false);
+            let (exchange, _rx) = get_test_exchange(false);
             let exchange_order_id = ExchangeOrderId::new("test".into());
             let error =
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
+
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_amount = dec!(12);
+            let order_price = dec!(0.2);
+            let order_role = OrderRole::Maker;
 
             let header = OrderHeader::new(
                 client_order_id.clone(),
@@ -196,7 +211,7 @@ mod test {
                 Some(exchange_order_id.clone()),
                 Default::default(),
                 Default::default(),
-                Default::default(),
+                OrderStatus::Canceled,
                 None,
             );
             let order = OrderSnapshot::new(
@@ -206,6 +221,65 @@ mod test {
                 OrderStatusHistory::default(),
                 SystemInternalOrderProps::default(),
             );
+            let order_pool = OrdersPool::new();
+            let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
+
+            // Act
+            let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+                &exchange_order_id,
+                error,
+                EventSourceType::WebSocket,
+            );
+
+            // Assert
+            assert!(ok_cause_no_such_order.is_ok());
+        }
+
+        #[test]
+        fn order_completed() {
+            // Arrange
+            let (exchange, _rx) = get_test_exchange(false);
+            let exchange_order_id = ExchangeOrderId::new("test".into());
+            let error =
+                ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
+
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_amount = dec!(12);
+            let order_price = dec!(0.2);
+            let order_role = OrderRole::Maker;
+
+            let header = OrderHeader::new(
+                client_order_id.clone(),
+                Utc::now(),
+                exchange.exchange_account_id.clone(),
+                currency_pair.clone(),
+                OrderType::Limit,
+                OrderSide::Buy,
+                order_amount,
+                OrderExecutionType::None,
+                None,
+                None,
+                "FromTest".to_owned(),
+            );
+            let props = OrderSimpleProps::new(
+                Some(order_price),
+                Some(order_role),
+                Some(exchange_order_id.clone()),
+                Default::default(),
+                Default::default(),
+                OrderStatus::Completed,
+                None,
+            );
+            let order = OrderSnapshot::new(
+                Arc::new(header),
+                props,
+                OrderFills::default(),
+                OrderStatusHistory::default(),
+                SystemInternalOrderProps::default(),
+            );
+            let order_pool = OrdersPool::new();
             let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
             test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
