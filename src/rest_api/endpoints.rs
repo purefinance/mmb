@@ -1,5 +1,7 @@
 use actix_web::{get, HttpResponse, Responder};
 
+// New endpoints have to be added as a servise for actix server. Look at super::control_panel::start_server()
+
 #[get("/health")]
 pub(super) async fn health() -> impl Responder {
     HttpResponse::Ok().body("Bot is working")
