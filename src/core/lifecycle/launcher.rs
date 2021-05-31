@@ -1,4 +1,3 @@
-use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::common::ExchangeId;
 use crate::core::exchanges::events::{ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange::Exchange;
@@ -9,6 +8,9 @@ use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::logger::init_logger;
 use crate::core::settings::{AppSettings, CoreSettings};
 use crate::hashmap;
+use crate::{
+    core::exchanges::binance::binance::BinanceBuilder, rest_api::control_panel::ControlPanel,
+};
 use futures::future::join_all;
 use log::info;
 use std::collections::HashMap;
@@ -64,12 +66,7 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
         ));
     }
 
-    // TODO need implement trading_engine::Service trait
-    // let _ = tokio::spawn(async move {
-    //     if start_rest_api_server("127.0.0.1:8080").await.is_err() {
-    //         // TODO Graceful shutdown call
-    //     };
-    // });
+    ControlPanel::new("127.0.0.1:8080").start();
 
     engine_context
 }
