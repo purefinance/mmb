@@ -236,7 +236,7 @@ impl Exchange {
                 Ok(())
             }
             None => self.handle_cancel_order_succeeded(
-                &client_order_id,
+                Some(&client_order_id),
                 &exchange_order_id,
                 filled_amount,
                 source_type,

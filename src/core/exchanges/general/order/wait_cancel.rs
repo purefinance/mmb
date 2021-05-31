@@ -340,7 +340,7 @@ impl Exchange {
                         OrderStatus::Canceled => {
                             if let Some(exchange_order_id) = order.exchange_order_id() {
                                 self.handle_cancel_order_succeeded(
-                                    &order.client_order_id(),
+                                    Some(&order.client_order_id()),
                                     &exchange_order_id,
                                     Some(order_info.filled_amount),
                                     EventSourceType::RestFallback,

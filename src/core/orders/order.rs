@@ -76,6 +76,7 @@ pub enum OrderEventType {
     OrderFilled,
     OrderCompleted,
     CancelOrderSucceeded,
+    CancelOrderFailed,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]

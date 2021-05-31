@@ -29,9 +29,9 @@ pub struct CreateOrderResult {
 }
 
 impl CreateOrderResult {
-    pub fn successed(order_id: ExchangeOrderId, source_type: EventSourceType) -> Self {
+    pub fn successed(order_id: &ExchangeOrderId, source_type: EventSourceType) -> Self {
         CreateOrderResult {
-            outcome: RequestResult::Success(order_id),
+            outcome: RequestResult::Success(order_id.clone()),
             source_type,
         }
     }

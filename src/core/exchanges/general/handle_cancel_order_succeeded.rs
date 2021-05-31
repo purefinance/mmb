@@ -14,7 +14,7 @@ impl Exchange {
     pub(crate) fn handle_cancel_order_succeeded(
         &self,
         // FIXME continue here, change to Option<ClientOrderId>
-        client_order_id: &ClientOrderId,
+        client_order_id: Option<&ClientOrderId>,
         exchange_order_id: &ExchangeOrderId,
         filled_amount: Option<Amount>,
         source_type: EventSourceType,
@@ -42,6 +42,17 @@ impl Exchange {
             None => {
                 // TODO BufferedCanceledOrderManager.add_order(exchange_order_id, self.exchange_account_id)
                 // TODO All other code connected BufferedCaceledOrderManager
+                match client_order_id {
+                    Some(client_order_id) => {
+                        self.raise_order_created(&client_order_id, &exchange_order_id, source_type)
+                    }
+                    None => {
+                        error!("cancel_order_succeeded was received for an order which is not in the system {} {:?}",
+                            self.exchange_account_id,
+                            exchange_order_id);
+                    }
+                }
+
                 Ok(())
             }
             Some(order_ref) => self.try_update_local_order(
@@ -57,7 +68,7 @@ impl Exchange {
     fn order_already_closed(
         &self,
         status: OrderStatus,
-        client_order_id: &ClientOrderId,
+        client_order_id: Option<&ClientOrderId>,
         exchange_order_id: &ExchangeOrderId,
     ) -> bool {
         let arg_to_log = match status {
@@ -67,7 +78,7 @@ impl Exchange {
         };
 
         warn!(
-            "CancelOrderSucceeded received for {} order {} {:?} {}",
+            "CancelOrderSucceeded received for {} order {:?} {:?} {}",
             arg_to_log, client_order_id, exchange_order_id, self.exchange_account_id
         );
 
@@ -79,7 +90,7 @@ impl Exchange {
         order_ref: &OrderRef,
         filled_amount: Option<Amount>,
         source_type: EventSourceType,
-        client_order_id: &ClientOrderId,
+        client_order_id: Option<&ClientOrderId>,
         exchange_order_id: &ExchangeOrderId,
     ) -> Result<()> {
         if self.order_already_closed(order_ref.status(), client_order_id, exchange_order_id) {
@@ -104,7 +115,7 @@ impl Exchange {
         // Usually we raise CancelOrderSucceeded in WaitCancelOrder after a check for fills via fallback
         // but in this particular case the cancellation is triggered by exchange itself, so WaitCancelOrder was never called
         if !is_canceling_from_wait_cancel_order {
-            info!("Adding CancelOrderSucceeded event from handle_cancel_order_succeeded() {} {:?} on {}",
+            info!("Adding CancelOrderSucceeded event from handle_cancel_order_succeeded() {:?} {:?} on {}",
                 client_order_id,
                 exchange_order_id,
                 self.exchange_account_id);
@@ -121,7 +132,7 @@ impl Exchange {
         }
 
         info!(
-            "Order was successfully cancelled {} {:?} on {}",
+            "Order was successfully cancelled {:?} {:?} on {}",
             client_order_id, exchange_order_id, self.exchange_account_id
         );
 
