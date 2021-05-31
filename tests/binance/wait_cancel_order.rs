@@ -11,8 +11,8 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
+use std::env;
 use std::sync::mpsc::channel;
-use std::{env, sync::Arc};
 use tokio::time::Duration;
 
 #[actix_rt::test]
@@ -90,26 +90,11 @@ async fn cancellation_waited_successfully() {
 
     match created_order {
         Ok(order_ref) => {
-            let exchange_order_id = order_ref.exchange_order_id().expect("in test");
-            let order_to_cancel = OrderCancelling {
-                header: Arc::new(order_header),
-                exchange_order_id,
-            };
-
-            //// Cancel last order
-            //let cancel_outcome = exchange
-            //    .cancel_order(&order_to_cancel, CancellationToken::default())
-            //    .await
-            //    .expect("in test");
-
-            let cancel_outcome = exchange
+            // If here are no error - order was cancelled successfully
+            exchange
                 .wait_cancel_order(order_ref, None, true, CancellationToken::new())
-                .await;
-            dbg!(&cancel_outcome);
-
-            //if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
-            //    assert_eq!(gotten_client_order_id, test_order_client_id);
-            //}
+                .await
+                .expect("in test");
         }
 
         // Create order failed

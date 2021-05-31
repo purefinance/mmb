@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::Utc;
 use log::{error, info};
 use tokio::sync::oneshot;
@@ -51,11 +51,9 @@ impl CancelOrderResult {
 impl Exchange {
     pub async fn start_cancel_order(
         &self,
-        // TODO Here has to be common Order (or OrderRef) cause it's more natural way:
-        // When user want to cancel_order he already has that order data somewhere
         order: &OrderRef,
         cancellation_token: CancellationToken,
-    ) -> Option<CancelOrderResult> {
+    ) -> Result<Option<CancelOrderResult>> {
         if order.status() == OrderStatus::Canceled {
             info!(
                 "This order {} {:?} are already canceled",
@@ -63,7 +61,7 @@ impl Exchange {
                 order.exchange_order_id()
             );
 
-            return None;
+            return Ok(None);
         }
 
         if order.status() == OrderStatus::Completed {
@@ -73,7 +71,7 @@ impl Exchange {
                 order.exchange_order_id()
             );
 
-            return None;
+            return Ok(None);
         }
 
         order.fn_mut(|order| order.set_status(OrderStatus::Canceling, Utc::now()));
@@ -85,10 +83,12 @@ impl Exchange {
             self.exchange_account_id
         );
 
-        let order_to_cancel = order.to_order_cancelling()?;
+        let order_to_cancel = order
+            .to_order_cancelling()
+            .ok_or(anyhow!("Unable to convert order to order_to_cancel"))?;
         let order_cancellation_outcome = self
             .cancel_order(&order_to_cancel, cancellation_token)
-            .await;
+            .await?;
 
         info!(
             "Submitted order cancellation {} {:?} on {}",
@@ -97,10 +97,42 @@ impl Exchange {
             self.exchange_account_id
         );
 
-        return order_cancellation_outcome;
+        return Ok(order_cancellation_outcome);
     }
 
     pub async fn cancel_order(
+        &self,
+        order: &OrderCancelling,
+        cancellation_token: CancellationToken,
+    ) -> Result<Option<CancelOrderResult>> {
+        let order_cancellation_outcome = self.cancel_order_core(order, cancellation_token).await;
+
+        // Option is returning when cancel_order_core is stopped by CancellationToken
+        // So approptiate Handler was already called in a fallback
+        if let Some(ref cancel_outcome) = order_cancellation_outcome {
+            match &cancel_outcome.outcome {
+                RequestResult::Success(client_order_id) => self.handle_cancel_order_succeeded(
+                    &client_order_id,
+                    &order.exchange_order_id,
+                    cancel_outcome.filled_amount,
+                    cancel_outcome.source_type,
+                )?,
+                RequestResult::Error(error) => {
+                    if error.error_type != ExchangeErrorType::ParsingError {
+                        self.handle_cancel_order_failed(
+                            order.exchange_order_id.clone(),
+                            error.clone(),
+                            cancel_outcome.source_type,
+                        )?;
+                    }
+                }
+            };
+        }
+
+        Ok(order_cancellation_outcome)
+    }
+
+    async fn cancel_order_core(
         &self,
         // TODO Here has to be common Order (or OrderRef) cause it's more natural way:
         // When user want to cancel_order he already has that order data somewhere

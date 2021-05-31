@@ -39,7 +39,6 @@ impl Exchange {
                 // Just wait until order cancelling future completed or operation cancelled
                 tokio::select! {
                     _ = rx => {}
-                    // FIXME Evgeniy, is that compatibale according C# code?
                     _ = cancellation_token.when_cancelled() => {}
                 }
             }
@@ -129,6 +128,7 @@ impl Exchange {
             let timeout_future = sleep(cancel_delay);
             tokio::select! {
                 cancel_order_outcome = cancel_order_task => {
+                    let cancel_order_outcome = cancel_order_outcome?;
                     self.order_cancelled(
                         &order,
                         pre_reservation_group_id,
@@ -306,11 +306,19 @@ impl Exchange {
                                 None)
                         };
 
-                        self.handle_cancel_order_failed(
-                            order.exchange_order_id(),
-                            new_error,
-                            EventSourceType::RestFallback,
-                        );
+                        match order.exchange_order_id() {
+                            Some(exchange_order_id) => self.handle_cancel_order_failed(
+                                exchange_order_id,
+                                new_error,
+                                EventSourceType::RestFallback,
+                            )?,
+                            None => bail!(
+                                "There are no exchange_order_id in order {} {:?} on {}",
+                                order.client_order_id(),
+                                order.exchange_order_id(),
+                                self.exchange_account_id,
+                            ),
+                        }
 
                         break;
                     }
