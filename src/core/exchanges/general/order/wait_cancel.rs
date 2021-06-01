@@ -12,7 +12,7 @@ use anyhow::{bail, Result};
 use chrono::Utc;
 use log::{error, info, trace, warn};
 use scopeguard;
-use tokio::sync::oneshot;
+use tokio::sync::broadcast;
 use tokio::time::sleep;
 use uuid::Uuid;
 
@@ -34,11 +34,12 @@ impl Exchange {
         );
 
         match self.wait_cancel_order.entry(order.client_order_id()) {
-            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
-                let rx = entry.get_mut();
+            dashmap::mapref::entry::Entry::Occupied(entry) => {
+                let tx = entry.get();
+                let mut rx = tx.subscribe();
                 // Just wait until order cancelling future completed or operation cancelled
                 tokio::select! {
-                    _ = rx => nothing_to_do(),
+                    _ = rx.recv() => nothing_to_do(),
                     _ = cancellation_token.when_cancelled() => nothing_to_do()
                 }
             }
@@ -47,8 +48,8 @@ impl Exchange {
                 let _guard = scopeguard::guard((), |_| {
                     let _ = self.wait_cancel_order.remove(&order.client_order_id());
                 });
-                let (tx, rx) = oneshot::channel();
-                let _ = *vacant_entry.insert(rx);
+                let (tx, _) = broadcast::channel(1);
+                let _ = *vacant_entry.insert(tx.clone());
 
                 let outcome = self
                     .wait_cancel_order_work(
