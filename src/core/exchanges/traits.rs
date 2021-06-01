@@ -7,13 +7,13 @@ use super::{
     general::currency_pair_metadata::CurrencyPairMetadata,
     general::handle_order_filled::FillEventData,
 };
-use crate::core::exchanges::general::exchange::BoxExchangeClient;
 use crate::core::exchanges::general::features::ExchangeFeatures;
+use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
-use crate::core::orders::{fill::EventSourceType, order::OrderSnapshot};
 use crate::core::settings::ExchangeSettings;
+use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -33,7 +33,7 @@ pub trait ExchangeClient: Support {
 
     async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
 
-    async fn request_order_info(&self, order: &OrderSnapshot) -> Result<RestRequestOutcome>;
+    async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait]

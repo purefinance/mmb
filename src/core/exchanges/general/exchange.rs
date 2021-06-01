@@ -36,7 +36,7 @@ use serde_json::Value;
 use std::pin::Pin;
 use std::sync::mpsc;
 use std::sync::Arc;
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult<T> {
@@ -97,6 +97,9 @@ pub struct Exchange {
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
+    pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
+    pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
+    pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -133,6 +136,9 @@ impl Exchange {
             symbols: Default::default(),
             currencies: Default::default(),
             order_book_top: Default::default(),
+            wait_cancel_order: DashMap::new(),
+            orders_finish_events: DashMap::new(),
+            orders_created_events: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();

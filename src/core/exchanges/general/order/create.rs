@@ -1,3 +1,4 @@
+use crate::core::nothing_to_do;
 use crate::core::{
     exchanges::cancellation_token::CancellationToken,
     exchanges::common::ExchangeAccountId,
@@ -17,6 +18,7 @@ use anyhow::{anyhow, bail, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use std::sync::Arc;
+use tokio::sync::oneshot;
 
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
 
@@ -394,6 +396,54 @@ impl Exchange {
 
                 Ok(())
             }
+        }
+    }
+
+    pub(super) async fn create_order_created_task(
+        &self,
+        order: &OrderRef,
+        cancellation_token: CancellationToken,
+    ) -> Result<()> {
+        if order.status() != OrderStatus::Creating {
+            info!("Instantly exiting create_order_created_task because order's status is {:?} {} {:?} on {}",
+                order.status(),
+                order.client_order_id(),
+                order.exchange_order_id(),
+                self.exchange_account_id);
+
+            return Ok(());
+        }
+
+        cancellation_token.error_if_cancellation_requested()?;
+
+        let (tx, rx) = oneshot::channel();
+        self.orders_created_events
+            .entry(order.client_order_id())
+            .or_insert(tx);
+
+        if order.status() != OrderStatus::Creating {
+            info!("Exiting create_order_created_task because order's status turned {:?} while oneshot::channel were creating {} {:?} on {}",
+                order.status(),
+                order.client_order_id(),
+                order.exchange_order_id(),
+                self.exchange_account_id);
+
+            self.create_order_task(order);
+
+            return Ok(());
+        }
+
+        tokio::select! {
+            _ = rx => nothing_to_do(),
+            _ = cancellation_token.when_cancelled() => nothing_to_do(),
+        }
+
+        Ok(())
+    }
+
+    fn create_order_task(&self, order: &OrderRef) {
+        if let Some((_, tx)) = self.orders_created_events.remove(&order.client_order_id()) {
+            let _ = tx.send(());
         }
     }
 }

@@ -10,8 +10,8 @@ use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::env;
 use std::sync::mpsc::channel;
+use std::{env, sync::Arc};
 
 #[actix_rt::test]
 async fn create_successfully() {
@@ -91,7 +91,7 @@ async fn create_successfully() {
 
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
-                header: order_header,
+                header: Arc::new(order_header),
                 exchange_order_id,
             };
 

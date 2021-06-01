@@ -1,8 +1,11 @@
 use super::binance::Binance;
-use crate::core::exchanges::common::{CurrencyPair, RestRequestOutcome};
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
 use crate::core::orders::order::*;
+use crate::core::{
+    exchanges::common::{CurrencyPair, RestRequestOutcome},
+    orders::pool::OrderRef,
+};
 use anyhow::Result;
 use async_trait::async_trait;
 
@@ -123,8 +126,8 @@ impl ExchangeClient for Binance {
         orders
     }
 
-    async fn request_order_info(&self, order: &OrderSnapshot) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
+    async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(&order.currency_pair());
 
         let url_path = match self.settings.is_marging_trading {
             true => "/fapi/v1/order",
@@ -138,7 +141,7 @@ impl ExchangeClient for Binance {
             ),
             (
                 "origClientOrderId".to_owned(),
-                order.header.client_order_id.as_str().to_owned(),
+                order.client_order_id().as_str().to_owned(),
             ),
         ];
         self.add_authentification_headers(&mut http_params)?;

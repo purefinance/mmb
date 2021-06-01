@@ -10,8 +10,8 @@ use std::borrow::{Borrow, BorrowMut};
 use std::sync::Arc;
 
 use super::{
-    fill::OrderFill, order::OrderRole, order::OrderSide, order::OrderType, order::ReservationId,
-    order::SystemInternalOrderProps,
+    fill::OrderFill, order::OrderCancelling, order::OrderRole, order::OrderSide, order::OrderType,
+    order::ReservationId, order::SystemInternalOrderProps,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +87,19 @@ impl OrderRef {
     }
     pub fn internal_props(&self) -> SystemInternalOrderProps {
         self.fn_ref(|order| order.internal_props.clone())
+    }
+
+    pub fn to_order_cancelling(&self) -> Option<OrderCancelling> {
+        self.fn_ref(|order| {
+            order
+                .props
+                .exchange_order_id
+                .as_ref()
+                .map(|exchange_order_id| OrderCancelling {
+                    header: order.header.clone(),
+                    exchange_order_id: exchange_order_id.clone(),
+                })
+        })
     }
 }
 

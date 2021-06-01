@@ -55,6 +55,8 @@ hex = "0.4.2"
 enum-map = "0.6.4"
 nanoid = "0.3.0"
 
+scopeguard = "1.1.0"
+
 [dev-dependencies]
 rand = "0.8"
 actix-rt = "2.1"
