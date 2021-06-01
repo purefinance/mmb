@@ -140,6 +140,22 @@ mod test {
     };
 
     use super::*;
+    use std::sync::Arc;
+
+    use parking_lot::RwLock;
+    use rust_decimal_macros::dec;
+
+    use crate::core::{
+        exchanges::common::CurrencyPair,
+        exchanges::general::test_helper,
+        orders::order::OrderRole,
+        orders::order::{
+            ClientOrderId, OrderExecutionType, OrderFills, OrderHeader, OrderSide,
+            OrderSimpleProps, OrderSnapshot, OrderStatusHistory, OrderType,
+            SystemInternalOrderProps,
+        },
+        orders::pool::OrdersPool,
+    };
 
     #[test]
     fn no_such_order_in_local_pool() {
@@ -161,23 +177,6 @@ mod test {
 
     mod order_status {
         use super::*;
-        use std::sync::Arc;
-
-        use parking_lot::RwLock;
-        use rust_decimal_macros::dec;
-
-        use crate::core::{
-            exchanges::common::CurrencyPair,
-            exchanges::general::test_helper,
-            orders::order::OrderRole,
-            orders::order::{
-                ClientOrderId, OrderExecutionType, OrderFills, OrderHeader, OrderSide,
-                OrderSimpleProps, OrderSnapshot, OrderStatusHistory, OrderType,
-                SystemInternalOrderProps,
-            },
-            orders::pool::OrdersPool,
-        };
-
         #[test]
         fn order_canceled() {
             // Arrange
@@ -293,5 +292,332 @@ mod test {
             // Assert
             assert!(ok_cause_no_such_order.is_ok());
         }
+    }
+
+    mod order_not_found {
+        use super::*;
+
+        #[test]
+        fn error_type_not_found_no_event() {
+            // Arrange
+            let (exchange, _rx) = get_test_exchange(false);
+            let exchange_order_id = ExchangeOrderId::new("test".into());
+
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_amount = dec!(12);
+            let order_price = dec!(0.2);
+            let order_role = OrderRole::Maker;
+
+            let header = OrderHeader::new(
+                client_order_id.clone(),
+                Utc::now(),
+                exchange.exchange_account_id.clone(),
+                currency_pair.clone(),
+                OrderType::Limit,
+                OrderSide::Buy,
+                order_amount,
+                OrderExecutionType::None,
+                None,
+                None,
+                "FromTest".to_owned(),
+            );
+            let props = OrderSimpleProps::new(
+                Some(order_price),
+                Some(order_role),
+                Some(exchange_order_id.clone()),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                None,
+            );
+            let mut order = OrderSnapshot::new(
+                Arc::new(header),
+                props,
+                OrderFills::default(),
+                OrderStatusHistory::default(),
+                SystemInternalOrderProps::default(),
+            );
+            let order_pool = OrdersPool::new();
+            order.internal_props.is_canceling_from_wait_cancel_order = true;
+            let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
+
+            let error = ExchangeError::new(
+                ExchangeErrorType::OrderNotFound,
+                "Order_not_found".to_owned(),
+                None,
+            );
+
+            // Act
+            let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+                &exchange_order_id,
+                error.clone(),
+                EventSourceType::WebSocket,
+            );
+
+            // Assert
+            assert!(ok_cause_no_such_order.is_ok());
+
+            assert_eq!(order_ref.status(), OrderStatus::Canceled);
+            assert_eq!(
+                order_ref
+                    .internal_props()
+                    .last_cancellation_error
+                    .expect("in test"),
+                error.error_type
+            );
+            assert_eq!(
+                order_ref
+                    .internal_props()
+                    .cancellation_event_source_type
+                    .expect("in test"),
+                EventSourceType::WebSocket,
+            );
+        }
+
+        #[test]
+        fn error_type_not_found_event_from_handler() {
+            // Arrange
+            let (exchange, event_receiver) = get_test_exchange(false);
+            let exchange_order_id = ExchangeOrderId::new("test".into());
+
+            let client_order_id = ClientOrderId::unique_id();
+            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let order_amount = dec!(12);
+            let order_price = dec!(0.2);
+            let order_role = OrderRole::Maker;
+
+            let header = OrderHeader::new(
+                client_order_id.clone(),
+                Utc::now(),
+                exchange.exchange_account_id.clone(),
+                currency_pair.clone(),
+                OrderType::Limit,
+                OrderSide::Buy,
+                order_amount,
+                OrderExecutionType::None,
+                None,
+                None,
+                "FromTest".to_owned(),
+            );
+            let props = OrderSimpleProps::new(
+                Some(order_price),
+                Some(order_role),
+                Some(exchange_order_id.clone()),
+                Default::default(),
+                Default::default(),
+                Default::default(),
+                None,
+            );
+            let mut order = OrderSnapshot::new(
+                Arc::new(header),
+                props,
+                OrderFills::default(),
+                OrderStatusHistory::default(),
+                SystemInternalOrderProps::default(),
+            );
+            order.internal_props.is_canceling_from_wait_cancel_order = false;
+            let order_pool = OrdersPool::new();
+            let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+            test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
+
+            let error = ExchangeError::new(
+                ExchangeErrorType::OrderNotFound,
+                "Order_not_found".to_owned(),
+                None,
+            );
+
+            // Act
+            let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+                &exchange_order_id,
+                error.clone(),
+                EventSourceType::WebSocket,
+            );
+
+            // Assert
+            assert!(ok_cause_no_such_order.is_ok());
+
+            assert_eq!(order_ref.status(), OrderStatus::Canceled);
+            assert_eq!(
+                order_ref
+                    .internal_props()
+                    .last_cancellation_error
+                    .expect("in test"),
+                error.error_type
+            );
+            assert_eq!(
+                order_ref
+                    .internal_props()
+                    .cancellation_event_source_type
+                    .expect("in test"),
+                EventSourceType::WebSocket,
+            );
+
+            let received_event = event_receiver.recv().expect("in test");
+            assert_eq!(
+                received_event.event_type,
+                OrderEventType::CancelOrderSucceeded
+            );
+        }
+    }
+
+    #[test]
+    fn order_completed() {
+        // Arrange
+        let (exchange, _rx) = get_test_exchange(false);
+        let exchange_order_id = ExchangeOrderId::new("test".into());
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let order_amount = dec!(12);
+        let order_price = dec!(0.2);
+        let order_role = OrderRole::Maker;
+
+        let header = OrderHeader::new(
+            client_order_id.clone(),
+            Utc::now(),
+            exchange.exchange_account_id.clone(),
+            currency_pair.clone(),
+            OrderType::Limit,
+            OrderSide::Buy,
+            order_amount,
+            OrderExecutionType::None,
+            None,
+            None,
+            "FromTest".to_owned(),
+        );
+        let props = OrderSimpleProps::new(
+            Some(order_price),
+            Some(order_role),
+            Some(exchange_order_id.clone()),
+            Default::default(),
+            Default::default(),
+            OrderStatus::Created,
+            None,
+        );
+        let order = OrderSnapshot::new(
+            Arc::new(header),
+            props,
+            OrderFills::default(),
+            OrderStatusHistory::default(),
+            SystemInternalOrderProps::default(),
+        );
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
+
+        let error = ExchangeError::new(
+            ExchangeErrorType::OrderCompleted,
+            "Order Completed".to_owned(),
+            None,
+        );
+
+        // Act
+        let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+            &exchange_order_id,
+            error.clone(),
+            EventSourceType::WebSocket,
+        );
+
+        // Assert
+        assert!(ok_cause_no_such_order.is_ok());
+
+        assert_eq!(order_ref.status(), OrderStatus::Created);
+        assert_eq!(
+            order_ref
+                .internal_props()
+                .last_cancellation_error
+                .expect("in test"),
+            error.error_type
+        );
+        assert_eq!(
+            order_ref
+                .internal_props()
+                .cancellation_event_source_type
+                .expect("in test"),
+            EventSourceType::WebSocket,
+        );
+    }
+
+    #[test]
+    fn failed_to_cancel() {
+        // Arrange
+        let (exchange, event_receiver) = get_test_exchange(false);
+        let exchange_order_id = ExchangeOrderId::new("test".into());
+
+        let client_order_id = ClientOrderId::unique_id();
+        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let order_amount = dec!(12);
+        let order_price = dec!(0.2);
+        let order_role = OrderRole::Maker;
+
+        let header = OrderHeader::new(
+            client_order_id.clone(),
+            Utc::now(),
+            exchange.exchange_account_id.clone(),
+            currency_pair.clone(),
+            OrderType::Limit,
+            OrderSide::Buy,
+            order_amount,
+            OrderExecutionType::None,
+            None,
+            None,
+            "FromTest".to_owned(),
+        );
+        let props = OrderSimpleProps::new(
+            Some(order_price),
+            Some(order_role),
+            Some(exchange_order_id.clone()),
+            Default::default(),
+            Default::default(),
+            OrderStatus::Created,
+            None,
+        );
+        let order = OrderSnapshot::new(
+            Arc::new(header),
+            props,
+            OrderFills::default(),
+            OrderStatusHistory::default(),
+            SystemInternalOrderProps::default(),
+        );
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
+        test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
+
+        let error = ExchangeError::new(
+            ExchangeErrorType::Authentication,
+            "Authentication error".to_owned(),
+            None,
+        );
+
+        // Act
+        let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+            &exchange_order_id,
+            error.clone(),
+            EventSourceType::WebSocket,
+        );
+
+        // Assert
+        assert!(ok_cause_no_such_order.is_ok());
+
+        assert_eq!(order_ref.status(), OrderStatus::FailedToCancel);
+        assert_eq!(
+            order_ref
+                .internal_props()
+                .last_cancellation_error
+                .expect("in test"),
+            error.error_type
+        );
+        assert_eq!(
+            order_ref
+                .internal_props()
+                .cancellation_event_source_type
+                .expect("in test"),
+            EventSourceType::WebSocket,
+        );
+
+        let received_event = event_receiver.recv().expect("in test");
+        assert_eq!(received_event.event_type, OrderEventType::CancelOrderFailed);
     }
 }
