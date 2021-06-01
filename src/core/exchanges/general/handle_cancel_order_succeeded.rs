@@ -13,7 +13,6 @@ use super::exchange::Exchange;
 impl Exchange {
     pub(crate) fn handle_cancel_order_succeeded(
         &self,
-        // FIXME continue here, change to Option<ClientOrderId>
         client_order_id: Option<&ClientOrderId>,
         exchange_order_id: &ExchangeOrderId,
         filled_amount: Option<Amount>,
