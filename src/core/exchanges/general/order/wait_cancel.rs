@@ -1,3 +1,4 @@
+use crate::core::nothing_to_do;
 use std::time::Duration;
 
 use crate::core::{
@@ -37,8 +38,8 @@ impl Exchange {
                 let rx = entry.get_mut();
                 // Just wait until order cancelling future completed or operation cancelled
                 tokio::select! {
-                    _ = rx => {}
-                    _ = cancellation_token.when_cancelled() => {}
+                    _ = rx => nothing_to_do(),
+                    _ = cancellation_token.when_cancelled() => nothing_to_do()
                 }
             }
             dashmap::mapref::entry::Entry::Vacant(vacant_entry) => {
