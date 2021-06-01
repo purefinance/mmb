@@ -311,8 +311,8 @@ impl Exchange {
                             Some(exchange_order_id) => {
                                 self.handle_cancel_order_failed(
                                     &exchange_order_id,
-                                new_error,
-                                EventSourceType::RestFallback,
+                                    new_error,
+                                    EventSourceType::RestFallback,
                                 )?;
                             }
                             None => bail!(
