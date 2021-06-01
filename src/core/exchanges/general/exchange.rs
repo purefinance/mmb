@@ -97,7 +97,7 @@ pub struct Exchange {
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(super) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
-    pub(super) wait_cancel_order: DashMap<ClientOrderId, oneshot::Receiver<Result<()>>>,
+    pub(super) wait_cancel_order: DashMap<ClientOrderId, oneshot::Receiver<()>>,
     pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
 }

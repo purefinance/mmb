@@ -443,7 +443,6 @@ impl Exchange {
 
     fn create_order_task(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_created_events.remove(&order.client_order_id()) {
-            // FIXME Why do we need send order here? Mayby just () type?
             let _ = tx.send(());
         }
     }

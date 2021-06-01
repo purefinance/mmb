@@ -57,7 +57,7 @@ impl Exchange {
                         check_order_fills,
                         cancellation_token,
                     )
-                    .await;
+                    .await?;
 
                 let _ = tx.send(outcome);
             }
@@ -82,8 +82,12 @@ impl Exchange {
             return Ok(());
         }
 
-        let is_canceling_from_wait_cancel_order =
-            order.fn_mut(|order| order.internal_props.is_canceling_from_wait_cancel_order);
+        let is_canceling_from_wait_cancel_order = order.fn_mut(|order| {
+            let current = order.internal_props.is_canceling_from_wait_cancel_order;
+            order.internal_props.is_canceling_from_wait_cancel_order = true;
+            current
+        });
+
         if is_canceling_from_wait_cancel_order {
             error!(
                 "Order {} {:?} is already cancelling by wait_cancel_order",
@@ -93,8 +97,6 @@ impl Exchange {
 
             return Ok(());
         }
-
-        order.fn_mut(|order| order.internal_props.is_canceling_from_wait_cancel_order = true);
 
         let order_is_finished_token = cancellation_token.create_linked_token();
 
@@ -127,7 +129,7 @@ impl Exchange {
             // TODO select cance_order_task only if Exchange.AllowedCancelEventSourceType != AllowedEventSourceType.OnlyFallback
 
             tokio::select! {
-                cancel_order_outcome = cancel_order_future => {
+                cancel_order_outcome = cancel_order_future, if self.features.allowed_cancel_event_source_type != AllowedEventSourceType::FallbackOnly => {
                     let cancel_order_outcome = cancel_order_outcome?;
                     self.order_cancelled(
                         &order,
@@ -268,7 +270,6 @@ impl Exchange {
                 return Ok(());
             }
 
-            // FIXME Does the DateTimeService needed?
             order.fn_mut(|order| {
                 order
                     .internal_props
