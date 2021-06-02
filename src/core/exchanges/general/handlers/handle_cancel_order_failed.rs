@@ -1,7 +1,8 @@
 use crate::core::{
-    exchanges::common::ExchangeError, exchanges::general::exchange::Exchange,
-    orders::fill::EventSourceType, orders::order::ExchangeOrderId, orders::order::OrderEventType,
-    orders::order::OrderStatus, orders::pool::OrderRef,
+    exchanges::common::ExchangeError, exchanges::common::ExchangeErrorType,
+    exchanges::general::exchange::Exchange, orders::fill::EventSourceType,
+    orders::order::ExchangeOrderId, orders::order::OrderEventType, orders::order::OrderStatus,
+    orders::pool::OrderRef,
 };
 
 use anyhow::Result;
@@ -95,7 +96,7 @@ impl Exchange {
         event_source_type: EventSourceType,
     ) -> Result<()> {
         match error.error_type {
-            crate::core::exchanges::common::ExchangeErrorType::OrderNotFound => {
+            ExchangeErrorType::OrderNotFound => {
                 self.handle_cancel_order_succeeded(
                     None,
                     &exchange_order_id,
@@ -105,7 +106,7 @@ impl Exchange {
 
                 return Ok(());
             }
-            crate::core::exchanges::common::ExchangeErrorType::OrderCompleted => return Ok(()),
+            ExchangeErrorType::OrderCompleted => return Ok(()),
             _ => {
                 if event_source_type == EventSourceType::RestFallback {
                     // TODO Some metrics
@@ -159,7 +160,7 @@ mod test {
     #[test]
     fn no_such_order_in_local_pool() {
         // Arrange
-        let (exchange, _) = get_test_exchange(false);
+        let (exchange, event_receiver) = get_test_exchange(false);
         let exchange_order_id = ExchangeOrderId::new("test".into());
         let error = ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
@@ -172,6 +173,11 @@ mod test {
 
         // Assert
         assert!(ok_cause_no_such_order.is_ok());
+
+        match event_receiver.try_recv() {
+            Ok(_) => assert!(false),
+            Err(error) => assert_eq!(error, std::sync::mpsc::TryRecvError::Empty),
+        }
     }
 
     mod order_status {
@@ -179,7 +185,7 @@ mod test {
         #[test]
         fn order_canceled() {
             // Arrange
-            let (exchange, _rx) = get_test_exchange(false);
+            let (exchange, event_receiver) = get_test_exchange(false);
             let exchange_order_id = ExchangeOrderId::new("test".into());
             let error =
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
@@ -232,12 +238,17 @@ mod test {
 
             // Assert
             assert!(ok_cause_no_such_order.is_ok());
+
+            match event_receiver.try_recv() {
+                Ok(_) => assert!(false),
+                Err(error) => assert_eq!(error, std::sync::mpsc::TryRecvError::Empty),
+            }
         }
 
         #[test]
         fn order_completed() {
             // Arrange
-            let (exchange, _rx) = get_test_exchange(false);
+            let (exchange, event_receiver) = get_test_exchange(false);
             let exchange_order_id = ExchangeOrderId::new("test".into());
             let error =
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
@@ -290,6 +301,11 @@ mod test {
 
             // Assert
             assert!(ok_cause_no_such_order.is_ok());
+
+            match event_receiver.try_recv() {
+                Ok(_) => assert!(false),
+                Err(error) => assert_eq!(error, std::sync::mpsc::TryRecvError::Empty),
+            }
         }
     }
 
@@ -299,7 +315,7 @@ mod test {
         #[test]
         fn error_type_not_found_no_event() {
             // Arrange
-            let (exchange, _rx) = get_test_exchange(false);
+            let (exchange, event_receiver) = get_test_exchange(false);
             let exchange_order_id = ExchangeOrderId::new("test".into());
 
             let client_order_id = ClientOrderId::unique_id();
@@ -373,6 +389,11 @@ mod test {
                     .expect("in test"),
                 EventSourceType::WebSocket,
             );
+
+            match event_receiver.try_recv() {
+                Ok(_) => assert!(false),
+                Err(error) => assert_eq!(error, std::sync::mpsc::TryRecvError::Empty),
+            }
         }
 
         #[test]
@@ -464,7 +485,7 @@ mod test {
     #[test]
     fn order_completed() {
         // Arrange
-        let (exchange, _rx) = get_test_exchange(false);
+        let (exchange, event_receiver) = get_test_exchange(false);
         let exchange_order_id = ExchangeOrderId::new("test".into());
 
         let client_order_id = ClientOrderId::unique_id();
@@ -537,6 +558,11 @@ mod test {
                 .expect("in test"),
             EventSourceType::WebSocket,
         );
+
+        match event_receiver.try_recv() {
+            Ok(_) => assert!(false),
+            Err(error) => assert_eq!(error, std::sync::mpsc::TryRecvError::Empty),
+        }
     }
 
     #[test]
