@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::{error, warn};
 use parking_lot::Mutex;
 use std::{sync::Arc, thread};
@@ -43,15 +43,16 @@ impl ControlPanel {
 
             match &(*maybe_server) {
                 Some(server) => runtime_handler.block_on(async {
-                    server.stop(true).await;
+                    server.stop(false).await;
 
+                    dbg!(&"SERVER STOPPED");
                     let _ = tx.send(Ok(()));
                 }),
                 None => {
                     let error_message =
                         "Unable to stop ControlPanel because server is not runnning";
                     warn!("{}", error_message);
-                    let _ = tx.send(Ok(()));
+                    let _ = tx.send(Err(anyhow!(error_message)));
                 }
             }
         });
@@ -62,9 +63,11 @@ impl ControlPanel {
     fn start_server(self: Arc<Self>) -> std::io::Result<()> {
         let address = self.address.clone();
 
+        let cloned_self = self.clone();
         let system = Arc::new(rt::System::new());
-        let server = HttpServer::new(|| {
+        let server = HttpServer::new(move || {
             App::new()
+                .data(cloned_self.clone())
                 .service(endpoints::health)
                 .service(endpoints::stop)
                 .service(endpoints::stats)

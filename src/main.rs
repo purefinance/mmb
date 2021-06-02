@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig};
 
 #[allow(dead_code)]
@@ -5,4 +7,7 @@ use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfi
 async fn main() {
     let engine_config = EngineBuildConfig::standard();
     launch_trading_engine::<()>(&engine_config).await;
+
+    tokio::time::sleep(Duration::from_secs(10)).await;
+    dbg!(&"AFTER SLEEP");
 }
