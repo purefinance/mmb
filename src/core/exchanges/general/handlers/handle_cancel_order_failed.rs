@@ -1,10 +1,9 @@
 use crate::core::{
-    exchanges::common::ExchangeError, orders::fill::EventSourceType,
-    orders::order::ExchangeOrderId, orders::order::OrderEventType, orders::order::OrderStatus,
-    orders::pool::OrderRef,
+    exchanges::common::ExchangeError, exchanges::general::exchange::Exchange,
+    orders::fill::EventSourceType, orders::order::ExchangeOrderId, orders::order::OrderEventType,
+    orders::order::OrderStatus, orders::pool::OrderRef,
 };
 
-use super::exchange::Exchange;
 use anyhow::Result;
 use chrono::Utc;
 use log::{error, warn};

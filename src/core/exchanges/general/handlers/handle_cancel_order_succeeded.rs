@@ -1,14 +1,12 @@
 use crate::core::{
     exchanges::common::Amount, exchanges::common::ExchangeAccountId,
-    exchanges::events::AllowedEventSourceType, orders::fill::EventSourceType,
-    orders::order::ClientOrderId, orders::order::ExchangeOrderId, orders::order::OrderEventType,
-    orders::order::OrderStatus, orders::pool::OrderRef,
+    exchanges::events::AllowedEventSourceType, exchanges::general::exchange::Exchange,
+    orders::fill::EventSourceType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
+    orders::order::OrderEventType, orders::order::OrderStatus, orders::pool::OrderRef,
 };
 use anyhow::{bail, Result};
 use chrono::Utc;
 use log::{error, info, warn};
-
-use super::exchange::Exchange;
 
 impl Exchange {
     pub(crate) fn handle_cancel_order_succeeded(
