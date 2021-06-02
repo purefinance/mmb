@@ -5,7 +5,7 @@ use super::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
     general::currency_pair_metadata::CurrencyPairMetadata,
-    general::handle_order_filled::FillEventData,
+    general::handlers::handle_order_filled::FillEventData,
 };
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::orders::fill::EventSourceType;

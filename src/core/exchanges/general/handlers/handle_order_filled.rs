@@ -1,21 +1,19 @@
 use std::sync::Arc;
 
-use super::{
-    commission, currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Round,
-    exchange::Exchange,
-};
 use crate::core::{
     exchanges::common::Amount, exchanges::common::CurrencyCode, exchanges::common::CurrencyPair,
     exchanges::common::ExchangeAccountId, exchanges::common::Price,
-    exchanges::events::AllowedEventSourceType, math::ConvertPercentToRate,
-    orders::fill::EventSourceType, orders::fill::OrderFill, orders::fill::OrderFillType,
-    orders::order::ClientOrderId, orders::order::ExchangeOrderId, orders::order::OrderEventType,
-    orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
-    orders::order::OrderStatus, orders::order::OrderType, orders::pool::OrderRef,
+    exchanges::events::AllowedEventSourceType, exchanges::general::commission::Percent,
+    exchanges::general::currency_pair_metadata::CurrencyPairMetadata,
+    exchanges::general::currency_pair_metadata::Round, exchanges::general::exchange::Exchange,
+    math::ConvertPercentToRate, orders::fill::EventSourceType, orders::fill::OrderFill,
+    orders::fill::OrderFillType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
+    orders::order::OrderEventType, orders::order::OrderRole, orders::order::OrderSide,
+    orders::order::OrderSnapshot, orders::order::OrderStatus, orders::order::OrderType,
+    orders::pool::OrderRef,
 };
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
-use commission::Percent;
 use log::{error, info, warn};
 use parking_lot::RwLock;
 use rust_decimal::Decimal;

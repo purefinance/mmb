@@ -115,7 +115,7 @@ impl Exchange {
         if let Some(ref cancel_outcome) = order_cancellation_outcome {
             match &cancel_outcome.outcome {
                 RequestResult::Success(client_order_id) => self.handle_cancel_order_succeeded(
-                    &client_order_id,
+                    Some(&client_order_id),
                     &order.exchange_order_id,
                     cancel_outcome.filled_amount,
                     cancel_outcome.source_type,
@@ -123,7 +123,7 @@ impl Exchange {
                 RequestResult::Error(error) => {
                     if error.error_type != ExchangeErrorType::ParsingError {
                         self.handle_cancel_order_failed(
-                            order.exchange_order_id.clone(),
+                            &order.exchange_order_id,
                             error.clone(),
                             cancel_outcome.source_type,
                         )?;
@@ -236,7 +236,7 @@ impl Exchange {
                 Ok(())
             }
             None => self.handle_cancel_order_succeeded(
-                &client_order_id,
+                Some(&client_order_id),
                 &exchange_order_id,
                 filled_amount,
                 source_type,

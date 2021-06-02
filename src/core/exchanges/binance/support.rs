@@ -2,7 +2,7 @@ use super::binance::Binance;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
     general::currency_pair_metadata::CurrencyPairMetadata,
-    general::handle_order_filled::FillEventData, traits::Support,
+    general::handlers::handle_order_filled::FillEventData, traits::Support,
 };
 use crate::core::orders::order::*;
 use crate::core::{

@@ -83,7 +83,7 @@ impl Exchange {
 
                 match self.exchange_client.get_order_id(&request_outcome) {
                     Ok(created_order_id) => {
-                        CreateOrderResult::successed(created_order_id, EventSourceType::Rest)
+                        CreateOrderResult::successed(&created_order_id, EventSourceType::Rest)
                     }
                     Err(error) => {
                         let exchange_error = ExchangeError::new(
@@ -105,8 +105,8 @@ impl Exchange {
 
     pub(crate) fn raise_order_created(
         &self,
-        client_order_id: ClientOrderId,
-        exchange_order_id: ExchangeOrderId,
+        client_order_id: &ClientOrderId,
+        exchange_order_id: &ExchangeOrderId,
         source_type: EventSourceType,
     ) {
         if let Some((_, (tx, _))) = self.order_creation_events.remove(&client_order_id) {
