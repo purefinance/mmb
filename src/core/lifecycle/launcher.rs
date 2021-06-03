@@ -12,7 +12,7 @@ use crate::{
     core::exchanges::binance::binance::BinanceBuilder, rest_api::control_panel::ControlPanel,
 };
 use futures::future::join_all;
-use log::info;
+use log::{error, info};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -66,7 +66,9 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
         ));
     }
 
-    ControlPanel::new("127.0.0.1:8080").start();
+    if let Err(error) = ControlPanel::new("127.0.0.1:8080").start() {
+        error!("Unable to start rest api: {}", error.to_string());
+    }
 
     engine_context
 }
