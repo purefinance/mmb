@@ -1,6 +1,6 @@
 use super::control_panel::ControlPanel;
 use actix_web::{get, post, web, HttpResponse, Responder};
-use std::sync::Arc;
+use std::sync::{mpsc::Sender, Arc};
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
 
@@ -11,7 +11,7 @@ pub(super) async fn health() -> impl Responder {
 }
 
 #[post("/stop")]
-pub(super) async fn stop(control_panel: web::Data<Arc<ControlPanel>>) -> impl Responder {
+pub(super) async fn stop(server_stopper_tx: web::Data<Sender<()>>) -> impl Responder {
     let stop_receiver = control_panel.get_ref().clone().stop();
     let outcome = stop_receiver.await;
     dbg!(&"STOP AWAITED");

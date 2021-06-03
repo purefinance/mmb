@@ -11,76 +11,59 @@ use crate::core::lifecycle::trading_engine::Service;
 
 pub(crate) struct ControlPanel {
     address: String,
-    server: Arc<Mutex<Option<Server>>>,
+    // FIXME rename
+    server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
 }
 
 impl ControlPanel {
     pub(crate) fn new(address: &str) -> Arc<Self> {
         Arc::new(Self {
             address: address.to_owned(),
-            server: Arc::new(Mutex::new(None)),
+            server_stopper_tx: Arc::new(Mutex::new(None)),
         })
-    }
-
-    /// Start Actix Server in new thread
-    pub(crate) fn start(self: Arc<Self>) {
-        thread::spawn(move || {
-            if let Err(error) = self.start_server() {
-                error!("Unable start rest api server: {}", error.to_string());
-            }
-        });
     }
 
     /// Stop Actix Server if it is working.
     /// Returned receiver will take a message when shutdown are completed
     pub(crate) fn stop(self: Arc<Self>) -> tokio::sync::oneshot::Receiver<Result<()>> {
         let (tx, rx) = oneshot::channel();
-
-        let cloned_self = self.clone();
-        let runtime_handler = tokio::runtime::Handle::current();
-        thread::spawn(move || {
-            let maybe_server = cloned_self.server.lock();
-
-            match &(*maybe_server) {
-                Some(server) => runtime_handler.block_on(async {
-                    server.stop(false).await;
-
-                    dbg!(&"SERVER STOPPED");
-                    let _ = tx.send(Ok(()));
-                }),
-                None => {
-                    let error_message =
-                        "Unable to stop ControlPanel because server is not runnning";
-                    warn!("{}", error_message);
-                    let _ = tx.send(Err(anyhow!(error_message)));
-                }
-            }
-        });
-
         rx
     }
 
-    fn start_server(self: Arc<Self>) -> std::io::Result<()> {
-        let address = self.address.clone();
-
-        let cloned_self = self.clone();
-        let system = Arc::new(rt::System::new());
+    /// Start Actix Server in new thread
+    pub(crate) fn start(self: Arc<Self>) {
+        let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>();
+        *self.server_stopper_tx.lock() = Some(server_stopper_tx.clone());
         let server = HttpServer::new(move || {
             App::new()
-                .data(cloned_self.clone())
+                .data(server_stopper_rx.clone())
                 .service(endpoints::health)
                 .service(endpoints::stop)
                 .service(endpoints::stats)
         })
         .bind(&address)?
         .shutdown_timeout(1)
-        .workers(1);
+        .workers(1)
+        .run();
 
-        system.block_on(async {
-            *self.server.lock() = Some(server.run());
+        let cloned_server = server.clone();
+        thread::spawn(move || {
+            rx.recv().unwrap();
+
+            executor::block_on(cloned_server.stop(false));
         });
 
-        Ok(())
+        thread::spawn(move || {
+            if let Err(error) = self.start_server(server) {
+                dbg!("Unable start rest api server: {}", error.to_string());
+            }
+        });
+    }
+
+    fn start_server(self: Arc<Self>, server: Server) {
+        let system = Arc::new(rt::System::new());
+
+        system.block_on({ server });
     }
 }
 
