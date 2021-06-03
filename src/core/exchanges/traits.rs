@@ -8,6 +8,8 @@ use super::{
     general::handlers::handle_order_filled::FillEventData,
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
+use crate::core::exchanges::application_manager::ApplicationManager;
+use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{
@@ -20,6 +22,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use log::info;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 // Implementation of rest API client
 #[async_trait]
@@ -60,11 +63,7 @@ pub trait Support: Send + Sync {
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     );
 
-    fn build_ws_main_path(
-        &self,
-        specific_currency_pairs: &[SpecificCurrencyPair],
-        websocket_channels: &[String],
-    ) -> String;
+    fn build_ws_main_path(&self, websocket_channels: &[String]) -> String;
     async fn build_ws_secondary_path(&self) -> Result<String>;
 
     // TODO has to be rewritten. Probably after getting metadata feature
@@ -86,11 +85,22 @@ pub trait Support: Send + Sync {
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>>;
 }
 
+pub struct ExchangeClientBuilderResult {
+    pub client: BoxExchangeClient,
+    pub features: ExchangeFeatures,
+    pub events_tx: broadcast::Sender<ExchangeEvent>,
+    pub events_rx: broadcast::Receiver<ExchangeEvent>,
+}
+
 pub trait ExchangeClientBuilder {
     fn create_exchange_client(
         &self,
         exchange_settings: ExchangeSettings,
-    ) -> (BoxExchangeClient, ExchangeFeatures);
+        events_channel: broadcast::Sender<ExchangeEvent>,
+        application_manager: Arc<ApplicationManager>,
+    ) -> ExchangeClientBuilderResult;
+
+    fn extend_settings(&self, settings: &mut ExchangeSettings);
 
     fn get_timeout_argments(&self) -> RequestTimeoutArguments;
 }

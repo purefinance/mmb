@@ -281,8 +281,7 @@ impl ConnectivityManager {
                 "Getting WebSocket parameters for {}",
                 self.exchange_account_id.clone()
             );
-            let params = self.try_get_websocket_params(role).await;
-            if let Ok(params) = params {
+            if let Ok(params) = self.try_get_websocket_params(role).await {
                 if cancel_websocket_connecting.is_cancellation_requested() {
                     return false;
                 }
@@ -291,6 +290,7 @@ impl ConnectivityManager {
 
                 let websocket_actor = WebSocketActor::open_connection(
                     self.exchange_account_id.clone(),
+                    role,
                     params.clone(),
                     notifier,
                 )
@@ -381,15 +381,15 @@ impl ConnectivityManagerNotifier {
     pub fn notify_websocket_connection_closed(&self, exchange_account_id: &ExchangeAccountId) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
             match connectivity_manager.upgrade() {
-                Some(connectivity_manager) => connectivity_manager.notify_connection_closed(self.websocket_role),
-                None => info!(
-                    "Unable to upgrade weak reference to ConnectivityManager instance. Probably it's dropped",
-                ),
+                Some(connectivity_manager) => {
+                    connectivity_manager.notify_connection_closed(self.websocket_role)
+                }
+                None => info!("Unable to upgrade weak reference to ConnectivityManager instance",),
             }
         } else {
             info!(
-                "WebsocketActor '{}' notify about connection closed (in tests)",
-                exchange_account_id
+                "WebsocketActor {} {:?} notify about connection closed (in tests)",
+                exchange_account_id, self.websocket_role
             )
         }
     }

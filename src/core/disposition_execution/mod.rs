@@ -1,5 +1,17 @@
 pub mod executor;
 pub mod trade_limit;
+mod trading_context_calculation;
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
+
+use derive_getters::Getters;
+use enum_map::{enum_map, EnumMap};
+use log::{error, info};
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
+
 use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, Price, TradePlace, TradePlaceAccount,
 };
@@ -7,14 +19,6 @@ use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::explanation::{Explanation, WithExplanation};
 use crate::core::orders::order::{ClientOrderId, OrderRole, OrderSide};
 use crate::core::orders::pool::OrderRef;
-use derive_getters::Getters;
-use enum_map::EnumMap;
-use log::{error, info};
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct SmallOrder {
@@ -52,6 +56,22 @@ pub struct TradeDisposition {
 }
 
 impl TradeDisposition {
+    pub fn new(
+        trade_place_account: TradePlaceAccount,
+        side: OrderSide,
+        price: Price,
+        amount: Amount,
+    ) -> Self {
+        TradeDisposition {
+            direction: TradeDirection {
+                exchange_account_id: trade_place_account.exchange_account_id,
+                currency_pair: trade_place_account.currency_pair,
+                side,
+            },
+            order: SmallOrder::new(price, amount),
+        }
+    }
+
     pub fn exchange_account_id(&self) -> ExchangeAccountId {
         self.direction.exchange_account_id.clone()
     }
@@ -119,6 +139,15 @@ impl TradingContextBySide {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TradingContext {
     pub by_side: EnumMap<OrderSide, TradingContextBySide>,
+}
+
+impl TradingContext {
+    pub fn new(buy_ctx: TradingContextBySide, sell_ctx: TradingContextBySide) -> Self {
+        TradingContext {
+            // TODO use more typesafe way when it will be available for non-Copy types
+            by_side: EnumMap::from_array([buy_ctx, sell_ctx]),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -305,7 +334,9 @@ struct OrdersState {
 impl OrdersState {
     pub fn new() -> Self {
         OrdersState {
-            by_side: EnumMap::from(OrdersStateBySide::new),
+            by_side: enum_map! {
+                side => OrdersStateBySide::new(side),
+            },
         }
     }
 }

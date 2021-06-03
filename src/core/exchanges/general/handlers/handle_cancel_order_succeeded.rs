@@ -218,7 +218,7 @@ mod test {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
         let order_role = OrderRole::Maker;
@@ -258,7 +258,7 @@ mod test {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
         let order_role = OrderRole::Maker;
@@ -300,7 +300,7 @@ mod test {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
         let order_role = OrderRole::Maker;
@@ -345,7 +345,7 @@ mod test {
         let (exchange, event_receiver) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
         let order_role = OrderRole::Maker;

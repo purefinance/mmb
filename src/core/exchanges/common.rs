@@ -193,7 +193,7 @@ pub struct CurrencyPair(String12);
 
 impl CurrencyPair {
     #[inline]
-    pub fn from_currency_codes(base: CurrencyCode, quote: CurrencyCode) -> Self {
+    pub fn from_codes(base: CurrencyCode, quote: CurrencyCode) -> Self {
         CurrencyPair([base.as_str(), quote.as_str()].join("/").into()) // convention from ccxt
     }
 
@@ -211,7 +211,7 @@ impl Display for CurrencyPair {
 }
 
 /// Exchange id and currency pair
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 pub struct TradePlace {
     pub exchange_id: ExchangeId,
     pub currency_pair: CurrencyPair,

@@ -1,5 +1,6 @@
 use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
+use mmb_lib::core::exchanges::application_manager::ApplicationManager;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
@@ -11,8 +12,8 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::env;
 use std::sync::mpsc::channel;
+use tokio::sync::broadcast;
 use tokio::time::Duration;
 
 use super::common::get_timeout_manager;
@@ -24,15 +25,22 @@ async fn cancellation_waited_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
-        api_key.expect("in test"),
-        secret_key.expect("in test"),
+        api_key,
+        secret_key,
         false,
     );
 
-    let binance =
-        Box::new(Binance::new(settings, exchange_account_id.clone())) as BoxExchangeClient;
+    let application_manager = ApplicationManager::new(CancellationToken::default());
+    let (tx, _) = broadcast::channel(10);
+
+    let binance = Box::new(Binance::new(
+        exchange_account_id.clone(),
+        settings,
+        tx.clone(),
+        application_manager,
+    )) as BoxExchangeClient;
 
     let websocket_host = "wss://stream.binance.com:9443".into();
     let currency_pairs = vec!["PHBBTC".into()];
@@ -62,7 +70,7 @@ async fn cancellation_waited_successfully() {
     exchange.clone().connect().await;
 
     let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),
@@ -118,15 +126,22 @@ async fn cancellation_waited_failed_fallback() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
-        api_key.expect("in test"),
-        secret_key.expect("in test"),
+        api_key,
+        secret_key,
         false,
     );
 
-    let binance =
-        Box::new(Binance::new(settings, exchange_account_id.clone())) as BoxExchangeClient;
+    let application_manager = ApplicationManager::new(CancellationToken::default());
+    let (tx, _) = broadcast::channel(10);
+
+    let binance = Box::new(Binance::new(
+        exchange_account_id.clone(),
+        settings,
+        tx.clone(),
+        application_manager,
+    )) as BoxExchangeClient;
 
     let websocket_host = "wss://stream.binance.com:9443".into();
     let currency_pairs = vec!["PHBBTC".into()];
@@ -156,7 +171,7 @@ async fn cancellation_waited_failed_fallback() {
     exchange.clone().connect().await;
 
     let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),

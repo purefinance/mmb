@@ -189,7 +189,7 @@ mod test {
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
@@ -252,7 +252,7 @@ mod test {
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
@@ -318,7 +318,7 @@ mod test {
             let exchange_order_id = ExchangeOrderId::new("test".into());
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
@@ -400,7 +400,7 @@ mod test {
             let exchange_order_id = ExchangeOrderId::new("test".into());
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
@@ -484,7 +484,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("test".into());
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_amount = dec!(12);
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
@@ -565,7 +565,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("test".into());
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_amount = dec!(12);
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;

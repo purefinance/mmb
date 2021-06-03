@@ -16,6 +16,8 @@ use rust_decimal_macros::*;
 use tokio::time::Duration;
 
 use crate::get_binance_credentials_or_exit;
+use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use tokio::sync::broadcast;
 
 #[actix_rt::test]
 async fn cancelled_successfully() {
@@ -24,26 +26,31 @@ async fn cancelled_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
-        api_key.expect("in test"),
-        secret_key.expect("in test"),
+        api_key,
+        secret_key,
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id.clone());
+    let application_manager = ApplicationManager::new(CancellationToken::default());
+    let (tx, _) = broadcast::channel(10);
+
+    let binance = Box::new(Binance::new(
+        exchange_account_id.clone(),
+        settings,
+        tx.clone(),
+        application_manager.clone(),
+    ));
 
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
-    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
-        currency_pairs,
         channels,
-        Box::new(binance),
+        binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             false,
@@ -52,6 +59,7 @@ async fn cancelled_successfully() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
@@ -59,7 +67,7 @@ async fn cancelled_successfully() {
     exchange.clone().connect().await;
 
     let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),
@@ -124,24 +132,29 @@ async fn nothing_to_cancel() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
-        api_key.expect("in test"),
-        secret_key.expect("in test"),
+        api_key,
+        secret_key,
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id.clone());
+    let application_manager = ApplicationManager::new(CancellationToken::default());
+    let (tx, _) = broadcast::channel(10);
+
+    let binance = Binance::new(
+        exchange_account_id.clone(),
+        settings,
+        tx.clone(),
+        application_manager.clone(),
+    );
 
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
-    let (tx, _) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
-        currency_pairs,
         channels,
         Box::new(binance),
         ExchangeFeatures::new(
@@ -152,13 +165,14 @@ async fn nothing_to_cancel() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
 
     exchange.clone().connect().await;
 
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let generated_client_order_id = ClientOrderId::unique_id();
     let order_header = OrderHeader::new(
         generated_client_order_id.clone(),

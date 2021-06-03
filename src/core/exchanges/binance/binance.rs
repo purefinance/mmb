@@ -1,4 +1,20 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use anyhow::{anyhow, bail, Context, Result};
+use dashmap::DashMap;
+use hex;
+use hmac::{Hmac, Mac, NewMac};
+use log::error;
+use parking_lot::Mutex;
+use serde_json::Value;
+use sha2::Sha256;
+use tokio::sync::broadcast;
+
 use super::support::BinanceOrderInfo;
+use crate::core::exchanges::application_manager::ApplicationManager;
+use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
     common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
@@ -16,15 +32,7 @@ use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
-use anyhow::{anyhow, bail, Context, Result};
-use dashmap::DashMap;
-use hex;
-use hmac::{Hmac, Mac, NewMac};
-use log::error;
-use parking_lot::Mutex;
-use serde_json::Value;
-use sha2::Sha256;
-use std::collections::HashMap;
+use crate::hashmap;
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -38,23 +46,44 @@ pub struct Binance {
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
+
+    pub(super) application_manager: Arc<ApplicationManager>,
+
+    pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
+
+    pub(super) subscribe_to_market_data: bool,
 }
 
 impl Binance {
-    pub fn new(mut settings: ExchangeSettings, id: ExchangeAccountId) -> Self {
-        let unified_phbbtc = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    pub fn new(
+        id: ExchangeAccountId,
+        settings: ExchangeSettings,
+        events_channel: broadcast::Sender<ExchangeEvent>,
+        application_manager: Arc<ApplicationManager>,
+    ) -> Self {
+        // TODO replace with list received from exchange
+        // just the stub
+        let unified_phbbtc = CurrencyPair::from_codes("phb".into(), "btc".into());
+        let unified_ethbtc = CurrencyPair::from_codes("eth".into(), "btc".into());
+        let unified_eosbtc = CurrencyPair::from_codes("eos".into(), "btc".into());
+
         let specific_phbbtc = SpecificCurrencyPair::new("PHBBTC".into());
+        let specific_ethbtc = SpecificCurrencyPair::new("ETHBTC".into());
+        let specific_eosbtc = SpecificCurrencyPair::new("EOSBTC".into());
 
-        let mut unified_to_specific = HashMap::new();
-        unified_to_specific.insert(unified_phbbtc.clone(), specific_phbbtc.clone());
+        let unified_to_specific = hashmap![
+            unified_phbbtc.clone() => specific_phbbtc.clone(),
+            unified_ethbtc.clone() => specific_ethbtc.clone(),
+            unified_eosbtc.clone() => specific_eosbtc.clone()
+        ];
 
-        let mut specific_to_unified = HashMap::new();
-        specific_to_unified.insert(specific_phbbtc, unified_phbbtc);
-
-        Self::extend_settings(&mut settings);
+        let specific_to_unified = hashmap![
+            specific_phbbtc => unified_phbbtc,
+            specific_ethbtc => unified_ethbtc,
+            specific_eosbtc => unified_eosbtc
+        ];
 
         Self {
-            settings,
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
@@ -62,11 +91,15 @@ impl Binance {
             unified_to_specific,
             specific_to_unified,
             supported_currencies: Default::default(),
+            subscribe_to_market_data: settings.subscribe_to_market_data,
+            settings,
+            events_channel,
+            application_manager,
         }
     }
 
     pub async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
-        let url_path = match self.settings.is_marging_trading {
+        let url_path = match self.settings.is_margin_trading {
             true => "/sapi/v1/userDataStream",
             false => "/api/v3/userDataStream",
         };
@@ -74,18 +107,6 @@ impl Binance {
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
         let http_params = rest_client::HttpParams::new();
         rest_client::send_post_request(full_url, &self.settings.api_key, &http_params).await
-    }
-
-    pub fn extend_settings(settings: &mut ExchangeSettings) {
-        if settings.is_marging_trading {
-            settings.web_socket_host = "wss://fstream.binance.com".to_string();
-            settings.web_socket2_host = "wss://fstream3.binance.com".to_string();
-            settings.rest_host = "https://fapi.binance.com".to_string();
-        } else {
-            settings.web_socket_host = "wss://stream.binance.com:9443".to_string();
-            settings.web_socket2_host = "wss://stream.binance.com:9443".to_string();
-            settings.rest_host = "https://api.binance.com".to_string();
-        }
     }
 
     pub async fn reconnect(&mut self) {
@@ -139,7 +160,7 @@ impl Binance {
     }
 
     fn generate_signature(&self, data: String) -> Result<String> {
-        let mut hmac = Hmac::<Sha256>::new_varkey(self.settings.secret_key.as_bytes())
+        let mut hmac = Hmac::<Sha256>::new_from_slice(self.settings.secret_key.as_bytes())
             .context("Unable to calculate hmac")?;
         hmac.update(data.as_bytes());
         let result = hex::encode(&hmac.finalize().into_bytes());
@@ -161,13 +182,24 @@ impl Binance {
         Ok(())
     }
 
-    pub fn get_unified_currency_pair(&self, currency_pair: &SpecificCurrencyPair) -> CurrencyPair {
-        self.specific_to_unified[&currency_pair].clone()
+    pub fn get_unified_currency_pair(
+        &self,
+        currency_pair: &SpecificCurrencyPair,
+    ) -> Result<CurrencyPair> {
+        match self.specific_to_unified.get(&currency_pair) {
+            None => bail!(
+                "Not found currency pair '{:?}' in {}",
+                currency_pair,
+                self.id
+            ),
+            Some(v) => Ok(v.clone()),
+        }
     }
 
     pub(super) fn specific_order_info_to_unified(&self, specific: &BinanceOrderInfo) -> OrderInfo {
         OrderInfo::new(
-            self.get_unified_currency_pair(&specific.specific_currency_pair),
+            self.get_unified_currency_pair(&specific.specific_currency_pair)
+                .expect("expected known currency pair"),
             specific.exchange_order_id.to_string().as_str().into(),
             specific.client_order_id.clone(),
             Self::to_local_order_side(&specific.side),
@@ -187,7 +219,7 @@ impl Binance {
             .as_str()
             .ok_or(anyhow!("Unable to parse client order id"))?;
         let exchange_order_id = json_response["i"].to_string();
-        let exchange_order_id = exchange_order_id.as_str();
+        let exchange_order_id = exchange_order_id.trim_matches('"');
         let execution_type = json_response["x"]
             .as_str()
             .ok_or(anyhow!("Unable to parse execution type"))?;
@@ -236,7 +268,7 @@ impl Binance {
                 "GTX" => {
                     let client_order_id = json_response["C"]
                         .as_str()
-                        .ok_or(anyhow!("Uanble to parse client order id"))?;
+                        .ok_or(anyhow!("Unable to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -277,10 +309,7 @@ impl Binance {
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,
     ) -> Result<FillEventData> {
-        let trade_id = json_response["t"]
-            .as_str()
-            .ok_or(anyhow!("Unable to parse trade id"))?
-            .to_owned();
+        let trade_id = json_response["t"].to_string().trim_matches('"').to_owned();
         let last_filled_price = json_response["L"]
             .as_str()
             .ok_or(anyhow!("Unable to parse last filled price"))?;
@@ -355,19 +384,41 @@ impl ExchangeClientBuilder for BinanceBuilder {
     fn create_exchange_client(
         &self,
         exchange_settings: ExchangeSettings,
-    ) -> (BoxExchangeClient, ExchangeFeatures) {
+        events_channel: broadcast::Sender<ExchangeEvent>,
+        application_manager: Arc<ApplicationManager>,
+    ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
-        (
-            Box::new(Binance::new(exchange_settings, exchange_account_id)) as BoxExchangeClient,
-            ExchangeFeatures::new(
+        let events_rx = events_channel.subscribe();
+        ExchangeClientBuilderResult {
+            client: Box::new(Binance::new(
+                exchange_account_id,
+                exchange_settings,
+                events_channel.clone(),
+                application_manager,
+            )) as BoxExchangeClient,
+            features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 false,
                 false,
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
             ),
-        )
+            events_tx: events_channel,
+            events_rx,
+        }
+    }
+
+    fn extend_settings(&self, settings: &mut ExchangeSettings) {
+        if settings.is_margin_trading {
+            settings.web_socket_host = "wss://fstream.binance.com".to_string();
+            settings.web_socket2_host = "wss://fstream3.binance.com".to_string();
+            settings.rest_host = "https://fapi.binance.com".to_string();
+        } else {
+            settings.web_socket_host = "wss://stream.binance.com:9443".to_string();
+            settings.web_socket2_host = "wss://stream.binance.com:9443".to_string();
+            settings.rest_host = "https://api.binance.com".to_string();
+        }
     }
 
     fn get_timeout_argments(&self) -> RequestTimeoutArguments {
@@ -378,22 +429,29 @@ impl ExchangeClientBuilder for BinanceBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::exchanges::cancellation_token::CancellationToken;
 
     #[test]
     fn generate_signature() {
-        // All values and strings gotten from binane API example
+        // All values and strings gotten from binanсe API example
         let right_value = "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71";
 
         let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
 
-        let settings = ExchangeSettings::new(
+        let settings = ExchangeSettings::new_short(
             exchange_account_id.clone(),
             "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".into(),
             "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".into(),
             false,
         );
 
-        let binance = Binance::new(settings, exchange_account_id);
+        let (tx, _) = broadcast::channel(10);
+        let binance = Binance::new(
+            exchange_account_id,
+            settings,
+            tx,
+            ApplicationManager::new(CancellationToken::default()),
+        );
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.generate_signature(params).expect("in test");
         assert_eq!(result, right_value);

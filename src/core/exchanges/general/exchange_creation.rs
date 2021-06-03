@@ -1,3 +1,12 @@
+use std::sync::Arc;
+
+use itertools::Itertools;
+use log::error;
+use tokio::sync::broadcast;
+
+use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
+use crate::core::exchanges::application_manager::ApplicationManager;
+use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
 use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
 use crate::core::{
@@ -8,12 +17,6 @@ use crate::core::{
     },
     settings::CoreSettings,
 };
-use itertools::Itertools;
-use log::error;
-use std::sync::mpsc::channel;
-use std::sync::Arc;
-
-use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
 
 pub fn create_timeout_manager(
     core_settings: &CoreSettings,
@@ -41,30 +44,39 @@ pub fn create_timeout_manager(
 }
 
 pub async fn create_exchange(
-    exchange_settings: &ExchangeSettings,
+    user_settings: &ExchangeSettings,
     build_settings: &EngineBuildConfig,
+    events_channel: broadcast::Sender<ExchangeEvent>,
+    application_manager: Arc<ApplicationManager>,
     timeout_manager: Arc<TimeoutManager>,
 ) -> Arc<Exchange> {
-    let (exchange_client, features) = build_settings.supported_exchange_clients
-        [&exchange_settings.exchange_account_id.exchange_id]
-        .create_exchange_client(exchange_settings.clone());
+    let exchange_client_builder =
+        &build_settings.supported_exchange_clients[&user_settings.exchange_account_id.exchange_id];
 
-    let (tx, _) = channel();
+    let mut user_settings = user_settings.clone();
+    exchange_client_builder.extend_settings(&mut user_settings);
+    let exchange_client = exchange_client_builder.create_exchange_client(
+        user_settings.clone(),
+        events_channel.clone(),
+        application_manager.clone(),
+    );
+
     let exchange = Exchange::new(
-        exchange_settings.exchange_account_id.clone(),
-        exchange_settings.web_socket_host.clone(),
-        vec![],
-        exchange_settings.websocket_channels.clone(),
-        exchange_client,
-        features,
-        tx,
+        user_settings.exchange_account_id.clone(),
+        user_settings.web_socket_host.clone(),
+        user_settings.websocket_channels.clone(),
+        exchange_client.client,
+        exchange_client.features,
+        events_channel,
+        application_manager,
         timeout_manager.clone(),
         Commission::default(),
     );
 
     exchange.build_metadata().await;
+    exchange.clone().connect().await;
 
-    if let Some(currency_pairs) = &exchange_settings.currency_pairs {
+    if let Some(currency_pairs) = &user_settings.currency_pairs {
         exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]))
     }
 

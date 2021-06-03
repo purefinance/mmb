@@ -14,7 +14,8 @@ impl ExchangeClient for Binance {
     async fn request_metadata(&self) -> Result<RestRequestOutcome> {
         // TODO implement request metadata
         Ok(RestRequestOutcome::new(
-            "".into(),
+            // just stub
+            "[0]".into(),
             awc::http::StatusCode::OK,
         ))
     }
@@ -45,15 +46,12 @@ impl ExchangeClient for Binance {
         if order.header.order_type != OrderType::Market {
             http_params.push(("timeInForce".to_owned(), "GTC".to_owned()));
             http_params.push(("price".to_owned(), order.price.to_string()));
-        }
-
-        if order.header.execution_type == OrderExecutionType::MakerOnly {
+        } else if order.header.execution_type == OrderExecutionType::MakerOnly {
             http_params.push(("timeInForce".to_owned(), "GTX".to_owned()));
         }
         self.add_authentification_headers(&mut http_params)?;
 
-        // TODO What is marging trading?
-        let url_path = match self.settings.is_marging_trading {
+        let url_path = match self.settings.is_margin_trading {
             true => "/fapi/v1/order",
             false => "/api/v3/order",
         };
@@ -66,7 +64,7 @@ impl ExchangeClient for Binance {
     async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome> {
         let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
 
-        let url_path = match self.settings.is_marging_trading {
+        let url_path = match self.settings.is_margin_trading {
             true => "/fapi/v1/order",
             false => "/api/v3/order",
         };
@@ -111,7 +109,7 @@ impl ExchangeClient for Binance {
     }
 
     async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
-        let url_path = match self.settings.is_marging_trading {
+        let url_path = match self.settings.is_margin_trading {
             true => "/fapi/v1/openOrders",
             false => "/api/v3/openOrders",
         };
@@ -129,7 +127,7 @@ impl ExchangeClient for Binance {
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome> {
         let specific_currency_pair = self.get_specific_currency_pair(&order.currency_pair());
 
-        let url_path = match self.settings.is_marging_trading {
+        let url_path = match self.settings.is_margin_trading {
             true => "/fapi/v1/order",
             false => "/api/v3/order",
         };

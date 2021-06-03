@@ -18,30 +18,37 @@ use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 
 use crate::get_binance_credentials_or_exit;
+use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use tokio::sync::broadcast;
 
 #[actix_rt::test]
 async fn create_successfully() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
-        api_key.expect("in test"),
-        secret_key.expect("in test"),
+        api_key,
+        secret_key,
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id.clone());
+    let application_manager = ApplicationManager::new(CancellationToken::new());
+    let (tx, _) = broadcast::channel(10);
+
+    let binance = Binance::new(
+        exchange_account_id.clone(),
+        settings,
+        tx.clone(),
+        application_manager.clone(),
+    );
 
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
-    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
-        currency_pairs,
         channels,
         Box::new(binance),
         ExchangeFeatures::new(
@@ -52,6 +59,7 @@ async fn create_successfully() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
@@ -59,7 +67,7 @@ async fn create_successfully() {
     exchange.clone().connect().await;
 
     let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),
@@ -122,20 +130,26 @@ async fn should_fail() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
 
-    let settings = settings::ExchangeSettings::new(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
-        api_key.expect("in test"),
-        secret_key.expect("in test"),
+        api_key,
+        secret_key,
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id);
+    let application_manager = ApplicationManager::new(CancellationToken::new());
+    let (tx, _) = broadcast::channel(10);
 
-    let (tx, _rx) = channel();
+    let binance = Binance::new(
+        exchange_account_id,
+        settings,
+        tx.clone(),
+        application_manager.clone(),
+    );
+
     let exchange = Exchange::new(
         mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
         "host".into(),
-        vec![],
         vec![],
         Box::new(binance),
         ExchangeFeatures::new(
@@ -146,12 +160,13 @@ async fn should_fail() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
 
     let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),

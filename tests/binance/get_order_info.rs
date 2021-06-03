@@ -23,10 +23,10 @@ async fn get_order_info() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
 
-    let settings = settings::ExchangeSettings::new(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
-        api_key.expect("in test"),
-        secret_key.expect("in test"),
+        api_key,
+        secret_key,
         false,
     );
 
@@ -58,7 +58,7 @@ async fn get_order_info() {
     exchange.clone().connect().await;
 
     let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),

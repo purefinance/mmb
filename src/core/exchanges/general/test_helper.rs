@@ -26,7 +26,7 @@ use std::{
 use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
 pub(crate) fn get_test_exchange(is_derivative: bool) -> (Arc<Exchange>, Receiver<OrderEvent>) {
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
-    let settings = settings::ExchangeSettings::new(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         "test_api_key".into(),
         "test_secret_key".into(),
