@@ -36,7 +36,6 @@ pub struct ShutdownService {
 }
 
 impl ShutdownService {
-    // FIXME change signature to return Arc<Self>
     pub fn register_service(self: Arc<Self>, service: Arc<dyn Service>) -> Arc<Self> {
         trace!("Registered in ShutdownService service '{}'", service.name());
         self.state.lock().services.push(service);
