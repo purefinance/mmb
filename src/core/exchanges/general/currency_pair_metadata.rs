@@ -1,3 +1,8 @@
+use std::sync::Arc;
+
+use anyhow::{bail, Result};
+use rust_decimal_macros::dec;
+
 use crate::core::{
     exchanges::common::Amount,
     exchanges::common::CurrencyCode,
@@ -6,9 +11,6 @@ use crate::core::{
     math::powi,
     orders::order::OrderSide,
 };
-use anyhow::{bail, Result};
-use rust_decimal_macros::dec;
-use std::sync::Arc;
 
 use super::exchange::Exchange;
 
@@ -134,23 +136,41 @@ impl CurrencyPairMetadata {
     }
 
     pub fn price_round(&self, price: Price, round: Round) -> Result<Price> {
-        let tick = self.price_tick;
-        match tick {
-            Some(tick) => Ok(Self::round_by_tick(price, tick, round)?),
-            None => {
-                let price_precision = self.price_precision;
-                let floored = match self.price_precision_type {
-                    PrecisionType::ByFraction => {
-                        Self::round_by_fraction(price, price_precision, round)?
-                    }
-                    PrecisionType::ByMantissa => {
-                        Self::round_by_mantissa(price, price_precision, round)?
-                    }
-                };
-
-                Ok(floored)
-            }
+        if let Some(tick) = self.price_tick {
+            return Self::round_by_tick(price, tick, round);
         }
+
+        let price_precision = self.price_precision;
+        match self.price_precision_type {
+            PrecisionType::ByFraction => Ok(Self::round_by_fraction(price, price_precision, round)),
+            PrecisionType::ByMantissa => Self::round_by_mantissa(price, price_precision, round),
+        }
+    }
+
+    pub fn amount_round(&self, amount: Amount, round: Round) -> Result<Amount> {
+        match self.amount_tick {
+            Some(tick) => Self::round_by_tick(amount, tick, round),
+            None => self.amount_round_pr(amount, round, self.amount_precision),
+        }
+    }
+
+    pub fn amount_round_pr(
+        &self,
+        amount: Amount,
+        round: Round,
+        amount_precision: i8,
+    ) -> Result<Amount> {
+        match self.amount_precision_type {
+            PrecisionType::ByFraction => {
+                Ok(Self::round_by_fraction(amount, amount_precision, round))
+            }
+            PrecisionType::ByMantissa => Self::round_by_mantissa(amount, amount_precision, round),
+        }
+    }
+
+    pub fn round_to_remove_amount_precision_error(&self, amount: Amount) -> Result<Amount> {
+        // allowed machine error that is less then 0.01 * amount precision
+        self.amount_round_pr(amount, Round::ToNearest, self.amount_precision + 2i8)
     }
 
     fn round_by_tick(value: Price, tick: Price, round: Round) -> Result<Price> {
@@ -158,22 +178,22 @@ impl CurrencyPairMetadata {
             bail!("Too small tick: {}", tick)
         }
 
-        Self::inner_round_by_tick(value, tick, round)
+        Ok(Self::inner_round_by_tick(value, tick, round))
     }
 
-    fn inner_round_by_tick(value: Price, tick: Price, round: Round) -> Result<Price> {
+    fn inner_round_by_tick(value: Price, tick: Price, round: Round) -> Price {
         let floor = (value / tick).floor() * tick;
         let ceil = (value / tick).ceil() * tick;
-        match round {
-            Round::Floor => Ok(floor),
-            Round::Ceiling => Ok(ceil),
-            Round::ToNearest => {
-                let mut result = floor;
-                if ceil - value <= value - floor {
-                    result = ceil;
-                }
 
-                return Ok(result);
+        match round {
+            Round::Floor => floor,
+            Round::Ceiling => ceil,
+            Round::ToNearest => {
+                if ceil - value <= value - floor {
+                    ceil
+                } else {
+                    floor
+                }
             }
         }
     }
@@ -185,7 +205,7 @@ impl CurrencyPairMetadata {
 
         let floor_digits = Self::get_precision_digits_by_fractional(value, precision)?;
 
-        Self::round_by_fraction(value, floor_digits, round)
+        Ok(Self::round_by_fraction(value, floor_digits, round))
     }
 
     fn get_precision_digits_by_fractional(value: Price, precision: i8) -> Result<i8> {
@@ -218,14 +238,14 @@ impl CurrencyPairMetadata {
         Ok(floor_digits)
     }
 
-    fn round_by_fraction(value: Price, precision: i8, round: Round) -> Result<Price> {
+    fn round_by_fraction(value: Price, precision: i8, round: Round) -> Price {
         let multiplier = dec!(0.1);
         let pow_precision = powi(multiplier, precision);
 
         Self::inner_round_by_tick(value, pow_precision, round)
     }
 
-    pub fn get_commision_currency_code(&self, side: OrderSide) -> CurrencyCode {
+    pub fn get_commission_currency_code(&self, side: OrderSide) -> CurrencyCode {
         match &self.balance_currency_code {
             Some(balance_currency_code) => balance_currency_code.clone(),
             None => match side {
@@ -254,6 +274,36 @@ impl CurrencyPairMetadata {
         }
 
         bail!("Currency code outside currency pair is not supported yet")
+    }
+
+    pub fn get_min_amount(&self, price: Price) -> Result<Amount> {
+        let min_cost = match self.min_cost {
+            None => {
+                let min_price = match self.min_price {
+                    None => match self.min_amount {
+                        None => bail!("Can't calculate min amount: no data at all"),
+                        Some(min_amount) => return Ok(min_amount),
+                    },
+                    Some(v) => v,
+                };
+
+                let min_amount = match self.min_amount {
+                    None => bail!("Can't calculate min amount: missing min_amount and min_cost"),
+                    Some(v) => v,
+                };
+
+                min_price * min_amount
+            }
+            Some(v) => v,
+        };
+
+        let min_amount_from_cost = min_cost / price;
+        let rounded_amount = self.amount_round(min_amount_from_cost, Round::Ceiling)?;
+
+        Ok(match self.min_amount {
+            None => rounded_amount,
+            Some(min_amount) => min_amount.max(rounded_amount),
+        })
     }
 }
 
@@ -311,7 +361,7 @@ mod test {
             Some(balance_currency_code.clone()),
         );
 
-        let gotten = currency_pair_metadata.get_commision_currency_code(OrderSide::Buy);
+        let gotten = currency_pair_metadata.get_commission_currency_code(OrderSide::Buy);
         assert_eq!(gotten, balance_currency_code);
     }
 
@@ -345,12 +395,9 @@ mod test {
         #[case] precision: i8,
         #[case] round_to: Round,
         #[case] expected: Decimal,
-    ) -> Result<()> {
-        let rounded = CurrencyPairMetadata::round_by_fraction(value, precision, round_to)?;
-
+    ) {
+        let rounded = CurrencyPairMetadata::round_by_fraction(value, precision, round_to);
         assert_eq!(rounded, expected);
-
-        Ok(())
     }
 
     #[rstest]

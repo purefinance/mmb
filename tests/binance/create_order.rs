@@ -1,4 +1,6 @@
-use crate::get_binance_credentials_or_exit;
+use std::env;
+use std::sync::mpsc::channel;
+
 use chrono::Utc;
 use mmb::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
 use mmb_lib::core as mmb;
@@ -7,11 +9,12 @@ use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
+use mmb_lib::core::orders::event::OrderEventType;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::sync::mpsc::channel;
-use std::{env, sync::Arc};
+
+use crate::get_binance_credentials_or_exit;
 
 #[actix_rt::test]
 async fn create_successfully() {
@@ -84,14 +87,15 @@ async fn create_successfully() {
         Ok(order_ref) => {
             let event = rx
                 .recv()
-                .expect("CreateOrderSucceeded event had to be occured");
-            if event.event_type != OrderEventType::CreateOrderSucceeded {
+                .expect("CreateOrderSucceeded event had to be occurred");
+            if let OrderEventType::CreateOrderSucceeded = event.event_type {
+            } else {
                 assert!(false)
             }
 
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
-                header: Arc::new(order_header),
+                header: order_header,
                 exchange_order_id,
             };
 

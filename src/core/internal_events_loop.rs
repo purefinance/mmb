@@ -1,3 +1,11 @@
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use anyhow::{Context, Result};
+use log::warn;
+use parking_lot::Mutex;
+use tokio::sync::{broadcast, oneshot};
+
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::ExchangeEvent;
@@ -6,12 +14,6 @@ use crate::core::lifecycle::trading_engine::Service;
 use crate::core::order_book::event::OrderBookEvent;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::order::OrderType;
-use anyhow::{Context, Result};
-use log::warn;
-use parking_lot::Mutex;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{broadcast, oneshot};
 
 pub(crate) struct InternalEventsLoop {
     work_finished_receiver: Mutex<Option<oneshot::Receiver<Result<()>>>>,
@@ -31,14 +33,14 @@ impl InternalEventsLoop {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         let mut local_snapshots_service = LocalSnapshotsService::default();
-        let (is_work_finished_sender, receiver) = oneshot::channel();
+        let (work_finished_sender, receiver) = oneshot::channel();
         *self.work_finished_receiver.lock() = Some(receiver);
 
         loop {
             let event = tokio::select! {
                 event_res = events_receiver.recv() => event_res.context("Error during receiving event in InternalEventsLoop::start()")?,
                 _ = cancellation_token.when_cancelled() => {
-                    let _ = is_work_finished_sender.send(Ok(()));
+                    let _ = work_finished_sender.send(Ok(()));
                     return Ok(());
                 }
             };

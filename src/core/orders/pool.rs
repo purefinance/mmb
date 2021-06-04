@@ -1,17 +1,18 @@
-use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, TradePlaceAccount};
-use crate::core::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
-};
+use std::borrow::{Borrow, BorrowMut};
+use std::sync::Arc;
+
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use std::borrow::{Borrow, BorrowMut};
-use std::sync::Arc;
 
 use super::{
     fill::OrderFill, order::OrderCancelling, order::OrderRole, order::OrderSide, order::OrderType,
-    order::ReservationId, order::SystemInternalOrderProps,
+    order::ReservationId,
+};
+use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, TradePlaceAccount};
+use crate::core::orders::order::{
+    ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,11 +83,15 @@ impl OrderRef {
         self.fn_ref(|order| order.clone())
     }
 
+    pub fn filled_amount(&self) -> Amount {
+        self.fn_ref(|order| order.fills.filled_amount)
+    }
     pub fn get_fills(&self) -> (Vec<OrderFill>, Amount) {
         self.fn_ref(|order| (order.fills.fills.clone(), order.fills.filled_amount))
     }
-    pub fn internal_props(&self) -> SystemInternalOrderProps {
-        self.fn_ref(|order| order.internal_props.clone())
+
+    pub fn is_external_order(&self) -> bool {
+        self.fn_ref(|s| s.header.order_type.is_external_order())
     }
 
     pub fn to_order_cancelling(&self) -> Option<OrderCancelling> {
@@ -137,14 +142,19 @@ impl OrdersPool {
 
     /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
     pub fn add_simple_initial(&self, header: Arc<OrderHeader>, price: Option<Decimal>) -> OrderRef {
-        let snapshot = Arc::new(RwLock::new(OrderSnapshot {
-            props: OrderSimpleProps::from_price(price),
-            header,
-            fills: Default::default(),
-            status_history: Default::default(),
-            internal_props: Default::default(),
-        }));
+        match self.cache_by_client_id.get(&header.client_order_id) {
+            None => {
+                let snapshot = Arc::new(RwLock::new(OrderSnapshot {
+                    props: OrderSimpleProps::from_price(price),
+                    header,
+                    fills: Default::default(),
+                    status_history: Default::default(),
+                    internal_props: Default::default(),
+                }));
 
-        self.add_snapshot_initial(snapshot)
+                self.add_snapshot_initial(snapshot)
+            }
+            Some(order_ref) => order_ref.clone(),
+        }
     }
 }

@@ -1,9 +1,12 @@
-use crate::core::nothing_to_do;
-use anyhow::{bail, Result};
-use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+use anyhow::{bail, Result};
+use parking_lot::Mutex;
 use tokio::sync::Notify;
+
+use crate::core::exchanges::common::OPERATION_CANCELED_MSG;
+use crate::core::nothing_to_do;
 
 #[derive(Default)]
 struct CancellationState {
@@ -41,11 +44,10 @@ impl CancellationToken {
 
     /// Returns Result::Err() if cancellation requested, otherwise Ok(())
     pub fn error_if_cancellation_requested(&self) -> Result<()> {
-        if self.is_cancellation_requested() {
-            bail!("Cancellation was already requested")
+        match self.is_cancellation_requested() {
+            true => bail!(OPERATION_CANCELED_MSG),
+            false => Ok(()),
         }
-
-        Ok(())
     }
 
     pub async fn when_cancelled(&self) {

@@ -1,3 +1,16 @@
+use std::pin::Pin;
+use std::sync::mpsc;
+use std::sync::Arc;
+
+use anyhow::{bail, Context, Error, Result};
+use awc::http::StatusCode;
+use dashmap::DashMap;
+use futures::Future;
+use log::{info, warn, Level};
+use parking_lot::Mutex;
+use serde_json::Value;
+use tokio::sync::{broadcast, oneshot};
+
 use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
@@ -5,7 +18,8 @@ use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
-use crate::core::orders::order::{OrderEventType, OrderHeader};
+use crate::core::orders::event::OrderEventType;
+use crate::core::orders::order::OrderHeader;
 use crate::core::orders::pool::OrdersPool;
 use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
 use crate::core::{
@@ -26,17 +40,6 @@ use crate::core::{
     exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
-use anyhow::{bail, Context, Error, Result};
-use awc::http::StatusCode;
-use dashmap::DashMap;
-use futures::Future;
-use log::{info, warn, Level};
-use parking_lot::Mutex;
-use serde_json::Value;
-use std::pin::Pin;
-use std::sync::mpsc;
-use std::sync::Arc;
-use tokio::sync::{broadcast, oneshot};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult<T> {
@@ -152,9 +155,7 @@ impl Exchange {
         self.connectivity_manager
             .set_callback_msg_received(Box::new(move |data| match exchange_weak.upgrade() {
                 Some(exchange) => exchange.on_websocket_message(data),
-                None => info!(
-                    "Unable to upgrade weak reference to Exchange instance. Probably it's dropped"
-                ),
+                None => info!("Unable to upgrade weak reference to Exchange instance"),
             }));
     }
 
@@ -165,9 +166,7 @@ impl Exchange {
                 Some(exchange) => {
                     exchange.raise_order_created(&client_order_id, &exchange_order_id, source_type)
                 }
-                None => info!(
-                    "Unable to upgrade weak reference to Exchange instance. Probably it's dropped",
-                ),
+                None => info!("Unable to upgrade weak reference to Exchange instance",),
             },
         ));
 
@@ -182,9 +181,7 @@ impl Exchange {
                         source_type,
                     );
                 }
-                None => info!(
-                    "Unable to upgrade weak reference to Exchange instance. Probably it's dropped",
-                ),
+                None => info!("Unable to upgrade weak reference to Exchange instance",),
             },
         ));
 
@@ -196,9 +193,7 @@ impl Exchange {
                         // TODO Log error and graceful shutdown
                         let _ = exchange.handle_order_filled(event_data);
                     }
-                    None => info!(
-                        "Unable to upgrade weak reference to Exchange instance. Probably it's dropped",
-                    ),
+                    None => info!("Unable to upgrade weak reference to Exchange instance",),
                 }
             }));
     }
@@ -461,7 +456,7 @@ impl Exchange {
         order_ref: &OrderRef,
         event_type: OrderEventType,
     ) -> Result<()> {
-        if event_type == OrderEventType::CancelOrderSucceeded {
+        if let OrderEventType::CancelOrderSucceeded = event_type {
             order_ref.fn_mut(|order| order.internal_props.was_cancellation_event_raised = true)
         }
 
@@ -472,10 +467,9 @@ impl Exchange {
                 .remove(&order_ref.client_order_id());
         }
 
-        let order_event = OrderEvent::new(order_ref.clone(), order_ref.status(), event_type, None);
         self.event_channel
             .lock()
-            .send(order_event)
+            .send(OrderEvent::new(order_ref.clone(), event_type))
             .context("Unable to send event. Probably receiver is already dropped")?;
 
         Ok(())

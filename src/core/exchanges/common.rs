@@ -1,12 +1,13 @@
+use std::fmt::{self, Display, Formatter};
+use std::str::FromStr;
+use std::{collections::BTreeMap, time::Duration};
+
 use awc::http::StatusCode;
 use itertools::Itertools;
 use regex::Regex;
 use rust_decimal::*;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
-use std::fmt::{self, Display, Formatter};
-use std::str::FromStr;
-use std::{collections::BTreeMap, time::Duration};
 
 pub type Price = Decimal;
 pub type Amount = Decimal;
@@ -179,6 +180,12 @@ impl From<&str> for CurrencyCode {
     }
 }
 
+impl Display for CurrencyCode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 /// Unified format currency pair for this framework
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -194,6 +201,12 @@ impl CurrencyPair {
     #[inline]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+}
+
+impl Display for CurrencyPair {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
@@ -256,7 +269,7 @@ impl ExchangeError {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum ExchangeErrorType {
     Unknown,
     SendError,

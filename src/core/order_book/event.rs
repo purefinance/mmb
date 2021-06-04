@@ -1,7 +1,8 @@
+use derive_getters::Dissolve;
+
 use crate::core::exchanges::common::*;
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::DateTime;
-use derive_getters::Dissolve;
 
 /// Possible variants of OrderBookEvent
 #[derive(Debug, Copy, Clone)]
@@ -16,7 +17,7 @@ pub enum EventType {
 #[derive(Debug, Dissolve, Clone)]
 pub struct OrderBookEvent {
     id: u128,
-    creation_time: DateTime,
+    pub creation_time: DateTime,
     exchange_account_id: ExchangeAccountId,
     currency_pair: CurrencyPair,
 

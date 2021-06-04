@@ -1,3 +1,14 @@
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
+use anyhow::Result;
+use dashmap::DashMap;
+use futures::future::join_all;
+use itertools::Itertools;
+use log::info;
+use tokio::sync::oneshot;
+
 use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::block_reasons;
 use crate::core::exchanges::cancellation_token::CancellationToken;
@@ -6,17 +17,9 @@ use crate::core::exchanges::events::ExchangeEvents;
 use crate::core::exchanges::exchange_blocker::BlockType;
 use crate::core::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::core::exchanges::general::exchange::Exchange;
+use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::lifecycle::shutdown::ShutdownService;
 use crate::core::settings::CoreSettings;
-use anyhow::Result;
-use dashmap::DashMap;
-use futures::future::join_all;
-use itertools::Itertools;
-use log::info;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use tokio::sync::oneshot;
 
 pub trait Service: Send + Sync + 'static {
     fn name(&self) -> &str;
@@ -30,6 +33,7 @@ pub struct EngineContext {
     pub shutdown_service: Arc<ShutdownService>,
     pub exchange_blocker: Arc<ExchangeBlocker>,
     pub application_manager: Arc<ApplicationManager>,
+    pub timeout_manager: Arc<TimeoutManager>,
     is_graceful_shutdown_started: AtomicBool,
     exchange_events: ExchangeEvents,
 }
@@ -44,12 +48,15 @@ impl EngineContext {
 
         let application_manager = ApplicationManager::new(CancellationToken::new());
 
+        let timeout_manager = TimeoutManager::new();
+
         let engine_context = Arc::new(EngineContext {
             app_settings,
             exchanges: Default::default(),
             shutdown_service: Default::default(),
             exchange_blocker: ExchangeBlocker::new(exchange_account_ids),
             application_manager: application_manager.clone(),
+            timeout_manager,
             is_graceful_shutdown_started: Default::default(),
             exchange_events,
         });

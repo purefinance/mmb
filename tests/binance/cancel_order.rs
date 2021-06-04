@@ -1,4 +1,6 @@
-use crate::get_binance_credentials_or_exit;
+use std::env;
+use std::sync::mpsc::channel;
+
 use chrono::Utc;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
@@ -11,9 +13,9 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::sync::mpsc::channel;
-use std::{env, sync::Arc};
 use tokio::time::Duration;
+
+use crate::get_binance_credentials_or_exit;
 
 #[actix_rt::test]
 async fn cancelled_successfully() {
@@ -92,7 +94,7 @@ async fn cancelled_successfully() {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
-                header: Arc::new(order_header),
+                header: order_header,
                 exchange_order_id,
             };
 
@@ -171,7 +173,7 @@ async fn nothing_to_cancel() {
     );
 
     let order_to_cancel = OrderCancelling {
-        header: Arc::new(order_header),
+        header: order_header,
         exchange_order_id: "1234567890".into(),
     };
 

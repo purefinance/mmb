@@ -1,3 +1,6 @@
+use rust_decimal::Decimal;
+use tokio::sync::broadcast;
+
 use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price,
 };
@@ -5,8 +8,6 @@ use crate::core::order_book::event::OrderBookEvent;
 use crate::core::orders::event::OrderEvent;
 use crate::core::orders::order::OrderSide;
 use crate::core::DateTime;
-use rust_decimal::Decimal;
-use tokio::sync::broadcast;
 
 pub const CHANNEL_MAX_EVENTS_COUNT: usize = 200_000;
 
@@ -32,6 +33,7 @@ pub const LIQUIDATION_PRICE_CURRENT_VERSION: u32 = 1;
 #[derive(Debug, Clone)]
 pub struct LiquidationPriceEvent {
     pub version: u32,
+    pub event_creation_time: DateTime,
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
     pub liq_price: Price,
@@ -42,6 +44,7 @@ pub struct LiquidationPriceEvent {
 
 impl LiquidationPriceEvent {
     pub fn new(
+        event_creation_time: DateTime,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
         liq_price: Price,
@@ -50,6 +53,7 @@ impl LiquidationPriceEvent {
     ) -> Self {
         LiquidationPriceEvent {
             version: LIQUIDATION_PRICE_CURRENT_VERSION,
+            event_creation_time,
             exchange_account_id,
             currency_pair,
             liq_price,
