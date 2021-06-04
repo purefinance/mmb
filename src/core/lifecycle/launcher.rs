@@ -12,7 +12,7 @@ use crate::{
     core::exchanges::binance::binance::BinanceBuilder, rest_api::control_panel::ControlPanel,
 };
 use futures::future::join_all;
-use log::info;
+use log::{error, info};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -53,12 +53,16 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
 
     let engine_context = EngineContext::new(settings.core.clone(), exchange_events);
 
+    let internal_events_loop = InternalEventsLoop::new();
+    let control_panel = ControlPanel::new("127.0.0.1:8080");
+    engine_context
+        .shutdown_service
+        .clone()
+        .register_service(internal_events_loop.clone())
+        .register_service(control_panel.clone());
+
     {
         let exchanges_map = exchanges_map.clone();
-        let internal_events_loop = InternalEventsLoop::new();
-        engine_context
-            .shutdown_service
-            .register_service(internal_events_loop.clone());
         let _ = tokio::spawn(internal_events_loop.start(
             events_receiver,
             exchanges_map,
@@ -66,7 +70,9 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
         ));
     }
 
-    ControlPanel::new("127.0.0.1:8080").start();
+    if let Err(error) = control_panel.start() {
+        error!("Unable to start rest api: {}", error);
+    }
 
     engine_context
 }
