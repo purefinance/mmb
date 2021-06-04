@@ -71,7 +71,6 @@ impl ControlPanel {
             if let Err(error) = server_stopper_rx.recv() {
                 error!("Unable to receive signal to stop actix server: {}", error);
             }
-            dbg!(&"STOP REQUESTED");
 
             executor::block_on(server.stop(true));
 

@@ -6,15 +6,15 @@ use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfi
 #[actix_web::main]
 async fn main() {
     let engine_config = EngineBuildConfig::standard();
-    let engine_context = launch_trading_engine::<()>(&engine_config).await;
+    let _engine_context = launch_trading_engine::<()>(&engine_config).await;
 
-    // TODO delete it
+    // TODO repace it with event loop in the future
     //engine_context
     //    .application_manager
     //    .clone()
     //    .spawn_graceful_shutdown("test".to_owned());
 
-    // TODO delete it
+    // TODO repace it with event loop in the future
     tokio::time::sleep(Duration::from_secs(10)).await;
     dbg!(&"AFTER SLEEP");
 }

@@ -53,16 +53,16 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
 
     let engine_context = EngineContext::new(settings.core.clone(), exchange_events);
 
+    let internal_events_loop = InternalEventsLoop::new();
     let control_panel = ControlPanel::new("127.0.0.1:8080");
+    engine_context
+        .shutdown_service
+        .clone()
+        .register_service(internal_events_loop.clone())
+        .register_service(control_panel.clone());
+
     {
         let exchanges_map = exchanges_map.clone();
-        let internal_events_loop = InternalEventsLoop::new();
-        engine_context
-            .shutdown_service
-            .register_service(internal_events_loop.clone());
-        engine_context
-            .shutdown_service
-            .register_service(control_panel.clone());
         let _ = tokio::spawn(internal_events_loop.start(
             events_receiver,
             exchanges_map,

@@ -36,9 +36,11 @@ pub struct ShutdownService {
 }
 
 impl ShutdownService {
-    pub fn register_service(&self, service: Arc<dyn Service>) {
+    // FIXME change signature to return Arc<Self>
+    pub fn register_service(self: Arc<Self>, service: Arc<dyn Service>) -> Arc<Self> {
         trace!("Registered in ShutdownService service '{}'", service.name());
         self.state.lock().services.push(service);
+        self
     }
 
     pub fn register_actor(&self, name: String, actor: Recipient<GracefulShutdownMsg>) {
@@ -201,10 +203,10 @@ mod tests {
             }
         }
 
-        let shutdown_service = ShutdownService::default();
+        let shutdown_service = Arc::new(ShutdownService::default());
 
         let test = TestService::new();
-        shutdown_service.register_service(test);
+        shutdown_service.clone().register_service(test);
 
         let not_dropped_services = shutdown_service.graceful_shutdown().await;
         assert_eq!(not_dropped_services.len(), 0);
@@ -237,12 +239,12 @@ mod tests {
             }
         }
 
-        let shutdown_service = ShutdownService::default();
+        let shutdown_service = Arc::new(ShutdownService::default());
 
         let test = RefTestService::new();
         let clone = test.clone();
         test.set_ref(clone);
-        shutdown_service.register_service(test);
+        shutdown_service.clone().register_service(test);
 
         let not_dropped_services = shutdown_service.graceful_shutdown().await;
         assert_eq!(not_dropped_services, vec![REF_TEST_SERVICE.to_string()]);
