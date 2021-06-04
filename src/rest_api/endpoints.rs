@@ -12,10 +12,7 @@ pub(super) async fn health() -> impl Responder {
 #[post("/stop")]
 pub(super) async fn stop(server_stopper_tx: web::Data<Sender<()>>) -> impl Responder {
     if let Err(error) = server_stopper_tx.send(()) {
-        error!(
-            "Unable to send signal to stop actix server: {}",
-            error.to_string()
-        );
+        error!("Unable to send signal to stop actix server: {}", error);
     }
 
     HttpResponse::Ok().body("ControlPanel turned off")

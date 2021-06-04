@@ -6,7 +6,13 @@ use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfi
 #[actix_web::main]
 async fn main() {
     let engine_config = EngineBuildConfig::standard();
-    launch_trading_engine::<()>(&engine_config).await;
+    let engine_context = launch_trading_engine::<()>(&engine_config).await;
+
+    // TODO delete it
+    //engine_context
+    //    .application_manager
+    //    .clone()
+    //    .spawn_graceful_shutdown("test".to_owned());
 
     // TODO delete it
     tokio::time::sleep(Duration::from_secs(10)).await;

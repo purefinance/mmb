@@ -30,6 +30,12 @@ impl ControlPanel {
 
     /// Returned receiver will take a message when shutdown are completed
     pub(crate) fn stop(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
+        if let Some(server_stopper_tx) = self.server_stopper_tx.lock().take() {
+            if let Err(error) = server_stopper_tx.send(()) {
+                error!("Unable to send signal to stop actix server: {}", error);
+            }
+        }
+
         let work_finished_receiver = self.work_finished_receiver.lock().take();
         work_finished_receiver
     }
@@ -63,13 +69,11 @@ impl ControlPanel {
         let cloned_self = self.clone();
         thread::spawn(move || {
             if let Err(error) = server_stopper_rx.recv() {
-                error!(
-                    "Unable to receive signal to stop actix server: {}",
-                    error.to_string()
-                );
+                error!("Unable to receive signal to stop actix server: {}", error);
             }
+            dbg!(&"STOP REQUESTED");
 
-            executor::block_on(server.stop(false));
+            executor::block_on(server.stop(true));
 
             if let Some(work_finished_sender) = cloned_self.work_finished_sender.lock().take() {
                 if let Err(_) = work_finished_sender.send(Ok(())) {
