@@ -788,11 +788,12 @@ fn prepare_estimate_trading_context(event: &ExchangeEvent) -> Option<InitEstimat
     }
 }
 
+// TODO implement
 fn estimate_trading_context(
     prepare_state: &Option<InitEstimation>,
-    local_snapshots_service: &LocalSnapshotsService,
+    _local_snapshots_service: &LocalSnapshotsService,
 ) -> Result<Option<TradingContext>> {
-    let prepare_state = match prepare_state {
+    let _prepare_state = match prepare_state {
         None => return Ok(None),
         Some(v) => v,
     };
