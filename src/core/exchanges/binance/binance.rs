@@ -239,6 +239,8 @@ impl Binance {
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
+                    dbg!(&"NEW ORDER");
+                    dbg!(&client_order_id);
                     (&self.order_created_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -252,9 +254,12 @@ impl Binance {
             },
             "CANCELED" => match order_status {
                 "CANCELED" => {
+                    dbg!(&"ORDER CANCELLED");
+                    dbg!(&client_order_id);
                     let client_order_id = json_response["C"]
                         .as_str()
                         .ok_or(anyhow!("Unable to parse client order id"))?;
+                    dbg!(&client_order_id);
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
