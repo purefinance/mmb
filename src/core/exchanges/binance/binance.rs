@@ -221,9 +221,18 @@ impl Binance {
     }
 
     pub(super) fn handle_trade(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
-        let client_order_id = json_response["c"]
+        let original_client_order_id = json_response["C"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse client order id"))?;
+            .ok_or(anyhow!("Unable to parse original client order id"))?;
+
+        let client_order_id = if original_client_order_id.is_empty() {
+            json_response["c"]
+                .as_str()
+                .ok_or(anyhow!("Unable to parse client order id"))?
+        } else {
+            original_client_order_id
+        };
+
         let exchange_order_id = json_response["i"].to_string();
         let exchange_order_id = exchange_order_id.trim_matches('"');
         let execution_type = json_response["x"]
@@ -239,8 +248,6 @@ impl Binance {
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
-                    dbg!(&"NEW ORDER");
-                    dbg!(&client_order_id);
                     (&self.order_created_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -254,12 +261,6 @@ impl Binance {
             },
             "CANCELED" => match order_status {
                 "CANCELED" => {
-                    dbg!(&"ORDER CANCELLED");
-                    dbg!(&client_order_id);
-                    let client_order_id = json_response["C"]
-                        .as_str()
-                        .ok_or(anyhow!("Unable to parse client order id"))?;
-                    dbg!(&client_order_id);
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -277,9 +278,6 @@ impl Binance {
             }
             "EXPIRED" => match time_in_force {
                 "GTX" => {
-                    let client_order_id = json_response["C"]
-                        .as_str()
-                        .ok_or(anyhow!("Unable to parse client order id"))?;
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
