@@ -125,7 +125,7 @@ impl Exchange {
             );
 
             // TODO timeout_manager.reserve_when_available()
-            self.timeo
+            //self.timeot_manager.reserver_when_available();
 
             let cancel_order_future = self.start_cancel_order(&order, cancellation_token.clone());
 

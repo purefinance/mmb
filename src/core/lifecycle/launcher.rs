@@ -42,11 +42,14 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
     info!("Bot started session");
 
     let settings = load_settings::<TSettings>().await;
+    // FIXME Return (exchanges, RequestTimeoutManager)
+    // Save arc to request_timeout_manager in exchange
     let exchanges = create_exchanges(&settings.core, build_settings).await;
     let exchanges_map: HashMap<_, _> = exchanges
         .into_iter()
         .map(|x| (x.exchange_account_id.clone(), x))
         .collect();
+    // FIXME Create TimeoutManager and pass it to the engine_context
 
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
     let exchange_events = ExchangeEvents::new(events_sender);

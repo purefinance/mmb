@@ -21,6 +21,7 @@ impl RequestsTimeoutManagerFactory {
 
     pub fn from_requests_per_period(
         timeout_arguments: RequestTimeoutArguments,
+        // FIXME Evgeniy, that argument is useless here, let's delete it
         exchange_account_id: ExchangeAccountId,
     ) -> Arc<RequestsTimeoutManager> {
         let trigger_scheduler = MoreOrEqualsAvailableRequestsCountTriggerScheduler::new();
