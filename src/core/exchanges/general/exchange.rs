@@ -13,15 +13,21 @@ use tokio::sync::{broadcast, oneshot};
 
 use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
-use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
-use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
+use crate::core::exchanges::{
+    cancellation_token::CancellationToken,
+    timeouts::requests_timeout_manager::RequestsTimeoutManager,
+};
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::OrderHeader;
 use crate::core::orders::pool::OrdersPool;
 use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
+use crate::core::{
+    connectivity::connectivity_manager::GetWSParamsCallback,
+    exchanges::timeouts::timeout_manager::TimeoutManager,
+};
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::common::ExchangeAccountId,
@@ -95,6 +101,8 @@ pub struct Exchange {
     pub(super) features: ExchangeFeatures,
     pub(super) event_channel: Mutex<mpsc::Sender<OrderEvent>>,
     application_manager: Arc<ApplicationManager>,
+    // FIXME How does it connected with EngineContext TimeoutManager?
+    pub(crate) request_timeout_manager: RequestsTimeoutManager,
     pub(super) commission: Commission,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
@@ -133,6 +141,7 @@ impl Exchange {
             supported_symbols: Default::default(),
             // TODO in the future application_manager have to be passed as parameter
             application_manager: ApplicationManager::new(CancellationToken::new()),
+            timeout_manager: TimeoutManager::new(),
             features,
             event_channel: Mutex::new(event_channel),
             commission,

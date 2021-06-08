@@ -124,7 +124,8 @@ impl Exchange {
                 self.exchange_account_id
             );
 
-            // TODO timeout_manager.reserver_when_available()
+            // TODO timeout_manager.reserve_when_available()
+            self.timeo
 
             let cancel_order_future = self.start_cancel_order(&order, cancellation_token.clone());
 
