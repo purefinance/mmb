@@ -6,7 +6,7 @@ use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::Future;
-use log::{info, warn, Level};
+use log::{error, info, warn, Level};
 use parking_lot::Mutex;
 use serde_json::Value;
 use tokio::sync::{broadcast, oneshot};
@@ -174,12 +174,20 @@ impl Exchange {
         self.exchange_client.set_order_cancelled_callback(Box::new(
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
-                    // TODO Log error and graceful shutdown
-                    let _ = exchange.raise_order_cancelled(
+                    let raise_outcome = exchange.raise_order_cancelled(
                         client_order_id,
                         exchange_order_id,
                         source_type,
                     );
+
+                    if let Err(error) = raise_outcome {
+                        let error_message = format!("Error in raise_order_cancelled: {}", error);
+                        error!("{}", error_message);
+                        exchange
+                            .application_manager
+                            .clone()
+                            .spawn_graceful_shutdown(error_message);
+                    };
                 }
                 None => info!("Unable to upgrade weak reference to Exchange instance",),
             },
@@ -190,8 +198,16 @@ impl Exchange {
             .set_handle_order_filled_callback(Box::new(move |event_data| {
                 match exchange_weak.upgrade() {
                     Some(exchange) => {
-                        // TODO Log error and graceful shutdown
-                        let _ = exchange.handle_order_filled(event_data);
+                        let handle_outcome = exchange.handle_order_filled(event_data);
+
+                        if let Err(error) = handle_outcome {
+                            let error_message = format!("Error in handle_order_filled: {}", error);
+                            error!("{}", error_message);
+                            exchange
+                                .application_manager
+                                .clone()
+                                .spawn_graceful_shutdown(error_message);
+                        };
                     }
                     None => info!("Unable to upgrade weak reference to Exchange instance",),
                 }
