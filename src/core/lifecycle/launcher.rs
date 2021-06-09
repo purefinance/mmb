@@ -50,7 +50,6 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
     let settings = load_settings::<TSettings>().await;
 
     let (exchanges, timeout_manager) = create_exchanges(&settings.core, build_settings).await;
-    // FIXME What type needed here?
     let exchanges_map: DashMap<_, _> = exchanges
         .into_iter()
         .map(|exchange| (exchange.exchange_account_id.clone(), exchange))
@@ -76,7 +75,6 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
 
     {
         let mut local_exchanges_map = HashMap::new();
-        // FIXME What type needed here?
         exchanges_map
             .into_iter()
             .for_each(|(account_id, exchange)| {
