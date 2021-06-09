@@ -1,8 +1,11 @@
-use std::env;
 use std::sync::mpsc::channel;
+use std::{collections::HashMap, env};
 
 use chrono::Utc;
-use mmb::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
+use mmb::exchanges::{
+    events::AllowedEventSourceType, general::commission::Commission,
+    timeouts::timeout_manager::TimeoutManager,
+};
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
@@ -49,6 +52,7 @@ async fn create_successfully() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
 
@@ -142,6 +146,7 @@ async fn should_fail() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
 

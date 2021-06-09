@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
+use tokio::task::JoinHandle;
 
 use anyhow::Result;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::ExchangeAccountId;
@@ -20,10 +21,11 @@ pub struct TimeoutManager {
 }
 
 impl TimeoutManager {
-    pub fn new() -> Arc<Self> {
+    pub fn new(
+        timeout_managers: HashMap<ExchangeAccountId, Arc<RequestsTimeoutManager>>,
+    ) -> Arc<Self> {
         Arc::new(TimeoutManager {
-            // TODO initialize for all exchanges
-            inner: Default::default(),
+            inner: timeout_managers,
         })
     }
 
@@ -67,27 +69,33 @@ impl TimeoutManager {
 
     pub fn reserve_when_available(
         &self,
-        _exchange_account_id: &ExchangeAccountId,
-        _request_type: RequestType,
-        _pre_reserved_group_id: Option<RequestGroupId>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<BoxFuture> {
-        // TODO needed implementation in future
-        // let inner = &self.inner[exchange_account_id];
-        //
-        // let now = now();
-        // if pre_reserved_group_id.is_none() {
-        //     let result = inner.reserve_when_available(request_type, now, cancellation_token)?;
-        //     return Ok(Box::new(result.0) as BoxFuture);
-        // }
-        //
-        // if inner.try_reserve_instant(request_type, now, pre_reserved_group_id)? {
-        //     return Ok(futures::future::ready(Ok(())) as BoxFuture);
-        // }
-        //
-        // let result = inner.reserve_when_available(request_type, now, cancellation_token)?;
-        // Ok(Box::new(result.0) as BoxFuture)
-        todo!("Not implemented yet")
+        exchange_account_id: &ExchangeAccountId,
+        request_type: RequestType,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
+        // FIXME Maybe delete Datime and Duration at all?
+    ) -> Result<(JoinHandle<Result<()>>, DateTime, Duration)> {
+        let inner = &self.inner[exchange_account_id];
+        let current_time = now();
+
+        if pre_reservation_group_id.is_none() {
+            return inner.clone().reserve_when_available(
+                request_type,
+                current_time,
+                cancellation_token,
+            );
+        }
+
+        if !inner.try_reserve_instant(request_type, current_time, pre_reservation_group_id)? {
+            return inner.clone().reserve_when_available(
+                request_type,
+                current_time,
+                cancellation_token,
+            );
+        }
+
+        let completed_task = tokio::task::spawn(async { Ok(()) });
+        Ok((completed_task, now(), Duration::zero()))
     }
 }
 

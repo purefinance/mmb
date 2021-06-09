@@ -1,8 +1,13 @@
 use crate::core::exchanges::common::ExchangeId;
-use crate::core::exchanges::events::{ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
-use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
+use crate::core::exchanges::general::{
+    exchange::Exchange, exchange_creation::create_timeout_manager,
+};
 use crate::core::exchanges::traits::ExchangeClientBuilder;
+use crate::core::exchanges::{
+    events::{ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT},
+    timeouts::timeout_manager::TimeoutManager,
+};
 use crate::core::internal_events_loop::InternalEventsLoop;
 use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::logger::init_logger;
@@ -11,6 +16,7 @@ use crate::hashmap;
 use crate::{
     core::exchanges::binance::binance::BinanceBuilder, rest_api::control_panel::ControlPanel,
 };
+use dashmap::DashMap;
 use futures::future::join_all;
 use log::{error, info};
 use std::collections::HashMap;
@@ -42,19 +48,23 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
     info!("Bot started session");
 
     let settings = load_settings::<TSettings>().await;
-    // FIXME Return (exchanges, RequestTimeoutManager)
-    // Save arc to request_timeout_manager in exchange
-    let exchanges = create_exchanges(&settings.core, build_settings).await;
-    let exchanges_map: HashMap<_, _> = exchanges
+
+    let (exchanges, timeout_manager) = create_exchanges(&settings.core, build_settings).await;
+    // FIXME What type needed here?
+    let exchanges_map: DashMap<_, _> = exchanges
         .into_iter()
-        .map(|x| (x.exchange_account_id.clone(), x))
+        .map(|exchange| (exchange.exchange_account_id.clone(), exchange))
         .collect();
-    // FIXME Create TimeoutManager and pass it to the engine_context
 
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
     let exchange_events = ExchangeEvents::new(events_sender);
 
-    let engine_context = EngineContext::new(settings.core.clone(), exchange_events);
+    let engine_context = EngineContext::new(
+        settings.core.clone(),
+        exchange_events,
+        exchanges_map.clone(),
+        timeout_manager,
+    );
 
     let internal_events_loop = InternalEventsLoop::new();
     let control_panel = ControlPanel::new("127.0.0.1:8080");
@@ -65,10 +75,16 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
         .register_service(control_panel.clone());
 
     {
-        let exchanges_map = exchanges_map.clone();
+        let mut local_exchanges_map = HashMap::new();
+        // FIXME What type needed here?
+        exchanges_map
+            .into_iter()
+            .for_each(|(account_id, exchange)| {
+                local_exchanges_map.insert(account_id, exchange);
+            });
         let _ = tokio::spawn(internal_events_loop.start(
             events_receiver,
-            exchanges_map,
+            local_exchanges_map,
             engine_context.application_manager.stop_token(),
         ));
     }
@@ -88,12 +104,16 @@ async fn load_settings<TSettings: Default + Clone>() -> AppSettings<TSettings> {
 pub async fn create_exchanges(
     core_settings: &CoreSettings,
     build_settings: &EngineBuildConfig,
-) -> Vec<Arc<Exchange>> {
-    join_all(
+) -> (Vec<Arc<Exchange>>, Arc<TimeoutManager>) {
+    let timeout_manager = create_timeout_manager(&core_settings, &build_settings);
+
+    let exchanges = join_all(
         core_settings
             .exchanges
             .iter()
-            .map(|x| create_exchange(x, build_settings)),
+            .map(|x| create_exchange(x, build_settings, timeout_manager.clone())),
     )
-    .await
+    .await;
+
+    (exchanges, timeout_manager)
 }

@@ -39,7 +39,12 @@ pub struct EngineContext {
 }
 
 impl EngineContext {
-    pub(crate) fn new(app_settings: CoreSettings, exchange_events: ExchangeEvents) -> Arc<Self> {
+    pub(crate) fn new(
+        app_settings: CoreSettings,
+        exchange_events: ExchangeEvents,
+        exchanges: DashMap<ExchangeAccountId, Arc<Exchange>>,
+        timeout_manager: Arc<TimeoutManager>,
+    ) -> Arc<Self> {
         let exchange_account_ids = app_settings
             .exchanges
             .iter()
@@ -48,11 +53,9 @@ impl EngineContext {
 
         let application_manager = ApplicationManager::new(CancellationToken::new());
 
-        let timeout_manager = TimeoutManager::new();
-
         let engine_context = Arc::new(EngineContext {
             app_settings,
-            exchanges: Default::default(),
+            exchanges,
             shutdown_service: Default::default(),
             exchange_blocker: ExchangeBlocker::new(exchange_account_ids),
             application_manager: application_manager.clone(),

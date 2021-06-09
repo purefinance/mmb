@@ -1,14 +1,14 @@
-use std::env;
 use std::sync::mpsc::channel;
+use std::{collections::HashMap, env};
 
 use chrono::Utc;
-use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
 use mmb_lib::core::exchanges::{
     cancellation_token::CancellationToken, events::AllowedEventSourceType,
 };
+use mmb_lib::core::exchanges::{common::*, timeouts::timeout_manager::TimeoutManager};
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
@@ -52,6 +52,7 @@ async fn cancelled_successfully() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
 
@@ -151,6 +152,7 @@ async fn nothing_to_cancel() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
 

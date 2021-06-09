@@ -14,10 +14,12 @@ use tokio::sync::{broadcast, oneshot};
 use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
-use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
+use crate::core::exchanges::{
+    cancellation_token::CancellationToken, timeouts::timeout_manager::TimeoutManager,
+};
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::OrderHeader;
 use crate::core::orders::pool::OrdersPool;
@@ -95,6 +97,7 @@ pub struct Exchange {
     pub(super) features: ExchangeFeatures,
     pub(super) event_channel: Mutex<mpsc::Sender<OrderEvent>>,
     application_manager: Arc<ApplicationManager>,
+    pub(crate) timeout_manager: Arc<TimeoutManager>,
     pub(super) commission: Commission,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
@@ -116,6 +119,7 @@ impl Exchange {
         exchange_client: BoxExchangeClient,
         features: ExchangeFeatures,
         event_channel: mpsc::Sender<OrderEvent>,
+        timeout_manager: Arc<TimeoutManager>,
         commission: Commission,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
@@ -135,6 +139,7 @@ impl Exchange {
             application_manager: ApplicationManager::new(CancellationToken::new()),
             features,
             event_channel: Mutex::new(event_channel),
+            timeout_manager,
             commission,
             symbols: Default::default(),
             currencies: Default::default(),
