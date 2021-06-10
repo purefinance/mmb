@@ -92,7 +92,6 @@ impl TimeoutManager {
         }
 
         if inner.try_reserve_instant(request_type, current_time, pre_reservation_group_id)? {
-            //let completed_task = tokio::task::spawn(async { Ok(()) });
             return Ok(Either::Right(ready(Ok(()))));
         }
 
