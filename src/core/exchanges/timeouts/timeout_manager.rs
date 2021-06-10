@@ -80,8 +80,7 @@ impl TimeoutManager {
         let inner = (&self.inner[exchange_account_id]).clone();
 
         let convert_future = |handle: JoinHandle<Result<()>>| {
-            let test = handle.map(|res| res.context("Error in given future")?);
-            test
+            handle.map(|res| res.context("Error in given future")?)
         };
 
         let current_time = now();
