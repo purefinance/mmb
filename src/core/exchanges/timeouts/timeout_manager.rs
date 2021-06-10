@@ -75,23 +75,15 @@ impl TimeoutManager {
         cancellation_token: CancellationToken,
         // FIXME Maybe delete Datime and Duration at all?
     ) -> Result<(JoinHandle<Result<()>>, DateTime, Duration)> {
-        let inner = &self.inner[exchange_account_id];
+        let inner = (&self.inner[exchange_account_id]).clone();
         let current_time = now();
 
         if pre_reservation_group_id.is_none() {
-            return inner.clone().reserve_when_available(
-                request_type,
-                current_time,
-                cancellation_token,
-            );
+            return inner.reserve_when_available(request_type, current_time, cancellation_token);
         }
 
         if !inner.try_reserve_instant(request_type, current_time, pre_reservation_group_id)? {
-            return inner.clone().reserve_when_available(
-                request_type,
-                current_time,
-                cancellation_token,
-            );
+            return inner.reserve_when_available(request_type, current_time, cancellation_token);
         }
 
         let completed_task = tokio::task::spawn(async { Ok(()) });

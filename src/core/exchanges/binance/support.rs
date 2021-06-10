@@ -2,8 +2,7 @@ use super::binance::Binance;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
     general::currency_pair_metadata::CurrencyPairMetadata,
-    general::handlers::handle_order_filled::FillEventData,
-    timeouts::requests_timeout_manager_factory::RequestTimeoutArguments, traits::Support,
+    general::handlers::handle_order_filled::FillEventData, traits::Support,
 };
 use crate::core::orders::order::*;
 use crate::core::{
@@ -250,9 +249,5 @@ impl Support for Binance {
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
         // TODO parse metadata
         Ok(vec![])
-    }
-
-    fn get_timeout_argments(&self) -> RequestTimeoutArguments {
-        RequestTimeoutArguments::from_requests_per_minute(1200)
     }
 }

@@ -10,8 +10,8 @@ use crate::core::{
 };
 use itertools::Itertools;
 use log::error;
+use std::sync::mpsc::channel;
 use std::sync::Arc;
-use std::{collections::HashMap, sync::mpsc::channel};
 
 use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
 
@@ -19,16 +19,13 @@ pub fn create_timeout_manager(
     core_settings: &CoreSettings,
     build_settings: &EngineBuildConfig,
 ) -> Arc<TimeoutManager> {
-    let mut request_timeout_managers = HashMap::new();
-
-    core_settings
+    let request_timeout_managers = core_settings
         .exchanges
         .iter()
-        .for_each(|exchange_settings| {
-            let (exchange_client, _) = build_settings.supported_exchange_clients
+        .map(|exchange_settings| {
+            let timeout_arguments = build_settings.supported_exchange_clients
                 [&exchange_settings.exchange_account_id.exchange_id]
-                .create_exchange_client(exchange_settings.clone());
-            let timeout_arguments = exchange_client.get_timeout_argments();
+                .get_timeout_argments();
 
             let exchange_account_id = exchange_settings.exchange_account_id.clone();
             let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
@@ -36,8 +33,9 @@ pub fn create_timeout_manager(
                 exchange_account_id.clone(),
             );
 
-            let _ = request_timeout_managers.insert(exchange_account_id, request_timeout_manager);
-        });
+            (exchange_account_id, request_timeout_manager)
+        })
+        .collect();
 
     TimeoutManager::new(request_timeout_managers)
 }

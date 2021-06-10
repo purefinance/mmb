@@ -84,8 +84,6 @@ pub trait Support: Send + Sync {
         &self,
         response: &RestRequestOutcome,
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>>;
-
-    fn get_timeout_argments(&self) -> RequestTimeoutArguments;
 }
 
 pub trait ExchangeClientBuilder {
@@ -93,4 +91,6 @@ pub trait ExchangeClientBuilder {
         &self,
         exchange_settings: ExchangeSettings,
     ) -> (BoxExchangeClient, ExchangeFeatures);
+
+    fn get_timeout_argments(&self) -> RequestTimeoutArguments;
 }

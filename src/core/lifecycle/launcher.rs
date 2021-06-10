@@ -49,7 +49,8 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
 
     let settings = load_settings::<TSettings>().await;
 
-    let (exchanges, timeout_manager) = create_exchanges(&settings.core, build_settings).await;
+    let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
+    let exchanges = create_exchanges(&settings.core, build_settings, &timeout_manager).await;
     let exchanges_map: DashMap<_, _> = exchanges
         .into_iter()
         .map(|exchange| (exchange.exchange_account_id.clone(), exchange))
@@ -74,12 +75,10 @@ pub async fn launch_trading_engine<TSettings: Default + Clone>(
         .register_service(control_panel.clone());
 
     {
-        let mut local_exchanges_map = HashMap::new();
-        exchanges_map
+        let local_exchanges_map = exchanges_map
             .into_iter()
-            .for_each(|(account_id, exchange)| {
-                local_exchanges_map.insert(account_id, exchange);
-            });
+            .map(|(account_id, exchange)| (account_id, exchange))
+            .collect();
         let _ = tokio::spawn(internal_events_loop.start(
             events_receiver,
             local_exchanges_map,
@@ -102,16 +101,13 @@ async fn load_settings<TSettings: Default + Clone>() -> AppSettings<TSettings> {
 pub async fn create_exchanges(
     core_settings: &CoreSettings,
     build_settings: &EngineBuildConfig,
-) -> (Vec<Arc<Exchange>>, Arc<TimeoutManager>) {
-    let timeout_manager = create_timeout_manager(&core_settings, &build_settings);
-
-    let exchanges = join_all(
+    timeout_manager: &Arc<TimeoutManager>,
+) -> Vec<Arc<Exchange>> {
+    join_all(
         core_settings
             .exchanges
             .iter()
             .map(|x| create_exchange(x, build_settings, timeout_manager.clone())),
     )
-    .await;
-
-    (exchanges, timeout_manager)
+    .await
 }
