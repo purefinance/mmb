@@ -1,10 +1,13 @@
+use futures::future::ready;
+use futures::future::Either;
+use futures::FutureExt;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
-use anyhow::Result;
-use chrono::{Duration, Utc};
+use anyhow::{Context, Result};
+use chrono::Utc;
 
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::ExchangeAccountId;
@@ -73,21 +76,29 @@ impl TimeoutManager {
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
-        // FIXME Maybe delete Datime and Duration at all?
-    ) -> Result<(JoinHandle<Result<()>>, DateTime, Duration)> {
+    ) -> Result<impl Future<Output = Result<()>> + Send + Sync> {
         let inner = (&self.inner[exchange_account_id]).clone();
+
+        let convert_future = |handle: JoinHandle<Result<()>>| {
+            let test = handle.map(|res| res.context("Error in given future")?);
+            test
+        };
+
         let current_time = now();
-
         if pre_reservation_group_id.is_none() {
-            return inner.reserve_when_available(request_type, current_time, cancellation_token);
+            let result =
+                inner.reserve_when_available(request_type, current_time, cancellation_token)?;
+            return Ok(Either::Left(convert_future(result.0)));
         }
 
-        if !inner.try_reserve_instant(request_type, current_time, pre_reservation_group_id)? {
-            return inner.reserve_when_available(request_type, current_time, cancellation_token);
+        if inner.try_reserve_instant(request_type, current_time, pre_reservation_group_id)? {
+            //let completed_task = tokio::task::spawn(async { Ok(()) });
+            return Ok(Either::Right(ready(Ok(()))));
         }
 
-        let completed_task = tokio::task::spawn(async { Ok(()) });
-        Ok((completed_task, now(), Duration::zero()))
+        let result =
+            inner.reserve_when_available(request_type, current_time, cancellation_token)?;
+        Ok(Either::Left(convert_future(result.0)))
     }
 }
 
