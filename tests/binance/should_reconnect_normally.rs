@@ -9,11 +9,12 @@ use mmb_lib::core::{
     exchanges::general::exchange::Exchange,
     exchanges::general::features::ExchangeFeatures,
     exchanges::general::features::OpenOrdersType,
+    exchanges::timeouts::timeout_manager::TimeoutManager,
     exchanges::{binance::binance::Binance, common::ExchangeAccountId},
     settings::ExchangeSettings,
 };
 use parking_lot::Mutex;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 use std::{
     pin::Pin,
     sync::{mpsc::channel, Arc},
@@ -51,6 +52,7 @@ pub async fn should_connect_and_reconnect_normally() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
 

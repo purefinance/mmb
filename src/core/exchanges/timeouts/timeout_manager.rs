@@ -1,8 +1,12 @@
+use futures::future::ready;
+use futures::future::Either;
+use futures::FutureExt;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
+use tokio::task::JoinHandle;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::Utc;
 
 use crate::core::exchanges::cancellation_token::CancellationToken;
@@ -20,10 +24,11 @@ pub struct TimeoutManager {
 }
 
 impl TimeoutManager {
-    pub fn new() -> Arc<Self> {
+    pub fn new(
+        timeout_managers: HashMap<ExchangeAccountId, Arc<RequestsTimeoutManager>>,
+    ) -> Arc<Self> {
         Arc::new(TimeoutManager {
-            // TODO initialize for all exchanges
-            inner: Default::default(),
+            inner: timeout_managers,
         })
     }
 
@@ -67,27 +72,31 @@ impl TimeoutManager {
 
     pub fn reserve_when_available(
         &self,
-        _exchange_account_id: &ExchangeAccountId,
-        _request_type: RequestType,
-        _pre_reserved_group_id: Option<RequestGroupId>,
-        _cancellation_token: CancellationToken,
-    ) -> Result<BoxFuture> {
-        // TODO needed implementation in future
-        // let inner = &self.inner[exchange_account_id];
-        //
-        // let now = now();
-        // if pre_reserved_group_id.is_none() {
-        //     let result = inner.reserve_when_available(request_type, now, cancellation_token)?;
-        //     return Ok(Box::new(result.0) as BoxFuture);
-        // }
-        //
-        // if inner.try_reserve_instant(request_type, now, pre_reserved_group_id)? {
-        //     return Ok(futures::future::ready(Ok(())) as BoxFuture);
-        // }
-        //
-        // let result = inner.reserve_when_available(request_type, now, cancellation_token)?;
-        // Ok(Box::new(result.0) as BoxFuture)
-        todo!("Not implemented yet")
+        exchange_account_id: &ExchangeAccountId,
+        request_type: RequestType,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
+    ) -> Result<impl Future<Output = Result<()>> + Send + Sync> {
+        let inner = (&self.inner[exchange_account_id]).clone();
+
+        let convert_future = |handle: JoinHandle<Result<()>>| {
+            handle.map(|res| res.context("Error in given future")?)
+        };
+
+        let current_time = now();
+        if pre_reservation_group_id.is_none() {
+            let result =
+                inner.reserve_when_available(request_type, current_time, cancellation_token)?;
+            return Ok(Either::Left(convert_future(result.0)));
+        }
+
+        if inner.try_reserve_instant(request_type, current_time, pre_reservation_group_id)? {
+            return Ok(Either::Right(ready(Ok(()))));
+        }
+
+        let result =
+            inner.reserve_when_available(request_type, current_time, cancellation_token)?;
+        Ok(Either::Left(convert_future(result.0)))
     }
 }
 

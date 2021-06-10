@@ -6,6 +6,7 @@ use super::{
     },
     general::currency_pair_metadata::CurrencyPairMetadata,
     general::handlers::handle_order_filled::FillEventData,
+    timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::orders::fill::EventSourceType;
@@ -90,4 +91,6 @@ pub trait ExchangeClientBuilder {
         &self,
         exchange_settings: ExchangeSettings,
     ) -> (BoxExchangeClient, ExchangeFeatures);
+
+    fn get_timeout_argments(&self) -> RequestTimeoutArguments;
 }

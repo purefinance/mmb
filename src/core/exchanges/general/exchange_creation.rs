@@ -1,6 +1,13 @@
-use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
 use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
+use crate::core::{
+    exchanges::{
+        general::exchange::Exchange,
+        timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory,
+        timeouts::timeout_manager::TimeoutManager,
+    },
+    settings::CoreSettings,
+};
 use itertools::Itertools;
 use log::error;
 use std::sync::mpsc::channel;
@@ -8,9 +15,35 @@ use std::sync::Arc;
 
 use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
 
+pub fn create_timeout_manager(
+    core_settings: &CoreSettings,
+    build_settings: &EngineBuildConfig,
+) -> Arc<TimeoutManager> {
+    let request_timeout_managers = core_settings
+        .exchanges
+        .iter()
+        .map(|exchange_settings| {
+            let timeout_arguments = build_settings.supported_exchange_clients
+                [&exchange_settings.exchange_account_id.exchange_id]
+                .get_timeout_argments();
+
+            let exchange_account_id = exchange_settings.exchange_account_id.clone();
+            let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
+                timeout_arguments,
+                exchange_account_id.clone(),
+            );
+
+            (exchange_account_id, request_timeout_manager)
+        })
+        .collect();
+
+    TimeoutManager::new(request_timeout_managers)
+}
+
 pub async fn create_exchange(
     exchange_settings: &ExchangeSettings,
     build_settings: &EngineBuildConfig,
+    timeout_manager: Arc<TimeoutManager>,
 ) -> Arc<Exchange> {
     let (exchange_client, features) = build_settings.supported_exchange_clients
         [&exchange_settings.exchange_account_id.exchange_id]
@@ -25,6 +58,7 @@ pub async fn create_exchange(
         exchange_client,
         features,
         tx,
+        timeout_manager.clone(),
         Commission::default(),
     );
 

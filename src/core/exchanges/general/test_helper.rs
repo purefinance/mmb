@@ -9,14 +9,18 @@ use crate::core::{
     exchanges::general::commission::Commission, exchanges::general::commission::CommissionForType,
     exchanges::general::currency_pair_metadata::PrecisionType,
     exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
-    orders::event::OrderEvent, orders::order::ClientOrderId, orders::order::OrderRole,
-    orders::order::OrderSide, orders::order::OrderSnapshot, orders::order::OrderType,
-    orders::pool::OrderRef, orders::pool::OrdersPool, settings,
+    exchanges::timeouts::timeout_manager::TimeoutManager, orders::event::OrderEvent,
+    orders::order::ClientOrderId, orders::order::OrderRole, orders::order::OrderSide,
+    orders::order::OrderSnapshot, orders::order::OrderType, orders::pool::OrderRef,
+    orders::pool::OrdersPool, settings,
 };
 
-use std::sync::{
-    mpsc::{channel, Receiver},
-    Arc,
+use std::{
+    collections::HashMap,
+    sync::{
+        mpsc::{channel, Receiver},
+        Arc,
+    },
 };
 
 use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
@@ -51,6 +55,7 @@ pub(crate) fn get_test_exchange(is_derivative: bool) -> (Arc<Exchange>, Receiver
             AllowedEventSourceType::default(),
         ),
         tx,
+        TimeoutManager::new(HashMap::new()),
         commission,
     );
     let base_currency_code = "PHB";

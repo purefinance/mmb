@@ -2,6 +2,7 @@ use super::support::BinanceOrderInfo;
 use crate::core::exchanges::{
     common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
+    timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::{common::CurrencyId, general::exchange::BoxExchangeClient};
 use crate::core::exchanges::{
@@ -367,6 +368,10 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 AllowedEventSourceType::All,
             ),
         )
+    }
+
+    fn get_timeout_argments(&self) -> RequestTimeoutArguments {
+        RequestTimeoutArguments::from_requests_per_minute(1200)
     }
 }
 

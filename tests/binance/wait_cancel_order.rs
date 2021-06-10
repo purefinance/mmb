@@ -15,6 +15,8 @@ use std::env;
 use std::sync::mpsc::channel;
 use tokio::time::Duration;
 
+use super::common::get_timeout_manager;
+
 #[actix_rt::test]
 async fn cancellation_waited_successfully() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
@@ -29,11 +31,14 @@ async fn cancellation_waited_successfully() {
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id.clone());
+    let binance =
+        Box::new(Binance::new(settings, exchange_account_id.clone())) as BoxExchangeClient;
 
     let websocket_host = "wss://stream.binance.com:9443".into();
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
+
+    let timeout_manager = get_timeout_manager(&exchange_account_id);
 
     let (tx, _rx) = channel();
     let exchange = Exchange::new(
@@ -41,7 +46,7 @@ async fn cancellation_waited_successfully() {
         websocket_host,
         currency_pairs,
         channels,
-        Box::new(binance),
+        binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             false,
@@ -50,6 +55,7 @@ async fn cancellation_waited_successfully() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        timeout_manager,
         Commission::default(),
     );
 
@@ -119,11 +125,14 @@ async fn cancellation_waited_failed_fallback() {
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id.clone());
+    let binance =
+        Box::new(Binance::new(settings, exchange_account_id.clone())) as BoxExchangeClient;
 
     let websocket_host = "wss://stream.binance.com:9443".into();
     let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
+
+    let timeout_manager = get_timeout_manager(&exchange_account_id);
 
     let (tx, _rx) = channel();
     let exchange = Exchange::new(
@@ -131,7 +140,7 @@ async fn cancellation_waited_failed_fallback() {
         websocket_host,
         currency_pairs,
         channels,
-        Box::new(binance),
+        binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             false,
@@ -140,6 +149,7 @@ async fn cancellation_waited_failed_fallback() {
             AllowedEventSourceType::FallbackOnly,
         ),
         tx,
+        timeout_manager,
         Commission::default(),
     );
 

@@ -1,15 +1,15 @@
-use std::env;
 use std::sync::mpsc::channel;
 use std::time::Duration;
+use std::{collections::HashMap, env};
 
 use chrono::Utc;
-use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::{binance::binance::*, events::AllowedEventSourceType};
 use mmb_lib::core::exchanges::{
     cancellation_token::CancellationToken, general::commission::Commission,
 };
+use mmb_lib::core::exchanges::{common::*, timeouts::timeout_manager::TimeoutManager};
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
@@ -51,6 +51,7 @@ async fn get_order_info() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
 

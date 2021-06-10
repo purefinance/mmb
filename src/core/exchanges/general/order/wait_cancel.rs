@@ -7,7 +7,9 @@ use tokio::sync::broadcast;
 use tokio::time::sleep;
 
 use super::cancel::CancelOrderResult;
-use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::core::exchanges::{
+    general::request_type::RequestType, timeouts::requests_timeout_manager::RequestGroupId,
+};
 use crate::{
     core::nothing_to_do,
     core::orders::event::OrderEventType,
@@ -124,7 +126,14 @@ impl Exchange {
                 self.exchange_account_id
             );
 
-            // TODO timeout_manager.reserver_when_available()
+            self.timeout_manager
+                .reserve_when_available(
+                    &self.exchange_account_id,
+                    RequestType::CancelOrder,
+                    pre_reservation_group_id,
+                    order_is_finished_token.clone(),
+                )?
+                .await?;
 
             let cancel_order_future = self.start_cancel_order(&order, cancellation_token.clone());
 
@@ -268,7 +277,7 @@ impl Exchange {
         &self,
         order: &OrderRef,
         exchange_error: Option<ExchangeError>,
-        pre_reserved_group_id: Option<RequestGroupId>,
+        pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         while !cancellation_token.is_cancellation_requested() {
@@ -282,7 +291,14 @@ impl Exchange {
                     .last_order_cancellation_status_request_time = Some(Utc::now())
             });
 
-            // TODO Add TimeoutManager::reserve_when_available
+            self.timeout_manager
+                .reserve_when_available(
+                    &self.exchange_account_id,
+                    RequestType::CancelOrder,
+                    pre_reservation_group_id,
+                    cancellation_token.clone(),
+                )?
+                .await?;
 
             if order.is_finished() {
                 return Ok(());
@@ -362,7 +378,7 @@ impl Exchange {
                             self.check_order_fills(
                                 order,
                                 false,
-                                pre_reserved_group_id,
+                                pre_reservation_group_id,
                                 cancellation_token,
                             )
                             .await;
