@@ -77,10 +77,13 @@ impl Exchange {
             )?;
         }
 
-        let maybe_order_ref =
-            self.add_order_in_pool_if_not_exists(&mut event_data, &args_to_log)?;
+        self.add_external_order(&mut event_data, &args_to_log)?;
 
-        match maybe_order_ref {
+        match self
+            .orders
+            .cache_by_exchange_id
+            .get(&event_data.exchange_order_id)
+        {
             None => {
                 info!("Received a fill for not existing order {:?}", &args_to_log);
                 // TODO BufferedFillsManager.add_fill()
@@ -651,11 +654,11 @@ impl Exchange {
         Ok(())
     }
 
-    fn add_order_in_pool_if_not_exists(
+    fn add_external_order(
         &self,
         event_data: &mut FillEventData,
         args_to_log: &ArgsToLog,
-    ) -> Result<Option<OrderRef>> {
+    ) -> Result<()> {
         if event_data.fill_type == OrderFillType::Liquidation
             || event_data.fill_type == OrderFillType::ClosePosition
         {
@@ -696,7 +699,6 @@ impl Exchange {
             {
                 Some(order_ref) => {
                     event_data.client_order_id = Some(order_ref.client_order_id());
-                    return Ok(Some(order_ref.clone()));
                 }
                 None => {
                     // Liquidation and ClosePosition are always Takers
@@ -709,13 +711,11 @@ impl Exchange {
                         &event_data.exchange_order_id,
                         &event_data.source_type,
                     )?;
-
-                    return Ok(Some(order_ref));
                 }
             }
         }
 
-        Ok(None)
+        Ok(())
     }
 
     fn create_order_in_pool(&self, event_data: &FillEventData, order_role: OrderRole) -> OrderRef {
