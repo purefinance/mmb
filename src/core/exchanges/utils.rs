@@ -1,6 +1,7 @@
 use anyhow::Result;
 use futures::Future;
-use log::info;
+use log::{error, info, trace};
+use std::panic;
 use std::{
     pin::Pin,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -23,15 +24,19 @@ pub(crate) fn spawn_task(
     _timeout: Option<Duration>,
     action: Pin<BoxFuture>,
 ) -> JoinHandle<()> {
+    let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
-    info!("Future {} with id {} started", action_name, future_id);
+    let log_template = format!("Future {}, with id {}", action_name, future_id);
+
+    info!("{} started", log_template);
 
     let handler = tokio::spawn(async move {
-        let future_outcome = action.await;
-        match future_outcome {
-            Ok(_) => {}
-            Err(_) => {}
-        }
+        let maybe_panic = panic::catch_unwind(async || action.await);
+        //let future_outcome = action.await;
+        //match future_outcome {
+        //    Ok(_) => trace!("{} successfully completed", log_template),
+        //    Err(error) => error!("{} returned error: {:?}", log_template, error),
+        //}
     });
     handler
 }
