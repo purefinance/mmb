@@ -26,6 +26,7 @@ pub(crate) fn spawn_task(
     action_name: &str,
     _timeout: Option<Duration>,
     action: Pin<BoxFutureUnwind>,
+    is_critical: bool,
     application_manager: Arc<ApplicationManager>,
 ) -> JoinHandle<()> {
     let action_name = action_name.to_owned();
@@ -41,12 +42,25 @@ pub(crate) fn spawn_task(
                 Ok(_) => trace!("{} successfully completed", log_template),
                 Err(error) => {
                     if error.to_string() == OPERATION_CANCELED_MSG {
-                        trace!("{} was cancelled", log_template);
+                        trace!("{} was cancelled via Result<()>", log_template);
+
+                        return;
                     }
+
                     error!("{} returned error: {:?}", log_template, error);
                 }
             },
             Err(error) => {
+                if let Some(error_msg) = error.as_ref().downcast_ref::<String>() {
+                    if error_msg.to_string() == OPERATION_CANCELED_MSG {
+                        trace!("{} was cancelled via panic", log_template);
+
+                        if !is_critical {
+                            return;
+                        }
+                    }
+                }
+
                 let error_message = format!("{} panicked with error: {:?}", log_template, error);
                 error!("{}", error_message);
                 application_manager
@@ -78,6 +92,7 @@ mod test {
         let handler = spawn_task(
             "test_action_name",
             "test_service_name",
+            true,
             None,
             Box::pin(future),
         );
