@@ -11,7 +11,7 @@ use std::{
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
-use super::application_manager::ApplicationManager;
+use super::{application_manager::ApplicationManager, common::OPERATION_CANCELED_MSG};
 
 type BoxFutureUnwind = Box<dyn Future<Output = Result<()>> + Sync + Send + UnwindSafe>;
 
@@ -24,7 +24,6 @@ pub(crate) fn get_current_milliseconds() -> u128 {
 
 pub(crate) fn spawn_task(
     action_name: &str,
-    service_name: &str,
     _timeout: Option<Duration>,
     action: Pin<BoxFutureUnwind>,
     application_manager: Arc<ApplicationManager>,
@@ -40,7 +39,12 @@ pub(crate) fn spawn_task(
         match maybe_panic {
             Ok(future_outcome) => match future_outcome {
                 Ok(_) => trace!("{} successfully completed", log_template),
-                Err(error) => error!("{} returned error: {:?}", log_template, error),
+                Err(error) => {
+                    if error.to_string() == OPERATION_CANCELED_MSG {
+                        trace!("{} was cancelled", log_template);
+                    }
+                    error!("{} returned error: {:?}", log_template, error);
+                }
             },
             Err(error) => {
                 let error_message = format!("{} panicked with error: {:?}", log_template, error);
