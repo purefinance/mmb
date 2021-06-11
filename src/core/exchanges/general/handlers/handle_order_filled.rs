@@ -880,7 +880,7 @@ mod test {
                 Ok(_) => assert!(false),
                 Err(error) => {
                     assert_eq!(
-                        "Side should be set for liquidatioin or close position trade",
+                        "Side should be set for liquidation or close position trade ",
                         &error.to_string()[..59]
                     );
                 }
