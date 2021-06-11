@@ -1,5 +1,4 @@
-use std::sync::mpsc::channel;
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use chrono::Utc;
 use mmb::exchanges::{
@@ -19,6 +18,7 @@ use rust_decimal_macros::*;
 
 use crate::get_binance_credentials_or_exit;
 use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use mmb_lib::core::exchanges::events::ExchangeEvent;
 use tokio::sync::broadcast;
 
 #[actix_rt::test]
@@ -34,7 +34,7 @@ async fn create_successfully() {
     );
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
-    let (tx, _) = broadcast::channel(10);
+    let (tx, mut rx) = broadcast::channel(10);
 
     let binance = Binance::new(
         exchange_account_id.clone(),
@@ -99,10 +99,17 @@ async fn create_successfully() {
         Ok(order_ref) => {
             let event = rx
                 .recv()
+                .await
                 .expect("CreateOrderSucceeded event had to be occurred");
-            if let OrderEventType::CreateOrderSucceeded = event.event_type {
+            let order_event = if let ExchangeEvent::OrderEvent(order_event) = event {
+                order_event
             } else {
-                assert!(false)
+                panic!("Should receive OrderEvent")
+            };
+
+            if let OrderEventType::CreateOrderSucceeded = order_event.event_type {
+            } else {
+                panic!("Should receive CreateOrderSucceeded event type")
             }
 
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");

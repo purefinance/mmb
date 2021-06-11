@@ -45,7 +45,7 @@ pub struct ExchangeSettings {
 }
 
 impl ExchangeSettings {
-    #[cfg(test)]
+    // only for tests
     pub fn new_short(
         exchange_account_id: ExchangeAccountId,
         api_key: String,

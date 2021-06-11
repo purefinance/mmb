@@ -1,4 +1,7 @@
-use crate::get_binance_credentials_or_exit;
+use std::collections::HashMap;
+use std::thread;
+use std::time::Duration;
+
 use chrono::Utc;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
@@ -10,10 +13,10 @@ use mmb_lib::core::exchanges::{common::*, timeouts::timeout_manager::TimeoutMana
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::sync::mpsc::channel;
-use std::thread;
-use std::time::Duration;
-use std::{collections::HashMap, env};
+
+use crate::get_binance_credentials_or_exit;
+use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use tokio::sync::broadcast;
 
 #[actix_rt::test]
 #[ignore]
@@ -29,17 +32,22 @@ async fn open_orders_exists() {
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id.clone());
+    let application_manager = ApplicationManager::new(CancellationToken::new());
+    let (tx, _) = broadcast::channel(10);
+
+    let binance = Binance::new(
+        exchange_account_id.clone(),
+        settings,
+        tx.clone(),
+        application_manager.clone(),
+    );
 
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
-    let (tx, _) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
-        currency_pairs,
         channels,
         Box::new(binance),
         ExchangeFeatures::new(
@@ -50,6 +58,7 @@ async fn open_orders_exists() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );

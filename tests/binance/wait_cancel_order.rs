@@ -12,7 +12,6 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::sync::mpsc::channel;
 use tokio::sync::broadcast;
 use tokio::time::Duration;
 
@@ -39,20 +38,17 @@ async fn cancellation_waited_successfully() {
         exchange_account_id.clone(),
         settings,
         tx.clone(),
-        application_manager,
+        application_manager.clone(),
     )) as BoxExchangeClient;
 
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
     let timeout_manager = get_timeout_manager(&exchange_account_id);
 
-    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
-        currency_pairs,
         channels,
         binance,
         ExchangeFeatures::new(
@@ -63,6 +59,7 @@ async fn cancellation_waited_successfully() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         timeout_manager,
         Commission::default(),
     );
@@ -140,20 +137,17 @@ async fn cancellation_waited_failed_fallback() {
         exchange_account_id.clone(),
         settings,
         tx.clone(),
-        application_manager,
+        application_manager.clone(),
     )) as BoxExchangeClient;
 
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
     let timeout_manager = get_timeout_manager(&exchange_account_id);
 
-    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
-        currency_pairs,
         channels,
         binance,
         ExchangeFeatures::new(
@@ -164,6 +158,7 @@ async fn cancellation_waited_failed_fallback() {
             AllowedEventSourceType::FallbackOnly,
         ),
         tx,
+        application_manager,
         timeout_manager,
         Commission::default(),
     );

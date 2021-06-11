@@ -1,7 +1,7 @@
-use std::sync::mpsc::channel;
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
 use chrono::Utc;
+use mmb_lib::core::exchanges::application_manager::ApplicationManager;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
@@ -13,11 +13,10 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
+use tokio::sync::broadcast;
 use tokio::time::Duration;
 
 use crate::get_binance_credentials_or_exit;
-use mmb_lib::core::exchanges::application_manager::ApplicationManager;
-use tokio::sync::broadcast;
 
 #[actix_rt::test]
 async fn cancelled_successfully() {

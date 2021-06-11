@@ -1,6 +1,8 @@
 use anyhow::Result;
 use futures::Future;
 use log::info;
+use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::{
     connectivity::connectivity_manager::ConnectivityManager,
     connectivity::websocket_actor::WebSocketParams,
@@ -15,10 +17,8 @@ use mmb_lib::core::{
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, time::Duration};
-use std::{
-    pin::Pin,
-    sync::{mpsc::channel, Arc},
-};
+use std::{pin::Pin, sync::Arc};
+use tokio::sync::broadcast;
 use tokio::{sync::oneshot, time::sleep};
 
 // TODO Not a unit test. Should be moved to integration tests
@@ -30,18 +30,21 @@ pub async fn should_connect_and_reconnect_normally() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["phbbtc".into(), "btcusdt".into()];
     let channels = vec!["depth".into(), "aggTrade".into()];
+
+    let application_manager = ApplicationManager::new(CancellationToken::new());
+    let (tx, _) = broadcast::channel(10);
+
     let exchange_client = Box::new(Binance::new(
-        ExchangeSettings::default(),
         exchange_account_id.clone(),
+        ExchangeSettings::default(),
+        tx.clone(),
+        application_manager.clone(),
     ));
 
-    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
-        currency_pairs,
         channels,
         exchange_client,
         ExchangeFeatures::new(
@@ -52,6 +55,7 @@ pub async fn should_connect_and_reconnect_normally() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );

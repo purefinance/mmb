@@ -162,6 +162,7 @@ impl Exchange {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::core::exchanges::events::ExchangeEvent;
     use crate::core::{
         exchanges::common::CurrencyPair, exchanges::general::test_helper, orders::order::OrderRole,
         orders::order::OrderSide,
@@ -342,7 +343,7 @@ mod test {
 
     #[test]
     fn canceled_not_from_wait_cancel_order() -> Result<()> {
-        let (exchange, event_receiver) = test_helper::get_test_exchange(false);
+        let (exchange, mut event_receiver) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -378,11 +379,15 @@ mod test {
             order_ref.fn_ref(|x| x.internal_props.canceled_not_from_wait_cancel_order);
         assert_eq!(canceled_not_from_wait_cancel_order, true);
 
-        let gotten_id = event_receiver
-            .recv()
+        let event = match event_receiver
+            .try_recv()
             .context("Event was not received")?
-            .order
-            .client_order_id();
+        {
+            ExchangeEvent::OrderEvent(v) => v,
+            _ => panic!("Should be OrderEvent"),
+        };
+
+        let gotten_id = event.order.client_order_id();
         assert_eq!(gotten_id, client_order_id);
         Ok(())
     }

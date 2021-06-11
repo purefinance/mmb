@@ -326,6 +326,7 @@ mod tests {
             let exchange_id = "Binance0".parse().expect("in test");
             let websocket_addr = WebSocketActor::open_connection(
                 exchange_id,
+                WebSocketRole::Main,
                 WebSocketParams { url },
                 Default::default(),
             )

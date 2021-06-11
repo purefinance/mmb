@@ -3085,10 +3085,11 @@ mod test {
 
     mod react_if_order_completed {
         use super::*;
+        use crate::core::exchanges::events::ExchangeEvent;
 
         #[test]
         fn order_completed_if_filled_completely() -> Result<()> {
-            let (exchange, event_receiver) = get_test_exchange(false);
+            let (exchange, mut event_receiver) = get_test_exchange(false);
             let client_order_id = ClientOrderId::unique_id();
             let currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
             let order_side = OrderSide::Buy;
@@ -3108,11 +3109,15 @@ mod test {
             let order_status = order_ref.status();
 
             assert_eq!(order_status, OrderStatus::Completed);
-            let gotten_id = event_receiver
-                .recv()
+
+            let event = match event_receiver
+                .try_recv()
                 .context("Event was not received")?
-                .order
-                .client_order_id();
+            {
+                ExchangeEvent::OrderEvent(v) => v,
+                _ => panic!("Should be OrderEvent"),
+            };
+            let gotten_id = event.order.client_order_id();
             assert_eq!(gotten_id, client_order_id);
             Ok(())
         }

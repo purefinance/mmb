@@ -1,6 +1,5 @@
-use std::sync::mpsc::channel;
+pub use std::collections::HashMap;
 use std::time::Duration;
-use std::{collections::HashMap, env};
 
 use chrono::Utc;
 use mmb_lib::core::exchanges::general::exchange::*;
@@ -16,6 +15,8 @@ use rust_decimal_macros::*;
 use tokio::time::sleep;
 
 use crate::get_binance_credentials_or_exit;
+use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use tokio::sync::broadcast;
 
 #[actix_rt::test]
 async fn get_order_info() {
@@ -30,17 +31,22 @@ async fn get_order_info() {
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id.clone());
+    let application_manager = ApplicationManager::new(CancellationToken::new());
+    let (tx, _) = broadcast::channel(10);
+
+    let binance = Binance::new(
+        exchange_account_id.clone(),
+        settings,
+        tx.clone(),
+        application_manager.clone(),
+    );
 
     let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into()];
     let channels = vec!["depth".into(), "trade".into()];
 
-    let (tx, _rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         websocket_host,
-        currency_pairs,
         channels,
         Box::new(binance),
         ExchangeFeatures::new(
@@ -51,6 +57,7 @@ async fn get_order_info() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
