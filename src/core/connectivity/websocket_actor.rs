@@ -73,8 +73,9 @@ impl WebSocketActor {
                 let (response, framed) = connected_client;
 
                 trace!(
-                    "WebsocketActor '{}' connecting status: {}",
+                    "WebsocketActor {} {:?} connecting status: {}",
                     exchange_account_id,
+                    role,
                     response.status()
                 );
                 if !(response.status() == StatusCode::SWITCHING_PROTOCOLS) {
