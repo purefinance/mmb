@@ -21,7 +21,6 @@ use std::{pin::Pin, sync::Arc};
 use tokio::sync::broadcast;
 use tokio::{sync::oneshot, time::sleep};
 
-// TODO Not a unit test. Should be moved to integration tests
 #[actix_rt::test]
 pub async fn should_connect_and_reconnect_normally() {
     const EXPECTED_CONNECTED_COUNT: u32 = 3;

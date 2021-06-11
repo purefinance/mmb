@@ -85,7 +85,7 @@ pub struct ConnectivityManager {
     callback_connecting: Mutex<Callback0>,
     callback_connected: Mutex<Callback0>,
     callback_disconnected: Mutex<Callback1<bool, ()>>,
-    pub callback_msg_received: Mutex<WSMessageReceived>,
+    callback_msg_received: Mutex<WSMessageReceived>,
 }
 
 impl ConnectivityManager {
@@ -101,11 +101,11 @@ impl ConnectivityManager {
             callback_connected: Mutex::new(Box::new(|| {})),
             callback_disconnected: Mutex::new(Box::new(|_| {})),
             callback_get_ws_params: Mutex::new(Box::new(|_| {
-                panic!("This callback has to be set during ConnectivityManager::connect()")
+                panic!("callback_get_ws_params has to be set during ConnectivityManager::connect()")
             })),
 
             callback_msg_received: Mutex::new(Box::new(|_| {
-                panic!("This callback has to be set externally")
+                panic!("callback_msg_received has to be set during ConnectivityManager::connect()")
             })),
         })
     }
