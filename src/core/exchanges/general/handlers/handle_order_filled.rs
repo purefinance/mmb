@@ -85,6 +85,18 @@ impl Exchange {
             .get(&event_data.exchange_order_id)
         {
             None => {
+                if let Some(client_order_id) = &event_data.client_order_id {
+                    self.handle_create_order_succeeded(
+                        &self.exchange_account_id,
+                        client_order_id,
+                        &event_data.exchange_order_id,
+                        &event_data.source_type,
+                    )?;
+
+                    let order_ref = self.orders.cache_by_exchange_id.get(&event_data.exchange_order_id).expect("Order should be inserted in orders.cache_by_exchange_id by handle_create_order_succeeded called above");
+                    return self.try_to_create_and_add_order_fill(&mut event_data, &order_ref);
+                }
+
                 info!("Received a fill for not existing order {:?}", &args_to_log);
                 // TODO BufferedFillsManager.add_fill()
 
