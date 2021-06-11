@@ -75,14 +75,16 @@ pub(crate) fn spawn_task(
 #[cfg(test)]
 mod test {
 
-    use futures::future::ready;
+    use crate::core::exchanges::cancellation_token::CancellationToken;
 
     use super::*;
 
     #[tokio::test]
     async fn first_test() {
         // Arrange
+        let application_manager = ApplicationManager::new(CancellationToken::new());
         // Act
+
         dbg!(&"TEST");
         let future = async {
             dbg!(&"Worked");
@@ -91,12 +93,12 @@ mod test {
 
         let handler = spawn_task(
             "test_action_name",
-            "test_service_name",
-            true,
             None,
             Box::pin(future),
+            true,
+            application_manager,
         );
-        handler.await;
+        let _ = handler.await;
         // Assert
     }
 }
