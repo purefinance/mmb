@@ -1,7 +1,9 @@
 use anyhow::Result;
+use futures::future::FutureExt;
 use futures::Future;
 use log::{error, info, trace};
-use std::panic;
+use panic::UnwindSafe;
+use std::{panic, sync::Arc};
 use std::{
     pin::Pin,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -9,7 +11,9 @@ use std::{
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
-pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send>;
+use super::application_manager::ApplicationManager;
+
+type BoxFutureUnwind = Box<dyn Future<Output = Result<()>> + Sync + Send + UnwindSafe>;
 
 pub(crate) fn get_current_milliseconds() -> u128 {
     SystemTime::now()
@@ -22,7 +26,8 @@ pub(crate) fn spawn_task(
     action_name: &str,
     service_name: &str,
     _timeout: Option<Duration>,
-    action: Pin<BoxFuture>,
+    action: Pin<BoxFutureUnwind>,
+    application_manager: Arc<ApplicationManager>,
 ) -> JoinHandle<()> {
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
@@ -31,12 +36,20 @@ pub(crate) fn spawn_task(
     info!("{} started", log_template);
 
     let handler = tokio::spawn(async move {
-        let maybe_panic = panic::catch_unwind(async || action.await);
-        //let future_outcome = action.await;
-        //match future_outcome {
-        //    Ok(_) => trace!("{} successfully completed", log_template),
-        //    Err(error) => error!("{} returned error: {:?}", log_template, error),
-        //}
+        let maybe_panic = action.catch_unwind().await;
+        match maybe_panic {
+            Ok(future_outcome) => match future_outcome {
+                Ok(_) => trace!("{} successfully completed", log_template),
+                Err(error) => error!("{} returned error: {:?}", log_template, error),
+            },
+            Err(error) => {
+                let error_message = format!("{} panicked with error: {:?}", log_template, error);
+                error!("{}", error_message);
+                application_manager
+                    .run_graceful_shutdown(&error_message)
+                    .await;
+            }
+        }
     });
     handler
 }
@@ -52,12 +65,19 @@ mod test {
     async fn first_test() {
         // Arrange
         // Act
-        spawn_task(
+        dbg!(&"TEST");
+        let future = async {
+            dbg!(&"Worked");
+            Ok(())
+        };
+
+        let handler = spawn_task(
             "test_action_name",
             "test_service_name",
             None,
-            Box::new(ready(Ok(()))),
+            Box::pin(future),
         );
+        handler.await;
         // Assert
     }
 }
