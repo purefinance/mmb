@@ -670,7 +670,7 @@ impl Exchange {
 
             if event_data.order_side.is_none() {
                 Self::log_fill_handling_error_and_propagate(
-                    "Side should be set for liquidatioin or close position trade",
+                    "Side should be set for liquidation or close position trade",
                     &args_to_log,
                 )?;
             }

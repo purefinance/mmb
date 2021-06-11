@@ -317,17 +317,6 @@ impl Exchange {
         }
     }
 
-    fn log_warn(
-        template: &str,
-        args_to_log: (&ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
-    ) -> Result<()> {
-        warn!(
-            "CreateOrderSucceeded was received for a {} order {:?}",
-            template, args_to_log
-        );
-        Ok(())
-    }
-
     fn react_on_status_when_succeed(
         &self,
         order_ref: &OrderRef,
@@ -340,18 +329,18 @@ impl Exchange {
             OrderStatus::FailedToCreate => {
                 let error_msg = format!(
                     "CreateOrderSucceeded was received for a FailedToCreate order.
-                                Probably FaildeToCreate fallbach was received before Creation Rresponse {:?}",
+                                Probably FailedToCreate fallback was received before Creation Response {:?}",
                                 args_to_log
                 );
 
                 error!("{}", error_msg);
                 bail!("{}", error_msg)
             }
-            OrderStatus::Created => Self::log_warn("Created", args_to_log),
-            OrderStatus::Canceling => Self::log_warn("Canceling", args_to_log),
-            OrderStatus::Canceled => Self::log_warn("Canceled", args_to_log),
-            OrderStatus::Completed => Self::log_warn("Completed", args_to_log),
-            OrderStatus::FailedToCancel => Self::log_warn("FailedToCancel", args_to_log),
+            OrderStatus::Created => log_warn("Created", args_to_log),
+            OrderStatus::Canceling => log_warn("Canceling", args_to_log),
+            OrderStatus::Canceled => log_warn("Canceled", args_to_log),
+            OrderStatus::Completed => log_warn("Completed", args_to_log),
+            OrderStatus::FailedToCancel => log_warn("FailedToCancel", args_to_log),
             OrderStatus::Creating => {
                 if self
                     .orders
@@ -384,7 +373,7 @@ impl Exchange {
                 self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderSucceeded)?;
 
                 // TODO if BufferedFillsManager.TryGetFills(...)
-                // TODO if BufferedCanceledORdersManager.TrygetOrder(...)
+                // TODO if BufferedCanceledOrdersManager.TryGetOrder(...)
 
                 // TODO DataRecorder.Save(order); Do we really need it here?
                 // Cause it's already performed in handle_create_order_succeeded
@@ -443,4 +432,15 @@ impl Exchange {
             let _ = tx.send(());
         }
     }
+}
+
+fn log_warn(
+    template: &str,
+    args_to_log: (&ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
+) -> Result<()> {
+    warn!(
+        "CreateOrderSucceeded was received for a {} order {:?}",
+        template, args_to_log
+    );
+    Ok(())
 }
