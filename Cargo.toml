@@ -12,56 +12,56 @@ uuid = { version = "0.8", features = ["serde", "v4"]}
 
 dashmap = "4"
 chrono = { version = "0.4", features = ["serde"]}
-log = "0.4.11"
-fern = "0.6.0"
-itertools = "0.10.0"
-bytes = "1.0"
+log = "0.4"
+fern = "0.6"
+itertools = "0.10"
+bytes = "1"
 regex = "1"
 
-serde = { version = "^1", features = ["derive", "rc"]}
-serde_json = "1.0"
+serde = { version = "1", features = ["derive", "rc"]}
+serde_json = "1"
 
 parking_lot = { version = "0.11", features = ["serde"]}
 
 tokio = { version = "1", features = ["macros", "time", "sync", "rt"]}
 
-actix = "0.11.1"
-actix-codec = "0.4.0-beta.1"
-actix-web = { version = "4.0.0-beta.1", features = ["rustls"]}
+actix = "0.12"
+actix-codec = "0.4.0"
+actix-web = { version = "4.0.0-beta.6", features = ["rustls"]}
 # because https://github.com/actix/actix-web/issues/2195
 actix-web-actors = { git = "https://github.com/actix/actix-web" }
 
-libc = "0.2.93"
-awc = "3.0.0-beta.1"
+libc = "0.2"
+awc = "3.0.0-beta.5"
 form_urlencoded = "1"
-hyper-tls = "0.5.0"
-hyper = { version = "0.14.5", features = ["http1", "client", "tcp"] }
+hyper-tls = "0.5"
+hyper = { version = "0.14", features = ["http1", "client", "tcp"] }
 
 futures = "0.3"
 
-smallstr = { version = "0.2.0", features = ["serde"]}
+smallstr = { version = "0.2", features = ["serde"]}
 
-anyhow = "1.0.38"
-rust_decimal = { version = "1.10.0" , features = ["maths"]}
-rust_decimal_macros = "1.10.1"
-derive-getters = "0.2.0"
+anyhow = "1"
+rust_decimal = { version = "1" , features = ["maths"]}
+rust_decimal_macros = "1"
+derive-getters = "0.2"
 
-async-trait = "0.1.42"
-hmac = "0.10.1"
-crypto-mac = { version = "0.10.0", features = ["std"]}
-sha2 = "0.9.3"
-hex = "0.4.2"
+async-trait = "0.1"
+hmac = "0.11"
+crypto-mac = { version = "0.11", features = ["std"]}
+sha2 = "0.9"
+hex = "0.4"
 
-enum-map = "0.6.4"
-nanoid = "0.3.0"
+enum-map = "1.1.1"
+nanoid = "0.4.0"
 
 scopeguard = "1.1.0"
 
 [dev-dependencies]
 rand = "0.8"
-actix-rt = "2.1"
-pretty_assertions = "0.6"
-rstest = "0.7.0"
+actix-rt = "2.2"
+pretty_assertions = "0.7"
+rstest = "0.10"
 
 [lib]
 name = "mmb_lib"

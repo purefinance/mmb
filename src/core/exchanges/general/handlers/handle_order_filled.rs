@@ -77,11 +77,26 @@ impl Exchange {
             )?;
         }
 
-        let maybe_order_ref =
-            self.add_order_in_pool_if_not_exists(&mut event_data, &args_to_log)?;
+        self.add_external_order(&mut event_data, &args_to_log)?;
 
-        match maybe_order_ref {
+        match self
+            .orders
+            .cache_by_exchange_id
+            .get(&event_data.exchange_order_id)
+        {
             None => {
+                if let Some(client_order_id) = &event_data.client_order_id {
+                    self.handle_create_order_succeeded(
+                        &self.exchange_account_id,
+                        client_order_id,
+                        &event_data.exchange_order_id,
+                        &event_data.source_type,
+                    )?;
+
+                    let order_ref = self.orders.cache_by_exchange_id.get(&event_data.exchange_order_id).expect("Order should be inserted in orders.cache_by_exchange_id by handle_create_order_succeeded called above");
+                    return self.try_to_create_and_add_order_fill(&mut event_data, &order_ref);
+                }
+
                 info!("Received a fill for not existing order {:?}", &args_to_log);
                 // TODO BufferedFillsManager.add_fill()
 
@@ -375,7 +390,7 @@ impl Exchange {
         if commission_currency_code != &currency_pair_metadata.base_currency_code()
             && commission_currency_code != &currency_pair_metadata.quote_currency_code()
         {
-            let mut currency_pair = CurrencyPair::from_currency_codes(
+            let mut currency_pair = CurrencyPair::from_codes(
                 commission_currency_code.clone(),
                 currency_pair_metadata.quote_currency_code(),
             );
@@ -391,7 +406,7 @@ impl Exchange {
                         currency_pair_metadata.quote_currency_code();
                 }
                 None => {
-                    currency_pair = CurrencyPair::from_currency_codes(
+                    currency_pair = CurrencyPair::from_codes(
                         currency_pair_metadata.quote_currency_code(),
                         commission_currency_code.clone(),
                     );
@@ -651,11 +666,11 @@ impl Exchange {
         Ok(())
     }
 
-    fn add_order_in_pool_if_not_exists(
+    fn add_external_order(
         &self,
         event_data: &mut FillEventData,
         args_to_log: &ArgsToLog,
-    ) -> Result<Option<OrderRef>> {
+    ) -> Result<()> {
         if event_data.fill_type == OrderFillType::Liquidation
             || event_data.fill_type == OrderFillType::ClosePosition
         {
@@ -670,7 +685,7 @@ impl Exchange {
 
             if event_data.order_side.is_none() {
                 Self::log_fill_handling_error_and_propagate(
-                    "Side should be set for liquidatioin or close position trade",
+                    "Side should be set for liquidation or close position trade",
                     &args_to_log,
                 )?;
             }
@@ -696,7 +711,6 @@ impl Exchange {
             {
                 Some(order_ref) => {
                     event_data.client_order_id = Some(order_ref.client_order_id());
-                    return Ok(Some(order_ref.clone()));
                 }
                 None => {
                     // Liquidation and ClosePosition are always Takers
@@ -709,13 +723,11 @@ impl Exchange {
                         &event_data.exchange_order_id,
                         &event_data.source_type,
                     )?;
-
-                    return Ok(Some(order_ref));
                 }
             }
         }
 
-        Ok(None)
+        Ok(())
     }
 
     fn create_order_in_pool(&self, event_data: &FillEventData, order_role: OrderRole) -> OrderRef {
@@ -858,10 +870,7 @@ mod test {
                 commission_rate: None,
                 commission_amount: None,
                 fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(CurrencyPair::from_currency_codes(
-                    "te".into(),
-                    "st".into(),
-                )),
+                trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: None,
                 order_amount: None,
             };
@@ -871,7 +880,7 @@ mod test {
                 Ok(_) => assert!(false),
                 Err(error) => {
                     assert_eq!(
-                        "Side should be set for liquidatioin or close position trade",
+                        "Side should be set for liquidation or close position trade ",
                         &error.to_string()[..59]
                     );
                 }
@@ -894,10 +903,7 @@ mod test {
                 commission_rate: None,
                 commission_amount: None,
                 fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(CurrencyPair::from_currency_codes(
-                    "te".into(),
-                    "st".into(),
-                )),
+                trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: None,
             };
@@ -930,10 +936,7 @@ mod test {
                 commission_rate: None,
                 commission_amount: None,
                 fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(CurrencyPair::from_currency_codes(
-                    "te".into(),
-                    "st".into(),
-                )),
+                trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: None,
             };
@@ -952,7 +955,7 @@ mod test {
 
         #[test]
         fn should_add_order() {
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_amount = dec!(12);
             let order_role = None;
@@ -1019,10 +1022,7 @@ mod test {
                 commission_rate: None,
                 commission_amount: None,
                 fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(CurrencyPair::from_currency_codes(
-                    "te".into(),
-                    "st".into(),
-                )),
+                trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: Some(dec!(0)),
             };
@@ -1045,7 +1045,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_codes("te".into(), "st".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
         let order_amount = dec!(1);
@@ -1066,7 +1066,7 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
+            trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
         };
@@ -1121,7 +1121,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_codes("te".into(), "st".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
         let fill_amount = dec!(0.2);
@@ -1142,7 +1142,7 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
+            trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
         };
@@ -1197,7 +1197,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("te".into(), "st".into());
+        let currency_pair = CurrencyPair::from_codes("te".into(), "st".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
         let fill_amount = dec!(0.2);
@@ -1218,7 +1218,7 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_currency_codes("te".into(), "st".into())),
+            trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
         };
@@ -1273,7 +1273,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
         let fill_amount = dec!(0);
@@ -1349,7 +1349,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1407,7 +1407,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1465,7 +1465,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
@@ -1526,7 +1526,7 @@ mod test {
     fn calculate_cost_diff_on_buy_side() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -1640,7 +1640,7 @@ mod test {
     fn calculate_cost_diff_on_sell_side() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -1754,7 +1754,7 @@ mod test {
     fn calculate_cost_diff_on_buy_side_derivative() {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -1873,7 +1873,7 @@ mod test {
     fn calculate_cost_diff_on_sell_side_derivative() {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -1990,7 +1990,7 @@ mod test {
     fn ignore_non_diff_fill_with_second_cost_lesser() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = "test_trade_id".to_owned();
@@ -2096,7 +2096,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(1);
@@ -2152,7 +2152,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2212,7 +2212,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2274,7 +2274,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2332,7 +2332,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2393,7 +2393,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2458,7 +2458,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2531,7 +2531,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
@@ -2593,7 +2593,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
@@ -2653,7 +2653,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
@@ -2712,7 +2712,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
@@ -2773,7 +2773,7 @@ mod test {
         fn from_event_data() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(true);
 
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
 
             let commission_rate = dec!(0.001);
             let expected_commission_rate = dec!(0.001);
@@ -2805,7 +2805,7 @@ mod test {
         fn via_commission_rate() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(true);
 
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
 
             let commission_rate = dec!(0.001);
             let expected_commission_rate = dec!(0.001);
@@ -2840,7 +2840,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_amount = dec!(12);
             let order_role = OrderRole::Maker;
@@ -2902,7 +2902,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_amount = dec!(12);
             let fill_price = dec!(0.8);
@@ -2963,7 +2963,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_role = OrderRole::Maker;
             let order_amount = dec!(12);
@@ -3027,7 +3027,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.8);
             let order_amount = dec!(12);
@@ -3059,7 +3059,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.8);
             let order_amount = dec!(12);
@@ -3085,12 +3085,13 @@ mod test {
 
     mod react_if_order_completed {
         use super::*;
+        use crate::core::exchanges::events::ExchangeEvent;
 
         #[test]
         fn order_completed_if_filled_completely() -> Result<()> {
-            let (exchange, event_receiver) = get_test_exchange(false);
+            let (exchange, mut event_receiver) = get_test_exchange(false);
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+            let currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.2);
             let order_amount = dec!(12);
@@ -3108,11 +3109,15 @@ mod test {
             let order_status = order_ref.status();
 
             assert_eq!(order_status, OrderStatus::Completed);
-            let gotten_id = event_receiver
-                .recv()
+
+            let event = match event_receiver
+                .try_recv()
                 .context("Event was not received")?
-                .order
-                .client_order_id();
+            {
+                ExchangeEvent::OrderEvent(v) => v,
+                _ => panic!("Should be OrderEvent"),
+            };
+            let gotten_id = event.order.client_order_id();
             assert_eq!(gotten_id, client_order_id);
             Ok(())
         }
@@ -3122,7 +3127,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.2);
             let order_amount = dec!(12);
@@ -3166,7 +3171,7 @@ mod test {
             let mut converted_commission_amount = dec!(4.5);
             let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
 
-            let currency_pair = CurrencyPair::from_currency_codes(
+            let currency_pair = CurrencyPair::from_codes(
                 commission_currency_code.clone(),
                 currency_pair_metadata.quote_currency_code.clone(),
             );
@@ -3214,7 +3219,7 @@ mod test {
             let mut converted_commission_amount = dec!(4.5);
             let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
 
-            let currency_pair = CurrencyPair::from_currency_codes(
+            let currency_pair = CurrencyPair::from_codes(
                 CurrencyCode::new("BTC".into()),
                 commission_currency_code.clone(),
             );
@@ -3285,7 +3290,7 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_currency_codes("PHB".into(), "BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_price = dec!(0.8);
         let order_amount = dec!(12);

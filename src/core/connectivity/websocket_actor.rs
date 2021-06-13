@@ -1,5 +1,6 @@
-use crate::core::connectivity::connectivity_manager::ConnectivityManagerNotifier;
+use crate::core::connectivity::connectivity_manager::{ConnectivityManagerNotifier, WebSocketRole};
 use crate::core::exchanges::common::ExchangeAccountId;
+use crate::core::nothing_to_do;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, StreamHandler};
 use actix_codec::Framed;
@@ -43,6 +44,7 @@ pub type WebsocketWriter =
 
 pub struct WebSocketActor {
     exchange_account_id: ExchangeAccountId,
+    role: WebSocketRole,
     writer: WebsocketWriter,
     last_heartbeat_time: Instant,
     connectivity_manager_notifier: ConnectivityManagerNotifier,
@@ -51,13 +53,14 @@ pub struct WebSocketActor {
 impl WebSocketActor {
     pub async fn open_connection(
         exchange_account_id: ExchangeAccountId,
+        role: WebSocketRole,
         params: WebSocketParams,
         connectivity_manager_notifier: ConnectivityManagerNotifier,
     ) -> Result<Addr<WebSocketActor>> {
         let connected_client = Client::builder()
             .max_http_version(http::Version::HTTP_11)
             .finish()
-            .ws(params.url.clone())
+            .ws(params.url)
             .header("Accept-Encoding", "gzip")
             .connect()
             .await;
@@ -70,8 +73,9 @@ impl WebSocketActor {
                 let (response, framed) = connected_client;
 
                 trace!(
-                    "WebsocketActor '{}' connecting status: {}",
+                    "WebsocketActor {} {:?} connecting status: {}",
                     exchange_account_id,
+                    role,
                     response.status()
                 );
                 if !(response.status() == StatusCode::SWITCHING_PROTOCOLS) {
@@ -85,6 +89,7 @@ impl WebSocketActor {
 
                     WebSocketActor::new(
                         exchange_account_id,
+                        role,
                         SinkWrite::new(sink, ctx),
                         connectivity_manager_notifier,
                     )
@@ -97,11 +102,13 @@ impl WebSocketActor {
 
     fn new(
         exchange_account_id: ExchangeAccountId,
+        role: WebSocketRole,
         writer: WebsocketWriter,
         connectivity_manager_notifier: ConnectivityManagerNotifier,
     ) -> Self {
         Self {
             exchange_account_id,
+            role,
             writer,
             last_heartbeat_time: Instant::now(),
             connectivity_manager_notifier,
@@ -110,25 +117,27 @@ impl WebSocketActor {
 
     fn write(&mut self, msg: ws::Message) {
         match self.writer.write(msg) {
-            None => {}
-            Some(msg) => error!(
-                "WebsocketActor '{}' can't send message '{:?}'",
-                self.exchange_account_id, msg
+            Ok(_) => nothing_to_do(),
+            Err(msg) => error!(
+                "WebsocketActor {} {:?} can't send message '{:?}'",
+                self.exchange_account_id, self.role, msg
             ),
         }
     }
 
     fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
         let notifier = self.connectivity_manager_notifier.clone();
-        let exchange_id = self.exchange_account_id.clone();
+        let exchange_account_id = self.exchange_account_id.clone();
+        let role = self.role;
         ctx.run_interval(HEARTBEAT_INTERVAL, move |act, _ctx| {
             if Instant::now().duration_since(act.last_heartbeat_time) > HEARTBEAT_FAIL_TIMEOUT {
                 trace!(
-                    "WebsocketActor '{}' heartbeat failed, disconnecting!",
-                    exchange_id
+                    "WebsocketActor {} {:?} heartbeat failed, disconnecting!",
+                    exchange_account_id,
+                    role,
                 );
 
-                notifier.notify_websocket_connection_closed(&exchange_id);
+                notifier.notify_websocket_connection_closed(&exchange_account_id);
 
                 return;
             }
@@ -151,7 +160,7 @@ impl WebSocketActor {
                     .message_received(text);
             }
             Err(error) => {
-                warn!("Unable to parse websoket message: {:?}", error)
+                warn!("Unable to parse websocket message: {:?}", error)
             }
         }
     }
@@ -161,12 +170,20 @@ impl Actor for WebSocketActor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        trace!("WebSocketActor '{}' started", self.exchange_account_id);
+        trace!(
+            "WebSocketActor {} {:?} started",
+            self.exchange_account_id,
+            self.role
+        );
         self.heartbeat(ctx);
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        trace!("WebSocketActor '{}' stopped", self.exchange_account_id);
+        trace!(
+            "WebSocketActor {} {:?} stopped",
+            self.exchange_account_id,
+            self.role
+        );
 
         self.connectivity_manager_notifier
             .notify_websocket_connection_closed(&self.exchange_account_id);
@@ -186,8 +203,8 @@ impl Handler<SendText> for WebSocketActor {
 
     fn handle(&mut self, msg: SendText, _ctx: &mut Self::Context) -> Self::Result {
         info!(
-            "WebsocketActor '{}' send msg: {}",
-            self.exchange_account_id, msg.0
+            "WebsocketActor {} {:?} send msg: {}",
+            self.exchange_account_id, self.role, msg.0
         );
         self.write(ws::Message::Text(msg.0.into()));
     }
@@ -198,12 +215,12 @@ impl Handler<ForceClose> for WebSocketActor {
 
     fn handle(&mut self, _msg: ForceClose, _ctx: &mut Self::Context) -> Self::Result {
         info!(
-            "WebsocketActor '{}' received ForceClose message",
-            self.exchange_account_id
+            "WebsocketActor {} {:?} received ForceClose message",
+            self.exchange_account_id, self.role,
         );
-        self.write(ws::Message::Close(Some(CloseReason::from(
-            CloseCode::Normal,
-        ))))
+
+        let close_reason = CloseReason::from(CloseCode::Normal);
+        self.write(ws::Message::Close(Some(close_reason)))
     }
 }
 
@@ -213,16 +230,18 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
             Ok(msg) => match msg {
                 Frame::Text(ref text) => self.handle_websocket_message(text),
                 Frame::Binary(bytes) => trace!(
-                    "WebsocketActor '{}' got binary message: {:x?}",
-                    &self.exchange_account_id,
-                    &bytes.chunk()
+                    "WebsocketActor {} {:?} got binary message: {:x?}",
+                    self.exchange_account_id,
+                    self.role,
+                    bytes.chunk()
                 ),
                 Frame::Pong(ref msg) => {
                     if &msg[..] == PING_MESSAGE {
                         self.last_heartbeat_time = Instant::now();
                     } else {
-                        error!("WebsocketActor '{}' received wrong pong message: {}. We are sending message '{}' only",
+                        error!("WebsocketActor {} {:?} received wrong pong message: {}. We are sending message '{}' only",
                                    self.exchange_account_id,
+                                   self.role,
                                    String::from_utf8_lossy(&msg),
                                    String::from_utf8_lossy(PING_MESSAGE)
                             );
@@ -231,8 +250,9 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
                 Frame::Ping(msg) => self.write(ws::Message::Pong(msg)),
                 Frame::Close(reason) => {
                     trace!(
-                        "Websocket {} closed with reason: {}",
+                        "Websocket {} {:?} closed with reason: {}",
                         self.exchange_account_id,
+                        self.role,
                         reason
                             .clone()
                             .map(|x| x.description)
@@ -307,6 +327,7 @@ mod tests {
             let exchange_id = "Binance0".parse().expect("in test");
             let websocket_addr = WebSocketActor::open_connection(
                 exchange_id,
+                WebSocketRole::Main,
                 WebSocketParams { url },
                 Default::default(),
             )

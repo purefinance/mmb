@@ -1,11 +1,9 @@
-use std::pin::Pin;
-use std::sync::mpsc;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
-use futures::Future;
+use futures::FutureExt;
 use log::{error, info, warn, Level};
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -14,12 +12,11 @@ use tokio::sync::{broadcast, oneshot};
 use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
+use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
-use crate::core::exchanges::{
-    cancellation_token::CancellationToken, timeouts::timeout_manager::TimeoutManager,
-};
+use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::OrderHeader;
 use crate::core::orders::pool::OrdersPool;
@@ -30,7 +27,7 @@ use crate::core::{
     exchanges::{
         application_manager::ApplicationManager,
         common::CurrencyPair,
-        common::{ExchangeError, ExchangeErrorType, RestRequestOutcome, SpecificCurrencyPair},
+        common::{ExchangeError, ExchangeErrorType, RestRequestOutcome},
         traits::ExchangeClient,
     },
 };
@@ -69,9 +66,6 @@ pub(crate) struct OrderBookTop {
 
 pub struct Exchange {
     pub exchange_account_id: ExchangeAccountId,
-    websocket_host: String,
-    specific_currency_pairs: Vec<SpecificCurrencyPair>,
-    websocket_channels: Vec<String>,
     pub(super) exchange_client: Box<dyn ExchangeClient>,
     pub orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
@@ -95,7 +89,7 @@ pub struct Exchange {
         ),
     >,
     pub(super) features: ExchangeFeatures,
-    pub(super) event_channel: Mutex<mpsc::Sender<OrderEvent>>,
+    pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
     application_manager: Arc<ApplicationManager>,
     pub(crate) timeout_manager: Arc<TimeoutManager>,
     pub(super) commission: Commission,
@@ -113,12 +107,10 @@ pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
 impl Exchange {
     pub fn new(
         exchange_account_id: ExchangeAccountId,
-        websocket_host: String,
-        specific_currency_pairs: Vec<SpecificCurrencyPair>,
-        websocket_channels: Vec<String>,
         exchange_client: BoxExchangeClient,
         features: ExchangeFeatures,
-        event_channel: mpsc::Sender<OrderEvent>,
+        events_channel: broadcast::Sender<ExchangeEvent>,
+        application_manager: Arc<ApplicationManager>,
         timeout_manager: Arc<TimeoutManager>,
         commission: Commission,
     ) -> Arc<Self> {
@@ -126,19 +118,15 @@ impl Exchange {
 
         let exchange = Arc::new(Self {
             exchange_account_id: exchange_account_id.clone(),
-            websocket_host,
-            specific_currency_pairs,
-            websocket_channels,
             exchange_client,
             orders: OrdersPool::new(),
             connectivity_manager,
             order_creation_events: DashMap::new(),
             order_cancellation_events: DashMap::new(),
             supported_symbols: Default::default(),
-            // TODO in the future application_manager have to be passed as parameter
-            application_manager: ApplicationManager::new(CancellationToken::new()),
+            application_manager,
             features,
-            event_channel: Mutex::new(event_channel),
+            events_channel,
             timeout_manager,
             commission,
             symbols: Default::default(),
@@ -248,14 +236,6 @@ impl Exchange {
         );
     }
 
-    pub fn create_websocket_params(&self, ws_path: &str) -> WebSocketParams {
-        WebSocketParams::new(
-            format!("{}{}", self.websocket_host, ws_path)
-                .parse()
-                .expect("should be valid url"),
-        )
-    }
-
     pub async fn connect(self: Arc<Self>) {
         self.try_connect().await;
         // TODO Reconnect
@@ -269,13 +249,13 @@ impl Exchange {
         // TODO handle results
 
         let exchange_weak = Arc::downgrade(&self);
-        let get_websocket_params = Box::new(move |websocket_role| {
-            let exchange = exchange_weak
+        let get_websocket_params: GetWSParamsCallback = Box::new(move |websocket_role| {
+            exchange_weak
                 .upgrade()
-                .expect("Unable to upgrade reference to Exchange");
-            let params = exchange.get_websocket_params(websocket_role);
-            Box::pin(params) as Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
-        }) as GetWSParamsCallback;
+                .expect("Unable to upgrade reference to Exchange")
+                .get_websocket_params(websocket_role)
+                .boxed()
+        });
 
         let is_connected = self
             .connectivity_manager
@@ -456,20 +436,10 @@ impl Exchange {
 
     pub async fn get_websocket_params(
         self: Arc<Self>,
-        websocket_role: WebSocketRole,
+        role: WebSocketRole,
     ) -> Result<WebSocketParams> {
-        let ws_path = match websocket_role {
-            WebSocketRole::Main => {
-                // TODO remove hardcode or probably extract to common_interaction trait
-                self.exchange_client.build_ws_main_path(
-                    &self.specific_currency_pairs[..],
-                    &self.websocket_channels[..],
-                )
-            }
-            WebSocketRole::Secondary => self.exchange_client.build_ws_secondary_path().await?,
-        };
-
-        Ok(self.create_websocket_params(&ws_path))
+        let ws_url = self.exchange_client.create_ws_url(role).await?;
+        Ok(WebSocketParams::new(ws_url))
     }
 
     pub(crate) fn add_event_on_order_change(
@@ -488,9 +458,9 @@ impl Exchange {
                 .remove(&order_ref.client_order_id());
         }
 
-        self.event_channel
-            .lock()
-            .send(OrderEvent::new(order_ref.clone(), event_type))
+        let event = ExchangeEvent::OrderEvent(OrderEvent::new(order_ref.clone(), event_type));
+        self.events_channel
+            .send(event)
             .context("Unable to send event. Probably receiver is already dropped")?;
 
         Ok(())

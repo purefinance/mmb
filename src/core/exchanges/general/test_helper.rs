@@ -1,7 +1,16 @@
 #![cfg(test)]
+use std::{collections::HashMap, sync::Arc};
+
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
+use tokio::sync::broadcast;
 
+use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
+use crate::core::exchanges::application_manager::ApplicationManager;
+use crate::core::exchanges::binance::binance::BinanceBuilder;
+use crate::core::exchanges::cancellation_token::CancellationToken;
+use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::{
     exchanges::binance::binance::Binance, exchanges::common::Amount,
     exchanges::common::CurrencyPair, exchanges::common::ExchangeAccountId,
@@ -9,44 +18,44 @@ use crate::core::{
     exchanges::general::commission::Commission, exchanges::general::commission::CommissionForType,
     exchanges::general::currency_pair_metadata::PrecisionType,
     exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
-    exchanges::timeouts::timeout_manager::TimeoutManager, orders::event::OrderEvent,
-    orders::order::ClientOrderId, orders::order::OrderRole, orders::order::OrderSide,
-    orders::order::OrderSnapshot, orders::order::OrderType, orders::pool::OrderRef,
-    orders::pool::OrdersPool, settings,
+    exchanges::timeouts::timeout_manager::TimeoutManager, orders::order::ClientOrderId,
+    orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
+    orders::order::OrderType, orders::pool::OrderRef, orders::pool::OrdersPool, settings,
 };
 
-use std::{
-    collections::HashMap,
-    sync::{
-        mpsc::{channel, Receiver},
-        Arc,
-    },
-};
-
-use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
-pub(crate) fn get_test_exchange(is_derivative: bool) -> (Arc<Exchange>, Receiver<OrderEvent>) {
+pub(crate) fn get_test_exchange(
+    is_derivative: bool,
+) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
-    let settings = settings::ExchangeSettings::new(
+    let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         "test_api_key".into(),
         "test_secret_key".into(),
         false,
     );
 
-    let binance = Binance::new(settings, "Binance0".parse().expect("in test"));
+    let application_manager = ApplicationManager::new(CancellationToken::new());
+    let (tx, rx) = broadcast::channel(10);
+
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.web_socket_host = "host".into();
+    settings.web_socket2_host = "host2".into();
+
+    let binance = Box::new(Binance::new(
+        "Binance0".parse().expect("in test"),
+        settings.clone(),
+        tx.clone(),
+        application_manager.clone(),
+    ));
     let referral_reward = dec!(40);
     let commission = Commission::new(
         CommissionForType::new(dec!(0.1), referral_reward),
         CommissionForType::new(dec!(0.2), referral_reward),
     );
 
-    let (tx, rx) = channel();
     let exchange = Exchange::new(
         exchange_account_id,
-        "host".into(),
-        vec![],
-        vec![],
-        Box::new(binance),
+        binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             false,
@@ -55,6 +64,7 @@ pub(crate) fn get_test_exchange(is_derivative: bool) -> (Arc<Exchange>, Receiver
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         commission,
     );

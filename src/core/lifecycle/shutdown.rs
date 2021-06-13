@@ -36,10 +36,15 @@ pub struct ShutdownService {
 }
 
 impl ShutdownService {
-    pub fn register_service(self: Arc<Self>, service: Arc<dyn Service>) -> Arc<Self> {
+    pub fn register_service(self: &Arc<Self>, service: Arc<dyn Service>) {
         trace!("Registered in ShutdownService service '{}'", service.name());
         self.state.lock().services.push(service);
-        self
+    }
+
+    pub fn register_services(self: &Arc<Self>, services: &[Arc<dyn Service>]) {
+        for service in services {
+            self.register_service(service.clone());
+        }
     }
 
     pub fn register_actor(&self, name: String, actor: Recipient<GracefulShutdownMsg>) {
@@ -47,7 +52,7 @@ impl ShutdownService {
         self.state.lock().actors.push(ActorInfo { name, actor });
     }
 
-    pub async fn graceful_shutdown(&self) -> Vec<String> {
+    pub(crate) async fn graceful_shutdown(&self) -> Vec<String> {
         let mut finish_receivers = Vec::new();
 
         trace!("Prepare to drop services in ShutdownService started");

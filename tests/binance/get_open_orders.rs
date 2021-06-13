@@ -1,4 +1,7 @@
-use crate::get_binance_credentials_or_exit;
+use std::collections::HashMap;
+use std::thread;
+use std::time::Duration;
+
 use chrono::Utc;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
@@ -10,10 +13,11 @@ use mmb_lib::core::exchanges::{common::*, timeouts::timeout_manager::TimeoutMana
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
-use std::sync::mpsc::channel;
-use std::thread;
-use std::time::Duration;
-use std::{collections::HashMap, env};
+
+use crate::get_binance_credentials_or_exit;
+use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
+use tokio::sync::broadcast;
 
 #[actix_rt::test]
 #[ignore]
@@ -22,25 +26,28 @@ async fn open_orders_exists() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
 
-    let settings = settings::ExchangeSettings::new(
+    let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
-        api_key.expect("in test"),
-        secret_key.expect("in test"),
+        api_key,
+        secret_key,
         false,
     );
 
-    let binance = Binance::new(settings, exchange_account_id.clone());
+    let application_manager = ApplicationManager::new(CancellationToken::new());
+    let (tx, _) = broadcast::channel(10);
 
-    let websocket_host = "wss://stream.binance.com:9443".into();
-    let currency_pairs = vec!["PHBBTC".into()];
-    let channels = vec!["depth".into(), "trade".into()];
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.websocket_channels = vec!["depth".into(), "trade".into()];
 
-    let (tx, _) = channel();
+    let binance = Binance::new(
+        exchange_account_id.clone(),
+        settings,
+        tx.clone(),
+        application_manager.clone(),
+    );
+
     let exchange = Exchange::new(
         exchange_account_id.clone(),
-        websocket_host,
-        currency_pairs,
-        channels,
         Box::new(binance),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -50,6 +57,7 @@ async fn open_orders_exists() {
             AllowedEventSourceType::default(),
         ),
         tx,
+        application_manager,
         TimeoutManager::new(HashMap::new()),
         Commission::default(),
     );
@@ -57,7 +65,7 @@ async fn open_orders_exists() {
     exchange.clone().connect().await;
 
     let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_currency_codes("phb".into(), "btc".into());
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let test_price = dec!(0.00000007);
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),

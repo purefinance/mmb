@@ -79,24 +79,21 @@ impl TimeoutManager {
     ) -> Result<impl Future<Output = Result<()>> + Send + Sync> {
         let inner = (&self.inner[exchange_account_id]).clone();
 
-        let convert_future = |handle: JoinHandle<Result<()>>| {
-            handle.map(|res| res.context("Error in given future")?)
-        };
+        const ERROR_MSG: &str = "Failed waiting in method TimeoutManager::reserve_when_available";
+        let convert = |handle: JoinHandle<Result<()>>| handle.map(|res| res.context(ERROR_MSG)?);
 
-        let current_time = now();
+        let now = now();
         if pre_reservation_group_id.is_none() {
-            let result =
-                inner.reserve_when_available(request_type, current_time, cancellation_token)?;
-            return Ok(Either::Left(convert_future(result.0)));
+            let result = inner.reserve_when_available(request_type, now, cancellation_token)?;
+            return Ok(Either::Left(convert(result.0)));
         }
 
-        if inner.try_reserve_instant(request_type, current_time, pre_reservation_group_id)? {
+        if inner.try_reserve_instant(request_type, now, pre_reservation_group_id)? {
             return Ok(Either::Right(ready(Ok(()))));
         }
 
-        let result =
-            inner.reserve_when_available(request_type, current_time, cancellation_token)?;
-        Ok(Either::Left(convert_future(result.0)))
+        let result = inner.reserve_when_available(request_type, now, cancellation_token)?;
+        Ok(Either::Left(convert(result.0)))
     }
 }
 

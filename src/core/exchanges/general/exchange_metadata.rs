@@ -70,14 +70,12 @@ impl Exchange {
         }
 
         match self.exchange_client.parse_metadata(&response) {
-            symbols @ Ok(_) => {
-                return symbols;
-            }
+            symbols @ Ok(_) => symbols,
             Err(error) => {
                 self.handle_parse_error(error, response, "".into(), None)?;
-                return Ok(Vec::new());
+                Ok(Vec::new())
             }
-        };
+        }
     }
 
     fn get_supported_currencies(

@@ -11,6 +11,7 @@ use rust_decimal_macros::dec;
 use tokio::sync::{broadcast, oneshot};
 
 use crate::core::disposition_execution::trade_limit::is_enough_amount_and_cost;
+use crate::core::disposition_execution::trading_context_calculation::calculate_trading_context;
 use crate::core::disposition_execution::{
     CompositeOrder, OrderRecord, OrdersState, PriceSlot, TradeCycle, TradingContext,
 };
@@ -33,9 +34,10 @@ use crate::core::orders::order::{
 use crate::core::orders::pool::OrderRef;
 use crate::core::{nothing_to_do, DateTime};
 use crate::strategies::disposition_strategy::DispositionStrategy;
+use chrono::Duration;
 
 static DISPOSITION_EXECUTOR: &str = "DispositionExecutor";
-static DISPOSITION_EXECUTOR_TARGET_REQUESTS_GROUP: &str = "DispositionExecutor_Target";
+static DISPOSITION_EXECUTOR_REQUESTS_GROUP: &str = "DispositionExecutorRG";
 const ALLOWED_AMOUNT_DEVIATION_RATE: Decimal = dec!(0.001);
 const GROUP_REQUESTS_COUNT: usize = 4;
 
@@ -59,11 +61,11 @@ impl DispositionExecutorService {
         engine_ctx: Arc<EngineContext>,
         events_receiver: broadcast::Receiver<ExchangeEvent>,
         local_snapshots_service: LocalSnapshotsService,
-        target_eai: ExchangeAccountId,
-        target_currency_pair: CurrencyPair,
-        strategy: Arc<DispositionStrategy>,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        strategy: Box<DispositionStrategy>,
         cancellation_token: CancellationToken,
-    ) -> Self {
+    ) -> Arc<Self> {
         let (work_finished_sender, receiver) = oneshot::channel();
 
         tokio::spawn(async move {
@@ -71,8 +73,8 @@ impl DispositionExecutorService {
                 engine_ctx,
                 events_receiver,
                 local_snapshots_service,
-                target_eai,
-                target_currency_pair,
+                exchange_account_id,
+                currency_pair,
                 strategy,
                 work_finished_sender,
                 cancellation_token,
@@ -83,9 +85,9 @@ impl DispositionExecutorService {
             };
         });
 
-        DispositionExecutorService {
+        Arc::new(DispositionExecutorService {
             work_finished_receiver: Mutex::new(Some(receiver)),
-        }
+        })
     }
 }
 
@@ -106,12 +108,12 @@ impl Service for DispositionExecutorService {
 
 struct DispositionExecutor {
     engine_ctx: Arc<EngineContext>,
-    target_eai: ExchangeAccountId,
-    target_currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    exchange_account_id: ExchangeAccountId,
+    currency_pair_metadata: Arc<CurrencyPairMetadata>,
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     local_snapshots_service: LocalSnapshotsService,
     orders_state: OrdersState,
-    strategy: Arc<DispositionStrategy>,
+    strategy: Box<DispositionStrategy>,
     work_finished_sender: Option<oneshot::Sender<Result<()>>>,
     cancellation_token: CancellationToken,
 }
@@ -121,25 +123,25 @@ impl DispositionExecutor {
         engine_ctx: Arc<EngineContext>,
         events_receiver: broadcast::Receiver<ExchangeEvent>,
         local_snapshots_service: LocalSnapshotsService,
-        target_eai: ExchangeAccountId,
-        target_currency_pair: CurrencyPair,
-        strategy: Arc<DispositionStrategy>,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        strategy: Box<DispositionStrategy>,
         work_finished_sender: oneshot::Sender<Result<()>>,
         cancellation_token: CancellationToken,
     ) -> Self {
-        let target_currency_pair_metadata = engine_ctx
+        let currency_pair_metadata = engine_ctx
             .exchanges
-            .get(&target_eai)
+            .get(&exchange_account_id)
             .expect("Target exchange should exists")
-            .get_currency_pair_metadata(&target_currency_pair)
+            .get_currency_pair_metadata(&currency_pair)
             .expect("Currency pair metadata should exists for target trading place");
 
         DispositionExecutor {
             engine_ctx,
             events_receiver,
             local_snapshots_service,
-            target_eai,
-            target_currency_pair_metadata,
+            exchange_account_id,
+            currency_pair_metadata,
             orders_state: OrdersState::new(),
             strategy,
             work_finished_sender: Some(work_finished_sender),
@@ -168,7 +170,8 @@ impl DispositionExecutor {
         event: ExchangeEvent,
         last_trading_context: &mut Option<TradingContext>,
     ) -> Result<()> {
-        let init_estimation = prepare_estimate_trading_context(&event);
+        let now = now();
+        let need_recalculate_trading_context = prepare_estimate_trading_context(&event, now);
 
         match event {
             ExchangeEvent::OrderBookEvent(order_book_event) => {
@@ -236,14 +239,18 @@ impl DispositionExecutor {
             _ => nothing_to_do(),
         };
 
-        let mut new_trading_context =
-            estimate_trading_context(&init_estimation, &self.local_snapshots_service)?;
+        let mut new_trading_context = estimate_trading_context(
+            need_recalculate_trading_context,
+            &mut self.strategy,
+            &self.local_snapshots_service,
+            now,
+        )?;
 
         if last_trading_context == &mut new_trading_context {
             return Ok(());
         }
 
-        self.synchronize_price_slots_for_trading_context(&mut new_trading_context)?;
+        self.synchronize_price_slots_for_trading_context(&mut new_trading_context, now)?;
         *last_trading_context = new_trading_context;
 
         Ok(())
@@ -252,6 +259,7 @@ impl DispositionExecutor {
     fn synchronize_price_slots_for_trading_context(
         &mut self,
         trading_context: &mut Option<TradingContext>,
+        now: DateTime,
     ) -> Result<()> {
         for (side, state_by_side) in self.orders_state.by_side.iter() {
             let trading_context_by_side =
@@ -264,6 +272,7 @@ impl DispositionExecutor {
                 &state_by_side.slots,
                 &mut trading_context_by_side.estimating[..],
                 trading_context_by_side.max_amount,
+                now,
             )?
         }
 
@@ -276,9 +285,10 @@ impl DispositionExecutor {
         slots: &[PriceSlot],
         estimating: &mut [WithExplanation<Option<TradeCycle>>],
         max_amount: Decimal,
+        now: DateTime,
     ) -> Result<()> {
         if slots.len() != estimating.len() {
-            bail!("TargetExchangeAccountId {} slots count is different is trading context ({}) and DispositionExecutor state ({})", self.target_eai, estimating.len(), slots.len());
+            bail!("ExchangeAccountId {} slots count is different is trading context ({}) and DispositionExecutor state ({})", self.exchange_account_id, estimating.len(), slots.len());
         }
 
         for level_index in 0..slots.len() {
@@ -287,7 +297,7 @@ impl DispositionExecutor {
 
             let (trade_cycle, explanation) = with_explanation.as_mut_all();
 
-            self.synchronize_price_slot(trade_cycle, price_slot, max_amount, explanation)?;
+            self.synchronize_price_slot(trade_cycle, price_slot, max_amount, now, explanation)?;
         }
 
         Ok(())
@@ -298,6 +308,7 @@ impl DispositionExecutor {
         new_estimating: &Option<TradeCycle>,
         price_slot: &PriceSlot,
         max_amount: Decimal,
+        now: DateTime,
         explanation: &mut Explanation,
     ) -> Result<()> {
         let composite_order = &price_slot.order;
@@ -310,7 +321,7 @@ impl DispositionExecutor {
         if self
             .engine_ctx
             .exchange_blocker
-            .is_blocked(&self.target_eai)
+            .is_blocked(&self.exchange_account_id)
         {
             self.start_cancelling_all_orders(
                 "target exchange is locked",
@@ -340,13 +351,13 @@ impl DispositionExecutor {
             }
             Some(v) => v,
         };
-        let new_estimating_target = &new_estimating.disposition;
+        let new_estimating_disposition = &new_estimating.disposition;
 
         let composite_order_ref = composite_order.borrow();
-        if composite_order_ref.side != new_estimating_target.side() {
+        if composite_order_ref.side != new_estimating_disposition.side() {
             panic!(
                 "Unmatched orders side. New disposition {:?}. Current composite order {:?}",
-                new_estimating_target, composite_order_ref
+                new_estimating_disposition, composite_order_ref
             );
         }
 
@@ -362,8 +373,8 @@ impl DispositionExecutor {
                 .join(", ")
         ));
 
-        let desired_amount = new_estimating_target.order.amount;
-        if new_estimating_target.order.price == composite_order_ref.price {
+        let desired_amount = new_estimating_disposition.order.amount;
+        if new_estimating_disposition.order.price == composite_order_ref.price {
             explanation.add_reason(format!(
                 "New price == old price ({})",
                 composite_order_ref.price
@@ -406,12 +417,13 @@ impl DispositionExecutor {
                 price_slot,
                 new_estimating,
                 max_amount,
+                now,
                 explanation,
             )?;
         } else {
             explanation.add_reason(format!(
                 "New price ({}) != old price ({})",
-                new_estimating_target.order.price, composite_order_ref.price
+                new_estimating_disposition.order.price, composite_order_ref.price
             ));
 
             if composite_order_ref.orders.is_empty() {
@@ -421,6 +433,7 @@ impl DispositionExecutor {
                     price_slot,
                     new_estimating,
                     max_amount,
+                    now,
                     explanation,
                 )?;
             } else {
@@ -490,18 +503,13 @@ impl DispositionExecutor {
         trace!("Begin cancel_order {}", order.client_order_id());
 
         let client_order_id = order.client_order_id();
-        let target_request_group_id = order_record.request_group_id.clone();
+        let request_group_id = order_record.request_group_id.clone();
         let exchange = self.exchange();
         let cancellation_token = self.cancellation_token.clone();
         let _ = tokio::spawn(async move {
             trace!("Begin wait_cancel_order {}", client_order_id);
             exchange
-                .wait_cancel_order(
-                    order,
-                    Some(target_request_group_id),
-                    false,
-                    cancellation_token,
-                )
+                .wait_cancel_order(order, Some(request_group_id), false, cancellation_token)
                 .await?;
             trace!("Finished wait_cancel_order {}", client_order_id);
 
@@ -528,6 +536,7 @@ impl DispositionExecutor {
         price_slot: &PriceSlot,
         new_estimating: &TradeCycle,
         max_amount: Decimal,
+        now: DateTime,
         explanation: &mut Explanation,
     ) -> Result<()> {
         trace!("Begin try_create_order");
@@ -557,7 +566,7 @@ impl DispositionExecutor {
             new_disposition,
             new_order_amount,
             true,
-            &self.target_currency_pair_metadata,
+            &self.currency_pair_metadata,
         ) {
             return log_trace(
                 format!("Finished `try_create_order` by reason: {}", reason),
@@ -568,24 +577,25 @@ impl DispositionExecutor {
         let new_client_order_id = ClientOrderId::unique_id();
 
         let requests_group_id = self.engine_ctx.timeout_manager.try_reserve_group(
-            &self.target_eai,
+            &self.exchange_account_id,
             GROUP_REQUESTS_COUNT,
-            DISPOSITION_EXECUTOR_TARGET_REQUESTS_GROUP.to_string(),
+            DISPOSITION_EXECUTOR_REQUESTS_GROUP.to_string(),
         )?;
 
-        let requests_group_id =
-            match requests_group_id {
-                None => return log_trace(
-                    "Finished `try_create_order` because can't reserve target reservation group",
+        let requests_group_id = match requests_group_id {
+            None => {
+                return log_trace(
+                    "Finished `try_create_order` because can't reserve reservation group",
                     explanation,
-                ),
-                Some(v) => v,
-            };
+                )
+            }
+            Some(v) => v,
+        };
 
         // TODO reserve balances
 
         if !self.engine_ctx.timeout_manager.try_reserve_group_instant(
-            &self.target_eai,
+            &self.exchange_account_id,
             RequestType::CancelOrder,
             Some(requests_group_id),
         )? {
@@ -594,7 +604,7 @@ impl DispositionExecutor {
             let _ = self
                 .engine_ctx
                 .timeout_manager
-                .remove_group(&self.target_eai, requests_group_id)?;
+                .remove_group(&self.exchange_account_id, requests_group_id)?;
 
             return log_trace(
                 "Finished `try_create_order` because can't reserve requests",
@@ -606,9 +616,9 @@ impl DispositionExecutor {
 
         let new_order_header = OrderHeader::new(
             new_client_order_id.clone(),
-            now(),
-            self.target_eai.clone(),
-            self.target_currency_pair_metadata.currency_pair(),
+            now,
+            self.exchange_account_id.clone(),
+            self.currency_pair_metadata.currency_pair(),
             OrderType::Limit,
             new_disposition.side(),
             new_order_amount,
@@ -717,30 +727,30 @@ impl DispositionExecutor {
         error!(
             "Can't find order with client_order_id {} {} in orders state of DispositionExecutor",
             order.client_order_id(),
-            self.target_eai
+            self.exchange_account_id
         );
         return None;
     }
 
     fn finish_order(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
-        self.unreserve_target_order_amount(order, price_slot);
-        self.remove_target_request_group(order, price_slot)?;
+        self.unreserve_order_amount(order, price_slot);
+        self.remove_request_group(order, price_slot)?;
 
         price_slot.remove_order(order);
 
         Ok(())
     }
-    fn unreserve_target_order_amount(&self, _order: &OrderRef, _price_slot: &PriceSlot) {
+    fn unreserve_order_amount(&self, _order: &OrderRef, _price_slot: &PriceSlot) {
         // TODO needed implementation after BalanceManager
     }
-    fn remove_target_request_group(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
+    fn remove_request_group(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
         let request_group_id =
             price_slot.order.borrow().orders[&order.client_order_id()].request_group_id;
 
         let _ = self
             .engine_ctx
             .timeout_manager
-            .remove_group(&self.target_eai, request_group_id)?;
+            .remove_group(&self.exchange_account_id, request_group_id)?;
         Ok(())
     }
 
@@ -754,7 +764,7 @@ impl DispositionExecutor {
         let result = self.strategy.handle_order_fill(
             cloned_order,
             price_slot,
-            &self.target_eai,
+            &self.exchange_account_id,
             self.cancellation_token.clone(),
         );
 
@@ -765,7 +775,7 @@ impl DispositionExecutor {
     fn exchange(&self) -> Arc<Exchange> {
         self.engine_ctx
             .exchanges
-            .get(&self.target_eai)
+            .get(&self.exchange_account_id)
             .expect("Target exchange for strategy should exists")
             .value()
             .clone()
@@ -776,29 +786,39 @@ struct InitEstimation {
     event_time: DateTime,
 }
 
-fn prepare_estimate_trading_context(event: &ExchangeEvent) -> Option<InitEstimation> {
-    match event {
-        ExchangeEvent::OrderBookEvent(order_book_event) => Some(InitEstimation {
-            event_time: order_book_event.creation_time,
-        }),
-        ExchangeEvent::LiquidationPrice(liquidation_price) => Some(InitEstimation {
-            event_time: liquidation_price.event_creation_time,
-        }),
-        _ => None,
-    }
-}
-
-// TODO implement
-fn estimate_trading_context(
-    prepare_state: &Option<InitEstimation>,
-    _local_snapshots_service: &LocalSnapshotsService,
-) -> Result<Option<TradingContext>> {
-    let _prepare_state = match prepare_state {
-        None => return Ok(None),
-        Some(v) => v,
+fn prepare_estimate_trading_context(event: &ExchangeEvent, now: DateTime) -> bool {
+    let event_time = match event {
+        ExchangeEvent::OrderBookEvent(order_book_event) => order_book_event.creation_time,
+        ExchangeEvent::LiquidationPrice(liquidation_price) => liquidation_price.event_creation_time,
+        _ => return false,
     };
 
-    todo!()
+    // max delay for skipping recalculation of trading context and orders synchronization
+    let delay_for_skipping_event: Duration = Duration::milliseconds(50);
+    if event_time + delay_for_skipping_event < now {
+        // TODO save metrics about skipped events
+
+        return false;
+    }
+
+    true
+}
+
+fn estimate_trading_context(
+    need_recalculate_trading_context: bool,
+    strategy: &mut DispositionStrategy,
+    local_snapshots_service: &LocalSnapshotsService,
+    now: DateTime,
+) -> Result<Option<TradingContext>> {
+    if !need_recalculate_trading_context {
+        return Ok(None);
+    }
+
+    Ok(calculate_trading_context(
+        strategy,
+        local_snapshots_service,
+        now,
+    ))
 }
 
 fn get_cancelling_orders<'a>(

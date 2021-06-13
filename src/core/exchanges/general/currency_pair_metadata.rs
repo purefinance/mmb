@@ -113,7 +113,7 @@ impl CurrencyPairMetadata {
 
     // Currency pair in unified for crate format
     pub fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_currency_codes(
+        CurrencyPair::from_codes(
             self.base_currency_code.clone(),
             self.quote_currency_code.clone(),
         )
@@ -154,6 +154,7 @@ impl CurrencyPairMetadata {
         }
     }
 
+    /// Rounding of order amount with specified precision
     pub fn amount_round_pr(
         &self,
         amount: Amount,
