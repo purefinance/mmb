@@ -16,6 +16,7 @@ use tokio::sync::broadcast;
 use tokio::time::Duration;
 
 use super::common::get_timeout_manager;
+use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 
 #[actix_rt::test]
 async fn cancellation_waited_successfully() {
@@ -24,7 +25,7 @@ async fn cancellation_waited_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new_short(
+    let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         api_key,
         secret_key,
@@ -34,6 +35,9 @@ async fn cancellation_waited_successfully() {
     let application_manager = ApplicationManager::new(CancellationToken::default());
     let (tx, _) = broadcast::channel(10);
 
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.websocket_channels = vec!["depth".into(), "trade".into()];
+
     let binance = Box::new(Binance::new(
         exchange_account_id.clone(),
         settings,
@@ -41,15 +45,10 @@ async fn cancellation_waited_successfully() {
         application_manager.clone(),
     )) as BoxExchangeClient;
 
-    let websocket_host = "wss://stream.binance.com:9443".into();
-    let channels = vec!["depth".into(), "trade".into()];
-
     let timeout_manager = get_timeout_manager(&exchange_account_id);
 
     let exchange = Exchange::new(
         exchange_account_id.clone(),
-        websocket_host,
-        channels,
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -123,7 +122,7 @@ async fn cancellation_waited_failed_fallback() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new_short(
+    let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         api_key,
         secret_key,
@@ -133,6 +132,9 @@ async fn cancellation_waited_failed_fallback() {
     let application_manager = ApplicationManager::new(CancellationToken::default());
     let (tx, _) = broadcast::channel(10);
 
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.websocket_channels = vec!["depth".into(), "trade".into()];
+
     let binance = Box::new(Binance::new(
         exchange_account_id.clone(),
         settings,
@@ -140,15 +142,10 @@ async fn cancellation_waited_failed_fallback() {
         application_manager.clone(),
     )) as BoxExchangeClient;
 
-    let websocket_host = "wss://stream.binance.com:9443".into();
-    let channels = vec!["depth".into(), "trade".into()];
-
     let timeout_manager = get_timeout_manager(&exchange_account_id);
 
     let exchange = Exchange::new(
         exchange_account_id.clone(),
-        websocket_host,
-        channels,
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,

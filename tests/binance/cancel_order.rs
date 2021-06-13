@@ -17,6 +17,7 @@ use tokio::sync::broadcast;
 use tokio::time::Duration;
 
 use crate::get_binance_credentials_or_exit;
+use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 
 #[actix_rt::test]
 async fn cancelled_successfully() {
@@ -25,7 +26,7 @@ async fn cancelled_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new_short(
+    let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         api_key,
         secret_key,
@@ -35,20 +36,17 @@ async fn cancelled_successfully() {
     let application_manager = ApplicationManager::new(CancellationToken::default());
     let (tx, _) = broadcast::channel(10);
 
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.websocket_channels = vec!["depth".into(), "trade".into()];
     let binance = Box::new(Binance::new(
         exchange_account_id.clone(),
-        settings,
+        settings.clone(),
         tx.clone(),
         application_manager.clone(),
     ));
 
-    let websocket_host = "wss://stream.binance.com:9443".into();
-    let channels = vec!["depth".into(), "trade".into()];
-
     let exchange = Exchange::new(
         exchange_account_id.clone(),
-        websocket_host,
-        channels,
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -131,7 +129,7 @@ async fn nothing_to_cancel() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let settings = settings::ExchangeSettings::new_short(
+    let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         api_key,
         secret_key,
@@ -141,6 +139,9 @@ async fn nothing_to_cancel() {
     let application_manager = ApplicationManager::new(CancellationToken::default());
     let (tx, _) = broadcast::channel(10);
 
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.websocket_channels = vec!["depth".into(), "trade".into()];
+
     let binance = Binance::new(
         exchange_account_id.clone(),
         settings,
@@ -148,13 +149,8 @@ async fn nothing_to_cancel() {
         application_manager.clone(),
     );
 
-    let websocket_host = "wss://stream.binance.com:9443".into();
-    let channels = vec!["depth".into(), "trade".into()];
-
     let exchange = Exchange::new(
         exchange_account_id.clone(),
-        websocket_host,
-        channels,
         Box::new(binance),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,

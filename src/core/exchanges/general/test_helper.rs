@@ -7,8 +7,10 @@ use tokio::sync::broadcast;
 
 use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
 use crate::core::exchanges::application_manager::ApplicationManager;
+use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::{
     exchanges::binance::binance::Binance, exchanges::common::Amount,
     exchanges::common::CurrencyPair, exchanges::common::ExchangeAccountId,
@@ -25,7 +27,7 @@ pub(crate) fn get_test_exchange(
     is_derivative: bool,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
-    let settings = settings::ExchangeSettings::new_short(
+    let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         "test_api_key".into(),
         "test_secret_key".into(),
@@ -35,9 +37,13 @@ pub(crate) fn get_test_exchange(
     let application_manager = ApplicationManager::new(CancellationToken::new());
     let (tx, rx) = broadcast::channel(10);
 
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.web_socket_host = "host".into();
+    settings.web_socket2_host = "host2".into();
+
     let binance = Box::new(Binance::new(
         "Binance0".parse().expect("in test"),
-        settings,
+        settings.clone(),
         tx.clone(),
         application_manager.clone(),
     ));
@@ -49,8 +55,6 @@ pub(crate) fn get_test_exchange(
 
     let exchange = Exchange::new(
         exchange_account_id,
-        "host".into(),
-        vec![],
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,

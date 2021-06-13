@@ -2,7 +2,9 @@ use anyhow::Result;
 use futures::Future;
 use log::info;
 use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use mmb_lib::core::exchanges::binance::binance::BinanceBuilder;
 use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
+use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_lib::core::{
     connectivity::connectivity_manager::ConnectivityManager,
     connectivity::websocket_actor::WebSocketParams,
@@ -27,24 +29,25 @@ pub async fn should_connect_and_reconnect_normally() {
 
     let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
+    let mut settings = ExchangeSettings::default();
+
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let websocket_host = "wss://stream.binance.com:9443".into();
-    let channels = vec!["depth".into(), "aggTrade".into()];
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
     let (tx, _) = broadcast::channel(10);
 
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.websocket_channels = vec!["depth".into(), "aggTrade".into()];
+
     let exchange_client = Box::new(Binance::new(
         exchange_account_id.clone(),
-        ExchangeSettings::default(),
+        settings,
         tx.clone(),
         application_manager.clone(),
     ));
 
     let exchange = Exchange::new(
         exchange_account_id.clone(),
-        websocket_host,
-        channels,
         exchange_client,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,

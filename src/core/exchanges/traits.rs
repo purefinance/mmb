@@ -1,3 +1,11 @@
+use std::sync::Arc;
+
+use anyhow::Result;
+use async_trait::async_trait;
+use dashmap::DashMap;
+use log::info;
+use tokio::sync::broadcast;
+
 use super::{
     common::CurrencyCode,
     common::CurrencyId,
@@ -8,6 +16,7 @@ use super::{
     general::handlers::handle_order_filled::FillEventData,
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
+use crate::core::connectivity::connectivity_manager::WebSocketRole;
 use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
@@ -17,12 +26,7 @@ use crate::core::orders::order::{
 };
 use crate::core::settings::ExchangeSettings;
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
-use anyhow::Result;
-use async_trait::async_trait;
-use dashmap::DashMap;
-use log::info;
-use std::sync::Arc;
-use tokio::sync::broadcast;
+use awc::http::Uri;
 
 // Implementation of rest API client
 #[async_trait]
@@ -63,8 +67,7 @@ pub trait Support: Send + Sync {
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     );
 
-    fn build_ws_main_path(&self, websocket_channels: &[String]) -> String;
-    async fn build_ws_secondary_path(&self) -> Result<String>;
+    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri>;
 
     // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;

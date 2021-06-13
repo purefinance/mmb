@@ -66,8 +66,6 @@ pub(crate) struct OrderBookTop {
 
 pub struct Exchange {
     pub exchange_account_id: ExchangeAccountId,
-    websocket_host: String,
-    websocket_channels: Vec<String>,
     pub(super) exchange_client: Box<dyn ExchangeClient>,
     pub orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
@@ -109,8 +107,6 @@ pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
 impl Exchange {
     pub fn new(
         exchange_account_id: ExchangeAccountId,
-        websocket_host: String,
-        websocket_channels: Vec<String>,
         exchange_client: BoxExchangeClient,
         features: ExchangeFeatures,
         events_channel: broadcast::Sender<ExchangeEvent>,
@@ -122,8 +118,6 @@ impl Exchange {
 
         let exchange = Arc::new(Self {
             exchange_account_id: exchange_account_id.clone(),
-            websocket_host,
-            websocket_channels,
             exchange_client,
             orders: OrdersPool::new(),
             connectivity_manager,
@@ -240,14 +234,6 @@ impl Exchange {
             "Websocket message from {}: {}",
             self.exchange_account_id, msg
         );
-    }
-
-    pub fn create_websocket_params(&self, ws_path: &str) -> WebSocketParams {
-        WebSocketParams::new(
-            format!("{}{}", self.websocket_host, ws_path)
-                .parse()
-                .expect("should be valid url"),
-        )
     }
 
     pub async fn connect(self: Arc<Self>) {
@@ -450,16 +436,10 @@ impl Exchange {
 
     pub async fn get_websocket_params(
         self: Arc<Self>,
-        websocket_role: WebSocketRole,
+        role: WebSocketRole,
     ) -> Result<WebSocketParams> {
-        let ws_path = match websocket_role {
-            WebSocketRole::Main => self
-                .exchange_client
-                .build_ws_main_path(&self.websocket_channels[..]),
-            WebSocketRole::Secondary => self.exchange_client.build_ws_secondary_path().await?,
-        };
-
-        Ok(self.create_websocket_params(&ws_path))
+        let ws_url = self.exchange_client.create_ws_url(role).await?;
+        Ok(WebSocketParams::new(ws_url))
     }
 
     pub(crate) fn add_event_on_order_change(

@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
+use awc::http::Uri;
+use chrono::Utc;
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::{error, info};
@@ -10,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::binance::Binance;
+use crate::core::connectivity::connectivity_manager::WebSocketRole;
 use crate::core::exchanges::common::SortedOrderData;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::currency_pair_metadata::PrecisionType;
@@ -28,7 +31,6 @@ use crate::core::{
     },
     orders::fill::EventSourceType,
 };
-use chrono::Utc;
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BinanceOrderInfo {
@@ -184,36 +186,21 @@ impl Support for Binance {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
-    fn build_ws_main_path(&self, websocket_channels: &[String]) -> String {
-        let stream_names = self
-            .specific_to_unified
-            .keys()
-            .flat_map(|currency_pair| {
-                let mut results = Vec::new();
-                for channel in websocket_channels {
-                    let result = Self::get_stream_name(currency_pair, channel);
-                    results.push(result);
-                }
-                results
-            })
-            .join("/");
-        let ws_path = format!("/stream?streams={}", stream_names);
-        ws_path.to_lowercase()
-    }
+    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri> {
+        let (host, path) = match role {
+            WebSocketRole::Main => (
+                &self.settings.web_socket_host,
+                self.build_ws_main_path(&self.settings.websocket_channels[..]),
+            ),
+            WebSocketRole::Secondary => (
+                &self.settings.web_socket2_host,
+                self.build_ws_secondary_path().await?,
+            ),
+        };
 
-    async fn build_ws_secondary_path(&self) -> Result<String> {
-        let request_outcome = self
-            .get_listen_key()
-            .await
-            .context("Unable to get listen key")?;
-        let data: Value = serde_json::from_str(&request_outcome.content)
-            .context("Unable to parse listen key response")?;
-        let listen_key = data["listenKey"]
-            .as_str()
-            .context("Unable to get listen key")?;
-
-        let ws_path = format!("{}{}", "/ws/", listen_key);
-        Ok(ws_path)
+        format!("{}{}", host, path)
+            .parse::<Uri>()
+            .with_context(|| format!("Unable parse websocket {:?} uri", role))
     }
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
@@ -401,6 +388,38 @@ impl Binance {
                 Err(anyhow!(msg))
             }
         }
+    }
+
+    fn build_ws_main_path(&self, websocket_channels: &[String]) -> String {
+        let stream_names = self
+            .specific_to_unified
+            .keys()
+            .flat_map(|currency_pair| {
+                let mut results = Vec::new();
+                for channel in websocket_channels {
+                    let result = Self::get_stream_name(currency_pair, channel);
+                    results.push(result);
+                }
+                results
+            })
+            .join("/");
+        let ws_path = format!("/stream?streams={}", stream_names);
+        ws_path.to_lowercase()
+    }
+
+    async fn build_ws_secondary_path(&self) -> Result<String> {
+        let request_outcome = self
+            .get_listen_key()
+            .await
+            .context("Unable to get listen key for Binance")?;
+        let data: Value = serde_json::from_str(&request_outcome.content)
+            .context("Unable to parse listen key response for Binance")?;
+        let listen_key = data["listenKey"]
+            .as_str()
+            .context("Unable to parse listen key field for Binance")?;
+
+        let ws_path = format!("{}{}", "/ws/", listen_key);
+        Ok(ws_path)
     }
 }
 

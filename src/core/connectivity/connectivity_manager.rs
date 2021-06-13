@@ -281,71 +281,77 @@ impl ConnectivityManager {
                 "Getting WebSocket parameters for {}",
                 self.exchange_account_id.clone()
             );
-            if let Ok(params) = self.try_get_websocket_params(role).await {
-                if cancel_websocket_connecting.is_cancellation_requested() {
-                    return false;
-                }
+            match self.try_get_websocket_params(role).await {
+                Ok(params) => {
+                    if cancel_websocket_connecting.is_cancellation_requested() {
+                        return false;
+                    }
 
-                let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(self));
+                    let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(self));
 
-                let websocket_actor = WebSocketActor::open_connection(
-                    self.exchange_account_id.clone(),
-                    role,
-                    params.clone(),
-                    notifier,
-                )
-                .await;
+                    let websocket_actor = WebSocketActor::open_connection(
+                        self.exchange_account_id.clone(),
+                        role,
+                        params.clone(),
+                        notifier,
+                    )
+                    .await;
 
-                match websocket_actor {
-                    Ok(websocket_actor) => {
-                        websocket_connectivity.lock().deref_mut().state =
-                            WebSocketState::Connected {
-                                websocket_actor,
-                                finished_sender: finished_sender.clone(),
-                            };
+                    match websocket_actor {
+                        Ok(websocket_actor) => {
+                            websocket_connectivity.lock().deref_mut().state =
+                                WebSocketState::Connected {
+                                    websocket_actor,
+                                    finished_sender: finished_sender.clone(),
+                                };
 
-                        if attempt > 0 {
-                            info!(
-                                "Opened websocket connection for {} after {} attempts",
-                                self.exchange_account_id, attempt
-                            );
-                        }
-
-                        if cancel_websocket_connecting.is_cancellation_requested() {
-                            if let WebSocketState::Connected {
-                                websocket_actor, ..
-                            } = &websocket_connectivity.lock().borrow().state
-                            {
-                                let _ = websocket_actor.try_send(ForceClose);
+                            if attempt > 0 {
+                                info!(
+                                    "Opened websocket connection for {} after {} attempts",
+                                    self.exchange_account_id, attempt
+                                );
                             }
+
+                            if cancel_websocket_connecting.is_cancellation_requested() {
+                                if let WebSocketState::Connected {
+                                    websocket_actor, ..
+                                } = &websocket_connectivity.lock().borrow().state
+                                {
+                                    let _ = websocket_actor.try_send(ForceClose);
+                                }
+                            }
+
+                            return true;
                         }
+                        Err(error) => {
+                            warn!("Attempt to connect failed: {}", error);
+                        }
+                    };
 
-                        return true;
-                    }
-                    Err(error) => {
-                        warn!("Attempt to connect failed: {}", error);
-                    }
-                };
+                    attempt += 1;
 
-                attempt += 1;
-
-                let log_level = match attempt < MAX_RETRY_CONNECT_COUNT {
-                    true => Level::Warn,
-                    false => Level::Error,
-                };
-                log!(
-                    log_level,
-                    "Can't open websocket connection for {} {:?}",
-                    self.exchange_account_id,
-                    params
-                );
-
-                if attempt == MAX_RETRY_CONNECT_COUNT {
-                    panic!(
-                        "Can't open websocket connection on {}",
-                        self.exchange_account_id
+                    let log_level = match attempt < MAX_RETRY_CONNECT_COUNT {
+                        true => Level::Warn,
+                        false => Level::Error,
+                    };
+                    log!(
+                        log_level,
+                        "Can't open websocket connection for {} {:?}",
+                        self.exchange_account_id,
+                        params
                     );
+
+                    if attempt == MAX_RETRY_CONNECT_COUNT {
+                        panic!(
+                            "Can't open websocket connection on {}",
+                            self.exchange_account_id
+                        );
+                    }
                 }
+                Err(error) => warn!(
+                    "Error while getting parameters for websocket {:?}: {:#}",
+                    role, error
+                ),
             }
         }
 

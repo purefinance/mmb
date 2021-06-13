@@ -16,6 +16,7 @@ use tokio::time::sleep;
 
 use crate::get_binance_credentials_or_exit;
 use mmb_lib::core::exchanges::application_manager::ApplicationManager;
+use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use tokio::sync::broadcast;
 
 #[actix_rt::test]
@@ -24,7 +25,7 @@ async fn get_order_info() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
 
-    let settings = settings::ExchangeSettings::new_short(
+    let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         api_key,
         secret_key,
@@ -34,6 +35,9 @@ async fn get_order_info() {
     let application_manager = ApplicationManager::new(CancellationToken::new());
     let (tx, _) = broadcast::channel(10);
 
+    BinanceBuilder.extend_settings(&mut settings);
+    settings.websocket_channels = vec!["depth".into(), "trade".into()];
+
     let binance = Binance::new(
         exchange_account_id.clone(),
         settings,
@@ -41,13 +45,8 @@ async fn get_order_info() {
         application_manager.clone(),
     );
 
-    let websocket_host = "wss://stream.binance.com:9443".into();
-    let channels = vec!["depth".into(), "trade".into()];
-
     let exchange = Exchange::new(
         exchange_account_id.clone(),
-        websocket_host,
-        channels,
         Box::new(binance),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,

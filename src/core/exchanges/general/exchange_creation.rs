@@ -63,8 +63,6 @@ pub async fn create_exchange(
 
     let exchange = Exchange::new(
         user_settings.exchange_account_id.clone(),
-        user_settings.web_socket_host.clone(),
-        user_settings.websocket_channels.clone(),
         exchange_client.client,
         exchange_client.features,
         events_channel,
