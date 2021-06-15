@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{panic::UnwindSafe, sync::Arc};
 
 use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
@@ -66,7 +66,7 @@ pub(crate) struct OrderBookTop {
 
 pub struct Exchange {
     pub exchange_account_id: ExchangeAccountId,
-    pub(super) exchange_client: Box<dyn ExchangeClient>,
+    pub(super) exchange_client: Box<dyn ExchangeClient + UnwindSafe>,
     pub orders: Arc<OrdersPool>,
     connectivity_manager: Arc<ConnectivityManager>,
 
@@ -102,7 +102,7 @@ pub struct Exchange {
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
 }
 
-pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
+pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + UnwindSafe + 'static>;
 
 impl Exchange {
     pub fn new(

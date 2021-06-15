@@ -1,14 +1,16 @@
+use std::panic::UnwindSafe;
+
 use anyhow::Result;
 
 use super::handle_trigger_trait::TriggerHandler;
 
 pub struct EveryRequestsCountChangeTrigger {
-    handler: Box<dyn Fn(usize) -> Result<()> + Send>,
+    handler: Box<dyn Fn(usize) -> Result<()> + Send + UnwindSafe>,
     last_count: usize,
 }
 
 impl EveryRequestsCountChangeTrigger {
-    pub fn new(handler: Box<dyn Fn(usize) -> Result<()> + Send>) -> Self {
+    pub fn new(handler: Box<dyn Fn(usize) -> Result<()> + Send + UnwindSafe>) -> Self {
         Self {
             handler,
             last_count: 0,
