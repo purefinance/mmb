@@ -14,6 +14,7 @@ use tokio::sync::broadcast;
 use super::support::BinanceOrderInfo;
 use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
     common::CurrencyCode,
@@ -52,6 +53,8 @@ pub struct Binance {
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
 
     pub(super) subscribe_to_market_data: bool,
+
+    pub(super) rest_client: RestClient,
 }
 
 impl Binance {
@@ -95,6 +98,7 @@ impl Binance {
             settings,
             events_channel,
             application_manager,
+            rest_client: RestClient::new(),
         }
     }
 
@@ -106,7 +110,9 @@ impl Binance {
 
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
         let http_params = rest_client::HttpParams::new();
-        rest_client::send_post_request(full_url, &self.settings.api_key, &http_params).await
+        self.rest_client
+            .post(full_url, &self.settings.api_key, &http_params)
+            .await
     }
 
     pub async fn reconnect(&mut self) {

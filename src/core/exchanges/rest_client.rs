@@ -7,18 +7,68 @@ use std::convert::TryInto;
 
 pub type HttpParams = Vec<(String, String)>;
 
-pub fn to_http_string(parameters: &HttpParams) -> String {
-    let mut http_string = String::new();
-    for (key, value) in parameters {
-        if !http_string.is_empty() {
-            http_string.push('&');
+pub struct RestClient {
+    client: Client<HttpsConnector<HttpConnector>>,
+}
+
+const KEEP_ALIVE: &'static str = "keep-alive";
+
+impl RestClient {
+    pub fn new() -> Self {
+        Self {
+            client: create_client(),
         }
-        http_string.push_str(key);
-        http_string.push('=');
-        http_string.push_str(value);
     }
 
-    http_string
+    pub async fn get(&self, url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
+        let req = Request::get(url)
+            .header(hyper::header::CONNECTION, KEEP_ALIVE)
+            .header("X-MBX-APIKEY", api_key)
+            .body(Body::empty())
+            .context("Error during creation of http GET request")?;
+
+        let response = self.client.request(req).await;
+
+        handle_response(response, "GET").await
+    }
+
+    pub async fn post(
+        &self,
+        url: Uri,
+        api_key: &str,
+        http_params: &HttpParams,
+    ) -> Result<RestRequestOutcome> {
+        let form_encoded = form_urlencoded::Serializer::new(String::new())
+            .extend_pairs(http_params)
+            .finish();
+
+        let req = Request::post(url)
+            .header(hyper::header::CONNECTION, KEEP_ALIVE)
+            .header("X-MBX-APIKEY", api_key)
+            .body(Body::from(form_encoded))
+            .context("Error during creation of http delete request")?;
+
+        let response = self.client.request(req).await;
+
+        handle_response(response, "POST").await
+    }
+
+    pub async fn delete(&self, url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
+        let req = Request::delete(url)
+            .header(hyper::header::CONNECTION, KEEP_ALIVE)
+            .header("X-MBX-APIKEY", api_key)
+            .body(Body::empty())
+            .context("Error during creation of http delete request")?;
+
+        let response = self.client.request(req).await;
+
+        handle_response(response, "DELETE").await
+    }
+}
+
+fn create_client() -> Client<HttpsConnector<HttpConnector>> {
+    let https = HttpsConnector::new();
+    Client::builder().build::<_, hyper::Body>(https)
 }
 
 // Inner Hyper types. Needed just for unified response handling in handle_response()
@@ -35,53 +85,6 @@ async fn handle_response(response: ResponseType, rest_action: &str) -> Result<Re
         }),
         Err(error) => bail!("Unable to send {} request: {}", rest_action, error),
     }
-}
-
-pub async fn send_post_request(
-    url: Uri,
-    api_key: &str,
-    http_params: &HttpParams,
-) -> Result<RestRequestOutcome> {
-    let form_encoded = form_urlencoded::Serializer::new(String::new())
-        .extend_pairs(http_params)
-        .finish();
-
-    let req = Request::post(url)
-        .header("X-MBX-APIKEY", api_key)
-        .body(Body::from(form_encoded))
-        .context("Error during creation of http delete request")?;
-
-    let response = create_client().request(req).await;
-
-    handle_response(response, "POST").await
-}
-
-pub async fn send_delete_request(url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
-    let req = Request::delete(url)
-        .header("X-MBX-APIKEY", api_key)
-        .body(Body::empty())
-        .context("Error during creation of http delete request")?;
-
-    let response = create_client().request(req).await;
-
-    handle_response(response, "DELETE").await
-}
-
-pub async fn send_get_request(url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
-    let req = Request::get(url)
-        .header("X-MBX-APIKEY", api_key)
-        .body(Body::empty())
-        .context("Error during creation of http GET request")?;
-
-    let response = create_client().request(req).await;
-
-    handle_response(response, "GET").await
-}
-
-fn create_client() -> Client<HttpsConnector<HttpConnector>> {
-    let https = HttpsConnector::new();
-    let client = Client::builder().build::<_, hyper::Body>(https);
-    client
 }
 
 pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Result<Uri> {
@@ -106,6 +109,20 @@ pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Result<Uri
     }
 
     url.try_into().context("Unable create url")
+}
+
+pub fn to_http_string(parameters: &HttpParams) -> String {
+    let mut http_string = String::new();
+    for (key, value) in parameters {
+        if !http_string.is_empty() {
+            http_string.push('&');
+        }
+        http_string.push_str(key);
+        http_string.push('=');
+        http_string.push_str(value);
+    }
+
+    http_string
 }
 
 #[cfg(test)]

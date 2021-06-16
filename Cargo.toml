@@ -35,7 +35,7 @@ libc = "0.2"
 awc = "3.0.0-beta.5"
 form_urlencoded = "1"
 hyper-tls = "0.5"
-hyper = { version = "0.14", features = ["http1", "client", "tcp"] }
+hyper = { version = "0.14", features = ["http1", "runtime", "client", "tcp"] }
 
 futures = "0.3"
 
