@@ -6,7 +6,6 @@ use futures::future::join_all;
 use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::disposition_execution::executor::DispositionExecutorService;
 use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{CurrencyPair, ExchangeAccountId, ExchangeId};
@@ -22,6 +21,9 @@ use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
+use crate::core::{
+    disposition_execution::executor::DispositionExecutorService, exchanges::utils::spawn_task,
+};
 use crate::hashmap;
 use crate::strategies::disposition_strategy::DispositionStrategy;
 use crate::{
@@ -105,11 +107,17 @@ where
 
     {
         let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();
-        let _ = tokio::spawn(internal_events_loop.clone().start(
+        let action = Box::pin(internal_events_loop.clone().start(
             events_receiver,
             local_exchanges_map,
             engine_context.application_manager.stop_token(),
         ));
+        let _ = spawn_task("test", None, action, false);
+        //let _ = tokio::spawn(internal_events_loop.clone().start(
+        //    events_receiver,
+        //    local_exchanges_map,
+        //    engine_context.application_manager.stop_token(),
+        //));
     }
 
     if let Err(error) = control_panel.clone().start() {
