@@ -58,7 +58,9 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
 
-        rest_client::send_post_request(full_url, &self.settings.api_key, &http_params).await
+        self.rest_client
+            .post(full_url, &self.settings.api_key, &http_params)
+            .await
     }
 
     async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome> {
@@ -83,7 +85,10 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
 
-        let outcome = rest_client::send_delete_request(full_url, &self.settings.api_key).await?;
+        let outcome = self
+            .rest_client
+            .delete(full_url, &self.settings.api_key)
+            .await?;
 
         Ok(outcome)
     }
@@ -102,8 +107,10 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(host, path_to_delete, &http_params)?;
 
-        let _cancel_order_outcome =
-            rest_client::send_delete_request(full_url, &self.settings.api_key).await;
+        let _cancel_order_outcome = self
+            .rest_client
+            .delete(full_url, &self.settings.api_key)
+            .await;
 
         Ok(())
     }
@@ -119,7 +126,7 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
 
-        let orders = rest_client::send_get_request(full_url, &self.settings.api_key).await;
+        let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
 
         orders
     }
@@ -146,6 +153,6 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
 
-        rest_client::send_get_request(full_url, &self.settings.api_key).await
+        self.rest_client.get(full_url, &self.settings.api_key).await
     }
 }
