@@ -1,9 +1,9 @@
 use futures::future::ready;
 use futures::future::Either;
 use futures::FutureExt;
+use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
-use std::{collections::HashMap, panic::UnwindSafe};
 use tokio::task::JoinHandle;
 
 use anyhow::{Context, Result};
@@ -17,7 +17,7 @@ use crate::core::exchanges::timeouts::requests_timeout_manager::{
 };
 use crate::core::DateTime;
 
-pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send + UnwindSafe>;
+pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send>;
 
 pub struct TimeoutManager {
     inner: HashMap<ExchangeAccountId, Arc<RequestsTimeoutManager>>,

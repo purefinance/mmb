@@ -1,5 +1,5 @@
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::{collections::HashMap, panic::UnwindSafe};
 
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
@@ -38,14 +38,11 @@ use crate::hashmap;
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub id: ExchangeAccountId,
-    pub order_created_callback: Mutex<
-        Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync + UnwindSafe>,
-    >,
-    pub order_cancelled_callback: Mutex<
-        Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync + UnwindSafe>,
-    >,
-    pub handle_order_filled_callback:
-        Mutex<Box<dyn FnMut(FillEventData) + Send + Sync + UnwindSafe>>,
+    pub order_created_callback:
+        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
+    pub order_cancelled_callback:
+        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
+    pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
 
     pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
     pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,

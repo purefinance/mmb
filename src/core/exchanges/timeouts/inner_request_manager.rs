@@ -1,4 +1,4 @@
-use std::{collections::HashMap, panic::UnwindSafe};
+use std::collections::HashMap;
 
 use super::{
     more_or_equals_available_requests_count_trigger_scheduler::MoreOrEqualsAvailableRequestsCountTriggerScheduler,
@@ -21,12 +21,11 @@ pub(super) struct InnerRequestsTimeoutManager {
     pub(super) pre_reserved_groups: Vec<PreReservedGroup>,
     pub(super) last_time: Option<DateTime>,
 
-    pub(super) group_was_reserved: Box<dyn Fn(PreReservedGroup) -> Result<()> + Send + UnwindSafe>,
-    pub(super) group_was_removed: Box<dyn Fn(PreReservedGroup) -> Result<()> + Send + UnwindSafe>,
-    pub(super) time_has_come_for_request: Box<dyn Fn(Request) -> Result<()> + Send + UnwindSafe>,
+    pub(super) group_was_reserved: Box<dyn Fn(PreReservedGroup) -> Result<()> + Send>,
+    pub(super) group_was_removed: Box<dyn Fn(PreReservedGroup) -> Result<()> + Send>,
+    pub(super) time_has_come_for_request: Box<dyn Fn(Request) -> Result<()> + Send>,
 
-    pub(super) less_or_equals_requests_count_triggers:
-        Vec<Box<dyn TriggerHandler + Send + UnwindSafe>>,
+    pub(super) less_or_equals_requests_count_triggers: Vec<Box<dyn TriggerHandler + Send>>,
     pub(super) more_or_equals_available_requests_count_trigger_scheduler:
         MoreOrEqualsAvailableRequestsCountTriggerScheduler,
     pub(super) delay_to_next_time_period: Duration,

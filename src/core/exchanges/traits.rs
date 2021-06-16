@@ -1,4 +1,4 @@
-use std::{panic::UnwindSafe, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -54,21 +54,17 @@ pub trait Support: Send + Sync {
 
     fn set_order_created_callback(
         &self,
-        callback: Box<
-            dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync + UnwindSafe,
-        >,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     );
 
     fn set_order_cancelled_callback(
         &self,
-        callback: Box<
-            dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync + UnwindSafe,
-        >,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     );
 
     fn set_handle_order_filled_callback(
         &self,
-        callback: Box<dyn FnMut(FillEventData) + Send + Sync + UnwindSafe>,
+        callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     );
 
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri>;

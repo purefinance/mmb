@@ -1,8 +1,5 @@
+use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Weak};
-use std::{
-    fmt::{Display, Formatter},
-    panic::UnwindSafe,
-};
 
 use anyhow::{bail, Result};
 use chrono::Duration;
@@ -360,7 +357,7 @@ impl RequestsTimeoutManager {
     pub fn register_trigger_on_more_or_equals(
         &self,
         available_requests_count_threshold: usize,
-        handler: Box<dyn FnMut() -> Result<()> + Send + UnwindSafe>,
+        handler: Box<dyn FnMut() -> Result<()> + Send>,
     ) -> Result<()> {
         let inner = self.inner.lock();
         inner.check_threshold(available_requests_count_threshold)?;
@@ -374,7 +371,7 @@ impl RequestsTimeoutManager {
     pub fn register_trigger_on_less_or_equals(
         &self,
         available_requests_count_threshold: usize,
-        handler: Box<dyn Fn() -> Result<()> + Send + UnwindSafe>,
+        handler: Box<dyn Fn() -> Result<()> + Send>,
     ) -> Result<()> {
         let mut inner = self.inner.lock();
 
@@ -390,7 +387,7 @@ impl RequestsTimeoutManager {
 
     pub fn register_trigger_on_every_change(
         &self,
-        handler: Box<dyn Fn(usize) -> Result<()> + Send + UnwindSafe>,
+        handler: Box<dyn Fn(usize) -> Result<()> + Send>,
     ) {
         let mut inner = self.inner.lock();
 

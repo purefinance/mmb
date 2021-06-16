@@ -1,4 +1,4 @@
-use std::{panic::UnwindSafe, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -167,25 +167,21 @@ impl Support for Binance {
 
     fn set_order_created_callback(
         &self,
-        callback: Box<
-            dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync + UnwindSafe,
-        >,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     ) {
         *self.order_created_callback.lock() = callback;
     }
 
     fn set_order_cancelled_callback(
         &self,
-        callback: Box<
-            dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync + UnwindSafe,
-        >,
+        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
     ) {
         *self.order_cancelled_callback.lock() = callback;
     }
 
     fn set_handle_order_filled_callback(
         &self,
-        callback: Box<dyn FnMut(FillEventData) + Send + Sync + UnwindSafe>,
+        callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     ) {
         *self.handle_order_filled_callback.lock() = callback;
     }

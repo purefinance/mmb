@@ -1,4 +1,4 @@
-use std::{panic::UnwindSafe, sync::Arc};
+use std::sync::Arc;
 
 use crate::core::DateTime;
 use anyhow::Result;
@@ -7,7 +7,7 @@ use log::error;
 use parking_lot::Mutex;
 use tokio::time::sleep;
 
-pub type TriggerHandler = Mutex<Box<dyn FnMut() -> Result<()> + Send + UnwindSafe>>;
+pub type TriggerHandler = Mutex<Box<dyn FnMut() -> Result<()> + Send>>;
 
 pub struct MoreOrEqualsAvailableRequestsCountTriggerScheduler {
     increasing_count_triggers: Mutex<Vec<Arc<MoreOrEqualsAvailableRequestsCountTrigger>>>,
