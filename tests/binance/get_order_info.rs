@@ -33,7 +33,7 @@ async fn get_order_info() {
     );
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
-    let (tx, _) = broadcast::channel(10);
+    let (tx, _rx) = broadcast::channel(10);
 
     BinanceBuilder.extend_settings(&mut settings);
     settings.websocket_channels = vec!["depth".into(), "trade".into()];

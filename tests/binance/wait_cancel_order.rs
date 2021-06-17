@@ -33,7 +33,7 @@ async fn cancellation_waited_successfully() {
     );
 
     let application_manager = ApplicationManager::new(CancellationToken::default());
-    let (tx, _) = broadcast::channel(10);
+    let (tx, _rx) = broadcast::channel(10);
 
     BinanceBuilder.extend_settings(&mut settings);
     settings.websocket_channels = vec!["depth".into(), "trade".into()];
@@ -130,7 +130,7 @@ async fn cancellation_waited_failed_fallback() {
     );
 
     let application_manager = ApplicationManager::new(CancellationToken::default());
-    let (tx, _) = broadcast::channel(10);
+    let (tx, _rx) = broadcast::channel(10);
 
     BinanceBuilder.extend_settings(&mut settings);
     settings.websocket_channels = vec!["depth".into(), "trade".into()];

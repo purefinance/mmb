@@ -144,10 +144,10 @@ async fn should_fail() {
     );
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
-    let (tx, _) = broadcast::channel(10);
+    let (tx, _rx) = broadcast::channel(10);
 
-    settings.web_socket_host = "host".into();
-    settings.web_socket2_host = "host2".into();
+    settings.web_socket_host = "https://host.com".into();
+    settings.web_socket2_host = "https://host2.com".into();
     let binance = Binance::new(
         exchange_account_id,
         settings,
@@ -202,7 +202,7 @@ async fn should_fail() {
         }
         Err(error) => {
             assert_eq!(
-                "Delete it in the future. Exchange error: Filter failure: MIN_NOTIONAL",
+                "Delete it in the future. Exchange error: Unable to send POST request: client requires absolute-form URIs",
                 error.to_string()
             );
         }

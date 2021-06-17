@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     pub fn exchange_id_parse_failed_missing_number() {
-        let exchange_account_id = "binance".parse::<ExchangeAccountId>();
+        let exchange_account_id = "Binance".parse::<ExchangeAccountId>();
         assert_eq!(
             exchange_account_id,
             Err(ExchangeIdParseError("Invalid format".into()))

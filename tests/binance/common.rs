@@ -40,7 +40,7 @@ macro_rules! get_binance_credentials_or_exit {
 pub(crate) fn get_timeout_manager(exchange_account_id: &ExchangeAccountId) -> Arc<TimeoutManager> {
     let engine_build_config = EngineBuildConfig::standard();
     let timeout_arguments = engine_build_config.supported_exchange_clients
-        [&ExchangeId::new("binance".into())]
+        [&ExchangeId::new("Binance".into())]
         .get_timeout_argments();
     let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
         timeout_arguments,
