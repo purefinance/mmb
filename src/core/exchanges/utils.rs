@@ -1,8 +1,11 @@
 use anyhow::Result;
 use futures::Future;
 use log::{error, info, trace};
+use once_cell::sync::OnceCell;
+use parking_lot::Mutex;
 use std::{
     pin::Pin,
+    sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::task::JoinHandle;
@@ -15,6 +18,16 @@ pub(crate) fn get_current_milliseconds() -> u128 {
         .duration_since(UNIX_EPOCH)
         .expect("Unable to get time since unix epoch started")
         .as_millis()
+}
+
+static APPLICATION_MANAGER: OnceCell<Mutex<Option<Arc<ApplicationManager>>>> = OnceCell::new();
+
+pub(crate) fn keep_application_manager(application_manager: Arc<ApplicationManager>) {
+    APPLICATION_MANAGER.get_or_init(|| Mutex::new(Some(application_manager)));
+}
+
+pub(crate) fn unset_application_manager() {
+    APPLICATION_MANAGER.get().unwrap().lock().take();
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -66,7 +79,9 @@ pub fn custom_spawn(
                     let error_message =
                         format!("{} panicked with error: {:?}", log_template, error);
 
-                    if let Some(error_msg) = error.into_panic().as_ref().downcast_ref::<String>() {
+                    let panic = error.into_panic();
+                    let maybe_error_msg = panic.as_ref().downcast_ref::<String>().clone();
+                    if let Some(error_msg) = maybe_error_msg {
                         if error_msg.to_string() == OPERATION_CANCELED_MSG {
                             trace!("{} was cancelled via panic", log_template);
 
@@ -76,9 +91,9 @@ pub fn custom_spawn(
                         }
 
                         error!("{}", error_message);
-                        //application_manager
-                        //    .run_graceful_shutdown(&error_message)
-                        //    .await;
+                        // FIXME Evgeniy, look at that blocking version I chose.
+                        // That's because Mutex locking around await
+                        spawn_graceful_shutdown(&log_template, &error_message);
 
                         return FutureOutcome::Panicked;
                     }
@@ -89,6 +104,24 @@ pub fn custom_spawn(
     });
 
     handler
+}
+
+fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
+    match APPLICATION_MANAGER.get() {
+        Some(application_manager) => {
+            let test = application_manager.lock();
+            let manager = &*test;
+            match manager {
+                Some(application_manager) => {
+                    application_manager.clone().spawn_graceful_shutdown(error_message.to_owned());
+                }
+                None => error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
+                    log_template),
+            }
+        }
+        None => error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
+            log_template),
+    }
 }
 
 #[cfg(test)]

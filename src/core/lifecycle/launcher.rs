@@ -6,7 +6,6 @@ use futures::future::join_all;
 use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{CurrencyPair, ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
@@ -16,6 +15,9 @@ use crate::core::exchanges::general::{
 };
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
+use crate::core::exchanges::{
+    application_manager::ApplicationManager, utils::keep_application_manager,
+};
 use crate::core::internal_events_loop::InternalEventsLoop;
 use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
@@ -73,6 +75,7 @@ where
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
+    keep_application_manager(application_manager.clone());
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
     let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
