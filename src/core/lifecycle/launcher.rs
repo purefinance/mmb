@@ -22,7 +22,7 @@ use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
 use crate::core::{
-    disposition_execution::executor::DispositionExecutorService, exchanges::utils::spawn_task,
+    disposition_execution::executor::DispositionExecutorService, exchanges::utils::custom_spawn,
 };
 use crate::hashmap;
 use crate::strategies::disposition_strategy::DispositionStrategy;
@@ -112,12 +112,7 @@ where
             local_exchanges_map,
             engine_context.application_manager.stop_token(),
         ));
-        let _ = spawn_task("test", None, action, false);
-        //let _ = tokio::spawn(internal_events_loop.clone().start(
-        //    events_receiver,
-        //    local_exchanges_map,
-        //    engine_context.application_manager.stop_token(),
-        //));
+        let _ = custom_spawn("internal_events_loop start", None, action, true);
     }
 
     if let Err(error) = control_panel.clone().start() {

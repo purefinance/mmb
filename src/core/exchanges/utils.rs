@@ -1,3 +1,5 @@
+use anyhow::Result;
+use futures::Future;
 use log::{error, info, trace};
 use std::{
     pin::Pin,
@@ -6,10 +8,7 @@ use std::{
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
-use super::{
-    application_manager::ApplicationManager, common::OPERATION_CANCELED_MSG,
-    timeouts::timeout_manager::BoxFuture,
-};
+use super::{application_manager::ApplicationManager, common::OPERATION_CANCELED_MSG};
 
 pub(crate) fn get_current_milliseconds() -> u128 {
     SystemTime::now()
@@ -26,10 +25,12 @@ pub enum FutureOutcome {
     Panicked,
 }
 
-pub(crate) fn spawn_task(
+pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
+
+pub fn custom_spawn(
     action_name: &str,
     _timeout: Option<Duration>,
-    action: Pin<BoxFuture>,
+    action: Pin<CustomSpawnFuture>,
     is_critical: bool,
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
@@ -99,7 +100,7 @@ mod test {
         let action = async { Ok(()) };
 
         // Act
-        let future_outcome = spawn_task("test_action_name", None, Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", None, Box::pin(action), true).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::CompletedSuccessfully);
@@ -113,7 +114,7 @@ mod test {
         let action = async { bail!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome = spawn_task("test_action_name", None, Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", None, Box::pin(action), true).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Canceled);
@@ -127,7 +128,7 @@ mod test {
         let action = async { bail!("Some error") };
 
         // Act
-        let future_outcome = spawn_task("test_action_name", None, Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", None, Box::pin(action), true).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Error);
@@ -141,7 +142,8 @@ mod test {
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome = spawn_task("test_action_name", None, Box::pin(action), false).await?;
+        let future_outcome =
+            custom_spawn("test_action_name", None, Box::pin(action), false).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Canceled);
@@ -155,7 +157,7 @@ mod test {
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome = spawn_task("test_action_name", None, Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", None, Box::pin(action), true).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Panicked);

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::DateTime;
+use crate::core::{exchanges::utils::custom_spawn, DateTime};
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use log::error;
@@ -85,7 +85,16 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
         let mut delay = trigger_time - current_time;
         delay = delay.max(Duration::zero());
 
-        tokio::spawn(async move { self.clone().handle_inner(delay).await });
+        let action = async move {
+            self.clone().handle_inner(delay).await;
+            Ok(())
+        };
+        custom_spawn(
+            "handle_inner for schedule_handler()",
+            None,
+            Box::pin(action),
+            true,
+        );
     }
 
     async fn handle_inner(&self, delay: Duration) {

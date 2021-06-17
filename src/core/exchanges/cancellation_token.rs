@@ -83,7 +83,7 @@ impl CancellationToken {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::exchanges::cancellation_token::CancellationToken;
+    use crate::core::exchanges::{cancellation_token::CancellationToken, utils::custom_spawn};
     use parking_lot::Mutex;
     use std::sync::Arc;
     use tokio::time::Duration;
@@ -160,10 +160,18 @@ mod tests {
     }
 
     fn spawn_working_future(signal: Arc<Mutex<bool>>, token: CancellationToken) {
-        let _ = tokio::spawn(async move {
+        let action = async move {
             token.when_cancelled().await;
             *signal.lock() = true;
-        });
+
+            Ok(())
+        };
+        custom_spawn(
+            "handle_inner for schedule_handler()",
+            None,
+            Box::pin(action),
+            true,
+        );
     }
 
     #[tokio::test]
