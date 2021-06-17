@@ -215,7 +215,7 @@ impl Exchange {
             .await;
         }
 
-        if order.fn_ref(|s| s.internal_props.canceled_not_from_wait_cancel_order)
+        if !order.fn_ref(|s| s.internal_props.canceled_not_from_wait_cancel_order)
             && order.status() != OrderStatus::Completed
         {
             info!("Adding cancel_orderSucceeded event from wait_cancel_order() for order {} {:?} on {}",
