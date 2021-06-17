@@ -17,7 +17,7 @@ use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep_until, Duration, Instant};
 
-use super::utils::custom_spawn;
+use super::utils::{custom_spawn, FutureOutcome};
 
 const EXPECTED_EAI_SHOULD_BE_CREATED: &str =
     "Should exists because locks created for all exchange accounts in constructor";
@@ -194,7 +194,7 @@ struct ProcessingCtx {
 }
 
 struct ExchangeBlockerEventsProcessor {
-    processing_handle: Mutex<Option<JoinHandle<()>>>,
+    processing_handle: Mutex<Option<JoinHandle<FutureOutcome>>>,
     handlers: BlockerEventHandlerVec,
     cancellation_token: CancellationToken,
 }
@@ -213,18 +213,17 @@ impl ExchangeBlockerEventsProcessor {
             cancellation_token: cancellation_token.clone(),
         };
 
-        // FIXME Different return type!
-        //let action = async move {
-        //    Self::processing(events_receiver, ctx);
-        //    Ok(())
-        //};
-        //let processing_handle = custom_spawn(
-        //    "Start ExchangeBlocker processing",
-        //    None,
-        //    Box::pin(action),
-        //    true,
-        //);
-        let processing_handle = tokio::spawn(Self::processing(events_receiver, ctx));
+        let action = async move {
+            Self::processing(events_receiver, ctx).await;
+
+            Ok(())
+        };
+        let processing_handle = custom_spawn(
+            "Start ExchangeBlocker processing",
+            None,
+            Box::pin(action),
+            true,
+        );
 
         let events_processor = ExchangeBlockerEventsProcessor {
             processing_handle: Mutex::new(Some(processing_handle)),
@@ -648,7 +647,7 @@ impl ExchangeBlocker {
 
         //    Ok(())
         //};
-        //let _ = custom_spawn("Run ExchangeBlocker handlers", None, Box::pin(action), true);
+        //custom_spawn("Run ExchangeBlocker handlers", None, Box::pin(action), true)
 
         tokio::spawn(async move {
             sleep_until(end_time).await;
