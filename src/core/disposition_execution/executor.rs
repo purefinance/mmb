@@ -186,6 +186,11 @@ impl DispositionExecutor {
                 match order_event.event_type {
                     OrderEventType::CreateOrderSucceeded => nothing_to_do(),
                     OrderEventType::CreateOrderFailed => {
+                        let client_order_id = order.client_order_id();
+                        trace!(
+                            "Started handling event CreateOrderFailed {} in DispositionExecutor",
+                            client_order_id
+                        );
                         let price_slot = self.get_price_slot(order);
                         let price_slot = match price_slot {
                             None => return Ok(()),
@@ -193,32 +198,52 @@ impl DispositionExecutor {
                         };
 
                         self.finish_order(order, price_slot)?;
+                        trace!(
+                            "Finished handling event CreateOrderFailed {} in DispositionExecutor",
+                            client_order_id
+                        );
                     }
                     OrderEventType::OrderFilled { ref cloned_order } => {
+                        trace!(
+                            "Started handling event OrderFilled {} in DispositionExecutor",
+                            cloned_order.header.client_order_id
+                        );
                         let price_slot = self.get_price_slot(order);
-                        let price_slot = match price_slot {
-                            None => return Ok(()),
-                            Some(v) => v,
-                        };
+                        if let Some(price_slot) = price_slot {
+                            // TODO recalculate balances on order fill when BalanceManager will be implemented
+                            if cloned_order.status() == OrderStatus::Completed {
+                                return Ok(());
+                            }
 
-                        // TODO recalculate balances on order fill when BalanceManager will be implemented
-                        if cloned_order.status() == OrderStatus::Completed {
-                            return Ok(());
+                            self.handle_order_fill(cloned_order, price_slot)?;
                         }
-
-                        self.handle_order_fill(cloned_order, price_slot)?;
+                        trace!(
+                            "Finished handling event OrderFilled {} in DispositionExecutor",
+                            cloned_order.header.client_order_id
+                        );
                     }
                     OrderEventType::OrderCompleted { ref cloned_order } => {
+                        trace!(
+                            "Started handling event OrderCompleted {} in DispositionExecutor",
+                            cloned_order.header.client_order_id
+                        );
                         let price_slot = self.get_price_slot(order);
-                        let price_slot = match price_slot {
-                            None => return Ok(()),
-                            Some(v) => v,
-                        };
-
-                        self.handle_order_fill(cloned_order, price_slot)?;
-                        self.finish_order(order, price_slot)?;
+                        if let Some(price_slot) = price_slot {
+                            self.handle_order_fill(cloned_order, price_slot)?;
+                            self.finish_order(order, price_slot)?;
+                        }
+                        trace!(
+                            "Finished handling event OrderCompleted {} in DispositionExecutor",
+                            cloned_order.header.client_order_id
+                        );
                     }
                     OrderEventType::CancelOrderSucceeded => {
+                        let client_order_id = order.client_order_id();
+                        trace!(
+                            "Started handling event CancelOrderSucceeded {} in DispositionExecutor",
+                            client_order_id
+                        );
+
                         let price_slot = self.get_price_slot(order);
                         let price_slot = match price_slot {
                             None => return Ok(()),
@@ -226,6 +251,10 @@ impl DispositionExecutor {
                         };
 
                         self.finish_order(order, price_slot)?;
+                        trace!(
+                            "Finished handling event CancelOrderSucceeded {} in DispositionExecutor",
+                            client_order_id
+                        );
                     }
                     OrderEventType::CancelOrderFailed => {
                         //We should use WaitCancelOrder everywhere, so we don't need to
@@ -489,6 +518,10 @@ impl DispositionExecutor {
 
     fn cancel_order(&self, order_record: &mut OrderRecord, explanation: &mut Explanation) {
         if order_record.is_cancellation_requested {
+            trace!(
+                "Trying cancelling order {}. Cancellation was started already.",
+                order_record.order.client_order_id()
+            );
             return;
         }
         order_record.is_cancellation_requested = true;
@@ -733,11 +766,20 @@ impl DispositionExecutor {
     }
 
     fn finish_order(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
+        let client_order_id = order.client_order_id();
+        trace!(
+            "Started DispositionExecutor::finish_order {}",
+            client_order_id
+        );
         self.unreserve_order_amount(order, price_slot);
         self.remove_request_group(order, price_slot)?;
 
         price_slot.remove_order(order);
 
+        trace!(
+            "Finished DispositionExecutor::finish_order {}",
+            client_order_id
+        );
         Ok(())
     }
     fn unreserve_order_amount(&self, _order: &OrderRef, _price_slot: &PriceSlot) {
