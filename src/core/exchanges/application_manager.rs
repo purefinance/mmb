@@ -30,6 +30,7 @@ impl ApplicationManager {
         *engine_context_guard = Some(Arc::downgrade(&engine_context));
     }
 
+    // FIXME log if future panic
     /// Synchronous method for starting graceful shutdown with blocking current thread and
     /// without waiting for the operation to complete
     pub fn spawn_graceful_shutdown(self: Arc<Self>, reason: String) -> JoinHandle<()> {

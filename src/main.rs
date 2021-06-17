@@ -1,5 +1,9 @@
+#[allow(dead_code)]
 use itertools::Itertools;
-use mmb_lib::core::exchanges::common::{CurrencyPair, ExchangeAccountId};
+use mmb_lib::core::exchanges::{
+    common::{CurrencyPair, ExchangeAccountId},
+    utils::custom_spawn,
+};
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::{
     AppSettings, BaseStrategySettings, CoreSettings, CurrencyPairSetting, ExchangeSettings,
@@ -90,13 +94,20 @@ async fn main() {
     let init_settings = InitSettings::Directly(app_settings);
     let engine = launch_trading_engine(&engine_config, init_settings).await;
 
-    // let ctx = engine.context();
-    // let _ = tokio::spawn(async move {
-    //     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    //     ctx.application_manager
-    //         .clone()
-    //         .spawn_graceful_shutdown("test".to_owned());
-    // });
+    //let ctx = engine.context();
+    //let action = async move {
+    //    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    //    ctx.application_manager
+    //        .clone()
+    //        .spawn_graceful_shutdown("test".to_owned());
+    //    Ok(())
+    //};
+    //let _ = custom_spawn(
+    //    "Start graceful shutdown in main",
+    //    None,
+    //    Box::pin(action),
+    //    true,
+    //);
 
     engine.run().await;
 }

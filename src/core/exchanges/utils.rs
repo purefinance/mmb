@@ -27,6 +27,8 @@ pub enum FutureOutcome {
 
 pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
 
+// FIXME DOCUMENTATE IT
+// FIXME BETTER NAME MAYBE
 pub fn custom_spawn(
     action_name: &str,
     _timeout: Option<Duration>,
