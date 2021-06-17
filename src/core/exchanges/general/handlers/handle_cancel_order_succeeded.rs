@@ -61,7 +61,6 @@ impl Exchange {
                 &order_ref,
                 filled_amount,
                 source_type,
-                client_order_id,
                 exchange_order_id,
             ),
         }
@@ -70,7 +69,7 @@ impl Exchange {
     fn order_already_closed(
         &self,
         status: OrderStatus,
-        client_order_id: Option<&ClientOrderId>,
+        client_order_id: &ClientOrderId,
         exchange_order_id: &ExchangeOrderId,
     ) -> bool {
         let arg_to_log = match status {
@@ -80,7 +79,7 @@ impl Exchange {
         };
 
         warn!(
-            "CancelOrderSucceeded received for {} order {:?} {:?} {}",
+            "CancelOrderSucceeded received for {} order {} {:?} {}",
             arg_to_log, client_order_id, exchange_order_id, self.exchange_account_id
         );
 
@@ -92,10 +91,11 @@ impl Exchange {
         order_ref: &OrderRef,
         filled_amount: Option<Amount>,
         source_type: EventSourceType,
-        client_order_id: Option<&ClientOrderId>,
         exchange_order_id: &ExchangeOrderId,
     ) -> Result<()> {
-        if self.order_already_closed(order_ref.status(), client_order_id, exchange_order_id) {
+        let client_order_id = order_ref.client_order_id();
+
+        if self.order_already_closed(order_ref.status(), &client_order_id, exchange_order_id) {
             return Ok(());
         }
 
@@ -103,13 +103,11 @@ impl Exchange {
             // TODO some metrics
         }
 
-        let mut is_canceling_from_wait_cancel_order = false;
-        order_ref.fn_mut(|order| {
+        let is_canceling_from_wait_cancel_order = order_ref.fn_mut(|order| {
             order.internal_props.filled_amount_after_cancellation = filled_amount;
             order.set_status(OrderStatus::Canceled, Utc::now());
             order.internal_props.cancellation_event_source_type = Some(source_type);
-            is_canceling_from_wait_cancel_order =
-                order.internal_props.is_canceling_from_wait_cancel_order;
+            order.internal_props.is_canceling_from_wait_cancel_order
         });
 
         // Here we cover the situation with MakerOnly orders
@@ -209,7 +207,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
 
         let already_closed =
-            exchange.order_already_closed(status, Some(&client_order_id), &exchange_order_id);
+            exchange.order_already_closed(status, &client_order_id, &exchange_order_id);
 
         assert_eq!(already_closed, expected);
     }
@@ -245,7 +243,6 @@ mod test {
             &order_ref,
             filled_amount,
             source_type,
-            Some(&client_order_id),
             &exchange_order_id,
         );
 
@@ -284,7 +281,6 @@ mod test {
             &order_ref,
             filled_amount,
             source_type,
-            Some(&client_order_id),
             &exchange_order_id,
         )?;
 
@@ -326,7 +322,6 @@ mod test {
             &order_ref,
             filled_amount,
             source_type,
-            Some(&client_order_id),
             &exchange_order_id,
         )?;
 
@@ -371,7 +366,6 @@ mod test {
             &order_ref,
             filled_amount,
             source_type,
-            Some(&client_order_id),
             &exchange_order_id,
         )?;
 
