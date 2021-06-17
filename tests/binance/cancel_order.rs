@@ -34,7 +34,7 @@ async fn cancelled_successfully() {
     );
 
     let application_manager = ApplicationManager::new(CancellationToken::default());
-    let (tx, _) = broadcast::channel(10);
+    let (tx, _rx) = broadcast::channel(10);
 
     BinanceBuilder.extend_settings(&mut settings);
     settings.websocket_channels = vec!["depth".into(), "trade".into()];
