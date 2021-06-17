@@ -1,8 +1,10 @@
+use std::time::Duration;
+
 use anyhow::{bail, Result};
 use chrono::Utc;
+use dashmap::mapref::entry::Entry::{Occupied, Vacant};
 use log::{error, info, trace, warn};
 use scopeguard;
-use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 
@@ -37,7 +39,7 @@ impl Exchange {
         );
 
         match self.wait_cancel_order.entry(order.client_order_id()) {
-            dashmap::mapref::entry::Entry::Occupied(entry) => {
+            Occupied(entry) => {
                 let tx = entry.get();
                 let mut rx = tx.subscribe();
                 // Just wait until order cancelling future completed or operation cancelled
@@ -46,7 +48,7 @@ impl Exchange {
                     _ = cancellation_token.when_cancelled() => nothing_to_do()
                 }
             }
-            dashmap::mapref::entry::Entry::Vacant(vacant_entry) => {
+            Vacant(vacant_entry) => {
                 // Be sure value will be removed anyway
                 let _guard = scopeguard::guard((), |_| {
                     let _ = self.wait_cancel_order.remove(&order.client_order_id());
@@ -216,7 +218,7 @@ impl Exchange {
         if order.fn_ref(|s| s.internal_props.canceled_not_from_wait_cancel_order)
             && order.status() != OrderStatus::Completed
         {
-            info!("Adding cancel_orderSucceeded event from wait_cancel_order() fro order {} {:?} on {}",
+            info!("Adding cancel_orderSucceeded event from wait_cancel_order() for order {} {:?} on {}",
                 order.client_order_id(),
                 order.exchange_order_id(),
                 self.exchange_account_id);
