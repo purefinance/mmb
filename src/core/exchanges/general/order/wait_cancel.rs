@@ -128,14 +128,17 @@ impl Exchange {
                 self.exchange_account_id
             );
 
-            self.timeout_manager
+            let wait_to_reserve: Result<()> = self
+                .timeout_manager
                 .reserve_when_available(
                     &self.exchange_account_id,
                     RequestType::CancelOrder,
                     pre_reservation_group_id,
                     order_is_finished_token.clone(),
                 )?
-                .await?;
+                .await
+                .into();
+            wait_to_reserve?;
 
             let cancel_order_future = self.start_cancel_order(&order, cancellation_token.clone());
 
@@ -293,14 +296,17 @@ impl Exchange {
                     .last_order_cancellation_status_request_time = Some(Utc::now())
             });
 
-            self.timeout_manager
+            let wait_to_reserve: Result<()> = self
+                .timeout_manager
                 .reserve_when_available(
                     &self.exchange_account_id,
                     RequestType::CancelOrder,
                     pre_reservation_group_id,
                     cancellation_token.clone(),
                 )?
-                .await?;
+                .await
+                .into();
+            wait_to_reserve?;
 
             if order.is_finished() {
                 return Ok(());

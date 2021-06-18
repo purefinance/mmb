@@ -1,8 +1,9 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use futures::Future;
 use log::{error, info, trace};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
+use std::fmt;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -37,6 +38,24 @@ pub enum FutureOutcome {
     Error,
     Panicked,
     TimeExpired,
+}
+
+impl fmt::Display for FutureOutcome {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl From<FutureOutcome> for Result<()> {
+    fn from(future_outcome: FutureOutcome) -> Self {
+        match future_outcome {
+            FutureOutcome::Error => bail!("Future returned error"),
+            FutureOutcome::Panicked => bail!("Future panicked"),
+            FutureOutcome::TimeExpired => bail!("Time is up for future execution"),
+            FutureOutcome::Canceled => bail!("Future canceled"),
+            FutureOutcome::CompletedSuccessfully => Ok(()),
+        }
+    }
 }
 
 pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;

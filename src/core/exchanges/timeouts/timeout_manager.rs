@@ -6,16 +6,16 @@ use std::future::Future;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use chrono::Utc;
 
-use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::{
     RequestGroupId, RequestsTimeoutManager,
 };
 use crate::core::DateTime;
+use crate::core::{exchanges::cancellation_token::CancellationToken, utils::FutureOutcome};
 
 pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send>;
 
@@ -76,11 +76,16 @@ impl TimeoutManager {
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
-    ) -> Result<impl Future<Output = Result<()>> + Send + Sync> {
+    ) -> Result<impl Future<Output = FutureOutcome> + Send + Sync> {
         let inner = (&self.inner[exchange_account_id]).clone();
 
         const ERROR_MSG: &str = "Failed waiting in method TimeoutManager::reserve_when_available";
-        let convert = |handle: JoinHandle<Result<()>>| handle.map(|res| res.context(ERROR_MSG)?);
+        let convert = |handle: JoinHandle<FutureOutcome>| {
+            handle.map(|res| match res {
+                Ok(_) => FutureOutcome::CompletedSuccessfully,
+                Err(_) => FutureOutcome::Error,
+            })
+        };
 
         let now = now();
         if pre_reservation_group_id.is_none() {
@@ -89,7 +94,7 @@ impl TimeoutManager {
         }
 
         if inner.try_reserve_instant(request_type, now, pre_reservation_group_id)? {
-            return Ok(Either::Right(ready(Ok(()))));
+            return Ok(Either::Right(ready(FutureOutcome::CompletedSuccessfully)));
         }
 
         let result = inner.reserve_when_available(request_type, now, cancellation_token)?;
