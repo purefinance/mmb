@@ -1,7 +1,7 @@
-use crate::core::exchanges::cancellation_token::CancellationToken;
-use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::exchange_blocker::ProgressStatus::ProgressBlocked;
 use crate::core::nothing_to_do;
+use crate::core::{exchanges::cancellation_token::CancellationToken, utils::custom_spawn};
+use crate::core::{exchanges::common::ExchangeAccountId, utils::FutureOutcome};
 use futures::future::{join_all, BoxFuture};
 use itertools::Itertools;
 use log::{error, trace};
@@ -16,8 +16,6 @@ use std::{fmt, iter};
 use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep_until, Duration, Instant};
-
-use super::utils::{custom_spawn, FutureOutcome};
 
 const EXPECTED_EAI_SHOULD_BE_CREATED: &str =
     "Should exists because locks created for all exchange accounts in constructor";
@@ -800,8 +798,8 @@ mod tests {
     use crate::core::exchanges::exchange_blocker::{
         BlockReason, ExchangeBlocker, ExchangeBlockerMoment,
     };
-    use crate::core::exchanges::{cancellation_token::CancellationToken, utils::custom_spawn};
     use crate::core::nothing_to_do;
+    use crate::core::{exchanges::cancellation_token::CancellationToken, utils::custom_spawn};
     use futures::future::{join, join_all};
     use futures::FutureExt;
     use parking_lot::Mutex;

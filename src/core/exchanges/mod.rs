@@ -9,4 +9,3 @@ pub mod general;
 pub mod rest_client;
 pub mod timeouts;
 pub mod traits;
-pub mod utils;

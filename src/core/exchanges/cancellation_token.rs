@@ -83,7 +83,7 @@ impl CancellationToken {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::exchanges::{cancellation_token::CancellationToken, utils::custom_spawn};
+    use crate::core::{exchanges::cancellation_token::CancellationToken, utils::custom_spawn};
     use parking_lot::Mutex;
     use std::sync::Arc;
     use tokio::time::Duration;

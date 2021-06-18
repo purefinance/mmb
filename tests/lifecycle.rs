@@ -1,11 +1,11 @@
 #![cfg(test)]
 
-use mmb_lib::core::exchanges::{
-    common::{CurrencyPair, ExchangeAccountId},
-    utils::custom_spawn,
-};
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::{AppSettings, BaseStrategySettings};
+use mmb_lib::core::{
+    exchanges::common::{CurrencyPair, ExchangeAccountId},
+    utils::custom_spawn,
+};
 use std::time::Duration;
 use tokio::time::sleep;
 

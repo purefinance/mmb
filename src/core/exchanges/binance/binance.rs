@@ -12,7 +12,6 @@ use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
@@ -26,12 +25,11 @@ use crate::core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
     events::AllowedEventSourceType,
 };
-use crate::core::exchanges::{
-    general::handlers::handle_order_filled::FillEventData, rest_client, utils,
-};
+use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
+use crate::core::{exchanges::application_manager::ApplicationManager, utils};
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::hashmap;
 

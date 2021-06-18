@@ -15,16 +15,16 @@ use crate::core::exchanges::general::{
 };
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
-use crate::core::exchanges::{
-    application_manager::ApplicationManager, utils::keep_application_manager,
-};
 use crate::core::internal_events_loop::InternalEventsLoop;
 use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
 use crate::core::{
-    disposition_execution::executor::DispositionExecutorService, exchanges::utils::custom_spawn,
+    disposition_execution::executor::DispositionExecutorService, utils::custom_spawn,
+};
+use crate::core::{
+    exchanges::application_manager::ApplicationManager, utils::keep_application_manager,
 };
 use crate::hashmap;
 use crate::strategies::disposition_strategy::DispositionStrategy;

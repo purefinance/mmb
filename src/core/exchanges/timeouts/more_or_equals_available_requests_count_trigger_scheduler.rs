@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::{exchanges::utils::custom_spawn, DateTime};
+use crate::core::{utils::custom_spawn, DateTime};
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use log::error;
