@@ -218,12 +218,8 @@ impl ExchangeBlockerEventsProcessor {
 
             Ok(())
         };
-        let processing_handle = custom_spawn(
-            "Start ExchangeBlocker processing",
-            None,
-            Box::pin(action),
-            true,
-        );
+        let processing_handle =
+            custom_spawn("Start ExchangeBlocker processing", Box::pin(action), true);
 
         let events_processor = ExchangeBlockerEventsProcessor {
             processing_handle: Mutex::new(Some(processing_handle)),
@@ -315,7 +311,7 @@ impl ExchangeBlockerEventsProcessor {
 
                     Ok(())
                 };
-                let _ = custom_spawn("Run ExchangeBlocker handlers", None, Box::pin(action), true);
+                let _ = custom_spawn("Run ExchangeBlocker handlers", Box::pin(action), true);
             }
             (ProgressBlocked, UnblockRequested) => {
                 blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |statuses| {
@@ -339,7 +335,7 @@ impl ExchangeBlockerEventsProcessor {
                     Self::add_event(&mut ctx.events_sender, event);
                     Ok(())
                 };
-                let _ = custom_spawn("Add ExchangeBlocker event", None, Box::pin(action), true);
+                let _ = custom_spawn("Add ExchangeBlocker event", Box::pin(action), true);
             }
             (WaitUnblockedMove, MoveBeforeUnblockedToUnblocked) => {
                 Self::remove_blocker(event, &ctx);
@@ -351,7 +347,7 @@ impl ExchangeBlockerEventsProcessor {
                     Self::run_handlers(&event, Unblocked, &ctx).await;
                     Ok(())
                 };
-                let _ = custom_spawn("Run ExchangeBlocker handlers", None, Box::pin(action), true);
+                let _ = custom_spawn("Run ExchangeBlocker handlers", Box::pin(action), true);
             }
             _ => nothing_to_do(),
         };
@@ -647,7 +643,7 @@ impl ExchangeBlocker {
 
         //    Ok(())
         //};
-        //custom_spawn("Run ExchangeBlocker handlers", None, Box::pin(action), true)
+        //custom_spawn("Run ExchangeBlocker handlers",  Box::pin(action), true)
 
         tokio::spawn(async move {
             sleep_until(end_time).await;
@@ -874,7 +870,6 @@ mod tests {
             };
             let _ = custom_spawn(
                 "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
-                None,
                 Box::pin(action),
                 false,
             );
@@ -913,7 +908,6 @@ mod tests {
         };
         let handle = custom_spawn(
             "Run ExchangeBlocker::wait_unblock in block_duration test",
-            None,
             Box::pin(action),
             false,
         );
@@ -955,7 +949,6 @@ mod tests {
         };
         let handle = custom_spawn(
             "Run ExchangeBlocker::wait_unblock in reblock_before_time_is_up test",
-            None,
             Box::pin(action),
             false,
         );
@@ -1177,7 +1170,6 @@ mod tests {
                     };
                     custom_spawn(
                         "do_action in block_many_times test",
-                        None,
                         Box::pin(action),
                         false,
                     )
@@ -1238,7 +1230,6 @@ mod tests {
                 };
                 custom_spawn(
                     "do_action in block_many_times test",
-                    None,
                     Box::pin(action),
                     false,
                 )
@@ -1280,7 +1271,6 @@ mod tests {
             };
             let _ = custom_spawn(
                 "do_action in block_many_times test",
-                None,
                 Box::pin(action),
                 false,
             );
@@ -1296,7 +1286,6 @@ mod tests {
                     let exchange_blocker = exchange_blocker.clone();
                     let _ = custom_spawn(
                         "do_action in block_many_times_with_stop_exchange_blocker test",
-                        None,
                         Box::pin(async move {
                             do_action(i % REASONS_COUNT, exchange_blocker.clone()).await;
                             Ok(())
@@ -1314,7 +1303,6 @@ mod tests {
             };
             let _ = custom_spawn(
                 "spawn_actions_notify in block_many_times_with_stop_exchange_blocker test",
-                None,
                 Box::pin(action),
                 false,
             );
@@ -1332,7 +1320,6 @@ mod tests {
             };
             let _ = custom_spawn(
                 "do_action in block_many_times test",
-                None,
                 Box::pin(action),
                 false,
             );
@@ -1419,7 +1406,6 @@ mod tests {
             };
             let _ = custom_spawn(
                 "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
-                None,
                 Box::pin(action),
                 true,
             );

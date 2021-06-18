@@ -30,12 +30,10 @@ impl ApplicationManager {
         *engine_context_guard = Some(Arc::downgrade(&engine_context));
     }
 
-    // FIXME log if future panic
     /// Synchronous method for starting graceful shutdown with blocking current thread and
     /// without waiting for the operation to complete
     pub fn spawn_graceful_shutdown(self: Arc<Self>, reason: String) -> JoinHandle<()> {
-        // FIXME Is that OK to use custom_spawn here?
-        tokio::spawn(async move {
+        let handler = tokio::spawn(async move {
             let engine_context_guard = match self.engine_context.try_lock() {
                 Ok(engine_context_guard) => engine_context_guard,
                 Err(_) => {
@@ -46,6 +44,27 @@ impl ApplicationManager {
             };
 
             start_graceful_shutdown_inner(engine_context_guard, &reason).await
+        });
+
+        Self::handle_possible_panic(handler)
+    }
+
+    fn handle_possible_panic(graceful_shutdown_handler: JoinHandle<()>) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            if let Err(error) = graceful_shutdown_handler.await {
+                if error.is_panic() {
+                    let panic = error.into_panic();
+                    let maybe_panic_msg = panic.as_ref().downcast_ref::<String>().clone();
+                    match maybe_panic_msg {
+                        None => {
+                            error!("Graceful shutdown future panicked without message")
+                        }
+                        Some(panic_msg) => {
+                            error!("Graceful shutdown future panicked: {:?}", panic_msg)
+                        }
+                    }
+                }
+            }
         })
     }
 

@@ -115,7 +115,7 @@ where
             local_exchanges_map,
             engine_context.application_manager.stop_token(),
         ));
-        let _ = custom_spawn("internal_events_loop start", None, action, true);
+        let _ = custom_spawn("internal_events_loop start", action, true);
     }
 
     if let Err(error) = control_panel.clone().start() {

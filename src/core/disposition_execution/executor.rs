@@ -88,7 +88,7 @@ impl DispositionExecutorService {
 
             Ok(())
         };
-        custom_spawn("Start disposition executor", None, Box::pin(action), true);
+        custom_spawn("Start disposition executor", Box::pin(action), true);
 
         Arc::new(DispositionExecutorService {
             work_finished_receiver: Mutex::new(Some(receiver)),
@@ -556,7 +556,6 @@ impl DispositionExecutor {
         };
         custom_spawn(
             "wait_cancel_order in blocking cancel_order",
-            None,
             Box::pin(action),
             true,
         );
@@ -717,7 +716,6 @@ impl DispositionExecutor {
             };
             custom_spawn(
                 "wait_cancel_order in blocking cancel_order",
-                None,
                 Box::pin(action),
                 true,
             );

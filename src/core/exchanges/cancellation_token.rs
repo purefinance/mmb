@@ -168,7 +168,6 @@ mod tests {
         };
         custom_spawn(
             "handle_inner for schedule_handler()",
-            None,
             Box::pin(action),
             true,
         );
