@@ -36,20 +36,45 @@ pub enum FutureOutcome {
     Canceled,
     Error,
     Panicked,
+    TimeExpired,
 }
 
 pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
 
+/// Spawn future with timer. Error will be logged if times up before action completed
+/// Other nuances are the same as custom_spawn()
 pub fn custom_spawn_timered(
     action_name: &str,
     duration: Duration,
     action: Pin<CustomSpawnFuture>,
     is_critical: bool,
 ) -> JoinHandle<FutureOutcome> {
-    todo!()
+    let action = custom_spawn(action_name, action, is_critical);
+    let timer = async move {
+        tokio::time::sleep(duration).await;
+    };
+
+    tokio::spawn(async move {
+        tokio::select! {
+            _ = timer => {
+                dbg!(&"TIMER");
+                return FutureOutcome::TimeExpired;
+            }
+            action_outcome = action => {
+                match action_outcome {
+                    Ok(outcome) => return outcome,
+                    Err(_) => {
+                        error!("Custom_spawn() panicked");
+                        FutureOutcome::Panicked
+                    }
+                }
+            }
+        }
+    })
 }
 
-// FIXME DOCUMENTATE IT
+/// Spawn future with logging and error, panic and cancellatioin handling
+/// Inside the crate prefer this function to all others
 pub fn custom_spawn(
     action_name: &str,
     action: Pin<CustomSpawnFuture>,
