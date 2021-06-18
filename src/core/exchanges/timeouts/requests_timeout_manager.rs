@@ -310,14 +310,6 @@ impl RequestsTimeoutManager {
             true,
         );
 
-        // FIXME that's quite different comparing with others futures
-        //let request_availability = tokio::spawn(Self::wait_for_request_availability(
-        //    Arc::downgrade(&self),
-        //    request,
-        //    delay,
-        //    cancellation_token,
-        //));
-
         Ok((request_availability, request_start_time, delay))
     }
 
