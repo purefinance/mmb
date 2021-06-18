@@ -44,7 +44,7 @@ pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
 /// Spawn future with timer. Error will be logged if times up before action completed
 /// Other nuances are the same as custom_spawn()
 pub fn custom_spawn_timered(
-    action_name: &str,
+    action_name: &'static str,
     duration: Duration,
     action: Pin<CustomSpawnFuture>,
     is_critical: bool,
@@ -57,7 +57,7 @@ pub fn custom_spawn_timered(
     tokio::spawn(async move {
         tokio::select! {
             _ = timer => {
-                dbg!(&"TIMER");
+                error!("Time is over, but future {} is not completed yet", action_name);
                 return FutureOutcome::TimeExpired;
             }
             action_outcome = action => {
@@ -229,5 +229,72 @@ mod test {
         assert_eq!(future_outcome, FutureOutcome::Panicked);
 
         Ok(())
+    }
+
+    mod with_timer {
+        use super::*;
+
+        #[tokio::test]
+        async fn time_is_over() -> Result<()> {
+            // Arrange
+            let action = async {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+                Ok(())
+            };
+
+            // Act
+            let future_outcome = custom_spawn_timered(
+                "test_action_name",
+                Duration::from_secs(0),
+                Box::pin(action),
+                true,
+            )
+            .await?;
+
+            // Assert
+            assert_eq!(future_outcome, FutureOutcome::TimeExpired);
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn error_in_action() -> Result<()> {
+            // Arrange
+            let action = async { bail!("Some error for test") };
+
+            // Act
+            let future_outcome = custom_spawn_timered(
+                "test_action_name",
+                Duration::from_secs(1),
+                Box::pin(action),
+                true,
+            )
+            .await?;
+
+            // Assert
+            assert_eq!(future_outcome, FutureOutcome::Error);
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn action_completed_in_time() -> Result<()> {
+            // Arrange
+            let action = async { Ok(()) };
+
+            // Act
+            let future_outcome = custom_spawn_timered(
+                "test_action_name",
+                Duration::from_secs(1),
+                Box::pin(action),
+                true,
+            )
+            .await?;
+
+            // Assert
+            assert_eq!(future_outcome, FutureOutcome::CompletedSuccessfully);
+
+            Ok(())
+        }
     }
 }
