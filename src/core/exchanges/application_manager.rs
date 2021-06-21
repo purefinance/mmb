@@ -1,5 +1,5 @@
 use super::cancellation_token::CancellationToken;
-use crate::core::lifecycle::trading_engine::EngineContext;
+use crate::core::{lifecycle::trading_engine::EngineContext, utils::unset_application_manager};
 use log::{error, info, warn};
 use std::sync::{Arc, Weak};
 use tokio::sync::{Mutex, MutexGuard};
@@ -93,4 +93,6 @@ pub async fn start_graceful_shutdown_inner(
         None => warn!("Can't execute graceful shutdown with reason '{}', because 'engine_context' was dropped already", reason),
         Some(ctx) => ctx.graceful_shutdown().await,
     }
+
+    unset_application_manager();
 }

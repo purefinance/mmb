@@ -177,6 +177,8 @@ fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
 
 #[cfg(test)]
 mod test {
+    use crate::core::exchanges::cancellation_token::CancellationToken;
+
     use super::*;
     use anyhow::{bail, Result};
 
@@ -240,6 +242,23 @@ mod test {
     async fn critical_future_canceled_via_panic() -> Result<()> {
         // Arrange
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
+
+        // Act
+        let future_outcome = custom_spawn("test_action_name", Box::pin(action), true).await?;
+
+        // Assert
+        assert_eq!(future_outcome, FutureOutcome::Panicked);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn panic_with_application_manager() -> Result<()> {
+        // Arrange
+        let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
+
+        let application_manager = ApplicationManager::new(CancellationToken::new());
+        keep_application_manager(application_manager);
 
         // Act
         let future_outcome = custom_spawn("test_action_name", Box::pin(action), true).await?;
