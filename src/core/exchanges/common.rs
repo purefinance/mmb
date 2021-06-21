@@ -255,7 +255,7 @@ pub struct ExchangeError {
     pub message: String,
     pub code: Option<i64>,
     // TODO Set it in the rest_client
-    pub pending_time: Duration,
+    pub pending_time: Option<Duration>,
 }
 
 impl ExchangeError {
@@ -264,7 +264,16 @@ impl ExchangeError {
             error_type,
             message,
             code,
-            pending_time: Duration::from_secs(0),
+            pending_time: None,
+        }
+    }
+
+    pub fn pending(pending_time: Duration, message: String, code: Option<i64>) -> Self {
+        Self {
+            error_type: ExchangeErrorType::PendingError,
+            message,
+            code,
+            pending_time: Some(Duration),
         }
     }
 }
@@ -280,6 +289,7 @@ pub enum ExchangeErrorType {
     InvalidOrder,
     Authentication,
     ParsingError,
+    // FIXME Maybe keep pending time right here?
     PendingError,
     ServiceUnavailable,
 }
