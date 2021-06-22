@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
+use futures::FutureExt;
 use itertools::Itertools;
 use log::{error, trace, warn};
 use parking_lot::Mutex;
@@ -82,13 +83,9 @@ impl DispositionExecutorService {
                 cancellation_token,
             );
 
-            if let Err(_error) = disposition_executor.start().await {
-                // TODO handle errors
-            };
-
-            Ok(())
+            disposition_executor.start().await
         };
-        custom_spawn("Start disposition executor", Box::pin(action), true);
+        custom_spawn("Start disposition executor", true, action.boxed());
 
         Arc::new(DispositionExecutorService {
             work_finished_receiver: Mutex::new(Some(receiver)),
@@ -552,12 +549,12 @@ impl DispositionExecutor {
                 .await?;
             trace!("Finished wait_cancel_order {}", client_order_id);
 
-            Ok(()) as Result<()>
+            Ok(())
         };
         custom_spawn(
-            "wait_cancel_order in blocking cancel_order",
-            Box::pin(action),
+            "Start wait_cancel_order from DispositionExecutor::cancel_order()",
             true,
+            action.boxed(),
         );
     }
 
@@ -702,13 +699,9 @@ impl DispositionExecutor {
                     price: new_price,
                 };
 
-                let order_creation_res = exchange
+                exchange
                     .create_order(&order_creating, cancellation_token)
-                    .await;
-                match order_creation_res {
-                    Ok(_) => return Ok(()),
-                    Err(_) => { /* TODO handle error occurred during order creation */ }
-                }
+                    .await?;
 
                 trace!("Finished create_order {}", new_client_order_id);
 
@@ -716,8 +709,8 @@ impl DispositionExecutor {
             };
             custom_spawn(
                 "wait_cancel_order in blocking cancel_order",
-                Box::pin(action),
                 true,
+                action.boxed(),
             );
         }
 

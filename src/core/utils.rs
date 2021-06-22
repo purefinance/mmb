@@ -3,7 +3,6 @@ use futures::Future;
 use log::{error, info, trace};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use std::fmt;
 use std::{
     pin::Pin,
     sync::Arc,
@@ -40,12 +39,6 @@ pub enum FutureOutcome {
     TimeExpired,
 }
 
-impl fmt::Display for FutureOutcome {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
-    }
-}
-
 impl From<FutureOutcome> for Result<()> {
     fn from(future_outcome: FutureOutcome) -> Self {
         match future_outcome {
@@ -64,11 +57,11 @@ pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
 /// Other nuances are the same as custom_spawn()
 pub fn custom_spawn_timered(
     action_name: &'static str,
+    is_critical: bool,
     duration: Duration,
     action: Pin<CustomSpawnFuture>,
-    is_critical: bool,
 ) -> JoinHandle<FutureOutcome> {
-    let action = custom_spawn(action_name, action, is_critical);
+    let action = custom_spawn(action_name, is_critical, action);
     let timer = async move {
         tokio::time::sleep(duration).await;
     };
@@ -96,8 +89,8 @@ pub fn custom_spawn_timered(
 /// Inside the crate prefer this function to all others
 pub fn custom_spawn(
     action_name: &str,
-    action: Pin<CustomSpawnFuture>,
     is_critical: bool,
+    action: Pin<CustomSpawnFuture>,
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
@@ -105,9 +98,11 @@ pub fn custom_spawn(
 
     info!("{} started", log_template);
 
-    let action_outcome = tokio::spawn(async move { action.await });
+    let action_outcome = tokio::spawn(action);
 
-    let handler = tokio::spawn(async move {
+    // FIXME explore how tokio handle can catch panics
+    tokio::spawn(async move {
+        // FIXME catch_unwind and simple graceful_shutdown
         match action_outcome.await {
             Ok(future_outcome) => match future_outcome {
                 Ok(_) => {
@@ -142,8 +137,6 @@ pub fn custom_spawn(
                         }
 
                         error!("{}", error_message);
-                        // FIXME Evgeniy, look at that blocking version I chose.
-                        // That's because Mutex locking around await
                         spawn_graceful_shutdown(&log_template, &error_message);
 
                         return FutureOutcome::Panicked;
@@ -152,17 +145,15 @@ pub fn custom_spawn(
                 FutureOutcome::Canceled
             }
         }
-    });
-
-    handler
+    })
 }
 
 fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
     match APPLICATION_MANAGER.get() {
         Some(application_manager) => {
-            let test = application_manager.lock();
-            let manager = &*test;
-            match manager {
+            //let test = application_manager.lock();
+            //let manager = &*test;
+            match &*application_manager.lock() {
                 Some(application_manager) => {
                     application_manager.clone().spawn_graceful_shutdown(error_message.to_owned());
                 }
@@ -181,6 +172,7 @@ mod test {
 
     use super::*;
     use anyhow::{bail, Result};
+    use futures::FutureExt;
 
     #[tokio::test]
     async fn future_completed_successfully() -> Result<()> {
@@ -188,7 +180,7 @@ mod test {
         let action = async { Ok(()) };
 
         // Act
-        let future_outcome = custom_spawn("test_action_name", Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::CompletedSuccessfully);
@@ -202,7 +194,7 @@ mod test {
         let action = async { bail!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome = custom_spawn("test_action_name", Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Canceled);
@@ -216,7 +208,7 @@ mod test {
         let action = async { bail!("Some error") };
 
         // Act
-        let future_outcome = custom_spawn("test_action_name", Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Error);
@@ -230,7 +222,7 @@ mod test {
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome = custom_spawn("test_action_name", Box::pin(action), false).await?;
+        let future_outcome = custom_spawn("test_action_name", false, action.boxed()).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Canceled);
@@ -244,7 +236,7 @@ mod test {
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome = custom_spawn("test_action_name", Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Panicked);
@@ -261,7 +253,7 @@ mod test {
         keep_application_manager(application_manager);
 
         // Act
-        let future_outcome = custom_spawn("test_action_name", Box::pin(action), true).await?;
+        let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
         assert_eq!(future_outcome, FutureOutcome::Panicked);
@@ -276,16 +268,16 @@ mod test {
         async fn time_is_over() -> Result<()> {
             // Arrange
             let action = async {
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_millis(200)).await;
                 Ok(())
             };
 
             // Act
             let future_outcome = custom_spawn_timered(
                 "test_action_name",
-                Duration::from_secs(0),
-                Box::pin(action),
                 true,
+                Duration::from_secs(0),
+                action.boxed(),
             )
             .await?;
 
@@ -303,9 +295,9 @@ mod test {
             // Act
             let future_outcome = custom_spawn_timered(
                 "test_action_name",
-                Duration::from_secs(1),
-                Box::pin(action),
                 true,
+                Duration::from_millis(200),
+                action.boxed(),
             )
             .await?;
 
@@ -323,9 +315,9 @@ mod test {
             // Act
             let future_outcome = custom_spawn_timered(
                 "test_action_name",
-                Duration::from_secs(1),
-                Box::pin(action),
                 true,
+                Duration::from_millis(200),
+                action.boxed(),
             )
             .await?;
 

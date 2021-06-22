@@ -1,5 +1,5 @@
 use super::cancellation_token::CancellationToken;
-use crate::core::{lifecycle::trading_engine::EngineContext, utils::unset_application_manager};
+use crate::core::lifecycle::trading_engine::EngineContext;
 use log::{error, info, warn};
 use std::sync::{Arc, Weak};
 use tokio::sync::{Mutex, MutexGuard};
@@ -33,6 +33,7 @@ impl ApplicationManager {
     /// Synchronous method for starting graceful shutdown with blocking current thread and
     /// without waiting for the operation to complete
     pub fn spawn_graceful_shutdown(self: Arc<Self>, reason: String) -> JoinHandle<()> {
+        // FIXME move all sync out from async and delete tokio::spawn at all. start_graceful_shutdown_inner pass to handle_possible_panic
         let handler = tokio::spawn(async move {
             let engine_context_guard = match self.engine_context.try_lock() {
                 Ok(engine_context_guard) => engine_context_guard,
@@ -93,6 +94,4 @@ pub async fn start_graceful_shutdown_inner(
         None => warn!("Can't execute graceful shutdown with reason '{}', because 'engine_context' was dropped already", reason),
         Some(ctx) => ctx.graceful_shutdown().await,
     }
-
-    unset_application_manager();
 }

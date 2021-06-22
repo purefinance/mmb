@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use futures::future::join_all;
+use futures::{future::join_all, FutureExt};
 use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
@@ -110,12 +110,12 @@ where
 
     {
         let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();
-        let action = Box::pin(internal_events_loop.clone().start(
+        let action = internal_events_loop.clone().start(
             events_receiver,
             local_exchanges_map,
             engine_context.application_manager.stop_token(),
-        ));
-        let _ = custom_spawn("internal_events_loop start", action, true);
+        );
+        let _ = custom_spawn("internal_events_loop start", true, action.boxed());
     }
 
     if let Err(error) = control_panel.clone().start() {

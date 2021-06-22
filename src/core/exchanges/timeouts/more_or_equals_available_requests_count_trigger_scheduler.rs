@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::core::{utils::custom_spawn, DateTime};
 use anyhow::Result;
 use chrono::{Duration, Utc};
+use futures::FutureExt;
 use log::error;
 use parking_lot::Mutex;
 use tokio::time::sleep;
@@ -89,11 +90,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
             self.clone().handle_inner(delay).await;
             Ok(())
         };
-        custom_spawn(
-            "handle_inner for schedule_handler()",
-            Box::pin(action),
-            true,
-        );
+        custom_spawn("handle_inner for schedule_handler()", true, action.boxed());
     }
 
     async fn handle_inner(&self, delay: Duration) {

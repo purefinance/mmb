@@ -3,6 +3,7 @@ use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Result};
 use chrono::Duration;
+use futures::FutureExt;
 use log::{error, info};
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
@@ -293,21 +294,16 @@ impl RequestsTimeoutManager {
 
         drop(inner);
 
-        let action = async move {
-            Self::wait_for_request_availability(
-                Arc::downgrade(&self),
-                request,
-                delay,
-                cancellation_token,
-            )
-            .await?;
-
-            Ok(())
-        };
+        let action = Self::wait_for_request_availability(
+            Arc::downgrade(&self),
+            request,
+            delay,
+            cancellation_token,
+        );
         let request_availability = custom_spawn(
             "Waiting request in reserve_when_available()",
-            Box::pin(action),
             true,
+            action.boxed(),
         );
 
         Ok((request_availability, request_start_time, delay))

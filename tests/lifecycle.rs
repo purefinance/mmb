@@ -1,5 +1,6 @@
 #![cfg(test)]
 
+use futures::FutureExt;
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::{AppSettings, BaseStrategySettings};
 use mmb_lib::core::{
@@ -37,12 +38,13 @@ async fn launch_engine() {
             .application_manager
             .run_graceful_shutdown("test")
             .await;
+
         Ok(())
     };
     custom_spawn(
-        "handle_inner for schedule_handler()",
-        Box::pin(action),
+        "run graceful_shutdown in launch_engine test",
         true,
+        action.boxed(),
     );
 
     engine.run().await;

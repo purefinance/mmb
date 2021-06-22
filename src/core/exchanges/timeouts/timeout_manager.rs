@@ -83,6 +83,7 @@ impl TimeoutManager {
         let convert = |handle: JoinHandle<FutureOutcome>| {
             handle.map(|res| match res {
                 Ok(_) => FutureOutcome::CompletedSuccessfully,
+                // FIXME log that panic and explaing why panic is here. Panic!()
                 Err(_) => FutureOutcome::Error,
             })
         };
