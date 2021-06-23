@@ -31,7 +31,7 @@ pub(crate) fn keep_application_manager(application_manager: Arc<ApplicationManag
 pub(crate) fn unset_application_manager() -> Result<()> {
     APPLICATION_MANAGER
         .get()
-        .ok_or(anyhow!("Application manager was not set or unset already",))?
+        .ok_or(anyhow!("OnceCell has no underlying value"))?
         .lock()
         .take();
 
@@ -111,7 +111,7 @@ pub fn custom_spawn(
 
         match action_outcome {
             Ok(future_outcome) => match future_outcome {
-                Ok(_) => {
+                Ok(()) => {
                     trace!("{} successfully completed", log_template);
                     return FutureOutcome::CompletedSuccessfully;
                 }
