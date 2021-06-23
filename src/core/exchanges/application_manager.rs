@@ -58,14 +58,14 @@ impl ApplicationManager {
             let action_outcome = panic::AssertUnwindSafe(graceful_shutdown_handler)
                 .catch_unwind()
                 .await;
-            let future_name = "Graceful shutdown future".to_owned();
+            let future_name = "Graceful shutdown future";
             match action_outcome {
                 Ok(()) => {
                     info!("{} completed successfully", future_name);
                 }
                 Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
                     Some(panic_message) => {
-                        error!("{} paniced with error: {}", future_name, panic_message);
+                        error!("{} panicked with error: {}", future_name, panic_message);
                     }
                     None => {
                         error!("{} panicked without message", future_name);

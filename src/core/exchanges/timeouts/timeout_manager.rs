@@ -8,6 +8,7 @@ use tokio::task::JoinHandle;
 
 use anyhow::Result;
 use chrono::Utc;
+use log::error;
 
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::request_type::RequestType;
@@ -82,9 +83,12 @@ impl TimeoutManager {
         const ERROR_MSG: &str = "Failed waiting in method TimeoutManager::reserve_when_available";
         let convert = |handle: JoinHandle<FutureOutcome>| {
             handle.map(|res| match res {
-                Ok(_) => FutureOutcome::CompletedSuccessfully,
-                // FIXME log that panic and explaing why panic is here. Panic!()
-                Err(_) => FutureOutcome::Error,
+                Ok(future_outcome) => future_outcome,
+                // Only panic can happen here and only in case if spawn_future() panicked itself
+                Err(error) => {
+                    error!("Future in reserve_when_available got error: {}", error);
+                    FutureOutcome::Panicked
+                }
             })
         };
 

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use futures::Future;
 use futures::FutureExt;
 use log::{error, info, trace, Level};
@@ -28,14 +28,11 @@ pub(crate) fn keep_application_manager(application_manager: Arc<ApplicationManag
     APPLICATION_MANAGER.get_or_init(|| Mutex::new(Some(application_manager)));
 }
 
-pub(crate) fn unset_application_manager() -> Result<()> {
-    APPLICATION_MANAGER
-        .get()
-        .ok_or(anyhow!("OnceCell has no underlying value"))?
-        .lock()
-        .take();
-
-    Ok(())
+pub(crate) fn unset_application_manager() {
+    match APPLICATION_MANAGER.get() {
+        Some(application_manager) => application_manager.lock().take(),
+        None => panic!("Attempt to unset static application manager before it has been set"),
+    };
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]

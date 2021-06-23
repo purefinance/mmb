@@ -67,7 +67,7 @@ pub enum BlockType {
 
 struct TimeoutInProgress {
     end_time: Instant,
-    timer_handle: JoinHandle<()>,
+    timer_handle: JoinHandle<FutureOutcome>,
 }
 
 enum Timeout {
@@ -76,7 +76,7 @@ enum Timeout {
 }
 
 impl Timeout {
-    fn in_progress(end_time: Instant, timer_handle: JoinHandle<()>) -> Timeout {
+    fn in_progress(end_time: Instant, timer_handle: JoinHandle<FutureOutcome>) -> Timeout {
         Timeout::InProgress {
             in_progress: TimeoutInProgress {
                 end_time,
@@ -622,40 +622,9 @@ impl ExchangeBlocker {
         self: &Arc<Self>,
         blocker_id: BlockerId,
         end_time: Instant,
-    ) -> JoinHandle<()> {
+    ) -> JoinHandle<FutureOutcome> {
         let self_wk = Arc::downgrade(&self.clone());
-        // FIXME Different JoinHandle ReturnType
-        //let action = async move {
-        //    sleep_until(end_time).await;
-
-        //    match self_wk.upgrade() {
-        //        None => trace!(
-        //            "Can't upgrade exchange blocker reference in unblock timer of ExchangeBlocker for blocker '{}'", &blocker_id
-        //        ),
-        //        Some(self_rc) => {
-        //            let exchange_account_id = &blocker_id.exchange_account_id;
-        //            let reason = blocker_id.reason;
-        //            match self_rc
-        //                .blockers
-        //                .read()
-        //                .get(exchange_account_id)
-        //                .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
-        //                .get(&reason)
-        //            {
-        //                None => {
-        //                    error!("Not found blocker '{}' on timer tick. If unblock forced, timer should be stopped manually.", &blocker_id)
-        //                }
-        //                Some(blocker) => *blocker.timeout.lock() = Timeout::ReadyUnblock,
-        //            }
-        //            self_rc.unblock(exchange_account_id, reason)
-        //        }
-        //    }
-
-        //    Ok(())
-        //};
-        //custom_spawn("Run ExchangeBlocker handlers", action.boxed(), true)
-
-        tokio::spawn(async move {
+        let action = async move {
             sleep_until(end_time).await;
 
             match self_wk.upgrade() {
@@ -680,7 +649,10 @@ impl ExchangeBlocker {
                     self_rc.unblock(exchange_account_id, reason)
                 }
             }
-        })
+
+            Ok(())
+        };
+        custom_spawn("Run ExchangeBlocker handlers", true, action.boxed())
     }
 
     pub fn unblock(&self, exchange_account_id: &ExchangeAccountId, reason: BlockReason) {
