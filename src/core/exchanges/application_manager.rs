@@ -1,6 +1,8 @@
 use super::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::EngineContext;
+use futures::{Future, FutureExt};
 use log::{error, info, warn};
+use std::panic;
 use std::sync::{Arc, Weak};
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::task::JoinHandle;
@@ -33,8 +35,7 @@ impl ApplicationManager {
     /// Synchronous method for starting graceful shutdown with blocking current thread and
     /// without waiting for the operation to complete
     pub fn spawn_graceful_shutdown(self: Arc<Self>, reason: String) -> JoinHandle<()> {
-        // FIXME move all sync out from async and delete tokio::spawn at all. start_graceful_shutdown_inner pass to handle_possible_panic
-        let handler = tokio::spawn(async move {
+        let action = async move {
             let engine_context_guard = match self.engine_context.try_lock() {
                 Ok(engine_context_guard) => engine_context_guard,
                 Err(_) => {
@@ -45,26 +46,31 @@ impl ApplicationManager {
             };
 
             start_graceful_shutdown_inner(engine_context_guard, &reason).await
-        });
+        };
 
-        Self::handle_possible_panic(handler)
+        Self::handle_possible_panic(action)
     }
 
-    fn handle_possible_panic(graceful_shutdown_handler: JoinHandle<()>) -> JoinHandle<()> {
+    fn handle_possible_panic(
+        graceful_shutdown_handler: impl Future<Output = ()> + Send + 'static,
+    ) -> JoinHandle<()> {
         tokio::spawn(async move {
-            if let Err(error) = graceful_shutdown_handler.await {
-                if error.is_panic() {
-                    let panic = error.into_panic();
-                    let maybe_panic_msg = panic.as_ref().downcast_ref::<String>().clone();
-                    match maybe_panic_msg {
-                        None => {
-                            error!("Graceful shutdown future panicked without message")
-                        }
-                        Some(panic_msg) => {
-                            error!("Graceful shutdown future panicked: {:?}", panic_msg)
-                        }
-                    }
+            let action_outcome = panic::AssertUnwindSafe(graceful_shutdown_handler)
+                .catch_unwind()
+                .await;
+            let future_name = "Graceful shutdown future".to_owned();
+            match action_outcome {
+                Ok(()) => {
+                    info!("{} completed successfully", future_name);
                 }
+                Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
+                    Some(panic_message) => {
+                        error!("{} paniced with error: {}", future_name, panic_message);
+                    }
+                    None => {
+                        error!("{} panicked without message", future_name);
+                    }
+                },
             }
         })
     }
