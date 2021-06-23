@@ -33,7 +33,7 @@ use crate::core::orders::order::{
 };
 use crate::core::orders::pool::OrderRef;
 use crate::core::{
-    disposition_execution::trade_limit::is_enough_amount_and_cost, utils::custom_spawn,
+    disposition_execution::trade_limit::is_enough_amount_and_cost, infrastructure::spawn_future,
 };
 use crate::core::{nothing_to_do, DateTime};
 use crate::strategies::disposition_strategy::DispositionStrategy;
@@ -85,7 +85,7 @@ impl DispositionExecutorService {
 
             disposition_executor.start().await
         };
-        custom_spawn("Start disposition executor", true, action.boxed());
+        spawn_future("Start disposition executor", true, action.boxed());
 
         Arc::new(DispositionExecutorService {
             work_finished_receiver: Mutex::new(Some(receiver)),
@@ -551,7 +551,7 @@ impl DispositionExecutor {
 
             Ok(())
         };
-        custom_spawn(
+        spawn_future(
             "Start wait_cancel_order from DispositionExecutor::cancel_order()",
             true,
             action.boxed(),
@@ -707,7 +707,7 @@ impl DispositionExecutor {
 
                 Ok(())
             };
-            custom_spawn(
+            spawn_future(
                 "wait_cancel_order in blocking cancel_order",
                 true,
                 action.boxed(),

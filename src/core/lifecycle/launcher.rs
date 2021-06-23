@@ -6,6 +6,7 @@ use futures::{future::join_all, FutureExt};
 use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
+use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{CurrencyPair, ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
@@ -21,10 +22,8 @@ use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
 use crate::core::{
-    disposition_execution::executor::DispositionExecutorService, utils::custom_spawn,
-};
-use crate::core::{
-    exchanges::application_manager::ApplicationManager, utils::keep_application_manager,
+    disposition_execution::executor::DispositionExecutorService,
+    infrastructure::{keep_application_manager, spawn_future},
 };
 use crate::hashmap;
 use crate::strategies::disposition_strategy::DispositionStrategy;
@@ -115,7 +114,7 @@ where
             local_exchanges_map,
             engine_context.application_manager.stop_token(),
         );
-        let _ = custom_spawn("internal_events_loop start", true, action.boxed());
+        let _ = spawn_future("internal_events_loop start", true, action.boxed());
     }
 
     if let Err(error) = control_panel.clone().start() {

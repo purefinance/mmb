@@ -83,7 +83,9 @@ impl CancellationToken {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::{exchanges::cancellation_token::CancellationToken, utils::custom_spawn};
+    use crate::core::{
+        exchanges::cancellation_token::CancellationToken, infrastructure::spawn_future,
+    };
     use futures::FutureExt;
     use parking_lot::Mutex;
     use std::sync::Arc;
@@ -167,7 +169,7 @@ mod tests {
 
             Ok(())
         };
-        custom_spawn("handle_inner for schedule_handler()", true, action.boxed());
+        spawn_future("handle_inner for schedule_handler()", true, action.boxed());
     }
 
     #[tokio::test]

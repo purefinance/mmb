@@ -19,7 +19,7 @@ use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::lifecycle::shutdown::ShutdownService;
 use crate::core::settings::CoreSettings;
 use crate::core::{
-    exchanges::application_manager::ApplicationManager, utils::unset_application_manager,
+    exchanges::application_manager::ApplicationManager, infrastructure::unset_application_manager,
 };
 use parking_lot::Mutex;
 

@@ -20,7 +20,7 @@ use super::{
 use crate::core::{
     exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
     exchanges::common::OPERATION_CANCELED_MSG, exchanges::general::request_type::RequestType,
-    utils::custom_spawn, utils::FutureOutcome, DateTime,
+    infrastructure::spawn_future, infrastructure::FutureOutcome, DateTime,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -300,7 +300,7 @@ impl RequestsTimeoutManager {
             delay,
             cancellation_token,
         );
-        let request_availability = custom_spawn(
+        let request_availability = spawn_future(
             "Waiting request in reserve_when_available()",
             true,
             action.boxed(),

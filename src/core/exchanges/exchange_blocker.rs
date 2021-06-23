@@ -1,7 +1,10 @@
+use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::exchange_blocker::ProgressStatus::ProgressBlocked;
 use crate::core::nothing_to_do;
-use crate::core::{exchanges::cancellation_token::CancellationToken, utils::custom_spawn};
-use crate::core::{exchanges::common::ExchangeAccountId, utils::FutureOutcome};
+use crate::core::{
+    exchanges::cancellation_token::CancellationToken,
+    infrastructure::{spawn_future, FutureOutcome},
+};
 use futures::{
     future::{join_all, BoxFuture},
     FutureExt,
@@ -220,7 +223,7 @@ impl ExchangeBlockerEventsProcessor {
             Ok(())
         };
         let processing_handle =
-            custom_spawn("Start ExchangeBlocker processing", true, action.boxed());
+            spawn_future("Start ExchangeBlocker processing", true, action.boxed());
 
         let events_processor = ExchangeBlockerEventsProcessor {
             processing_handle: Mutex::new(Some(processing_handle)),
@@ -312,7 +315,7 @@ impl ExchangeBlockerEventsProcessor {
 
                     Ok(())
                 };
-                let _ = custom_spawn("Run ExchangeBlocker handlers", true, action.boxed());
+                let _ = spawn_future("Run ExchangeBlocker handlers", true, action.boxed());
             }
             (ProgressBlocked, UnblockRequested) => {
                 blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |statuses| {
@@ -337,7 +340,7 @@ impl ExchangeBlockerEventsProcessor {
 
                     Ok(())
                 };
-                let _ = custom_spawn(
+                let _ = spawn_future(
                     "Run ExchangeBlocker handlers in case WaitBeforeUnblockedMove",
                     true,
                     action.boxed(),
@@ -353,7 +356,7 @@ impl ExchangeBlockerEventsProcessor {
                     Self::run_handlers(&event, Unblocked, &ctx).await;
                     Ok(())
                 };
-                let _ = custom_spawn(
+                let _ = spawn_future(
                     "Run ExchangeBlocker handlers in case WaitUnblockedMove",
                     true,
                     action.boxed(),
@@ -652,7 +655,7 @@ impl ExchangeBlocker {
 
             Ok(())
         };
-        custom_spawn("Run ExchangeBlocker handlers", true, action.boxed())
+        spawn_future("Run ExchangeBlocker handlers", true, action.boxed())
     }
 
     pub fn unblock(&self, exchange_account_id: &ExchangeAccountId, reason: BlockReason) {
@@ -783,7 +786,9 @@ mod tests {
         BlockReason, ExchangeBlocker, ExchangeBlockerMoment,
     };
     use crate::core::nothing_to_do;
-    use crate::core::{exchanges::cancellation_token::CancellationToken, utils::custom_spawn};
+    use crate::core::{
+        exchanges::cancellation_token::CancellationToken, infrastructure::spawn_future,
+    };
     use futures::future::{join, join_all};
     use futures::FutureExt;
     use parking_lot::Mutex;
@@ -850,7 +855,7 @@ mod tests {
 
                 Ok(())
             };
-            let _ = custom_spawn(
+            let _ = spawn_future(
                 "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
                 false,
                 action.boxed(),
@@ -888,7 +893,7 @@ mod tests {
 
             Ok(())
         };
-        let handle = custom_spawn(
+        let handle = spawn_future(
             "Run ExchangeBlocker::wait_unblock in block_duration test",
             false,
             action.boxed(),
@@ -929,7 +934,7 @@ mod tests {
 
             Ok(())
         };
-        let handle = custom_spawn(
+        let handle = spawn_future(
             "Run ExchangeBlocker::wait_unblock in reblock_before_time_is_up test",
             false,
             action.boxed(),
@@ -1151,7 +1156,7 @@ mod tests {
 
                         Ok(())
                     };
-                    custom_spawn("do_action in block_many_times test", false, action.boxed())
+                    spawn_future("do_action in block_many_times test", false, action.boxed())
                 });
             join_all(jobs).await;
         }
@@ -1208,7 +1213,7 @@ mod tests {
 
                     Ok(())
                 };
-                custom_spawn("do_action in block_many_times test", false, action.boxed())
+                spawn_future("do_action in block_many_times test", false, action.boxed())
             });
         join_all(jobs).await;
 
@@ -1245,7 +1250,7 @@ mod tests {
 
                 Ok(())
             };
-            let _ = custom_spawn("do_action in block_many_times test", false, action.boxed());
+            let _ = spawn_future("do_action in block_many_times test", false, action.boxed());
         }
 
         {
@@ -1256,7 +1261,7 @@ mod tests {
                 const REASONS_COUNT: u32 = 10;
                 for i in 0..TIMES_COUNT {
                     let exchange_blocker = exchange_blocker.clone();
-                    let _ = custom_spawn(
+                    let _ = spawn_future(
                         "do_action in block_many_times_with_stop_exchange_blocker test",
                         false,
                         async move {
@@ -1274,7 +1279,7 @@ mod tests {
 
                 Ok(())
             };
-            let _ = custom_spawn(
+            let _ = spawn_future(
                 "spawn_actions_notify in block_many_times_with_stop_exchange_blocker test",
                 false,
                 action.boxed(),
@@ -1291,7 +1296,7 @@ mod tests {
 
                 Ok(())
             };
-            let _ = custom_spawn(
+            let _ = spawn_future(
                 "start checking when spawn_actions finished",
                 false,
                 action.boxed(),
@@ -1377,7 +1382,7 @@ mod tests {
                 *wait_completed.lock() = true;
                 Ok(())
             };
-            let _ = custom_spawn(
+            let _ = spawn_future(
                 "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
                 true,
                 action.boxed(),

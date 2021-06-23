@@ -11,13 +11,16 @@ use anyhow::Result;
 use chrono::Utc;
 use log::error;
 
+use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::{
     RequestGroupId, RequestsTimeoutManager,
 };
 use crate::core::DateTime;
-use crate::core::{exchanges::cancellation_token::CancellationToken, utils::FutureOutcome};
-use crate::core::{exchanges::common::ExchangeAccountId, utils::CompletionReason};
+use crate::core::{
+    exchanges::cancellation_token::CancellationToken,
+    infrastructure::{CompletionReason, FutureOutcome},
+};
 
 pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send>;
 

@@ -5,7 +5,7 @@ use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfi
 use mmb_lib::core::settings::{AppSettings, BaseStrategySettings};
 use mmb_lib::core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
-    utils::custom_spawn,
+    infrastructure::spawn_future,
 };
 use std::time::Duration;
 use tokio::time::sleep;
@@ -41,7 +41,7 @@ async fn launch_engine() {
 
         Ok(())
     };
-    custom_spawn(
+    spawn_future(
         "run graceful_shutdown in launch_engine test",
         true,
         action.boxed(),

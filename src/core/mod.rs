@@ -2,6 +2,7 @@ use chrono::Utc;
 
 pub mod connectivity;
 pub mod exchanges;
+pub mod infrastructure;
 pub mod logger;
 pub mod orders;
 pub mod utils;
