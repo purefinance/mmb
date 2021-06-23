@@ -6,7 +6,7 @@ use anyhow::Result;
 use dashmap::DashMap;
 use futures::future::join_all;
 use itertools::Itertools;
-use log::info;
+use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::block_reasons;
@@ -106,7 +106,9 @@ impl EngineContext {
             .send(())
             .expect("Unexpected error from 'finish_graceful_shutdown_sender' in EngineContext");
 
-        unset_application_manager();
+        if let Err(error) = unset_application_manager() {
+            error!("Unable to unset application_manager: {}", error);
+        }
 
         info!("Graceful shutdown finished");
     }

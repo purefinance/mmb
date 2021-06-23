@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use futures::Future;
 use futures::FutureExt;
 use log::{error, info, trace, Level};
@@ -28,9 +28,14 @@ pub(crate) fn keep_application_manager(application_manager: Arc<ApplicationManag
     APPLICATION_MANAGER.get_or_init(|| Mutex::new(Some(application_manager)));
 }
 
-pub(crate) fn unset_application_manager() {
-    // FIXME unwrap
-    APPLICATION_MANAGER.get().unwrap().lock().take();
+pub(crate) fn unset_application_manager() -> Result<()> {
+    APPLICATION_MANAGER
+        .get()
+        .ok_or(anyhow!("Application manager was not set or unset already",))?
+        .lock()
+        .take();
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -58,27 +63,27 @@ pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
 
 /// Spawn future with timer. Error will be logged if times up before action completed
 /// Other nuances are the same as custom_spawn()
-pub fn custom_spawn_timered(
-    action_name: &'static str,
+pub fn custom_spawn_timed(
+    action_name: &str,
     is_critical: bool,
     duration: Duration,
     action: Pin<CustomSpawnFuture>,
 ) -> JoinHandle<FutureOutcome> {
-    let action = custom_spawn(action_name, is_critical, action);
-    let timer = async move {
-        tokio::time::sleep(duration).await;
-    };
+    let action_name = action_name.to_owned();
+    let action = custom_spawn(&action_name, is_critical, action);
 
     tokio::spawn(async move {
         tokio::select! {
-            _ = timer => {
-                error!("Time is over, but future {} is not completed yet", action_name);
+            _ = tokio::time::sleep(duration) => {
+                error!("Time in form of {:?} is over, but future {} is not completed yet", duration, action_name);
                 return FutureOutcome::TimeExpired;
             }
             action_outcome = action => {
                 match action_outcome {
                     Ok(outcome) => return outcome,
                     Err(_) => {
+                        // JoinHandle fron action_outcome are not aborting anywhere
+                        // So only available option here is panic somewhere spawn_future()
                         error!("Custom_spawn() panicked");
                         FutureOutcome::Panicked
                     }
@@ -269,7 +274,7 @@ mod test {
     }
 
     #[tokio::test]
-    async fn future_aborted() -> Result<()> {
+    async fn future_aborted() {
         // Arrange
         let test_value = Arc::new(Mutex::new(false));
         let test_to_future = test_value.clone();
@@ -286,8 +291,6 @@ mod test {
 
         // Assert
         assert_eq!(*test_value.lock(), false);
-
-        Ok(())
     }
 
     mod with_timer {
@@ -302,7 +305,7 @@ mod test {
             };
 
             // Act
-            let future_outcome = custom_spawn_timered(
+            let future_outcome = custom_spawn_timed(
                 "test_action_name",
                 true,
                 Duration::from_secs(0),
@@ -322,7 +325,7 @@ mod test {
             let action = async { bail!("Some error for test") };
 
             // Act
-            let future_outcome = custom_spawn_timered(
+            let future_outcome = custom_spawn_timed(
                 "test_action_name",
                 true,
                 Duration::from_millis(200),
@@ -342,7 +345,7 @@ mod test {
             let action = async { Ok(()) };
 
             // Act
-            let future_outcome = custom_spawn_timered(
+            let future_outcome = custom_spawn_timed(
                 "test_action_name",
                 true,
                 Duration::from_millis(200),
@@ -354,6 +357,31 @@ mod test {
             assert_eq!(future_outcome, FutureOutcome::CompletedSuccessfully);
 
             Ok(())
+        }
+
+        #[tokio::test]
+        async fn timed_future_aborted() {
+            // Arrange
+            let test_value = Arc::new(Mutex::new(false));
+            let test_to_future = test_value.clone();
+            let action = async move {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+                (*test_to_future.lock()) = true;
+
+                Ok(())
+            };
+
+            // Act
+            let future_outcome = custom_spawn_timed(
+                "test_action_name",
+                true,
+                Duration::from_millis(200),
+                action.boxed(),
+            );
+            future_outcome.abort();
+
+            // Assert
+            assert_eq!(*test_value.lock(), false);
         }
     }
 }
