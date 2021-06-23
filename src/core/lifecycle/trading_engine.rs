@@ -73,7 +73,7 @@ impl EngineContext {
         engine_context
     }
 
-    pub(crate) async fn graceful_shutdown(&self) {
+    pub(crate) async fn graceful_shutdown(self: Arc<Self>) {
         if self
             .is_graceful_shutdown_started
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)

@@ -31,7 +31,9 @@ pub(crate) fn keep_application_manager(application_manager: Arc<ApplicationManag
 pub(crate) fn unset_application_manager() {
     match APPLICATION_MANAGER.get() {
         Some(application_manager) => application_manager.lock().take(),
-        None => panic!("Attempt to unset static application manager before it has been set"),
+        None => panic!(
+            "Attempt to unset static application manager for spawn_future() before it has been set"
+        ),
     };
 }
 
@@ -67,24 +69,19 @@ pub fn custom_spawn_timed(
     action: Pin<CustomSpawnFuture>,
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
-    let action = custom_spawn(&action_name, is_critical, action);
+    let future_id = Uuid::new_v4();
+    let action = handle_action_outcome(action_name.clone(), future_id, is_critical, action);
+
+    info!("Future {} with id {} started", action_name, future_id);
 
     tokio::spawn(async move {
         tokio::select! {
             _ = tokio::time::sleep(duration) => {
                 error!("Time in form of {:?} is over, but future {} is not completed yet", duration, action_name);
-                return FutureOutcome::TimeExpired;
+                FutureOutcome::TimeExpired
             }
             action_outcome = action => {
-                match action_outcome {
-                    Ok(outcome) => return outcome,
-                    Err(_) => {
-                        // JoinHandle fron action_outcome are not aborting anywhere
-                        // So only available option here is panic somewhere spawn_future()
-                        error!("Custom_spawn() panicked");
-                        FutureOutcome::Panicked
-                    }
-                }
+                action_outcome
             }
         }
     })
@@ -99,64 +96,75 @@ pub fn custom_spawn(
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
+
+    info!("Future {} with id {} started", action_name, future_id);
+
+    tokio::spawn(handle_action_outcome(
+        action_name,
+        future_id,
+        is_critical,
+        action,
+    ))
+}
+
+async fn handle_action_outcome(
+    action_name: String,
+    future_id: Uuid,
+    is_critical: bool,
+    action: Pin<CustomSpawnFuture>,
+) -> FutureOutcome {
     let log_template = format!("Future {}, with id {}", action_name, future_id);
+    let action_outcome = panic::AssertUnwindSafe(action).catch_unwind().await;
 
-    info!("{} started", log_template);
+    match action_outcome {
+        Ok(future_outcome) => match future_outcome {
+            Ok(()) => {
+                trace!("{} successfully completed", log_template);
+                return FutureOutcome::CompletedSuccessfully;
+            }
+            Err(error) => {
+                if error.to_string() == OPERATION_CANCELED_MSG {
+                    trace!("{} was cancelled via Result<()>", log_template);
 
-    tokio::spawn(async move {
-        let action_outcome = panic::AssertUnwindSafe(action).catch_unwind().await;
-
-        match action_outcome {
-            Ok(future_outcome) => match future_outcome {
-                Ok(()) => {
-                    trace!("{} successfully completed", log_template);
-                    return FutureOutcome::CompletedSuccessfully;
+                    return FutureOutcome::Canceled;
                 }
-                Err(error) => {
-                    if error.to_string() == OPERATION_CANCELED_MSG {
-                        trace!("{} was cancelled via Result<()>", log_template);
 
+                error!("{} returned error: {:?}", log_template, error);
+                return FutureOutcome::Error;
+            }
+        },
+        Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
+            Some(error_msg) => {
+                if error_msg.to_string() == OPERATION_CANCELED_MSG {
+                    let log_level = if is_critical {
+                        Level::Error
+                    } else {
+                        Level::Trace
+                    };
+                    log::log!(log_level, "{} was cancelled via panic", log_template);
+
+                    if !is_critical {
                         return FutureOutcome::Canceled;
                     }
-
-                    error!("{} returned error: {:?}", log_template, error);
-                    return FutureOutcome::Error;
                 }
-            },
-            Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
-                Some(error_msg) => {
-                    if error_msg.to_string() == OPERATION_CANCELED_MSG {
-                        let log_level = if is_critical {
-                            Level::Error
-                        } else {
-                            Level::Trace
-                        };
-                        log::log!(log_level, "{} was cancelled via panic", log_template);
 
-                        if !is_critical {
-                            return FutureOutcome::Canceled;
-                        }
-                    }
+                let error_message = format!("{} panicked with error: {}", log_template, error_msg);
+                error!("{}", error_message);
 
-                    let error_message =
-                        format!("{} panicked with error: {}", log_template, error_msg);
-                    error!("{}", error_message);
+                spawn_graceful_shutdown(&log_template, &error_message);
 
-                    spawn_graceful_shutdown(&log_template, &error_message);
+                return FutureOutcome::Panicked;
+            }
+            None => {
+                let error_message = format!("{} panicked with non string error", log_template);
+                error!("{}", error_message);
 
-                    return FutureOutcome::Panicked;
-                }
-                None => {
-                    let error_message = format!("{} panicked with non string error", log_template);
-                    error!("{}", error_message);
+                spawn_graceful_shutdown(&log_template, &error_message);
 
-                    spawn_graceful_shutdown(&log_template, &error_message);
-
-                    return FutureOutcome::Panicked;
-                }
-            },
-        }
-    })
+                return FutureOutcome::Panicked;
+            }
+        },
+    }
 }
 
 fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
@@ -362,7 +370,7 @@ mod test {
             let test_value = Arc::new(Mutex::new(false));
             let test_to_future = test_value.clone();
             let action = async move {
-                tokio::time::sleep(Duration::from_millis(200)).await;
+                tokio::time::sleep(Duration::from_millis(100)).await;
                 (*test_to_future.lock()) = true;
 
                 Ok(())
@@ -376,6 +384,7 @@ mod test {
                 action.boxed(),
             );
             future_outcome.abort();
+            tokio::time::sleep(Duration::from_millis(500)).await;
 
             // Assert
             assert_eq!(*test_value.lock(), false);
