@@ -5,18 +5,19 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 use anyhow::Result;
 use chrono::Utc;
 use log::error;
 
-use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::{
     RequestGroupId, RequestsTimeoutManager,
 };
 use crate::core::DateTime;
 use crate::core::{exchanges::cancellation_token::CancellationToken, utils::FutureOutcome};
+use crate::core::{exchanges::common::ExchangeAccountId, utils::CompletionReason};
 
 pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send>;
 
@@ -87,7 +88,11 @@ impl TimeoutManager {
                 // Only panic can happen here and only in case if spawn_future() panicked itself
                 Err(error) => {
                     error!("Future in reserve_when_available got error: {}", error);
-                    FutureOutcome::Panicked
+                    FutureOutcome::new(
+                        "spawn_future() for reserve_when_available".to_owned(),
+                        Uuid::new_v4(),
+                        CompletionReason::Panicked,
+                    )
                 }
             })
         };
@@ -99,7 +104,11 @@ impl TimeoutManager {
         }
 
         if inner.try_reserve_instant(request_type, now, pre_reservation_group_id)? {
-            return Ok(Either::Right(ready(FutureOutcome::CompletedSuccessfully)));
+            return Ok(Either::Right(ready(FutureOutcome::new(
+                "spawn_future() for try_reserve_instant".to_owned(),
+                Uuid::new_v4(),
+                CompletionReason::CompletedSuccessfully,
+            ))));
         }
 
         let result = inner.reserve_when_available(request_type, now, cancellation_token)?;

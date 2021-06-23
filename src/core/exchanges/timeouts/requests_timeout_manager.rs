@@ -1816,7 +1816,7 @@ mod test {
                     cancellation_token,
                 )?;
 
-            let cancelled: Result<()> = future_handler.await?.into();
+            let cancelled = future_handler.await?.into_result();
 
             // Assert
             assert!(cancelled.is_err());
@@ -1892,7 +1892,7 @@ mod test {
                     _ = sleep_future => {
                         cancellation_token.cancel();
 
-                        let cancelled: Result<()> = future_handler.await?.into();
+                        let cancelled = future_handler.await?.into_result();
 
                         dbg!(&cancelled);
                         // Assert

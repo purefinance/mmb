@@ -37,25 +37,40 @@ pub(crate) fn unset_application_manager() {
     };
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FutureOutcome {
+    name: String,
+    id: Uuid,
+    completion_reason: CompletionReason,
+}
+
+impl FutureOutcome {
+    pub fn new(name: String, id: Uuid, completion_reason: CompletionReason) -> Self {
+        Self {
+            name,
+            id,
+            completion_reason,
+        }
+    }
+
+    pub fn into_result(&self) -> Result<()> {
+        match self.completion_reason {
+            CompletionReason::Error => bail!("Future returned error"),
+            CompletionReason::Panicked => bail!("Future panicked"),
+            CompletionReason::TimeExpired => bail!("Time is up for future execution"),
+            CompletionReason::Canceled => bail!("Future canceled"),
+            CompletionReason::CompletedSuccessfully => Ok(()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum FutureOutcome {
+pub enum CompletionReason {
     CompletedSuccessfully,
     Canceled,
     Error,
     Panicked,
     TimeExpired,
-}
-
-impl From<FutureOutcome> for Result<()> {
-    fn from(future_outcome: FutureOutcome) -> Self {
-        match future_outcome {
-            FutureOutcome::Error => bail!("Future returned error"),
-            FutureOutcome::Panicked => bail!("Future panicked"),
-            FutureOutcome::TimeExpired => bail!("Time is up for future execution"),
-            FutureOutcome::Canceled => bail!("Future canceled"),
-            FutureOutcome::CompletedSuccessfully => Ok(()),
-        }
-    }
 }
 
 pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
@@ -78,7 +93,7 @@ pub fn custom_spawn_timed(
         tokio::select! {
             _ = tokio::time::sleep(duration) => {
                 error!("Time in form of {:?} is over, but future {} is not completed yet", duration, action_name);
-                FutureOutcome::TimeExpired
+                FutureOutcome::new(action_name, future_id, CompletionReason::TimeExpired)
             }
             action_outcome = action => {
                 action_outcome
@@ -120,17 +135,22 @@ async fn handle_action_outcome(
         Ok(future_outcome) => match future_outcome {
             Ok(()) => {
                 trace!("{} successfully completed", log_template);
-                return FutureOutcome::CompletedSuccessfully;
+
+                FutureOutcome::new(
+                    action_name,
+                    future_id,
+                    CompletionReason::CompletedSuccessfully,
+                )
             }
             Err(error) => {
                 if error.to_string() == OPERATION_CANCELED_MSG {
                     trace!("{} was cancelled via Result<()>", log_template);
 
-                    return FutureOutcome::Canceled;
+                    return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
                 }
 
                 error!("{} returned error: {:?}", log_template, error);
-                return FutureOutcome::Error;
+                return FutureOutcome::new(action_name, future_id, CompletionReason::Error);
             }
         },
         Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
@@ -144,7 +164,11 @@ async fn handle_action_outcome(
                     log::log!(log_level, "{} was cancelled via panic", log_template);
 
                     if !is_critical {
-                        return FutureOutcome::Canceled;
+                        return FutureOutcome::new(
+                            action_name,
+                            future_id,
+                            CompletionReason::Canceled,
+                        );
                     }
                 }
 
@@ -153,7 +177,7 @@ async fn handle_action_outcome(
 
                 spawn_graceful_shutdown(&log_template, &error_message);
 
-                return FutureOutcome::Panicked;
+                FutureOutcome::new(action_name, future_id, CompletionReason::Panicked)
             }
             None => {
                 let error_message = format!("{} panicked with non string error", log_template);
@@ -161,7 +185,7 @@ async fn handle_action_outcome(
 
                 spawn_graceful_shutdown(&log_template, &error_message);
 
-                return FutureOutcome::Panicked;
+                FutureOutcome::new(action_name, future_id, CompletionReason::Panicked)
             }
         },
     }
@@ -200,7 +224,10 @@ mod test {
         let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
-        assert_eq!(future_outcome, FutureOutcome::CompletedSuccessfully);
+        assert_eq!(
+            future_outcome.completion_reason,
+            CompletionReason::CompletedSuccessfully
+        );
 
         Ok(())
     }
@@ -214,7 +241,7 @@ mod test {
         let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
-        assert_eq!(future_outcome, FutureOutcome::Canceled);
+        assert_eq!(future_outcome.completion_reason, CompletionReason::Canceled);
 
         Ok(())
     }
@@ -228,7 +255,7 @@ mod test {
         let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
-        assert_eq!(future_outcome, FutureOutcome::Error);
+        assert_eq!(future_outcome.completion_reason, CompletionReason::Error);
 
         Ok(())
     }
@@ -242,7 +269,7 @@ mod test {
         let future_outcome = custom_spawn("test_action_name", false, action.boxed()).await?;
 
         // Assert
-        assert_eq!(future_outcome, FutureOutcome::Canceled);
+        assert_eq!(future_outcome.completion_reason, CompletionReason::Canceled);
 
         Ok(())
     }
@@ -256,7 +283,7 @@ mod test {
         let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
-        assert_eq!(future_outcome, FutureOutcome::Panicked);
+        assert_eq!(future_outcome.completion_reason, CompletionReason::Panicked);
 
         Ok(())
     }
@@ -273,7 +300,7 @@ mod test {
         let future_outcome = custom_spawn("test_action_name", true, action.boxed()).await?;
 
         // Assert
-        assert_eq!(future_outcome, FutureOutcome::Panicked);
+        assert_eq!(future_outcome.completion_reason, CompletionReason::Panicked);
 
         Ok(())
     }
@@ -319,7 +346,10 @@ mod test {
             .await?;
 
             // Assert
-            assert_eq!(future_outcome, FutureOutcome::TimeExpired);
+            assert_eq!(
+                future_outcome.completion_reason,
+                CompletionReason::TimeExpired
+            );
 
             Ok(())
         }
@@ -339,7 +369,7 @@ mod test {
             .await?;
 
             // Assert
-            assert_eq!(future_outcome, FutureOutcome::Error);
+            assert_eq!(future_outcome.completion_reason, CompletionReason::Error);
 
             Ok(())
         }
@@ -359,7 +389,10 @@ mod test {
             .await?;
 
             // Assert
-            assert_eq!(future_outcome, FutureOutcome::CompletedSuccessfully);
+            assert_eq!(
+                future_outcome.completion_reason,
+                CompletionReason::CompletedSuccessfully
+            );
 
             Ok(())
         }
