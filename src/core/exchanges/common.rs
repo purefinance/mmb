@@ -265,12 +265,8 @@ impl ExchangeError {
         }
     }
 
-    pub fn pending(pending_time: Duration, message: String, code: Option<i64>) -> Self {
-        Self {
-            error_type: ExchangeErrorType::PendingError(pending_time),
-            message,
-            code,
-        }
+    pub fn set_pending(&mut self, pending_time: Duration) {
+        self.error_type = ExchangeErrorType::PendingError(pending_time);
     }
 }
 
