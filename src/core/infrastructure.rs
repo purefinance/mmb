@@ -44,10 +44,20 @@ impl FutureOutcome {
 
     pub fn into_result(&self) -> Result<()> {
         match self.completion_reason {
-            CompletionReason::Error => bail!("Future returned error"),
-            CompletionReason::Panicked => bail!("Future panicked"),
-            CompletionReason::TimeExpired => bail!("Time is up for future execution"),
-            CompletionReason::Canceled => bail!("Future canceled"),
+            CompletionReason::Error => {
+                bail!("Future {} with id {} returned error", self.name, self.id)
+            }
+            CompletionReason::Panicked => {
+                bail!("Future {} with id {} panicked", self.name, self.id)
+            }
+            CompletionReason::TimeExpired => bail!(
+                "Time is up for future {} with id {} execution",
+                self.name,
+                self.id
+            ),
+            CompletionReason::Canceled => {
+                bail!("Future {} with id {} canceled", self.name, self.id)
+            }
             CompletionReason::CompletedSuccessfully => Ok(()),
         }
     }
