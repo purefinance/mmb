@@ -7,19 +7,19 @@ use mmb::exchanges::{
 };
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
-use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
+use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::orders::event::OrderEventType;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 
 use crate::get_binance_credentials_or_exit;
-use mmb_lib::core::exchanges::application_manager::ApplicationManager;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
+use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use tokio::sync::broadcast;
 
 #[actix_rt::test]

@@ -7,12 +7,12 @@ use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
 use crate::core::nothing_to_do;
 use crate::core::orders::event::OrderEventType;
 use crate::core::{
-    exchanges::cancellation_token::CancellationToken,
     exchanges::common::ExchangeAccountId,
     exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType,
     exchanges::general::exchange::Exchange,
     exchanges::general::exchange::RequestResult,
+    lifecycle::cancellation_token::CancellationToken,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
     orders::order::OrderStatus,

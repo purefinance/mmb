@@ -18,8 +18,8 @@ use crate::core::exchanges::timeouts::requests_timeout_manager::{
 };
 use crate::core::DateTime;
 use crate::core::{
-    exchanges::cancellation_token::CancellationToken,
     infrastructure::{CompletionReason, FutureOutcome},
+    lifecycle::cancellation_token::CancellationToken,
 };
 
 pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send>;

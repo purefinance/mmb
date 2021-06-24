@@ -6,11 +6,11 @@ use rust_decimal::Decimal;
 use crate::core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
-use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{
     CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
 use crate::core::explanation::{Explanation, WithExplanation};
+use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
 use crate::core::DateTime;

@@ -6,10 +6,10 @@ use log::warn;
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
+use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::Service;
 use crate::core::order_book::event::OrderBookEvent;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;

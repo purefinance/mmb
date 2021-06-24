@@ -4,7 +4,7 @@ use tokio::sync::oneshot;
 
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::{
-    exchanges::cancellation_token::CancellationToken, exchanges::general::exchange::Exchange,
+    exchanges::general::exchange::Exchange, lifecycle::cancellation_token::CancellationToken,
     orders::pool::OrderRef,
 };
 

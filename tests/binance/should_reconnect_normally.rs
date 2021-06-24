@@ -1,10 +1,10 @@
 use anyhow::Result;
 use futures::Future;
 use log::info;
-use mmb_lib::core::exchanges::application_manager::ApplicationManager;
 use mmb_lib::core::exchanges::binance::binance::BinanceBuilder;
-use mmb_lib::core::exchanges::cancellation_token::CancellationToken;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
+use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
+use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::{
     connectivity::connectivity_manager::ConnectivityManager,
     connectivity::websocket_actor::WebSocketParams,

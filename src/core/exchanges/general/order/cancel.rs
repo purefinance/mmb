@@ -4,13 +4,13 @@ use log::{error, info};
 use tokio::sync::oneshot;
 
 use crate::core::{
-    exchanges::cancellation_token::CancellationToken,
     exchanges::common::Amount,
     exchanges::common::ExchangeError,
     exchanges::common::ExchangeErrorType,
     exchanges::common::RestRequestOutcome,
     exchanges::general::exchange::Exchange,
     exchanges::general::exchange::RequestResult,
+    lifecycle::cancellation_token::CancellationToken,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
     orders::order::OrderStatus,

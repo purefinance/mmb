@@ -84,7 +84,7 @@ impl CancellationToken {
 #[cfg(test)]
 mod tests {
     use crate::core::{
-        exchanges::cancellation_token::CancellationToken, infrastructure::spawn_future,
+        infrastructure::spawn_future, lifecycle::cancellation_token::CancellationToken,
     };
     use futures::FutureExt;
     use parking_lot::Mutex;
