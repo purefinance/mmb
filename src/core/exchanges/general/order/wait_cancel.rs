@@ -258,8 +258,8 @@ impl Exchange {
                         )
                         .await?;
                     }
-                    ExchangeErrorType::PendingError => {
-                        sleep(error.pending_time).await;
+                    ExchangeErrorType::PendingError(pending_time) => {
+                        sleep(pending_time).await;
                     }
                     ExchangeErrorType::OrderCompleted => {
                         // Happens when an order is completed while we are waiting for cancellation
