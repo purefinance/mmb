@@ -102,7 +102,7 @@ impl ShutdownService {
                     move |finishing_service_send_result| match finishing_service_send_result {
                         Err(err) => {
                             error!(
-                                "Can't receive message for finishing graceful shutdown in {} because of error: {}",
+                                "Can't receive message for finishing graceful shutdown in {} because of error: {:?}",
                                 service_name,
                                 err
                             );
@@ -110,7 +110,7 @@ impl ShutdownService {
                         Ok(finishing_service_result) => match finishing_service_result {
                             Err(err) => {
                                 error!(
-                                    "{} finished on graceful shutdown with error: {}",
+                                    "{} finished on graceful shutdown with error: {:?}",
                                     service_name,
                                     err
                                 );

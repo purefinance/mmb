@@ -317,7 +317,7 @@ impl Exchange {
                     && event_data.commission_rate.is_none()
                     && order_ref.role().is_none()
                 {
-                    let error_msg = format!("Fill has neither commission nor commission rate",);
+                    let error_msg = format!("Fill has neither commission nor commission rate");
 
                     error!("{}", error_msg);
                     bail!("{}", error_msg)

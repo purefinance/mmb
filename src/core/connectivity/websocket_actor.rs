@@ -67,7 +67,7 @@ impl WebSocketActor {
 
         match connected_client {
             Err(error) => {
-                bail!("Error occurred during websocket connect: {}", error);
+                bail!("Error occurred during websocket connect: {:?}", error);
             }
             Ok(connected_client) => {
                 let (response, framed) = connected_client;

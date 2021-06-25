@@ -324,7 +324,7 @@ impl ConnectivityManager {
                             return true;
                         }
                         Err(error) => {
-                            warn!("Attempt to connect failed: {}", error);
+                            warn!("Attempt to connect failed: {:?}", error);
                         }
                     };
 
