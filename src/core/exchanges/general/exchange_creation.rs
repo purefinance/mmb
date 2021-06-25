@@ -5,8 +5,8 @@ use log::error;
 use tokio::sync::broadcast;
 
 use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
-use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
 use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
 use crate::core::{

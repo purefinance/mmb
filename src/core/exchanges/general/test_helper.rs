@@ -6,11 +6,11 @@ use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 
 use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
-use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::binance::binance::BinanceBuilder;
-use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
+use crate::core::lifecycle::application_manager::ApplicationManager;
+use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::{
     exchanges::binance::binance::Binance, exchanges::common::Amount,
     exchanges::common::CurrencyPair, exchanges::common::ExchangeAccountId,

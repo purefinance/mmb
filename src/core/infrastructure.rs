@@ -9,7 +9,8 @@ use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
-use super::exchanges::{application_manager::ApplicationManager, common::OPERATION_CANCELED_MSG};
+use super::exchanges::common::OPERATION_CANCELED_MSG;
+use super::lifecycle::application_manager::ApplicationManager;
 
 static APPLICATION_MANAGER: OnceCell<Mutex<Option<Arc<ApplicationManager>>>> = OnceCell::new();
 
@@ -208,7 +209,7 @@ fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
 
 #[cfg(test)]
 mod test {
-    use crate::core::exchanges::cancellation_token::CancellationToken;
+    use crate::core::lifecycle::cancellation_token::CancellationToken;
 
     use super::*;
     use anyhow::{bail, Result};

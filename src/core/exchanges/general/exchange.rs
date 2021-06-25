@@ -25,11 +25,11 @@ use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::common::ExchangeAccountId,
     exchanges::{
-        application_manager::ApplicationManager,
         common::CurrencyPair,
         common::{ExchangeError, ExchangeErrorType, RestRequestOutcome},
         traits::ExchangeClient,
     },
+    lifecycle::application_manager::ApplicationManager,
 };
 use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},

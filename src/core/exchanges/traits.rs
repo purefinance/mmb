@@ -17,9 +17,9 @@ use super::{
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::connectivity::connectivity_manager::WebSocketRole;
-use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
+use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,

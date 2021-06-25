@@ -18,9 +18,9 @@ use super::{
     triggers::less_or_equals_requests_count_trigger::LessOrEqualsRequestsCountTrigger,
 };
 use crate::core::{
-    exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
-    exchanges::common::OPERATION_CANCELED_MSG, exchanges::general::request_type::RequestType,
-    infrastructure::spawn_future, infrastructure::FutureOutcome, DateTime,
+    exchanges::common::ExchangeAccountId, exchanges::common::OPERATION_CANCELED_MSG,
+    exchanges::general::request_type::RequestType, infrastructure::spawn_future,
+    infrastructure::FutureOutcome, lifecycle::cancellation_token::CancellationToken, DateTime,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]

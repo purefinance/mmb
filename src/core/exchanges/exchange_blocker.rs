@@ -2,8 +2,8 @@ use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::exchange_blocker::ProgressStatus::ProgressBlocked;
 use crate::core::nothing_to_do;
 use crate::core::{
-    exchanges::cancellation_token::CancellationToken,
     infrastructure::{spawn_future, FutureOutcome},
+    lifecycle::cancellation_token::CancellationToken,
 };
 use futures::{
     future::{join_all, BoxFuture},
@@ -787,7 +787,7 @@ mod tests {
     };
     use crate::core::nothing_to_do;
     use crate::core::{
-        exchanges::cancellation_token::CancellationToken, infrastructure::spawn_future,
+        infrastructure::spawn_future, lifecycle::cancellation_token::CancellationToken,
     };
     use futures::future::{join, join_all};
     use futures::FutureExt;

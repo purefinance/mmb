@@ -29,8 +29,8 @@ use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventDa
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
-use crate::core::{exchanges::application_manager::ApplicationManager, utils};
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
+use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 use crate::hashmap;
 
 pub struct Binance {
@@ -436,7 +436,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::exchanges::cancellation_token::CancellationToken;
+    use crate::core::lifecycle::cancellation_token::CancellationToken;
 
     #[test]
     fn generate_signature() {

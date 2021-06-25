@@ -3,20 +3,19 @@ use std::thread;
 use std::time::Duration;
 
 use chrono::Utc;
+use mmb_lib::core::exchanges::general::commission::Commission;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::{binance::binance::*, events::AllowedEventSourceType};
-use mmb_lib::core::exchanges::{
-    cancellation_token::CancellationToken, general::commission::Commission,
-};
 use mmb_lib::core::exchanges::{common::*, timeouts::timeout_manager::TimeoutManager};
+use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 
 use crate::get_binance_credentials_or_exit;
-use mmb_lib::core::exchanges::application_manager::ApplicationManager;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
+use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use tokio::sync::broadcast;
 
 #[actix_rt::test]

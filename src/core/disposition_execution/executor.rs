@@ -15,7 +15,6 @@ use crate::core::disposition_execution::trading_context_calculation::calculate_t
 use crate::core::disposition_execution::{
     CompositeOrder, OrderRecord, OrdersState, PriceSlot, TradeCycle, TradingContext,
 };
-use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
@@ -24,6 +23,7 @@ use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadat
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::explanation::{Explanation, WithExplanation};
+use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::{EngineContext, Service};
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::event::OrderEventType;

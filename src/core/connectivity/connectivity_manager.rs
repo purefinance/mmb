@@ -1,4 +1,4 @@
-use crate::core::exchanges::cancellation_token::CancellationToken;
+use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
