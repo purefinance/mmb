@@ -1,12 +1,16 @@
 #![cfg(test)]
 
 use futures::FutureExt;
-use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::{AppSettings, BaseStrategySettings};
+use mmb_lib::core::{
+    exchanges::common::Amount,
+    lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
+};
 use mmb_lib::core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
     infrastructure::spawn_future,
 };
+use rust_decimal_macros::dec;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -20,6 +24,10 @@ impl BaseStrategySettings for TestStrategySettings {
 
     fn currency_pair(&self) -> CurrencyPair {
         CurrencyPair::from_codes("base".into(), "quote".into())
+    }
+
+    fn max_amount(&self) -> Amount {
+        dec!(1)
     }
 }
 

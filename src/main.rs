@@ -1,9 +1,10 @@
 use itertools::Itertools;
-use mmb_lib::core::exchanges::common::{CurrencyPair, ExchangeAccountId};
+use mmb_lib::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::{
     AppSettings, BaseStrategySettings, CoreSettings, CurrencyPairSetting, ExchangeSettings,
 };
+use rust_decimal_macros::dec;
 
 macro_rules! get_binance_credentials_or_exit {
     () => {{
@@ -41,6 +42,10 @@ impl BaseStrategySettings for ExampleStrategySettings {
 
     fn currency_pair(&self) -> CurrencyPair {
         CurrencyPair::from_codes("eos".into(), "btc".into())
+    }
+
+    fn max_amount(&self) -> Amount {
+        dec!(1)
     }
 }
 

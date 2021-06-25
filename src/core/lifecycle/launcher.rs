@@ -6,7 +6,7 @@ use futures::{future::join_all, FutureExt};
 use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::exchanges::common::{CurrencyPair, ExchangeAccountId, ExchangeId};
+use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange_creation::create_exchange;
 use crate::core::exchanges::general::{
@@ -125,6 +125,7 @@ where
     let disposition_executor_service = create_disposition_executor_service(
         strategy_settings.exchange_account_id(),
         strategy_settings.currency_pair(),
+        strategy_settings.max_amount(),
         &engine_context,
     );
 
@@ -141,6 +142,7 @@ where
 fn create_disposition_executor_service(
     exchange_account_id: ExchangeAccountId,
     currency_pair: CurrencyPair,
+    max_amount: Amount,
     engine_context: &Arc<EngineContext>,
 ) -> Arc<DispositionExecutorService> {
     DispositionExecutorService::new(
@@ -149,6 +151,7 @@ fn create_disposition_executor_service(
         LocalSnapshotsService::default(),
         exchange_account_id.clone(),
         currency_pair.clone(),
+        max_amount,
         Box::new(DispositionStrategy::new(exchange_account_id, currency_pair)),
         engine_context.application_manager.stop_token(),
     )

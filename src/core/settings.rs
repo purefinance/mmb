@@ -1,8 +1,11 @@
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
 
+use super::exchanges::common::Amount;
+
 pub trait BaseStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId;
     fn currency_pair(&self) -> CurrencyPair;
+    fn max_amount(&self) -> Amount;
 }
 
 #[derive(Debug, Default, Clone)]
