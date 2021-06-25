@@ -67,7 +67,7 @@ impl Exchange {
                         self.match_created_order_outcome(&created_order_result.outcome)
                     }
                     Err(exchange_error) => {
-                        bail!("Exchange error: {}", exchange_error)
+                        bail!("Exchange error: {:?}", exchange_error)
                     }
                 }
             }

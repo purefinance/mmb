@@ -174,7 +174,7 @@ impl Exchange {
                     );
 
                     if let Err(error) = raise_outcome {
-                        let error_message = format!("Error in raise_order_cancelled: {}", error);
+                        let error_message = format!("Error in raise_order_cancelled: {:?}", error);
                         error!("{}", error_message);
                         exchange
                             .application_manager
@@ -194,7 +194,8 @@ impl Exchange {
                         let handle_outcome = exchange.handle_order_filled(event_data);
 
                         if let Err(error) = handle_outcome {
-                            let error_message = format!("Error in handle_order_filled: {}", error);
+                            let error_message =
+                                format!("Error in handle_order_filled: {:?}", error);
                             error!("{}", error_message);
                             exchange
                                 .application_manager
@@ -223,7 +224,7 @@ impl Exchange {
         let callback_outcome = self.exchange_client.on_websocket_message(msg);
         if let Err(error) = callback_outcome {
             warn!(
-                "Error occurred while websocket message processing: {}",
+                "Error occurred while websocket message processing: {:?}",
                 error
             );
         }
@@ -414,7 +415,7 @@ impl Exchange {
         };
 
         let mut msg_to_log = format!(
-            "Error parsing response {}, on {}: {}. Error: {}",
+            "Error parsing response {}, on {}: {}. Error: {:?}",
             log_template,
             self.exchange_account_id,
             content,

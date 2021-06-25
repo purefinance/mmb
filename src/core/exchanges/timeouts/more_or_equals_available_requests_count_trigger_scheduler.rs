@@ -99,7 +99,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
                 sleep(delay).await;
                 if let Err(error) = (*self.handler.lock())() {
                     error!(
-                        "Error in MoreOrEqualsAvailableRequestsCountTrigger: {}",
+                        "Error in MoreOrEqualsAvailableRequestsCountTrigger: {:?}",
                         error
                     );
                 }

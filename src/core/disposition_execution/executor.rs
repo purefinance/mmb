@@ -757,7 +757,9 @@ impl DispositionExecutor {
         let balance_quota = max_amount - total_remaining_amount;
         let new_amount = desired_amount.min(balance_quota).max(dec!(0)) - high_priority_amount;
 
-        explanation.add_reason(format!("max_amount {} total_remaining_amount {} high_priority_amount {} balance_quota {} new_order_amount {}", max_amount, total_remaining_amount, high_priority_amount, balance_quota, new_amount));
+        explanation.add_reason(format!(
+                "max_amount {} total_remaining_amount {} high_priority_amount {} balance_quota {} new_order_amount {}",
+                max_amount, total_remaining_amount, high_priority_amount, balance_quota, new_amount));
 
         new_amount
     }
