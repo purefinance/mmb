@@ -254,8 +254,6 @@ pub struct ExchangeError {
     pub error_type: ExchangeErrorType,
     pub message: String,
     pub code: Option<i64>,
-    // TODO Set it in the rest_client
-    pub pending_time: Duration,
 }
 
 impl ExchangeError {
@@ -264,8 +262,11 @@ impl ExchangeError {
             error_type,
             message,
             code,
-            pending_time: Duration::from_secs(0),
         }
+    }
+
+    pub fn set_pending(&mut self, pending_time: Duration) {
+        self.error_type = ExchangeErrorType::PendingError(pending_time);
     }
 }
 
@@ -280,7 +281,7 @@ pub enum ExchangeErrorType {
     InvalidOrder,
     Authentication,
     ParsingError,
-    PendingError,
+    PendingError(Duration),
     ServiceUnavailable,
 }
 

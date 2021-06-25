@@ -324,6 +324,7 @@ impl Exchange {
                     Err(mut error) => match error.error_type {
                         ExchangeErrorType::ParsingError => error,
                         _ => {
+                            // TODO For Aax Pending time should be received inside clarify_error_type
                             self.exchange_client.clarify_error_type(&mut error);
                             error
                         }
