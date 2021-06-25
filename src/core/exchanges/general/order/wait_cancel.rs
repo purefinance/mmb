@@ -135,7 +135,8 @@ impl Exchange {
                     pre_reservation_group_id,
                     order_is_finished_token.clone(),
                 )?
-                .await?;
+                .await
+                .into_result()?;
 
             let cancel_order_future = self.start_cancel_order(&order, cancellation_token.clone());
 
@@ -300,7 +301,8 @@ impl Exchange {
                     pre_reservation_group_id,
                     cancellation_token.clone(),
                 )?
-                .await?;
+                .await
+                .into_result()?;
 
             if order.is_finished() {
                 return Ok(());

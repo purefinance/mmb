@@ -9,7 +9,6 @@ use itertools::Itertools;
 use log::info;
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::block_reasons;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents};
@@ -19,6 +18,9 @@ use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::lifecycle::shutdown::ShutdownService;
 use crate::core::settings::CoreSettings;
+use crate::core::{
+    exchanges::application_manager::ApplicationManager, infrastructure::unset_application_manager,
+};
 use parking_lot::Mutex;
 
 pub trait Service: Send + Sync + 'static {
@@ -71,7 +73,7 @@ impl EngineContext {
         engine_context
     }
 
-    pub(crate) async fn graceful_shutdown(&self) {
+    pub(crate) async fn graceful_shutdown(self: Arc<Self>) {
         if self
             .is_graceful_shutdown_started
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -103,6 +105,8 @@ impl EngineContext {
             .expect("'finish_graceful_shutdown_sender' should exists in EngineContext")
             .send(())
             .expect("Unexpected error from 'finish_graceful_shutdown_sender' in EngineContext");
+
+        unset_application_manager();
 
         info!("Graceful shutdown finished");
     }

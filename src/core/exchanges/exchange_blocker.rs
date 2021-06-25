@@ -1,8 +1,14 @@
-use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::exchange_blocker::ProgressStatus::ProgressBlocked;
 use crate::core::nothing_to_do;
-use futures::future::{join_all, BoxFuture};
+use crate::core::{
+    exchanges::cancellation_token::CancellationToken,
+    infrastructure::{spawn_future, FutureOutcome},
+};
+use futures::{
+    future::{join_all, BoxFuture},
+    FutureExt,
+};
 use itertools::Itertools;
 use log::{error, trace};
 use parking_lot::{Mutex, RwLock};
@@ -64,7 +70,7 @@ pub enum BlockType {
 
 struct TimeoutInProgress {
     end_time: Instant,
-    timer_handle: JoinHandle<()>,
+    timer_handle: JoinHandle<FutureOutcome>,
 }
 
 enum Timeout {
@@ -73,7 +79,7 @@ enum Timeout {
 }
 
 impl Timeout {
-    fn in_progress(end_time: Instant, timer_handle: JoinHandle<()>) -> Timeout {
+    fn in_progress(end_time: Instant, timer_handle: JoinHandle<FutureOutcome>) -> Timeout {
         Timeout::InProgress {
             in_progress: TimeoutInProgress {
                 end_time,
@@ -192,7 +198,7 @@ struct ProcessingCtx {
 }
 
 struct ExchangeBlockerEventsProcessor {
-    processing_handle: Mutex<Option<JoinHandle<()>>>,
+    processing_handle: Mutex<Option<JoinHandle<FutureOutcome>>>,
     handlers: BlockerEventHandlerVec,
     cancellation_token: CancellationToken,
 }
@@ -211,7 +217,13 @@ impl ExchangeBlockerEventsProcessor {
             cancellation_token: cancellation_token.clone(),
         };
 
-        let processing_handle = tokio::spawn(Self::processing(events_receiver, ctx));
+        let action = async move {
+            Self::processing(events_receiver, ctx).await;
+
+            Ok(())
+        };
+        let processing_handle =
+            spawn_future("Start ExchangeBlocker processing", true, action.boxed());
 
         let events_processor = ExchangeBlockerEventsProcessor {
             processing_handle: Mutex::new(Some(processing_handle)),
@@ -282,7 +294,8 @@ impl ExchangeBlockerEventsProcessor {
             (WaitBlockedMove, MoveToBlocked) => {
                 let mut ctx = ctx.clone();
                 let event = event.clone();
-                let _ = tokio::spawn(async move {
+
+                let action = async move {
                     Self::run_handlers(&event, ExchangeBlockerMoment::Blocked, &ctx).await;
 
                     let is_unblock_requested =
@@ -299,7 +312,10 @@ impl ExchangeBlockerEventsProcessor {
                         let event = event.with_type(MoveBlockedToBeforeUnblocked);
                         Self::add_event(&mut ctx.events_sender, event)
                     }
-                });
+
+                    Ok(())
+                };
+                let _ = spawn_future("Run ExchangeBlocker handlers", true, action.boxed());
             }
             (ProgressBlocked, UnblockRequested) => {
                 blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |statuses| {
@@ -312,7 +328,7 @@ impl ExchangeBlockerEventsProcessor {
             (WaitBeforeUnblockedMove, MoveBlockedToBeforeUnblocked) => {
                 let mut ctx = ctx.clone();
                 let event = event.clone();
-                let _ = tokio::spawn(async move {
+                let action = async move {
                     Self::run_handlers(&event, BeforeUnblocked, &ctx).await;
 
                     blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |x| {
@@ -321,15 +337,30 @@ impl ExchangeBlockerEventsProcessor {
 
                     let event = event.with_type(MoveBeforeUnblockedToUnblocked);
                     Self::add_event(&mut ctx.events_sender, event);
-                });
+
+                    Ok(())
+                };
+                let _ = spawn_future(
+                    "Run ExchangeBlocker handlers in case WaitBeforeUnblockedMove",
+                    true,
+                    action.boxed(),
+                );
             }
             (WaitUnblockedMove, MoveBeforeUnblockedToUnblocked) => {
                 Self::remove_blocker(event, &ctx);
 
                 let ctx = ctx.clone();
                 let event = event.clone();
-                let task = async move { Self::run_handlers(&event, Unblocked, &ctx).await };
-                let _ = tokio::spawn(task);
+
+                let action = async move {
+                    Self::run_handlers(&event, Unblocked, &ctx).await;
+                    Ok(())
+                };
+                let _ = spawn_future(
+                    "Run ExchangeBlocker handlers in case WaitUnblockedMove",
+                    true,
+                    action.boxed(),
+                );
             }
             _ => nothing_to_do(),
         };
@@ -594,9 +625,9 @@ impl ExchangeBlocker {
         self: &Arc<Self>,
         blocker_id: BlockerId,
         end_time: Instant,
-    ) -> JoinHandle<()> {
+    ) -> JoinHandle<FutureOutcome> {
         let self_wk = Arc::downgrade(&self.clone());
-        tokio::spawn(async move {
+        let action = async move {
             sleep_until(end_time).await;
 
             match self_wk.upgrade() {
@@ -621,7 +652,10 @@ impl ExchangeBlocker {
                     self_rc.unblock(exchange_account_id, reason)
                 }
             }
-        })
+
+            Ok(())
+        };
+        spawn_future("Run ExchangeBlocker handlers", true, action.boxed())
     }
 
     pub fn unblock(&self, exchange_account_id: &ExchangeAccountId, reason: BlockReason) {
@@ -746,13 +780,15 @@ impl ExchangeBlocker {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::exchanges::cancellation_token::CancellationToken;
     use crate::core::exchanges::common::ExchangeAccountId;
     use crate::core::exchanges::exchange_blocker::BlockType::*;
     use crate::core::exchanges::exchange_blocker::{
         BlockReason, ExchangeBlocker, ExchangeBlockerMoment,
     };
     use crate::core::nothing_to_do;
+    use crate::core::{
+        exchanges::cancellation_token::CancellationToken, infrastructure::spawn_future,
+    };
     use futures::future::{join, join_all};
     use futures::FutureExt;
     use parking_lot::Mutex;
@@ -809,13 +845,21 @@ mod tests {
             let exchange_blocker = exchange_blocker.clone();
             let signal = signal.clone();
             let cancellation_token = cancellation_token.clone();
-            let _ = tokio::spawn(async move {
+
+            let action = async move {
                 exchange_blocker
                     .wait_unblock(exchange_account_id(), cancellation_token)
                     .await;
 
                 *signal.lock() = true;
-            });
+
+                Ok(())
+            };
+            let _ = spawn_future(
+                "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
+                false,
+                action.boxed(),
+            );
         };
 
         tokio::task::yield_now().await;
@@ -840,13 +884,20 @@ mod tests {
         let duration = Duration::from_millis(50);
 
         let timer = Instant::now();
-        let handle = tokio::spawn(async move {
+        let action = async move {
             exchange_blocker.block(&exchange_account_id(), reason, Timed(duration));
             assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
             exchange_blocker
                 .wait_unblock(exchange_account_id(), cancellation_token)
                 .await;
-        });
+
+            Ok(())
+        };
+        let handle = spawn_future(
+            "Run ExchangeBlocker::wait_unblock in block_duration test",
+            false,
+            action.boxed(),
+        );
 
         let timeout_limit = duration + Duration::from_millis(30);
         tokio::select! {
@@ -868,7 +919,7 @@ mod tests {
         let duration_sleep = Duration::from_millis(20);
 
         let timer = Instant::now();
-        let handle = tokio::spawn(async move {
+        let action = async move {
             exchange_blocker.block(&exchange_account_id(), reason, Timed(duration));
             assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
 
@@ -880,7 +931,14 @@ mod tests {
             exchange_blocker
                 .wait_unblock(exchange_account_id(), cancellation_token)
                 .await;
-        });
+
+            Ok(())
+        };
+        let handle = spawn_future(
+            "Run ExchangeBlocker::wait_unblock in reblock_before_time_is_up test",
+            false,
+            action.boxed(),
+        );
 
         let min_timeout = duration_sleep + duration;
         let timeout_limit = min_timeout + Duration::from_millis(30);
@@ -1092,7 +1150,14 @@ mod tests {
         for _ in 0..(TIMES_COUNT / REASONS_COUNT) {
             let jobs = (0..REASONS_COUNT)
                 .zip(repeat_with(|| exchange_blocker.clone()))
-                .map(|(i, b)| tokio::spawn(do_action(i, b)));
+                .map(|(i, b)| {
+                    let action = async move {
+                        do_action(i, b).await;
+
+                        Ok(())
+                    };
+                    spawn_future("do_action in block_many_times test", false, action.boxed())
+                });
             join_all(jobs).await;
         }
 
@@ -1142,7 +1207,14 @@ mod tests {
         let jobs = repeat_with(|| rng.gen_range(0..10u32))
             .take(TIMES_COUNT)
             .zip(repeat_with(|| exchange_blocker.clone()))
-            .map(|(i, b)| tokio::spawn(do_action(i, b)));
+            .map(|(i, b)| {
+                let action = async move {
+                    do_action(i, b).await;
+
+                    Ok(())
+                };
+                spawn_future("do_action in block_many_times test", false, action.boxed())
+            });
         join_all(jobs).await;
 
         // exchange blocker should be successfully unblocked
@@ -1170,39 +1242,65 @@ mod tests {
 
         {
             let exchange_blocker = exchange_blocker.clone();
-            let _ = tokio::spawn(async move {
+            let action = async move {
                 sleep(Duration::from_millis(1)).await;
                 let _ = blocker_stop_started_tx.send(());
                 exchange_blocker.stop_blocker().await;
                 let _ = blocker_stopped_tx.send(());
-            });
+
+                Ok(())
+            };
+            let _ = spawn_future("do_action in block_many_times test", false, action.boxed());
         }
 
         {
             let exchange_blocker = exchange_blocker.clone();
             let spawn_actions_notify = spawn_actions_notify.clone();
-            let _ = tokio::spawn(async move {
+            let action = async move {
                 const TIMES_COUNT: u32 = 1000;
                 const REASONS_COUNT: u32 = 10;
                 for i in 0..TIMES_COUNT {
-                    tokio::spawn(do_action(i % REASONS_COUNT, exchange_blocker.clone()));
+                    let exchange_blocker = exchange_blocker.clone();
+                    let _ = spawn_future(
+                        "do_action in block_many_times_with_stop_exchange_blocker test",
+                        false,
+                        async move {
+                            do_action(i % REASONS_COUNT, exchange_blocker.clone()).await;
+                            Ok(())
+                        }
+                        .boxed(),
+                    );
                     if i % REASONS_COUNT == 0 {
                         tokio::task::yield_now().await;
                     }
                 }
 
                 spawn_actions_notify.notify_waiters();
-            });
+
+                Ok(())
+            };
+            let _ = spawn_future(
+                "spawn_actions_notify in block_many_times_with_stop_exchange_blocker test",
+                false,
+                action.boxed(),
+            );
         };
 
         {
             let spawn_actions_notify = spawn_actions_notify.clone();
-            let _ = tokio::spawn(async move {
+            let action = async move {
                 tokio::select! {
                     _ = spawn_actions_notify.notified() => panic!("spawn_actions finished before exchange blocker_block() started. It does not meet test case."),
                     _ = blocker_stop_started_rx => nothing_to_do(),
                 }
-            });
+
+                Ok(())
+            };
+            let _ = spawn_future(
+                "start checking when spawn_actions finished",
+                false,
+                action.boxed(),
+            );
         }
 
         let max_timeout = Duration::from_secs(2);
@@ -1277,12 +1375,18 @@ mod tests {
         {
             let exchange_blocker = exchange_blocker.clone();
             let wait_completed = wait_completed.clone();
-            let _ = tokio::spawn(async move {
+            let action = async move {
                 exchange_blocker
                     .wait_unblock(exchange_account_id(), CancellationToken::new())
                     .await;
                 *wait_completed.lock() = true;
-            });
+                Ok(())
+            };
+            let _ = spawn_future(
+                "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
+                true,
+                action.boxed(),
+            );
         }
 
         tokio::task::yield_now().await;

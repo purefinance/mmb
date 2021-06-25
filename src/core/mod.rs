@@ -2,8 +2,10 @@ use chrono::Utc;
 
 pub mod connectivity;
 pub mod exchanges;
+pub mod infrastructure;
 pub mod logger;
 pub mod orders;
+pub mod utils;
 
 pub mod disposition_execution;
 pub(crate) mod events;

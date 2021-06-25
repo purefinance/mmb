@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
+use futures::FutureExt;
 use itertools::Itertools;
 use log::{error, trace, warn};
 use parking_lot::Mutex;
@@ -10,7 +11,6 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::disposition_execution::trade_limit::is_enough_amount_and_cost;
 use crate::core::disposition_execution::trading_context_calculation::calculate_trading_context;
 use crate::core::disposition_execution::{
     CompositeOrder, OrderRecord, OrdersState, PriceSlot, TradeCycle, TradingContext,
@@ -32,6 +32,9 @@ use crate::core::orders::order::{
     OrderStatus, OrderType, ReservationId,
 };
 use crate::core::orders::pool::OrderRef;
+use crate::core::{
+    disposition_execution::trade_limit::is_enough_amount_and_cost, infrastructure::spawn_future,
+};
 use crate::core::{nothing_to_do, DateTime};
 use crate::strategies::disposition_strategy::DispositionStrategy;
 use chrono::Duration;
@@ -68,7 +71,7 @@ impl DispositionExecutorService {
     ) -> Arc<Self> {
         let (work_finished_sender, receiver) = oneshot::channel();
 
-        tokio::spawn(async move {
+        let action = async move {
             let mut disposition_executor = DispositionExecutor::new(
                 engine_ctx,
                 events_receiver,
@@ -80,10 +83,9 @@ impl DispositionExecutorService {
                 cancellation_token,
             );
 
-            if let Err(_error) = disposition_executor.start().await {
-                // TODO handle errors
-            };
-        });
+            disposition_executor.start().await
+        };
+        spawn_future("Start disposition executor", true, action.boxed());
 
         Arc::new(DispositionExecutorService {
             work_finished_receiver: Mutex::new(Some(receiver)),
@@ -539,15 +541,21 @@ impl DispositionExecutor {
         let request_group_id = order_record.request_group_id.clone();
         let exchange = self.exchange();
         let cancellation_token = self.cancellation_token.clone();
-        let _ = tokio::spawn(async move {
+
+        let action = async move {
             trace!("Begin wait_cancel_order {}", client_order_id);
             exchange
                 .wait_cancel_order(order, Some(request_group_id), false, cancellation_token)
                 .await?;
             trace!("Finished wait_cancel_order {}", client_order_id);
 
-            Ok(()) as Result<()>
-        });
+            Ok(())
+        };
+        spawn_future(
+            "Start wait_cancel_order from DispositionExecutor::cancel_order()",
+            true,
+            action.boxed(),
+        );
     }
 
     fn start_cancelling_orders_with_cause<'a>(
@@ -682,7 +690,8 @@ impl DispositionExecutor {
         {
             let new_client_order_id = new_client_order_id.clone();
             let cancellation_token = self.cancellation_token.clone();
-            tokio::spawn(async move {
+
+            let action = async move {
                 trace!("Begin create_order {}", new_client_order_id);
 
                 let order_creating = OrderCreating {
@@ -690,16 +699,19 @@ impl DispositionExecutor {
                     price: new_price,
                 };
 
-                let order_creation_res = exchange
+                exchange
                     .create_order(&order_creating, cancellation_token)
-                    .await;
-                match order_creation_res {
-                    Ok(_) => return,
-                    Err(_) => { /* TODO handle error occurred during order creation */ }
-                }
+                    .await?;
 
                 trace!("Finished create_order {}", new_client_order_id);
-            });
+
+                Ok(())
+            };
+            spawn_future(
+                "wait_cancel_order in blocking cancel_order",
+                true,
+                action.boxed(),
+            );
         }
 
         trace!("Begin try_create_order {}", new_client_order_id);

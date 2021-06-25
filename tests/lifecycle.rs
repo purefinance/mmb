@@ -1,8 +1,12 @@
 #![cfg(test)]
 
-use mmb_lib::core::exchanges::common::{CurrencyPair, ExchangeAccountId};
+use futures::FutureExt;
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::{AppSettings, BaseStrategySettings};
+use mmb_lib::core::{
+    exchanges::common::{CurrencyPair, ExchangeAccountId},
+    infrastructure::spawn_future,
+};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -27,13 +31,21 @@ async fn launch_engine() {
     let engine = launch_trading_engine(&config, init_settings).await;
 
     let context = engine.context();
-    let _ = tokio::spawn(async move {
+
+    let action = async move {
         sleep(Duration::from_millis(200)).await;
         context
             .application_manager
             .run_graceful_shutdown("test")
             .await;
-    });
+
+        Ok(())
+    };
+    spawn_future(
+        "run graceful_shutdown in launch_engine test",
+        true,
+        action.boxed(),
+    );
 
     engine.run().await;
 }

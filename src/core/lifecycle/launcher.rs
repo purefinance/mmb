@@ -2,11 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use futures::future::join_all;
+use futures::{future::join_all, FutureExt};
 use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::disposition_execution::executor::DispositionExecutorService;
 use crate::core::exchanges::application_manager::ApplicationManager;
 use crate::core::exchanges::cancellation_token::CancellationToken;
 use crate::core::exchanges::common::{CurrencyPair, ExchangeAccountId, ExchangeId};
@@ -22,6 +21,10 @@ use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
+use crate::core::{
+    disposition_execution::executor::DispositionExecutorService,
+    infrastructure::{keep_application_manager, spawn_future},
+};
 use crate::hashmap;
 use crate::strategies::disposition_strategy::DispositionStrategy;
 use crate::{
@@ -71,6 +74,7 @@ where
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
+    keep_application_manager(application_manager.clone());
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
     let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
@@ -105,11 +109,12 @@ where
 
     {
         let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();
-        let _ = tokio::spawn(internal_events_loop.clone().start(
+        let action = internal_events_loop.clone().start(
             events_receiver,
             local_exchanges_map,
             engine_context.application_manager.stop_token(),
-        ));
+        );
+        let _ = spawn_future("internal_events_loop start", true, action.boxed());
     }
 
     if let Err(error) = control_panel.clone().start() {

@@ -3,6 +3,7 @@ use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Result};
 use chrono::Duration;
+use futures::FutureExt;
 use log::{error, info};
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
@@ -19,7 +20,7 @@ use super::{
 use crate::core::{
     exchanges::cancellation_token::CancellationToken, exchanges::common::ExchangeAccountId,
     exchanges::common::OPERATION_CANCELED_MSG, exchanges::general::request_type::RequestType,
-    DateTime,
+    infrastructure::spawn_future, infrastructure::FutureOutcome, DateTime,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -242,7 +243,7 @@ impl RequestsTimeoutManager {
         request_type: RequestType,
         current_time: DateTime,
         cancellation_token: CancellationToken,
-    ) -> Result<(JoinHandle<Result<()>>, DateTime, Duration)> {
+    ) -> Result<(JoinHandle<FutureOutcome>, DateTime, Duration)> {
         // Note: calculation doesnt' support request cancellation
         // Note: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
 
@@ -293,12 +294,17 @@ impl RequestsTimeoutManager {
 
         drop(inner);
 
-        let request_availability = tokio::spawn(Self::wait_for_request_availability(
+        let action = Self::wait_for_request_availability(
             Arc::downgrade(&self),
             request,
             delay,
             cancellation_token,
-        ));
+        );
+        let request_availability = spawn_future(
+            "Waiting request in reserve_when_available()",
+            true,
+            action.boxed(),
+        );
 
         Ok((request_availability, request_start_time, delay))
     }
@@ -1810,7 +1816,7 @@ mod test {
                     cancellation_token,
                 )?;
 
-            let cancelled = future_handler.await?;
+            let cancelled = future_handler.await?.into_result();
 
             // Assert
             assert!(cancelled.is_err());
@@ -1886,8 +1892,9 @@ mod test {
                     _ = sleep_future => {
                         cancellation_token.cancel();
 
-                        let cancelled = future_handler.await?;
+                        let cancelled = future_handler.await?.into_result();
 
+                        dbg!(&cancelled);
                         // Assert
                         assert!(cancelled.is_err());
 
