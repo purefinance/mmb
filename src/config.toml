@@ -1,0 +1,27 @@
+[[exchanges]]
+# FIXME shouldn`t be here
+api_key = "wow"
+secret_key = "wow"
+
+is_margin_trading = false
+web_socket_host = ""
+web_socket2_host = ""
+rest_host = ""
+websocket_channels = [ "depth20" ]
+subscribe_to_market_data = true
+
+[exchanges.exchange_account_id]
+exchange_id = "Binance"
+account_number = 0
+
+[[exchanges.currency_pairs]]
+base = "phb"
+quote = "btc"
+
+[[exchanges.currency_pairs]]
+base = "eth"
+quote = "btc"
+
+[[exchanges.currency_pairs]]
+base = "eos"
+quote = "btc"

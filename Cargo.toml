@@ -17,6 +17,7 @@ fern = "0.6"
 itertools = "0.10"
 bytes = "1"
 regex = "1"
+toml = "0.5.8"
 
 serde = { version = "1", features = ["derive", "rc"]}
 serde_json = "1"

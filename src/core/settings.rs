@@ -1,4 +1,5 @@
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use serde::{Deserialize, Serialize};
 
 use super::exchanges::common::Amount;
 
@@ -17,12 +18,13 @@ where
     pub core: CoreSettings,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CoreSettings {
+    // FIXME maybe change field name for config
     pub exchanges: Vec<ExchangeSettings>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CurrencyPairSetting {
     pub base: CurrencyCode,
     pub quote: CurrencyCode,
@@ -30,7 +32,7 @@ pub struct CurrencyPairSetting {
     pub currency_pair: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ExchangeSettings {
     pub exchange_account_id: ExchangeAccountId,
     // TODO add other settings
