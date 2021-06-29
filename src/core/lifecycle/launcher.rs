@@ -1,3 +1,6 @@
+use anyhow::{Context, Result};
+use core::fmt::Debug;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -56,12 +59,12 @@ where
     Load,
 }
 
-pub async fn launch_trading_engine<TStrategySettings>(
+pub async fn launch_trading_engine<'a, TStrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<TStrategySettings>,
-) -> TradingEngine
+) -> Result<TradingEngine>
 where
-    TStrategySettings: BaseStrategySettings + Clone,
+    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
 {
     init_logger();
 
@@ -70,7 +73,7 @@ where
 
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
-        InitSettings::Load => load_settings::<TStrategySettings>().await,
+        InitSettings::Load => load_settings::<TStrategySettings>()?,
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
@@ -136,7 +139,10 @@ where
     ]);
 
     info!("TradingEngine started");
-    TradingEngine::new(engine_context, finish_graceful_shutdown_rx)
+    Ok(TradingEngine::new(
+        engine_context,
+        finish_graceful_shutdown_rx,
+    ))
 }
 
 fn create_disposition_executor_service(
@@ -157,10 +163,15 @@ fn create_disposition_executor_service(
     )
 }
 
-async fn load_settings<TSettings>() -> AppSettings<TSettings>
+fn load_settings<'a, TSettings>() -> Result<AppSettings<TSettings>>
 where
-    TSettings: BaseStrategySettings + Clone,
+    TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
 {
+    let mut settings = config::Config::default();
+    settings.merge(config::File::with_name("config.toml"))?;
+
+    let decoded: AppSettings<TSettings> = settings.try_into()?;
+    dbg!(&decoded);
     todo!("Not implemented")
 }
 

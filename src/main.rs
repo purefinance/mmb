@@ -6,6 +6,7 @@ use mmb_lib::core::settings::{
     AppSettings, BaseStrategySettings, CoreSettings, CurrencyPairSetting, ExchangeSettings,
 };
 use rust_decimal_macros::dec;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
 
@@ -33,8 +34,10 @@ macro_rules! get_binance_credentials_or_exit {
     }};
 }
 
-#[derive(Default, Clone)]
-pub struct ExampleStrategySettings {}
+#[derive(Default, Clone, Debug, Deserialize, Serialize)]
+pub struct ExampleStrategySettings {
+    pub test_value: bool,
+}
 
 impl BaseStrategySettings for ExampleStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
@@ -107,48 +110,43 @@ async fn main() -> Result<()> {
     ////         .spawn_graceful_shutdown("test".to_owned());
     //// });
 
-    let core_settings = CoreSettings {
-        exchanges: vec![ExchangeSettings {
-            exchange_account_id: "Binance0".parse().expect("It should be valid format"),
-            api_key,
-            secret_key,
-            is_margin_trading: false,
-            currency_pairs: Some(vec![
-                CurrencyPairSetting {
-                    base: "phb".into(),
-                    quote: "btc".into(),
-                    currency_pair: None,
-                },
-                CurrencyPairSetting {
-                    base: "eth".into(),
-                    quote: "btc".into(),
-                    currency_pair: None,
-                },
-                CurrencyPairSetting {
-                    base: "eos".into(),
-                    quote: "btc".into(),
-                    currency_pair: None,
-                },
-            ]),
-            websocket_channels: vec!["depth20"] // vec!["trade", "depth"]
-                .into_iter()
-                .map(|x| x.into())
-                .collect_vec(),
-            web_socket_host: "".to_string(),
-            web_socket2_host: "".to_string(),
-            rest_host: "".to_string(),
-            subscribe_to_market_data: true,
-        }],
-    };
+    //let core_settings = CoreSettings {
+    //    exchanges: vec![ExchangeSettings {
+    //        exchange_account_id: "Binance0".parse().expect("It should be valid format"),
+    //        api_key,
+    //        secret_key,
+    //        is_margin_trading: false,
+    //        currency_pairs: Some(vec![
+    //            CurrencyPairSetting {
+    //                base: "phb".into(),
+    //                quote: "btc".into(),
+    //                currency_pair: None,
+    //            },
+    //            CurrencyPairSetting {
+    //                base: "eth".into(),
+    //                quote: "btc".into(),
+    //                currency_pair: None,
+    //            },
+    //            CurrencyPairSetting {
+    //                base: "eos".into(),
+    //                quote: "btc".into(),
+    //                currency_pair: None,
+    //            },
+    //        ]),
+    //        websocket_channels: vec!["depth20"] // vec!["trade", "depth"]
+    //            .into_iter()
+    //            .map(|x| x.into())
+    //            .collect_vec(),
+    //        web_socket_host: "".to_string(),
+    //        web_socket2_host: "".to_string(),
+    //        rest_host: "".to_string(),
+    //        subscribe_to_market_data: true,
+    //    }],
+    //};
 
-    let config = fs::read_to_string("config.toml").context("Unable to parse file")?;
-    dbg!(&config);
-
-    let decoded: CoreSettings =
-        toml::from_str(&config).context("Unable to deserialize to CoreSettings")?;
-    dbg!(&decoded);
-
-    assert_eq!(decoded, core_settings);
+    let init_settings = InitSettings::Load;
+    let engine =
+        launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await;
 
     Ok(())
 }

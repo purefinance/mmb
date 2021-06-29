@@ -9,7 +9,7 @@ pub trait BaseStrategySettings {
     fn max_amount(&self) -> Amount;
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
 pub struct AppSettings<TStrategySettings>
 where
     TStrategySettings: BaseStrategySettings + Clone,
