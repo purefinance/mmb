@@ -110,43 +110,12 @@ async fn main() -> Result<()> {
     ////         .spawn_graceful_shutdown("test".to_owned());
     //// });
 
-    //let core_settings = CoreSettings {
-    //    exchanges: vec![ExchangeSettings {
-    //        exchange_account_id: "Binance0".parse().expect("It should be valid format"),
-    //        api_key,
-    //        secret_key,
-    //        is_margin_trading: false,
-    //        currency_pairs: Some(vec![
-    //            CurrencyPairSetting {
-    //                base: "phb".into(),
-    //                quote: "btc".into(),
-    //                currency_pair: None,
-    //            },
-    //            CurrencyPairSetting {
-    //                base: "eth".into(),
-    //                quote: "btc".into(),
-    //                currency_pair: None,
-    //            },
-    //            CurrencyPairSetting {
-    //                base: "eos".into(),
-    //                quote: "btc".into(),
-    //                currency_pair: None,
-    //            },
-    //        ]),
-    //        websocket_channels: vec!["depth20"] // vec!["trade", "depth"]
-    //            .into_iter()
-    //            .map(|x| x.into())
-    //            .collect_vec(),
-    //        web_socket_host: "".to_string(),
-    //        web_socket2_host: "".to_string(),
-    //        rest_host: "".to_string(),
-    //        subscribe_to_market_data: true,
-    //    }],
-    //};
-
-    let init_settings = InitSettings::Load;
+    let init_settings = InitSettings::Load(
+        "config.toml".to_owned(),
+        "/etc/mmb/credentials.toml".to_owned(),
+    );
     let engine =
-        launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await;
+        launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await?;
 
     Ok(())
 }

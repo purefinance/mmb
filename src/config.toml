@@ -3,9 +3,10 @@ test_value = true
 
 [core]
 [[core.exchanges]]
-# FIXME shouldn`t be here
-api_key = "wow"
-secret_key = "wow"
+## FIXME shouldn`t be here
+#api_key = "aaa"
+#secret_key = "bbb"
+credentials_path = "/etc/mmb/credentials.toml"
 
 is_margin_trading = false
 web_socket_host = ""
