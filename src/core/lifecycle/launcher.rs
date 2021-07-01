@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -51,12 +51,13 @@ impl EngineBuildConfig {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum InitSettings<TStrategySettings>
 where
     TStrategySettings: BaseStrategySettings + Clone,
 {
     Directly(AppSettings<TStrategySettings>),
-    Load(String, String),
+    Load(String),
 }
 
 pub async fn launch_trading_engine<'a, TStrategySettings>(
@@ -73,9 +74,7 @@ where
 
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
-        InitSettings::Load(config_path, credentials_path) => {
-            load_settings::<TStrategySettings>(&config_path, &credentials_path)?
-        }
+        InitSettings::Load(config_path) => load_settings::<TStrategySettings>(&config_path)?,
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
@@ -165,10 +164,8 @@ fn create_disposition_executor_service(
     )
 }
 
-fn load_settings<'a, TSettings>(
-    config_path: &str,
-    credentials_path: &str,
-) -> Result<AppSettings<TSettings>>
+// FIXME remove pub
+pub fn load_settings<'a, TSettings>(config_path: &str) -> Result<AppSettings<TSettings>>
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
 {
@@ -176,35 +173,39 @@ where
     settings.merge(config::File::with_name(&config_path))?;
     let exchanges = settings.get_array("core.exchanges")?;
 
+    let mut credentials = config::Config::default();
+    credentials.merge(config::File::with_name("credentials.toml"))?;
+
     let mut exchanges_with_creds = Vec::new();
-    let mut config_with_creds = config::Config::new();
     for exchange in exchanges {
         let mut exchange = exchange.into_table()?;
-        let credentials_path = exchange["credentials_path"].clone().into_str()?;
 
-        let mut creds_for_exchange = config::Config::default();
-        creds_for_exchange.merge(config::File::with_name(&credentials_path))?;
-        let api_key = &creds_for_exchange.get_str("api_key")?;
-        let secret_key = &creds_for_exchange.get_str("secret_key")?;
+        let exchange_account_id = exchange.get("exchange_account_id").ok_or(anyhow!(
+            "Config file has no exchange account id for Exchange"
+        ));
+        dbg!(&exchange_account_id);
+        let api_key = &credentials.get_str("Binance0.api_key")?;
+        let secret_key = &credentials.get_str("Binance0.secret_key")?;
+        dbg!(&api_key);
+        dbg!(&secret_key);
 
         exchange.insert("api_key".to_owned(), api_key.as_str().into());
         exchange.insert("secret_key".to_owned(), secret_key.as_str().into());
-        let _ = exchange.remove("credentials_path");
 
         exchanges_with_creds.push(exchange);
     }
-    config_with_creds.set("core.exchanges", exchanges_with_creds)?;
-    //dbg!(&exchanges_with_creds);
 
-    settings.merge(config_with_creds)?;
+    //let mut config_with_creds = config::Config::new();
+    //config_with_creds.set("core.exchanges", exchanges_with_creds)?;
 
-    //dbg!(&settings);
+    //settings.merge(config_with_creds)?;
 
-    let decoded = settings.try_into()?;
-    dbg!(&decoded);
+    //let decoded = settings.try_into()?;
+    //dbg!(&decoded);
 
-    Ok(decoded)
-    //todo!()
+    //Ok(decoded)
+
+    todo!()
 }
 
 pub async fn create_exchanges(

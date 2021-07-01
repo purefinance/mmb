@@ -1,12 +1,8 @@
 [strategy]
-test_value = true
+test_value = false
 
 [core]
 [[core.exchanges]]
-## FIXME shouldn`t be here
-#api_key = "aaa"
-#secret_key = "bbb"
-credentials_path = "/etc/mmb/credentials.toml"
 
 is_margin_trading = false
 web_socket_host = ""

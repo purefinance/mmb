@@ -34,7 +34,7 @@ macro_rules! get_binance_credentials_or_exit {
     }};
 }
 
-#[derive(Default, Clone, Debug, Deserialize, Serialize)]
+#[derive(Default, Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {
     pub test_value: bool,
 }
@@ -62,42 +62,42 @@ async fn main() -> Result<()> {
 
     let engine_config = EngineBuildConfig::standard();
 
-    //let app_settings = AppSettings::<ExampleStrategySettings> {
-    //    strategy: ExampleStrategySettings::default(),
-    //    core: CoreSettings {
-    //        exchanges: vec![ExchangeSettings {
-    //            exchange_account_id: "Binance0".parse().expect("It should be valid format"),
-    //            api_key,
-    //            secret_key,
-    //            is_margin_trading: false,
-    //            currency_pairs: Some(vec![
-    //                CurrencyPairSetting {
-    //                    base: "phb".into(),
-    //                    quote: "btc".into(),
-    //                    currency_pair: None,
-    //                },
-    //                CurrencyPairSetting {
-    //                    base: "eth".into(),
-    //                    quote: "btc".into(),
-    //                    currency_pair: None,
-    //                },
-    //                CurrencyPairSetting {
-    //                    base: "eos".into(),
-    //                    quote: "btc".into(),
-    //                    currency_pair: None,
-    //                },
-    //            ]),
-    //            websocket_channels: vec!["depth20"] // vec!["trade", "depth"]
-    //                .into_iter()
-    //                .map(|x| x.into())
-    //                .collect_vec(),
-    //            web_socket_host: "".to_string(),
-    //            web_socket2_host: "".to_string(),
-    //            rest_host: "".to_string(),
-    //            subscribe_to_market_data: true,
-    //        }],
-    //    },
-    //};
+    let app_settings = AppSettings::<ExampleStrategySettings> {
+        strategy: ExampleStrategySettings::default(),
+        core: CoreSettings {
+            exchanges: vec![ExchangeSettings {
+                exchange_account_id: "Binance0".parse().expect("It should be valid format"),
+                api_key,
+                secret_key,
+                is_margin_trading: false,
+                currency_pairs: Some(vec![
+                    CurrencyPairSetting {
+                        base: "phb".into(),
+                        quote: "btc".into(),
+                        currency_pair: None,
+                    },
+                    CurrencyPairSetting {
+                        base: "eth".into(),
+                        quote: "btc".into(),
+                        currency_pair: None,
+                    },
+                    CurrencyPairSetting {
+                        base: "eos".into(),
+                        quote: "btc".into(),
+                        currency_pair: None,
+                    },
+                ]),
+                websocket_channels: vec!["depth20"] // vec!["trade", "depth"]
+                    .into_iter()
+                    .map(|x| x.into())
+                    .collect_vec(),
+                web_socket_host: "".to_string(),
+                web_socket2_host: "".to_string(),
+                rest_host: "".to_string(),
+                subscribe_to_market_data: true,
+            }],
+        },
+    };
     // FIXME remove comments
     //let init_settings = InitSettings::Directly(app_settings);
     //let engine = launch_trading_engine(&engine_config, init_settings).await;
@@ -110,10 +110,8 @@ async fn main() -> Result<()> {
     ////         .spawn_graceful_shutdown("test".to_owned());
     //// });
 
-    let init_settings = InitSettings::Load(
-        "config.toml".to_owned(),
-        "/etc/mmb/credentials.toml".to_owned(),
-    );
+    let init_settings = InitSettings::Load("config.toml".to_owned());
+
     let engine =
         launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await?;
 
