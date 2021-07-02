@@ -1,6 +1,7 @@
 use anyhow::Result;
 use mmb_lib::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
+use mmb_lib::core::lifecycle::launcher::{load_settings, save_settings};
 use mmb_lib::core::settings::BaseStrategySettings;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,12 @@ async fn main() -> Result<()> {
     let engine_config = EngineBuildConfig::standard();
 
     let init_settings = InitSettings::Load("config.toml".to_owned(), "credentials.toml".to_owned());
+    // FIXME delete
+    let settings = load_settings::<ExampleStrategySettings>("config.toml", "credentials.toml")?;
+
+    dbg!(&settings);
+    save_settings(settings, "saved_config.toml", "saved_credentials.toml")?;
+
     let engine =
         launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await?;
 
@@ -43,7 +50,7 @@ async fn main() -> Result<()> {
     ////         .spawn_graceful_shutdown("test".to_owned());
     //// });
 
-    engine.run().await;
+    //engine.run().await;
 
     Ok(())
 }

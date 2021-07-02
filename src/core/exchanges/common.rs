@@ -1,5 +1,6 @@
 use anyhow::Result;
 use serde::de::{self, Deserializer};
+use serde::ser::{SerializeStruct, Serializer};
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use std::{collections::BTreeMap, time::Duration};
@@ -25,7 +26,7 @@ type String15 = SmallString<[u8; 15]>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExchangeIdParseError(String);
 
-#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct ExchangeAccountId {
     pub exchange_id: ExchangeId,
 
@@ -90,6 +91,18 @@ impl<'de> Deserialize<'de> for ExchangeAccountId {
                 &"a string with unsigned integer on the tail",
             )
         })
+    }
+}
+
+impl Serialize for ExchangeAccountId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let numbers_of_fields = 2;
+        let mut state = serializer.serialize_struct("ExchangeAccountId", numbers_of_fields)?;
+        state.serialize_field("exchange_account_id", &self.to_string())?;
+        state.end()
     }
 }
 

@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Context, Result};
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::{collections::HashMap, fs::File};
+use std::{io::Write, sync::Arc};
 
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
@@ -166,7 +166,7 @@ fn create_disposition_executor_service(
     )
 }
 
-fn load_settings<'a, TSettings>(
+pub fn load_settings<'a, TSettings>(
     config_path: &str,
     credentials_path: &str,
 ) -> Result<AppSettings<TSettings>>
@@ -180,6 +180,7 @@ where
     let mut credentials = config::Config::default();
     credentials.merge(config::File::with_name(credentials_path))?;
 
+    // Extract creds accoring to exchange_account_id and add it to every ExchengeSettings
     let mut exchanges_with_creds = Vec::new();
     for exchange in exchanges {
         let mut exchange = exchange.into_table()?;
@@ -204,6 +205,57 @@ where
     let decoded = settings.try_into()?;
 
     Ok(decoded)
+}
+
+pub fn save_settings<'a, TSettings>(
+    settings: AppSettings<TSettings>,
+    config_path: &str,
+    credentials_path: &str,
+) -> Result<()>
+where
+    TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+{
+    dbg!(&"BEFORE");
+    let serialized = toml::to_string(&settings)?;
+    dbg!(&serialized);
+
+    let mut main_config = File::create(config_path)?;
+    main_config.write_all(&serialized.as_bytes())?;
+
+    //let mut settings = config::Config::default();
+    //settings.merge(config::File::with_name(&config_path))?;
+    //let exchanges = settings.get_array("core.exchanges")?;
+
+    //let mut credentials = config::Config::default();
+    //credentials.merge(config::File::with_name(credentials_path))?;
+
+    //// Extract creds accoring to exchange_account_id and add it to every ExchengeSettings
+    //let mut exchanges_with_creds = Vec::new();
+    //for exchange in exchanges {
+    //    let mut exchange = exchange.into_table()?;
+
+    //    let exchange_account_id = exchange.get("exchange_account_id").ok_or(anyhow!(
+    //        "Config file has no exchange account id for Exchange"
+    //    ))?;
+    //    let api_key = &credentials.get_str(&format!("{}.api_key", exchange_account_id))?;
+    //    let secret_key = &credentials.get_str(&format!("{}.secret_key", exchange_account_id))?;
+
+    //    exchange.insert("api_key".to_owned(), api_key.as_str().into());
+    //    exchange.insert("secret_key".to_owned(), secret_key.as_str().into());
+
+    //    exchanges_with_creds.push(exchange);
+    //}
+
+    //let mut config_with_creds = config::Config::new();
+    //config_with_creds.set("core.exchanges", exchanges_with_creds)?;
+
+    //settings.merge(config_with_creds)?;
+
+    //let decoded = settings.try_into()?;
+
+    //Ok(decoded)
+
+    todo!()
 }
 
 pub async fn create_exchanges(

@@ -32,9 +32,10 @@ pub struct CurrencyPairSetting {
     pub currency_pair: Option<String>,
 }
 
+// Field order are matter for serialization:
+// Simple values must be emmited before tables values as vectors
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ExchangeSettings {
-    pub exchange_account_id: ExchangeAccountId,
     // TODO add other settings
     pub api_key: String,
     pub secret_key: String,
@@ -44,9 +45,10 @@ pub struct ExchangeSettings {
     // Some exchanges have two websockets, for public and private data
     pub web_socket2_host: String,
     pub rest_host: String,
-    pub websocket_channels: Vec<String>,
-    pub currency_pairs: Option<Vec<CurrencyPairSetting>>,
     pub subscribe_to_market_data: bool,
+    pub websocket_channels: Vec<String>,
+    pub exchange_account_id: ExchangeAccountId,
+    pub currency_pairs: Option<Vec<CurrencyPairSetting>>,
 }
 
 impl ExchangeSettings {
