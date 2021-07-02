@@ -57,7 +57,7 @@ where
     TStrategySettings: BaseStrategySettings + Clone,
 {
     Directly(AppSettings<TStrategySettings>),
-    Load(String),
+    Load(String, String),
 }
 
 pub async fn launch_trading_engine<'a, TStrategySettings>(
@@ -74,7 +74,9 @@ where
 
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
-        InitSettings::Load(config_path) => load_settings::<TStrategySettings>(&config_path)?,
+        InitSettings::Load(config_path, credentials_path) => {
+            load_settings::<TStrategySettings>(&config_path, &credentials_path)?
+        }
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
@@ -164,7 +166,10 @@ fn create_disposition_executor_service(
     )
 }
 
-fn load_settings<'a, TSettings>(config_path: &str) -> Result<AppSettings<TSettings>>
+fn load_settings<'a, TSettings>(
+    config_path: &str,
+    credentials_path: &str,
+) -> Result<AppSettings<TSettings>>
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
 {
@@ -173,7 +178,7 @@ where
     let exchanges = settings.get_array("core.exchanges")?;
 
     let mut credentials = config::Config::default();
-    credentials.merge(config::File::with_name("credentials.toml"))?;
+    credentials.merge(config::File::with_name(credentials_path))?;
 
     let mut exchanges_with_creds = Vec::new();
     for exchange in exchanges {

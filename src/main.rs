@@ -1,14 +1,9 @@
 use anyhow::Result;
-use itertools::Itertools;
 use mmb_lib::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
-use mmb_lib::core::settings::{
-    AppSettings, BaseStrategySettings, CoreSettings, CurrencyPairSetting, ExchangeSettings,
-};
+use mmb_lib::core::settings::BaseStrategySettings;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use std::env;
-use std::fs;
 
 #[derive(Default, Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {
@@ -36,7 +31,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
 async fn main() -> Result<()> {
     let engine_config = EngineBuildConfig::standard();
 
-    let init_settings = InitSettings::Load("config.toml".to_owned());
+    let init_settings = InitSettings::Load("config.toml".to_owned(), "credentials.toml".to_owned());
     let engine =
         launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await?;
 
@@ -47,6 +42,8 @@ async fn main() -> Result<()> {
     ////         .clone()
     ////         .spawn_graceful_shutdown("test".to_owned());
     //// });
+
+    engine.run().await;
 
     Ok(())
 }
