@@ -164,8 +164,7 @@ fn create_disposition_executor_service(
     )
 }
 
-// FIXME remove pub
-pub fn load_settings<'a, TSettings>(config_path: &str) -> Result<AppSettings<TSettings>>
+fn load_settings<'a, TSettings>(config_path: &str) -> Result<AppSettings<TSettings>>
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
 {
@@ -182,12 +181,9 @@ where
 
         let exchange_account_id = exchange.get("exchange_account_id").ok_or(anyhow!(
             "Config file has no exchange account id for Exchange"
-        ));
-        dbg!(&exchange_account_id);
-        let api_key = &credentials.get_str("Binance0.api_key")?;
-        let secret_key = &credentials.get_str("Binance0.secret_key")?;
-        dbg!(&api_key);
-        dbg!(&secret_key);
+        ))?;
+        let api_key = &credentials.get_str(&format!("{}.api_key", exchange_account_id))?;
+        let secret_key = &credentials.get_str(&format!("{}.secret_key", exchange_account_id))?;
 
         exchange.insert("api_key".to_owned(), api_key.as_str().into());
         exchange.insert("secret_key".to_owned(), secret_key.as_str().into());
@@ -195,17 +191,14 @@ where
         exchanges_with_creds.push(exchange);
     }
 
-    //let mut config_with_creds = config::Config::new();
-    //config_with_creds.set("core.exchanges", exchanges_with_creds)?;
+    let mut config_with_creds = config::Config::new();
+    config_with_creds.set("core.exchanges", exchanges_with_creds)?;
 
-    //settings.merge(config_with_creds)?;
+    settings.merge(config_with_creds)?;
 
-    //let decoded = settings.try_into()?;
-    //dbg!(&decoded);
+    let decoded = settings.try_into()?;
 
-    //Ok(decoded)
-
-    todo!()
+    Ok(decoded)
 }
 
 pub async fn create_exchanges(

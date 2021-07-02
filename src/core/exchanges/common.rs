@@ -1,3 +1,5 @@
+use anyhow::Result;
+use serde::de::{self, Deserializer};
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use std::{collections::BTreeMap, time::Duration};
@@ -23,7 +25,7 @@ type String15 = SmallString<[u8; 15]>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExchangeIdParseError(String);
 
-#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize)]
 pub struct ExchangeAccountId {
     pub exchange_id: ExchangeId,
 
@@ -72,6 +74,22 @@ impl FromStr for ExchangeAccountId {
             })?;
 
         Ok(ExchangeAccountId::new(exchange_id, number))
+    }
+}
+
+impl<'de> Deserialize<'de> for ExchangeAccountId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let deserialized = String::deserialize(deserializer)?;
+
+        FromStr::from_str(&deserialized).map_err(|_| {
+            de::Error::invalid_value(
+                de::Unexpected::Str(&deserialized),
+                &"a string with unsigned integer on the tail",
+            )
+        })
     }
 }
 
