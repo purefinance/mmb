@@ -1,7 +1,12 @@
 use anyhow::{anyhow, Context, Result};
 use core::fmt::Debug;
+use itertools::Itertools;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File};
+use std::{
+    collections::HashMap,
+    fs::{File, OpenOptions},
+};
 use std::{io::Write, sync::Arc};
 
 use dashmap::DashMap;
@@ -215,47 +220,47 @@ pub fn save_settings<'a, TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
-    dbg!(&"BEFORE");
     let serialized = toml::to_string(&settings)?;
-    dbg!(&serialized);
+
+    // FIXME comment it
+    let exchange_account_ids =
+        Regex::new(r#"exchange_account_id = "(?P<exchange_account_id>.*)""#)?;
+
+    let ids = exchange_account_ids
+        .captures_iter(&serialized)
+        .map(|capture| capture["exchange_account_id"].to_owned())
+        .collect_vec();
+
+    let credentials = Regex::new(r#"\w+_key = ".*?""#)?;
+    let serialized_no_creds = credentials.replace_all(&serialized, "");
+
+    let mut credentials = credentials
+        .find_iter(&serialized)
+        .map(|capture| capture.as_str());
+
+    let mut credentials_config = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .create(true)
+        .open(credentials_path)?;
+
+    for exchange_account_id in ids {
+        let api_key = &credentials
+            .next()
+            .ok_or(anyhow!("No api_key for {}", exchange_account_id))?;
+        let secret_key = &credentials
+            .next()
+            .ok_or(anyhow!("No secret_key for {}", exchange_account_id))?;
+
+        credentials_config.write_all(format!("[{}]\n", exchange_account_id).as_bytes())?;
+        credentials_config.write_all(format!("{}\n", api_key).as_bytes())?;
+        credentials_config.write_all(format!("{}\n\n", secret_key).as_bytes())?;
+    }
 
     let mut main_config = File::create(config_path)?;
-    main_config.write_all(&serialized.as_bytes())?;
+    main_config.write_all(&serialized_no_creds.as_bytes())?;
 
-    //let mut settings = config::Config::default();
-    //settings.merge(config::File::with_name(&config_path))?;
-    //let exchanges = settings.get_array("core.exchanges")?;
-
-    //let mut credentials = config::Config::default();
-    //credentials.merge(config::File::with_name(credentials_path))?;
-
-    //// Extract creds accoring to exchange_account_id and add it to every ExchengeSettings
-    //let mut exchanges_with_creds = Vec::new();
-    //for exchange in exchanges {
-    //    let mut exchange = exchange.into_table()?;
-
-    //    let exchange_account_id = exchange.get("exchange_account_id").ok_or(anyhow!(
-    //        "Config file has no exchange account id for Exchange"
-    //    ))?;
-    //    let api_key = &credentials.get_str(&format!("{}.api_key", exchange_account_id))?;
-    //    let secret_key = &credentials.get_str(&format!("{}.secret_key", exchange_account_id))?;
-
-    //    exchange.insert("api_key".to_owned(), api_key.as_str().into());
-    //    exchange.insert("secret_key".to_owned(), secret_key.as_str().into());
-
-    //    exchanges_with_creds.push(exchange);
-    //}
-
-    //let mut config_with_creds = config::Config::new();
-    //config_with_creds.set("core.exchanges", exchanges_with_creds)?;
-
-    //settings.merge(config_with_creds)?;
-
-    //let decoded = settings.try_into()?;
-
-    //Ok(decoded)
-
-    todo!()
+    Ok(())
 }
 
 pub async fn create_exchanges(

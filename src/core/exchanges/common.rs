@@ -99,10 +99,8 @@ impl Serialize for ExchangeAccountId {
     where
         S: Serializer,
     {
-        let numbers_of_fields = 2;
-        let mut state = serializer.serialize_struct("ExchangeAccountId", numbers_of_fields)?;
-        state.serialize_field("exchange_account_id", &self.to_string())?;
-        state.end()
+        let id_as_str = self.to_string();
+        serializer.serialize_str(&id_as_str)
     }
 }
 

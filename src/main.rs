@@ -36,7 +36,6 @@ async fn main() -> Result<()> {
     // FIXME delete
     let settings = load_settings::<ExampleStrategySettings>("config.toml", "credentials.toml")?;
 
-    dbg!(&settings);
     save_settings(settings, "saved_config.toml", "saved_credentials.toml")?;
 
     let engine =
