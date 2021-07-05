@@ -20,7 +20,6 @@ where
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CoreSettings {
-    // FIXME maybe change field name for config
     pub exchanges: Vec<ExchangeSettings>,
 }
 
