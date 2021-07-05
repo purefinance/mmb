@@ -1,6 +1,6 @@
 use anyhow::Result;
 use serde::de::{self, Deserializer};
-use serde::ser::{SerializeStruct, Serializer};
+use serde::ser::Serializer;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use std::{collections::BTreeMap, time::Duration};

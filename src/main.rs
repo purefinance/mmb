@@ -1,7 +1,7 @@
 use anyhow::Result;
 use mmb_lib::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
+use mmb_lib::core::lifecycle::configs::{load_settings, save_settings};
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
-use mmb_lib::core::lifecycle::launcher::{load_settings, save_settings};
 use mmb_lib::core::settings::BaseStrategySettings;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
