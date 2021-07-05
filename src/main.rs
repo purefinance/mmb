@@ -35,6 +35,7 @@ async fn main() -> Result<()> {
     let init_settings = InitSettings::Load("config.toml".to_owned(), "credentials.toml".to_owned());
     // FIXME delete
     let settings = load_settings::<ExampleStrategySettings>("config.toml", "credentials.toml")?;
+    dbg!(&settings);
 
     save_settings(settings, "saved_config.toml", "saved_credentials.toml")?;
 

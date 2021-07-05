@@ -8,6 +8,7 @@ use std::{
     fs::{File, OpenOptions},
 };
 use std::{io::Write, sync::Arc};
+use toml::toml;
 
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
@@ -220,7 +221,7 @@ pub fn save_settings<'a, TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
-    let serialized = toml::to_string(&settings)?;
+    // Write credentials into it's config
     #[derive(Debug)]
     struct Credentials {
         exchange_account_id: String,
@@ -231,11 +232,11 @@ where
     let credentials_per_exchange = settings
         .core
         .exchanges
-        .into_iter()
+        .iter()
         .map(|exchange_settings| Credentials {
             exchange_account_id: exchange_settings.exchange_account_id.to_string(),
-            api_key: exchange_settings.api_key,
-            secret_key: exchange_settings.secret_key,
+            api_key: exchange_settings.api_key.clone(),
+            secret_key: exchange_settings.secret_key.clone(),
         })
         .collect_vec();
 
@@ -251,8 +252,32 @@ where
             .write_all(format!("secret_key = \"{}\"\n\n", creds.secret_key).as_bytes())?;
     }
 
-    //let mut main_config = File::create(config_path)?;
-    //main_config.write_all(&serialized_no_creds.as_bytes())?;
+    // Remove credentials from main config
+    // FIXME Евгений, можно ли это как-то спрямить, чтобы не было кучи одинаковы ok_or?
+    let mut serialized = toml::value::Value::try_from(settings)?;
+    let exchanges = serialized
+        .as_table_mut()
+        .ok_or(anyhow!("Unable to get a toml table from settings"))?
+        .get_mut("core")
+        .ok_or(anyhow!("Unable to get core settings"))?
+        .as_table_mut()
+        .ok_or(anyhow!("Unable to get toml table from core"))?
+        .get_mut("exchanges")
+        .ok_or(anyhow!("Unable to get exchange from core table"))?
+        .as_array_mut()
+        .ok_or(anyhow!("Unable to get exchanges as a toml array"))?;
+    for exchange in exchanges {
+        let exchange = exchange
+            .as_table_mut()
+            .ok_or(anyhow!("Unable to get mutable exchange table"))?;
+        dbg!(&exchange);
+
+        let _ = exchange.remove("api_key");
+        let _ = exchange.remove("secret_key");
+    }
+
+    let mut main_config = File::create(config_path)?;
+    main_config.write_all(&serialized.to_string().as_bytes())?;
 
     Ok(())
 }
