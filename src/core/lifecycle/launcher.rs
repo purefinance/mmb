@@ -221,44 +221,38 @@ where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     let serialized = toml::to_string(&settings)?;
+    #[derive(Debug)]
+    struct Credentials {
+        exchange_account_id: String,
+        api_key: String,
+        secret_key: String,
+    }
 
-    // FIXME comment it
-    let exchange_account_ids =
-        Regex::new(r#"exchange_account_id = "(?P<exchange_account_id>.*)""#)?;
-
-    let ids = exchange_account_ids
-        .captures_iter(&serialized)
-        .map(|capture| capture["exchange_account_id"].to_owned())
+    let credentials_per_exchange = settings
+        .core
+        .exchanges
+        .into_iter()
+        .map(|exchange_settings| Credentials {
+            exchange_account_id: exchange_settings.exchange_account_id.to_string(),
+            api_key: exchange_settings.api_key,
+            secret_key: exchange_settings.secret_key,
+        })
         .collect_vec();
-
-    let credentials = Regex::new(r#"\w+_key = ".*?""#)?;
-    let serialized_no_creds = credentials.replace_all(&serialized, "");
-
-    let mut credentials = credentials
-        .find_iter(&serialized)
-        .map(|capture| capture.as_str());
 
     let mut credentials_config = OpenOptions::new()
         .write(true)
         .append(true)
         .create(true)
         .open(credentials_path)?;
-
-    for exchange_account_id in ids {
-        let api_key = &credentials
-            .next()
-            .ok_or(anyhow!("No api_key for {}", exchange_account_id))?;
-        let secret_key = &credentials
-            .next()
-            .ok_or(anyhow!("No secret_key for {}", exchange_account_id))?;
-
-        credentials_config.write_all(format!("[{}]\n", exchange_account_id).as_bytes())?;
-        credentials_config.write_all(format!("{}\n", api_key).as_bytes())?;
-        credentials_config.write_all(format!("{}\n\n", secret_key).as_bytes())?;
+    for creds in credentials_per_exchange {
+        credentials_config.write_all(format!("[{}]\n", creds.exchange_account_id).as_bytes())?;
+        credentials_config.write_all(format!("api_key = \"{}\"\n", creds.api_key).as_bytes())?;
+        credentials_config
+            .write_all(format!("secret_key = \"{}\"\n\n", creds.secret_key).as_bytes())?;
     }
 
-    let mut main_config = File::create(config_path)?;
-    main_config.write_all(&serialized_no_creds.as_bytes())?;
+    //let mut main_config = File::create(config_path)?;
+    //main_config.write_all(&serialized_no_creds.as_bytes())?;
 
     Ok(())
 }
