@@ -36,6 +36,7 @@ pub struct CurrencyPairSetting {
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ExchangeSettings {
     // TODO add other settings
+    pub exchange_account_id: ExchangeAccountId,
     pub api_key: String,
     pub secret_key: String,
     pub is_margin_trading: bool,
@@ -46,7 +47,6 @@ pub struct ExchangeSettings {
     pub rest_host: String,
     pub subscribe_to_market_data: bool,
     pub websocket_channels: Vec<String>,
-    pub exchange_account_id: ExchangeAccountId,
     pub currency_pairs: Option<Vec<CurrencyPairSetting>>,
 }
 

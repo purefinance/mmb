@@ -20,7 +20,7 @@ where
     let mut credentials = config::Config::default();
     credentials.merge(config::File::with_name(credentials_path))?;
 
-    // Extract creds accoring to exchange_account_id and add it to every ExchengeSettings
+    // Extract creds accoring to exchange_account_id and add it to every ExchangeSettings
     let mut exchanges_with_creds = Vec::new();
     for exchange in exchanges {
         let mut exchange = exchange.into_table()?;
@@ -55,7 +55,7 @@ pub fn save_settings<'a, TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
-    // Write credentials into it's config
+    // Write credentials in their own config
     #[derive(Debug)]
     struct Credentials {
         exchange_account_id: String,

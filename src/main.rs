@@ -1,14 +1,18 @@
 use anyhow::Result;
-use mmb_lib::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
-use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
+use mmb_lib::core::lifecycle::{
+    configs::save_settings,
+    launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
+};
 use mmb_lib::core::settings::BaseStrategySettings;
+use mmb_lib::core::{
+    exchanges::common::{Amount, CurrencyPair, ExchangeAccountId},
+    lifecycle::configs::load_settings,
+};
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Clone, Debug, PartialEq, Deserialize, Serialize)]
-pub struct ExampleStrategySettings {
-    pub test_value: bool,
-}
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct ExampleStrategySettings {}
 
 impl BaseStrategySettings for ExampleStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {

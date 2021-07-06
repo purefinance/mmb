@@ -1,5 +1,4 @@
 [strategy]
-test_value = false
 
 [core]
 [[core.exchanges]]
