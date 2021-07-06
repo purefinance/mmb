@@ -88,7 +88,7 @@ impl<'de> Deserialize<'de> for ExchangeAccountId {
         FromStr::from_str(&deserialized).map_err(|_| {
             de::Error::invalid_value(
                 de::Unexpected::Str(&deserialized),
-                &"a string with unsigned integer on the tail",
+                &"ExchangeAccountId as a string with account number on the tail",
             )
         })
     }

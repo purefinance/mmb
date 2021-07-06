@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::{fmt::Debug, fs::File, fs::OpenOptions};
+use toml::value::Value;
 
 use crate::core::settings::{AppSettings, BaseStrategySettings};
 use anyhow::{anyhow, Result};
@@ -87,24 +88,14 @@ where
     }
 
     // Remove credentials from main config
-    // FIXME Евгений, можно ли это как-то спрямить, чтобы не было кучи одинаковы ok_or?
-    let mut serialized = toml::value::Value::try_from(settings)?;
-    let exchanges = serialized
-        .as_table_mut()
-        .ok_or(anyhow!("Unable to get a toml table from settings"))?
-        .get_mut("core")
-        .ok_or(anyhow!("Unable to get core settings"))?
-        .as_table_mut()
-        .ok_or(anyhow!("Unable to get toml table from core"))?
-        .get_mut("exchanges")
-        .ok_or(anyhow!("Unable to get exchange from core table"))?
-        .as_array_mut()
-        .ok_or(anyhow!("Unable to get exchanges as a toml array"))?;
+    let mut serialized = Value::try_from(settings)?;
+    let exchanges = get_exchanges_mut(&mut serialized).ok_or(anyhow!(
+        "Unable to get core.exchanges array from gotten settings"
+    ))?;
     for exchange in exchanges {
         let exchange = exchange
             .as_table_mut()
             .ok_or(anyhow!("Unable to get mutable exchange table"))?;
-        dbg!(&exchange);
 
         let _ = exchange.remove("api_key");
         let _ = exchange.remove("secret_key");
@@ -114,4 +105,13 @@ where
     main_config.write_all(&serialized.to_string().as_bytes())?;
 
     Ok(())
+}
+
+fn get_exchanges_mut(serialized: &mut Value) -> Option<&mut Vec<Value>> {
+    serialized
+        .as_table_mut()?
+        .get_mut("core")?
+        .as_table_mut()?
+        .get_mut("exchanges")?
+        .as_array_mut()
 }
