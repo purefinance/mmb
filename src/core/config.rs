@@ -1,10 +1,12 @@
-use std::io::Write;
-use std::{fmt::Debug, fs::File, fs::OpenOptions};
+use std::{collections::HashMap, io::Write};
+use std::{fmt::Debug, fs::File};
 use toml::value::Value;
 
-use crate::core::settings::{AppSettings, BaseStrategySettings};
+use crate::{
+    core::settings::{AppSettings, BaseStrategySettings},
+    hashmap,
+};
 use anyhow::{anyhow, Result};
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 pub fn load_settings<'a, TSettings>(
@@ -56,36 +58,20 @@ pub fn save_settings<'a, TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
-    // Write credentials in their own config
-    #[derive(Debug)]
-    struct Credentials {
-        exchange_account_id: String,
-        api_key: String,
-        secret_key: String,
+    // Write credentials in their own config file
+    let mut credentials_per_exchange = HashMap::new();
+    for exchange_settings in settings.core.exchanges.iter() {
+        let creds = hashmap![
+            "api_key" => exchange_settings.api_key.clone(),
+            "secret_key" => exchange_settings.secret_key.clone()
+        ];
+
+        credentials_per_exchange.insert(exchange_settings.exchange_account_id.to_string(), creds);
     }
 
-    let credentials_per_exchange = settings
-        .core
-        .exchanges
-        .iter()
-        .map(|exchange_settings| Credentials {
-            exchange_account_id: exchange_settings.exchange_account_id.to_string(),
-            api_key: exchange_settings.api_key.clone(),
-            secret_key: exchange_settings.secret_key.clone(),
-        })
-        .collect_vec();
-
-    let mut credentials_config = OpenOptions::new()
-        .write(true)
-        .append(true)
-        .create(true)
-        .open(credentials_path)?;
-    for creds in credentials_per_exchange {
-        credentials_config.write_all(format!("[{}]\n", creds.exchange_account_id).as_bytes())?;
-        credentials_config.write_all(format!("api_key = \"{}\"\n", creds.api_key).as_bytes())?;
-        credentials_config
-            .write_all(format!("secret_key = \"{}\"\n\n", creds.secret_key).as_bytes())?;
-    }
+    let serialized_creds = Value::try_from(credentials_per_exchange)?;
+    let mut credentials_config = File::create(credentials_path)?;
+    credentials_config.write_all(&serialized_creds.to_string().as_bytes())?;
 
     // Remove credentials from main config
     let mut serialized = Value::try_from(settings)?;

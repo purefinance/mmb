@@ -21,5 +21,3 @@ quote = "btc"
 [[core.exchanges.currency_pairs]]
 base = "eos"
 quote = "btc"
-
-# FIXME check for several exchanges
