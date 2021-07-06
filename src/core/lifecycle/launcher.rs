@@ -9,6 +9,7 @@ use futures::{future::join_all, FutureExt};
 use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
+use crate::core::config::load_settings;
 use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange_creation::create_exchange;
@@ -34,8 +35,6 @@ use crate::{
     core::exchanges::binance::binance::BinanceBuilder, rest_api::control_panel::ControlPanel,
 };
 use std::convert::identity;
-
-use super::configs::load_settings;
 
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,

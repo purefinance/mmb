@@ -1,12 +1,10 @@
 use anyhow::Result;
-use mmb_lib::core::lifecycle::{
-    configs::save_settings,
-    launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
-};
+use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::BaseStrategySettings;
 use mmb_lib::core::{
+    config::load_settings,
+    config::save_settings,
     exchanges::common::{Amount, CurrencyPair, ExchangeAccountId},
-    lifecycle::configs::load_settings,
 };
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -39,6 +37,11 @@ async fn main() -> Result<()> {
 
     let engine =
         launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await?;
+
+    // FIXME delete
+    let settings = load_settings::<ExampleStrategySettings>("config.toml", "credentials.toml")?;
+    dbg!(&settings);
+    save_settings(settings, "saved_config.toml", "saved_credentials.toml")?;
 
     // let ctx = engine.context();
     // let _ = tokio::spawn(async move {
