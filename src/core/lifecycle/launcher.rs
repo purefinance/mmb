@@ -1,3 +1,6 @@
+use anyhow::Result;
+use core::fmt::Debug;
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -6,6 +9,7 @@ use futures::{future::join_all, FutureExt};
 use log::{error, info};
 use tokio::sync::{broadcast, oneshot};
 
+use crate::core::config::load_settings;
 use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange_creation::create_exchange;
@@ -48,20 +52,21 @@ impl EngineBuildConfig {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub enum InitSettings<TStrategySettings>
 where
     TStrategySettings: BaseStrategySettings + Clone,
 {
     Directly(AppSettings<TStrategySettings>),
-    Load,
+    Load(String, String),
 }
 
-pub async fn launch_trading_engine<TStrategySettings>(
+pub async fn launch_trading_engine<'a, TStrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<TStrategySettings>,
-) -> TradingEngine
+) -> Result<TradingEngine>
 where
-    TStrategySettings: BaseStrategySettings + Clone,
+    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
 {
     init_logger();
 
@@ -70,7 +75,9 @@ where
 
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
-        InitSettings::Load => load_settings::<TStrategySettings>().await,
+        InitSettings::Load(config_path, credentials_path) => {
+            load_settings::<TStrategySettings>(&config_path, &credentials_path)?
+        }
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
@@ -136,7 +143,10 @@ where
     ]);
 
     info!("TradingEngine started");
-    TradingEngine::new(engine_context, finish_graceful_shutdown_rx)
+    Ok(TradingEngine::new(
+        engine_context,
+        finish_graceful_shutdown_rx,
+    ))
 }
 
 fn create_disposition_executor_service(
@@ -155,13 +165,6 @@ fn create_disposition_executor_service(
         Box::new(DispositionStrategy::new(exchange_account_id, currency_pair)),
         engine_context.application_manager.stop_token(),
     )
-}
-
-async fn load_settings<TSettings>() -> AppSettings<TSettings>
-where
-    TSettings: BaseStrategySettings + Clone,
-{
-    todo!("Not implemented")
 }
 
 pub async fn create_exchanges(

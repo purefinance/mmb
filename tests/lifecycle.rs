@@ -1,5 +1,5 @@
 #![cfg(test)]
-
+use anyhow::Result;
 use futures::FutureExt;
 use mmb_lib::core::settings::{AppSettings, BaseStrategySettings};
 use mmb_lib::core::{
@@ -11,10 +11,11 @@ use mmb_lib::core::{
     infrastructure::spawn_future,
 };
 use rust_decimal_macros::dec;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tokio::time::sleep;
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct TestStrategySettings {}
 
 impl BaseStrategySettings for TestStrategySettings {
@@ -32,11 +33,11 @@ impl BaseStrategySettings for TestStrategySettings {
 }
 
 #[actix_rt::test]
-async fn launch_engine() {
+async fn launch_engine() -> Result<()> {
     let config = EngineBuildConfig::standard();
 
     let init_settings = InitSettings::Directly(AppSettings::<TestStrategySettings>::default());
-    let engine = launch_trading_engine(&config, init_settings).await;
+    let engine = launch_trading_engine(&config, init_settings).await?;
 
     let context = engine.context();
 
@@ -56,4 +57,6 @@ async fn launch_engine() {
     );
 
     engine.run().await;
+
+    Ok(())
 }

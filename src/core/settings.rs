@@ -1,4 +1,5 @@
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use serde::{Deserialize, Serialize};
 
 use super::exchanges::common::Amount;
 
@@ -8,7 +9,7 @@ pub trait BaseStrategySettings {
     fn max_amount(&self) -> Amount;
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct AppSettings<TStrategySettings>
 where
     TStrategySettings: BaseStrategySettings + Clone,
@@ -17,12 +18,12 @@ where
     pub core: CoreSettings,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CoreSettings {
     pub exchanges: Vec<ExchangeSettings>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CurrencyPairSetting {
     pub base: CurrencyCode,
     pub quote: CurrencyCode,
@@ -30,10 +31,13 @@ pub struct CurrencyPairSetting {
     pub currency_pair: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+// Field order are matter for serialization:
+// Simple values must be emmited before struct with custom serialization
+// https://github.com/alexcrichton/toml-rs/issues/142#issuecomment-278970591
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ExchangeSettings {
-    pub exchange_account_id: ExchangeAccountId,
     // TODO add other settings
+    pub exchange_account_id: ExchangeAccountId,
     pub api_key: String,
     pub secret_key: String,
     pub is_margin_trading: bool,
@@ -42,9 +46,9 @@ pub struct ExchangeSettings {
     // Some exchanges have two websockets, for public and private data
     pub web_socket2_host: String,
     pub rest_host: String,
+    pub subscribe_to_market_data: bool,
     pub websocket_channels: Vec<String>,
     pub currency_pairs: Option<Vec<CurrencyPairSetting>>,
-    pub subscribe_to_market_data: bool,
 }
 
 impl ExchangeSettings {
