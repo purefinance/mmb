@@ -1,6 +1,6 @@
 use anyhow::Result;
 use core::fmt::Debug;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -66,7 +66,7 @@ pub async fn launch_trading_engine<'a, TStrategySettings>(
     init_user_settings: InitSettings<TStrategySettings>,
 ) -> Result<TradingEngine>
 where
-    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
+    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     init_logger();
 
@@ -112,7 +112,10 @@ where
     );
 
     let internal_events_loop = InternalEventsLoop::new();
-    let control_panel = ControlPanel::new("127.0.0.1:8080");
+    let control_panel = ControlPanel::new(
+        "127.0.0.1:8080",
+        toml::Value::try_from(settings.clone())?.to_string(),
+    );
 
     {
         let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();

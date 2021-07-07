@@ -12,16 +12,18 @@ use crate::core::lifecycle::trading_engine::Service;
 
 pub(crate) struct ControlPanel {
     address: String,
+    engine_settings: String,
     server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
     work_finished_sender: Arc<Mutex<Option<oneshot::Sender<Result<()>>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
 }
 
 impl ControlPanel {
-    pub(crate) fn new(address: &str) -> Arc<Self> {
+    pub(crate) fn new(address: &str, engine_settings: String) -> Arc<Self> {
         let (work_finished_sender, work_finished_receiver) = oneshot::channel();
         Arc::new(Self {
             address: address.to_owned(),
+            engine_settings,
             server_stopper_tx: Arc::new(Mutex::new(None)),
             work_finished_sender: Arc::new(Mutex::new(Some(work_finished_sender))),
             work_finished_receiver: Arc::new(Mutex::new(Some(work_finished_receiver))),
@@ -44,12 +46,15 @@ impl ControlPanel {
     pub(crate) fn start(self: Arc<Self>) -> Result<()> {
         let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>();
         *self.server_stopper_tx.lock() = Some(server_stopper_tx.clone());
+        let engine_settings = self.engine_settings.clone();
         let server = HttpServer::new(move || {
             App::new()
                 .data(server_stopper_tx.clone())
+                .data(engine_settings.clone())
                 .service(endpoints::health)
                 .service(endpoints::stop)
                 .service(endpoints::stats)
+                .service(endpoints::get_config)
         })
         .bind(&self.address)?
         .shutdown_timeout(1)
