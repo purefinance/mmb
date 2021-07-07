@@ -1,21 +1,10 @@
-use anyhow::Result;
-use core::fmt::Debug;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
-
-use dashmap::DashMap;
-use futures::{future::join_all, FutureExt};
-use log::{error, info};
-use tokio::sync::{broadcast, oneshot};
-
 use crate::core::config::load_settings;
-use crate::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, ExchangeId};
+use crate::core::exchanges::binance::binance::BinanceBuilder;
+use crate::core::exchanges::common::ExchangeId;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
+use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
-use crate::core::exchanges::general::{
-    exchange::Exchange, exchange_creation::create_timeout_manager,
-};
+use crate::core::exchanges::general::exchange_creation::create_timeout_manager;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::internal_events_loop::InternalEventsLoop;
@@ -30,11 +19,18 @@ use crate::core::{
     infrastructure::{keep_application_manager, spawn_future},
 };
 use crate::hashmap;
+use crate::rest_api::control_panel::ControlPanel;
 use crate::strategies::disposition_strategy::DispositionStrategy;
-use crate::{
-    core::exchanges::binance::binance::BinanceBuilder, rest_api::control_panel::ControlPanel,
-};
+use anyhow::Result;
+use core::fmt::Debug;
+use dashmap::DashMap;
+use futures::{future::join_all, FutureExt};
+use log::{error, info};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::identity;
+use std::sync::Arc;
+use tokio::sync::{broadcast, oneshot};
 
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,

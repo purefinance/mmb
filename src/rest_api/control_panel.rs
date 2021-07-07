@@ -9,6 +9,7 @@ use actix_web::{dev::Server, rt, App, HttpServer};
 use tokio::sync::oneshot;
 
 use crate::core::lifecycle::{application_manager::ApplicationManager, trading_engine::Service};
+use actix_web::web::Data;
 
 pub(crate) struct ControlPanel {
     address: String,
@@ -56,9 +57,9 @@ impl ControlPanel {
         let application_manager = self.application_manager.clone();
         let server = HttpServer::new(move || {
             App::new()
-                .data(server_stopper_tx.clone())
-                .data(engine_settings.clone())
-                .data(application_manager.clone())
+                .app_data(Data::new(server_stopper_tx.clone()))
+                .app_data(Data::new(engine_settings.clone()))
+                .app_data(Data::new(application_manager.clone()))
                 .service(endpoints::health)
                 .service(endpoints::stop)
                 .service(endpoints::stats)
