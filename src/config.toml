@@ -21,3 +21,4 @@ quote = "btc"
 [[core.exchanges.currency_pairs]]
 base = "eos"
 quote = "btc"
+

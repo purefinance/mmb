@@ -32,7 +32,8 @@ pub struct CurrencyPairSetting {
 }
 
 // Field order are matter for serialization:
-// Simple values must be emmited before tables values as vectors
+// Simple values must be emmited before struct with custom serialization
+// https://github.com/alexcrichton/toml-rs/issues/142#issuecomment-278970591
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ExchangeSettings {
     // TODO add other settings
