@@ -1,4 +1,4 @@
-use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web::{get, post, web, HttpMessage, HttpRequest, HttpResponse, Responder};
 use log::error;
 use std::sync::mpsc::Sender;
 
@@ -27,4 +27,12 @@ pub(super) async fn stats() -> impl Responder {
 #[get("/config")]
 pub(super) async fn get_config(engine_settings: web::Data<String>) -> impl Responder {
     HttpResponse::Ok().body(engine_settings.get_ref())
+}
+
+#[post("/config")]
+pub(super) async fn set_config(request: HttpRequest) -> impl Responder {
+    let body = request.take_payload();
+    dbg!(&body);
+
+    HttpResponse::Ok().body("test")
 }

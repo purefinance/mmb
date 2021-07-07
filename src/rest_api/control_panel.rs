@@ -55,6 +55,7 @@ impl ControlPanel {
                 .service(endpoints::stop)
                 .service(endpoints::stats)
                 .service(endpoints::get_config)
+                .service(endpoints::set_config)
         })
         .bind(&self.address)?
         .shutdown_timeout(1)
