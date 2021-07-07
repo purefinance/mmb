@@ -67,7 +67,7 @@ impl DispositionExecutorService {
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
         max_amount: Amount,
-        strategy: Box<DispositionStrategy>,
+        strategy: Box<dyn DispositionStrategy>,
         cancellation_token: CancellationToken,
     ) -> Arc<Self> {
         let (work_finished_sender, receiver) = oneshot::channel();
@@ -118,7 +118,7 @@ struct DispositionExecutor {
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     local_snapshots_service: LocalSnapshotsService,
     orders_state: OrdersState,
-    strategy: Box<DispositionStrategy>,
+    strategy: Box<dyn DispositionStrategy>,
     work_finished_sender: Option<oneshot::Sender<Result<()>>>,
     cancellation_token: CancellationToken,
 }
@@ -131,7 +131,7 @@ impl DispositionExecutor {
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
         max_amount: Amount,
-        strategy: Box<DispositionStrategy>,
+        strategy: Box<dyn DispositionStrategy>,
         work_finished_sender: oneshot::Sender<Result<()>>,
         cancellation_token: CancellationToken,
     ) -> Self {
@@ -278,7 +278,7 @@ impl DispositionExecutor {
         let mut new_trading_context = estimate_trading_context(
             need_recalculate_trading_context,
             self.max_amount,
-            &mut self.strategy,
+            self.strategy.as_mut(),
             &self.local_snapshots_service,
             now,
         )?;
@@ -869,7 +869,7 @@ fn prepare_estimate_trading_context(event: &ExchangeEvent, now: DateTime) -> boo
 fn estimate_trading_context(
     need_recalculate_trading_context: bool,
     max_amount: Amount,
-    strategy: &mut DispositionStrategy,
+    strategy: &mut dyn DispositionStrategy,
     local_snapshots_service: &LocalSnapshotsService,
     now: DateTime,
 ) -> Result<Option<TradingContext>> {

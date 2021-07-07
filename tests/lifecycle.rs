@@ -1,17 +1,26 @@
 #![cfg(test)]
 use anyhow::Result;
 use futures::FutureExt;
+use mmb_lib::core::disposition_execution::{PriceSlot, TradingContext};
+use mmb_lib::core::explanation::Explanation;
+use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_lib::core::order_book::local_snapshot_service::LocalSnapshotsService;
+use mmb_lib::core::orders::order::OrderSnapshot;
 use mmb_lib::core::settings::{AppSettings, BaseStrategySettings};
 use mmb_lib::core::{
     exchanges::common::Amount,
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
+    DateTime,
 };
 use mmb_lib::core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
     infrastructure::spawn_future,
 };
+use mmb_lib::strategies::disposition_strategy::DispositionStrategy;
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -34,10 +43,34 @@ impl BaseStrategySettings for TestStrategySettings {
 
 #[actix_rt::test]
 async fn launch_engine() -> Result<()> {
+    struct TestStrategy;
+
+    impl DispositionStrategy for TestStrategy {
+        fn calculate_trading_context(
+            &mut self,
+            _max_amount: Decimal,
+            _now: DateTime,
+            _local_snapshots_service: &LocalSnapshotsService,
+            _explanation: &mut Explanation,
+        ) -> Option<TradingContext> {
+            None
+        }
+
+        fn handle_order_fill(
+            &self,
+            _cloned_order: &Arc<OrderSnapshot>,
+            _price_slot: &PriceSlot,
+            _target_eai: &ExchangeAccountId,
+            _cancellation_token: CancellationToken,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
     let config = EngineBuildConfig::standard();
 
     let init_settings = InitSettings::Directly(AppSettings::<TestStrategySettings>::default());
-    let engine = launch_trading_engine(&config, init_settings).await?;
+    let engine = launch_trading_engine(&config, init_settings, |_| Box::new(TestStrategy)).await?;
 
     let context = engine.context();
 

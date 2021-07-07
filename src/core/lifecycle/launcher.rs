@@ -64,6 +64,7 @@ where
 pub async fn launch_trading_engine<'a, TStrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<TStrategySettings>,
+    build_strategy: impl Fn(&AppSettings<TStrategySettings>) -> Box<dyn DispositionStrategy + 'static>,
 ) -> Result<TradingEngine>
 where
     TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
@@ -132,12 +133,11 @@ where
         error!("Unable to start rest api: {}", error);
     }
 
-    let strategy_settings = &settings.strategy as &dyn BaseStrategySettings;
+    let disposition_strategy = build_strategy(&settings);
     let disposition_executor_service = create_disposition_executor_service(
-        strategy_settings.exchange_account_id(),
-        strategy_settings.currency_pair(),
-        strategy_settings.max_amount(),
+        &settings.strategy,
         &engine_context,
+        disposition_strategy,
     );
 
     engine_context.shutdown_service.register_services(&[
@@ -154,19 +154,18 @@ where
 }
 
 fn create_disposition_executor_service(
-    exchange_account_id: ExchangeAccountId,
-    currency_pair: CurrencyPair,
-    max_amount: Amount,
+    base_settings: &dyn BaseStrategySettings,
     engine_context: &Arc<EngineContext>,
+    disposition_strategy: Box<dyn DispositionStrategy>,
 ) -> Arc<DispositionExecutorService> {
     DispositionExecutorService::new(
         engine_context.clone(),
         engine_context.get_events_channel(),
         LocalSnapshotsService::default(),
-        exchange_account_id.clone(),
-        currency_pair.clone(),
-        max_amount,
-        Box::new(DispositionStrategy::new(exchange_account_id, currency_pair)),
+        base_settings.exchange_account_id(),
+        base_settings.currency_pair(),
+        base_settings.max_amount(),
+        disposition_strategy,
         engine_context.application_manager.stop_token(),
     )
 }
