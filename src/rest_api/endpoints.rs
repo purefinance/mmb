@@ -41,5 +41,7 @@ pub(super) async fn set_config(body: web::Bytes) -> Result<HttpResponse, Error> 
     // FIXME unwrap
     update_settings(settings, config_path, credentials_path).unwrap();
 
+    // FIXME stop application via application_manager
+
     Ok(HttpResponse::Ok().body("Config was successfully updated. Trading engine stopped"))
 }

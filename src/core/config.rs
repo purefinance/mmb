@@ -50,6 +50,7 @@ where
     Ok(decoded)
 }
 
+// FIXME delete probably
 pub fn save_settings<'a, TSettings>(
     settings: AppSettings<TSettings>,
     config_path: &str,

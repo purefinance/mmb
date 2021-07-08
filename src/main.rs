@@ -38,28 +38,6 @@ async fn main() -> Result<()> {
     let engine =
         launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await?;
 
-    // FIXME delete
-    let settings = r#"
-            [strategy]
-
-            [core]
-            [[core.exchanges]]
-            exchange_account_id = "Binance0"
-            is_margin_trading = false
-            api_key = "wow"
-            secret_key = "mom"
-            web_socket_host = ""
-            web_socket2_host = ""
-            rest_host = ""
-            websocket_channels = [ "depth20" ]
-            subscribe_to_market_data = true
-
-            currency_pairs = [ { base = "phb", quote = "btc" },
-                               { base = "eth", quote = "btc" },
-                               { base = "eos", quote = "btc" } ]
-        "#;
-    update_settings(settings, "saved_config.toml", "saved_credentials.toml")?;
-
     // let ctx = engine.context();
     // let _ = tokio::spawn(async move {
     //     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -68,7 +46,7 @@ async fn main() -> Result<()> {
     //         .spawn_graceful_shutdown("test".to_owned());
     // });
 
-    //engine.run().await;
+    engine.run().await;
 
     Ok(())
 }
