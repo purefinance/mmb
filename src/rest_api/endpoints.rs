@@ -1,4 +1,4 @@
-use actix_web::{get, post, web, Error, HttpMessage, HttpRequest, HttpResponse, Responder};
+use actix_web::{error, get, post, web, Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 use futures::stream::StreamExt;
 use log::error;
 use std::sync::mpsc::Sender;
@@ -38,8 +38,10 @@ pub(super) async fn set_config(body: web::Bytes) -> Result<HttpResponse, Error> 
 
     let config_path = "updated_config.toml";
     let credentials_path = "updated_credentials.toml";
-    // FIXME unwrap
-    update_settings(settings, config_path, credentials_path).unwrap();
+    update_settings(settings, config_path, credentials_path).map_err(|e| {
+        dbg!(&e.to_string());
+        error::ErrorBadRequest(e.to_string())
+    })?;
 
     // FIXME stop application via application_manager
 
