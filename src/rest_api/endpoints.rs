@@ -1,9 +1,8 @@
-use actix_web::{error, get, post, web, Error, HttpMessage, HttpRequest, HttpResponse, Responder};
-use futures::stream::StreamExt;
+use actix_web::{error, get, post, web, Error, HttpResponse, Responder};
 use log::error;
-use std::sync::mpsc::Sender;
+use std::sync::{mpsc::Sender, Arc};
 
-use crate::core::config::update_settings;
+use crate::core::{config::save_settings, lifecycle::application_manager::ApplicationManager};
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
 
@@ -33,17 +32,23 @@ pub(super) async fn get_config(engine_settings: web::Data<String>) -> impl Respo
 }
 
 #[post("/config")]
-pub(super) async fn set_config(body: web::Bytes) -> Result<HttpResponse, Error> {
+pub(super) async fn set_config(
+    body: web::Bytes,
+    application_manager: web::Data<Arc<ApplicationManager>>,
+) -> Result<HttpResponse, Error> {
     let settings = std::str::from_utf8(&body)?;
 
     let config_path = "updated_config.toml";
     let credentials_path = "updated_credentials.toml";
-    update_settings(settings, config_path, credentials_path).map_err(|e| {
+    save_settings(settings, config_path, credentials_path).map_err(|e| {
         dbg!(&e.to_string());
         error::ErrorBadRequest(e.to_string())
     })?;
 
-    // FIXME stop application via application_manager
+    application_manager
+        .get_ref()
+        .clone()
+        .spawn_graceful_shutdown("Engine stopped cause config updating".to_owned());
 
     Ok(HttpResponse::Ok().body("Config was successfully updated. Trading engine stopped"))
 }

@@ -108,13 +108,14 @@ where
         exchange_events,
         finish_graceful_shutdown_tx,
         timeout_manager,
-        application_manager,
+        application_manager.clone(),
     );
 
     let internal_events_loop = InternalEventsLoop::new();
     let control_panel = ControlPanel::new(
         "127.0.0.1:8080",
         toml::Value::try_from(settings.clone())?.to_string(),
+        application_manager,
     );
 
     {

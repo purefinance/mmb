@@ -3,7 +3,7 @@ use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfi
 use mmb_lib::core::settings::BaseStrategySettings;
 use mmb_lib::core::{
     config::load_settings,
-    config::update_settings,
+    config::save_settings,
     exchanges::common::{Amount, CurrencyPair, ExchangeAccountId},
 };
 use rust_decimal_macros::dec;

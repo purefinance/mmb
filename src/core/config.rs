@@ -7,7 +7,7 @@ use crate::{
     hashmap,
 };
 use anyhow::{anyhow, Result};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 pub fn load_settings<'a, TSettings>(
     config_path: &str,
@@ -50,51 +50,7 @@ where
     Ok(decoded)
 }
 
-// FIXME delete probably
-pub fn save_settings<'a, TSettings>(
-    settings: AppSettings<TSettings>,
-    config_path: &str,
-    credentials_path: &str,
-) -> Result<()>
-where
-    TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
-{
-    // Write credentials in their own config file
-    let mut credentials_per_exchange = HashMap::new();
-    for exchange_settings in settings.core.exchanges.iter() {
-        let creds = hashmap![
-            "api_key" => exchange_settings.api_key.clone(),
-            "secret_key" => exchange_settings.secret_key.clone()
-        ];
-
-        credentials_per_exchange.insert(exchange_settings.exchange_account_id.to_string(), creds);
-    }
-
-    let serialized_creds = Value::try_from(credentials_per_exchange)?;
-    let mut credentials_config = File::create(credentials_path)?;
-    credentials_config.write_all(&serialized_creds.to_string().as_bytes())?;
-
-    // Remove credentials from main config
-    let mut serialized = Value::try_from(settings)?;
-    let exchanges = get_exchanges_mut(&mut serialized).ok_or(anyhow!(
-        "Unable to get core.exchanges array from gotten settings"
-    ))?;
-    for exchange in exchanges {
-        let exchange = exchange
-            .as_table_mut()
-            .ok_or(anyhow!("Unable to get mutable exchange table"))?;
-
-        let _ = exchange.remove("api_key");
-        let _ = exchange.remove("secret_key");
-    }
-
-    let mut main_config = File::create(config_path)?;
-    main_config.write_all(&serialized.to_string().as_bytes())?;
-
-    Ok(())
-}
-
-pub fn update_settings(settings: &str, config_path: &str, credentials_path: &str) -> Result<()> {
+pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) -> Result<()> {
     let mut serialized_settings: toml::Value = toml::from_str(settings)?;
     // Write credentials in their own config file
     let mut credentials_per_exchange = HashMap::new();
