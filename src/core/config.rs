@@ -93,6 +93,57 @@ where
     Ok(())
 }
 
+pub fn update_settings(settings: &str, config_path: &str, credentials_path: &str) -> Result<()> {
+    let mut serialized_settings: toml::Value = toml::from_str(settings)?;
+    // Write credentials in their own config file
+    let mut credentials_per_exchange = HashMap::new();
+
+    let exchanges = get_exchanges_mut(&mut serialized_settings).ok_or(anyhow!(
+        "Unable to get core.exchanges array from gotten settings"
+    ))?;
+    for exchange_settings in exchanges {
+        let exchange_settings = exchange_settings
+            .as_table_mut()
+            .ok_or(anyhow!("Unable to get mutable exchange table"))?;
+
+        let (exchange_account_id, api_key, secret_key) =
+            get_credentials_data(&exchange_settings)
+                .ok_or(anyhow!("Unable to get credentials data for exchange"))?;
+
+        let creds = hashmap![
+            "api_key" => api_key,
+            "secret_key" => secret_key
+        ];
+
+        credentials_per_exchange.insert(exchange_account_id, creds);
+
+        // Remove credentials from main config
+        let _ = exchange_settings.remove("api_key");
+        let _ = exchange_settings.remove("secret_key");
+    }
+
+    let serialized_creds = Value::try_from(credentials_per_exchange)?;
+    let mut credentials_config = File::create(credentials_path)?;
+    credentials_config.write_all(&serialized_creds.to_string().as_bytes())?;
+
+    let mut main_config = File::create(config_path)?;
+    main_config.write_all(&serialized_settings.to_string().as_bytes())?;
+
+    Ok(())
+}
+
+fn get_credentials_data(
+    exchange_settings: &toml::map::Map<String, Value>,
+) -> Option<(String, String, String)> {
+    let exchange_account_id = exchange_settings["exchange_account_id"]
+        .as_str()?
+        .to_owned();
+    let api_key = exchange_settings["api_key"].as_str()?.to_owned();
+    let secret_key = exchange_settings["secret_key"].as_str()?.to_owned();
+
+    Some((exchange_account_id, api_key, secret_key))
+}
+
 fn get_exchanges_mut(serialized: &mut Value) -> Option<&mut Vec<Value>> {
     serialized
         .as_table_mut()?

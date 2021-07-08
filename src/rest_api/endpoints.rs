@@ -1,9 +1,9 @@
-use actix_web::{get, post, web, HttpMessage, HttpRequest, HttpResponse, Responder};
+use actix_web::{get, post, web, Error, HttpMessage, HttpRequest, HttpResponse, Responder};
 use futures::stream::StreamExt;
 use log::error;
 use std::sync::mpsc::Sender;
 
-use crate::core::config::save_settings;
+use crate::core::config::update_settings;
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
 
@@ -33,12 +33,13 @@ pub(super) async fn get_config(engine_settings: web::Data<String>) -> impl Respo
 }
 
 #[post("/config")]
-pub(super) async fn set_config(body: web::Bytes) -> impl Responder {
-    dbg!(&body);
-    let body = body.to_string();
+pub(super) async fn set_config(body: web::Bytes) -> Result<HttpResponse, Error> {
+    let settings = std::str::from_utf8(&body)?;
 
-    let serialized = toml::Value::try_from(body).unwrap();
-    dbg!(&serialized);
-    //save_settings()
-    HttpResponse::Ok().body("test")
+    let config_path = "updated_config.toml";
+    let credentials_path = "updated_credentials.toml";
+    // FIXME unwrap
+    update_settings(settings, config_path, credentials_path).unwrap();
+
+    Ok(HttpResponse::Ok().body("Config was successfully updated. Trading engine stopped"))
 }
