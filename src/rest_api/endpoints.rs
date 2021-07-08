@@ -40,10 +40,8 @@ pub(super) async fn set_config(
 
     let config_path = "updated_config.toml";
     let credentials_path = "updated_credentials.toml";
-    save_settings(settings, config_path, credentials_path).map_err(|e| {
-        dbg!(&e.to_string());
-        error::ErrorBadRequest(e.to_string())
-    })?;
+    save_settings(settings, config_path, credentials_path)
+        .map_err(|e| error::ErrorBadRequest(e.to_string()))?;
 
     application_manager
         .get_ref()
