@@ -1,6 +1,9 @@
 use actix_web::{get, post, web, HttpMessage, HttpRequest, HttpResponse, Responder};
+use futures::stream::StreamExt;
 use log::error;
 use std::sync::mpsc::Sender;
+
+use crate::core::config::save_settings;
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
 
@@ -30,9 +33,12 @@ pub(super) async fn get_config(engine_settings: web::Data<String>) -> impl Respo
 }
 
 #[post("/config")]
-pub(super) async fn set_config(request: HttpRequest) -> impl Responder {
-    let body = request.take_payload();
+pub(super) async fn set_config(body: web::Bytes) -> impl Responder {
     dbg!(&body);
+    let body = body.to_string();
 
+    let serialized = toml::Value::try_from(body).unwrap();
+    dbg!(&serialized);
+    //save_settings()
     HttpResponse::Ok().body("test")
 }
