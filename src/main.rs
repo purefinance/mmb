@@ -1,7 +1,11 @@
 use anyhow::Result;
-use mmb_lib::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
-use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::BaseStrategySettings;
+use mmb_lib::core::{
+    config::CONFIG_PATH,
+    config::CREDENTIALS_PATH,
+    exchanges::common::{Amount, CurrencyPair, ExchangeAccountId},
+    lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
+};
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 
@@ -29,7 +33,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
 async fn main() -> Result<()> {
     let engine_config = EngineBuildConfig::standard();
 
-    let init_settings = InitSettings::Load("config.toml".to_owned(), "credentials.toml".to_owned());
+    let init_settings = InitSettings::Load(CONFIG_PATH.to_owned(), CREDENTIALS_PATH.to_owned());
 
     let engine =
         launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await?;
