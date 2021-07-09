@@ -42,11 +42,13 @@ pub(super) async fn set_config(
     let settings = std::str::from_utf8(&body)?;
 
     save_settings(settings, CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
-        warn!(
+        let error_message = format!(
             "Error while trying save new config in set_config endpoint: {}",
             err.to_string()
         );
-        error::ErrorBadRequest(err.to_string())
+        warn!("{}", error_message);
+
+        error::ErrorBadRequest(error_message)
     })?;
 
     application_manager
