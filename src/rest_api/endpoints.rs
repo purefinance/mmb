@@ -1,8 +1,11 @@
 use actix_web::{error, get, post, web, Error, HttpResponse, Responder};
-use log::error;
+use log::{error, warn};
 use std::sync::{mpsc::Sender, Arc};
 
-use crate::core::{config::save_settings, lifecycle::application_manager::ApplicationManager};
+use crate::core::{
+    config::save_settings, config::CONFIG_PATH, config::CREDENTIALS_PATH,
+    lifecycle::application_manager::ApplicationManager,
+};
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
 
@@ -38,10 +41,13 @@ pub(super) async fn set_config(
 ) -> Result<HttpResponse, Error> {
     let settings = std::str::from_utf8(&body)?;
 
-    let config_path = "updated_config.toml";
-    let credentials_path = "updated_credentials.toml";
-    save_settings(settings, config_path, credentials_path)
-        .map_err(|e| error::ErrorBadRequest(e.to_string()))?;
+    save_settings(settings, CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
+        warn!(
+            "Error while trying save new config in set_config endpoint: {}",
+            err.to_string()
+        );
+        error::ErrorBadRequest(err.to_string())
+    })?;
 
     application_manager
         .get_ref()

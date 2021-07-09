@@ -9,6 +9,11 @@ use crate::{
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
 
+pub static API_KEY: &str = "api_key";
+pub static SECRET_KEY: &str = "secret_key";
+pub static CONFIG_PATH: &str = "config.toml";
+pub static CREDENTIALS_PATH: &str = "credentials.toml";
+
 pub fn load_settings<'a, TSettings>(
     config_path: &str,
     credentials_path: &str,
@@ -31,11 +36,12 @@ where
         let exchange_account_id = exchange.get("exchange_account_id").ok_or(anyhow!(
             "Config file has no exchange account id for Exchange"
         ))?;
-        let api_key = &credentials.get_str(&format!("{}.api_key", exchange_account_id))?;
-        let secret_key = &credentials.get_str(&format!("{}.secret_key", exchange_account_id))?;
+        let api_key = &credentials.get_str(&format!("{}.{}", exchange_account_id, API_KEY))?;
+        let secret_key =
+            &credentials.get_str(&format!("{}.{}", exchange_account_id, SECRET_KEY))?;
 
-        exchange.insert("api_key".to_owned(), api_key.as_str().into());
-        exchange.insert("secret_key".to_owned(), secret_key.as_str().into());
+        exchange.insert(API_KEY.to_owned(), api_key.as_str().into());
+        exchange.insert(SECRET_KEY.to_owned(), secret_key.as_str().into());
 
         exchanges_with_creds.push(exchange);
     }
@@ -68,15 +74,15 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
                 .ok_or(anyhow!("Unable to get credentials data for exchange"))?;
 
         let creds = hashmap![
-            "api_key" => api_key,
-            "secret_key" => secret_key
+            API_KEY => api_key,
+            SECRET_KEY => secret_key
         ];
 
         credentials_per_exchange.insert(exchange_account_id, creds);
 
         // Remove credentials from main config
-        let _ = exchange_settings.remove("api_key");
-        let _ = exchange_settings.remove("secret_key");
+        let _ = exchange_settings.remove(API_KEY);
+        let _ = exchange_settings.remove(SECRET_KEY);
     }
 
     let serialized_creds = Value::try_from(credentials_per_exchange)?;
@@ -92,11 +98,12 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
 fn get_credentials_data(
     exchange_settings: &toml::map::Map<String, Value>,
 ) -> Option<(String, String, String)> {
-    let exchange_account_id = exchange_settings["exchange_account_id"]
+    let exchange_account_id = exchange_settings
+        .get("exchange_account_id")?
         .as_str()?
         .to_owned();
-    let api_key = exchange_settings["api_key"].as_str()?.to_owned();
-    let secret_key = exchange_settings["secret_key"].as_str()?.to_owned();
+    let api_key = exchange_settings.get(API_KEY)?.as_str()?.to_owned();
+    let secret_key = exchange_settings.get(SECRET_KEY)?.as_str()?.to_owned();
 
     Some((exchange_account_id, api_key, secret_key))
 }
