@@ -6,6 +6,7 @@ use mmb_lib::core::{
     exchanges::common::{Amount, CurrencyPair, ExchangeAccountId},
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
 };
+use mmb_lib::strategies::disposition_strategy::ExampleStrategy;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 
@@ -33,10 +34,18 @@ impl BaseStrategySettings for ExampleStrategySettings {
 async fn main() -> Result<()> {
     let engine_config = EngineBuildConfig::standard();
 
-    let init_settings = InitSettings::Load(CONFIG_PATH.to_owned(), CREDENTIALS_PATH.to_owned());
+    let init_settings = InitSettings::<ExampleStrategySettings>::Load(
+        CONFIG_PATH.to_owned(),
+        CREDENTIALS_PATH.to_owned(),
+    );
 
-    let engine =
-        launch_trading_engine::<ExampleStrategySettings>(&engine_config, init_settings).await?;
+    let engine = launch_trading_engine(&engine_config, init_settings, |settings| {
+        Box::new(ExampleStrategy::new(
+            settings.strategy.exchange_account_id().clone(),
+            settings.strategy.currency_pair().clone(),
+        ))
+    })
+    .await?;
 
     // let ctx = engine.context();
     // let _ = tokio::spawn(async move {

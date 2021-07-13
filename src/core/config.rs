@@ -6,9 +6,11 @@ use crate::{
     core::settings::{AppSettings, BaseStrategySettings},
     hashmap,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
+use std::io::Read;
 
+pub static EXCHANGE_ACCOUNT_ID: &str = "exchange_account_id";
 pub static API_KEY: &str = "api_key";
 pub static SECRET_KEY: &str = "secret_key";
 pub static CONFIG_PATH: &str = "config.toml";
@@ -21,39 +23,63 @@ pub fn load_settings<'a, TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
 {
-    let mut settings = config::Config::default();
-    settings.merge(config::File::with_name(&config_path))?;
-    let exchanges = settings.get_array("core.exchanges")?;
+    let mut settings = String::new();
+    File::open(config_path)?.read_to_string(&mut settings)?;
 
-    let mut credentials = config::Config::default();
-    credentials.merge(config::File::with_name(credentials_path))?;
+    let mut credentials = String::new();
+    File::open(credentials_path)?.read_to_string(&mut credentials)?;
 
-    // Extract creds accoring to exchange_account_id and add it to every ExchangeSettings
-    let mut exchanges_with_creds = Vec::new();
-    for exchange in exchanges {
-        let mut exchange = exchange.into_table()?;
+    parse_settings(&mut settings, &mut credentials)
+}
 
-        let exchange_account_id = exchange.get("exchange_account_id").ok_or(anyhow!(
-            "Config file has no exchange account id for Exchange"
-        ))?;
-        let api_key = &credentials.get_str(&format!("{}.{}", exchange_account_id, API_KEY))?;
-        let secret_key =
-            &credentials.get_str(&format!("{}.{}", exchange_account_id, SECRET_KEY))?;
+pub fn parse_settings<'a, TSettings>(
+    settings: &str,
+    credentials: &str,
+) -> Result<AppSettings<TSettings>>
+where
+    TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
+{
+    let mut settings: Value = toml::from_str(settings)?;
 
-        exchange.insert(API_KEY.to_owned(), api_key.as_str().into());
-        exchange.insert(SECRET_KEY.to_owned(), secret_key.as_str().into());
+    let exchanges = get_exchanges_mut(&mut settings).ok_or(anyhow!(
+        "Unable to get core.exchanges array from gotten settings"
+    ))?;
 
-        exchanges_with_creds.push(exchange);
+    if !exchanges.is_empty() {
+        let credentials: HashMap<&str, Value> = toml::from_str(credentials)?;
+
+        // Extract creds according to exchange_account_id and add it to every ExchangeSettings
+        for exchange in exchanges {
+            let exchange = exchange
+                .as_table_mut()
+                .ok_or(anyhow!("Unable access to exchange settings as table"))?;
+
+            let exchange_account_id = exchange
+                .get(EXCHANGE_ACCOUNT_ID)
+                .and_then(|v| v.as_str())
+                .ok_or(anyhow!(
+                    "Unable get exchange account id for Exchange in settings"
+                ))?;
+
+            let api_key = credentials
+                .get(exchange_account_id)
+                .and_then(|v| v.get(API_KEY))
+                .and_then(|v| v.as_str())
+                .ok_or(anyhow!("Unable get api_key for Exchange in settings"))?;
+            let secret_key = credentials
+                .get(exchange_account_id)
+                .and_then(|v| v.get(SECRET_KEY))
+                .and_then(|v| v.as_str())
+                .ok_or(anyhow!("Unable get secret_key for Exchange in settings"))?;
+
+            exchange.insert(API_KEY.to_owned(), api_key.into());
+            exchange.insert(SECRET_KEY.to_owned(), secret_key.into());
+        }
     }
 
-    let mut config_with_creds = config::Config::new();
-    config_with_creds.set("core.exchanges", exchanges_with_creds)?;
-
-    settings.merge(config_with_creds)?;
-
-    let decoded = settings.try_into()?;
-
-    Ok(decoded)
+    settings
+        .try_into()
+        .context("Unable parse combined settings")
 }
 
 pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) -> Result<()> {
@@ -99,7 +125,7 @@ fn get_credentials_data(
     exchange_settings: &toml::map::Map<String, Value>,
 ) -> Option<(String, String, String)> {
     let exchange_account_id = exchange_settings
-        .get("exchange_account_id")?
+        .get(EXCHANGE_ACCOUNT_ID)?
         .as_str()?
         .to_owned();
     let api_key = exchange_settings.get(API_KEY)?.as_str()?.to_owned();

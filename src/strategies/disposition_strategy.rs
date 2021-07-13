@@ -15,20 +15,38 @@ use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
 use crate::core::DateTime;
 
-pub struct DispositionStrategy {
+pub trait DispositionStrategy: Send + Sync + 'static {
+    fn calculate_trading_context(
+        &mut self,
+        max_amount: Decimal,
+        now: DateTime,
+        local_snapshots_service: &LocalSnapshotsService,
+        explanation: &mut Explanation,
+    ) -> Option<TradingContext>;
+
+    fn handle_order_fill(
+        &self,
+        cloned_order: &Arc<OrderSnapshot>,
+        price_slot: &PriceSlot,
+        target_eai: &ExchangeAccountId,
+        cancellation_token: CancellationToken,
+    ) -> Result<()>;
+}
+
+pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,
     currency_pair: CurrencyPair,
 }
 
-impl DispositionStrategy {
+impl ExampleStrategy {
     pub fn new(target_eai: ExchangeAccountId, currency_pair: CurrencyPair) -> Self {
-        DispositionStrategy {
+        ExampleStrategy {
             target_eai,
             currency_pair,
         }
     }
 
-    pub fn strategy_name() -> &'static str {
+    fn strategy_name() -> &'static str {
         "ExampleStrategy"
     }
 
@@ -38,32 +56,6 @@ impl DispositionStrategy {
 
     fn trade_place(&self) -> TradePlace {
         self.trade_place_account().trade_place()
-    }
-
-    pub fn calculate_trading_context(
-        &mut self,
-        max_amount: Decimal,
-        now: DateTime,
-        local_snapshots_service: &LocalSnapshotsService,
-        explanation: &mut Explanation,
-    ) -> Option<TradingContext> {
-        let buy_trading_ctx = self.calc_trading_context_by_side(
-            OrderSide::Buy,
-            max_amount,
-            now,
-            local_snapshots_service,
-            explanation.clone(),
-        )?;
-
-        let sell_trading_ctx = self.calc_trading_context_by_side(
-            OrderSide::Sell,
-            max_amount,
-            now,
-            local_snapshots_service,
-            explanation.clone(),
-        )?;
-
-        Some(TradingContext::new(buy_trading_ctx, sell_trading_ctx))
     }
 
     fn calc_trading_context_by_side(
@@ -94,8 +86,36 @@ impl DispositionStrategy {
             }],
         })
     }
+}
 
-    pub fn handle_order_fill(
+impl DispositionStrategy for ExampleStrategy {
+    fn calculate_trading_context(
+        &mut self,
+        max_amount: Decimal,
+        now: DateTime,
+        local_snapshots_service: &LocalSnapshotsService,
+        explanation: &mut Explanation,
+    ) -> Option<TradingContext> {
+        let buy_trading_ctx = self.calc_trading_context_by_side(
+            OrderSide::Buy,
+            max_amount,
+            now,
+            local_snapshots_service,
+            explanation.clone(),
+        )?;
+
+        let sell_trading_ctx = self.calc_trading_context_by_side(
+            OrderSide::Sell,
+            max_amount,
+            now,
+            local_snapshots_service,
+            explanation.clone(),
+        )?;
+
+        Some(TradingContext::new(buy_trading_ctx, sell_trading_ctx))
+    }
+
+    fn handle_order_fill(
         &self,
         _cloned_order: &Arc<OrderSnapshot>,
         _price_slot: &PriceSlot,

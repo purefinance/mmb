@@ -6,7 +6,7 @@ use crate::strategies::disposition_strategy::DispositionStrategy;
 
 pub fn calculate_trading_context(
     max_amount: Amount,
-    strategy: &mut DispositionStrategy,
+    strategy: &mut dyn DispositionStrategy,
     local_snapshots_service: &LocalSnapshotsService,
     now: DateTime,
 ) -> Option<TradingContext> {
