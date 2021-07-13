@@ -67,6 +67,8 @@ pub trait Support: Send + Sync {
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     );
 
+    fn is_enabled_websocket(&self, role: WebSocketRole) -> bool;
+
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri>;
 
     // TODO has to be rewritten. Probably after getting metadata feature

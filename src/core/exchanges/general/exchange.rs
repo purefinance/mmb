@@ -258,10 +258,14 @@ impl Exchange {
                 .boxed()
         });
 
+        let is_enabled_secondary_websocket = self
+            .exchange_client
+            .is_enabled_websocket(WebSocketRole::Secondary);
+
         let is_connected = self
             .connectivity_manager
             .clone()
-            .connect(true, get_websocket_params)
+            .connect(is_enabled_secondary_websocket, get_websocket_params)
             .await;
 
         if !is_connected {

@@ -1,12 +1,13 @@
 #![cfg(test)]
 use anyhow::Result;
 use futures::FutureExt;
+use mmb_lib::core::config::parse_settings;
 use mmb_lib::core::disposition_execution::{PriceSlot, TradingContext};
 use mmb_lib::core::explanation::Explanation;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_lib::core::orders::order::OrderSnapshot;
-use mmb_lib::core::settings::{AppSettings, BaseStrategySettings};
+use mmb_lib::core::settings::BaseStrategySettings;
 use mmb_lib::core::{
     exchanges::common::Amount,
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
@@ -29,11 +30,11 @@ pub struct TestStrategySettings {}
 
 impl BaseStrategySettings for TestStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
-        "TestExchange0".parse().expect("for testing")
+        "Binance0".parse().expect("for testing")
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("base".into(), "quote".into())
+        CurrencyPair::from_codes("eth".into(), "btc".into())
     }
 
     fn max_amount(&self) -> Amount {
@@ -69,7 +70,11 @@ async fn launch_engine() -> Result<()> {
 
     let config = EngineBuildConfig::standard();
 
-    let init_settings = InitSettings::Directly(AppSettings::<TestStrategySettings>::default());
+    let settings = parse_settings::<TestStrategySettings>(
+        include_str!("lifecycle.toml"),
+        include_str!("lifecycle.cred.toml"),
+    )?;
+    let init_settings = InitSettings::Directly(settings);
     let engine = launch_trading_engine(&config, init_settings, |_| Box::new(TestStrategy)).await?;
 
     let context = engine.context();

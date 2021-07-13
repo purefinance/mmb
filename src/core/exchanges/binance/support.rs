@@ -186,6 +186,15 @@ impl Support for Binance {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
+    fn is_enabled_websocket(&self, role: WebSocketRole) -> bool {
+        match role {
+            WebSocketRole::Main => true,
+            WebSocketRole::Secondary => {
+                self.settings.api_key != "" && self.settings.secret_key == ""
+            }
+        }
+    }
+
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri> {
         let (host, path) = match role {
             WebSocketRole::Main => (
