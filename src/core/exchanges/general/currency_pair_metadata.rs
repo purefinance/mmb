@@ -36,10 +36,11 @@ pub enum BeforeAfter {
 
 pub const CURRENCY_PAIR_METADATA_DEFAULT_PRECISION: i8 = i8::MAX;
 
+#[derive(Debug, Clone)]
 enum Precision {
     ByTick { tick: Decimal },
-    ByMantisa { precesion: i8 },
-    ByFraction { precesion: i8 },
+    ByMantisa { precision: i8 },
+    ByFraction { precision: i8 },
 }
 
 #[derive(Debug, Clone)]

@@ -40,6 +40,10 @@ impl Exchange {
         let supported_symbols = symbols
             .into_iter()
             .filter(|s| {
+                //if let Some(precision) = symbol.amount_precision {
+
+                //}
+                let test = symbol.amount_precision;
                 s.amount_precision != CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
                     && s.price_precision != CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
             })
