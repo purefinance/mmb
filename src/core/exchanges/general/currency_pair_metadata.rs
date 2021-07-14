@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 use crate::core::{
@@ -35,6 +36,12 @@ pub enum BeforeAfter {
 
 pub const CURRENCY_PAIR_METADATA_DEFAULT_PRECISION: i8 = i8::MAX;
 
+enum Precision {
+    ByTick { tick: Decimal },
+    ByMantisa { precesion: i8 },
+    ByFraction { precesion: i8 },
+}
+
 #[derive(Debug, Clone)]
 pub struct CurrencyPairMetadata {
     pub is_active: bool,
@@ -45,17 +52,13 @@ pub struct CurrencyPairMetadata {
     pub quote_currency_code: CurrencyCode,
     pub min_price: Option<Price>,
     pub max_price: Option<Price>,
-    pub price_precision: i8,
-    pub price_precision_type: PrecisionType,
-    pub price_tick: Option<Price>,
     pub amount_currency_code: CurrencyCode,
     pub min_amount: Option<Amount>,
     pub max_amount: Option<Amount>,
-    pub amount_precision: i8,
-    pub amount_precision_type: PrecisionType,
-    pub amount_tick: Option<Amount>,
     pub min_cost: Option<Price>,
     pub balance_currency_code: Option<CurrencyCode>,
+    pub price_precision: Precision,
+    pub amount_precision: Precision,
 }
 
 impl CurrencyPairMetadata {
@@ -76,17 +79,13 @@ impl CurrencyPairMetadata {
         quote_currency_code: CurrencyCode,
         min_price: Option<Price>,
         max_price: Option<Price>,
-        price_precision: i8,
-        price_precision_type: PrecisionType,
-        price_tick: Option<Price>,
         amount_currency_code: CurrencyCode,
         min_amount: Option<Amount>,
         max_amount: Option<Amount>,
-        amount_precision: i8,
-        amount_precision_type: PrecisionType,
-        amount_tick: Option<Amount>,
         min_cost: Option<Price>,
         balance_currency_code: Option<CurrencyCode>,
+        price_precision: Price,
+        amount_precision: Amount,
     ) -> Self {
         Self {
             is_active,
@@ -97,17 +96,13 @@ impl CurrencyPairMetadata {
             quote_currency_code,
             min_price,
             max_price,
-            price_precision,
-            price_precision_type,
-            price_tick,
             amount_currency_code,
             min_amount,
             max_amount,
-            amount_precision,
-            amount_precision_type,
-            amount_tick,
             min_cost,
             balance_currency_code,
+            price_precision,
+            amount_precision,
         }
     }
 
