@@ -30,6 +30,12 @@ pub enum BeforeAfter {
 
 pub const CURRENCY_PAIR_METADATA_DEFAULT_PRECISION: i8 = i8::MAX;
 
+enum Precision {
+    ByTick { tick: Decimal },
+    ByMantissa { precision: i8 },
+    ByFraction { precision: i8 },
+}
+
 #[derive(Debug, Clone)]
 pub enum Precision {
     ByTick { tick: Decimal },
@@ -47,11 +53,12 @@ pub struct CurrencyPairMetadata {
     pub quote_currency_code: CurrencyCode,
     pub min_price: Option<Price>,
     pub max_price: Option<Price>,
-    pub amount_currency_code: CurrencyCode,
     pub min_amount: Option<Amount>,
     pub max_amount: Option<Amount>,
     pub min_cost: Option<Price>,
+    pub amount_currency_code: CurrencyCode,
     pub balance_currency_code: Option<CurrencyCode>,
+
     pub price_precision: Precision,
     pub amount_precision: Precision,
 }

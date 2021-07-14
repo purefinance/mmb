@@ -166,6 +166,7 @@ impl From<&str> for SpecificCurrencyPair {
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
+/// Currency in Exchange format, e.g. ETH, BTC
 pub struct CurrencyId(String4);
 
 impl CurrencyId {
@@ -188,6 +189,7 @@ impl From<&str> for CurrencyId {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
+/// Currency in local format, e.g. eth, btc
 pub struct CurrencyCode(String4);
 
 impl CurrencyCode {

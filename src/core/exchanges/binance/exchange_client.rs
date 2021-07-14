@@ -12,12 +12,13 @@ use async_trait::async_trait;
 #[async_trait]
 impl ExchangeClient for Binance {
     async fn request_metadata(&self) -> Result<RestRequestOutcome> {
-        // TODO implement request metadata
-        Ok(RestRequestOutcome::new(
-            // just stub
-            "[0]".into(),
-            awc::http::StatusCode::OK,
-        ))
+        // FIXME figure out about spot, margin, future etc.
+        let url_path = "/api/v3/exchangeInfo";
+        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
+
+        let full_metadata = self.rest_client.get(full_url, &self.settings.api_key).await;
+
+        full_metadata
     }
 
     async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome> {
@@ -52,6 +53,8 @@ impl ExchangeClient for Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let url_path = match self.settings.is_margin_trading {
+            // FIXME is that real case? There are no /fapi* endpoint in actual Binance docs
+            // FIXME maybe need to test it
             true => "/fapi/v1/order",
             false => "/api/v3/order",
         };

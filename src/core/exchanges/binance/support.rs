@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::prelude::*;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -9,7 +11,7 @@ use itertools::Itertools;
 use log::{error, info};
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use super::binance::Binance;
 use crate::core::exchanges::common::SortedOrderData;
@@ -256,63 +258,95 @@ impl Support for Binance {
 
     fn parse_metadata(
         &self,
-        _response: &RestRequestOutcome,
+        response: &RestRequestOutcome,
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
-        // TODO parse metadata
-        // This is just a stub
-        Ok(vec![
-            Arc::new(CurrencyPairMetadata {
-                base_currency_id: "PHB".into(),
-                base_currency_code: "phb".into(),
-                quote_currency_id: "BTC".into(),
-                quote_currency_code: "btc".into(),
-                is_active: true,
-                is_derivative: true,
-                min_price: Some(dec!(0.00000001)),
-                max_price: Some(dec!(1000)),
-                amount_currency_code: "phb".into(),
-                min_amount: Some(dec!(1)),
-                max_amount: Some(dec!(90000000)),
-                min_cost: Some(dec!(0.0001)),
-                balance_currency_code: Some("phb".into()),
-                price_precision: Precision::ByFraction { precision: 8 },
-                amount_precision: Precision::ByFraction { precision: 0 },
-            }),
-            Arc::new(CurrencyPairMetadata {
-                base_currency_id: "ETH".into(),
-                base_currency_code: "eth".into(),
-                quote_currency_id: "BTC".into(),
-                quote_currency_code: "btc".into(),
-                is_active: true,
-                is_derivative: true,
-                min_price: Some(dec!(0.000001)),
-                max_price: Some(dec!(922327)),
-                amount_currency_code: "eth".into(),
-                min_amount: Some(dec!(0.001)),
-                max_amount: Some(dec!(100000)),
-                min_cost: Some(dec!(0.0001)),
-                balance_currency_code: Some("eth".into()),
-                price_precision: Precision::ByFraction { precision: 6 },
-                amount_precision: Precision::ByFraction { precision: 3 },
-            }),
-            Arc::new(CurrencyPairMetadata {
-                base_currency_id: "EOS".into(),
-                base_currency_code: "eos".into(),
-                quote_currency_id: "BTC".into(),
-                quote_currency_code: "btc".into(),
-                is_active: true,
-                is_derivative: true,
-                min_price: Some(dec!(0.0000001)),
-                max_price: Some(dec!(1000)),
-                amount_currency_code: "eos".into(),
-                min_amount: Some(dec!(0.01)),
-                max_amount: Some(dec!(90000000)),
-                min_cost: Some(dec!(0.0001)),
-                balance_currency_code: Some("eos".into()),
-                price_precision: Precision::ByFraction { precision: 7 },
-                amount_precision: Precision::ByFraction { precision: 2 },
-            }),
-        ])
+        let deserialized: Value = serde_json::from_str(&response.content)?;
+        // FIXME extract to function
+        let symbols = deserialized
+            .get("symbols")
+            .ok_or(anyhow!("There are no symbols table in metadata"))
+            .expect("Error")
+            .as_array()
+            .ok_or(anyhow!("Unable to get symbols metadata array"))
+            .expect("Error");
+        for symbol in symbols {
+            let is_active = if symbol["status"] == "TRADING" {
+                true
+            } else {
+                false
+            };
+
+            // FIXME Why some fields are not using? isMarginTragdingAllowed
+            // TODO How to get is_derivative properly?
+            let is_derivative = true;
+            let base_currency_id = &symbol.get_as_str("baseAsset")?;
+            let base_currency_code = base_currency_id.to_lowercase();
+            let quote_currency_id = &symbol.get_as_str("quoteAsset")?;
+            let quote_currency_code = quote_currency_id.to_lowercase();
+            let amount_currency_code = quote_currency_code;
+            // FIXME What is it and how to properly use it?
+            //let balance_currency_code = None;
+
+            // FIXME todo
+            //let price_precision..
+
+            // FIXME todo
+            //let amount_precision..
+
+            // FIXME it handling inside filters
+            //let min_amount = None;
+            //let max_amount = None;
+            //// FIXME it handling inside filters
+            //let min_price = None;
+            //let max_price = None;
+            //let min_cost = None;
+
+            let filters = symbol
+                .get("filters")
+                .ok_or(anyhow!("Unable to get filters"))?
+                .as_array()
+                .ok_or(anyhow!("Unable to get filters as array"))?;
+            for filter in filters {
+                let filter_name = filter.get_as_str("filterType")?;
+                //let filter = filter
+                //    .as_object()
+                //    .ok_or(anyhow!("Unable to get filter as an object"))?
+                //    .clone();
+                match filter_name.as_str() {
+                    "PRICE_FILTER" => {
+                        let min_price = filter.get_as_str("minPrice")?;
+                        let max_price = filter.get_as_str("maxPrice")?;
+                        let price_tick = filter.get_as_str("tickSize")?;
+                    }
+                    "LOT_SIZE" => {
+                        let min_amount = filter.get_as_str("minQty")?;
+                        let max_amount = filter.get_as_str("maxQty")?;
+                        let amount_precision = filter.get_as_str("stepSize")?;
+                    }
+                    "MIN_NOTIONAL" => {
+                        let min_cost = filter.get_as_str("minNotional")?;
+                    }
+                    _ => {}
+                }
+            }
+            //let filters_by_type =
+        }
+        todo!()
+    }
+}
+
+trait GetOrErr {
+    fn get_as_str(&self, key: &str) -> Result<String>;
+}
+
+impl GetOrErr for Value {
+    fn get_as_str(&self, key: &str) -> Result<String> {
+        Ok(self
+            .get(key)
+            .ok_or(anyhow!("Unable to get {}", key))?
+            .as_str()
+            .ok_or(anyhow!("Unable to get {} as string", key))?
+            .to_string())
     }
 }
 

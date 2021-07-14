@@ -59,6 +59,8 @@ impl Exchange {
             );
         }
 
+        // FIXME adjustForTimeDifference and loadTimeDifference?
+
         match self.exchange_client.parse_metadata(&response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
