@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::prelude::*;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -11,17 +9,19 @@ use dashmap::DashMap;
 use itertools::Itertools;
 use log::{error, info};
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use super::binance::Binance;
-use crate::core::exchanges::common::SortedOrderData;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
     general::currency_pair_metadata::CurrencyPairMetadata,
     general::handlers::handle_order_filled::FillEventData, traits::Support,
+};
+use crate::core::exchanges::{
+    common::SortedOrderData,
+    general::currency_pair_metadata::CURRENCY_PAIR_METADATA_DEFAULT_PRECISION,
 };
 use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
@@ -291,8 +291,8 @@ impl Support for Binance {
             let mut min_price = None;
             let mut max_price = None;
             let mut min_cost = None;
-            let mut price_tick;
-            let mut amount_tick;
+            let mut price_tick = None;
+            let mut amount_tick = None;
 
             let filters = symbol
                 .get("filters")
@@ -302,26 +302,38 @@ impl Support for Binance {
                 let filter_name = filter.get_as_str("filterType")?;
                 match filter_name.as_str() {
                     "PRICE_FILTER" => {
-                        min_price = Some(filter.get_as_decimal("minPrice")?);
-                        max_price = Some(filter.get_as_decimal("maxPrice")?);
-                        price_tick = Some(filter.get_as_decimal("tickSize")?);
+                        min_price = filter.get_as_decimal("minPrice");
+                        max_price = filter.get_as_decimal("maxPrice");
+                        price_tick = filter.get_as_decimal("tickSize");
                     }
                     "LOT_SIZE" => {
-                        min_amount = Some(filter.get_as_decimal("minQty")?);
-                        max_amount = Some(filter.get_as_decimal("maxQty")?);
-                        amount_tick = Some(filter.get_as_decimal("stepSize")?);
+                        min_amount = filter.get_as_decimal("minQty");
+                        max_amount = filter.get_as_decimal("maxQty");
+                        amount_tick = filter.get_as_decimal("stepSize");
                     }
                     "MIN_NOTIONAL" => {
-                        min_cost = Some(filter.get_as_decimal("minNotional")?);
-                        dbg!(&min_cost);
+                        min_cost = filter.get_as_decimal("minNotional");
                     }
                     _ => {}
                 }
             }
 
-            let price_precision = Precision::ByFraction { precision: 0 };
+            // FIXME Evgeniy, is that right logic?
+            let price_precision = if let Some(tick) = price_tick {
+                Precision::ByTick { tick }
+            } else {
+                Precision::ByFraction {
+                    precision: CURRENCY_PAIR_METADATA_DEFAULT_PRECISION,
+                }
+            };
 
-            let amount_precision = Precision::ByFraction { precision: 0 };
+            let amount_precision = if let Some(tick) = amount_tick {
+                Precision::ByTick { tick }
+            } else {
+                Precision::ByFraction {
+                    precision: CURRENCY_PAIR_METADATA_DEFAULT_PRECISION,
+                }
+            };
 
             let currency_pair_metadata = CurrencyPairMetadata::new(
                 is_active,
@@ -341,7 +353,6 @@ impl Support for Binance {
                 amount_precision,
             );
 
-            dbg!(&currency_pair_metadata);
             result.push(Arc::new(currency_pair_metadata))
         }
 
@@ -351,7 +362,7 @@ impl Support for Binance {
 
 trait GetOrErr {
     fn get_as_str(&self, key: &str) -> Result<String>;
-    fn get_as_decimal(&self, key: &str) -> Result<Decimal>;
+    fn get_as_decimal(&self, key: &str) -> Option<Decimal>;
 }
 
 impl GetOrErr for Value {
@@ -364,8 +375,10 @@ impl GetOrErr for Value {
             .to_string())
     }
 
-    fn get_as_decimal(&self, key: &str) -> Result<Decimal> {
-        Decimal::from_str(&self.get_as_str(key)?).map_err(|error| error.into())
+    fn get_as_decimal(&self, key: &str) -> Option<Decimal> {
+        self.get(key)
+            .and_then(|value| value.as_str())
+            .and_then(|value| Decimal::from_str(value).ok())
     }
 }
 
