@@ -21,12 +21,6 @@ pub enum Round {
     ToNearest,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum PrecisionType {
-    ByFraction,
-    ByMantissa,
-}
-
 // TODO Change to Maker-Taker
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BeforeAfter {
