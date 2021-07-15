@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -9,6 +10,7 @@ use chrono::Utc;
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::{error, info};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -261,14 +263,12 @@ impl Support for Binance {
         response: &RestRequestOutcome,
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
         let deserialized: Value = serde_json::from_str(&response.content)?;
-        // FIXME extract to function
         let symbols = deserialized
             .get("symbols")
-            .ok_or(anyhow!("There are no symbols table in metadata"))
-            .expect("Error")
-            .as_array()
-            .ok_or(anyhow!("Unable to get symbols metadata array"))
-            .expect("Error");
+            .and_then(|symbols| symbols.as_array())
+            .ok_or(anyhow!("Unable to get symbols metadata array"))?;
+
+        let mut result = Vec::new();
         for symbol in symbols {
             let is_active = if symbol["status"] == "TRADING" {
                 true
@@ -276,67 +276,82 @@ impl Support for Binance {
                 false
             };
 
-            // FIXME Why some fields are not using? isMarginTragdingAllowed
-            // TODO How to get is_derivative properly?
-            let is_derivative = true;
+            // TODO There is no work with dereivatives in current version
+            let is_derivative = false;
             let base_currency_id = &symbol.get_as_str("baseAsset")?;
             let base_currency_code = base_currency_id.to_lowercase();
             let quote_currency_id = &symbol.get_as_str("quoteAsset")?;
             let quote_currency_code = quote_currency_id.to_lowercase();
-            let amount_currency_code = quote_currency_code;
-            // FIXME What is it and how to properly use it?
-            //let balance_currency_code = None;
+            let amount_currency_code = quote_currency_code.clone();
+            // TODO There are no balance_currency_code for spot, why does it set here this way?
+            let balance_currency_code = base_currency_code.clone();
 
-            // FIXME todo
-            //let price_precision..
-
-            // FIXME todo
-            //let amount_precision..
-
-            // FIXME it handling inside filters
-            //let min_amount = None;
-            //let max_amount = None;
-            //// FIXME it handling inside filters
-            //let min_price = None;
-            //let max_price = None;
-            //let min_cost = None;
+            let mut min_amount = None;
+            let mut max_amount = None;
+            let mut min_price = None;
+            let mut max_price = None;
+            let mut min_cost = None;
+            let mut price_tick;
+            let mut amount_tick;
 
             let filters = symbol
                 .get("filters")
-                .ok_or(anyhow!("Unable to get filters"))?
-                .as_array()
+                .and_then(|filters| filters.as_array())
                 .ok_or(anyhow!("Unable to get filters as array"))?;
             for filter in filters {
                 let filter_name = filter.get_as_str("filterType")?;
-                //let filter = filter
-                //    .as_object()
-                //    .ok_or(anyhow!("Unable to get filter as an object"))?
-                //    .clone();
                 match filter_name.as_str() {
                     "PRICE_FILTER" => {
-                        let min_price = filter.get_as_str("minPrice")?;
-                        let max_price = filter.get_as_str("maxPrice")?;
-                        let price_tick = filter.get_as_str("tickSize")?;
+                        min_price = Some(filter.get_as_decimal("minPrice")?);
+                        max_price = Some(filter.get_as_decimal("maxPrice")?);
+                        price_tick = Some(filter.get_as_decimal("tickSize")?);
                     }
                     "LOT_SIZE" => {
-                        let min_amount = filter.get_as_str("minQty")?;
-                        let max_amount = filter.get_as_str("maxQty")?;
-                        let amount_precision = filter.get_as_str("stepSize")?;
+                        min_amount = Some(filter.get_as_decimal("minQty")?);
+                        max_amount = Some(filter.get_as_decimal("maxQty")?);
+                        amount_tick = Some(filter.get_as_decimal("stepSize")?);
                     }
                     "MIN_NOTIONAL" => {
-                        let min_cost = filter.get_as_str("minNotional")?;
+                        min_cost = Some(filter.get_as_decimal("minNotional")?);
+                        dbg!(&min_cost);
                     }
                     _ => {}
                 }
             }
-            //let filters_by_type =
+
+            let price_precision = Precision::ByFraction { precision: 0 };
+
+            let amount_precision = Precision::ByFraction { precision: 0 };
+
+            let currency_pair_metadata = CurrencyPairMetadata::new(
+                is_active,
+                is_derivative,
+                base_currency_id.as_str().into(),
+                base_currency_code.as_str().into(),
+                quote_currency_id.as_str().into(),
+                quote_currency_code.as_str().into(),
+                min_price,
+                max_price,
+                amount_currency_code.as_str().into(),
+                min_amount,
+                max_amount,
+                min_cost,
+                Some(balance_currency_code.as_str().into()),
+                price_precision,
+                amount_precision,
+            );
+
+            dbg!(&currency_pair_metadata);
+            result.push(Arc::new(currency_pair_metadata))
         }
-        todo!()
+
+        Ok(result)
     }
 }
 
 trait GetOrErr {
     fn get_as_str(&self, key: &str) -> Result<String>;
+    fn get_as_decimal(&self, key: &str) -> Result<Decimal>;
 }
 
 impl GetOrErr for Value {
@@ -347,6 +362,10 @@ impl GetOrErr for Value {
             .as_str()
             .ok_or(anyhow!("Unable to get {} as string", key))?
             .to_string())
+    }
+
+    fn get_as_decimal(&self, key: &str) -> Result<Decimal> {
+        Decimal::from_str(&self.get_as_str(key)?).map_err(|error| error.into())
     }
 }
 
