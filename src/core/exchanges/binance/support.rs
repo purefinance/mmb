@@ -12,10 +12,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::binance::Binance;
-use crate::core::connectivity::connectivity_manager::WebSocketRole;
 use crate::core::exchanges::common::SortedOrderData;
 use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::general::currency_pair_metadata::PrecisionType;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
     general::currency_pair_metadata::CurrencyPairMetadata,
@@ -24,6 +22,10 @@ use crate::core::exchanges::{
 use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::order::*;
+use crate::core::{
+    connectivity::connectivity_manager::WebSocketRole,
+    exchanges::general::currency_pair_metadata::Precision,
+};
 use crate::core::{
     exchanges::common::{
         Amount, CurrencyPair, ExchangeError, ExchangeErrorType, Price, RestRequestOutcome,
@@ -273,6 +275,8 @@ impl Support for Binance {
                 max_amount: Some(dec!(90000000)),
                 min_cost: Some(dec!(0.0001)),
                 balance_currency_code: Some("phb".into()),
+                price_precision: Precision::ByFraction { precision: 8 },
+                amount_precision: Precision::ByFraction { precision: 0 },
             }),
             Arc::new(CurrencyPairMetadata {
                 base_currency_id: "ETH".into(),

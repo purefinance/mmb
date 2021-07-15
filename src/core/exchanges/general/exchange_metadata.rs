@@ -39,13 +39,22 @@ impl Exchange {
 
         let supported_symbols = symbols
             .into_iter()
-            .filter(|s| {
-                //if let Some(precision) = symbol.amount_precision {
+            .filter(|symbol| {
+                let amount_precision = symbol.amount_precision.get_precision();
 
-                //}
-                let test = symbol.amount_precision;
-                s.amount_precision != CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
-                    && s.price_precision != CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
+                let price_precision = symbol.price_precision.get_precision();
+
+                if let Some(amount_precision) = amount_precision {
+                    if let Some(price_precision) = price_precision {
+                        if amount_precision == CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
+                            && price_precision == CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
+                        {
+                            return false;
+                        }
+                    }
+                }
+
+                false
             })
             .collect_vec();
 
