@@ -6,7 +6,7 @@ use dashmap::DashMap;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use log::error;
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use serde_json::Value;
 use sha2::Sha256;
 use tokio::sync::broadcast;
@@ -31,7 +31,6 @@ use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
-use crate::hashmap;
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -42,8 +41,10 @@ pub struct Binance {
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
 
-    pub unified_to_specific: HashMap<CurrencyPair, SpecificCurrencyPair>,
-    pub specific_to_unified: HashMap<SpecificCurrencyPair, CurrencyPair>,
+    // FIXME Evgeniy, I put RwLock here cause parse_metadata needs interior mutability (insertion)
+    // FIXME And RwLock are easier to use than DashMap. Is this OK?
+    pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
+    pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
 
     pub(super) application_manager: Arc<ApplicationManager>,
@@ -62,35 +63,13 @@ impl Binance {
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
     ) -> Self {
-        // TODO replace with list received from exchange
-        // just the stub
-        let unified_phbbtc = CurrencyPair::from_codes("phb".into(), "btc".into());
-        let unified_ethbtc = CurrencyPair::from_codes("eth".into(), "btc".into());
-        let unified_eosbtc = CurrencyPair::from_codes("eos".into(), "btc".into());
-
-        let specific_phbbtc = SpecificCurrencyPair::new("PHBBTC".into());
-        let specific_ethbtc = SpecificCurrencyPair::new("ETHBTC".into());
-        let specific_eosbtc = SpecificCurrencyPair::new("EOSBTC".into());
-
-        let unified_to_specific = hashmap![
-            unified_phbbtc.clone() => specific_phbbtc.clone(),
-            unified_ethbtc.clone() => specific_ethbtc.clone(),
-            unified_eosbtc.clone() => specific_eosbtc.clone()
-        ];
-
-        let specific_to_unified = hashmap![
-            specific_phbbtc => unified_phbbtc,
-            specific_ethbtc => unified_ethbtc,
-            specific_eosbtc => unified_eosbtc
-        ];
-
         Self {
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
             handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
-            unified_to_specific,
-            specific_to_unified,
+            unified_to_specific: Default::default(),
+            specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
             settings,
@@ -190,7 +169,7 @@ impl Binance {
         &self,
         currency_pair: &SpecificCurrencyPair,
     ) -> Result<CurrencyPair> {
-        match self.specific_to_unified.get(&currency_pair) {
+        match self.specific_to_unified.read().get(&currency_pair) {
             None => bail!(
                 "Not found currency pair '{:?}' in {}",
                 currency_pair,

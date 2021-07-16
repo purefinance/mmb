@@ -71,7 +71,6 @@ pub trait Support: Send + Sync {
 
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri>;
 
-    // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
 
     fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode>;

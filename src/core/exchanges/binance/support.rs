@@ -219,7 +219,7 @@ impl Support for Binance {
     }
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
-        self.unified_to_specific[currency_pair].clone()
+        self.unified_to_specific.read()[currency_pair].clone()
     }
 
     fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode> {
@@ -279,10 +279,26 @@ impl Support for Binance {
             // TODO There is no work with dereivatives in current version
             let is_derivative = false;
             let base_currency_id = &symbol.get_as_str("baseAsset")?;
-            let base_currency_code = base_currency_id.to_lowercase();
             let quote_currency_id = &symbol.get_as_str("quoteAsset")?;
-            let quote_currency_code = quote_currency_id.to_lowercase();
+            let base_currency_code = CurrencyCode::from(base_currency_id.to_lowercase().as_str());
+            let quote_currency_code = CurrencyCode::from(quote_currency_id.to_lowercase().as_str());
+
+            let specific_currency_pair =
+                SpecificCurrencyPair::from(symbol.get_as_str("symbol")?.as_str());
+            let unified_currency_pair =
+                CurrencyPair::from_codes(base_currency_code.clone(), quote_currency_code.clone());
+            self.unified_to_specific.write().insert(
+                unified_currency_pair.clone(),
+                specific_currency_pair.clone(),
+            );
+
+            self.specific_to_unified.write().insert(
+                specific_currency_pair.clone(),
+                unified_currency_pair.clone(),
+            );
+
             let amount_currency_code = quote_currency_code.clone();
+
             // TODO There are no balance_currency_code for spot, why does it set here this way?
             let balance_currency_code = base_currency_code.clone();
 
@@ -335,13 +351,18 @@ impl Support for Binance {
                 }
             };
 
+            dbg!(&self.get_specific_currency_pair(&CurrencyPair::from_codes(
+                base_currency_id.clone().as_str().into(),
+                quote_currency_id.clone().as_str().into()
+            )));
+
             let currency_pair_metadata = CurrencyPairMetadata::new(
                 is_active,
                 is_derivative,
                 base_currency_id.as_str().into(),
-                base_currency_code.as_str().into(),
+                base_currency_code,
                 quote_currency_id.as_str().into(),
-                quote_currency_code.as_str().into(),
+                quote_currency_code,
                 min_price,
                 max_price,
                 amount_currency_code.as_str().into(),
@@ -458,6 +479,7 @@ impl Binance {
     fn build_ws_main_path(&self, websocket_channels: &[String]) -> String {
         let stream_names = self
             .specific_to_unified
+            .read()
             .keys()
             .flat_map(|currency_pair| {
                 let mut results = Vec::new();
