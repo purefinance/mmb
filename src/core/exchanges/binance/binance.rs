@@ -12,7 +12,6 @@ use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
@@ -31,6 +30,7 @@ use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
+use crate::{core::exchanges::events::ExchangeEvent, hashmap};
 
 pub struct Binance {
     pub settings: ExchangeSettings,

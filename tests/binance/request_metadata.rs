@@ -86,11 +86,12 @@ async fn request_metadata() {
         price: dec!(0.0000001),
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
         .expect("in test");
-    exchange.build_metadata().await;
 
     //match created_order {
     //    Ok(order_ref) => {

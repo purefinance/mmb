@@ -351,11 +351,6 @@ impl Support for Binance {
                 }
             };
 
-            dbg!(&self.get_specific_currency_pair(&CurrencyPair::from_codes(
-                base_currency_id.clone().as_str().into(),
-                quote_currency_id.clone().as_str().into()
-            )));
-
             let currency_pair_metadata = CurrencyPairMetadata::new(
                 is_active,
                 is_derivative,
