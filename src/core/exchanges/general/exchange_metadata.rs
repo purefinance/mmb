@@ -59,7 +59,7 @@ impl Exchange {
             );
         }
 
-        // FIXME adjustForTimeDifference and loadTimeDifference?
+        // FIXME adjustForTimeDifference and loadTimeDifference() from ccxt?
 
         match self.exchange_client.parse_metadata(&response) {
             symbols @ Ok(_) => symbols,

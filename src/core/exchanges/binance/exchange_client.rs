@@ -12,7 +12,7 @@ use async_trait::async_trait;
 #[async_trait]
 impl ExchangeClient for Binance {
     async fn request_metadata(&self) -> Result<RestRequestOutcome> {
-        // FIXME figure out about spot, margin, future etc.
+        // FIXME as I can see, C# call Ccxt without params, so it always will use spot API as link below
         let url_path = "/api/v3/exchangeInfo";
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
 
@@ -53,8 +53,6 @@ impl ExchangeClient for Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let url_path = match self.settings.is_margin_trading {
-            // FIXME is that real case? There are no /fapi* endpoint in actual Binance docs
-            // FIXME maybe need to test it
             true => "/fapi/v1/order",
             false => "/api/v3/order",
         };

@@ -318,7 +318,7 @@ impl Support for Binance {
                 }
             }
 
-            // FIXME Evgeniy, is that right logic?
+            // FIXME Evgeniy, is that correct logic about precisions?
             let price_precision = if let Some(tick) = price_tick {
                 Precision::ByTick { tick }
             } else {
