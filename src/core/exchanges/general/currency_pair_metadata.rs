@@ -37,16 +37,6 @@ pub enum Precision {
     ByMantisa { precision: i8 },
 }
 
-impl Precision {
-    pub fn get_precision(&self) -> Option<i8> {
-        match self {
-            Precision::ByMantisa { precision } => Some(*precision),
-            Precision::ByFraction { precision } => Some(*precision),
-            Precision::ByTick { tick: _ } => None,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct CurrencyPairMetadata {
     pub is_active: bool,
@@ -175,19 +165,18 @@ impl CurrencyPairMetadata {
     }
 
     pub fn round_to_remove_amount_precision_error(&self, amount: Amount) -> Result<Amount> {
-        // FIXME Ecgeniy, is that correct logic?
         // allowed machine error that is less then 0.01 * amount precision
         match self.amount_precision {
             Precision::ByFraction { precision } | Precision::ByMantisa { precision } => {
                 self.amount_round_precision(amount, Round::ToNearest, precision + 2i8)
             }
             Precision::ByTick { tick: _ } => {
-                bail!("Unable to round based on precision: there is only ByTick variant")
+                Self::round_by_tick(amount, dec!(0.01), Round::ToNearest)
             }
         }
     }
 
-    fn round_by_tick(value: Price, tick: Price, round: Round) -> Result<Price> {
+    fn round_by_tick(value: Decimal, tick: Decimal, round: Round) -> Result<Decimal> {
         if tick <= dec!(0) {
             bail!("Too small tick: {}", tick)
         }
@@ -195,7 +184,7 @@ impl CurrencyPairMetadata {
         Ok(Self::inner_round_by_tick(value, tick, round))
     }
 
-    fn inner_round_by_tick(value: Price, tick: Price, round: Round) -> Price {
+    fn inner_round_by_tick(value: Decimal, tick: Decimal, round: Round) -> Decimal {
         let floor = (value / tick).floor() * tick;
         let ceil = (value / tick).ceil() * tick;
 
