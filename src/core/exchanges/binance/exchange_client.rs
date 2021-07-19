@@ -16,9 +16,7 @@ impl ExchangeClient for Binance {
         let url_path = "/api/v3/exchangeInfo";
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
 
-        let full_metadata = self.rest_client.get(full_url, &self.settings.api_key).await;
-
-        full_metadata
+        self.rest_client.get(full_url, &self.settings.api_key).await
     }
 
     async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome> {

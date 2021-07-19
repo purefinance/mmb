@@ -149,8 +149,6 @@ async fn should_fail() {
     let (tx, _rx) = broadcast::channel(10);
 
     BinanceBuilder.extend_settings(&mut settings);
-    settings.web_socket_host = "https://host.com".into();
-    settings.web_socket2_host = "https://host2.com".into();
     let binance = Binance::new(
         exchange_account_id.clone(),
         settings,
@@ -192,7 +190,7 @@ async fn should_fail() {
 
     let order_to_create = OrderCreating {
         header: order_header,
-        price: dec!(0.0000001),
+        price: dec!(0.0000000000000000001),
     };
 
     // Should be called before any other api calls!
@@ -207,7 +205,7 @@ async fn should_fail() {
         }
         Err(error) => {
             assert_eq!(
-                "Delete it in the future. Exchange error: Unable to send POST request: client requires absolute-form URIs",
+                "Delete it in the future. Exchange error: Precision is over the maximum defined for this asset.",
                 error.to_string()
             );
         }

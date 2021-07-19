@@ -23,11 +23,14 @@ impl Exchange {
                 Err(error) => {
                     if retry < MAX_RETRIES {
                         warn!(
-                            "We got empty metadata for {} with error: {:?}",
+                            "Unable to get metadata for {}: {:?}",
                             self.exchange_account_id, error
                         );
                     } else {
-                        panic!("We got empty metadata for {}", self.exchange_account_id);
+                        panic!(
+                            "Unable to get metadata for {}: {:?}",
+                            self.exchange_account_id, error
+                        );
                     }
                 }
             }
