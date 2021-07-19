@@ -170,8 +170,8 @@ impl CurrencyPairMetadata {
             Precision::ByFraction { precision } | Precision::ByMantisa { precision } => {
                 self.amount_round_precision(amount, Round::ToNearest, precision + 2i8)
             }
-            Precision::ByTick { tick: _ } => {
-                Self::round_by_tick(amount, dec!(0.01), Round::ToNearest)
+            Precision::ByTick { tick } => {
+                Self::round_by_tick(amount, tick * dec!(0.01), Round::ToNearest)
             }
         }
     }
