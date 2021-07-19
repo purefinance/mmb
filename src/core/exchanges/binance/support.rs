@@ -192,6 +192,10 @@ impl Support for Binance {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
+    fn set_current_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
+        *self.current_specific_currencies.lock() = currencies;
+    }
+
     fn is_enabled_websocket(&self, role: WebSocketRole) -> bool {
         match role {
             WebSocketRole::Main => true,
@@ -473,9 +477,9 @@ impl Binance {
 
     fn build_ws_main_path(&self, websocket_channels: &[String]) -> String {
         let stream_names = self
-            .specific_to_unified
-            .read()
-            .keys()
+            .current_specific_currencies
+            .lock()
+            .iter()
             .flat_map(|currency_pair| {
                 let mut results = Vec::new();
                 for channel in websocket_channels {

@@ -92,8 +92,15 @@ impl Exchange {
         currencies.dedup();
         *self.currencies.lock() = currencies;
 
+        let mut current_specific_currencies = Vec::new();
         symbols.iter().for_each(|symbol| {
             self.symbols.insert(symbol.currency_pair(), symbol.clone());
+            current_specific_currencies.push(
+                self.exchange_client
+                    .get_specific_currency_pair(&symbol.currency_pair()),
+            );
         });
+        self.exchange_client
+            .set_current_specific_currencies(current_specific_currencies);
     }
 }

@@ -46,6 +46,7 @@ pub struct Binance {
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
+    pub current_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
 
     pub(super) application_manager: Arc<ApplicationManager>,
 
@@ -71,6 +72,7 @@ impl Binance {
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
+            current_specific_currencies: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
             settings,
             events_channel,

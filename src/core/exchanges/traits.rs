@@ -67,6 +67,8 @@ pub trait Support: Send + Sync {
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     );
 
+    fn set_current_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>);
+
     fn is_enabled_websocket(&self, role: WebSocketRole) -> bool;
 
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri>;
