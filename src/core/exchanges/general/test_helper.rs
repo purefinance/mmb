@@ -5,7 +5,10 @@ use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 
-use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
+use super::{
+    currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Precision,
+    exchange::Exchange,
+};
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
@@ -16,7 +19,6 @@ use crate::core::{
     exchanges::common::CurrencyPair, exchanges::common::ExchangeAccountId,
     exchanges::common::Price, exchanges::events::AllowedEventSourceType,
     exchanges::general::commission::Commission, exchanges::general::commission::CommissionForType,
-    exchanges::general::currency_pair_metadata::PrecisionType,
     exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
     exchanges::timeouts::timeout_manager::TimeoutManager, orders::order::ClientOrderId,
     orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
@@ -76,8 +78,6 @@ pub(crate) fn get_test_exchange(
         base_currency_code.clone()
     };
 
-    let price_precision = 0;
-    let amount_precision = 0;
     let price_tick = dec!(0.1);
     let symbol = CurrencyPairMetadata::new(
         false,
@@ -88,17 +88,13 @@ pub(crate) fn get_test_exchange(
         quote_currency_code.into(),
         None,
         None,
-        price_precision,
-        PrecisionType::ByFraction,
-        Some(price_tick),
         amount_currency_code.into(),
         None,
         None,
-        amount_precision,
-        PrecisionType::ByFraction,
         None,
         None,
-        None,
+        Precision::ByTick { tick: price_tick },
+        Precision::ByTick { tick: dec!(0) },
     );
     exchange
         .symbols

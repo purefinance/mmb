@@ -12,10 +12,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::binance::Binance;
-use crate::core::connectivity::connectivity_manager::WebSocketRole;
 use crate::core::exchanges::common::SortedOrderData;
 use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::general::currency_pair_metadata::PrecisionType;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
     general::currency_pair_metadata::CurrencyPairMetadata,
@@ -24,6 +22,10 @@ use crate::core::exchanges::{
 use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::order::*;
+use crate::core::{
+    connectivity::connectivity_manager::WebSocketRole,
+    exchanges::general::currency_pair_metadata::Precision,
+};
 use crate::core::{
     exchanges::common::{
         Amount, CurrencyPair, ExchangeError, ExchangeErrorType, Price, RestRequestOutcome,
@@ -264,63 +266,51 @@ impl Support for Binance {
                 base_currency_code: "phb".into(),
                 quote_currency_id: "BTC".into(),
                 quote_currency_code: "btc".into(),
-                price_tick: None,
-                amount_precision: 0,
                 is_active: true,
                 is_derivative: true,
                 min_price: Some(dec!(0.00000001)),
                 max_price: Some(dec!(1000)),
-                price_precision: 8,
-                price_precision_type: PrecisionType::ByFraction,
                 amount_currency_code: "phb".into(),
                 min_amount: Some(dec!(1)),
                 max_amount: Some(dec!(90000000)),
-                amount_precision_type: PrecisionType::ByFraction,
-                amount_tick: None,
                 min_cost: Some(dec!(0.0001)),
                 balance_currency_code: Some("phb".into()),
+                price_precision: Precision::ByFraction { precision: 8 },
+                amount_precision: Precision::ByFraction { precision: 0 },
             }),
             Arc::new(CurrencyPairMetadata {
                 base_currency_id: "ETH".into(),
                 base_currency_code: "eth".into(),
                 quote_currency_id: "BTC".into(),
                 quote_currency_code: "btc".into(),
-                price_tick: None,
-                amount_precision: 3,
                 is_active: true,
                 is_derivative: true,
                 min_price: Some(dec!(0.000001)),
                 max_price: Some(dec!(922327)),
-                price_precision: 6,
-                price_precision_type: PrecisionType::ByFraction,
                 amount_currency_code: "eth".into(),
                 min_amount: Some(dec!(0.001)),
                 max_amount: Some(dec!(100000)),
-                amount_precision_type: PrecisionType::ByFraction,
-                amount_tick: None,
                 min_cost: Some(dec!(0.0001)),
                 balance_currency_code: Some("eth".into()),
+                price_precision: Precision::ByFraction { precision: 6 },
+                amount_precision: Precision::ByFraction { precision: 3 },
             }),
             Arc::new(CurrencyPairMetadata {
                 base_currency_id: "EOS".into(),
                 base_currency_code: "eos".into(),
                 quote_currency_id: "BTC".into(),
                 quote_currency_code: "btc".into(),
-                price_tick: None,
-                amount_precision: 2,
                 is_active: true,
                 is_derivative: true,
                 min_price: Some(dec!(0.0000001)),
                 max_price: Some(dec!(1000)),
-                price_precision: 7,
-                price_precision_type: PrecisionType::ByFraction,
                 amount_currency_code: "eos".into(),
                 min_amount: Some(dec!(0.01)),
                 max_amount: Some(dec!(90000000)),
-                amount_precision_type: PrecisionType::ByFraction,
-                amount_tick: None,
                 min_cost: Some(dec!(0.0001)),
                 balance_currency_code: Some("eos".into()),
+                price_precision: Precision::ByFraction { precision: 7 },
+                amount_precision: Precision::ByFraction { precision: 2 },
             }),
         ])
     }

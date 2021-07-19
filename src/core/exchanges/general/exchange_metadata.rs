@@ -6,9 +6,7 @@ use itertools::Itertools;
 use log::warn;
 use std::sync::Arc;
 
-use super::currency_pair_metadata::{
-    CurrencyPairMetadata, CURRENCY_PAIR_METADATA_DEFAULT_PRECISION,
-};
+use super::currency_pair_metadata::CurrencyPairMetadata;
 
 impl Exchange {
     pub async fn build_metadata(&self) {
@@ -37,18 +35,10 @@ impl Exchange {
             retry += 1;
         }
 
-        let supported_symbols = symbols
-            .into_iter()
-            .filter(|s| {
-                s.amount_precision != CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
-                    && s.price_precision != CURRENCY_PAIR_METADATA_DEFAULT_PRECISION
-            })
-            .collect_vec();
-
-        let supported_currencies = Self::get_supported_currencies(&supported_symbols[..]);
+        let supported_currencies = Self::get_supported_currencies(&symbols[..]);
         self.set_supported_currencies(supported_currencies);
 
-        *self.supported_symbols.lock() = supported_symbols;
+        *self.supported_symbols.lock() = symbols;
     }
 
     fn set_supported_currencies(&self, supported_currencies: DashMap<CurrencyCode, CurrencyId>) {
