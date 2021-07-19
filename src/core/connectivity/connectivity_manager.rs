@@ -297,7 +297,6 @@ impl ConnectivityManager {
                     )
                     .await;
 
-                    dbg!(&params);
                     match websocket_actor {
                         Ok(websocket_actor) => {
                             websocket_connectivity.lock().deref_mut().state =

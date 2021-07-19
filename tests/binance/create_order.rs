@@ -148,17 +148,18 @@ async fn should_fail() {
     let application_manager = ApplicationManager::new(CancellationToken::new());
     let (tx, _rx) = broadcast::channel(10);
 
+    BinanceBuilder.extend_settings(&mut settings);
     settings.web_socket_host = "https://host.com".into();
     settings.web_socket2_host = "https://host2.com".into();
     let binance = Binance::new(
-        exchange_account_id,
+        exchange_account_id.clone(),
         settings,
         tx.clone(),
         application_manager.clone(),
     );
 
     let exchange = Exchange::new(
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        exchange_account_id.clone(),
         Box::new(binance),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
