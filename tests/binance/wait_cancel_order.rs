@@ -85,6 +85,8 @@ async fn cancellation_waited_successfully() {
         price: dec!(0.0000001),
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
@@ -182,6 +184,8 @@ async fn cancellation_waited_failed_fallback() {
         price: dec!(0.0000001),
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await

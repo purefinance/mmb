@@ -85,6 +85,8 @@ async fn open_orders_exists() {
         price: test_price,
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
