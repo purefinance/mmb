@@ -44,7 +44,7 @@ pub struct Binance {
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
-    // Concrete currencies used for trading according to user settings
+    // Currencies used for trading according to user settings
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
 
     pub(super) application_manager: Arc<ApplicationManager>,

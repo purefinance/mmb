@@ -205,7 +205,7 @@ async fn should_fail() {
         }
         Err(error) => {
             assert_eq!(
-                "Delete it in the future. Exchange error: Precision is over the maximum defined for this asset.",
+                "Exchange error: Precision is over the maximum defined for this asset.",
                 error.to_string()
             );
         }

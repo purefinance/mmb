@@ -90,7 +90,7 @@ pub struct Exchange {
     >,
     pub(super) features: ExchangeFeatures,
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
-    application_manager: Arc<ApplicationManager>,
+    pub(super) application_manager: Arc<ApplicationManager>,
     pub(crate) timeout_manager: Arc<TimeoutManager>,
     pub(super) commission: Commission,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,

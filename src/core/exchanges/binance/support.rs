@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use awc::http::Uri;
 use chrono::Utc;
@@ -13,15 +13,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::binance::Binance;
+use crate::core::exchanges::common::SortedOrderData;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
     general::currency_pair_metadata::CurrencyPairMetadata,
     general::handlers::handle_order_filled::FillEventData, traits::Support,
-};
-use crate::core::exchanges::{
-    common::SortedOrderData,
-    general::currency_pair_metadata::CURRENCY_PAIR_METADATA_DEFAULT_PRECISION,
 };
 use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
@@ -339,21 +336,22 @@ impl Support for Binance {
                 }
             }
 
-            // FIXME Evgeniy, is that correct logic about precisions?
             let price_precision = if let Some(tick) = price_tick {
                 Precision::ByTick { tick }
             } else {
-                Precision::ByFraction {
-                    precision: CURRENCY_PAIR_METADATA_DEFAULT_PRECISION,
-                }
+                bail!(
+                    "Unable to get price precision from Binance for {:?}",
+                    specific_currency_pair
+                );
             };
 
             let amount_precision = if let Some(tick) = amount_tick {
                 Precision::ByTick { tick }
             } else {
-                Precision::ByFraction {
-                    precision: CURRENCY_PAIR_METADATA_DEFAULT_PRECISION,
-                }
+                bail!(
+                    "Unable to get price precision from Binance for {:?}",
+                    specific_currency_pair
+                );
             };
 
             let currency_pair_metadata = CurrencyPairMetadata::new(

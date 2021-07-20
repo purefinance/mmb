@@ -21,16 +21,19 @@ impl Exchange {
                     break;
                 }
                 Err(error) => {
+                    let error_message = format!(
+                        "Unable to get metadata for {}: {:?}",
+                        self.exchange_account_id, error
+                    );
                     if retry < MAX_RETRIES {
                         warn!(
                             "Unable to get metadata for {}: {:?}",
                             self.exchange_account_id, error
                         );
                     } else {
-                        panic!(
-                            "Unable to get metadata for {}: {:?}",
-                            self.exchange_account_id, error
-                        );
+                        self.application_manager
+                            .clone()
+                            .spawn_graceful_shutdown(error_message);
                     }
                 }
             }

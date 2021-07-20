@@ -118,10 +118,8 @@ impl Exchange {
                     // TODO strange order handling there
                     // self.check_order_creation().await?;
                 }
-                bail!(
-                    "Delete it in the future. Exchange error: {}",
-                    exchange_error.message
-                )
+                // TODO delete it in the future
+                bail!("Exchange error: {}", exchange_error.message)
             }
         }
     }
