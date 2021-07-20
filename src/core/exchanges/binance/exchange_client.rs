@@ -12,7 +12,7 @@ use async_trait::async_trait;
 #[async_trait]
 impl ExchangeClient for Binance {
     async fn request_metadata(&self) -> Result<RestRequestOutcome> {
-        // FIXME as I can see, C# call Ccxt without params, so it always will use spot API as link below
+        // In currenct versions works only with Spot market
         let url_path = "/api/v3/exchangeInfo";
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
 

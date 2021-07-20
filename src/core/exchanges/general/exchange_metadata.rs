@@ -62,8 +62,6 @@ impl Exchange {
             );
         }
 
-        // FIXME adjustForTimeDifference and loadTimeDifference() from ccxt?
-
         match self.exchange_client.parse_metadata(&response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
@@ -104,6 +102,6 @@ impl Exchange {
             );
         });
         self.exchange_client
-            .set_current_specific_currencies(current_specific_currencies);
+            .set_traded_specific_currencies(current_specific_currencies);
     }
 }

@@ -192,8 +192,8 @@ impl Support for Binance {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
-    fn set_current_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
-        *self.current_specific_currencies.lock() = currencies;
+    fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
+        *self.traded_specific_currencies.lock() = currencies;
     }
 
     fn is_enabled_websocket(&self, role: WebSocketRole) -> bool {
@@ -274,18 +274,14 @@ impl Support for Binance {
 
         let mut result = Vec::new();
         for symbol in symbols {
-            let is_active = if symbol["status"] == "TRADING" {
-                true
-            } else {
-                false
-            };
+            let is_active = symbol["status"] == "TRADING";
 
             // TODO There is no work with dereivatives in current version
             let is_derivative = false;
             let base_currency_id = &symbol.get_as_str("baseAsset")?;
             let quote_currency_id = &symbol.get_as_str("quoteAsset")?;
-            let base_currency_code = CurrencyCode::from(base_currency_id.to_lowercase().as_str());
-            let quote_currency_code = CurrencyCode::from(quote_currency_id.to_lowercase().as_str());
+            let base_currency_code = CurrencyCode::from(base_currency_id.as_str());
+            let quote_currency_code = CurrencyCode::from(quote_currency_id.as_str());
 
             let specific_currency_pair =
                 SpecificCurrencyPair::from(symbol.get_as_str("symbol")?.as_str());
@@ -477,7 +473,7 @@ impl Binance {
 
     fn build_ws_main_path(&self, websocket_channels: &[String]) -> String {
         let stream_names = self
-            .current_specific_currencies
+            .traded_specific_currencies
             .lock()
             .iter()
             .flat_map(|currency_pair| {

@@ -41,12 +41,11 @@ pub struct Binance {
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
 
-    // FIXME Evgeniy, I put RwLock here cause parse_metadata needs interior mutability (insertion)
-    // FIXME And RwLock are easier to use than DashMap. Is this OK?
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
-    pub current_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
+    // Concrete currencies used for trading according to user settings
+    pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
 
     pub(super) application_manager: Arc<ApplicationManager>,
 
@@ -72,7 +71,7 @@ impl Binance {
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
-            current_specific_currencies: Default::default(),
+            traded_specific_currencies: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
             settings,
             events_channel,
