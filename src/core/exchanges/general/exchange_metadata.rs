@@ -26,10 +26,7 @@ impl Exchange {
                         self.exchange_account_id, error
                     );
                     if retry < MAX_RETRIES {
-                        warn!(
-                            "Unable to get metadata for {}: {:?}",
-                            self.exchange_account_id, error
-                        );
+                        warn!("{}", error_message);
                     } else {
                         self.application_manager
                             .clone()
