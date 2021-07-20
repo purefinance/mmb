@@ -266,11 +266,12 @@ impl Support for Binance {
         &self,
         response: &RestRequestOutcome,
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
-        let deserialized: Value = serde_json::from_str(&response.content)?;
+        let deserialized: Value = serde_json::from_str(&response.content)
+            .context("Unable to deserialize response from Binance")?;
         let symbols = deserialized
             .get("symbols")
             .and_then(|symbols| symbols.as_array())
-            .ok_or(anyhow!("Unable to get symbols metadata array"))?;
+            .ok_or(anyhow!("Unable to get symbols metadata array from Binance"))?;
 
         let mut result = Vec::new();
         for symbol in symbols {
@@ -278,8 +279,12 @@ impl Support for Binance {
 
             // TODO There is no work with dereivatives in current version
             let is_derivative = false;
-            let base_currency_id = &symbol.get_as_str("baseAsset")?;
-            let quote_currency_id = &symbol.get_as_str("quoteAsset")?;
+            let base_currency_id = &symbol
+                .get_as_str("baseAsset")
+                .context("Unable to get base currency id from Binance")?;
+            let quote_currency_id = &symbol
+                .get_as_str("quoteAsset")
+                .context("Unable to get quote currency id from Binance")?;
             let base_currency_code = CurrencyCode::from(base_currency_id.as_str());
             let quote_currency_code = CurrencyCode::from(quote_currency_id.as_str());
 
@@ -313,7 +318,7 @@ impl Support for Binance {
             let filters = symbol
                 .get("filters")
                 .and_then(|filters| filters.as_array())
-                .ok_or(anyhow!("Unable to get filters as array"))?;
+                .ok_or(anyhow!("Unable to get filters as array from Binance"))?;
             for filter in filters {
                 let filter_name = filter.get_as_str("filterType")?;
                 match filter_name.as_str() {
@@ -385,9 +390,9 @@ impl GetOrErr for Value {
     fn get_as_str(&self, key: &str) -> Result<String> {
         Ok(self
             .get(key)
-            .ok_or(anyhow!("Unable to get {}", key))?
+            .ok_or(anyhow!("Unable to get {} from Binance", key))?
             .as_str()
-            .ok_or(anyhow!("Unable to get {} as string", key))?
+            .ok_or(anyhow!("Unable to get {} as string from Binance", key))?
             .to_string())
     }
 
