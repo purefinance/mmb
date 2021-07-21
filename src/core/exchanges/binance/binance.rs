@@ -226,6 +226,7 @@ impl Binance {
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
+                    // FIXME register new order here!
                     (&self.order_created_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),

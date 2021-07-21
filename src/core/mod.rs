@@ -5,6 +5,7 @@ pub mod exchanges;
 pub mod infrastructure;
 pub mod logger;
 pub mod orders;
+pub mod statistic_service;
 pub mod utils;
 
 pub mod config;
