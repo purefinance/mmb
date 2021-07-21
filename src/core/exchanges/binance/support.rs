@@ -193,11 +193,11 @@ impl Support for Binance {
         *self.traded_specific_currencies.lock() = currencies;
     }
 
-    fn is_enabled_websocket(&self, role: WebSocketRole) -> bool {
+    fn is_websocket_enabled(&self, role: WebSocketRole) -> bool {
         match role {
             WebSocketRole::Main => true,
             WebSocketRole::Secondary => {
-                self.settings.api_key != "" && self.settings.secret_key == ""
+                self.settings.api_key != "" && self.settings.secret_key != ""
             }
         }
     }
