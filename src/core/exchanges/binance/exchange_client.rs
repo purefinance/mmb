@@ -12,12 +12,11 @@ use async_trait::async_trait;
 #[async_trait]
 impl ExchangeClient for Binance {
     async fn request_metadata(&self) -> Result<RestRequestOutcome> {
-        // TODO implement request metadata
-        Ok(RestRequestOutcome::new(
-            // just stub
-            "[0]".into(),
-            awc::http::StatusCode::OK,
-        ))
+        // In currenct versions works only with Spot market
+        let url_path = "/api/v3/exchangeInfo";
+        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
+
+        self.rest_client.get(full_url, &self.settings.api_key).await
     }
 
     async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome> {

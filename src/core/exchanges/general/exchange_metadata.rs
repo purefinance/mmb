@@ -21,13 +21,14 @@ impl Exchange {
                     break;
                 }
                 Err(error) => {
+                    let error_message = format!(
+                        "Unable to get metadata for {}: {:?}",
+                        self.exchange_account_id, error
+                    );
                     if retry < MAX_RETRIES {
-                        warn!(
-                            "We got empty metadata for {} with error: {:?}",
-                            self.exchange_account_id, error
-                        );
+                        warn!("{}", error_message);
                     } else {
-                        panic!("We got empty metadata for {}", self.exchange_account_id);
+                        panic!("{}", error_message);
                     }
                 }
             }
@@ -90,8 +91,15 @@ impl Exchange {
         currencies.dedup();
         *self.currencies.lock() = currencies;
 
+        let mut current_specific_currencies = Vec::new();
         symbols.iter().for_each(|symbol| {
             self.symbols.insert(symbol.currency_pair(), symbol.clone());
+            current_specific_currencies.push(
+                self.exchange_client
+                    .get_specific_currency_pair(&symbol.currency_pair()),
+            );
         });
+        self.exchange_client
+            .set_traded_specific_currencies(current_specific_currencies);
     }
 }

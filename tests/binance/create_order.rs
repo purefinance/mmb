@@ -86,6 +86,8 @@ async fn create_successfully() {
         price: dec!(0.0000001),
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
@@ -146,17 +148,16 @@ async fn should_fail() {
     let application_manager = ApplicationManager::new(CancellationToken::new());
     let (tx, _rx) = broadcast::channel(10);
 
-    settings.web_socket_host = "https://host.com".into();
-    settings.web_socket2_host = "https://host2.com".into();
+    BinanceBuilder.extend_settings(&mut settings);
     let binance = Binance::new(
-        exchange_account_id,
+        exchange_account_id.clone(),
         settings,
         tx.clone(),
         application_manager.clone(),
     );
 
     let exchange = Exchange::new(
-        mmb::exchanges::common::ExchangeAccountId::new("".into(), 0),
+        exchange_account_id.clone(),
         Box::new(binance),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -189,9 +190,11 @@ async fn should_fail() {
 
     let order_to_create = OrderCreating {
         header: order_header,
-        price: dec!(0.0000001),
+        price: dec!(0.0000000000000000001),
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     let created_order = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await;
@@ -202,7 +205,7 @@ async fn should_fail() {
         }
         Err(error) => {
             assert_eq!(
-                "Delete it in the future. Exchange error: Unable to send POST request: client requires absolute-form URIs",
+                "Exchange error: Precision is over the maximum defined for this asset.",
                 error.to_string()
             );
         }

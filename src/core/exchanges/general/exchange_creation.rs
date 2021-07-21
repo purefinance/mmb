@@ -72,11 +72,12 @@ pub async fn create_exchange(
     );
 
     exchange.build_metadata().await;
-    exchange.clone().connect().await;
 
     if let Some(currency_pairs) = &user_settings.currency_pairs {
         exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]))
     }
+
+    exchange.clone().connect().await;
 
     exchange
 }

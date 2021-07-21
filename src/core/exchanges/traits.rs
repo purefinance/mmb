@@ -67,11 +67,12 @@ pub trait Support: Send + Sync {
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     );
 
+    fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>);
+
     fn is_enabled_websocket(&self, role: WebSocketRole) -> bool;
 
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri>;
 
-    // TODO has to be rewritten. Probably after getting metadata feature
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
 
     fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode>;

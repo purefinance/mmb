@@ -83,6 +83,8 @@ async fn get_order_info() {
         price: dec!(0.0000001),
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await

@@ -166,6 +166,7 @@ impl From<&str> for SpecificCurrencyPair {
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
+/// Currency in Exchange format, e.g. ETH, BTC
 pub struct CurrencyId(String4);
 
 impl CurrencyId {
@@ -188,12 +189,13 @@ impl From<&str> for CurrencyId {
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
+/// Currency in unified format, e.g. eth, btc
 pub struct CurrencyCode(String4);
 
 impl CurrencyCode {
     #[inline]
     pub fn new(currency_code: String4) -> Self {
-        CurrencyCode(currency_code)
+        CurrencyCode(currency_code.to_lowercase().into())
     }
 
     /// Extracts a string slice containing the entire string.
@@ -205,7 +207,7 @@ impl CurrencyCode {
 
 impl From<&str> for CurrencyCode {
     fn from(value: &str) -> Self {
-        CurrencyCode(String4::from_str(value))
+        CurrencyCode(String4::from_str(&value.to_lowercase()))
     }
 }
 

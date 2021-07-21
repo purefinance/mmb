@@ -1,13 +1,14 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use awc::http::Uri;
 use chrono::Utc;
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::{error, info};
-use rust_decimal_macros::dec;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -188,6 +189,10 @@ impl Support for Binance {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
+    fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
+        *self.traded_specific_currencies.lock() = currencies;
+    }
+
     fn is_enabled_websocket(&self, role: WebSocketRole) -> bool {
         match role {
             WebSocketRole::Main => true,
@@ -215,7 +220,7 @@ impl Support for Binance {
     }
 
     fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
-        self.unified_to_specific[currency_pair].clone()
+        self.unified_to_specific.read()[currency_pair].clone()
     }
 
     fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode> {
@@ -256,63 +261,143 @@ impl Support for Binance {
 
     fn parse_metadata(
         &self,
-        _response: &RestRequestOutcome,
+        response: &RestRequestOutcome,
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
-        // TODO parse metadata
-        // This is just a stub
-        Ok(vec![
-            Arc::new(CurrencyPairMetadata {
-                base_currency_id: "PHB".into(),
-                base_currency_code: "phb".into(),
-                quote_currency_id: "BTC".into(),
-                quote_currency_code: "btc".into(),
-                is_active: true,
-                is_derivative: true,
-                min_price: Some(dec!(0.00000001)),
-                max_price: Some(dec!(1000)),
-                amount_currency_code: "phb".into(),
-                min_amount: Some(dec!(1)),
-                max_amount: Some(dec!(90000000)),
-                min_cost: Some(dec!(0.0001)),
-                balance_currency_code: Some("phb".into()),
-                price_precision: Precision::ByFraction { precision: 8 },
-                amount_precision: Precision::ByFraction { precision: 0 },
-            }),
-            Arc::new(CurrencyPairMetadata {
-                base_currency_id: "ETH".into(),
-                base_currency_code: "eth".into(),
-                quote_currency_id: "BTC".into(),
-                quote_currency_code: "btc".into(),
-                is_active: true,
-                is_derivative: true,
-                min_price: Some(dec!(0.000001)),
-                max_price: Some(dec!(922327)),
-                amount_currency_code: "eth".into(),
-                min_amount: Some(dec!(0.001)),
-                max_amount: Some(dec!(100000)),
-                min_cost: Some(dec!(0.0001)),
-                balance_currency_code: Some("eth".into()),
-                price_precision: Precision::ByFraction { precision: 6 },
-                amount_precision: Precision::ByFraction { precision: 3 },
-            }),
-            Arc::new(CurrencyPairMetadata {
-                base_currency_id: "EOS".into(),
-                base_currency_code: "eos".into(),
-                quote_currency_id: "BTC".into(),
-                quote_currency_code: "btc".into(),
-                is_active: true,
-                is_derivative: true,
-                min_price: Some(dec!(0.0000001)),
-                max_price: Some(dec!(1000)),
-                amount_currency_code: "eos".into(),
-                min_amount: Some(dec!(0.01)),
-                max_amount: Some(dec!(90000000)),
-                min_cost: Some(dec!(0.0001)),
-                balance_currency_code: Some("eos".into()),
-                price_precision: Precision::ByFraction { precision: 7 },
-                amount_precision: Precision::ByFraction { precision: 2 },
-            }),
-        ])
+        let deserialized: Value = serde_json::from_str(&response.content)
+            .context("Unable to deserialize response from Binance")?;
+        let symbols = deserialized
+            .get("symbols")
+            .and_then(|symbols| symbols.as_array())
+            .ok_or(anyhow!("Unable to get symbols metadata array from Binance"))?;
+
+        let mut result = Vec::new();
+        for symbol in symbols {
+            let is_active = symbol["status"] == "TRADING";
+
+            // TODO There is no work with dereivatives in current version
+            let is_derivative = false;
+            let base_currency_id = &symbol
+                .get_as_str("baseAsset")
+                .context("Unable to get base currency id from Binance")?;
+            let quote_currency_id = &symbol
+                .get_as_str("quoteAsset")
+                .context("Unable to get quote currency id from Binance")?;
+            let base_currency_code = CurrencyCode::from(base_currency_id.as_str());
+            let quote_currency_code = CurrencyCode::from(quote_currency_id.as_str());
+
+            let specific_currency_pair =
+                SpecificCurrencyPair::from(symbol.get_as_str("symbol")?.as_str());
+            let unified_currency_pair =
+                CurrencyPair::from_codes(base_currency_code.clone(), quote_currency_code.clone());
+            self.unified_to_specific.write().insert(
+                unified_currency_pair.clone(),
+                specific_currency_pair.clone(),
+            );
+
+            self.specific_to_unified.write().insert(
+                specific_currency_pair.clone(),
+                unified_currency_pair.clone(),
+            );
+
+            let amount_currency_code = quote_currency_code.clone();
+
+            // TODO There are no balance_currency_code for spot, why does it set here this way?
+            let balance_currency_code = base_currency_code.clone();
+
+            let mut min_amount = None;
+            let mut max_amount = None;
+            let mut min_price = None;
+            let mut max_price = None;
+            let mut min_cost = None;
+            let mut price_tick = None;
+            let mut amount_tick = None;
+
+            let filters = symbol
+                .get("filters")
+                .and_then(|filters| filters.as_array())
+                .ok_or(anyhow!("Unable to get filters as array from Binance"))?;
+            for filter in filters {
+                let filter_name = filter.get_as_str("filterType")?;
+                match filter_name.as_str() {
+                    "PRICE_FILTER" => {
+                        min_price = filter.get_as_decimal("minPrice");
+                        max_price = filter.get_as_decimal("maxPrice");
+                        price_tick = filter.get_as_decimal("tickSize");
+                    }
+                    "LOT_SIZE" => {
+                        min_amount = filter.get_as_decimal("minQty");
+                        max_amount = filter.get_as_decimal("maxQty");
+                        amount_tick = filter.get_as_decimal("stepSize");
+                    }
+                    "MIN_NOTIONAL" => {
+                        min_cost = filter.get_as_decimal("minNotional");
+                    }
+                    _ => {}
+                }
+            }
+
+            let price_precision = if let Some(tick) = price_tick {
+                Precision::ByTick { tick }
+            } else {
+                bail!(
+                    "Unable to get price precision from Binance for {:?}",
+                    specific_currency_pair
+                );
+            };
+
+            let amount_precision = if let Some(tick) = amount_tick {
+                Precision::ByTick { tick }
+            } else {
+                bail!(
+                    "Unable to get amount precision from Binance for {:?}",
+                    specific_currency_pair
+                );
+            };
+
+            let currency_pair_metadata = CurrencyPairMetadata::new(
+                is_active,
+                is_derivative,
+                base_currency_id.as_str().into(),
+                base_currency_code,
+                quote_currency_id.as_str().into(),
+                quote_currency_code,
+                min_price,
+                max_price,
+                amount_currency_code.as_str().into(),
+                min_amount,
+                max_amount,
+                min_cost,
+                Some(balance_currency_code.as_str().into()),
+                price_precision,
+                amount_precision,
+            );
+
+            result.push(Arc::new(currency_pair_metadata))
+        }
+
+        Ok(result)
+    }
+}
+
+trait GetOrErr {
+    fn get_as_str(&self, key: &str) -> Result<String>;
+    fn get_as_decimal(&self, key: &str) -> Option<Decimal>;
+}
+
+impl GetOrErr for Value {
+    fn get_as_str(&self, key: &str) -> Result<String> {
+        Ok(self
+            .get(key)
+            .ok_or(anyhow!("Unable to get {} from Binance", key))?
+            .as_str()
+            .ok_or(anyhow!("Unable to get {} as string from Binance", key))?
+            .to_string())
+    }
+
+    fn get_as_decimal(&self, key: &str) -> Option<Decimal> {
+        self.get(key)
+            .and_then(|value| value.as_str())
+            .and_then(|value| Decimal::from_str(value).ok())
     }
 }
 
@@ -391,8 +476,9 @@ impl Binance {
 
     fn build_ws_main_path(&self, websocket_channels: &[String]) -> String {
         let stream_names = self
-            .specific_to_unified
-            .keys()
+            .traded_specific_currencies
+            .lock()
+            .iter()
             .flat_map(|currency_pair| {
                 let mut results = Vec::new();
                 for channel in websocket_channels {

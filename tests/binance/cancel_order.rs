@@ -83,6 +83,8 @@ async fn cancelled_successfully() {
         price: dec!(0.0000001),
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
@@ -187,6 +189,8 @@ async fn nothing_to_cancel() {
         exchange_order_id: "1234567890".into(),
     };
 
+    // Should be called before any other api calls!
+    exchange.build_metadata().await;
     // Cancel last order
     let cancel_outcome = exchange
         .cancel_order(&order_to_cancel, CancellationToken::default())
