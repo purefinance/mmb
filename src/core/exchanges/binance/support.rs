@@ -349,7 +349,7 @@ impl Support for Binance {
                 Precision::ByTick { tick }
             } else {
                 bail!(
-                    "Unable to get price precision from Binance for {:?}",
+                    "Unable to get amount precision from Binance for {:?}",
                     specific_currency_pair
                 );
             };

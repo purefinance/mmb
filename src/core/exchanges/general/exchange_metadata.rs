@@ -28,9 +28,7 @@ impl Exchange {
                     if retry < MAX_RETRIES {
                         warn!("{}", error_message);
                     } else {
-                        self.application_manager
-                            .clone()
-                            .spawn_graceful_shutdown(error_message);
+                        panic!("{}", error_message);
                     }
                 }
             }
