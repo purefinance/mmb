@@ -8,7 +8,10 @@ use super::endpoints;
 use actix_web::{dev::Server, rt, App, HttpServer};
 use tokio::sync::oneshot;
 
-use crate::core::lifecycle::{application_manager::ApplicationManager, trading_engine::Service};
+use crate::core::{
+    lifecycle::{application_manager::ApplicationManager, trading_engine::Service},
+    statistic_service::StatisticService,
+};
 use actix_web::web::Data;
 
 pub(crate) struct ControlPanel {
@@ -18,6 +21,7 @@ pub(crate) struct ControlPanel {
     server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
     work_finished_sender: Arc<Mutex<Option<oneshot::Sender<Result<()>>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
+    statistics: Arc<StatisticService>,
 }
 
 impl ControlPanel {
@@ -25,6 +29,7 @@ impl ControlPanel {
         address: &str,
         engine_settings: String,
         application_manager: Arc<ApplicationManager>,
+        statistics: Arc<StatisticService>,
     ) -> Arc<Self> {
         let (work_finished_sender, work_finished_receiver) = oneshot::channel();
         Arc::new(Self {
@@ -34,6 +39,7 @@ impl ControlPanel {
             server_stopper_tx: Arc::new(Mutex::new(None)),
             work_finished_sender: Arc::new(Mutex::new(Some(work_finished_sender))),
             work_finished_receiver: Arc::new(Mutex::new(Some(work_finished_receiver))),
+            statistics,
         })
     }
 
@@ -55,11 +61,13 @@ impl ControlPanel {
         *self.server_stopper_tx.lock() = Some(server_stopper_tx.clone());
         let engine_settings = self.engine_settings.clone();
         let application_manager = self.application_manager.clone();
+        let statistics = self.statistics.clone();
         let server = HttpServer::new(move || {
             App::new()
                 .app_data(Data::new(server_stopper_tx.clone()))
                 .app_data(Data::new(engine_settings.clone()))
                 .app_data(Data::new(application_manager.clone()))
+                .app_data(Data::new(statistics.clone()))
                 .service(endpoints::health)
                 .service(endpoints::stop)
                 .service(endpoints::stats)

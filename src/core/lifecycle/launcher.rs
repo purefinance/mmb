@@ -82,12 +82,14 @@ where
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
     let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
+    let statistics = StatisticService::new();
     let exchanges = create_exchanges(
         &settings.core,
         build_settings,
         events_sender.clone(),
         application_manager.clone(),
         &timeout_manager,
+        &statistics,
     )
     .await;
 
@@ -113,6 +115,7 @@ where
         "127.0.0.1:8080",
         toml::Value::try_from(settings.clone())?.to_string(),
         application_manager,
+        statistics.clone(),
     );
 
     {
@@ -134,6 +137,7 @@ where
         &settings.strategy,
         &engine_context,
         disposition_strategy,
+        &statistics,
     );
 
     engine_context.shutdown_service.register_services(&[
@@ -153,6 +157,7 @@ fn create_disposition_executor_service(
     base_settings: &dyn BaseStrategySettings,
     engine_context: &Arc<EngineContext>,
     disposition_strategy: Box<dyn DispositionStrategy>,
+    statistics: &Arc<StatisticService>,
 ) -> Arc<DispositionExecutorService> {
     DispositionExecutorService::new(
         engine_context.clone(),
@@ -163,6 +168,7 @@ fn create_disposition_executor_service(
         base_settings.max_amount(),
         disposition_strategy,
         engine_context.application_manager.stop_token(),
+        statistics.clone(),
     )
 }
 
@@ -172,8 +178,8 @@ pub async fn create_exchanges(
     events_channel: broadcast::Sender<ExchangeEvent>,
     application_manager: Arc<ApplicationManager>,
     timeout_manager: &Arc<TimeoutManager>,
+    statistics: &Arc<StatisticService>,
 ) -> Vec<Arc<Exchange>> {
-    let statistics = StatisticService::new();
     join_all(core_settings.exchanges.iter().map(|x| {
         create_exchange(
             x,

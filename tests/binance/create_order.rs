@@ -96,6 +96,15 @@ async fn create_successfully() {
         .cancel_all_orders(test_currency_pair.clone())
         .await
         .expect("in test");
+    // FIXME delet other currency pairs
+    let _ = exchange
+        .cancel_all_orders(CurrencyPair::from_codes("eth".into(), "btc".into()))
+        .await
+        .expect("in test");
+    let _ = exchange
+        .cancel_all_orders(CurrencyPair::from_codes("eos".into(), "btc".into()))
+        .await
+        .expect("in test");
     let created_order = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await;

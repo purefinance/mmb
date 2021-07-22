@@ -11,7 +11,6 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::disposition_execution::trading_context_calculation::calculate_trading_context;
 use crate::core::disposition_execution::{
     CompositeOrder, OrderRecord, OrdersState, PriceSlot, TradeCycle, TradingContext,
 };
@@ -34,6 +33,10 @@ use crate::core::orders::order::{
 use crate::core::orders::pool::OrderRef;
 use crate::core::{
     disposition_execution::trade_limit::is_enough_amount_and_cost, infrastructure::spawn_future,
+};
+use crate::core::{
+    disposition_execution::trading_context_calculation::calculate_trading_context,
+    statistic_service::StatisticService,
 };
 use crate::core::{nothing_to_do, DateTime};
 use crate::strategies::disposition_strategy::DispositionStrategy;
@@ -69,6 +72,7 @@ impl DispositionExecutorService {
         max_amount: Amount,
         strategy: Box<dyn DispositionStrategy>,
         cancellation_token: CancellationToken,
+        statistics: Arc<StatisticService>,
     ) -> Arc<Self> {
         let (work_finished_sender, receiver) = oneshot::channel();
 
@@ -83,6 +87,7 @@ impl DispositionExecutorService {
                 strategy,
                 work_finished_sender,
                 cancellation_token,
+                statistics,
             );
 
             disposition_executor.start().await
@@ -121,6 +126,7 @@ struct DispositionExecutor {
     strategy: Box<dyn DispositionStrategy>,
     work_finished_sender: Option<oneshot::Sender<Result<()>>>,
     cancellation_token: CancellationToken,
+    statistics: Arc<StatisticService>,
 }
 
 impl DispositionExecutor {
@@ -134,6 +140,7 @@ impl DispositionExecutor {
         strategy: Box<dyn DispositionStrategy>,
         work_finished_sender: oneshot::Sender<Result<()>>,
         cancellation_token: CancellationToken,
+        statistics: Arc<StatisticService>,
     ) -> Self {
         let currency_pair_metadata = engine_ctx
             .exchanges
@@ -153,6 +160,7 @@ impl DispositionExecutor {
             strategy,
             work_finished_sender: Some(work_finished_sender),
             cancellation_token,
+            statistics,
         }
     }
 
@@ -178,7 +186,7 @@ impl DispositionExecutor {
         last_trading_context: &mut Option<TradingContext>,
     ) -> Result<()> {
         let now = now();
-        let need_recalculate_trading_context = prepare_estimate_trading_context(&event, now);
+        let need_recalculate_trading_context = self.prepare_estimate_trading_context(&event, now);
 
         match event {
             ExchangeEvent::OrderBookEvent(order_book_event) => {
@@ -842,28 +850,32 @@ impl DispositionExecutor {
             .value()
             .clone()
     }
+
+    fn prepare_estimate_trading_context(&self, event: &ExchangeEvent, now: DateTime) -> bool {
+        let event_time = match event {
+            ExchangeEvent::OrderBookEvent(order_book_event) => order_book_event.creation_time,
+            ExchangeEvent::LiquidationPrice(liquidation_price) => {
+                liquidation_price.event_creation_time
+            }
+            _ => return false,
+        };
+
+        // max delay for skipping recalculation of trading context and orders synchronization
+        let delay_for_skipping_event: Duration = Duration::milliseconds(50);
+        if event_time + delay_for_skipping_event < now {
+            // TODO save metrics about skipped events
+            // FIXME Add function here!
+            self.statistics.clone().event_missed();
+
+            return false;
+        }
+
+        true
+    }
 }
 
 struct InitEstimation {
     event_time: DateTime,
-}
-
-fn prepare_estimate_trading_context(event: &ExchangeEvent, now: DateTime) -> bool {
-    let event_time = match event {
-        ExchangeEvent::OrderBookEvent(order_book_event) => order_book_event.creation_time,
-        ExchangeEvent::LiquidationPrice(liquidation_price) => liquidation_price.event_creation_time,
-        _ => return false,
-    };
-
-    // max delay for skipping recalculation of trading context and orders synchronization
-    let delay_for_skipping_event: Duration = Duration::milliseconds(50);
-    if event_time + delay_for_skipping_event < now {
-        // TODO save metrics about skipped events
-
-        return false;
-    }
-
-    true
 }
 
 fn estimate_trading_context(

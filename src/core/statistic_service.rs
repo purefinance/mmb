@@ -1,10 +1,13 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use dashmap::DashMap;
+use parking_lot::{Mutex, RwLock};
+use serde::{Deserialize, Serialize};
 
 use super::exchanges::common::{Amount, Price, TradePlaceAccount};
 
 // FIXME Probably it has to be pub(crate)
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TradePlaceAccountStatistic {
     opened_orders_amount: usize,
     canceled_orders_amount: usize,
@@ -34,7 +37,7 @@ impl TradePlaceAccountStatistic {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DispositionExecutorStatistic {
     skipped_events_amount: usize,
 }
@@ -48,9 +51,10 @@ impl DispositionExecutorStatistic {
 }
 
 // FIXME in what meaning should it be Service? Should it be able to call graceful shutdown?
+#[derive(Debug, Serialize, Deserialize)]
 pub struct StatisticService {
-    trade_place_data: DashMap<TradePlaceAccount, TradePlaceAccountStatistic>,
-    disposition_executor_data: DispositionExecutorStatistic,
+    trade_place_data: RwLock<HashMap<String, TradePlaceAccountStatistic>>,
+    disposition_executor_data: Mutex<DispositionExecutorStatistic>,
 }
 
 impl StatisticService {
@@ -63,6 +67,16 @@ impl StatisticService {
     }
 
     pub(crate) fn order_created(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
-        dbg!(&"HERE");
+        // TODO get_or_add logic
+        self.trade_place_data.write().insert(
+            "TradePlaceAccount".to_owned(),
+            TradePlaceAccountStatistic::default(),
+        );
+        dbg!(&"ORDER CREATED");
+    }
+
+    pub(crate) fn event_missed(self: Arc<Self>) {
+        dbg!(&"EVENT_MISSED");
+        (*self.disposition_executor_data.lock()).skipped_events_amount += 1;
     }
 }

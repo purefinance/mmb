@@ -4,7 +4,7 @@ use std::sync::{mpsc::Sender, Arc};
 
 use crate::core::{
     config::save_settings, config::CONFIG_PATH, config::CREDENTIALS_PATH,
-    lifecycle::application_manager::ApplicationManager,
+    lifecycle::application_manager::ApplicationManager, statistic_service::StatisticService,
 };
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
@@ -21,12 +21,6 @@ pub(super) async fn stop(server_stopper_tx: web::Data<Sender<()>>) -> impl Respo
     }
 
     HttpResponse::Ok().body("ControlPanel turned off")
-}
-
-#[get("/stats")]
-pub(super) async fn stats() -> impl Responder {
-    // TODO It is just a stub. Fix method body in the future
-    HttpResponse::Ok().body("Stub for getting stats")
 }
 
 #[get("/config")]
@@ -57,4 +51,15 @@ pub(super) async fn set_config(
         .spawn_graceful_shutdown("Engine stopped cause config updating".to_owned());
 
     Ok(HttpResponse::Ok().body("Config was successfully updated. Trading engine stopped"))
+}
+
+#[get("/stats")]
+pub(super) async fn stats(
+    statistics: web::Data<Arc<StatisticService>>,
+) -> Result<HttpResponse, Error> {
+    // TODO It is just a stub. Fix method body in the future
+    let json_statistic = serde_json::to_string(&statistics)?;
+    dbg!(&json_statistic);
+
+    Ok(HttpResponse::Ok().body(&json_statistic))
 }
