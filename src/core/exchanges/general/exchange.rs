@@ -260,7 +260,7 @@ impl Exchange {
 
         let is_enabled_secondary_websocket = self
             .exchange_client
-            .is_enabled_websocket(WebSocketRole::Secondary);
+            .is_websocket_enabled(WebSocketRole::Secondary);
 
         let is_connected = self
             .connectivity_manager
