@@ -31,7 +31,11 @@ pub enum BeforeAfter {
 // Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
 #[derive(Debug, Clone)]
 pub enum Precision {
+    // Rounding is performed to a number divisible to the specified tick
+    // Look at round_by_tick test below
     ByTick { tick: Decimal },
+    // Rounding is performed to a number of digits located on `precision` length to the right of start of mantissa
+    // Look at round_by_mantissa test below
     ByMantisa { precision: i8 },
 }
 
