@@ -5,10 +5,10 @@ use log::error;
 use tokio::sync::broadcast;
 
 use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
-use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
 use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
+use crate::core::{exchanges::events::ExchangeEvent, statistic_service::StatisticService};
 use crate::core::{
     exchanges::{
         general::exchange::Exchange,
@@ -43,12 +43,14 @@ pub fn create_timeout_manager(
     TimeoutManager::new(request_timeout_managers)
 }
 
+// FIXME should it really be pub?
 pub async fn create_exchange(
     user_settings: &ExchangeSettings,
     build_settings: &EngineBuildConfig,
     events_channel: broadcast::Sender<ExchangeEvent>,
     application_manager: Arc<ApplicationManager>,
     timeout_manager: Arc<TimeoutManager>,
+    statistics: Arc<StatisticService>,
 ) -> Arc<Exchange> {
     let exchange_client_builder =
         &build_settings.supported_exchange_clients[&user_settings.exchange_account_id.exchange_id];
@@ -59,6 +61,7 @@ pub async fn create_exchange(
         user_settings.clone(),
         events_channel.clone(),
         application_manager.clone(),
+        statistics,
     );
 
     let exchange = Exchange::new(

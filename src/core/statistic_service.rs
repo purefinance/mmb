@@ -4,7 +4,8 @@ use dashmap::DashMap;
 
 use super::exchanges::common::{Amount, Price, TradePlaceAccount};
 
-pub(crate) struct TradePlaceAccountStatistic {
+// FIXME Probably it has to be pub(crate)
+pub struct TradePlaceAccountStatistic {
     opened_orders_amount: usize,
     canceled_orders_amount: usize,
     partially_filled_orders_amount: usize,
@@ -33,7 +34,8 @@ impl TradePlaceAccountStatistic {
     }
 }
 
-pub(crate) struct DispositionExecutorStatistic {
+#[derive(Default)]
+pub struct DispositionExecutorStatistic {
     skipped_events_amount: usize,
 }
 
@@ -46,19 +48,17 @@ impl DispositionExecutorStatistic {
 }
 
 // FIXME in what meaning should it be Service? Should it be able to call graceful shutdown?
-pub(crate) struct StatisticService {
+pub struct StatisticService {
     trade_place_data: DashMap<TradePlaceAccount, TradePlaceAccountStatistic>,
     disposition_executor_data: DispositionExecutorStatistic,
 }
 
 impl StatisticService {
-    pub(crate) fn new(
-        trade_place_data: DashMap<TradePlaceAccount, TradePlaceAccountStatistic>,
-        disposition_executor_data: DispositionExecutorStatistic,
-    ) -> Arc<Self> {
+    // FIXME Probably it has to be pub(crate)
+    pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            trade_place_data,
-            disposition_executor_data,
+            trade_place_data: Default::default(),
+            disposition_executor_data: Default::default(),
         })
     }
 

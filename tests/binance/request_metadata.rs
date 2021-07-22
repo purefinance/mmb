@@ -1,8 +1,11 @@
 use std::collections::HashMap;
 
-use mmb::exchanges::{
-    events::AllowedEventSourceType, general::commission::Commission,
-    timeouts::timeout_manager::TimeoutManager,
+use mmb::{
+    exchanges::{
+        events::AllowedEventSourceType, general::commission::Commission,
+        timeouts::timeout_manager::TimeoutManager,
+    },
+    statistic_service::StatisticService,
 };
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
@@ -40,6 +43,7 @@ async fn request_metadata() {
         settings,
         tx.clone(),
         application_manager.clone(),
+        StatisticService::new(),
     );
 
     let exchange = Exchange::new(

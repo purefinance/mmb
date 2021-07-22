@@ -9,7 +9,6 @@ use super::{
     currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Precision,
     exchange::Exchange,
 };
-use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::lifecycle::application_manager::ApplicationManager;
@@ -23,6 +22,9 @@ use crate::core::{
     exchanges::timeouts::timeout_manager::TimeoutManager, orders::order::ClientOrderId,
     orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
     orders::order::OrderType, orders::pool::OrderRef, orders::pool::OrdersPool, settings,
+};
+use crate::core::{
+    exchanges::binance::binance::BinanceBuilder, statistic_service::StatisticService,
 };
 
 pub(crate) fn get_test_exchange(
@@ -48,6 +50,7 @@ pub(crate) fn get_test_exchange(
         settings.clone(),
         tx.clone(),
         application_manager.clone(),
+        StatisticService::new(),
     ));
     let referral_reward = dec!(40);
     let commission = Commission::new(

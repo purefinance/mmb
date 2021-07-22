@@ -12,8 +12,6 @@ use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
     common::CurrencyCode,
@@ -21,6 +19,7 @@ use crate::core::exchanges::{
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::{common::CurrencyId, general::exchange::BoxExchangeClient};
+use crate::core::exchanges::{common::TradePlaceAccount, rest_client::RestClient};
 use crate::core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
     events::AllowedEventSourceType,
@@ -29,6 +28,7 @@ use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventDa
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
+use crate::core::{exchanges::events::ExchangeEvent, statistic_service::StatisticService};
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 
@@ -54,6 +54,7 @@ pub struct Binance {
     pub(super) subscribe_to_market_data: bool,
 
     pub(super) rest_client: RestClient,
+    pub(super) statistics: Arc<StatisticService>,
 }
 
 impl Binance {
@@ -62,6 +63,7 @@ impl Binance {
         settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
+        statistics: Arc<StatisticService>,
     ) -> Self {
         Self {
             id,
@@ -77,6 +79,7 @@ impl Binance {
             events_channel,
             application_manager,
             rest_client: RestClient::new(),
+            statistics,
         }
     }
 
@@ -223,10 +226,20 @@ impl Binance {
             .as_str()
             .ok_or(anyhow!("Unable to parse time in force"))?;
 
+        let currency_pair = self.get_unified_currency_pair(&SpecificCurrencyPair::from(
+            json_response["s"]
+                .as_str()
+                .ok_or(anyhow!("Unable to parse symbol"))?,
+        ))?;
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
-                    // FIXME register new order here!
+                    self.statistics
+                        .clone()
+                        .order_created(TradePlaceAccount::new(
+                            self.settings.exchange_account_id.clone(),
+                            currency_pair,
+                        ));
                     (&self.order_created_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -374,6 +387,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
+        statistics: Arc<StatisticService>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
@@ -384,6 +398,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 exchange_settings,
                 events_channel.clone(),
                 application_manager,
+                statistics,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
@@ -439,6 +454,7 @@ mod tests {
             settings,
             tx,
             ApplicationManager::new(CancellationToken::default()),
+            StatisticService::new(),
         );
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.generate_signature(params).expect("in test");

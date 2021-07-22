@@ -3,7 +3,6 @@ use std::thread;
 use std::time::Duration;
 
 use chrono::Utc;
-use mmb_lib::core::exchanges::general::commission::Commission;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::{binance::binance::*, events::AllowedEventSourceType};
@@ -11,6 +10,9 @@ use mmb_lib::core::exchanges::{common::*, timeouts::timeout_manager::TimeoutMana
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
+use mmb_lib::core::{
+    exchanges::general::commission::Commission, statistic_service::StatisticService,
+};
 use rust_decimal_macros::*;
 
 use crate::get_binance_credentials_or_exit;
@@ -43,6 +45,7 @@ async fn open_orders_exists() {
         settings,
         tx.clone(),
         application_manager.clone(),
+        StatisticService::new(),
     );
 
     let exchange = Exchange::new(

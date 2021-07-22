@@ -1,4 +1,3 @@
-use crate::core::config::load_settings;
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::common::ExchangeId;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
@@ -14,6 +13,7 @@ use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
+use crate::core::{config::load_settings, statistic_service::StatisticService};
 use crate::core::{
     disposition_execution::executor::DispositionExecutorService,
     infrastructure::{keep_application_manager, spawn_future},
@@ -173,6 +173,7 @@ pub async fn create_exchanges(
     application_manager: Arc<ApplicationManager>,
     timeout_manager: &Arc<TimeoutManager>,
 ) -> Vec<Arc<Exchange>> {
+    let statistics = StatisticService::new();
     join_all(core_settings.exchanges.iter().map(|x| {
         create_exchange(
             x,
@@ -180,6 +181,7 @@ pub async fn create_exchanges(
             events_channel.clone(),
             application_manager.clone(),
             timeout_manager.clone(),
+            statistics.clone(),
         )
     }))
     .await

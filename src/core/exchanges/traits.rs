@@ -16,7 +16,6 @@ use super::{
     general::handlers::handle_order_filled::FillEventData,
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
-use crate::core::connectivity::connectivity_manager::WebSocketRole;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::lifecycle::application_manager::ApplicationManager;
@@ -25,6 +24,9 @@ use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
 use crate::core::settings::ExchangeSettings;
+use crate::core::{
+    connectivity::connectivity_manager::WebSocketRole, statistic_service::StatisticService,
+};
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use awc::http::Uri;
 
@@ -104,6 +106,7 @@ pub trait ExchangeClientBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
+        statistics: Arc<StatisticService>,
     ) -> ExchangeClientBuilderResult;
 
     fn extend_settings(&self, settings: &mut ExchangeSettings);

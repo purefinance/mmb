@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
-use mmb::exchanges::{
-    events::AllowedEventSourceType, general::commission::Commission,
-    timeouts::timeout_manager::TimeoutManager,
+use mmb::{
+    exchanges::{
+        events::AllowedEventSourceType, general::commission::Commission,
+        timeouts::timeout_manager::TimeoutManager,
+    },
+    statistic_service::StatisticService,
 };
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
@@ -45,6 +48,7 @@ async fn create_successfully() {
         settings,
         tx.clone(),
         application_manager.clone(),
+        StatisticService::new(),
     );
 
     let exchange = Exchange::new(
@@ -154,6 +158,7 @@ async fn should_fail() {
         settings,
         tx.clone(),
         application_manager.clone(),
+        StatisticService::new(),
     );
 
     let exchange = Exchange::new(
