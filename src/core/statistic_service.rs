@@ -14,26 +14,69 @@ pub struct TradePlaceAccountStatistic {
     partially_filled_orders_amount: usize,
     fully_filled_orders_amount: usize,
     summary_filled_amount: Amount,
-    summary_fee: Price,
+    summary_commission: Price,
 }
 
 impl TradePlaceAccountStatistic {
-    fn new(
-        opened_orders_amount: usize,
-        canceled_orders_amount: usize,
-        partially_filled_orders_amount: usize,
-        fully_filled_orders_amount: usize,
-        summary_filled_amount: Amount,
-        summary_fee: Price,
-    ) -> Self {
-        Self {
-            opened_orders_amount,
-            canceled_orders_amount,
-            partially_filled_orders_amount,
-            fully_filled_orders_amount,
-            summary_filled_amount,
-            summary_fee,
-        }
+    fn first_order_opened() -> Self {
+        let mut trade_place_account_statistic = Self::default();
+        trade_place_account_statistic.opened_orders_amount = 1;
+        trade_place_account_statistic
+    }
+
+    fn first_order_cancelled() -> Self {
+        let mut trade_place_account_statistic = Self::default();
+        trade_place_account_statistic.canceled_orders_amount = 1;
+        trade_place_account_statistic
+    }
+
+    fn first_partially_filled_order() -> Self {
+        let mut trade_place_account_statistic = Self::default();
+        trade_place_account_statistic.partially_filled_orders_amount = 1;
+        trade_place_account_statistic
+    }
+
+    fn first_completelly_filled_order() -> Self {
+        let mut trade_place_account_statistic = Self::default();
+        trade_place_account_statistic.fully_filled_orders_amount = 1;
+        trade_place_account_statistic
+    }
+
+    fn first_filled_amount(first_filled_amount: Amount) -> Self {
+        let mut trade_place_account_statistic = Self::default();
+        trade_place_account_statistic.summary_filled_amount = first_filled_amount;
+        trade_place_account_statistic
+    }
+
+    fn first_commission(commission: Price) -> Self {
+        let mut trade_place_account_statistic = Self::default();
+        trade_place_account_statistic.summary_commission = commission;
+        trade_place_account_statistic
+    }
+
+    fn order_created(&mut self) {
+        self.opened_orders_amount += 1;
+    }
+
+    fn order_canceled(&mut self) {
+        self.canceled_orders_amount += 1;
+    }
+
+    fn order_partially_filled(&mut self) {
+        self.partially_filled_orders_amount += 1;
+    }
+
+    fn order_completely_filled(&mut self) {
+        self.partially_filled_orders_amount = self.partially_filled_orders_amount.saturating_sub(1);
+        self.fully_filled_orders_amount += 1;
+    }
+
+    fn add_summary_filled_amount(&mut self, filled_amount: Amount) {
+        self.summary_filled_amount += filled_amount;
+    }
+
+    fn add_summary_commission(&mut self, commission: Price) {
+        self.summary_commission += commission;
     }
 }
 
@@ -67,27 +110,62 @@ impl StatisticService {
     }
 
     pub(crate) fn order_created(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
-        // TODO get_or_add logic
         self.trade_place_data
             .write()
-            .insert(trade_place_account, TradePlaceAccountStatistic::default());
-        dbg!(&"ORDER CREATED");
+            .entry(trade_place_account)
+            .or_insert(TradePlaceAccountStatistic::first_order_opened())
+            .order_created();
     }
 
     pub(crate) fn order_canceled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
-        dbg!(&"ORDER CANCELED");
+        self.trade_place_data
+            .write()
+            .entry(trade_place_account)
+            .or_insert(TradePlaceAccountStatistic::first_order_cancelled())
+            .order_canceled();
     }
 
     pub(crate) fn order_partially_filled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
-        dbg!(&"ORDER PARTIALLY FILLED");
+        self.trade_place_data
+            .write()
+            .entry(trade_place_account)
+            .or_insert(TradePlaceAccountStatistic::first_partially_filled_order())
+            .order_partially_filled();
     }
 
     pub(crate) fn order_completely_filled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
-        // FIXME delete order from partially filled
-        dbg!(&"ORDER PARTIALLY FILLED");
+        self.trade_place_data
+            .write()
+            .entry(trade_place_account)
+            .or_insert(TradePlaceAccountStatistic::first_completelly_filled_order())
+            .order_completely_filled();
     }
 
-    // FIXME add summary fillled amount and summary commission
+    pub(crate) fn add_summary_amount(
+        self: Arc<Self>,
+        trade_place_account: TradePlaceAccount,
+        filled_amount: Amount,
+    ) {
+        self.trade_place_data
+            .write()
+            .entry(trade_place_account)
+            .or_insert(TradePlaceAccountStatistic::first_filled_amount(
+                filled_amount,
+            ))
+            .add_summary_filled_amount(filled_amount);
+    }
+
+    pub(crate) fn add_summary_commission(
+        self: Arc<Self>,
+        trade_place_account: TradePlaceAccount,
+        commission: Price,
+    ) {
+        self.trade_place_data
+            .write()
+            .entry(trade_place_account)
+            .or_insert(TradePlaceAccountStatistic::first_commission(commission))
+            .add_summary_commission(commission);
+    }
 
     pub(crate) fn event_missed(self: Arc<Self>) {
         (*self.disposition_executor_data.lock()).skipped_events_amount += 1;

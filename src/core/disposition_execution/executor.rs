@@ -863,8 +863,6 @@ impl DispositionExecutor {
         // max delay for skipping recalculation of trading context and orders synchronization
         let delay_for_skipping_event: Duration = Duration::milliseconds(50);
         if event_time + delay_for_skipping_event < now {
-            // TODO save metrics about skipped events
-            // FIXME Add function here!
             self.statistics.clone().event_missed();
 
             return false;

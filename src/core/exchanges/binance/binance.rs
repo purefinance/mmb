@@ -7,12 +7,13 @@ use hex;
 use hmac::{Hmac, Mac, NewMac};
 use log::error;
 use parking_lot::{Mutex, RwLock};
+use rust_decimal::Decimal;
 use serde_json::Value;
 use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::traits::ExchangeClientBuilderResult;
+use crate::core::exchanges::{common::Amount, traits::ExchangeClientBuilderResult};
 use crate::core::exchanges::{
     common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
@@ -231,15 +232,14 @@ impl Binance {
                 .as_str()
                 .ok_or(anyhow!("Unable to parse symbol"))?,
         ))?;
+
+        let trade_place_account =
+            TradePlaceAccount::new(self.settings.exchange_account_id.clone(), currency_pair);
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
-                    self.statistics
-                        .clone()
-                        .order_created(TradePlaceAccount::new(
-                            self.settings.exchange_account_id.clone(),
-                            currency_pair,
-                        ));
+                    self.statistics.clone().order_created(trade_place_account);
+
                     (&self.order_created_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -253,6 +253,8 @@ impl Binance {
             },
             "CANCELED" => match order_status {
                 "CANCELED" => {
+                    self.statistics.clone().order_canceled(trade_place_account);
+
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -289,12 +291,44 @@ impl Binance {
                     exchange_order_id.into(),
                 )?;
 
+                let order_quantity: Decimal = json_response["q"]
+                    .as_str()
+                    .ok_or(anyhow!("Unable to parse order quantity"))?
+                    .parse()?;
+
+                self.add_filled_order_to_statistics(
+                    &event_data,
+                    order_quantity,
+                    trade_place_account,
+                );
+
                 (&self.handle_order_filled_callback).lock()(event_data);
             }
             _ => error!("Impossible execution type"),
         }
 
         Ok(())
+    }
+
+    fn add_filled_order_to_statistics(
+        &self,
+        event_data: &FillEventData,
+        order_quantity: Amount,
+        trade_place_account: TradePlaceAccount,
+    ) {
+        if let Some(total_filled_amount) = event_data.total_filled_amount {
+            if total_filled_amount < order_quantity {
+                self.statistics
+                    .clone()
+                    .order_partially_filled(trade_place_account);
+            } else {
+                self.statistics
+                    .clone()
+                    .order_completely_filled(trade_place_account);
+            }
+        }
+
+        // FIXME call add_summary_filled_amount() and add_summary_commission()
     }
 
     fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
