@@ -28,10 +28,14 @@ pub enum BeforeAfter {
     After,
 }
 
+// Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
 #[derive(Debug, Clone)]
 pub enum Precision {
+    // Rounding is performed to a number divisible to the specified tick
+    // Look at round_by_tick test below
     ByTick { tick: Decimal },
-    ByFraction { precision: i8 },
+    // Rounding is performed to a number of digits located on `precision` length to the right of start of mantissa
+    // Look at round_by_mantissa test below
     ByMantisa { precision: i8 },
 }
 
@@ -127,9 +131,6 @@ impl CurrencyPairMetadata {
     pub fn price_round(&self, price: Price, round: Round) -> Result<Price> {
         match self.price_precision {
             Precision::ByTick { tick } => Self::round_by_tick(price, tick, round),
-            Precision::ByFraction { precision } => {
-                Ok(Self::round_by_fraction(price, precision, round))
-            }
             Precision::ByMantisa { precision } => Self::round_by_mantissa(price, precision, round),
         }
     }
@@ -137,7 +138,7 @@ impl CurrencyPairMetadata {
     pub fn amount_round(&self, amount: Amount, round: Round) -> Result<Amount> {
         match self.amount_precision {
             Precision::ByTick { tick } => Self::round_by_tick(amount, tick, round),
-            Precision::ByFraction { precision } | Precision::ByMantisa { precision } => {
+            Precision::ByMantisa { precision } => {
                 self.amount_round_precision(amount, round, precision)
             }
         }
@@ -151,9 +152,6 @@ impl CurrencyPairMetadata {
         amount_precision: i8,
     ) -> Result<Amount> {
         match self.amount_precision {
-            Precision::ByFraction { precision: _ } => {
-                Ok(Self::round_by_fraction(amount, amount_precision, round))
-            }
             Precision::ByMantisa { precision: _ } => {
                 Self::round_by_mantissa(amount, amount_precision, round)
             }
@@ -166,7 +164,7 @@ impl CurrencyPairMetadata {
     pub fn round_to_remove_amount_precision_error(&self, amount: Amount) -> Result<Amount> {
         // allowed machine error that is less then 0.01 * amount precision
         match self.amount_precision {
-            Precision::ByFraction { precision } | Precision::ByMantisa { precision } => {
+            Precision::ByMantisa { precision } => {
                 self.amount_round_precision(amount, Round::ToNearest, precision + 2i8)
             }
             Precision::ByTick { tick } => {
@@ -207,7 +205,11 @@ impl CurrencyPairMetadata {
 
         let floor_digits = Self::get_precision_digits_by_fractional(value, precision)?;
 
-        Ok(Self::round_by_fraction(value, floor_digits, round))
+        Ok(Self::inner_round_by_tick(
+            value,
+            powi(dec!(0.1), floor_digits),
+            round,
+        ))
     }
 
     fn get_precision_digits_by_fractional(value: Price, precision: i8) -> Result<i8> {
@@ -238,13 +240,6 @@ impl CurrencyPairMetadata {
         let floor_digits = precision - integral_digits;
 
         Ok(floor_digits)
-    }
-
-    fn round_by_fraction(value: Price, precision: i8, round: Round) -> Price {
-        let multiplier = dec!(0.1);
-        let pow_precision = powi(multiplier, precision);
-
-        Self::inner_round_by_tick(value, pow_precision, round)
     }
 
     pub fn get_commission_currency_code(&self, side: OrderSide) -> CurrencyCode {
@@ -363,38 +358,6 @@ mod test {
 
     use rstest::rstest;
     use rust_decimal::Decimal;
-
-    #[rstest]
-    #[case(dec!(123.456), 2, Round::Floor, dec!(123.45))]
-    #[case(dec!(12.3456), 2, Round::Floor, dec!(12.34))]
-    #[case(dec!(0), 2, Round::Floor, dec!(0))]
-    #[case(dec!(0.01234), 2, Round::Floor, dec!(0.01))]
-    #[case(dec!(0.01234), 3, Round::Floor, dec!(0.012))]
-    #[case(dec!(123.456), -1, Round::Floor, dec!(120))]
-    #[case(dec!(123.456), 0, Round::Floor, dec!(123))]
-    #[case(dec!(123.456), 2, Round::Ceiling, dec!(123.46))]
-    #[case(dec!(12.3456), 2, Round::Ceiling, dec!(12.35))]
-    #[case(dec!(0), 2, Round::Ceiling, dec!(0))]
-    #[case(dec!(0.01234), 2, Round::Ceiling, dec!(0.02))]
-    #[case(dec!(0.01234), 3, Round::Ceiling, dec!(0.013))]
-    #[case(dec!(123.456), -1, Round::Ceiling, dec!(130))]
-    #[case(dec!(123.456), 0, Round::Ceiling, dec!(124))]
-    #[case(dec!(123.456), 2, Round::ToNearest, dec!(123.46))]
-    #[case(dec!(12.3456), 2, Round::ToNearest, dec!(12.35))]
-    #[case(dec!(0), 2, Round::ToNearest, dec!(0))]
-    #[case(dec!(0.01234), 2, Round::ToNearest, dec!(0.01))]
-    #[case(dec!(0.01234), 3, Round::ToNearest, dec!(0.012))]
-    #[case(dec!(123.456), -1, Round::ToNearest, dec!(120))]
-    #[case(dec!(123.456), 0, Round::ToNearest, dec!(123))]
-    fn round_by_fraction(
-        #[case] value: Decimal,
-        #[case] precision: i8,
-        #[case] round_to: Round,
-        #[case] expected: Decimal,
-    ) {
-        let rounded = CurrencyPairMetadata::round_by_fraction(value, precision, round_to);
-        assert_eq!(rounded, expected);
-    }
 
     #[rstest]
     #[case(dec!(123.456), 5, Round::Floor, dec!(123.45))]
