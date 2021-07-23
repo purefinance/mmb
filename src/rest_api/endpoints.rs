@@ -57,9 +57,7 @@ pub(super) async fn set_config(
 pub(super) async fn stats(
     statistics: web::Data<Arc<StatisticService>>,
 ) -> Result<HttpResponse, Error> {
-    // TODO It is just a stub. Fix method body in the future
     let json_statistic = serde_json::to_string(&statistics)?;
-    dbg!(&json_statistic);
 
     Ok(HttpResponse::Ok().body(&json_statistic))
 }

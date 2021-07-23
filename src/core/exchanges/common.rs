@@ -258,7 +258,7 @@ impl TradePlace {
 }
 
 /// Exchange account id and currency pair
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Hash)]
 pub struct TradePlaceAccount {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
@@ -277,6 +277,16 @@ impl TradePlaceAccount {
             self.exchange_account_id.exchange_id.clone(),
             self.currency_pair.clone(),
         )
+    }
+}
+
+impl Serialize for TradePlaceAccount {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let trade_place_account = format!("{}|{}", self.exchange_account_id, self.currency_pair);
+        serializer.serialize_str(&trade_place_account)
     }
 }
 

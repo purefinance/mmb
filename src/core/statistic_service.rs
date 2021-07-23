@@ -53,7 +53,7 @@ impl DispositionExecutorStatistic {
 // FIXME in what meaning should it be Service? Should it be able to call graceful shutdown?
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StatisticService {
-    trade_place_data: RwLock<HashMap<String, TradePlaceAccountStatistic>>,
+    trade_place_data: RwLock<HashMap<TradePlaceAccount, TradePlaceAccountStatistic>>,
     disposition_executor_data: Mutex<DispositionExecutorStatistic>,
 }
 
@@ -68,15 +68,28 @@ impl StatisticService {
 
     pub(crate) fn order_created(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
         // TODO get_or_add logic
-        self.trade_place_data.write().insert(
-            "TradePlaceAccount".to_owned(),
-            TradePlaceAccountStatistic::default(),
-        );
+        self.trade_place_data
+            .write()
+            .insert(trade_place_account, TradePlaceAccountStatistic::default());
         dbg!(&"ORDER CREATED");
     }
 
+    pub(crate) fn order_canceled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
+        dbg!(&"ORDER CANCELED");
+    }
+
+    pub(crate) fn order_partially_filled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
+        dbg!(&"ORDER PARTIALLY FILLED");
+    }
+
+    pub(crate) fn order_completely_filled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
+        // FIXME delete order from partially filled
+        dbg!(&"ORDER PARTIALLY FILLED");
+    }
+
+    // FIXME add summary fillled amount and summary commission
+
     pub(crate) fn event_missed(self: Arc<Self>) {
-        dbg!(&"EVENT_MISSED");
         (*self.disposition_executor_data.lock()).skipped_events_amount += 1;
     }
 }
