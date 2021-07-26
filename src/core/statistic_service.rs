@@ -18,42 +18,6 @@ pub struct TradePlaceAccountStatistic {
 }
 
 impl TradePlaceAccountStatistic {
-    fn first_order_opened() -> Self {
-        let mut trade_place_account_statistic = Self::default();
-        trade_place_account_statistic.opened_orders_amount = 1;
-        trade_place_account_statistic
-    }
-
-    fn first_order_cancelled() -> Self {
-        let mut trade_place_account_statistic = Self::default();
-        trade_place_account_statistic.canceled_orders_amount = 1;
-        trade_place_account_statistic
-    }
-
-    fn first_partially_filled_order() -> Self {
-        let mut trade_place_account_statistic = Self::default();
-        trade_place_account_statistic.partially_filled_orders_amount = 1;
-        trade_place_account_statistic
-    }
-
-    fn first_completelly_filled_order() -> Self {
-        let mut trade_place_account_statistic = Self::default();
-        trade_place_account_statistic.fully_filled_orders_amount = 1;
-        trade_place_account_statistic
-    }
-
-    fn first_filled_amount(first_filled_amount: Amount) -> Self {
-        let mut trade_place_account_statistic = Self::default();
-        trade_place_account_statistic.summary_filled_amount = first_filled_amount;
-        trade_place_account_statistic
-    }
-
-    fn first_commission(commission: Price) -> Self {
-        let mut trade_place_account_statistic = Self::default();
-        trade_place_account_statistic.summary_commission = commission;
-        trade_place_account_statistic
-    }
-
     fn order_created(&mut self) {
         self.opened_orders_amount += 1;
     }
@@ -113,7 +77,7 @@ impl StatisticService {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
-            .or_insert(TradePlaceAccountStatistic::first_order_opened())
+            .or_default()
             .order_created();
     }
 
@@ -121,7 +85,7 @@ impl StatisticService {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
-            .or_insert(TradePlaceAccountStatistic::first_order_cancelled())
+            .or_default()
             .order_canceled();
     }
 
@@ -129,7 +93,7 @@ impl StatisticService {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
-            .or_insert(TradePlaceAccountStatistic::first_partially_filled_order())
+            .or_default()
             .order_partially_filled();
     }
 
@@ -140,7 +104,7 @@ impl StatisticService {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
-            .or_insert(TradePlaceAccountStatistic::first_completelly_filled_order())
+            .or_default()
             .order_completely_filled();
     }
 
@@ -152,9 +116,7 @@ impl StatisticService {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
-            .or_insert(TradePlaceAccountStatistic::first_filled_amount(
-                filled_amount,
-            ))
+            .or_default()
             .add_summary_filled_amount(filled_amount);
     }
 
@@ -166,7 +128,7 @@ impl StatisticService {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
-            .or_insert(TradePlaceAccountStatistic::first_commission(commission))
+            .or_default()
             .add_summary_commission(commission);
     }
 
