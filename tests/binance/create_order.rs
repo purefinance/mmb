@@ -97,6 +97,10 @@ async fn create_successfully() {
         .await
         .expect("in test");
 
+    let created_order = exchange
+        .create_order(&order_to_create, CancellationToken::default())
+        .await;
+
     match created_order {
         Ok(order_ref) => {
             let event = rx
