@@ -2,7 +2,7 @@
 use anyhow::{bail, Result};
 use chrono::Utc;
 use futures::FutureExt;
-use mmb_lib::core::orders::order::OrderSnapshot;
+use hyper::Uri;
 use mmb_lib::core::settings::BaseStrategySettings;
 use mmb_lib::core::{config::parse_settings, orders::order::OrderCreating};
 use mmb_lib::core::{
@@ -18,6 +18,7 @@ use mmb_lib::core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
     infrastructure::spawn_future,
 };
+use mmb_lib::core::{exchanges::rest_client::RestClient, orders::order::OrderSnapshot};
 use mmb_lib::core::{explanation::Explanation, orders::order::ClientOrderId};
 use mmb_lib::core::{
     lifecycle::cancellation_token::CancellationToken, orders::order::OrderSide,
@@ -30,6 +31,7 @@ use mmb_lib::strategies::disposition_strategy::DispositionStrategy;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -110,7 +112,7 @@ async fn orders_cancelled() -> Result<()> {
         include_str!("../lifecycle.cred.toml"),
     )?;
     let mut exchange_settings = &mut settings.core.exchanges[0];
-    exchange_settings.api_key = api_key;
+    exchange_settings.api_key = api_key.clone();
     exchange_settings.secret_key = secret_key;
     let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
@@ -148,7 +150,7 @@ async fn orders_cancelled() -> Result<()> {
         header: order_header.clone(),
         price: dec!(0.0000001),
     };
-    let created_order = exchange
+    let _ = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await;
 
@@ -157,20 +159,47 @@ async fn orders_cancelled() -> Result<()> {
         .await
         .expect("in test");
 
-    //let action = async move {
-    //    sleep(Duration::from_millis(200)).await;
-    //    context
-    //        .application_manager
-    //        .run_graceful_shutdown("test")
-    //        .await;
+    let rest_client = RestClient::new();
+    let statistics: Value = serde_json::from_str(
+        &rest_client
+            .get(
+                "http://127.0.0.1:8080/stats"
+                    .parse::<Uri>()
+                    .expect("in test"),
+                &api_key,
+            )
+            .await?
+            .content,
+    )?;
 
-    //    Ok(())
-    //};
-    //spawn_future(
-    //    "run graceful_shutdown in launch_engine test",
-    //    true,
-    //    action.boxed(),
-    //);
+    let exchange_statistics = &statistics["trade_place_data"]["Binance0|phb/btc"];
+    let opened_orders_amount = exchange_statistics["opened_orders_amount"]
+        .as_u64()
+        .expect("in test");
+    let canceled_orders_amount = exchange_statistics["canceled_orders_amount"]
+        .as_u64()
+        .expect("in test");
+
+    // Only one order was created and cancelled
+    assert_eq!(opened_orders_amount, 1);
+    assert_eq!(canceled_orders_amount, 1);
+
+    let context = context.clone();
+    let action = async move {
+        sleep(Duration::from_millis(200)).await;
+        context
+            .clone()
+            .application_manager
+            .run_graceful_shutdown("test")
+            .await;
+
+        Ok(())
+    };
+    spawn_future(
+        "run graceful_shutdown in launch_engine test",
+        true,
+        action.boxed(),
+    );
 
     engine.run().await;
 
