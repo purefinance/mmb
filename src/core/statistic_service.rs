@@ -109,46 +109,49 @@ impl StatisticService {
         })
     }
 
-    pub(crate) fn order_created(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
+    pub(crate) fn order_created(self: Arc<Self>, trade_place_account: &TradePlaceAccount) {
         self.trade_place_data
             .write()
-            .entry(trade_place_account)
+            .entry(trade_place_account.clone())
             .or_insert(TradePlaceAccountStatistic::first_order_opened())
             .order_created();
     }
 
-    pub(crate) fn order_canceled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
+    pub(crate) fn order_canceled(self: Arc<Self>, trade_place_account: &TradePlaceAccount) {
         self.trade_place_data
             .write()
-            .entry(trade_place_account)
+            .entry(trade_place_account.clone())
             .or_insert(TradePlaceAccountStatistic::first_order_cancelled())
             .order_canceled();
     }
 
-    pub(crate) fn order_partially_filled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
+    pub(crate) fn order_partially_filled(self: Arc<Self>, trade_place_account: &TradePlaceAccount) {
         self.trade_place_data
             .write()
-            .entry(trade_place_account)
+            .entry(trade_place_account.clone())
             .or_insert(TradePlaceAccountStatistic::first_partially_filled_order())
             .order_partially_filled();
     }
 
-    pub(crate) fn order_completely_filled(self: Arc<Self>, trade_place_account: TradePlaceAccount) {
+    pub(crate) fn order_completely_filled(
+        self: Arc<Self>,
+        trade_place_account: &TradePlaceAccount,
+    ) {
         self.trade_place_data
             .write()
-            .entry(trade_place_account)
+            .entry(trade_place_account.clone())
             .or_insert(TradePlaceAccountStatistic::first_completelly_filled_order())
             .order_completely_filled();
     }
 
     pub(crate) fn add_summary_amount(
         self: Arc<Self>,
-        trade_place_account: TradePlaceAccount,
+        trade_place_account: &TradePlaceAccount,
         filled_amount: Amount,
     ) {
         self.trade_place_data
             .write()
-            .entry(trade_place_account)
+            .entry(trade_place_account.clone())
             .or_insert(TradePlaceAccountStatistic::first_filled_amount(
                 filled_amount,
             ))
@@ -157,12 +160,12 @@ impl StatisticService {
 
     pub(crate) fn add_summary_commission(
         self: Arc<Self>,
-        trade_place_account: TradePlaceAccount,
+        trade_place_account: &TradePlaceAccount,
         commission: Price,
     ) {
         self.trade_place_data
             .write()
-            .entry(trade_place_account)
+            .entry(trade_place_account.clone())
             .or_insert(TradePlaceAccountStatistic::first_commission(commission))
             .add_summary_commission(commission);
     }

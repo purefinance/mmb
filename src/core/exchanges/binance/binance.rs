@@ -238,7 +238,7 @@ impl Binance {
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
-                    self.statistics.clone().order_created(trade_place_account);
+                    self.statistics.clone().order_created(&trade_place_account);
 
                     (&self.order_created_callback).lock()(
                         client_order_id.into(),
@@ -253,7 +253,7 @@ impl Binance {
             },
             "CANCELED" => match order_status {
                 "CANCELED" => {
-                    self.statistics.clone().order_canceled(trade_place_account);
+                    self.statistics.clone().order_canceled(&trade_place_account);
 
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
@@ -320,15 +320,23 @@ impl Binance {
             if total_filled_amount < order_quantity {
                 self.statistics
                     .clone()
-                    .order_partially_filled(trade_place_account);
+                    .order_partially_filled(&trade_place_account);
             } else {
                 self.statistics
                     .clone()
-                    .order_completely_filled(trade_place_account);
+                    .order_completely_filled(&trade_place_account.clone());
             }
         }
 
-        // FIXME call add_summary_filled_amount() and add_summary_commission()
+        self.statistics
+            .clone()
+            .add_summary_amount(&trade_place_account, event_data.fill_amount);
+
+        if let Some(comission) = event_data.commission_amount {
+            self.statistics
+                .clone()
+                .add_summary_commission(&trade_place_account, comission);
+        }
     }
 
     fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
