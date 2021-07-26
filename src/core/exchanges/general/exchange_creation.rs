@@ -43,7 +43,6 @@ pub fn create_timeout_manager(
     TimeoutManager::new(request_timeout_managers)
 }
 
-// FIXME should it really be pub?
 pub async fn create_exchange(
     user_settings: &ExchangeSettings,
     build_settings: &EngineBuildConfig,

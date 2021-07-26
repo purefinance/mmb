@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use super::exchanges::common::{Amount, Price, TradePlaceAccount};
 
-// FIXME Probably it has to be pub(crate)
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TradePlaceAccountStatistic {
     opened_orders_amount: usize,
@@ -57,7 +56,6 @@ impl DispositionExecutorStatistic {
     }
 }
 
-// FIXME in what meaning should it be Service? Should it be able to call graceful shutdown?
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StatisticService {
     trade_place_data: RwLock<HashMap<TradePlaceAccount, TradePlaceAccountStatistic>>,
@@ -65,7 +63,6 @@ pub struct StatisticService {
 }
 
 impl StatisticService {
-    // FIXME Probably it has to be pub(crate)
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             trade_place_data: Default::default(),
