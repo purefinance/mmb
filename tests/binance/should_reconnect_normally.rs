@@ -46,7 +46,6 @@ pub async fn should_connect_and_reconnect_normally() {
         settings,
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     ));
 
     let exchange = Exchange::new(

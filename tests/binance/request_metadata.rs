@@ -43,7 +43,6 @@ async fn request_metadata() {
         settings,
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     );
 
     let exchange = Exchange::new(

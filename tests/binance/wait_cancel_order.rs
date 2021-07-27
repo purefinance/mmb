@@ -42,7 +42,6 @@ async fn cancellation_waited_successfully() {
         settings,
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     )) as BoxExchangeClient;
 
     let timeout_manager = get_timeout_manager(&exchange_account_id);
@@ -142,7 +141,6 @@ async fn cancellation_waited_failed_fallback() {
         settings,
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     )) as BoxExchangeClient;
 
     let timeout_manager = get_timeout_manager(&exchange_account_id);

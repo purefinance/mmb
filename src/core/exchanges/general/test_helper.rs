@@ -50,7 +50,6 @@ pub(crate) fn get_test_exchange(
         settings.clone(),
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     ));
     let referral_reward = dec!(40);
     let commission = Commission::new(

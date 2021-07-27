@@ -139,6 +139,9 @@ where
         &statistics,
     );
 
+    // FIXME continue here
+    //let statistic_event_handler = create
+
     engine_context.shutdown_service.register_services(&[
         control_panel,
         internal_events_loop,

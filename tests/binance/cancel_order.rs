@@ -44,7 +44,6 @@ async fn cancelled_successfully() {
         settings.clone(),
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     ));
 
     let exchange = Exchange::new(
@@ -151,7 +150,6 @@ async fn nothing_to_cancel() {
         settings,
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     );
 
     let exchange = Exchange::new(

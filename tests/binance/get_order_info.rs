@@ -44,7 +44,6 @@ async fn get_order_info() {
         settings,
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     );
 
     let exchange = Exchange::new(

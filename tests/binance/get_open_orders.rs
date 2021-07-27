@@ -45,7 +45,6 @@ async fn open_orders_exists() {
         settings,
         tx.clone(),
         application_manager.clone(),
-        StatisticService::new(),
     );
 
     let exchange = Exchange::new(

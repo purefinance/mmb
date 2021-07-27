@@ -391,6 +391,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
         let events_rx = events_channel.subscribe();
+        // FIXME удалить два последние поля
         ExchangeClientBuilderResult {
             client: Box::new(Binance::new(
                 exchange_account_id,
@@ -452,7 +453,6 @@ mod tests {
             settings,
             tx,
             ApplicationManager::new(CancellationToken::default()),
-            StatisticService::new(),
         );
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.generate_signature(params).expect("in test");
