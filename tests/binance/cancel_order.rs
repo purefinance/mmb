@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
+use mmb_lib::core::exchanges::events::AllowedEventSourceType;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
@@ -10,9 +11,6 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
-use mmb_lib::core::{
-    exchanges::events::AllowedEventSourceType, statistic_service::StatisticService,
-};
 use rust_decimal_macros::*;
 use tokio::sync::broadcast;
 use tokio::time::Duration;

@@ -7,20 +7,20 @@ use hex;
 use hmac::{Hmac, Mac, NewMac};
 use log::error;
 use parking_lot::{Mutex, RwLock};
-use rust_decimal::Decimal;
 use serde_json::Value;
 use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::{common::Amount, traits::ExchangeClientBuilderResult};
+use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::rest_client::RestClient;
+use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
     common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::{common::CurrencyId, general::exchange::BoxExchangeClient};
-use crate::core::exchanges::{common::TradePlaceAccount, rest_client::RestClient};
 use crate::core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
     events::AllowedEventSourceType,
@@ -29,7 +29,6 @@ use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventDa
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
-use crate::core::{exchanges::events::ExchangeEvent, statistic_service::StatisticService};
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 
@@ -224,14 +223,6 @@ impl Binance {
             .as_str()
             .ok_or(anyhow!("Unable to parse time in force"))?;
 
-        let currency_pair = self.get_unified_currency_pair(&SpecificCurrencyPair::from(
-            json_response["s"]
-                .as_str()
-                .ok_or(anyhow!("Unable to parse symbol"))?,
-        ))?;
-
-        let trade_place_account =
-            TradePlaceAccount::new(self.settings.exchange_account_id.clone(), currency_pair);
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
@@ -283,11 +274,6 @@ impl Binance {
                     client_order_id.into(),
                     exchange_order_id.into(),
                 )?;
-
-                let order_quantity: Decimal = json_response["q"]
-                    .as_str()
-                    .ok_or(anyhow!("Unable to parse order quantity"))?
-                    .parse()?;
 
                 (&self.handle_order_filled_callback).lock()(event_data);
             }
@@ -390,8 +376,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
-        let events_rx = events_channel.subscribe();
-        // FIXME удалить два последние поля
         ExchangeClientBuilderResult {
             client: Box::new(Binance::new(
                 exchange_account_id,
@@ -406,8 +390,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
             ),
-            events_tx: events_channel,
-            events_rx,
         }
     }
 

@@ -1,5 +1,6 @@
 use crate::get_binance_credentials_or_exit;
 use chrono::Utc;
+use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::AllowedEventSourceType;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
@@ -9,7 +10,6 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
-use mmb_lib::core::{exchanges::common::*, statistic_service::StatisticService};
 use rust_decimal_macros::*;
 use tokio::sync::broadcast;
 use tokio::time::Duration;

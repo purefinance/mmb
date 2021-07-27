@@ -1,6 +1,7 @@
 use anyhow::Result;
 use futures::Future;
 use log::info;
+use mmb_lib::core::exchanges::binance::binance::BinanceBuilder;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
@@ -15,9 +16,6 @@ use mmb_lib::core::{
     exchanges::timeouts::timeout_manager::TimeoutManager,
     exchanges::{binance::binance::Binance, common::ExchangeAccountId},
     settings::ExchangeSettings,
-};
-use mmb_lib::core::{
-    exchanges::binance::binance::BinanceBuilder, statistic_service::StatisticService,
 };
 use parking_lot::Mutex;
 use std::{collections::HashMap, time::Duration};

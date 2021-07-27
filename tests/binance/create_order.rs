@@ -1,12 +1,9 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
-use mmb::{
-    exchanges::{
-        events::AllowedEventSourceType, general::commission::Commission,
-        timeouts::timeout_manager::TimeoutManager,
-    },
-    statistic_service::StatisticService,
+use mmb::exchanges::{
+    events::AllowedEventSourceType, general::commission::Commission,
+    timeouts::timeout_manager::TimeoutManager,
 };
 use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::binance::binance::*;
