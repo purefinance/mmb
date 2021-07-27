@@ -1,4 +1,4 @@
-use crate::core::exchanges::binance::binance::BinanceBuilder;
+use crate::core::config::load_settings;
 use crate::core::exchanges::common::ExchangeId;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange::Exchange;
@@ -13,10 +13,12 @@ use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
-use crate::core::{config::load_settings, statistic_service::StatisticService};
 use crate::core::{
     disposition_execution::executor::DispositionExecutorService,
     infrastructure::{keep_application_manager, spawn_future},
+};
+use crate::core::{
+    exchanges::binance::binance::BinanceBuilder, statistic_service::StatisticEventHandler,
 };
 use crate::hashmap;
 use crate::rest_api::control_panel::ControlPanel;
@@ -82,7 +84,6 @@ where
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
     let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
-    let statistics = StatisticService::new();
     let exchanges = create_exchanges(
         &settings.core,
         build_settings,
@@ -97,7 +98,7 @@ where
         .map(|exchange| (exchange.exchange_account_id.clone(), exchange))
         .collect();
 
-    let exchange_events = ExchangeEvents::new(events_sender);
+    let exchange_events = ExchangeEvents::new(events_sender.clone());
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
     let engine_context = EngineContext::new(
@@ -110,11 +111,14 @@ where
     );
 
     let internal_events_loop = InternalEventsLoop::new();
+
+    let exchange_events = ExchangeEvents::new(events_sender.clone());
+    let statistic_event_handler = create_statistic_service(exchange_events);
     let control_panel = ControlPanel::new(
         "127.0.0.1:8080",
         toml::Value::try_from(settings.clone())?.to_string(),
         application_manager,
-        statistics.clone(),
+        statistic_event_handler.clone(),
     );
 
     {
@@ -136,11 +140,8 @@ where
         &settings.strategy,
         &engine_context,
         disposition_strategy,
-        &statistics,
+        &statistic_event_handler,
     );
-
-    // FIXME continue here
-    //let statistic_event_handler = create
 
     engine_context.shutdown_service.register_services(&[
         control_panel,
@@ -159,7 +160,7 @@ fn create_disposition_executor_service(
     base_settings: &dyn BaseStrategySettings,
     engine_context: &Arc<EngineContext>,
     disposition_strategy: Box<dyn DispositionStrategy>,
-    statistics: &Arc<StatisticService>,
+    statistics: &Arc<StatisticEventHandler>,
 ) -> Arc<DispositionExecutorService> {
     DispositionExecutorService::new(
         engine_context.clone(),
@@ -172,6 +173,10 @@ fn create_disposition_executor_service(
         engine_context.application_manager.stop_token(),
         statistics.clone(),
     )
+}
+
+fn create_statistic_service(events: ExchangeEvents) -> Arc<StatisticEventHandler> {
+    StatisticEventHandler::new(events.get_events_channel())
 }
 
 pub async fn create_exchanges(

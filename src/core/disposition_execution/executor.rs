@@ -36,7 +36,7 @@ use crate::core::{
 };
 use crate::core::{
     disposition_execution::trading_context_calculation::calculate_trading_context,
-    statistic_service::StatisticService,
+    statistic_service::StatisticEventHandler,
 };
 use crate::core::{nothing_to_do, DateTime};
 use crate::strategies::disposition_strategy::DispositionStrategy;
@@ -72,7 +72,7 @@ impl DispositionExecutorService {
         max_amount: Amount,
         strategy: Box<dyn DispositionStrategy>,
         cancellation_token: CancellationToken,
-        statistics: Arc<StatisticService>,
+        statistics: Arc<StatisticEventHandler>,
     ) -> Arc<Self> {
         let (work_finished_sender, receiver) = oneshot::channel();
 
@@ -126,7 +126,7 @@ struct DispositionExecutor {
     strategy: Box<dyn DispositionStrategy>,
     work_finished_sender: Option<oneshot::Sender<Result<()>>>,
     cancellation_token: CancellationToken,
-    statistics: Arc<StatisticService>,
+    statistics: Arc<StatisticEventHandler>,
 }
 
 impl DispositionExecutor {
@@ -140,7 +140,7 @@ impl DispositionExecutor {
         strategy: Box<dyn DispositionStrategy>,
         work_finished_sender: oneshot::Sender<Result<()>>,
         cancellation_token: CancellationToken,
-        statistics: Arc<StatisticService>,
+        statistics: Arc<StatisticEventHandler>,
     ) -> Self {
         let currency_pair_metadata = engine_ctx
             .exchanges

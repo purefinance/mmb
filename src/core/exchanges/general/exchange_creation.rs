@@ -5,10 +5,10 @@ use log::error;
 use tokio::sync::broadcast;
 
 use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
+use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
 use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
-use crate::core::{exchanges::events::ExchangeEvent, statistic_service::StatisticService};
 use crate::core::{
     exchanges::{
         general::exchange::Exchange,

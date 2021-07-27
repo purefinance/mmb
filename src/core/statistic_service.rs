@@ -1,10 +1,19 @@
+use anyhow::Result;
+use futures::FutureExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
+use tokio::sync::broadcast;
 
-use super::exchanges::common::{Amount, Price, TradePlaceAccount};
+use super::{
+    exchanges::{
+        common::{Amount, Price, TradePlaceAccount},
+        events::ExchangeEvent,
+    },
+    infrastructure::spawn_future,
+};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TradePlaceAccountStatistic {
@@ -56,7 +65,49 @@ impl DispositionExecutorStatistic {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+pub struct StatisticEventHandler {
+    stats: StatisticService,
+    events_receiver: broadcast::Receiver<ExchangeEvent>,
+}
+
+impl StatisticEventHandler {
+    pub fn new(events_receiver: broadcast::Receiver<ExchangeEvent>) -> Arc<Self> {
+        let statistic_event_handler = Arc::new(Self {
+            stats: StatisticService::default(),
+            events_receiver,
+        });
+
+        let cloned_self = statistic_event_handler.clone();
+        let action = async move { cloned_self.clone().start().await };
+        spawn_future("Start statistic service", true, action.boxed());
+
+        statistic_event_handler
+    }
+
+    pub async fn start(&self) -> Result<()> {
+        //let mut trading_context: Option<TradingContext> = None;
+
+        //loop {
+        //    let event = tokio::select! {
+        //        event_res = self.events_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
+        //        _ = self.cancellation_token.when_cancelled() => {
+        //            let _ = self.work_finished_sender.take().ok_or(anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
+        //            return Ok(());
+        //        }
+        //    };
+
+        //    self.handle_event(event, &mut trading_context)?;
+        //}
+        todo!()
+    }
+
+    pub(crate) fn event_missed(self: Arc<Self>) {
+        // FIXME implement
+        todo!()
+    }
+}
+
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct StatisticService {
     trade_place_data: RwLock<HashMap<TradePlaceAccount, TradePlaceAccountStatistic>>,
     disposition_executor_data: Mutex<DispositionExecutorStatistic>,
