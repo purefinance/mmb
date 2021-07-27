@@ -1,5 +1,5 @@
 #![cfg(test)]
-use anyhow::{bail, Result};
+use anyhow::Result;
 use chrono::Utc;
 use futures::FutureExt;
 use hyper::Uri;
@@ -61,7 +61,8 @@ macro_rules! get_binance_credentials_or_error {
         let api_key = match api_key {
             Ok(v) => v,
             Err(_) => {
-                bail!("Environment variable BINANCE_API_KEY are not set. Unable to continue test")
+                dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
+                return Ok(());
             }
         };
 
@@ -69,7 +70,8 @@ macro_rules! get_binance_credentials_or_error {
         let secret_key = match secret_key {
             Ok(v) => v,
             Err(_) => {
-                bail!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test")
+                dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
+                return Ok(());
             }
         };
 
