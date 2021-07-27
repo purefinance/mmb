@@ -55,7 +55,6 @@ pub struct Binance {
     pub(super) subscribe_to_market_data: bool,
 
     pub(super) rest_client: RestClient,
-    pub(super) statistics: Arc<StatisticService>,
 }
 
 impl Binance {
@@ -64,7 +63,6 @@ impl Binance {
         settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
-        statistics: Arc<StatisticService>,
     ) -> Self {
         Self {
             id,
@@ -80,7 +78,6 @@ impl Binance {
             events_channel,
             application_manager,
             rest_client: RestClient::new(),
-            statistics,
         }
     }
 
@@ -238,8 +235,6 @@ impl Binance {
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
-                    self.statistics.clone().order_created(&trade_place_account);
-
                     (&self.order_created_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -253,8 +248,6 @@ impl Binance {
             },
             "CANCELED" => match order_status {
                 "CANCELED" => {
-                    self.statistics.clone().order_canceled(&trade_place_account);
-
                     (&self.order_cancelled_callback).lock()(
                         client_order_id.into(),
                         exchange_order_id.into(),
@@ -296,47 +289,12 @@ impl Binance {
                     .ok_or(anyhow!("Unable to parse order quantity"))?
                     .parse()?;
 
-                self.add_filled_order_to_statistics(
-                    &event_data,
-                    order_quantity,
-                    trade_place_account,
-                );
-
                 (&self.handle_order_filled_callback).lock()(event_data);
             }
             _ => error!("Impossible execution type"),
         }
 
         Ok(())
-    }
-
-    fn add_filled_order_to_statistics(
-        &self,
-        event_data: &FillEventData,
-        order_quantity: Amount,
-        trade_place_account: TradePlaceAccount,
-    ) {
-        if let Some(total_filled_amount) = event_data.total_filled_amount {
-            if total_filled_amount < order_quantity {
-                self.statistics
-                    .clone()
-                    .order_partially_filled(&trade_place_account);
-            } else {
-                self.statistics
-                    .clone()
-                    .order_completely_filled(&trade_place_account.clone());
-            }
-        }
-
-        self.statistics
-            .clone()
-            .add_summary_amount(&trade_place_account, event_data.fill_amount);
-
-        if let Some(comission) = event_data.commission_amount {
-            self.statistics
-                .clone()
-                .add_summary_commission(&trade_place_account, comission);
-        }
     }
 
     fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
@@ -429,7 +387,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
-        statistics: Arc<StatisticService>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
@@ -440,7 +397,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 exchange_settings,
                 events_channel.clone(),
                 application_manager,
-                statistics,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,

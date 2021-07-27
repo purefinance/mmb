@@ -49,7 +49,6 @@ pub async fn create_exchange(
     events_channel: broadcast::Sender<ExchangeEvent>,
     application_manager: Arc<ApplicationManager>,
     timeout_manager: Arc<TimeoutManager>,
-    statistics: Arc<StatisticService>,
 ) -> Arc<Exchange> {
     let exchange_client_builder =
         &build_settings.supported_exchange_clients[&user_settings.exchange_account_id.exchange_id];
@@ -60,7 +59,6 @@ pub async fn create_exchange(
         user_settings.clone(),
         events_channel.clone(),
         application_manager.clone(),
-        statistics,
     );
 
     let exchange = Exchange::new(

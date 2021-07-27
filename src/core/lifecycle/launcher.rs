@@ -89,7 +89,6 @@ where
         events_sender.clone(),
         application_manager.clone(),
         &timeout_manager,
-        &statistics,
     )
     .await;
 
@@ -178,7 +177,6 @@ pub async fn create_exchanges(
     events_channel: broadcast::Sender<ExchangeEvent>,
     application_manager: Arc<ApplicationManager>,
     timeout_manager: &Arc<TimeoutManager>,
-    statistics: &Arc<StatisticService>,
 ) -> Vec<Arc<Exchange>> {
     join_all(core_settings.exchanges.iter().map(|x| {
         create_exchange(
@@ -187,7 +185,6 @@ pub async fn create_exchanges(
             events_channel.clone(),
             application_manager.clone(),
             timeout_manager.clone(),
-            statistics.clone(),
         )
     }))
     .await

@@ -106,7 +106,6 @@ pub trait ExchangeClientBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
-        statistics: Arc<StatisticService>,
     ) -> ExchangeClientBuilderResult;
 
     fn extend_settings(&self, settings: &mut ExchangeSettings);
