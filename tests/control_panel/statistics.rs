@@ -85,8 +85,8 @@ async fn orders_cancelled() {
     let config = EngineBuildConfig::standard();
 
     let mut settings = parse_settings::<TestStrategySettings>(
-        include_str!("../lifecycle.toml"),
-        include_str!("../lifecycle.cred.toml"),
+        include_str!("control_panel.toml"),
+        include_str!("control_panel.cred.toml"),
     )
     .expect("in test");
     let mut exchange_settings = &mut settings.core.exchanges[0];
