@@ -473,6 +473,18 @@ impl Exchange {
     }
 
     pub async fn cancel_opened_orders(self: Arc<Self>) {
-        // TODO should be implemented
+        match self.get_open_orders().await {
+            Err(error) => {
+                log::log!(
+                    log::Level::Info,
+                    "Opened orders not found for exchange account id {}: {}",
+                    self.exchange_account_id,
+                    error,
+                );
+            }
+            Ok(orders) => {
+                self.cancel_orders(orders).await;
+            }
+        }
     }
 }

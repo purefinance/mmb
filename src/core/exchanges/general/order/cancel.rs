@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use chrono::Utc;
+use futures::future::join_all;
 use log::{error, info};
 use tokio::sync::oneshot;
 
@@ -13,6 +14,7 @@ use crate::core::{
     lifecycle::cancellation_token::CancellationToken,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
+    orders::order::OrderInfo,
     orders::order::OrderStatus,
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCancelling},
@@ -242,5 +244,25 @@ impl Exchange {
                 source_type,
             ),
         }
+    }
+
+    pub(crate) async fn cancel_orders(&self, orders: Vec<OrderInfo>) {
+        if orders.len() == 0 {
+            return;
+        }
+
+        join_all(orders.iter().map(|x| {
+            self.wait_cancel_order(
+                self.orders
+                    .cache_by_exchange_id
+                    .get(&x.exchange_order_id)
+                    .expect("cannot find the order")
+                    .clone(),
+                None,
+                true,
+                CancellationToken::default(),
+            )
+        }))
+        .await;
     }
 }

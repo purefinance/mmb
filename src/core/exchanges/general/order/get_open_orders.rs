@@ -11,7 +11,10 @@ impl Exchange {
         loop {
             match self.get_open_orders_impl().await {
                 Ok(gotten_orders) => return Ok(gotten_orders),
-                Err(error) => warn!("{}", error),
+                Err(error) => {
+                    warn!("{}", error);
+                    return Err(error);
+                }
             }
         }
     }
