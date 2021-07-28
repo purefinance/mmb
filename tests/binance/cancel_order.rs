@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use chrono::Utc;
 use mmb_lib::core::exchanges::events::AllowedEventSourceType;
+use mmb_lib::core::exchanges::events::ExchangeEvent;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
@@ -10,6 +12,7 @@ use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
+use mmb_lib::core::orders::pool::OrderRef;
 use mmb_lib::core::settings;
 use rust_decimal_macros::*;
 use tokio::sync::broadcast;
@@ -19,23 +22,20 @@ use super::common::get_timeout_manager;
 use crate::get_binance_credentials_or_exit;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 
-#[actix_rt::test]
-async fn cancelled_successfully() {
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
-
-    init_logger();
-
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-
+fn prepare_exchange(
+    exchange_account_id: &ExchangeAccountId,
+    api_key: String,
+    secret_key: String,
+    tx: broadcast::Sender<ExchangeEvent>,
+    tm: Arc<TimeoutManager>,
+) -> Arc<Exchange> {
     let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         api_key,
         secret_key,
         false,
     );
-
     let application_manager = ApplicationManager::new(CancellationToken::default());
-    let (tx, _rx) = broadcast::channel(10);
 
     BinanceBuilder.extend_settings(&mut settings);
     settings.websocket_channels = vec!["depth".into(), "trade".into()];
@@ -46,7 +46,7 @@ async fn cancelled_successfully() {
         application_manager.clone(),
     ));
 
-    let exchange = Exchange::new(
+    Exchange::new(
         exchange_account_id.clone(),
         binance,
         ExchangeFeatures::new(
@@ -58,16 +58,35 @@ async fn cancelled_successfully() {
         ),
         tx,
         application_manager,
-        TimeoutManager::new(HashMap::new()),
+        tm,
         Commission::default(),
-    );
+    )
+}
 
+#[actix_rt::test]
+async fn cancelled_successfully() {
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
+
+    init_logger();
+
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+
+    let (tx, _rx) = broadcast::channel(10);
+
+    let exchange = prepare_exchange(
+        &exchange_account_id,
+        api_key,
+        secret_key,
+        tx,
+        TimeoutManager::new(HashMap::new()),
+    );
     exchange.clone().connect().await;
 
     let test_order_client_id = ClientOrderId::unique_id();
     let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
+    let test_price = dec!(0.0000001);
     let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
+        test_order_client_id,
         Utc::now(),
         exchange_account_id.clone(),
         test_currency_pair.clone(),
@@ -80,26 +99,8 @@ async fn cancelled_successfully() {
         "FromCancelOrderTest".to_owned(),
     );
 
-    let order_to_create = OrderCreating {
-        header: order_header.clone(),
-        price: dec!(0.0000001),
-    };
-
-    // Should be called before any other api calls!
-    exchange.build_metadata().await;
-    let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
-        .await
-        .expect("in test");
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
-
-    const TIMEOUT: Duration = Duration::from_secs(5);
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
-
-    match created_order {
+    match create_an_order_by_header(&exchange, &order_header, test_currency_pair, test_price).await
+    {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
@@ -115,7 +116,10 @@ async fn cancelled_successfully() {
                 .expect("in test");
 
             if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
-                assert_eq!(gotten_client_order_id, test_order_client_id);
+                assert_eq!(
+                    gotten_client_order_id,
+                    order_to_cancel.header.client_order_id
+                );
             }
         }
 
@@ -126,58 +130,31 @@ async fn cancelled_successfully() {
         }
     }
 }
-#[actix_rt::test]
-async fn cancel_opened_successfully() {
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
-    init_logger();
+async fn create_an_order(
+    exchange_account_id: &ExchangeAccountId,
+    exchange: &Arc<Exchange>,
+    strategy_name: String,
+) -> anyhow::Result<OrderRef> {
+    create_an_order_by_uid(
+        &exchange_account_id,
+        exchange,
+        &ClientOrderId::unique_id(),
+        strategy_name,
+    )
+    .await
+}
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-
-    let mut settings = settings::ExchangeSettings::new_short(
-        exchange_account_id.clone(),
-        api_key,
-        secret_key,
-        false,
-    );
-
-    let application_manager = ApplicationManager::new(CancellationToken::default());
-    let (tx, _rx) = broadcast::channel(10);
-
-    BinanceBuilder.extend_settings(&mut settings);
-    settings.websocket_channels = vec!["depth".into(), "trade".into()];
-
-    let binance = Box::new(Binance::new(
-        exchange_account_id.clone(),
-        settings.clone(),
-        tx.clone(),
-        application_manager.clone(),
-    ));
-
-    let timeout_manager = get_timeout_manager(&exchange_account_id);
-    let exchange = Exchange::new(
-        exchange_account_id.clone(),
-        binance,
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        tx,
-        application_manager,
-        timeout_manager,
-        Commission::default(),
-    );
-
-    exchange.clone().connect().await;
-
-    let test_order_client_id = ClientOrderId::unique_id();
+async fn create_an_order_by_uid(
+    exchange_account_id: &ExchangeAccountId,
+    exchange: &Arc<Exchange>,
+    id: &ClientOrderId,
+    strategy_name: String,
+) -> anyhow::Result<OrderRef> {
     let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    let test_price = dec!(0.00000003);
+    let test_price = dec!(0.0000001);
     let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
+        id.clone(),
         Utc::now(),
         exchange_account_id.clone(),
         test_currency_pair.clone(),
@@ -187,15 +164,22 @@ async fn cancel_opened_successfully() {
         OrderExecutionType::None,
         None,
         None,
-        "FromCancelOrderTest".to_owned(),
+        strategy_name.to_owned(),
     );
+    create_an_order_by_header(&exchange, &order_header, test_currency_pair, test_price).await
+}
 
+async fn create_an_order_by_header(
+    exchange: &Arc<Exchange>,
+    order_header: &Arc<OrderHeader>,
+    test_currency_pair: CurrencyPair,
+    test_price: rust_decimal::Decimal,
+) -> anyhow::Result<OrderRef> {
     let order_to_create = OrderCreating {
         header: order_header.clone(),
         price: test_price,
     };
 
-    // Should be called before any other api calls!
     exchange.build_metadata().await;
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
@@ -211,61 +195,68 @@ async fn cancel_opened_successfully() {
     };
 
     match created_order {
-        Ok(_order_ref) => {
-            let second_test_order_client_id = ClientOrderId::unique_id();
-            let second_order_header = OrderHeader::new(
-                second_test_order_client_id.clone(),
-                Utc::now(),
-                exchange_account_id.clone(),
-                test_currency_pair.clone(),
-                OrderType::Limit,
-                OrderSide::Buy,
-                dec!(10000),
-                OrderExecutionType::None,
-                None,
-                None,
-                "FromCancelOrderTest".to_owned(),
-            );
-
-            let second_order_to_create = OrderCreating {
-                header: second_order_header,
-                price: test_price,
-            };
-
-            let created_order_fut =
-                exchange.create_order(&second_order_to_create, CancellationToken::default());
-
-            const TIMEOUT: Duration = Duration::from_secs(5);
-            let _ = tokio::select! {
-                created_order = created_order_fut => created_order,
-                _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-            }.expect("in test");
-        }
-
-        // Create order failed
+        Ok(order_ref) => Ok(order_ref),
         Err(error) => {
             dbg!(&error);
-            assert!(false)
+            assert!(false);
+            Err(error)
         }
     }
+}
 
-    let msg = "Opened orders not found for exchange account id";
+#[actix_rt::test]
+async fn cancel_opened_successfully() {
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
+
+    init_logger();
+
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+
+    let (tx, _rx) = broadcast::channel(10);
+
+    let exchange = prepare_exchange(
+        &exchange_account_id,
+        api_key,
+        secret_key,
+        tx,
+        get_timeout_manager(&exchange_account_id),
+    );
+    exchange.clone().connect().await;
+
+    let _ = create_an_order(
+        &exchange_account_id,
+        &exchange,
+        "FromCancelOrderTest".to_string(),
+    )
+    .await;
+    let _ = create_an_order(
+        &exchange_account_id,
+        &exchange,
+        "FromCancelOrderTest".to_string(),
+    )
+    .await;
+
+    process_open_orders(false, &exchange).await;
+    process_open_orders(true, &exchange).await;
+}
+
+async fn process_open_orders(is_expecting_empty: bool, exchange: &Arc<Exchange>) {
     match &exchange.get_open_orders().await {
         Err(error) => {
-            log::log!(log::Level::Info, "{}: {}", msg, error,);
-            assert!(false);
+            log::log!(
+                log::Level::Info,
+                "Opened orders not found for exchange account id: {}",
+                error,
+            );
+            if !is_expecting_empty {
+                assert!(false);
+            }
         }
         Ok(_orders) => {
+            if is_expecting_empty {
+                assert!(false);
+            }
             &exchange.clone().cancel_opened_orders().await;
-        }
-    }
-
-    match &exchange.get_open_orders().await {
-        Err(error) => {
-            log::log!(log::Level::Info, "{}: {}", msg, error,);
-        }
-        Ok(_orders) => {
-            assert!(false);
         }
     }
 }
@@ -274,43 +265,19 @@ async fn cancel_opened_successfully() {
 async fn nothing_to_cancel() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
+    init_logger();
+
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let mut settings = settings::ExchangeSettings::new_short(
-        exchange_account_id.clone(),
+
+    let (tx, _rx) = broadcast::channel(10);
+
+    let exchange = prepare_exchange(
+        &exchange_account_id,
         api_key,
         secret_key,
-        false,
-    );
-
-    let application_manager = ApplicationManager::new(CancellationToken::default());
-    let (tx, _) = broadcast::channel(10);
-
-    BinanceBuilder.extend_settings(&mut settings);
-    settings.websocket_channels = vec!["depth".into(), "trade".into()];
-
-    let binance = Binance::new(
-        exchange_account_id.clone(),
-        settings,
-        tx.clone(),
-        application_manager.clone(),
-    );
-
-    let exchange = Exchange::new(
-        exchange_account_id.clone(),
-        Box::new(binance),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
         tx,
-        application_manager,
         TimeoutManager::new(HashMap::new()),
-        Commission::default(),
     );
-
     exchange.clone().connect().await;
 
     let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
