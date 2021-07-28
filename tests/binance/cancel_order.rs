@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyhow::Result;
 use chrono::Utc;
 use mmb_lib::core::exchanges::events::AllowedEventSourceType;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
@@ -63,12 +64,12 @@ fn prepare_exchange(
     )
 }
 
-async fn create_an_order(
+async fn create_order(
     exchange_account_id: &ExchangeAccountId,
     exchange: &Arc<Exchange>,
     strategy_name: String,
-) -> anyhow::Result<OrderRef> {
-    create_an_order_by_uid(
+) -> Result<OrderRef> {
+    create_order_by_uid(
         &exchange_account_id,
         exchange,
         &ClientOrderId::unique_id(),
@@ -77,12 +78,12 @@ async fn create_an_order(
     .await
 }
 
-async fn create_an_order_by_uid(
+async fn create_order_by_uid(
     exchange_account_id: &ExchangeAccountId,
     exchange: &Arc<Exchange>,
     id: &ClientOrderId,
     strategy_name: String,
-) -> anyhow::Result<OrderRef> {
+) -> Result<OrderRef> {
     let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
     let test_price = dec!(0.0000001);
     let order_header = OrderHeader::new(
@@ -98,15 +99,15 @@ async fn create_an_order_by_uid(
         None,
         strategy_name.to_owned(),
     );
-    create_an_order_by_header(&exchange, &order_header, test_currency_pair, test_price).await
+    create_order_by_header(&exchange, &order_header, test_currency_pair, test_price).await
 }
 
-async fn create_an_order_by_header(
+async fn create_order_by_header(
     exchange: &Arc<Exchange>,
     order_header: &Arc<OrderHeader>,
     test_currency_pair: CurrencyPair,
     test_price: rust_decimal::Decimal,
-) -> anyhow::Result<OrderRef> {
+) -> Result<OrderRef> {
     let order_to_create = OrderCreating {
         header: order_header.clone(),
         price: test_price,
@@ -172,8 +173,7 @@ async fn cancelled_successfully() {
         "FromCancelOrderTest".to_owned(),
     );
 
-    match create_an_order_by_header(&exchange, &order_header, test_currency_pair, test_price).await
-    {
+    match create_order_by_header(&exchange, &order_header, test_currency_pair, test_price).await {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
@@ -205,7 +205,7 @@ async fn cancelled_successfully() {
 }
 
 #[actix_rt::test]
-async fn cancel_opened_successfully() {
+async fn cancel_opened_orders_successfully() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     init_logger();
@@ -223,13 +223,13 @@ async fn cancel_opened_successfully() {
     );
     exchange.clone().connect().await;
 
-    let _ = create_an_order(
+    let _ = create_order(
         &exchange_account_id,
         &exchange,
         "FromCancelOrderTest".to_string(),
     )
     .await;
-    let _ = create_an_order(
+    let _ = create_order(
         &exchange_account_id,
         &exchange,
         "FromCancelOrderTest".to_string(),

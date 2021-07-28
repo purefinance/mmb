@@ -251,18 +251,28 @@ impl Exchange {
             return;
         }
 
-        join_all(orders.iter().map(|x| {
-            self.wait_cancel_order(
-                self.orders
-                    .cache_by_exchange_id
-                    .get(&x.exchange_order_id)
-                    .expect("cannot find the order")
-                    .clone(),
-                None,
-                true,
-                CancellationToken::default(),
-            )
-        }))
-        .await;
+        let mut futures = Vec::new();
+        for order in orders {
+            match self
+                .orders
+                .cache_by_exchange_id
+                .get(&order.exchange_order_id)
+            {
+                None => {
+                    error!("cancel_orders was received for an order which is not in the system {} {:?}",
+                                self.exchange_account_id,
+                                order.exchange_order_id);
+                }
+                Some(order_ref) => {
+                    futures.push(self.wait_cancel_order(
+                        order_ref.clone(),
+                        None,
+                        true,
+                        CancellationToken::default(),
+                    ));
+                }
+            }
+        }
+        join_all(futures).await;
     }
 }
