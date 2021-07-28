@@ -174,7 +174,7 @@ async fn orders_cancelled() -> Result<()> {
             .content,
     )?;
 
-    let exchange_statistics = &statistics["trade_place_data"]["Binance0|phb/btc"];
+    let exchange_statistics = &statistics["trade_place_stats"]["Binance0|phb/btc"];
     let opened_orders_count = exchange_statistics["opened_orders_count"]
         .as_u64()
         .expect("in test");
