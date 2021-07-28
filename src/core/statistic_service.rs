@@ -1,4 +1,4 @@
-use super::orders::event::OrderEventType;
+use super::orders::{event::OrderEventType, order::ClientOrderId};
 use anyhow::{Context, Result};
 use futures::FutureExt;
 use std::collections::HashMap;
@@ -112,7 +112,7 @@ impl StatisticService {
             .order_completely_filled();
     }
 
-    pub(crate) fn add_summary_amount(
+    pub(crate) fn add_summary_filled_amount(
         &self,
         trade_place_account: &TradePlaceAccount,
         filled_amount: Amount,
@@ -143,16 +143,17 @@ impl StatisticService {
 
 pub struct StatisticEventHandler {
     pub(crate) stats: StatisticService,
+    partially_filled_orders: Mutex<Vec<ClientOrderId>>,
 }
 
 impl StatisticEventHandler {
     pub fn new(events_receiver: broadcast::Receiver<ExchangeEvent>) -> Arc<Self> {
         let statistic_event_handler = Arc::new(Self {
             stats: StatisticService::default(),
+            partially_filled_orders: Mutex::new(Vec::new()),
         });
 
-        let cloned_self = statistic_event_handler.clone();
-        let action = cloned_self.clone().start(events_receiver);
+        let action = statistic_event_handler.clone().start(events_receiver);
         spawn_future("Start statistic service", true, action.boxed());
 
         statistic_event_handler
@@ -189,10 +190,44 @@ impl StatisticEventHandler {
                     OrderEventType::CancelOrderSucceeded => {
                         self.stats.order_canceled(&trade_place_account);
                     }
-                    OrderEventType::CreateOrderFailed => {}
-                    OrderEventType::OrderFilled { cloned_order } => {}
-                    OrderEventType::OrderCompleted { cloned_order } => {}
-                    OrderEventType::CancelOrderFailed => {}
+                    OrderEventType::OrderFilled { cloned_order } => {
+                        let client_order_id = &cloned_order.header.client_order_id;
+                        let mut partially_filled_orders = self.partially_filled_orders.lock();
+
+                        if !(*partially_filled_orders).contains(&client_order_id) {
+                            self.stats.order_partially_filled(&trade_place_account);
+                            partially_filled_orders.push(client_order_id.clone());
+                        }
+                    }
+                    OrderEventType::OrderCompleted { cloned_order } => {
+                        let mut partially_filled_orders = self.partially_filled_orders.lock();
+                        let client_order_id = &cloned_order.header.client_order_id;
+                        if let Some(order_id_index) =
+                            (*partially_filled_orders)
+                                .iter()
+                                .position(|stored_client_order_id| {
+                                    stored_client_order_id == client_order_id
+                                })
+                        {
+                            partially_filled_orders.swap_remove(order_id_index);
+                        }
+
+                        self.stats.order_completely_filled(&trade_place_account);
+
+                        let filled_amount = cloned_order.fills.filled_amount;
+                        self.stats
+                            .add_summary_filled_amount(&trade_place_account, filled_amount);
+
+                        let commission = cloned_order
+                            .fills
+                            .fills
+                            .iter()
+                            .map(|fill| fill.commission_amount())
+                            .sum();
+                        self.stats
+                            .add_summary_commission(&trade_place_account, commission);
+                    }
+                    _ => {}
                 }
             }
             _ => {}
@@ -201,8 +236,7 @@ impl StatisticEventHandler {
         Ok(())
     }
 
-    pub(crate) fn event_missed(self: Arc<Self>) {
-        // FIXME implement
-        todo!()
+    pub(crate) fn event_missed(&self) {
+        self.stats.event_missed();
     }
 }
