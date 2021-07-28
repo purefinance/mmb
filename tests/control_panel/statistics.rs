@@ -175,16 +175,16 @@ async fn orders_cancelled() -> Result<()> {
     )?;
 
     let exchange_statistics = &statistics["trade_place_data"]["Binance0|phb/btc"];
-    let opened_orders_amount = exchange_statistics["opened_orders_amount"]
+    let opened_orders_count = exchange_statistics["opened_orders_count"]
         .as_u64()
         .expect("in test");
-    let canceled_orders_amount = exchange_statistics["canceled_orders_amount"]
+    let canceled_orders_count = exchange_statistics["canceled_orders_count"]
         .as_u64()
         .expect("in test");
 
     // Only one order was created and cancelled
-    assert_eq!(opened_orders_amount, 1);
-    assert_eq!(canceled_orders_amount, 1);
+    assert_eq!(opened_orders_count, 1);
+    assert_eq!(canceled_orders_count, 1);
 
     let context = context.clone();
     let action = async move {

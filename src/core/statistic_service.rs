@@ -17,30 +17,30 @@ use super::{
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TradePlaceAccountStatistic {
-    opened_orders_amount: usize,
-    canceled_orders_amount: usize,
-    partially_filled_orders_amount: usize,
-    fully_filled_orders_amount: usize,
+    opened_orders_count: usize,
+    canceled_orders_count: usize,
+    partially_filled_orders_count: usize,
+    fully_filled_orders_count: usize,
     summary_filled_amount: Amount,
     summary_commission: Price,
 }
 
 impl TradePlaceAccountStatistic {
     fn order_created(&mut self) {
-        self.opened_orders_amount += 1;
+        self.opened_orders_count += 1;
     }
 
     fn order_canceled(&mut self) {
-        self.canceled_orders_amount += 1;
+        self.canceled_orders_count += 1;
     }
 
     fn order_partially_filled(&mut self) {
-        self.partially_filled_orders_amount += 1;
+        self.partially_filled_orders_count += 1;
     }
 
     fn order_completely_filled(&mut self) {
-        self.partially_filled_orders_amount = self.partially_filled_orders_amount.saturating_sub(1);
-        self.fully_filled_orders_amount += 1;
+        self.partially_filled_orders_count = self.partially_filled_orders_count.saturating_sub(1);
+        self.fully_filled_orders_count += 1;
     }
 
     fn add_summary_filled_amount(&mut self, filled_amount: Amount) {
@@ -86,19 +86,19 @@ impl StatisticEventHandler {
 
     pub async fn start(self: Arc<Self>) -> Result<()> {
         loop {
-            let event = tokio::select! {
-                event_res = self.events_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
-                //_ = self.cancellation_token.when_cancelled() => {
-                //    let _ = self.work_finished_sender.take().ok_or(anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
-                //    return Ok(());
-                //}
-            };
+            //let event = tokio::select! {
+            //    event_res = self.events_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
+            //    //_ = self.cancellation_token.when_cancelled() => {
+            //    //    let _ = self.work_finished_sender.take().ok_or(anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
+            //    //    return Ok(());
+            //    //}
+            //};
 
             //self.handle_event(event)?;
         }
     }
 
-    fn handle_event(&mut self, event: ExchangeEvent) -> Result<()> {
+    fn handle_event(&self, event: ExchangeEvent) -> Result<()> {
         todo!()
     }
 
@@ -122,7 +122,7 @@ impl StatisticService {
         })
     }
 
-    pub(crate) fn order_created(self: Arc<Self>, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn order_created(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
@@ -130,7 +130,7 @@ impl StatisticService {
             .order_created();
     }
 
-    pub(crate) fn order_canceled(self: Arc<Self>, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn order_canceled(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
@@ -138,7 +138,7 @@ impl StatisticService {
             .order_canceled();
     }
 
-    pub(crate) fn order_partially_filled(self: Arc<Self>, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn order_partially_filled(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
@@ -146,10 +146,7 @@ impl StatisticService {
             .order_partially_filled();
     }
 
-    pub(crate) fn order_completely_filled(
-        self: Arc<Self>,
-        trade_place_account: &TradePlaceAccount,
-    ) {
+    pub(crate) fn order_completely_filled(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_data
             .write()
             .entry(trade_place_account.clone())
@@ -158,7 +155,7 @@ impl StatisticService {
     }
 
     pub(crate) fn add_summary_amount(
-        self: Arc<Self>,
+        &self,
         trade_place_account: &TradePlaceAccount,
         filled_amount: Amount,
     ) {
@@ -170,7 +167,7 @@ impl StatisticService {
     }
 
     pub(crate) fn add_summary_commission(
-        self: Arc<Self>,
+        &self,
         trade_place_account: &TradePlaceAccount,
         commission: Price,
     ) {
@@ -181,7 +178,7 @@ impl StatisticService {
             .add_summary_commission(commission);
     }
 
-    pub(crate) fn event_missed(self: Arc<Self>) {
+    pub(crate) fn event_missed(&self) {
         (*self.disposition_executor_data.lock()).skipped_events_amount += 1;
     }
 }

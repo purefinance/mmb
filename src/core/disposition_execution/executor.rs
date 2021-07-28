@@ -872,10 +872,6 @@ impl DispositionExecutor {
     }
 }
 
-struct InitEstimation {
-    event_time: DateTime,
-}
-
 fn estimate_trading_context(
     need_recalculate_trading_context: bool,
     max_amount: Amount,
