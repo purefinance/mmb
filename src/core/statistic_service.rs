@@ -65,23 +65,26 @@ impl DispositionExecutorStatistic {
     }
 }
 
-pub struct StatisticExecutor {
-    events_receiver: broadcast::Receiver<ExchangeEvent>,
+pub struct StatisticEventHandler {
     stats: StatisticService,
+    events_receiver: broadcast::Receiver<ExchangeEvent>,
 }
 
-impl StatisticExecutor {
-    pub fn new(
-        events_receiver: broadcast::Receiver<ExchangeEvent>,
-        stats: StatisticService,
-    ) -> Self {
-        Self {
+impl StatisticEventHandler {
+    pub fn new(events_receiver: broadcast::Receiver<ExchangeEvent>) -> Arc<Self> {
+        let statistic_event_handler = Arc::new(Self {
+            stats: StatisticService::default(),
             events_receiver,
-            stats,
-        }
+        });
+
+        let cloned_self = statistic_event_handler.clone();
+        let action = cloned_self.clone().start();
+        spawn_future("Start statistic service", true, action.boxed());
+
+        statistic_event_handler
     }
 
-    pub async fn start(&mut self) -> Result<()> {
+    pub async fn start(self: Arc<Self>) -> Result<()> {
         loop {
             let event = tokio::select! {
                 event_res = self.events_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
@@ -91,36 +94,12 @@ impl StatisticExecutor {
                 //}
             };
 
-            self.handle_event(event)?;
+            //self.handle_event(event)?;
         }
     }
 
     fn handle_event(&mut self, event: ExchangeEvent) -> Result<()> {
-        match event {
-            ExchangeEvent::OrderBookEvent(_) => {}
-            ExchangeEvent::OrderEvent(order_event) => {
-                dbg!(&order_event);
-            }
-            ExchangeEvent::BalanceUpdate(_) => {}
-            ExchangeEvent::LiquidationPrice(_) => {}
-            ExchangeEvent::Trades(_) => {}
-        }
-        Ok(())
-    }
-}
-
-pub struct StatisticEventHandler {}
-
-impl StatisticEventHandler {
-    pub fn new(events_receiver: broadcast::Receiver<ExchangeEvent>) -> Arc<Self> {
-        let statistic_event_handler = Arc::new(Self {});
-
-        let mut statistic_executor =
-            StatisticExecutor::new(events_receiver, StatisticService::default());
-        let action = async move { statistic_executor.start().await };
-        spawn_future("Start statistic service", true, action.boxed());
-
-        statistic_event_handler
+        todo!()
     }
 
     pub(crate) fn event_missed(self: Arc<Self>) {
