@@ -63,74 +63,6 @@ fn prepare_exchange(
     )
 }
 
-#[actix_rt::test]
-async fn cancelled_successfully() {
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
-
-    init_logger();
-
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-
-    let (tx, _rx) = broadcast::channel(10);
-
-    let exchange = prepare_exchange(
-        &exchange_account_id,
-        api_key,
-        secret_key,
-        tx,
-        TimeoutManager::new(HashMap::new()),
-    );
-    exchange.clone().connect().await;
-
-    let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    let test_price = dec!(0.0000001);
-    let order_header = OrderHeader::new(
-        test_order_client_id,
-        Utc::now(),
-        exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(10000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromCancelOrderTest".to_owned(),
-    );
-
-    match create_an_order_by_header(&exchange, &order_header, test_currency_pair, test_price).await
-    {
-        Ok(order_ref) => {
-            let exchange_order_id = order_ref.exchange_order_id().expect("in test");
-            let order_to_cancel = OrderCancelling {
-                header: order_header,
-                exchange_order_id,
-            };
-
-            // Cancel last order
-            let cancel_outcome = exchange
-                .cancel_order(&order_to_cancel, CancellationToken::default())
-                .await
-                .expect("in test")
-                .expect("in test");
-
-            if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
-                assert_eq!(
-                    gotten_client_order_id,
-                    order_to_cancel.header.client_order_id
-                );
-            }
-        }
-
-        // Create order failed
-        Err(error) => {
-            dbg!(&error);
-            assert!(false)
-        }
-    }
-}
-
 async fn create_an_order(
     exchange_account_id: &ExchangeAccountId,
     exchange: &Arc<Exchange>,
@@ -200,6 +132,74 @@ async fn create_an_order_by_header(
             dbg!(&error);
             assert!(false);
             Err(error)
+        }
+    }
+}
+
+#[actix_rt::test]
+async fn cancelled_successfully() {
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
+
+    init_logger();
+
+    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+
+    let (tx, _rx) = broadcast::channel(10);
+
+    let exchange = prepare_exchange(
+        &exchange_account_id,
+        api_key,
+        secret_key,
+        tx,
+        TimeoutManager::new(HashMap::new()),
+    );
+    exchange.clone().connect().await;
+
+    let test_order_client_id = ClientOrderId::unique_id();
+    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
+    let test_price = dec!(0.0000001);
+    let order_header = OrderHeader::new(
+        test_order_client_id,
+        Utc::now(),
+        exchange_account_id.clone(),
+        test_currency_pair.clone(),
+        OrderType::Limit,
+        OrderSide::Buy,
+        dec!(10000),
+        OrderExecutionType::None,
+        None,
+        None,
+        "FromCancelOrderTest".to_owned(),
+    );
+
+    match create_an_order_by_header(&exchange, &order_header, test_currency_pair, test_price).await
+    {
+        Ok(order_ref) => {
+            let exchange_order_id = order_ref.exchange_order_id().expect("in test");
+            let order_to_cancel = OrderCancelling {
+                header: order_header,
+                exchange_order_id,
+            };
+
+            // Cancel last order
+            let cancel_outcome = exchange
+                .cancel_order(&order_to_cancel, CancellationToken::default())
+                .await
+                .expect("in test")
+                .expect("in test");
+
+            if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
+                assert_eq!(
+                    gotten_client_order_id,
+                    order_to_cancel.header.client_order_id
+                );
+            }
+        }
+
+        // Create order failed
+        Err(error) => {
+            dbg!(&error);
+            assert!(false)
         }
     }
 }
