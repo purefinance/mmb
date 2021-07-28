@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use futures::FutureExt;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -65,40 +65,62 @@ impl DispositionExecutorStatistic {
     }
 }
 
-pub struct StatisticEventHandler {
-    stats: StatisticService,
+pub struct StatisticExecutor {
     events_receiver: broadcast::Receiver<ExchangeEvent>,
+    stats: StatisticService,
 }
+
+impl StatisticExecutor {
+    pub fn new(
+        events_receiver: broadcast::Receiver<ExchangeEvent>,
+        stats: StatisticService,
+    ) -> Self {
+        Self {
+            events_receiver,
+            stats,
+        }
+    }
+
+    pub async fn start(&mut self) -> Result<()> {
+        loop {
+            let event = tokio::select! {
+                event_res = self.events_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
+                //_ = self.cancellation_token.when_cancelled() => {
+                //    let _ = self.work_finished_sender.take().ok_or(anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
+                //    return Ok(());
+                //}
+            };
+
+            self.handle_event(event)?;
+        }
+    }
+
+    fn handle_event(&mut self, event: ExchangeEvent) -> Result<()> {
+        match event {
+            ExchangeEvent::OrderBookEvent(_) => {}
+            ExchangeEvent::OrderEvent(order_event) => {
+                dbg!(&order_event);
+            }
+            ExchangeEvent::BalanceUpdate(_) => {}
+            ExchangeEvent::LiquidationPrice(_) => {}
+            ExchangeEvent::Trades(_) => {}
+        }
+        Ok(())
+    }
+}
+
+pub struct StatisticEventHandler {}
 
 impl StatisticEventHandler {
     pub fn new(events_receiver: broadcast::Receiver<ExchangeEvent>) -> Arc<Self> {
-        let statistic_event_handler = Arc::new(Self {
-            stats: StatisticService::default(),
-            events_receiver,
-        });
+        let statistic_event_handler = Arc::new(Self {});
 
-        let cloned_self = statistic_event_handler.clone();
-        let action = async move { cloned_self.clone().start().await };
+        let mut statistic_executor =
+            StatisticExecutor::new(events_receiver, StatisticService::default());
+        let action = async move { statistic_executor.start().await };
         spawn_future("Start statistic service", true, action.boxed());
 
         statistic_event_handler
-    }
-
-    pub async fn start(&self) -> Result<()> {
-        //let mut trading_context: Option<TradingContext> = None;
-
-        //loop {
-        //    let event = tokio::select! {
-        //        event_res = self.events_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
-        //        _ = self.cancellation_token.when_cancelled() => {
-        //            let _ = self.work_finished_sender.take().ok_or(anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
-        //            return Ok(());
-        //        }
-        //    };
-
-        //    self.handle_event(event, &mut trading_context)?;
-        //}
-        todo!()
     }
 
     pub(crate) fn event_missed(self: Arc<Self>) {

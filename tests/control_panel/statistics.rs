@@ -80,7 +80,6 @@ macro_rules! get_binance_credentials_or_error {
 }
 
 #[actix_rt::test]
-#[ignore]
 async fn orders_cancelled() -> Result<()> {
     let (api_key, secret_key) = get_binance_credentials_or_error!();
 
