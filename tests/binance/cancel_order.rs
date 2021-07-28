@@ -28,7 +28,7 @@ fn prepare_exchange(
     api_key: String,
     secret_key: String,
     tx: broadcast::Sender<ExchangeEvent>,
-    tm: Arc<TimeoutManager>,
+    timeout_manager: Arc<TimeoutManager>,
 ) -> Arc<Exchange> {
     let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
@@ -59,7 +59,7 @@ fn prepare_exchange(
         ),
         tx,
         application_manager,
-        tm,
+        timeout_manager,
         Commission::default(),
     )
 }
