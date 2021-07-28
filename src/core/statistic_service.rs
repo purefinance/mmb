@@ -27,19 +27,19 @@ pub struct TradePlaceAccountStatistic {
 }
 
 impl TradePlaceAccountStatistic {
-    fn order_created(&mut self) {
+    fn increment_created_orders(&mut self) {
         self.opened_orders_count += 1;
     }
 
-    fn order_canceled(&mut self) {
+    fn increment_canceled_orders(&mut self) {
         self.canceled_orders_count += 1;
     }
 
-    fn order_partially_filled(&mut self) {
+    fn increment_partially_filled_orders(&mut self) {
         self.partially_filled_orders_count += 1;
     }
 
-    fn order_completely_filled(&mut self) {
+    fn increment_completely_filled_orders(&mut self) {
         self.partially_filled_orders_count = self.partially_filled_orders_count.saturating_sub(1);
         self.fully_filled_orders_count += 1;
     }
@@ -80,36 +80,42 @@ impl StatisticService {
         })
     }
 
-    pub(crate) fn order_created(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn increment_created_orders(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_stats
             .write()
             .entry(trade_place_account.clone())
             .or_default()
-            .order_created();
+            .increment_created_orders();
     }
 
-    pub(crate) fn order_canceled(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn increment_canceled_orders(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_stats
             .write()
             .entry(trade_place_account.clone())
             .or_default()
-            .order_canceled();
+            .increment_canceled_orders();
     }
 
-    pub(crate) fn order_partially_filled(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn increment_partially_filled_orders(
+        &self,
+        trade_place_account: &TradePlaceAccount,
+    ) {
         self.trade_place_stats
             .write()
             .entry(trade_place_account.clone())
             .or_default()
-            .order_partially_filled();
+            .increment_partially_filled_orders();
     }
 
-    pub(crate) fn order_completely_filled(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn increment_completely_filled_orders(
+        &self,
+        trade_place_account: &TradePlaceAccount,
+    ) {
         self.trade_place_stats
             .write()
             .entry(trade_place_account.clone())
             .or_default()
-            .order_completely_filled();
+            .increment_completely_filled_orders();
     }
 
     pub(crate) fn add_summary_filled_amount(
@@ -185,17 +191,18 @@ impl StatisticEventHandler {
                 );
                 match order_event.event_type {
                     OrderEventType::CreateOrderSucceeded => {
-                        self.stats.order_created(&trade_place_account);
+                        self.stats.increment_created_orders(&trade_place_account);
                     }
                     OrderEventType::CancelOrderSucceeded => {
-                        self.stats.order_canceled(&trade_place_account);
+                        self.stats.increment_canceled_orders(&trade_place_account);
                     }
                     OrderEventType::OrderFilled { cloned_order } => {
                         let client_order_id = &cloned_order.header.client_order_id;
                         let mut partially_filled_orders = self.partially_filled_orders.lock();
 
                         if !(*partially_filled_orders).contains(&client_order_id) {
-                            self.stats.order_partially_filled(&trade_place_account);
+                            self.stats
+                                .increment_partially_filled_orders(&trade_place_account);
                             partially_filled_orders.push(client_order_id.clone());
                         }
                     }
@@ -212,7 +219,8 @@ impl StatisticEventHandler {
                             partially_filled_orders.swap_remove(order_id_index);
                         }
 
-                        self.stats.order_completely_filled(&trade_place_account);
+                        self.stats
+                            .increment_completely_filled_orders(&trade_place_account);
 
                         let filled_amount = cloned_order.fills.filled_amount;
                         self.stats
