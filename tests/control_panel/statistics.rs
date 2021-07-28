@@ -1,5 +1,4 @@
 #![cfg(test)]
-use anyhow::Result;
 use chrono::Utc;
 use futures::FutureExt;
 use hyper::Uri;
@@ -36,6 +35,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
+use crate::get_binance_credentials_or_exit;
+
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct TestStrategySettings {}
 
@@ -53,35 +54,9 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 }
 
-// Get data to access binance account
-#[macro_export]
-macro_rules! get_binance_credentials_or_error {
-    () => {{
-        let api_key = std::env::var("BINANCE_API_KEY");
-        let api_key = match api_key {
-            Ok(v) => v,
-            Err(_) => {
-                dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
-                return Ok(());
-            }
-        };
-
-        let secret_key = std::env::var("BINANCE_SECRET_KEY");
-        let secret_key = match secret_key {
-            Ok(v) => v,
-            Err(_) => {
-                dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
-                return Ok(());
-            }
-        };
-
-        (api_key, secret_key)
-    }};
-}
-
 #[actix_rt::test]
-async fn orders_cancelled() -> Result<()> {
-    let (api_key, secret_key) = get_binance_credentials_or_error!();
+async fn orders_cancelled() {
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     struct TestStrategy;
 
@@ -112,14 +87,17 @@ async fn orders_cancelled() -> Result<()> {
     let mut settings = parse_settings::<TestStrategySettings>(
         include_str!("../lifecycle.toml"),
         include_str!("../lifecycle.cred.toml"),
-    )?;
+    )
+    .expect("in test");
     let mut exchange_settings = &mut settings.core.exchanges[0];
     exchange_settings.api_key = api_key.clone();
     exchange_settings.secret_key = secret_key;
     let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
     let init_settings = InitSettings::Directly(settings);
-    let engine = launch_trading_engine(&config, init_settings, |_| Box::new(TestStrategy)).await?;
+    let engine = launch_trading_engine(&config, init_settings, |_| Box::new(TestStrategy))
+        .await
+        .expect("in test");
 
     let context = engine.context().clone();
     let exchange = context
@@ -170,9 +148,11 @@ async fn orders_cancelled() -> Result<()> {
                     .expect("in test"),
                 &api_key,
             )
-            .await?
+            .await
+            .expect("in test")
             .content,
-    )?;
+    )
+    .expect("in test");
 
     let exchange_statistics = &statistics["trade_place_stats"]["Binance0|phb/btc"];
     let opened_orders_count = exchange_statistics["opened_orders_count"]
@@ -204,6 +184,4 @@ async fn orders_cancelled() -> Result<()> {
     );
 
     engine.run().await;
-
-    Ok(())
 }
