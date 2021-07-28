@@ -22,6 +22,7 @@ pub struct TradePlaceAccountStatistic {
     canceled_orders_count: usize,
     partially_filled_orders_count: usize,
     fully_filled_orders_count: usize,
+    // Right now calculation only for completely filled orders
     summary_filled_amount: Amount,
     summary_commission: Price,
 }
