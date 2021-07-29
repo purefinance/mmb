@@ -9,6 +9,4 @@ rest_host = ""
 websocket_channels = ["depth20"]
 subscribe_to_market_data = true
 
-currency_pairs = [ { base = "phb", quote = "btc"  },
-    { base = "eth", quote = "btc"  },
-    { base = "eos", quote = "btc"  } ]
+currency_pairs = [ { base = "phb", quote = "btc"  } ]

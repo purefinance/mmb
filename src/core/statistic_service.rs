@@ -1,7 +1,7 @@
 use super::orders::{event::OrderEventType, order::ClientOrderId};
 use anyhow::{Context, Result};
 use futures::FutureExt;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use parking_lot::{Mutex, RwLock};
@@ -18,13 +18,14 @@ use super::{
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct TradePlaceAccountStatistic {
-    opened_orders_count: usize,
-    canceled_orders_count: usize,
-    partially_filled_orders_count: usize,
-    fully_filled_orders_count: usize,
-    // Right now calculation only for completely filled orders
+    opened_orders_count: u64,
+    canceled_orders_count: u64,
+    partially_filled_orders_count: u64,
+    fully_filled_orders_count: u64,
+    // Calculated only for completely filled orders
     summary_filled_amount: Amount,
-    summary_commission: Price,
+    // Calculated only for completely filled orders
+    summary_commission: Amount,
 }
 
 impl TradePlaceAccountStatistic {
@@ -56,11 +57,11 @@ impl TradePlaceAccountStatistic {
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct DispositionExecutorStatistic {
-    skipped_events_amount: usize,
+    skipped_events_amount: u64,
 }
 
 impl DispositionExecutorStatistic {
-    fn new(skipped_events_amount: usize) -> Self {
+    fn new(skipped_events_amount: u64) -> Self {
         Self {
             skipped_events_amount,
         }
@@ -70,14 +71,14 @@ impl DispositionExecutorStatistic {
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct StatisticService {
     trade_place_stats: RwLock<HashMap<TradePlaceAccount, TradePlaceAccountStatistic>>,
-    disposition_executor_data: Mutex<DispositionExecutorStatistic>,
+    disposition_executor_stats: Mutex<DispositionExecutorStatistic>,
 }
 
 impl StatisticService {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             trade_place_stats: Default::default(),
-            disposition_executor_data: Default::default(),
+            disposition_executor_stats: Default::default(),
         })
     }
 
@@ -143,21 +144,21 @@ impl StatisticService {
             .add_summary_commission(commission);
     }
 
-    pub(crate) fn event_missed(&self) {
-        (*self.disposition_executor_data.lock()).skipped_events_amount += 1;
+    pub(crate) fn increment_skipped_events(&self) {
+        (*self.disposition_executor_stats.lock()).skipped_events_amount += 1;
     }
 }
 
 pub struct StatisticEventHandler {
     pub(crate) stats: StatisticService,
-    partially_filled_orders: Mutex<Vec<ClientOrderId>>,
+    partially_filled_orders: Mutex<HashSet<ClientOrderId>>,
 }
 
 impl StatisticEventHandler {
     pub fn new(events_receiver: broadcast::Receiver<ExchangeEvent>) -> Arc<Self> {
         let statistic_event_handler = Arc::new(Self {
             stats: StatisticService::default(),
-            partially_filled_orders: Mutex::new(Vec::new()),
+            partially_filled_orders: Mutex::new(HashSet::new()),
         });
 
         let action = statistic_event_handler.clone().start(events_receiver);
@@ -204,21 +205,13 @@ impl StatisticEventHandler {
                         if !(*partially_filled_orders).contains(&client_order_id) {
                             self.stats
                                 .increment_partially_filled_orders(&trade_place_account);
-                            partially_filled_orders.push(client_order_id.clone());
+                            let _ = partially_filled_orders.insert(client_order_id.clone());
                         }
                     }
                     OrderEventType::OrderCompleted { cloned_order } => {
                         let mut partially_filled_orders = self.partially_filled_orders.lock();
-                        let client_order_id = &cloned_order.header.client_order_id;
-                        if let Some(order_id_index) =
-                            (*partially_filled_orders)
-                                .iter()
-                                .position(|stored_client_order_id| {
-                                    stored_client_order_id == client_order_id
-                                })
-                        {
-                            partially_filled_orders.swap_remove(order_id_index);
-                        }
+                        let _ =
+                            partially_filled_orders.remove(&cloned_order.header.client_order_id);
 
                         self.stats
                             .increment_completely_filled_orders(&trade_place_account);
@@ -245,7 +238,7 @@ impl StatisticEventHandler {
         Ok(())
     }
 
-    pub(crate) fn event_missed(&self) {
-        self.stats.event_missed();
+    pub(crate) fn increment_skipped_events(&self) {
+        self.stats.increment_skipped_events();
     }
 }

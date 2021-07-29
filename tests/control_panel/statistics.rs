@@ -46,7 +46,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("eth".into(), "btc".into())
+        CurrencyPair::from_codes("phb".into(), "btc".into())
     }
 
     fn max_amount(&self) -> Amount {
@@ -94,7 +94,7 @@ async fn orders_cancelled() {
     exchange_settings.secret_key = secret_key;
     let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
-    let init_settings = InitSettings::Directly(settings);
+    let init_settings = InitSettings::Directly(settings.clone());
     let engine = launch_trading_engine(&config, init_settings, |_| Box::new(TestStrategy))
         .await
         .expect("in test");
@@ -105,7 +105,17 @@ async fn orders_cancelled() {
         .get(&exchange_account_id)
         .expect("in test");
 
-    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
+    let currency_pairs = settings
+        .core
+        .exchanges
+        .first()
+        .and_then(|exchange_settings| exchange_settings.currency_pairs.clone())
+        .expect("in test");
+    let currency_pair_setting = currency_pairs.first().expect("in test");
+    let test_currency_pair = CurrencyPair::from_codes(
+        currency_pair_setting.base.clone(),
+        currency_pair_setting.quote.clone(),
+    );
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
