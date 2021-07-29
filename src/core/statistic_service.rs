@@ -1,4 +1,4 @@
-use super::orders::{event::OrderEventType, order::ClientOrderId};
+use super::orders::{event::OrderEventType, order::ClientOrderId, order::OrderSnapshot};
 use anyhow::{Context, Result};
 use futures::FutureExt;
 use std::collections::{HashMap, HashSet};
@@ -184,6 +184,21 @@ impl StatisticEventHandler {
         }
     }
 
+    fn register_partially_filled_order_if_not_yet(
+        &self,
+        trade_place_account: TradePlaceAccount,
+        cloned_order: Arc<OrderSnapshot>,
+    ) {
+        let client_order_id = &cloned_order.header.client_order_id;
+        let mut partially_filled_orders = self.partially_filled_orders.lock();
+
+        if !(*partially_filled_orders).contains(&client_order_id) {
+            self.stats
+                .increment_partially_filled_orders(&trade_place_account);
+            let _ = partially_filled_orders.insert(client_order_id.clone());
+        }
+    }
+
     fn handle_event(&self, event: ExchangeEvent) -> Result<()> {
         match event {
             ExchangeEvent::OrderEvent(order_event) => {
@@ -196,17 +211,17 @@ impl StatisticEventHandler {
                         self.stats.increment_created_orders(&trade_place_account);
                     }
                     OrderEventType::CancelOrderSucceeded => {
+                        let mut partially_filled_orders = self.partially_filled_orders.lock();
+                        let client_order_id = order_event.order.client_order_id();
+                        let _ = partially_filled_orders.remove(&client_order_id);
+
                         self.stats.increment_canceled_orders(&trade_place_account);
                     }
                     OrderEventType::OrderFilled { cloned_order } => {
-                        let client_order_id = &cloned_order.header.client_order_id;
-                        let mut partially_filled_orders = self.partially_filled_orders.lock();
-
-                        if !(*partially_filled_orders).contains(&client_order_id) {
-                            self.stats
-                                .increment_partially_filled_orders(&trade_place_account);
-                            let _ = partially_filled_orders.insert(client_order_id.clone());
-                        }
+                        self.register_partially_filled_order_if_not_yet(
+                            trade_place_account,
+                            cloned_order,
+                        );
                     }
                     OrderEventType::OrderCompleted { cloned_order } => {
                         let mut partially_filled_orders = self.partially_filled_orders.lock();
