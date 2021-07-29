@@ -11,9 +11,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::disposition_execution::{
-    CompositeOrder, OrderRecord, OrdersState, PriceSlot, TradeCycle, TradingContext,
-};
+use crate::core::disposition_execution::trading_context_calculation::calculate_trading_context;
 use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
@@ -35,8 +33,10 @@ use crate::core::{
     disposition_execution::trade_limit::is_enough_amount_and_cost, infrastructure::spawn_future,
 };
 use crate::core::{
-    disposition_execution::trading_context_calculation::calculate_trading_context,
-    statistic_service::StatisticEventHandler,
+    disposition_execution::{
+        CompositeOrder, OrderRecord, OrdersState, PriceSlot, TradeCycle, TradingContext,
+    },
+    statistic_service::StatisticService,
 };
 use crate::core::{nothing_to_do, DateTime};
 use crate::strategies::disposition_strategy::DispositionStrategy;
@@ -72,7 +72,7 @@ impl DispositionExecutorService {
         max_amount: Amount,
         strategy: Box<dyn DispositionStrategy>,
         cancellation_token: CancellationToken,
-        statistics: Arc<StatisticEventHandler>,
+        statistics: Arc<StatisticService>,
     ) -> Arc<Self> {
         let (work_finished_sender, receiver) = oneshot::channel();
 
@@ -126,7 +126,7 @@ struct DispositionExecutor {
     strategy: Box<dyn DispositionStrategy>,
     work_finished_sender: Option<oneshot::Sender<Result<()>>>,
     cancellation_token: CancellationToken,
-    statistics: Arc<StatisticEventHandler>,
+    statistics: Arc<StatisticService>,
 }
 
 impl DispositionExecutor {
@@ -140,7 +140,7 @@ impl DispositionExecutor {
         strategy: Box<dyn DispositionStrategy>,
         work_finished_sender: oneshot::Sender<Result<()>>,
         cancellation_token: CancellationToken,
-        statistics: Arc<StatisticEventHandler>,
+        statistics: Arc<StatisticService>,
     ) -> Self {
         let currency_pair_metadata = engine_ctx
             .exchanges
@@ -863,7 +863,7 @@ impl DispositionExecutor {
         // max delay for skipping recalculation of trading context and orders synchronization
         let delay_for_skipping_event: Duration = Duration::milliseconds(50);
         if event_time + delay_for_skipping_event < now {
-            self.statistics.clone().increment_skipped_events();
+            self.statistics.clone().register_skipped_event();
 
             return false;
         }

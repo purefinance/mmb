@@ -4,7 +4,7 @@ use std::sync::{mpsc::Sender, Arc};
 
 use crate::core::{
     config::save_settings, config::CONFIG_PATH, config::CREDENTIALS_PATH,
-    lifecycle::application_manager::ApplicationManager, statistic_service::StatisticEventHandler,
+    lifecycle::application_manager::ApplicationManager, statistic_service::StatisticService,
 };
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
@@ -55,9 +55,9 @@ pub(super) async fn set_config(
 
 #[get("/stats")]
 pub(super) async fn stats(
-    statistics: web::Data<Arc<StatisticEventHandler>>,
+    statistics: web::Data<Arc<StatisticService>>,
 ) -> Result<HttpResponse, Error> {
-    let json_statistic = serde_json::to_string(&statistics.stats)?;
+    let json_statistic = serde_json::to_string(&statistics.statistic_service_state)?;
 
     Ok(HttpResponse::Ok().body(&json_statistic))
 }

@@ -1,4 +1,4 @@
-use super::orders::{event::OrderEventType, order::ClientOrderId, order::OrderSnapshot};
+use super::orders::{event::OrderEventType, order::ClientOrderId};
 use anyhow::{Context, Result};
 use futures::FutureExt;
 use std::collections::{HashMap, HashSet};
@@ -29,11 +29,11 @@ pub struct TradePlaceAccountStatistic {
 }
 
 impl TradePlaceAccountStatistic {
-    fn increment_created_orders(&mut self) {
+    fn register_created_order(&mut self) {
         self.opened_orders_count += 1;
     }
 
-    fn increment_canceled_orders(&mut self) {
+    fn register_canceled_order(&mut self) {
         self.canceled_orders_count += 1;
     }
 
@@ -41,9 +41,11 @@ impl TradePlaceAccountStatistic {
         self.partially_filled_orders_count += 1;
     }
 
-    fn increment_completely_filled_orders(&mut self) {
-        // FIXME DECREMENT ONLY IF ORDER WAS IN PERTIALLY COMPLETED
+    fn decrement_partially_filled_orders(&mut self) {
         self.partially_filled_orders_count = self.partially_filled_orders_count.saturating_sub(1);
+    }
+
+    fn increment_completely_filled_orders(&mut self) {
         self.fully_filled_orders_count += 1;
     }
 
@@ -70,39 +72,36 @@ impl DispositionExecutorStatistic {
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
-pub struct StatisticService {
+pub(crate) struct StatisticServiceState {
     trade_place_stats: RwLock<HashMap<TradePlaceAccount, TradePlaceAccountStatistic>>,
     disposition_executor_stats: Mutex<DispositionExecutorStatistic>,
 }
 
-impl StatisticService {
-    pub fn new() -> Arc<Self> {
-        Arc::new(Self {
+impl StatisticServiceState {
+    fn new() -> Self {
+        Self {
             trade_place_stats: Default::default(),
             disposition_executor_stats: Default::default(),
-        })
+        }
     }
 
-    pub(crate) fn increment_created_orders(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn register_created_order(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_stats
             .write()
             .entry(trade_place_account.clone())
             .or_default()
-            .increment_created_orders();
+            .register_created_order();
     }
 
-    pub(crate) fn increment_canceled_orders(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn register_canceled_order(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_stats
             .write()
             .entry(trade_place_account.clone())
             .or_default()
-            .increment_canceled_orders();
+            .register_canceled_order();
     }
 
-    pub(crate) fn increment_partially_filled_orders(
-        &self,
-        trade_place_account: &TradePlaceAccount,
-    ) {
+    pub(crate) fn register_partially_filled_order(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_stats
             .write()
             .entry(trade_place_account.clone())
@@ -110,7 +109,7 @@ impl StatisticService {
             .increment_partially_filled_orders();
     }
 
-    pub(crate) fn increment_completely_filled_orders(
+    pub(crate) fn register_partially_filled_order_completed(
         &self,
         trade_place_account: &TradePlaceAccount,
     ) {
@@ -118,10 +117,18 @@ impl StatisticService {
             .write()
             .entry(trade_place_account.clone())
             .or_default()
+            .decrement_partially_filled_orders();
+    }
+
+    pub(crate) fn register_completely_filled_order(&self, trade_place_account: &TradePlaceAccount) {
+        self.trade_place_stats
+            .write()
+            .entry(trade_place_account.clone())
+            .or_default()
             .increment_completely_filled_orders();
     }
 
-    pub(crate) fn add_summary_filled_amount(
+    pub(crate) fn register_filled_amount(
         &self,
         trade_place_account: &TradePlaceAccount,
         filled_amount: Amount,
@@ -133,7 +140,7 @@ impl StatisticService {
             .add_summary_filled_amount(filled_amount);
     }
 
-    pub(crate) fn add_summary_commission(
+    pub(crate) fn register_commission(
         &self,
         trade_place_account: &TradePlaceAccount,
         commission: Price,
@@ -145,22 +152,97 @@ impl StatisticService {
             .add_summary_commission(commission);
     }
 
-    pub(crate) fn increment_skipped_events(&self) {
+    pub(crate) fn register_skipped_event(&self) {
         (*self.disposition_executor_stats.lock()).skipped_events_amount += 1;
     }
 }
 
-pub struct StatisticEventHandler {
-    pub(crate) stats: StatisticService,
+#[derive(Default, Debug)]
+pub struct StatisticService {
+    pub(crate) statistic_service_state: StatisticServiceState,
     partially_filled_orders: Mutex<HashSet<ClientOrderId>>,
 }
 
+impl StatisticService {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            statistic_service_state: Default::default(),
+            partially_filled_orders: Default::default(),
+        })
+    }
+
+    pub(crate) fn register_created_order(&self, trade_place_account: &TradePlaceAccount) {
+        self.statistic_service_state
+            .register_created_order(trade_place_account);
+    }
+
+    pub(crate) fn register_canceled_order(&self, trade_place_account: &TradePlaceAccount) {
+        self.statistic_service_state
+            .register_canceled_order(trade_place_account);
+    }
+
+    pub(crate) fn register_partially_filled_order(
+        &self,
+        trade_place_account: &TradePlaceAccount,
+        client_order_id: &ClientOrderId,
+    ) {
+        let mut partially_filled_orders = self.partially_filled_orders.lock();
+
+        if !(*partially_filled_orders).contains(&client_order_id) {
+            self.statistic_service_state
+                .register_partially_filled_order(trade_place_account);
+            let _ = partially_filled_orders.insert(client_order_id.clone());
+        }
+    }
+
+    pub(crate) fn register_completely_filled_order(
+        &self,
+        trade_place_account: &TradePlaceAccount,
+        client_order_id: &ClientOrderId,
+        filled_amount: Amount,
+        commission: Amount,
+    ) {
+        self.statistic_service_state
+            .register_completely_filled_order(trade_place_account);
+
+        self.remove_filled_order_if_exist(trade_place_account, client_order_id);
+
+        self.statistic_service_state
+            .register_filled_amount(trade_place_account, filled_amount);
+
+        self.statistic_service_state
+            .register_commission(trade_place_account, commission);
+    }
+
+    pub(crate) fn remove_filled_order_if_exist(
+        &self,
+        trade_place_account: &TradePlaceAccount,
+        client_order_id: &ClientOrderId,
+    ) {
+        let mut partially_filled_orders = self.partially_filled_orders.lock();
+
+        if (*partially_filled_orders).contains(&client_order_id) {
+            self.statistic_service_state
+                .register_partially_filled_order_completed(trade_place_account);
+            let _ = partially_filled_orders.remove(client_order_id);
+        }
+    }
+
+    pub(crate) fn register_skipped_event(&self) {
+        self.statistic_service_state.register_skipped_event();
+    }
+}
+
+pub struct StatisticEventHandler {
+    pub(crate) stats: Arc<StatisticService>,
+}
+
 impl StatisticEventHandler {
-    pub fn new(events_receiver: broadcast::Receiver<ExchangeEvent>) -> Arc<Self> {
-        let statistic_event_handler = Arc::new(Self {
-            stats: StatisticService::default(),
-            partially_filled_orders: Mutex::new(HashSet::new()),
-        });
+    pub fn new(
+        events_receiver: broadcast::Receiver<ExchangeEvent>,
+        stats: Arc<StatisticService>,
+    ) -> Arc<Self> {
+        let statistic_event_handler = Arc::new(Self { stats });
 
         let action = statistic_event_handler.clone().start(events_receiver);
         spawn_future("Start statistic service", true, action.boxed());
@@ -185,21 +267,6 @@ impl StatisticEventHandler {
         }
     }
 
-    fn register_partially_filled_order_if_not_yet(
-        &self,
-        trade_place_account: TradePlaceAccount,
-        cloned_order: Arc<OrderSnapshot>,
-    ) {
-        let client_order_id = &cloned_order.header.client_order_id;
-        let mut partially_filled_orders = self.partially_filled_orders.lock();
-
-        if !(*partially_filled_orders).contains(&client_order_id) {
-            self.stats
-                .increment_partially_filled_orders(&trade_place_account);
-            let _ = partially_filled_orders.insert(client_order_id.clone());
-        }
-    }
-
     fn handle_event(&self, event: ExchangeEvent) -> Result<()> {
         match event {
             ExchangeEvent::OrderEvent(order_event) => {
@@ -209,42 +276,36 @@ impl StatisticEventHandler {
                 );
                 match order_event.event_type {
                     OrderEventType::CreateOrderSucceeded => {
-                        self.stats.increment_created_orders(&trade_place_account);
+                        self.stats.register_created_order(&trade_place_account);
                     }
                     OrderEventType::CancelOrderSucceeded => {
-                        // FIXME extract to new method
-                        let mut partially_filled_orders = self.partially_filled_orders.lock();
                         let client_order_id = order_event.order.client_order_id();
-                        let _ = partially_filled_orders.remove(&client_order_id);
-
-                        self.stats.increment_canceled_orders(&trade_place_account);
+                        self.stats
+                            .remove_filled_order_if_exist(&trade_place_account, &client_order_id);
+                        self.stats.register_canceled_order(&trade_place_account);
                     }
                     OrderEventType::OrderFilled { cloned_order } => {
-                        self.register_partially_filled_order_if_not_yet(
-                            trade_place_account,
-                            cloned_order,
+                        self.stats.register_partially_filled_order(
+                            &trade_place_account,
+                            &cloned_order.header.client_order_id,
                         );
                     }
                     OrderEventType::OrderCompleted { cloned_order } => {
-                        let mut partially_filled_orders = self.partially_filled_orders.lock();
-                        let _ =
-                            partially_filled_orders.remove(&cloned_order.header.client_order_id);
-
-                        self.stats
-                            .increment_completely_filled_orders(&trade_place_account);
-
-                        let filled_amount = cloned_order.fills.filled_amount;
-                        self.stats
-                            .add_summary_filled_amount(&trade_place_account, filled_amount);
-
                         let commission = cloned_order
                             .fills
                             .fills
                             .iter()
                             .map(|fill| fill.commission_amount())
                             .sum();
-                        self.stats
-                            .add_summary_commission(&trade_place_account, commission);
+
+                        let filled_amount = cloned_order.fills.filled_amount;
+
+                        self.stats.register_completely_filled_order(
+                            &trade_place_account,
+                            &cloned_order.header.client_order_id,
+                            filled_amount,
+                            commission,
+                        );
                     }
                     _ => {}
                 }
@@ -253,9 +314,5 @@ impl StatisticEventHandler {
         }
 
         Ok(())
-    }
-
-    pub(crate) fn increment_skipped_events(&self) {
-        self.stats.increment_skipped_events();
     }
 }

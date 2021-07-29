@@ -1,4 +1,3 @@
-use crate::core::config::load_settings;
 use crate::core::exchanges::common::ExchangeId;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange::Exchange;
@@ -13,12 +12,13 @@ use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
+use crate::core::{config::load_settings, statistic_service::StatisticEventHandler};
 use crate::core::{
     disposition_execution::executor::DispositionExecutorService,
     infrastructure::{keep_application_manager, spawn_future},
 };
 use crate::core::{
-    exchanges::binance::binance::BinanceBuilder, statistic_service::StatisticEventHandler,
+    exchanges::binance::binance::BinanceBuilder, statistic_service::StatisticService,
 };
 use crate::hashmap;
 use crate::rest_api::control_panel::ControlPanel;
@@ -113,12 +113,14 @@ where
     let internal_events_loop = InternalEventsLoop::new();
 
     let exchange_events = ExchangeEvents::new(events_sender.clone());
-    let statistic_event_handler = create_statistic_service(exchange_events);
+    let statistic_service = StatisticService::new();
+    let statistic_event_handler =
+        create_statistic_event_handler(exchange_events, statistic_service.clone());
     let control_panel = ControlPanel::new(
         "127.0.0.1:8080",
         toml::Value::try_from(settings.clone())?.to_string(),
         application_manager,
-        statistic_event_handler.clone(),
+        statistic_service.clone(),
     );
 
     {
@@ -140,7 +142,7 @@ where
         &settings.strategy,
         &engine_context,
         disposition_strategy,
-        &statistic_event_handler,
+        &statistic_event_handler.stats,
     );
 
     engine_context.shutdown_service.register_services(&[
@@ -160,7 +162,7 @@ fn create_disposition_executor_service(
     base_settings: &dyn BaseStrategySettings,
     engine_context: &Arc<EngineContext>,
     disposition_strategy: Box<dyn DispositionStrategy>,
-    statistics: &Arc<StatisticEventHandler>,
+    statistics: &Arc<StatisticService>,
 ) -> Arc<DispositionExecutorService> {
     DispositionExecutorService::new(
         engine_context.clone(),
@@ -175,8 +177,11 @@ fn create_disposition_executor_service(
     )
 }
 
-fn create_statistic_service(events: ExchangeEvents) -> Arc<StatisticEventHandler> {
-    StatisticEventHandler::new(events.get_events_channel())
+fn create_statistic_event_handler(
+    events: ExchangeEvents,
+    statistic_service: Arc<StatisticService>,
+) -> Arc<StatisticEventHandler> {
+    StatisticEventHandler::new(events.get_events_channel(), statistic_service)
 }
 
 pub async fn create_exchanges(

@@ -10,7 +10,7 @@ use tokio::sync::oneshot;
 
 use crate::core::{
     lifecycle::{application_manager::ApplicationManager, trading_engine::Service},
-    statistic_service::StatisticEventHandler,
+    statistic_service::StatisticService,
 };
 use actix_web::web::Data;
 
@@ -21,7 +21,7 @@ pub(crate) struct ControlPanel {
     server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
     work_finished_sender: Arc<Mutex<Option<oneshot::Sender<Result<()>>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
-    statistics: Arc<StatisticEventHandler>,
+    statistics: Arc<StatisticService>,
 }
 
 impl ControlPanel {
@@ -29,7 +29,7 @@ impl ControlPanel {
         address: &str,
         engine_settings: String,
         application_manager: Arc<ApplicationManager>,
-        statistics: Arc<StatisticEventHandler>,
+        statistics: Arc<StatisticService>,
     ) -> Arc<Self> {
         let (work_finished_sender, work_finished_receiver) = oneshot::channel();
         Arc::new(Self {
