@@ -30,6 +30,7 @@ use crate::core::{
         traits::ExchangeClient,
     },
     lifecycle::application_manager::ApplicationManager,
+    lifecycle::cancellation_token::CancellationToken,
 };
 use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
@@ -472,7 +473,7 @@ impl Exchange {
         Ok(())
     }
 
-    pub async fn cancel_opened_orders(self: Arc<Self>) {
+    pub async fn cancel_opened_orders(self: Arc<Self>, cancellation_token: CancellationToken) {
         match self.get_open_orders().await {
             Err(error) => {
                 warn!(
@@ -481,7 +482,7 @@ impl Exchange {
                 );
             }
             Ok(orders) => {
-                self.cancel_orders(orders).await;
+                self.cancel_orders(orders, cancellation_token).await;
             }
         }
     }

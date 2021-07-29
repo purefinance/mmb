@@ -20,6 +20,7 @@ use crate::core::lifecycle::shutdown::ShutdownService;
 use crate::core::settings::CoreSettings;
 use crate::core::{
     infrastructure::unset_application_manager, lifecycle::application_manager::ApplicationManager,
+    lifecycle::cancellation_token::CancellationToken,
 };
 use parking_lot::Mutex;
 
@@ -97,7 +98,7 @@ impl EngineContext {
         self.shutdown_service.graceful_shutdown().await;
         self.exchange_blocker.stop_blocker().await;
 
-        cancel_opened_orders(&self.exchanges).await;
+        cancel_opened_orders(&self.exchanges, CancellationToken::default()).await;
 
         self.finish_graceful_shutdown_sender
             .lock()
@@ -116,10 +117,18 @@ impl EngineContext {
     }
 }
 
-async fn cancel_opened_orders(exchanges: &DashMap<ExchangeAccountId, Arc<Exchange>>) {
+async fn cancel_opened_orders(
+    exchanges: &DashMap<ExchangeAccountId, Arc<Exchange>>,
+    cancellation_token: CancellationToken,
+) {
     info!("Canceling opened orders started");
 
-    join_all(exchanges.iter().map(|x| x.clone().cancel_opened_orders())).await;
+    join_all(
+        exchanges
+            .iter()
+            .map(|x| x.clone().cancel_opened_orders(cancellation_token.clone())),
+    )
+    .await;
 
     info!("Canceling opened orders finished");
 }

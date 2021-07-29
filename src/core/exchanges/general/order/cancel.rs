@@ -246,7 +246,11 @@ impl Exchange {
         }
     }
 
-    pub(crate) async fn cancel_orders(&self, orders: Vec<OrderInfo>) {
+    pub(crate) async fn cancel_orders(
+        &self,
+        orders: Vec<OrderInfo>,
+        cancellation_token: CancellationToken,
+    ) {
         if orders.len() == 0 {
             return;
         }
@@ -268,7 +272,7 @@ impl Exchange {
                         order_ref.clone(),
                         None,
                         true,
-                        CancellationToken::default(),
+                        cancellation_token.clone(),
                     ));
                 }
             }

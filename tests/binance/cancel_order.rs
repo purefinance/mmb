@@ -256,7 +256,10 @@ async fn process_open_orders(is_expecting_empty: bool, exchange: &Arc<Exchange>)
             if is_expecting_empty {
                 assert!(false);
             }
-            &exchange.clone().cancel_opened_orders().await;
+            &exchange
+                .clone()
+                .cancel_opened_orders(CancellationToken::default())
+                .await;
         }
     }
 }
