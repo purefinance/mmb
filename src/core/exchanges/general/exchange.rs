@@ -476,7 +476,7 @@ impl Exchange {
         match self.get_open_orders().await {
             Err(error) => {
                 warn!(
-                    "Opened orders not found for exchange account id {}: {}",
+                    "Opened orders not found for exchange account id {}: {:?}",
                     self.exchange_account_id, error,
                 );
             }
