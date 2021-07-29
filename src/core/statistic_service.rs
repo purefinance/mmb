@@ -42,6 +42,7 @@ impl TradePlaceAccountStatistic {
     }
 
     fn increment_completely_filled_orders(&mut self) {
+        // FIXME DECREMENT ONLY IF ORDER WAS IN PERTIALLY COMPLETED
         self.partially_filled_orders_count = self.partially_filled_orders_count.saturating_sub(1);
         self.fully_filled_orders_count += 1;
     }
@@ -211,6 +212,7 @@ impl StatisticEventHandler {
                         self.stats.increment_created_orders(&trade_place_account);
                     }
                     OrderEventType::CancelOrderSucceeded => {
+                        // FIXME extract to new method
                         let mut partially_filled_orders = self.partially_filled_orders.lock();
                         let client_order_id = order_event.order.client_order_id();
                         let _ = partially_filled_orders.remove(&client_order_id);
