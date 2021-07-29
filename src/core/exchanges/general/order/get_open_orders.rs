@@ -8,13 +8,11 @@ use log::{info, warn};
 impl Exchange {
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
         // Bugs on exchange server can lead to Err even if order was opened
-        loop {
-            match self.get_open_orders_impl().await {
-                Ok(gotten_orders) => return Ok(gotten_orders),
-                Err(error) => {
-                    warn!("{}", error);
-                    return Err(error);
-                }
+        match self.get_open_orders_impl().await {
+            Ok(gotten_orders) => return Ok(gotten_orders),
+            Err(error) => {
+                warn!("{:?}", error);
+                return Err(error);
             }
         }
     }
