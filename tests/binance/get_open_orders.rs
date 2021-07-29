@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::thread;
 use std::time::Duration;
 
 use chrono::Utc;
@@ -19,7 +18,6 @@ use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use tokio::sync::broadcast;
 
 #[actix_rt::test]
-#[ignore]
 async fn open_orders_exists() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
@@ -33,7 +31,7 @@ async fn open_orders_exists() {
     );
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
-    let (tx, _) = broadcast::channel(10);
+    let (tx, _rx) = broadcast::channel(10);
 
     BinanceBuilder.extend_settings(&mut settings);
     settings.websocket_channels = vec!["depth".into(), "trade".into()];
@@ -65,7 +63,7 @@ async fn open_orders_exists() {
 
     let test_order_client_id = ClientOrderId::unique_id();
     let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    let test_price = dec!(0.00000007);
+    let test_price = dec!(0.00000005);
     let order_header = OrderHeader::new(
         test_order_client_id.clone(),
         Utc::now(),
@@ -91,10 +89,19 @@ async fn open_orders_exists() {
         .cancel_all_orders(test_currency_pair.clone())
         .await
         .expect("in test");
-    exchange
-        .create_order(&order_to_create, CancellationToken::default())
-        .await
-        .expect("in test");
+
+    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
+
+    const TIMEOUT: Duration = Duration::from_secs(5);
+    let created_order = tokio::select! {
+        created_order = created_order_fut => created_order,
+        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
+    };
+
+    if let Err(error) = created_order {
+        dbg!(&error);
+        assert!(false)
+    }
 
     let second_test_order_client_id = ClientOrderId::unique_id();
     let second_order_header = OrderHeader::new(
@@ -116,14 +123,24 @@ async fn open_orders_exists() {
         price: test_price,
     };
 
-    exchange
-        .create_order(&second_order_to_create, CancellationToken::default())
-        .await
-        .expect("in test");
+    let created_order_fut =
+        exchange.create_order(&second_order_to_create, CancellationToken::default());
 
-    // Binance can process new orders close to 10 seconds
-    thread::sleep(Duration::from_secs(10));
-    let all_orders = exchange.get_open_orders().await.expect("in test");
+    let created_order = tokio::select! {
+        created_order = created_order_fut => created_order,
+        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
+    };
 
-    assert!(!all_orders.is_empty())
+    match created_order {
+        Ok(_order_ref) => {
+            let all_orders = exchange.get_open_orders().await.expect("in test");
+            assert!(!all_orders.is_empty())
+        }
+
+        // Create order failed
+        Err(error) => {
+            dbg!(&error);
+            assert!(false)
+        }
+    }
 }
