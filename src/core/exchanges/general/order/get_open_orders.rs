@@ -7,16 +7,6 @@ use log::{info, warn};
 use tokio::time::Duration;
 
 impl Exchange {
-    pub async fn is_open_orders_exist(&self) -> Option<bool> {
-        match self.get_open_orders_core().await {
-            Ok(_) => return Some(true),
-            Err(error) => match error.to_string().find("Empty response") {
-                Some(_) => return Some(false),
-                None => None,
-            },
-        }
-    }
-
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
         // Bugs on exchange server can lead to Err even if order was opened
         const TIMEOUT: Duration = Duration::from_secs(1);

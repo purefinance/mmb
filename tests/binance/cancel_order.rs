@@ -158,7 +158,7 @@ async fn cancel_opened_orders_successfully() {
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
-            false,
+            true,
             true,
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
@@ -231,7 +231,6 @@ async fn cancel_opened_orders_successfully() {
             let created_order_fut =
                 exchange.create_order(&second_order_to_create, CancellationToken::default());
 
-            const TIMEOUT: Duration = Duration::from_secs(5);
             let _ = tokio::select! {
                 created_order = created_order_fut => created_order,
                 _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
@@ -254,17 +253,28 @@ async fn cancel_opened_orders_successfully() {
             );
             assert!(false);
         }
-        Ok(_orders) => {
+        Ok(orders) => {
+            assert_ne!(orders.len(), 0);
             &exchange
                 .clone()
                 .cancel_opened_orders(CancellationToken::default())
                 .await;
         }
     }
-    assert_eq!(
-        exchange.is_open_orders_exist().await.expect("in test"),
-        false
-    );
+
+    match &exchange.get_open_orders().await {
+        Err(error) => {
+            log::log!(
+                log::Level::Info,
+                "Opened orders not found for exchange account id: {}",
+                error,
+            );
+            assert!(false);
+        }
+        Ok(orders) => {
+            assert_eq!(orders.len(), 0);
+        }
+    }
 }
 
 #[actix_rt::test]
@@ -330,7 +340,6 @@ async fn nothing_to_cancel() {
     };
     // Should be called before any other api calls!
     exchange.build_metadata().await;
-    // Cancel last order
     let cancel_outcome = exchange
         .cancel_order(&order_to_cancel, CancellationToken::default())
         .await
