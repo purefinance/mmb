@@ -1,6 +1,10 @@
-use super::orders::{event::OrderEventType, order::ClientOrderId};
+use super::{
+    nothing_to_do,
+    orders::{event::OrderEventType, order::ClientOrderId},
+};
 use anyhow::{Context, Result};
 use futures::FutureExt;
+use log::error;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -42,7 +46,11 @@ impl TradePlaceAccountStatistic {
     }
 
     fn decrement_partially_filled_orders(&mut self) {
-        self.partially_filled_orders_count = self.partially_filled_orders_count.saturating_sub(1);
+        if self.partially_filled_orders_count == 0 {
+            error!("Unable to decrement partially filled orders count, because there are no more partially filled orders");
+        } else {
+            self.partially_filled_orders_count -= 1;
+        }
     }
 
     fn increment_completely_filled_orders(&mut self) {
@@ -109,10 +117,7 @@ impl StatisticServiceState {
             .increment_partially_filled_orders();
     }
 
-    pub(crate) fn register_partially_filled_order_completed(
-        &self,
-        trade_place_account: &TradePlaceAccount,
-    ) {
+    fn decrement_partially_filled_orders(&self, trade_place_account: &TradePlaceAccount) {
         self.trade_place_stats
             .write()
             .entry(trade_place_account.clone())
@@ -176,9 +181,15 @@ impl StatisticService {
             .register_created_order(trade_place_account);
     }
 
-    pub(crate) fn register_canceled_order(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn register_canceled_order(
+        &self,
+        trade_place_account: &TradePlaceAccount,
+        client_order_id: &ClientOrderId,
+    ) {
         self.statistic_service_state
             .register_canceled_order(trade_place_account);
+
+        self.remove_filled_order_if_exist(&trade_place_account, &client_order_id);
     }
 
     pub(crate) fn register_partially_filled_order(
@@ -214,7 +225,7 @@ impl StatisticService {
             .register_commission(trade_place_account, commission);
     }
 
-    pub(crate) fn remove_filled_order_if_exist(
+    fn remove_filled_order_if_exist(
         &self,
         trade_place_account: &TradePlaceAccount,
         client_order_id: &ClientOrderId,
@@ -223,7 +234,7 @@ impl StatisticService {
 
         if (*partially_filled_orders).contains(&client_order_id) {
             self.statistic_service_state
-                .register_partially_filled_order_completed(trade_place_account);
+                .decrement_partially_filled_orders(trade_place_account);
             let _ = partially_filled_orders.remove(client_order_id);
         }
     }
@@ -281,8 +292,7 @@ impl StatisticEventHandler {
                     OrderEventType::CancelOrderSucceeded => {
                         let client_order_id = order_event.order.client_order_id();
                         self.stats
-                            .remove_filled_order_if_exist(&trade_place_account, &client_order_id);
-                        self.stats.register_canceled_order(&trade_place_account);
+                            .register_canceled_order(&trade_place_account, &client_order_id);
                     }
                     OrderEventType::OrderFilled { cloned_order } => {
                         self.stats.register_partially_filled_order(
@@ -307,10 +317,10 @@ impl StatisticEventHandler {
                             commission,
                         );
                     }
-                    _ => {}
+                    _ => nothing_to_do(),
                 }
             }
-            _ => {}
+            _ => nothing_to_do(),
         }
 
         Ok(())
