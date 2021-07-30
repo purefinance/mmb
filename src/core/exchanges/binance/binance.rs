@@ -376,7 +376,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
-        let events_rx = events_channel.subscribe();
         ExchangeClientBuilderResult {
             client: Box::new(Binance::new(
                 exchange_account_id,
@@ -391,8 +390,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
             ),
-            events_tx: events_channel,
-            events_rx,
         }
     }
 

@@ -92,6 +92,7 @@ async fn create_successfully() {
         .cancel_all_orders(test_currency_pair.clone())
         .await
         .expect("in test");
+
     let created_order = exchange
         .create_order(&order_to_create, CancellationToken::default())
         .await;

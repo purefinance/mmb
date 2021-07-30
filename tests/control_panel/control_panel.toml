@@ -1,0 +1,12 @@
+[strategy]
+
+[[core.exchanges]]
+exchange_account_id = "Binance0"
+is_margin_trading = false
+web_socket_host = ""
+web_socket2_host = ""
+rest_host = ""
+websocket_channels = ["depth20"]
+subscribe_to_market_data = true
+
+currency_pairs = [ { base = "phb", quote = "btc"  } ]
