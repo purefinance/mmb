@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use chrono::Utc;
 use mmb_lib::core::exchanges::events::AllowedEventSourceType;
@@ -246,11 +245,6 @@ async fn cancel_opened_orders_successfully() {
         }
     }
 
-    process_open_orders(false, &exchange).await;
-    process_open_orders(true, &exchange).await;
-}
-
-async fn process_open_orders(is_expecting_empty: bool, exchange: &Arc<Exchange>) {
     match &exchange.get_open_orders().await {
         Err(error) => {
             log::log!(
@@ -258,20 +252,19 @@ async fn process_open_orders(is_expecting_empty: bool, exchange: &Arc<Exchange>)
                 "Opened orders not found for exchange account id: {}",
                 error,
             );
-            if !is_expecting_empty {
-                assert!(false);
-            }
+            assert!(false);
         }
         Ok(_orders) => {
-            if is_expecting_empty {
-                assert!(false);
-            }
             &exchange
                 .clone()
                 .cancel_opened_orders(CancellationToken::default())
                 .await;
         }
     }
+    assert_eq!(
+        exchange.is_open_orders_exist().await.expect("in test"),
+        false
+    );
 }
 
 #[actix_rt::test]
