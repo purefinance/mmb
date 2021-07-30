@@ -41,6 +41,16 @@ pub trait ExchangeClient: Support {
 
     async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
 
+    async fn request_open_orders_by_currency_pair(
+        &self,
+        _currency_pair: CurrencyPair,
+    ) -> Result<RestRequestOutcome>;
+
+    async fn request_open_orders_by_http_header(
+        &self,
+        http_params: Vec<(String, String)>,
+    ) -> Result<RestRequestOutcome>;
+
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
 }
 

@@ -114,20 +114,41 @@ impl ExchangeClient for Binance {
         Ok(())
     }
 
-    async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
+    async fn request_open_orders_by_http_header(
+        &self,
+        http_params: Vec<(String, String)>,
+    ) -> Result<RestRequestOutcome> {
         let url_path = match self.settings.is_margin_trading {
             true => "/fapi/v1/openOrders",
             false => "/api/v3/openOrders",
         };
-
-        let mut http_params = rest_client::HttpParams::new();
-        self.add_authentification_headers(&mut http_params)?;
 
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
 
         let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
 
         orders
+    }
+
+    async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
+        let mut http_params = rest_client::HttpParams::new();
+        self.add_authentification_headers(&mut http_params)?;
+
+        self.request_open_orders_by_http_header(http_params).await
+    }
+
+    async fn request_open_orders_by_currency_pair(
+        &self,
+        currency_pair: CurrencyPair,
+    ) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
+        let mut http_params = vec![(
+            "symbol".to_owned(),
+            specific_currency_pair.as_str().to_owned(),
+        )];
+        self.add_authentification_headers(&mut http_params)?;
+
+        self.request_open_orders_by_http_header(http_params).await
     }
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome> {

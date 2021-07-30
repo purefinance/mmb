@@ -2,14 +2,14 @@ use crate::core::{
     exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType,
     orders::order::OrderInfo,
 };
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use log::{info, warn};
 
 impl Exchange {
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
         // Bugs on exchange server can lead to Err even if order was opened
         loop {
-            match self.get_open_orders_impl().await {
+            match self.get_open_orders_core().await {
                 Ok(gotten_orders) => return Ok(gotten_orders),
                 Err(error) => warn!("{}", error),
             }
@@ -17,7 +17,7 @@ impl Exchange {
     }
 
     // Bugs on exchange server can lead to Err even if order was opened
-    async fn get_open_orders_impl(&self) -> anyhow::Result<Vec<OrderInfo>> {
+    async fn get_open_orders_core(&self) -> anyhow::Result<Vec<OrderInfo>> {
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
                 // TODO implement in the future
@@ -50,8 +50,35 @@ impl Exchange {
                 // TODO implement in the future
                 //reserve_when_acailable().await
                 // TODO other actions here have to be written after build_metadata() implementation
-
-                return Err(anyhow!(""));
+                let responses = futures::future::join_all(self.symbols.iter().map(|x| {
+                    self.exchange_client
+                        .request_open_orders_by_currency_pair(x.currency_pair())
+                }))
+                .await;
+                let mut open_orders = Vec::new();
+                for response_result in responses {
+                    match response_result {
+                        Ok(response) => {
+                            if let Some(error) = self.get_rest_error(&response) {
+                                bail!(
+                                    "Rest error appeared during request get_open_orders: {}",
+                                    error.message
+                                )
+                            }
+                            match self.exchange_client.parse_open_orders(&response) {
+                                Ok(ref mut open_orders_tmp) => {
+                                    open_orders.append(open_orders_tmp);
+                                }
+                                Err(error) => {
+                                    self.handle_parse_error(error, response, "".into(), None)?;
+                                    return Ok(Vec::new());
+                                }
+                            }
+                        }
+                        Err(error) => bail!("{:?}", error),
+                    }
+                }
+                Ok(open_orders)
             }
             _ => bail!(
                 "Unsupported open_orders_type: {:?}",
