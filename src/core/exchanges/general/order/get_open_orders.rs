@@ -4,16 +4,27 @@ use crate::core::{
 };
 use anyhow::{anyhow, bail};
 use log::{info, warn};
+use tokio::time::Duration;
 
 impl Exchange {
     pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
         // Bugs on exchange server can lead to Err even if order was opened
-        match self.get_open_orders_impl().await {
-            Ok(gotten_orders) => return Ok(gotten_orders),
-            Err(error) => {
-                warn!("{:?}", error);
-                return Err(error);
+        const TIMEOUT: Duration = Duration::from_secs(1);
+        const MAX_COUNT: i32 = 5;
+        let mut count = 0;
+        loop {
+            match self.get_open_orders_impl().await {
+                Ok(gotten_orders) => return Ok(gotten_orders),
+                Err(error) => {
+                    count += 1;
+                    if count < MAX_COUNT {
+                        warn!("{}", error);
+                    } else {
+                        return Err(error);
+                    }
+                }
             }
+            let _ = tokio::time::sleep(TIMEOUT).await;
         }
     }
 
