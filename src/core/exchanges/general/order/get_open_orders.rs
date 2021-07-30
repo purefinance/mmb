@@ -8,7 +8,7 @@ use tokio::time::Duration;
 
 impl Exchange {
     pub async fn is_open_orders_exist(&self) -> Option<bool> {
-        match self.get_open_orders_impl().await {
+        match self.get_open_orders_core().await {
             Ok(_) => return Some(true),
             Err(error) => match error.to_string().find("Empty response") {
                 Some(_) => return Some(false),
@@ -23,7 +23,7 @@ impl Exchange {
         const MAX_COUNT: i32 = 5;
         let mut count = 0;
         loop {
-            match self.get_open_orders_impl().await {
+            match self.get_open_orders_core().await {
                 Ok(gotten_orders) => return Ok(gotten_orders),
                 Err(error) => {
                     count += 1;
@@ -39,7 +39,7 @@ impl Exchange {
     }
 
     // Bugs on exchange server can lead to Err even if order was opened
-    async fn get_open_orders_impl(&self) -> anyhow::Result<Vec<OrderInfo>> {
+    async fn get_open_orders_core(&self) -> anyhow::Result<Vec<OrderInfo>> {
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
                 // TODO implement in the future
