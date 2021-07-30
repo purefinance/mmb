@@ -2,12 +2,12 @@ use crate::core::{
     exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType,
     orders::order::OrderInfo,
 };
-use anyhow::{anyhow, bail};
+use anyhow::{anyhow, bail, Result};
 use log::{info, warn};
 use tokio::time::Duration;
 
 impl Exchange {
-    pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
+    pub async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
         // Bugs on exchange server can lead to Err even if order was opened
         const TIMEOUT: Duration = Duration::from_secs(1);
         const MAX_COUNT: i32 = 5;
@@ -29,7 +29,7 @@ impl Exchange {
     }
 
     // Bugs on exchange server can lead to Err even if order was opened
-    async fn get_open_orders_core(&self) -> anyhow::Result<Vec<OrderInfo>> {
+    async fn get_open_orders_core(&self) -> Result<Vec<OrderInfo>> {
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
                 // TODO implement in the future
