@@ -1,15 +1,20 @@
+use crate::core::orders::order::{
+    ClientOrderId, OrderExecutionType, OrderHeader, OrderInfo, OrderType,
+};
 use crate::core::{
     exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType,
-    orders::order::OrderInfo,
 };
 use anyhow::bail;
 use log::{info, warn};
 
 impl Exchange {
-    pub async fn get_open_orders(&self) -> anyhow::Result<Vec<OrderInfo>> {
+    pub async fn get_open_orders(
+        &self,
+        add_missing_open_orders: bool,
+    ) -> anyhow::Result<Vec<OrderInfo>> {
         // Bugs on exchange server can lead to Err even if order was opened
         loop {
-            match self.get_open_orders_core().await {
+            match self.get_open_orders_core(add_missing_open_orders).await {
                 Ok(gotten_orders) => return Ok(gotten_orders),
                 Err(error) => warn!("{}", error),
             }
@@ -17,7 +22,11 @@ impl Exchange {
     }
 
     // Bugs on exchange server can lead to Err even if order was opened
-    async fn get_open_orders_core(&self) -> anyhow::Result<Vec<OrderInfo>> {
+    async fn get_open_orders_core(
+        &self,
+        is_handle_missing_orders: bool,
+    ) -> anyhow::Result<Vec<OrderInfo>> {
+        let mut open_orders = Vec::new();
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
                 // TODO implement in the future
@@ -37,8 +46,8 @@ impl Exchange {
                 }
 
                 match self.exchange_client.parse_open_orders(&response) {
-                    open_orders @ Ok(_) => {
-                        return open_orders;
+                    Ok(ref mut open_orders_tmp) => {
+                        open_orders.append(open_orders_tmp);
                     }
                     Err(error) => {
                         self.handle_parse_error(error, response, "".into(), None)?;
@@ -55,7 +64,6 @@ impl Exchange {
                         .request_open_orders_by_currency_pair(x.currency_pair())
                 }))
                 .await;
-                let mut open_orders = Vec::new();
                 for response_result in responses {
                     match response_result {
                         Ok(response) => {
@@ -78,7 +86,6 @@ impl Exchange {
                         Err(error) => bail!("{:?}", error),
                     }
                 }
-                Ok(open_orders)
             }
             _ => bail!(
                 "Unsupported open_orders_type: {:?}",
@@ -86,9 +93,69 @@ impl Exchange {
             ),
         }
 
-        // TODO Prolly should to be moved in first and second branches in match above
-        //if (add_missing_open_orders) {
-        //    add_missing_open_orders(openOrders);
-        //}
+        if is_handle_missing_orders {
+            self.add_missing_open_orders(&open_orders);
+        }
+
+        Ok(open_orders)
+    }
+
+    fn add_missing_open_orders(&self, open_orders: &Vec<OrderInfo>) {
+        for order in open_orders {
+            if order.client_order_id.to_string().is_empty()
+                && self
+                    .orders
+                    .cache_by_client_id
+                    .contains_key(&order.client_order_id)
+                || self
+                    .orders
+                    .cache_by_exchange_id
+                    .contains_key(&order.exchange_order_id)
+            {
+                // TODO: add exchange name if needed
+                log::trace!(
+                    "Open order was already added {} {} {}",
+                    order.client_order_id,
+                    order.exchange_order_id,
+                    self.exchange_account_id,
+                ); // ???
+                continue;
+            }
+
+            let id_for_new_header: ClientOrderId;
+            if order.client_order_id.to_string().is_empty() {
+                id_for_new_header = ClientOrderId::unique_id();
+            } else {
+                id_for_new_header = order.client_order_id.clone();
+            }
+            let new_header = OrderHeader::new(
+                id_for_new_header,
+                chrono::Utc::now(),
+                self.exchange_account_id.clone(),
+                order.currency_pair.clone(),
+                OrderType::Unknown,
+                order.order_side,
+                order.amount,
+                OrderExecutionType::None,
+                None,
+                None,
+                "no_name".to_string(), // ???
+            );
+
+            let new_order = self
+                .orders
+                .add_simple_initial(new_header, Some(order.price)); // ???
+
+            self.orders
+                .cache_by_exchange_id
+                .insert(order.exchange_order_id.clone(), new_order);
+
+            log::trace!(
+                "Added open order {} {} on {}",
+                order.client_order_id,
+                order.exchange_order_id,
+                self.exchange_account_id,
+            );
+        }
     }
 }

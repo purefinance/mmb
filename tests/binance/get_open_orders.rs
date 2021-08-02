@@ -126,7 +126,7 @@ async fn open_orders_exist() {
         header: second_order_header,
         price: test_price,
     };
-    let _ = exchange.get_open_orders().await.expect("in test");
+    let _ = exchange.get_open_orders(true).await.expect("in test");
 
     let created_order_fut =
         exchange.create_order(&second_order_to_create, CancellationToken::default());
@@ -138,7 +138,7 @@ async fn open_orders_exist() {
 
     match created_order {
         Ok(_order_ref) => {
-            let all_orders = exchange.get_open_orders().await.expect("in test");
+            let all_orders = exchange.get_open_orders(true).await.expect("in test");
             assert!(!all_orders.is_empty())
         }
 
@@ -291,7 +291,7 @@ async fn open_orders_by_currency_pair_exist() {
         assert!(false)
     }
 
-    let all_orders = exchange.get_open_orders().await.expect("in test");
+    let all_orders = exchange.get_open_orders(true).await.expect("in test");
 
     // TODO: change to cancel_opened_orders
     let _ = exchange

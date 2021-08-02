@@ -171,6 +171,12 @@ impl From<&str> for ExchangeOrderId {
     }
 }
 
+impl fmt::Display for ExchangeOrderId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderStatus {
     Creating = 1,
