@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use chrono::Utc;
-use log::warn;
 use mmb_lib::core::exchanges::general::commission::Commission;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::exchange_creation;
@@ -127,10 +126,7 @@ async fn open_orders_exist() {
         header: second_order_header,
         price: test_price,
     };
-    log::warn!("hello");
     let _ = exchange.get_open_orders().await.expect("in test");
-    log::warn!("hello1");
-    assert!(false);
 
     let created_order_fut =
         exchange.create_order(&second_order_to_create, CancellationToken::default());
@@ -229,7 +225,7 @@ async fn open_orders_by_currency_pair_exist() {
 
     let order_to_create = OrderCreating {
         header: order_header,
-        price: dec!(0.00000005),
+        price: dec!(0.0000001),
     };
 
     // Should be called before any other api calls!
@@ -279,7 +275,7 @@ async fn open_orders_by_currency_pair_exist() {
     );
     let second_order_to_create = OrderCreating {
         header: second_order_header,
-        price: dec!(0.00000005),
+        price: dec!(0.0000001),
     };
 
     let created_order_fut =
