@@ -1,11 +1,15 @@
 use crate::core::orders::order::{
-    ClientOrderId, OrderExecutionType, OrderHeader, OrderInfo, OrderType,
+    ClientOrderId, OrderExecutionType, OrderHeader, OrderInfo, OrderSimpleProps, OrderSnapshot,
+    OrderType,
 };
 use crate::core::{
     exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType,
 };
 use anyhow::bail;
 use log::{info, warn};
+use parking_lot::RwLock;
+
+use std::sync::Arc;
 
 impl Exchange {
     pub async fn get_open_orders(
@@ -112,13 +116,12 @@ impl Exchange {
                     .cache_by_exchange_id
                     .contains_key(&order.exchange_order_id)
             {
-                // TODO: add exchange name if needed
                 log::trace!(
                     "Open order was already added {} {} {}",
                     order.client_order_id,
                     order.exchange_order_id,
                     self.exchange_account_id,
-                ); // ???
+                );
                 continue;
             }
 
@@ -139,12 +142,27 @@ impl Exchange {
                 OrderExecutionType::None,
                 None,
                 None,
-                "no_name".to_string(), // ???
+                "MissedOpenOrder".to_string(),
             );
 
-            let new_order = self
-                .orders
-                .add_simple_initial(new_header, Some(order.price)); // ???
+            let props = OrderSimpleProps::new(
+                Some(order.price),
+                None,
+                Some(order.exchange_order_id.clone()),
+                Default::default(),
+                Default::default(),
+                order.order_status,
+                None,
+            );
+            let new_snapshot = Arc::new(RwLock::new(OrderSnapshot {
+                props,
+                header: new_header,
+                fills: Default::default(),
+                status_history: Default::default(),
+                internal_props: Default::default(),
+            }));
+
+            let new_order = self.orders.add_snapshot_initial(new_snapshot);
 
             self.orders
                 .cache_by_exchange_id
