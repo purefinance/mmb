@@ -23,7 +23,7 @@ use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use tokio::sync::broadcast;
 
 #[actix_rt::test]
-async fn open_orders_exists() {
+async fn open_orders_exist() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
@@ -155,11 +155,10 @@ async fn open_orders_exists() {
 }
 
 #[actix_rt::test]
-async fn open_orders_by_currency_pair_exists() {
+async fn open_orders_by_currency_pair_exist() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
 
     init_logger();
-    log::warn!("hello world1");
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
 
@@ -174,13 +173,18 @@ async fn open_orders_by_currency_pair_exists() {
     let (tx, _rx) = broadcast::channel(10);
 
     BinanceBuilder.extend_settings(&mut settings);
-    settings.websocket_channels = vec!["depth".into(), "trade".into()];
-    let currency_pair_setting = CurrencyPairSetting {
-        base: CurrencyCode::new(SmallString::from("phb")),
-        quote: CurrencyCode::new(SmallString::from("btc")),
-        currency_pair: None,
-    };
-    settings.currency_pairs = Some(vec![currency_pair_setting]);
+    settings.currency_pairs = Some(vec![
+        CurrencyPairSetting {
+            base: CurrencyCode::new(SmallString::from("phb")),
+            quote: CurrencyCode::new(SmallString::from("btc")),
+            currency_pair: None,
+        },
+        CurrencyPairSetting {
+            base: CurrencyCode::new(SmallString::from("troy")),
+            quote: CurrencyCode::new(SmallString::from("btc")),
+            currency_pair: None,
+        },
+    ]);
     let binance = Binance::new(
         exchange_account_id.clone(),
         settings.clone(),
@@ -291,12 +295,9 @@ async fn open_orders_by_currency_pair_exists() {
         assert!(false)
     }
 
-    log::warn!("hello world2");
     let all_orders = exchange.get_open_orders().await.expect("in test");
-    for order in &all_orders {
-        warn!("order currency pair {}", order.currency_pair);
-    }
 
+    // TODO: change to cancel_opened_orders
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
@@ -307,5 +308,12 @@ async fn open_orders_by_currency_pair_exists() {
         .await
         .expect("in test");
 
-    assert_eq!(all_orders.len(), 1);
+    assert_eq!(all_orders.len(), 2);
+
+    for order in all_orders {
+        assert!(
+            order.client_order_id == test_order_client_id
+                || order.client_order_id == second_test_order_client_id
+        );
+    }
 }

@@ -61,7 +61,7 @@ impl Exchange {
                         Ok(response) => {
                             if let Some(error) = self.get_rest_error(&response) {
                                 bail!(
-                                    "Rest error appeared during request get_open_orders: {}",
+                                    "Rest error appeared during request get_open_orders by currency pair: {}",
                                     error.message
                                 )
                             }
