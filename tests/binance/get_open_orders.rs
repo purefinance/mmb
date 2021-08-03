@@ -1,13 +1,12 @@
-use std::collections::HashMap;
 use std::time::Duration;
 
 use chrono::Utc;
+use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::commission::Commission;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::exchange_creation;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::{binance::binance::*, events::AllowedEventSourceType};
-use mmb_lib::core::exchanges::{common::*, timeouts::timeout_manager::TimeoutManager};
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
@@ -48,6 +47,7 @@ async fn open_orders_exist() {
         application_manager.clone(),
     );
 
+    let timeout_manager = get_timeout_manager(&exchange_account_id);
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         Box::new(binance),
@@ -60,7 +60,7 @@ async fn open_orders_exist() {
         ),
         tx,
         application_manager,
-        TimeoutManager::new(HashMap::new()),
+        timeout_manager,
         Commission::default(),
     );
 
@@ -188,6 +188,7 @@ async fn open_orders_by_currency_pair_exist() {
         tx.clone(),
         application_manager.clone(),
     );
+    let timeout_manager = get_timeout_manager(&exchange_account_id);
     let exchange = Exchange::new(
         exchange_account_id.clone(),
         Box::new(binance),
@@ -200,7 +201,7 @@ async fn open_orders_by_currency_pair_exist() {
         ),
         tx,
         application_manager,
-        TimeoutManager::new(HashMap::new()),
+        timeout_manager,
         Commission::default(),
     );
 

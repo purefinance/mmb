@@ -1,14 +1,22 @@
+use crate::core::exchanges::common::{CurrencyPair, RestRequestOutcome};
+use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::request_type::RequestType;
+use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::orders::order::{
     ClientOrderId, OrderExecutionType, OrderHeader, OrderInfo, OrderSimpleProps, OrderSnapshot,
     OrderType,
 };
+
 use crate::core::{
     exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType,
 };
 use anyhow::bail;
+use anyhow::Error;
+use dashmap::mapref::multiple::RefMulti;
 use log::{info, warn};
 use parking_lot::RwLock;
 
+use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 
 impl Exchange {
@@ -25,6 +33,24 @@ impl Exchange {
         }
     }
 
+    async fn request_when_available_by_curency_pair(
+        &self,
+        x: RefMulti<'_, CurrencyPair, Arc<CurrencyPairMetadata>, RandomState>,
+    ) -> Result<RestRequestOutcome, Error> {
+        self.timeout_manager
+            .reserve_when_available(
+                &self.exchange_account_id,
+                RequestType::GetOpenOrders,
+                None,
+                CancellationToken::default(),
+            )?
+            .await
+            .into_result()?;
+        self.exchange_client
+            .request_open_orders_by_currency_pair(x.currency_pair())
+            .await
+    }
+
     // Bugs on exchange server can lead to Err even if order was opened
     async fn get_open_orders_core(
         &self,
@@ -33,8 +59,15 @@ impl Exchange {
         let mut open_orders = Vec::new();
         match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
-                // TODO implement in the future
-                //reserve_when_acailable().await
+                self.timeout_manager
+                    .reserve_when_available(
+                        &self.exchange_account_id,
+                        RequestType::GetOpenOrders,
+                        None,
+                        CancellationToken::default(),
+                    )?
+                    .await
+                    .into_result()?;
                 let response = self.exchange_client.request_open_orders().await?;
 
                 info!(
@@ -59,14 +92,14 @@ impl Exchange {
                     }
                 }
             }
+
             OpenOrdersType::OneCurrencyPair => {
-                // TODO implement in the future
-                //reserve_when_acailable().await
                 // TODO other actions here have to be written after build_metadata() implementation
-                let responses = futures::future::join_all(self.symbols.iter().map(|x| {
-                    self.exchange_client
-                        .request_open_orders_by_currency_pair(x.currency_pair())
-                }))
+                let responses = futures::future::join_all(
+                    self.symbols
+                        .iter()
+                        .map(|x| self.request_when_available_by_curency_pair(x)),
+                )
                 .await;
                 for response_result in responses {
                     match response_result {
