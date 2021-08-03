@@ -9,7 +9,6 @@ use tokio::time::Duration;
 impl Exchange {
     pub async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
         // Bugs on exchange server can lead to Err even if order was opened
-        const TIMEOUT: Duration = Duration::from_secs(1);
         const MAX_COUNT: i32 = 5;
         let mut count = 0;
         loop {
@@ -24,7 +23,7 @@ impl Exchange {
                     }
                 }
             }
-            let _ = tokio::time::sleep(TIMEOUT).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
 

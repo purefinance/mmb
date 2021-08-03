@@ -98,7 +98,7 @@ impl EngineContext {
         self.shutdown_service.graceful_shutdown().await;
         self.exchange_blocker.stop_blocker().await;
 
-        // this CancellationToken bit useless because this operation should be noncancellable
+        // we don't want to use this CancellationToken while graceful_shutdown is in prgoress
         cancel_opened_orders(&self.exchanges, CancellationToken::default()).await;
 
         self.finish_graceful_shutdown_sender
