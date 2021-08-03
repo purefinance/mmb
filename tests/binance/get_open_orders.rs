@@ -222,7 +222,7 @@ async fn open_orders_by_currency_pair_exist() {
         OrderExecutionType::None,
         None,
         None,
-        "FromGetOpenOrdersTest".to_owned(),
+        "FromGetOpenOrdersByCurrencyPairTest".to_owned(),
     );
 
     let order_to_create = OrderCreating {
@@ -273,7 +273,7 @@ async fn open_orders_by_currency_pair_exist() {
         OrderExecutionType::None,
         None,
         None,
-        "FromGetOpenOrdersTest".to_owned(),
+        "FromGetOpenOrdersByCurrencyPairTest".to_owned(),
     );
     let second_order_to_create = OrderCreating {
         header: second_order_header,
@@ -315,6 +315,7 @@ async fn open_orders_by_currency_pair_exist() {
         );
     }
 }
+
 #[actix_rt::test]
 async fn should_return_open_orders() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
