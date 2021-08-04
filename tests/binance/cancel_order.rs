@@ -12,7 +12,6 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use tokio::sync::broadcast;
-use tokio::time::Duration;
 
 use crate::get_binance_credentials_or_exit;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
@@ -72,24 +71,9 @@ async fn cancelled_successfully() {
     // Should be called before any other api calls!
     exchange.build_metadata().await;
 
-    match order.create(&exchange).await {
+    match order.create(exchange.clone()).await {
         Ok(order_ref) => {
-            let exchange_order_id = order_ref.exchange_order_id().expect("in test");
-            let order_to_cancel = OrderCancelling {
-                header: order.header.clone(),
-                exchange_order_id,
-            };
-
-            // Cancel last order
-            let cancel_outcome = exchange
-                .cancel_order(&order_to_cancel, CancellationToken::default())
-                .await
-                .expect("in test")
-                .expect("in test");
-
-            if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
-                assert_eq!(gotten_client_order_id, order.header.client_order_id);
-            }
+            order.cancel(&order_ref, exchange).await;
         }
 
         // Create order failed

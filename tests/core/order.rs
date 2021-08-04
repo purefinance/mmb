@@ -1,5 +1,6 @@
 use mmb_lib::core::exchanges::common::{CurrencyPair, ExchangeAccountId};
 use mmb_lib::core::exchanges::general::exchange::Exchange;
+use mmb_lib::core::exchanges::general::exchange::RequestResult;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::orders::pool::OrderRef;
@@ -63,7 +64,7 @@ impl Order {
         dec!(0.0000001)
     }
 
-    pub async fn create(&self, exchange: &Exchange) -> anyhow::Result<OrderRef> {
+    pub async fn create(&self, exchange: Arc<Exchange>) -> Result<OrderRef> {
         let _ = exchange
             .cancel_all_orders(self.header.currency_pair.clone())
             .await
@@ -76,5 +77,23 @@ impl Order {
             _ = tokio::time::sleep(self.timeout) => panic!("Timeout {} secs is exceeded", self.timeout.as_secs())
         };
         created_order
+    }
+
+    pub async fn cancel(&self, order_ref: &OrderRef, exchange: Arc<Exchange>) {
+        let exchange_order_id = order_ref.exchange_order_id().expect("in test");
+        let order_to_cancel = OrderCancelling {
+            header: self.header.clone(),
+            exchange_order_id,
+        };
+
+        let cancel_outcome = exchange
+            .cancel_order(&order_to_cancel, CancellationToken::default())
+            .await
+            .expect("in test")
+            .expect("in test");
+
+        if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
+            assert_eq!(gotten_client_order_id, self.header.client_order_id);
+        }
     }
 }
