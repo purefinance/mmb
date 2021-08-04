@@ -66,23 +66,13 @@ async fn cancelled_successfully() {
         None,
         exchange_account_id.clone(),
         Some("FromCancelOrderTest".to_string()),
+        CancellationToken::default(),
     );
 
     // Should be called before any other api calls!
     exchange.build_metadata().await;
-    let _ = exchange
-        .cancel_all_orders(order.header.currency_pair.clone())
-        .await
-        .expect("in test");
-    let created_order_fut = exchange.create_order(&order.to_create, CancellationToken::default());
 
-    const TIMEOUT: Duration = Duration::from_secs(5);
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
-
-    match created_order {
+    match order.create(&exchange).await {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
