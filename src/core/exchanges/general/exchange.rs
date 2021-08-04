@@ -482,7 +482,18 @@ impl Exchange {
                 );
             }
             Ok(orders) => {
-                self.cancel_orders(orders, cancellation_token).await;
+                tokio::select! {
+                    _ = self.cancel_orders(orders, cancellation_token.clone()) => {
+                        ()
+                    },
+                    _ = cancellation_token.when_cancelled() => {
+                        log::error!(
+                            "Opened orders canceling for exchange account id {} was interrupted by CancellationToken",
+                            self.exchange_account_id
+                        );
+                        ()
+                    },
+                }
             }
         }
     }
