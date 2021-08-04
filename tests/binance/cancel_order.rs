@@ -11,13 +11,13 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
-use rust_decimal_macros::*;
 use tokio::sync::broadcast;
 use tokio::time::Duration;
 
 use crate::get_binance_credentials_or_exit;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 
+use rust_decimal_macros::dec;
 #[actix_rt::test]
 async fn cancelled_successfully() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
@@ -62,34 +62,19 @@ async fn cancelled_successfully() {
 
     exchange.clone().connect().await;
 
-    let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
-        Utc::now(),
+    let order = crate::core::order::Order::new(
+        None,
         exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(10000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromCancelOrderTest".to_owned(),
+        Some("FromCancelOrderTest".to_string()),
     );
-
-    let order_to_create = OrderCreating {
-        header: order_header.clone(),
-        price: dec!(0.0000001),
-    };
 
     // Should be called before any other api calls!
     exchange.build_metadata().await;
     let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
+        .cancel_all_orders(order.header.currency_pair.clone())
         .await
         .expect("in test");
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
+    let created_order_fut = exchange.create_order(&order.to_create, CancellationToken::default());
 
     const TIMEOUT: Duration = Duration::from_secs(5);
     let created_order = tokio::select! {
@@ -101,7 +86,7 @@ async fn cancelled_successfully() {
         Ok(order_ref) => {
             let exchange_order_id = order_ref.exchange_order_id().expect("in test");
             let order_to_cancel = OrderCancelling {
-                header: order_header,
+                header: order.header.clone(),
                 exchange_order_id,
             };
 
@@ -113,7 +98,7 @@ async fn cancelled_successfully() {
                 .expect("in test");
 
             if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {
-                assert_eq!(gotten_client_order_id, test_order_client_id);
+                assert_eq!(gotten_client_order_id, order.header.client_order_id);
             }
         }
 
