@@ -8,6 +8,7 @@ use futures::future::join_all;
 use itertools::Itertools;
 use log::info;
 use tokio::sync::{broadcast, oneshot};
+use tokio::time::Duration;
 
 use crate::core::exchanges::block_reasons;
 use crate::core::exchanges::common::ExchangeAccountId;
@@ -98,8 +99,19 @@ impl EngineContext {
         self.shutdown_service.graceful_shutdown().await;
         self.exchange_blocker.stop_blocker().await;
 
-        // we don't want to use this CancellationToken while graceful_shutdown is in prgoress
-        cancel_opened_orders(&self.exchanges, CancellationToken::default()).await;
+        let cancellation_token = CancellationToken::default();
+        const TIMEOUT: Duration = Duration::from_secs(5);
+
+        tokio::select! {
+            _ = cancel_opened_orders(&self.exchanges, cancellation_token.clone()) => (),
+            _ = tokio::time::sleep(TIMEOUT) => {
+                cancellation_token.cancel();
+                log::error!(
+                    "Timeout {} secs is exceeded: cancel open orders has been stopped",
+                    TIMEOUT.as_secs(),
+                );
+            }
+        }
 
         self.finish_graceful_shutdown_sender
             .lock()
