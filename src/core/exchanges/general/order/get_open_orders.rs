@@ -43,7 +43,7 @@ impl Exchange {
 
     async fn request_when_available_by_currency_pair(
         &self,
-        x: CurrencyPair,
+        currency_pair: CurrencyPair,
     ) -> Result<RestRequestOutcome, Error> {
         self.timeout_manager
             .reserve_when_available(
@@ -55,7 +55,7 @@ impl Exchange {
             .await
             .into_result()?;
         self.exchange_client
-            .request_open_orders_by_currency_pair(x)
+            .request_open_orders_by_currency_pair(currency_pair)
             .await
     }
 
@@ -151,7 +151,7 @@ impl Exchange {
 
     fn add_missing_open_orders(&self, open_orders: &Vec<OrderInfo>) {
         for order in open_orders {
-            if order.client_order_id.to_string().as_str().is_empty()
+            if order.client_order_id.as_str().is_empty()
                 && self
                     .orders
                     .cache_by_client_id

@@ -172,12 +172,12 @@ async fn open_orders_by_currency_pair_exist() {
     settings.currency_pairs = Some(vec![
         CurrencyPairSetting {
             base: "phb".into(),
-            quote: "phb".into(),
+            quote: "btc".into(),
             currency_pair: None,
         },
         CurrencyPairSetting {
-            base: "phb".into(),
-            quote: "phb".into(),
+            base: "troy".into(),
+            quote: "btc".into(),
             currency_pair: None,
         },
     ]);
@@ -193,7 +193,7 @@ async fn open_orders_by_currency_pair_exist() {
         Box::new(binance),
         ExchangeFeatures::new(
             OpenOrdersType::OneCurrencyPair,
-            false,
+            true,
             true,
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
@@ -238,14 +238,9 @@ async fn open_orders_by_currency_pair_exist() {
         ))
     }
     let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
-        .await
-        .expect("in test");
-
-    let _ = exchange
-        .cancel_all_orders(second_test_currency_pair.clone())
-        .await
-        .expect("in test");
+        .clone()
+        .cancel_opened_orders(CancellationToken::default())
+        .await;
 
     let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
 
