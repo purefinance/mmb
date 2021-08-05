@@ -104,8 +104,6 @@ pub trait Support: Send + Sync {
 pub struct ExchangeClientBuilderResult {
     pub client: BoxExchangeClient,
     pub features: ExchangeFeatures,
-    pub events_tx: broadcast::Sender<ExchangeEvent>,
-    pub events_rx: broadcast::Receiver<ExchangeEvent>,
 }
 
 pub trait ExchangeClientBuilder {

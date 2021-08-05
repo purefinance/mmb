@@ -18,6 +18,7 @@ use parking_lot::RwLock;
 
 use std::collections::hash_map::RandomState;
 use std::sync::Arc;
+use tokio::time::Duration;
 
 impl Exchange {
     pub async fn get_open_orders(
@@ -25,11 +26,21 @@ impl Exchange {
         add_missing_open_orders: bool,
     ) -> anyhow::Result<Vec<OrderInfo>> {
         // Bugs on exchange server can lead to Err even if order was opened
+        const MAX_COUNT: i32 = 5;
+        let mut count = 0;
         loop {
             match self.get_open_orders_core(add_missing_open_orders).await {
                 Ok(gotten_orders) => return Ok(gotten_orders),
-                Err(error) => warn!("{}", error),
+                Err(error) => {
+                    count += 1;
+                    if count < MAX_COUNT {
+                        warn!("{}", error);
+                    } else {
+                        return Err(error);
+                    }
+                }
             }
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
 
