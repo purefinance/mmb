@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use anyhow::Result;
+
 use mmb_lib::{
     core::exchanges::common::ExchangeId,
     core::exchanges::{
@@ -11,29 +13,41 @@ use mmb_lib::{
     hashmap,
 };
 
+pub(crate) fn get_binance_credentials() -> Result<(String, String)> {
+    let api_key = std::env::var("BINANCE_API_KEY");
+    let api_key = match api_key {
+        Ok(v) => v,
+        Err(_) => {
+            return Err(anyhow::Error::msg(
+                "Environment variable BINANCE_API_KEY are not set. Unable to continue test",
+            ));
+        }
+    };
+
+    let secret_key = std::env::var("BINANCE_SECRET_KEY");
+    let secret_key = match secret_key {
+        Ok(v) => v,
+        Err(_) => {
+            return Err(anyhow::Error::msg(
+                "Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test",
+            ));
+        }
+    };
+
+    Ok((api_key, secret_key))
+}
+
 // Get data to access binance account
 #[macro_export]
 macro_rules! get_binance_credentials_or_exit {
     () => {{
-        let api_key = std::env::var("BINANCE_API_KEY");
-        let api_key = match api_key {
-            Ok(v) => v,
-            Err(_) => {
-                dbg!("Environment variable BINANCE_API_KEY are not set. Unable to continue test");
+        match super::common::get_binance_credentials() {
+            Ok((api_key, secret_key)) => (api_key, secret_key),
+            Err(error) => {
+                dbg!("{:?}", error);
                 return;
             }
-        };
-
-        let secret_key = std::env::var("BINANCE_SECRET_KEY");
-        let secret_key = match secret_key {
-            Ok(v) => v,
-            Err(_) => {
-                dbg!("Environment variable BINANCE_SECRET_KEY are not set. Unable to continue test");
-                return;
-            }
-        };
-
-        (api_key, secret_key)
+        }
     }};
 }
 
