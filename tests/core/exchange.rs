@@ -16,19 +16,19 @@ use tokio::sync::broadcast::{Receiver, Sender};
 
 use crate::binance::common::*;
 
-pub struct ExchangeTest {
+pub struct ExchangeBuilder {
     pub exchange: Arc<Exchange>,
     _tx: Sender<ExchangeEvent>,
     _rx: Receiver<ExchangeEvent>,
 }
 
-impl ExchangeTest {
+impl ExchangeBuilder {
     pub async fn try_new(
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
-    ) -> Result<ExchangeTest> {
+    ) -> Result<ExchangeBuilder> {
         let binance_keys = get_binance_credentials();
         if let Err(error) = binance_keys {
             return Err(error);
@@ -65,7 +65,7 @@ impl ExchangeTest {
         exchange.clone().connect().await;
         exchange.build_metadata().await;
 
-        Ok(ExchangeTest {
+        Ok(ExchangeBuilder {
             exchange: exchange,
             _tx: tx,
             _rx: _rx,

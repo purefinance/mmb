@@ -7,7 +7,7 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 
-use crate::core::exchange::ExchangeTest;
+use crate::core::exchange::ExchangeBuilder;
 use crate::core::order::Order;
 
 #[actix_rt::test]
@@ -15,7 +15,7 @@ async fn cancelled_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange = ExchangeTest::try_new(
+    let exchange_builder = ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -27,13 +27,8 @@ async fn cancelled_successfully() {
         ),
         Commission::default(),
     )
-    .await;
-    if let Err(error) = exchange {
-        log::warn!("{:?}", error);
-        return;
-    }
-
-    let exchange = exchange.unwrap();
+    .await
+    .expect("in test");
 
     let order = Order::new(
         None,
@@ -42,9 +37,9 @@ async fn cancelled_successfully() {
         CancellationToken::default(),
     );
 
-    match order.create(exchange.exchange.clone()).await {
+    match order.create(exchange_builder.exchange.clone()).await {
         Ok(order_ref) => {
-            order.cancel(&order_ref, exchange.exchange).await;
+            order.cancel(&order_ref, exchange_builder.exchange).await;
         }
         Err(error) => {
             dbg!(&error);
@@ -56,7 +51,7 @@ async fn cancelled_successfully() {
 #[actix_rt::test]
 async fn nothing_to_cancel() {
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange = ExchangeTest::try_new(
+    let exchange_builder = ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -68,19 +63,13 @@ async fn nothing_to_cancel() {
         ),
         Commission::default(),
     )
-    .await;
-
-    if let Err(error) = exchange {
-        log::warn!("{:?}", error);
-        return;
-    }
-
-    let exchange = exchange.unwrap();
+    .await
+    .expect("in test");
 
     let order = Order::new(
         None,
         exchange_account_id.clone(),
-        Some("FromCancelOrderTest".to_string()),
+        Some("FromNothingToCancelTest".to_string()),
         CancellationToken::default(),
     );
 
@@ -90,7 +79,7 @@ async fn nothing_to_cancel() {
     };
 
     // Cancel last order
-    let cancel_outcome = exchange
+    let cancel_outcome = exchange_builder
         .exchange
         .cancel_order(&order_to_cancel, CancellationToken::default())
         .await
