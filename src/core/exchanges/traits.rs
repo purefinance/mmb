@@ -33,22 +33,17 @@ use awc::http::Uri;
 pub trait ExchangeClient: Support {
     async fn request_metadata(&self) -> Result<RestRequestOutcome>;
 
-    async fn create_order(&self, _order: &OrderCreating) -> Result<RestRequestOutcome>;
+    async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome>;
 
-    async fn request_cancel_order(&self, _order: &OrderCancelling) -> Result<RestRequestOutcome>;
+    async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome>;
 
-    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()>;
+    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()>;
 
     async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
 
     async fn request_open_orders_by_currency_pair(
         &self,
-        _currency_pair: CurrencyPair,
-    ) -> Result<RestRequestOutcome>;
-
-    async fn request_open_orders_by_http_header(
-        &self,
-        http_params: Vec<(String, String)>,
+        currency_pair: CurrencyPair,
     ) -> Result<RestRequestOutcome>;
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;

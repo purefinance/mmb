@@ -15,6 +15,7 @@ use serde_json::Value;
 use super::binance::Binance;
 use crate::core::exchanges::common::SortedOrderData;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
     general::currency_pair_metadata::CurrencyPairMetadata,
@@ -505,6 +506,22 @@ impl Binance {
 
         let ws_path = format!("{}{}", "/ws/", listen_key);
         Ok(ws_path)
+    }
+
+    pub(crate) async fn request_open_orders_by_http_header(
+        &self,
+        http_params: Vec<(String, String)>,
+    ) -> Result<RestRequestOutcome> {
+        let url_path = match self.settings.is_margin_trading {
+            true => "/fapi/v1/openOrders",
+            false => "/api/v3/openOrders",
+        };
+
+        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
+
+        let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
+
+        orders
     }
 }
 

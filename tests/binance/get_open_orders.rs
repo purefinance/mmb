@@ -13,7 +13,6 @@ use mmb_lib::core::orders::order::*;
 use mmb_lib::core::settings;
 use mmb_lib::core::settings::CurrencyPairSetting;
 use rust_decimal_macros::*;
-use smallstr::SmallString;
 
 use super::common::get_timeout_manager;
 use crate::get_binance_credentials_or_exit;
@@ -172,13 +171,13 @@ async fn open_orders_by_currency_pair_exist() {
     BinanceBuilder.extend_settings(&mut settings);
     settings.currency_pairs = Some(vec![
         CurrencyPairSetting {
-            base: CurrencyCode::new(SmallString::from("phb")),
-            quote: CurrencyCode::new(SmallString::from("btc")),
+            base: "phb".into(),
+            quote: "phb".into(),
             currency_pair: None,
         },
         CurrencyPairSetting {
-            base: CurrencyCode::new(SmallString::from("troy")),
-            quote: CurrencyCode::new(SmallString::from("btc")),
+            base: "phb".into(),
+            quote: "phb".into(),
             currency_pair: None,
         },
     ]);
@@ -295,16 +294,9 @@ async fn open_orders_by_currency_pair_exist() {
 
     let all_orders = exchange.get_open_orders(true).await.expect("in test");
 
-    // TODO: change to cancel_opened_orders
     let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
-        .await
-        .expect("in test");
-
-    let _ = exchange
-        .cancel_all_orders(second_test_currency_pair.clone())
-        .await
-        .expect("in test");
+        .cancel_opened_orders(CancellationToken::default())
+        .await;
 
     assert_eq!(all_orders.len(), 2);
 

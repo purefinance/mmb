@@ -1,5 +1,4 @@
 use crate::core::exchanges::common::{CurrencyPair, RestRequestOutcome};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::orders::order::{
@@ -12,11 +11,9 @@ use crate::core::{
 };
 use anyhow::bail;
 use anyhow::Error;
-use dashmap::mapref::multiple::RefMulti;
 use log::{info, warn};
 use parking_lot::RwLock;
 
-use std::collections::hash_map::RandomState;
 use std::sync::Arc;
 use tokio::time::Duration;
 
@@ -44,9 +41,9 @@ impl Exchange {
         }
     }
 
-    async fn request_when_available_by_curency_pair(
+    async fn request_when_available_by_currency_pair(
         &self,
-        x: RefMulti<'_, CurrencyPair, Arc<CurrencyPairMetadata>, RandomState>,
+        x: CurrencyPair,
     ) -> Result<RestRequestOutcome, Error> {
         self.timeout_manager
             .reserve_when_available(
@@ -58,14 +55,14 @@ impl Exchange {
             .await
             .into_result()?;
         self.exchange_client
-            .request_open_orders_by_currency_pair(x.currency_pair())
+            .request_open_orders_by_currency_pair(x)
             .await
     }
 
     // Bugs on exchange server can lead to Err even if order was opened
     async fn get_open_orders_core(
         &self,
-        is_handle_missing_orders: bool,
+        check_missing_orders: bool,
     ) -> anyhow::Result<Vec<OrderInfo>> {
         let mut open_orders = Vec::new();
         match self.features.open_orders_type {
@@ -109,7 +106,7 @@ impl Exchange {
                 let responses = futures::future::join_all(
                     self.symbols
                         .iter()
-                        .map(|x| self.request_when_available_by_curency_pair(x)),
+                        .map(|x| self.request_when_available_by_currency_pair(x.currency_pair())),
                 )
                 .await;
                 for response_result in responses {
@@ -131,7 +128,11 @@ impl Exchange {
                                 }
                             }
                         }
-                        Err(error) => bail!("{:?}", error),
+                        Err(error) => bail!(
+                            "get_open_orders() response on {} returned an error: {:?}",
+                            self.exchange_account_id,
+                            error
+                        ),
                     }
                 }
             }
@@ -141,7 +142,7 @@ impl Exchange {
             ),
         }
 
-        if is_handle_missing_orders {
+        if check_missing_orders {
             self.add_missing_open_orders(&open_orders);
         }
 
@@ -150,7 +151,7 @@ impl Exchange {
 
     fn add_missing_open_orders(&self, open_orders: &Vec<OrderInfo>) {
         for order in open_orders {
-            if order.client_order_id.to_string().is_empty()
+            if order.client_order_id.to_string().as_str().is_empty()
                 && self
                     .orders
                     .cache_by_client_id
@@ -170,7 +171,7 @@ impl Exchange {
             }
 
             let id_for_new_header: ClientOrderId;
-            if order.client_order_id.to_string().is_empty() {
+            if order.client_order_id.as_str().is_empty() {
                 id_for_new_header = ClientOrderId::unique_id();
             } else {
                 id_for_new_header = order.client_order_id.clone();
@@ -201,6 +202,9 @@ impl Exchange {
             let new_snapshot = Arc::new(RwLock::new(OrderSnapshot {
                 props,
                 header: new_header,
+                // to fill this property we need to send several requests to the exchange,
+                // as so as this one not required for our current tasks , we decide to refuse
+                // it for better performance and reliablity of graceful shutdown
                 fills: Default::default(),
                 status_history: Default::default(),
                 internal_props: Default::default(),
