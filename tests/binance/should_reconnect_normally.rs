@@ -1,27 +1,19 @@
 use anyhow::Result;
 use futures::Future;
 use log::info;
-use mmb_lib::core::exchanges::binance::binance::BinanceBuilder;
-use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
-use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::{
     connectivity::connectivity_manager::ConnectivityManager,
-    connectivity::websocket_actor::WebSocketParams,
-    exchanges::events::AllowedEventSourceType,
-    exchanges::general::commission::Commission,
-    exchanges::general::exchange::Exchange,
-    exchanges::general::features::ExchangeFeatures,
-    exchanges::general::features::OpenOrdersType,
-    exchanges::timeouts::timeout_manager::TimeoutManager,
-    exchanges::{binance::binance::Binance, common::ExchangeAccountId},
-    settings::ExchangeSettings,
+    connectivity::websocket_actor::WebSocketParams, exchanges::common::ExchangeAccountId,
+    exchanges::events::AllowedEventSourceType, exchanges::general::commission::Commission,
+    exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
 };
 use parking_lot::Mutex;
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 use std::{pin::Pin, sync::Arc};
-use tokio::sync::broadcast;
 use tokio::{sync::oneshot, time::sleep};
+
+use crate::core::exchange::ExchangeBuilder;
 
 #[actix_rt::test]
 pub async fn should_connect_and_reconnect_normally() {
@@ -29,26 +21,10 @@ pub async fn should_connect_and_reconnect_normally() {
 
     let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
-    let mut settings = ExchangeSettings::default();
-
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-
-    let application_manager = ApplicationManager::new(CancellationToken::new());
-    let (tx, _) = broadcast::channel(10);
-
-    BinanceBuilder.extend_settings(&mut settings);
-    settings.websocket_channels = vec!["depth".into(), "aggTrade".into()];
-
-    let exchange_client = Box::new(Binance::new(
+    let exchange_builder = ExchangeBuilder::try_new(
         exchange_account_id.clone(),
-        settings,
-        tx.clone(),
-        application_manager.clone(),
-    ));
-
-    let exchange = Exchange::new(
-        exchange_account_id.clone(),
-        exchange_client,
+        CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             false,
@@ -56,13 +32,12 @@ pub async fn should_connect_and_reconnect_normally() {
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
-        tx,
-        application_manager,
-        TimeoutManager::new(HashMap::new()),
         Commission::default(),
-    );
+    )
+    .await
+    .expect("in test");
 
-    let exchange_weak = Arc::downgrade(&exchange);
+    let exchange_weak = Arc::downgrade(&exchange_builder.exchange);
     let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
     let connected_count = Arc::new(Mutex::new(0));

@@ -30,7 +30,7 @@ async fn create_successfully() {
 
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromGetOpenOrdersTest".to_string()),
+        Some("FromCreateSuccessfullyTest".to_string()),
         CancellationToken::default(),
     );
 
@@ -53,7 +53,9 @@ async fn create_successfully() {
                 panic!("Should receive CreateOrderSucceeded event type")
             }
 
-            order.cancel(&order_ref, exchange_builder.exchange.clone());
+            order
+                .cancel(&order_ref, exchange_builder.exchange.clone())
+                .await;
         }
 
         // Create order failed
@@ -83,7 +85,7 @@ async fn should_fail() {
 
     let mut order = Order::new(
         exchange_account_id.clone(),
-        Some("FromGetOpenOrdersTest".to_string()),
+        Some("FromShouldFailTest".to_string()),
         CancellationToken::default(),
     );
     order.amount = dec!(1);
