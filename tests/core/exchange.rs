@@ -18,8 +18,8 @@ use crate::binance::common::*;
 
 pub struct ExchangeBuilder {
     pub exchange: Arc<Exchange>,
-    _tx: Sender<ExchangeEvent>,
-    _rx: Receiver<ExchangeEvent>,
+    pub tx: Sender<ExchangeEvent>,
+    pub rx: Receiver<ExchangeEvent>,
 }
 
 impl ExchangeBuilder {
@@ -40,7 +40,7 @@ impl ExchangeBuilder {
             ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
 
         let application_manager = ApplicationManager::new(cancellation_token);
-        let (tx, _rx) = broadcast::channel(10);
+        let (tx, rx) = broadcast::channel(10);
 
         BinanceBuilder.extend_settings(&mut settings);
         settings.websocket_channels = vec!["depth".into(), "trade".into()];
@@ -67,8 +67,8 @@ impl ExchangeBuilder {
 
         Ok(ExchangeBuilder {
             exchange: exchange,
-            _tx: tx,
-            _rx: _rx,
+            tx: tx,
+            rx: rx,
         })
     }
 }

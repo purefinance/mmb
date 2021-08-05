@@ -31,7 +31,6 @@ async fn cancelled_successfully() {
     .expect("in test");
 
     let order = Order::new(
-        None,
         exchange_account_id.clone(),
         Some("FromCancelOrderTest".to_string()),
         CancellationToken::default(),
@@ -67,14 +66,13 @@ async fn nothing_to_cancel() {
     .expect("in test");
 
     let order = Order::new(
-        None,
         exchange_account_id.clone(),
         Some("FromNothingToCancelTest".to_string()),
         CancellationToken::default(),
     );
 
     let order_to_cancel = OrderCancelling {
-        header: order.header,
+        header: order.make_header(),
         exchange_order_id: "1234567890".into(),
     };
 
