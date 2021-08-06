@@ -38,7 +38,9 @@ async fn cancelled_successfully() {
 
     match order.create(exchange_builder.exchange.clone()).await {
         Ok(order_ref) => {
-            order.cancel(&order_ref, exchange_builder.exchange).await;
+            order
+                .cancel(&order_ref, exchange_builder.exchange.clone())
+                .await;
         }
         Err(error) => {
             dbg!(&error);

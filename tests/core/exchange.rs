@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use futures::executor::block_on;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 use mmb_lib::core::exchanges::general::exchange::*;
@@ -14,7 +15,7 @@ use anyhow::Result;
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::{Receiver, Sender};
 
-use crate::binance::common::*;
+use crate::binance::common::{get_binance_credentials, get_timeout_manager};
 
 pub struct ExchangeBuilder {
     pub exchange: Arc<Exchange>,
@@ -70,5 +71,11 @@ impl ExchangeBuilder {
             tx: tx,
             rx: rx,
         })
+    }
+}
+
+impl Drop for ExchangeBuilder {
+    fn drop(&mut self) {
+        block_on(self.exchange.clone().cancel_opened_orders());
     }
 }

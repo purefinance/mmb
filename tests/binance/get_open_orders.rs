@@ -55,6 +55,7 @@ async fn open_orders_exists() {
 
     let all_orders = exchange_builder
         .exchange
+        .clone()
         .get_open_orders()
         .await
         .expect("in test");

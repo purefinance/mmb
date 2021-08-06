@@ -91,7 +91,7 @@ async fn should_fail() {
     order.amount = dec!(1);
     order.price = dec!(0.0000000000000000001);
 
-    match order.create(exchange_builder.exchange).await {
+    match order.create(exchange_builder.exchange.clone()).await {
         Ok(_) => {
             assert!(false)
         }
