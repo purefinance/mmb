@@ -13,6 +13,8 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use tokio::time::Duration;
 
+use crate::core::misc::with_timeout::with_timeout;
+
 use std::sync::Arc;
 
 pub struct Order {
@@ -95,13 +97,12 @@ impl Order {
             .cancel_all_orders(header.currency_pair.clone())
             .await
             .expect("in test");
-        let created_order_fut = exchange.create_order(&to_create, self.cancellation_token.clone());
 
-        let created_order = tokio::select! {
-            created_order = created_order_fut => created_order,
-            _ = tokio::time::sleep(self.timeout) => panic!("Timeout {} secs is exceeded", self.timeout.as_secs())
-        };
-        created_order
+        with_timeout(
+            self.timeout,
+            exchange.create_order(&to_create, self.cancellation_token.clone()),
+        )
+        .await
     }
 
     pub async fn cancel(&self, order_ref: &OrderRef, exchange: Arc<Exchange>) {
