@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::{Display, Error, Formatter};
+use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -403,21 +403,6 @@ pub struct OrderInfo {
     pub commission_currency_code: Option<String>,
     pub commission_rate: Option<Price>,
     pub commission_amount: Option<Amount>,
-}
-
-pub struct OrderInfoVec(pub Vec<OrderInfo>);
-impl Display for OrderInfoVec {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        let mut comma_separated = String::new();
-
-        for order_info in &self.0[0..self.0.len() - 1] {
-            comma_separated.push_str(&order_info.client_order_id.as_str());
-            comma_separated.push_str(", ");
-        }
-
-        comma_separated.push_str(&self.0[self.0.len() - 1].client_order_id.as_str());
-        write!(f, "{}", comma_separated)
-    }
 }
 
 impl OrderInfo {

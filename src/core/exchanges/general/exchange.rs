@@ -4,6 +4,7 @@ use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::FutureExt;
+use itertools::Itertools;
 use log::{error, info, warn, Level};
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -19,7 +20,6 @@ use crate::core::exchanges::general::order::create::CreateOrderResult;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::OrderHeader;
-use crate::core::orders::order::OrderInfoVec;
 use crate::core::orders::pool::OrdersPool;
 use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
 use crate::core::{
@@ -490,8 +490,12 @@ impl Exchange {
                     },
                     _ = cancellation_token.when_cancelled() => {
                         log::error!(
-                            "Opened orders canceling for exchange account id {} was interrupted by CancellationToken for list of orders {}",
-                            self.exchange_account_id, OrderInfoVec{ 0: orders.clone(), },
+                            "Opened orders canceling for exchange account id {} was interrupted by CancellationToken for list of orders {:?}",
+                            self.exchange_account_id,
+                            orders
+                                .iter()
+                                .map(|x| x.client_order_id.as_str())
+                                .collect_vec(),
                         );
                         ()
                     },
