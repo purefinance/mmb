@@ -244,7 +244,7 @@ async fn cancel_opened_orders_successfully() {
         }
     }
 
-    match &exchange.get_open_orders().await {
+    match &exchange.get_open_orders(false).await {
         Err(error) => {
             log::info!("Opened orders not found for exchange account id: {}", error,);
             assert!(false);
@@ -258,7 +258,7 @@ async fn cancel_opened_orders_successfully() {
         }
     }
 
-    match &exchange.get_open_orders().await {
+    match &exchange.get_open_orders(false).await {
         Err(error) => {
             log::info!("Opened orders not found for exchange account id: {}", error,);
             assert!(false);
