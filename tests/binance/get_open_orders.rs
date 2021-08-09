@@ -7,9 +7,9 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::settings::{CurrencyPairSetting, ExchangeSettings};
 
-use crate::binance::common::get_binance_credentials;
 use crate::core::exchange::ExchangeBuilder;
 use crate::core::order::Order;
+use crate::get_binance_credentials_or_exit;
 
 use rust_decimal_macros::dec;
 
@@ -31,8 +31,12 @@ async fn open_orders_exists() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let first_order = Order::new(
         exchange_account_id.clone(),
@@ -71,7 +75,7 @@ async fn open_orders_by_currency_pair_exist() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let (api_key, secret_key) = get_binance_credentials().expect("in test");
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
     let mut settings =
         ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
 
@@ -101,8 +105,12 @@ async fn open_orders_by_currency_pair_exist() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let first_order = Order::new(
         exchange_account_id.clone(),
@@ -173,8 +181,12 @@ async fn should_return_open_orders() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     // createdOrder
     let order = Order::new(

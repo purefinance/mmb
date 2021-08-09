@@ -22,7 +22,6 @@ async fn request_metadata() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
     // if it's not panicked metadata fetched successfully
 }

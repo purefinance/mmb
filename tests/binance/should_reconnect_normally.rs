@@ -35,8 +35,12 @@ pub async fn should_connect_and_reconnect_normally() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let exchange_weak = Arc::downgrade(&exchange_builder.exchange);
     let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());

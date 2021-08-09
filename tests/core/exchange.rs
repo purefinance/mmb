@@ -30,7 +30,16 @@ impl ExchangeBuilder {
         commission: Commission,
         need_to_clean_up: bool,
     ) -> Result<ExchangeBuilder> {
-        let (api_key, secret_key) = get_binance_credentials().expect("in test");
+        let (api_key, secret_key) = match get_binance_credentials() {
+            Ok((api_key, secret_key)) => (api_key, secret_key),
+            Err(_) => (String::from(""), String::from("")),
+        };
+        if api_key == "" || secret_key == "" {
+            return Err(anyhow::Error::msg(
+                "Environment variable BINANCE_SECRET_KEY or BINANCE_API_KEY are not set. Unable to continue test",
+            ));
+        }
+
         let settings =
             ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
         ExchangeBuilder::try_new_with_custom_settings(

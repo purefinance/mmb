@@ -16,7 +16,7 @@ async fn create_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let mut exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -29,8 +29,12 @@ async fn create_successfully() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let mut exchange_builder = exchange_builder.unwrap();
 
     let order = Order::new(
         exchange_account_id.clone(),
@@ -87,8 +91,12 @@ async fn should_fail() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let mut order = Order::new(
         exchange_account_id.clone(),

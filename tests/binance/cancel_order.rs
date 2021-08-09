@@ -28,8 +28,12 @@ async fn cancelled_successfully() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let order = Order::new(
         exchange_account_id.clone(),
@@ -68,8 +72,12 @@ async fn cancel_opened_orders_successfully() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let first_order = Order::new(
         exchange_account_id.clone(),
@@ -133,8 +141,12 @@ async fn nothing_to_cancel() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let order = Order::new(
         exchange_account_id.clone(),

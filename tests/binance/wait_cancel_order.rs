@@ -26,8 +26,12 @@ async fn cancellation_waited_successfully() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let order = Order::new(
         exchange_account_id.clone(),
@@ -73,8 +77,12 @@ async fn cancellation_waited_failed_fallback() {
         Commission::default(),
         true,
     )
-    .await
-    .expect("in test");
+    .await;
+
+    if let Err(_) = exchange_builder {
+        return;
+    }
+    let exchange_builder = exchange_builder.unwrap();
 
     let order = Order::new(
         exchange_account_id.clone(),
