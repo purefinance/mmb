@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use chrono::Utc;
+use futures::future::join_all;
 use log::{error, info};
 use tokio::sync::oneshot;
 
@@ -13,6 +14,7 @@ use crate::core::{
     lifecycle::cancellation_token::CancellationToken,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
+    orders::order::OrderInfo,
     orders::order::OrderStatus,
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCancelling},
@@ -242,5 +244,39 @@ impl Exchange {
                 source_type,
             ),
         }
+    }
+
+    pub(crate) async fn cancel_orders(
+        &self,
+        orders: Vec<OrderInfo>,
+        cancellation_token: CancellationToken,
+    ) {
+        if orders.len() == 0 {
+            return;
+        }
+
+        let mut futures = Vec::new();
+        for order in orders {
+            match self
+                .orders
+                .cache_by_exchange_id
+                .get(&order.exchange_order_id)
+            {
+                None => {
+                    error!("cancel_orders was received for an order which is not in the system {} {:?}",
+                                self.exchange_account_id,
+                                order.exchange_order_id);
+                }
+                Some(order_ref) => {
+                    futures.push(self.wait_cancel_order(
+                        order_ref.clone(),
+                        None,
+                        true,
+                        cancellation_token.clone(),
+                    ));
+                }
+            }
+        }
+        join_all(futures).await;
     }
 }

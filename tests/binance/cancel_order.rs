@@ -72,7 +72,6 @@ async fn nothing_to_cancel() {
         Some("FromNothingToCancelTest".to_string()),
         CancellationToken::default(),
     );
-
     let order_to_cancel = OrderCancelling {
         header: order.make_header(),
         exchange_order_id: "1234567890".into(),
@@ -85,7 +84,6 @@ async fn nothing_to_cancel() {
         .await
         .expect("in test")
         .expect("in test");
-
     if let RequestResult::Error(error) = cancel_outcome.outcome {
         assert_eq!(error.error_type, ExchangeErrorType::OrderNotFound);
     }

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use futures::executor::block_on;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 use mmb_lib::core::exchanges::general::exchange::*;
@@ -40,7 +39,7 @@ impl ExchangeBuilder {
         let mut settings =
             ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
 
-        let application_manager = ApplicationManager::new(cancellation_token);
+        let application_manager = ApplicationManager::new(cancellation_token.clone());
         let (tx, rx) = broadcast::channel(10);
 
         BinanceBuilder.extend_settings(&mut settings);
@@ -65,17 +64,15 @@ impl ExchangeBuilder {
         );
         exchange.clone().connect().await;
         exchange.build_metadata().await;
+        exchange
+            .clone()
+            .cancel_opened_orders(cancellation_token.clone())
+            .await;
 
         Ok(ExchangeBuilder {
             exchange: exchange,
             tx: tx,
             rx: rx,
         })
-    }
-}
-
-impl Drop for ExchangeBuilder {
-    fn drop(&mut self) {
-        block_on(self.exchange.clone().cancel_opened_orders());
     }
 }
