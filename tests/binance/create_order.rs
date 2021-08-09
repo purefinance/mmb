@@ -3,6 +3,7 @@ use mmb_lib::core as mmb;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::event::OrderEventType;
 use rust_decimal_macros::*;
 
@@ -12,6 +13,8 @@ use crate::core::exchange::ExchangeBuilder;
 use crate::core::order::Order;
 #[actix_rt::test]
 async fn create_successfully() {
+    init_logger();
+
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let mut exchange_builder = ExchangeBuilder::try_new(
         exchange_account_id.clone(),
@@ -68,6 +71,8 @@ async fn create_successfully() {
 
 #[actix_rt::test]
 async fn should_fail() {
+    init_logger();
+
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let exchange_builder = ExchangeBuilder::try_new(
         exchange_account_id.clone(),

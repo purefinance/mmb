@@ -115,7 +115,7 @@ async fn orders_cancelled() {
 
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromCancelOrderTest".to_string()),
+        Some("FromOrdersCancelledTest".to_string()),
         CancellationToken::default(),
     );
 

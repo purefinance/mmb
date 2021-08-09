@@ -30,16 +30,28 @@ impl ExchangeBuilder {
         commission: Commission,
         need_to_clean_up: bool,
     ) -> Result<ExchangeBuilder> {
-        let binance_keys = get_binance_credentials();
-        if let Err(error) = binance_keys {
-            return Err(error);
-        }
-
-        let (api_key, secret_key) = binance_keys.unwrap();
-
-        let mut settings =
+        let (api_key, secret_key) = get_binance_credentials().expect("in test");
+        let settings =
             ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
+        ExchangeBuilder::try_new_with_custom_settings(
+            settings,
+            exchange_account_id,
+            cancellation_token,
+            features,
+            commission,
+            need_to_clean_up,
+        )
+        .await
+    }
 
+    pub async fn try_new_with_custom_settings(
+        mut settings: ExchangeSettings,
+        exchange_account_id: ExchangeAccountId,
+        cancellation_token: CancellationToken,
+        features: ExchangeFeatures,
+        commission: Commission,
+        need_to_clean_up: bool,
+    ) -> Result<ExchangeBuilder> {
         let application_manager = ApplicationManager::new(cancellation_token.clone());
         let (tx, rx) = broadcast::channel(10);
 

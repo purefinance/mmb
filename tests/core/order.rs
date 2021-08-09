@@ -64,7 +64,7 @@ impl Order {
     }
 
     pub fn default_amount() -> Decimal {
-        dec!(2000)
+        dec!(1000)
     }
 
     pub fn default_price() -> Decimal {
@@ -93,10 +93,6 @@ impl Order {
             price: self.price,
             header: header.clone(),
         };
-        let _ = exchange
-            .cancel_all_orders(header.currency_pair.clone())
-            .await
-            .expect("in test");
 
         with_timeout(
             self.timeout,
