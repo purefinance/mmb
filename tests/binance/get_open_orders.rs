@@ -36,13 +36,13 @@ async fn open_orders_exists() {
 
     let first_order = Order::new(
         exchange_account_id.clone(),
-        Some("FromOpenOrdersExistsTest".to_string()),
+        Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
     );
 
     let second_order = Order::new(
         exchange_account_id.clone(),
-        Some("FromOpenOrdersExistsTest".to_string()),
+        Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
     );
 
@@ -92,7 +92,7 @@ async fn open_orders_by_currency_pair_exist() {
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
+            OpenOrdersType::OneCurrencyPair,
             true,
             true,
             AllowedEventSourceType::default(),
@@ -106,7 +106,7 @@ async fn open_orders_by_currency_pair_exist() {
 
     let first_order = Order::new(
         exchange_account_id.clone(),
-        Some("FromGetOpenOrdersByCurrencyPairTest".to_string()),
+        Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
 
@@ -123,7 +123,7 @@ async fn open_orders_by_currency_pair_exist() {
 
     let mut second_order = Order::new(
         exchange_account_id.clone(),
-        Some("FromGetOpenOrdersByCurrencyPairTest".to_string()),
+        Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
     second_order.currency_pair = CurrencyPair::from_codes("sngls".into(), "btc".into());
@@ -176,9 +176,10 @@ async fn should_return_open_orders() {
     .await
     .expect("in test");
 
+    // createdOrder
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromShouldReturnOpenOrders".to_string()),
+        Some("FromShouldReturnOpenOrdersTest".to_owned()),
         CancellationToken::default(),
     );
 
@@ -191,7 +192,7 @@ async fn should_return_open_orders() {
     // orderForCancellation
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromShouldReturnOpenOrders".to_string()),
+        Some("FromShouldReturnOpenOrdersTest".to_owned()),
         CancellationToken::default(),
     );
 
@@ -216,7 +217,7 @@ async fn should_return_open_orders() {
     // failedToCreateOrder
     let mut order = Order::new(
         exchange_account_id.clone(),
-        Some("FromShouldReturnOpenOrders".to_string()),
+        Some("FromShouldReturnOpenOrdersTest".to_owned()),
         CancellationToken::default(),
     );
     order.amount = dec!(0);

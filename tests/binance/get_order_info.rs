@@ -31,7 +31,7 @@ async fn get_order_info() {
 
     let mut order = Order::new(
         exchange_account_id.clone(),
-        Some("FromGetOrderInfoTest".to_string()),
+        Some("FromGetOrderInfoTest".to_owned()),
         CancellationToken::default(),
     );
     order.reservation_id = Some(ReservationId::generate());

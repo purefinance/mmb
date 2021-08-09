@@ -34,7 +34,7 @@ async fn create_successfully() {
 
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromCreateSuccessfullyTest".to_string()),
+        Some("FromCreateSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
 
@@ -92,7 +92,7 @@ async fn should_fail() {
 
     let mut order = Order::new(
         exchange_account_id.clone(),
-        Some("FromShouldFailTest".to_string()),
+        Some("FromShouldFailTest".to_owned()),
         CancellationToken::default(),
     );
     order.amount = dec!(1);

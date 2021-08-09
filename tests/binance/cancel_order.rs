@@ -33,7 +33,7 @@ async fn cancelled_successfully() {
 
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromCancelledSuccessfullyTest".to_string()),
+        Some("FromCancelledSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
 
@@ -73,7 +73,7 @@ async fn cancel_opened_orders_successfully() {
 
     let first_order = Order::new(
         exchange_account_id.clone(),
-        Some("FromCancelOpenedOrdersSuccessfullyTest".to_string()),
+        Some("FromCancelOpenedOrdersSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
     first_order
@@ -83,7 +83,7 @@ async fn cancel_opened_orders_successfully() {
 
     let second_order = Order::new(
         exchange_account_id.clone(),
-        Some("FromCancelOpenedOrdersSuccessfullyTest".to_string()),
+        Some("FromCancelOpenedOrdersSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
     second_order
@@ -138,7 +138,7 @@ async fn nothing_to_cancel() {
 
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromNothingToCancelTest".to_string()),
+        Some("FromNothingToCancelTest".to_owned()),
         CancellationToken::default(),
     );
     let order_to_cancel = OrderCancelling {

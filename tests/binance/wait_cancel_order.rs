@@ -31,7 +31,7 @@ async fn cancellation_waited_successfully() {
 
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromCancellationWaitedSuccessfullyTest".to_string()),
+        Some("FromCancellationWaitedSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
 
@@ -78,7 +78,7 @@ async fn cancellation_waited_failed_fallback() {
 
     let order = Order::new(
         exchange_account_id.clone(),
-        Some("FromCancellationWaitedFailedFallbackTest".to_string()),
+        Some("FromCancellationWaitedFailedFallbackTest".to_owned()),
         CancellationToken::default(),
     );
 
