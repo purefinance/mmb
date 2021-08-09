@@ -63,7 +63,7 @@ async fn open_orders_exists() {
         .await
         .expect("in test");
 
-    assert_eq!(all_orders.len(), 1);
+    assert_eq!(all_orders.len(), 2);
 }
 
 #[actix_rt::test]
@@ -236,7 +236,6 @@ async fn should_return_open_orders() {
         .await
         .expect("in test");
 
-    // TODO: change to cancel_opened_orders
     let _ = exchange_builder
         .exchange
         .cancel_opened_orders(CancellationToken::default())
