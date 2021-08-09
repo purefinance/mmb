@@ -1,13 +1,12 @@
 #![cfg(test)]
-use chrono::Utc;
 use futures::FutureExt;
 use hyper::Uri;
+use mmb_lib::core::config::parse_settings;
+use mmb_lib::core::disposition_execution::{PriceSlot, TradingContext};
+use mmb_lib::core::explanation::Explanation;
+use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_lib::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_lib::core::settings::BaseStrategySettings;
-use mmb_lib::core::{config::parse_settings, orders::order::OrderCreating};
-use mmb_lib::core::{
-    disposition_execution::{PriceSlot, TradingContext},
-    orders::order::OrderHeader,
-};
 use mmb_lib::core::{
     exchanges::common::Amount,
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
@@ -18,14 +17,6 @@ use mmb_lib::core::{
     infrastructure::spawn_future,
 };
 use mmb_lib::core::{exchanges::rest_client::RestClient, orders::order::OrderSnapshot};
-use mmb_lib::core::{explanation::Explanation, orders::order::ClientOrderId};
-use mmb_lib::core::{
-    lifecycle::cancellation_token::CancellationToken, orders::order::OrderSide,
-    orders::order::OrderType,
-};
-use mmb_lib::core::{
-    order_book::local_snapshot_service::LocalSnapshotsService, orders::order::OrderExecutionType,
-};
 use mmb_lib::strategies::disposition_strategy::DispositionStrategy;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -35,6 +26,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
+use crate::core::order::Order;
 use crate::get_binance_credentials_or_exit;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
@@ -121,33 +113,15 @@ async fn orders_cancelled() {
         .await
         .expect("in test");
 
-    let test_order_client_id = ClientOrderId::unique_id();
-    let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
-        Utc::now(),
+    let order = Order::new(
         exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(2000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromCreateOrderTest".to_owned(),
+        Some("FromCancelOrderTest".to_string()),
+        CancellationToken::default(),
     );
 
-    let order_to_create = OrderCreating {
-        header: order_header.clone(),
-        price: dec!(0.0000001),
-    };
-    let _ = exchange
-        .create_order(&order_to_create, CancellationToken::default())
-        .await;
+    let created_order = order.create(exchange.clone()).await.expect("in test");
 
-    let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
-        .await
-        .expect("in test");
+    let _ = order.cancel(&created_order, exchange.clone()).await;
 
     let rest_client = RestClient::new();
     let statistics: Value = serde_json::from_str(

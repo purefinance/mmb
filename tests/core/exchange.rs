@@ -61,7 +61,7 @@ impl ExchangeBuilder {
             application_manager,
             timeout_manager,
             commission,
-        );
+        ); // TODO: change to mmb_lib::core::exchanges::general::exchange_creation::create_exchange::create_exchange() when it will be ready
         exchange.clone().connect().await;
         exchange.build_metadata().await;
         exchange
