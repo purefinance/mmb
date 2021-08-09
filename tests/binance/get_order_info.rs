@@ -24,6 +24,7 @@ async fn get_order_info() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");

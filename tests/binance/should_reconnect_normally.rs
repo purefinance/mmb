@@ -33,6 +33,7 @@ pub async fn should_connect_and_reconnect_normally() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");

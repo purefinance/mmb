@@ -26,6 +26,7 @@ async fn cancelled_successfully() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");
@@ -63,6 +64,7 @@ async fn nothing_to_cancel() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");

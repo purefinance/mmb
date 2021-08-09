@@ -20,6 +20,7 @@ async fn request_metadata() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");

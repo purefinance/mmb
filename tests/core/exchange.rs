@@ -28,6 +28,7 @@ impl ExchangeBuilder {
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
+        need_to_clean_up: bool,
     ) -> Result<ExchangeBuilder> {
         let binance_keys = get_binance_credentials();
         if let Err(error) = binance_keys {
@@ -64,10 +65,13 @@ impl ExchangeBuilder {
         ); // TODO: change to mmb_lib::core::exchanges::general::exchange_creation::create_exchange::create_exchange() when it will be ready
         exchange.clone().connect().await;
         exchange.build_metadata().await;
-        exchange
-            .clone()
-            .cancel_opened_orders(cancellation_token.clone())
-            .await;
+
+        if need_to_clean_up {
+            exchange
+                .clone()
+                .cancel_opened_orders(cancellation_token.clone())
+                .await;
+        }
 
         Ok(ExchangeBuilder {
             exchange: exchange,

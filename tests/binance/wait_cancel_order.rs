@@ -24,6 +24,7 @@ async fn cancellation_waited_successfully() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");
@@ -70,6 +71,7 @@ async fn cancellation_waited_failed_fallback() {
             AllowedEventSourceType::FallbackOnly,
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");

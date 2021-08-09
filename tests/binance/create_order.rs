@@ -24,6 +24,7 @@ async fn create_successfully() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");
@@ -79,6 +80,7 @@ async fn should_fail() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");

@@ -25,6 +25,7 @@ async fn open_orders_exists() {
             AllowedEventSourceType::default(),
         ),
         Commission::default(),
+        true,
     )
     .await
     .expect("in test");
