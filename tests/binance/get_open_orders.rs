@@ -150,7 +150,7 @@ async fn open_orders_by_currency_pair_exist() {
 
     let _ = exchange_builder
         .exchange
-        .cancel_opened_orders(CancellationToken::default())
+        .cancel_opened_orders(CancellationToken::default(), true)
         .await;
 
     assert_eq!(all_orders.len(), 2);
@@ -250,7 +250,7 @@ async fn should_return_open_orders() {
 
     let _ = exchange_builder
         .exchange
-        .cancel_opened_orders(CancellationToken::default())
+        .cancel_opened_orders(CancellationToken::default(), true)
         .await;
 
     assert_eq!(all_orders.len(), 1);

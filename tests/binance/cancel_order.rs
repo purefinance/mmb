@@ -109,7 +109,7 @@ async fn cancel_opened_orders_successfully() {
             &exchange_builder
                 .exchange
                 .clone()
-                .cancel_opened_orders(CancellationToken::default())
+                .cancel_opened_orders(CancellationToken::default(), true)
                 .await;
         }
     }

@@ -90,7 +90,7 @@ impl ExchangeBuilder {
         if need_to_clean_up {
             exchange
                 .clone()
-                .cancel_opened_orders(cancellation_token.clone())
+                .cancel_opened_orders(cancellation_token.clone(), true)
                 .await;
         }
 

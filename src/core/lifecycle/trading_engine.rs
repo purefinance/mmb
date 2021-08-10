@@ -99,7 +99,7 @@ impl EngineContext {
         self.exchange_blocker.stop_blocker().await;
 
         // we don't want to use this CancellationToken while graceful_shutdown is in prgoress
-        cancel_opened_orders(&self.exchanges, CancellationToken::default()).await;
+        cancel_opened_orders(&self.exchanges, CancellationToken::default(), true).await;
 
         self.finish_graceful_shutdown_sender
             .lock()
@@ -121,14 +121,14 @@ impl EngineContext {
 async fn cancel_opened_orders(
     exchanges: &DashMap<ExchangeAccountId, Arc<Exchange>>,
     cancellation_token: CancellationToken,
+    add_missing_open_orders: bool,
 ) {
     info!("Canceling opened orders started");
 
-    join_all(
-        exchanges
-            .iter()
-            .map(|x| x.clone().cancel_opened_orders(cancellation_token.clone())),
-    )
+    join_all(exchanges.iter().map(|x| {
+        x.clone()
+            .cancel_opened_orders(cancellation_token.clone(), add_missing_open_orders)
+    }))
     .await;
 
     info!("Canceling opened orders finished");
