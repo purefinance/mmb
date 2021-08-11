@@ -12,10 +12,13 @@ use tokio::sync::{broadcast, oneshot};
 use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
+use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::general::features::BalancePositionOption;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
+use crate::core::exchanges::get_active_position::ActivePosition;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::OrderHeader;
@@ -483,6 +486,85 @@ impl Exchange {
             }
             Ok(orders) => {
                 self.cancel_orders(orders, cancellation_token).await;
+            }
+        }
+    }
+
+    // TODO: make one fn for same type of requests
+    pub async fn get_active_positions(&self) -> Result<Vec<ActivePosition>> {
+        match self.features.balance_position_option {
+            BalancePositionOption::IndividualRequest => self.get_active_position_core().await,
+            BalancePositionOption::SingleRequest => {
+                match self.get_balance_and_positions_core().await {
+                    Ok(balance_and_position) => {
+                        if balance_and_position.positions.is_empty() {
+                            return Ok(vec![]);
+                        }
+
+                        let active_positions: Vec<ActivePosition> = balance_and_position
+                            .positions
+                            .iter()
+                            .map(|x| ActivePosition::new(x))
+                            .collect();
+                        Ok(active_positions)
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+            BalancePositionOption::NonDerivative => Ok(vec![]),
+        }
+    }
+
+    async fn get_active_position_core(&self) -> Result<Vec<ActivePosition>> {
+        let response = self.exchange_client.request_get_position().await?;
+
+        info!(
+            "get_active_position() response on {}: {:?}",
+            self.exchange_account_id, response
+        );
+
+        if let Some(error) = self.get_rest_error(&response) {
+            bail!(
+                "Rest error appeared during request get_active_position: {}",
+                error.message
+            )
+        }
+
+        match self.exchange_client.parse_get_position(&response).await {
+            Ok(parsed) => Ok(parsed),
+            Err(error) => {
+                self.handle_parse_error(error, response, "".into(), None)?;
+                Ok(Vec::new())
+            }
+        }
+    }
+
+    async fn get_balance_and_positions_core(&self) -> Result<ExchangeBalancesAndPositions> {
+        let response = self
+            .exchange_client
+            .request_get_balance_and_positions()
+            .await?;
+
+        info!(
+            "get_balance_and_positions() response on {}: {:?}",
+            self.exchange_account_id, response
+        );
+
+        if let Some(error) = self.get_rest_error(&response) {
+            bail!(
+                "Rest error appeared during request get_balance_and_positions: {}",
+                error.message
+            )
+        }
+
+        match self.exchange_client.parse_get_balance(&response).await {
+            Ok(parsed) => Ok(parsed),
+            Err(error) => {
+                self.handle_parse_error(error, response, "".into(), None)?;
+                Ok(ExchangeBalancesAndPositions {
+                    balances: Vec::new(),
+                    positions: Vec::new(),
+                })
             }
         }
     }
