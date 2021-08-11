@@ -4,6 +4,7 @@ use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::FutureExt;
+use itertools::Itertools;
 use log::{error, info, warn, Level};
 use parking_lot::Mutex;
 use serde_json::Value;
@@ -32,6 +33,7 @@ use crate::core::{
     lifecycle::application_manager::ApplicationManager,
     lifecycle::cancellation_token::CancellationToken,
 };
+
 use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
@@ -486,7 +488,22 @@ impl Exchange {
                 );
             }
             Ok(orders) => {
-                self.cancel_orders(orders, cancellation_token).await;
+                tokio::select! {
+                    _ = self.cancel_orders(orders.clone(), cancellation_token.clone()) => {
+                        ()
+                    },
+                    _ = cancellation_token.when_cancelled() => {
+                        log::error!(
+                            "Opened orders canceling for exchange account id {} was interrupted by CancellationToken for list of orders {:?}",
+                            self.exchange_account_id,
+                            orders
+                                .iter()
+                                .map(|x| x.client_order_id.as_str())
+                                .collect_vec(),
+                        );
+                        ()
+                    },
+                }
             }
         }
     }
