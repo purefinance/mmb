@@ -14,9 +14,11 @@ use super::{
     },
     general::currency_pair_metadata::CurrencyPairMetadata,
     general::handlers::handle_order_filled::FillEventData,
+    get_active_position::ActivePosition,
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::connectivity::connectivity_manager::WebSocketRole;
+use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::lifecycle::application_manager::ApplicationManager;
@@ -47,6 +49,9 @@ pub trait ExchangeClient: Support {
     ) -> Result<RestRequestOutcome>;
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
+
+    async fn request_get_balance_and_positions(&self) -> Result<RestRequestOutcome>;
+    async fn request_get_position(&self) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait]
@@ -94,6 +99,16 @@ pub trait Support: Send + Sync {
         &self,
         response: &RestRequestOutcome,
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>>;
+
+    async fn parse_get_balance(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<ExchangeBalancesAndPositions>;
+
+    async fn parse_get_position(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<Vec<ActivePosition>>;
 }
 
 pub struct ExchangeClientBuilderResult {

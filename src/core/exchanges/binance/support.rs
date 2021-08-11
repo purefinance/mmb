@@ -14,7 +14,9 @@ use serde_json::Value;
 
 use super::binance::Binance;
 use crate::core::exchanges::common::SortedOrderData;
+use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::get_active_position::ActivePosition;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
@@ -377,6 +379,19 @@ impl Support for Binance {
         }
 
         Ok(result)
+    }
+
+    async fn parse_get_balance(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<ExchangeBalancesAndPositions> {
+        std::unimplemented!("unimplemented in C#"); // TODO: issue 169
+    }
+    async fn parse_get_position(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<Vec<ActivePosition>> {
+        std::unimplemented!("unimplemented in C#"); // TODO: issue 169
     }
 }
 

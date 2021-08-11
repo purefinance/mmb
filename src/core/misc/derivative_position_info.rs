@@ -1,8 +1,9 @@
-use crate::core::exchanges::common::{Amount, CurrencyPair};
+use crate::core::exchanges::common::CurrencyPair;
 use crate::core::orders::order::OrderSide;
 
 use rust_decimal::Decimal;
 
+#[derive(Debug, Clone)]
 pub struct DerivativePositionInfo {
     pub currency_pair: CurrencyPair,
     pub position: Decimal,

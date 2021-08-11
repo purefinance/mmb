@@ -159,4 +159,12 @@ impl ExchangeClient for Binance {
 
         self.rest_client.get(full_url, &self.settings.api_key).await
     }
+
+    async fn request_get_balance_and_positions(&self) -> Result<RestRequestOutcome> {
+        std::unimplemented!("unimplemented in C#"); // TODO: issue 169
+    }
+
+    async fn request_get_position(&self) -> Result<RestRequestOutcome> {
+        std::unimplemented!("unimplemented in C#"); // TODO: issue 169
+    }
 }

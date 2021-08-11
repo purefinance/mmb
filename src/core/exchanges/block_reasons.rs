@@ -8,3 +8,4 @@ pub static CREATE_ORDER_INSUFFICIENT_FUNDS: BlockReason =
 pub static REST_RATE_LIMIT: BlockReason = BlockReason::new("REST_RATE_LIMIT");
 pub static GRACEFUL_SHUTDOWN: BlockReason = BlockReason::new("GRACEFUL_SHUTDOWN");
 pub static EXCHANGE_UNAVAILABLE: BlockReason = BlockReason::new("EXCHANGE_UNAVAILABLE");
+pub static PROFIT_LOSS_EXCEEDED: BlockReason = BlockReason::new("PROFIT_LOSS_EXCEEDED");
