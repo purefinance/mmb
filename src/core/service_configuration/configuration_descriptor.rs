@@ -14,3 +14,10 @@ impl ConfigurationDescriptor {
         }
     }
 }
+
+impl PartialEq for ConfigurationDescriptor {
+    fn eq(&self, other: &Self) -> bool {
+        self.service_name == other.service_name
+            && self.service_configuration_key == other.service_configuration_key
+    }
+}
