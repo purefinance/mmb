@@ -1,5 +1,5 @@
 # mmb
-Market strategy automation
+Trading Engine implemented in Rust
 
 # Start
 To start trading engine from src directory add there `credentials.toml` with credentials corresponding every exchange from config.toml:
