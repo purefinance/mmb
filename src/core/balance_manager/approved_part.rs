@@ -1,6 +1,6 @@
+use crate::core::exchanges::common::Amount;
 use crate::core::orders::order::ClientOrderId;
 use crate::core::DateTime;
-use crate::core::exchanges::common::Amount;
 
 use rust_decimal::Decimal;
 
@@ -22,11 +22,11 @@ impl ApprovedPart {
         unreserved_amount: Decimal,
     ) -> Self {
         Self {
-            date_time = date_time,
-            client_order_id = client_order_id,
-            amount = amount,
-            is_canceled = false,
-            unreserved_amount = unreserved_amount,
+            date_time: date_time,
+            client_order_id: client_order_id,
+            amount: amount,
+            is_canceled: false,
+            unreserved_amount: unreserved_amount,
         }
     }
 }
