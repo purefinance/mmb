@@ -1,3 +1,6 @@
+use std::hash::Hash;
+
+#[derive(Hash)]
 pub struct ConfigurationDescriptor {
     pub service_name: String,
     pub service_configuration_key: String,
