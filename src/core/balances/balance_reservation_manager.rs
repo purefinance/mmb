@@ -8,7 +8,7 @@ use crate::core::balances::{
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 
-struct BalanceReservationManager {
+pub(crate) struct BalanceReservationManager {
     exchanges_by_id: HashMap<String, Exchange>,
 
     // private readonly ICurrencyPairToSymbolConverter _currencyPairToSymbolConverter;
