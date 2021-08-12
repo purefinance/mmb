@@ -6,7 +6,7 @@ use rust_decimal::Decimal;
 
 type BalanceByExchangeId = HashMap<String, HashMap<String, Decimal>>;
 
-struct VirtualBalanceHolder {
+pub(crate) struct VirtualBalanceHolder {
     balance_by_exchange_id: BalanceByExchangeId,
     balance_diff: ServiceValueTree,
 }
