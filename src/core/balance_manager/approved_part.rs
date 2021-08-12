@@ -18,7 +18,6 @@ impl ApprovedPart {
         date_time: DateTime,
         client_order_id: ClientOrderId,
         amount: Amount,
-        is_canceled: bool,
         unreserved_amount: Decimal,
     ) -> Self {
         Self {
