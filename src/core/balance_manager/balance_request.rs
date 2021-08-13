@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-#[derive(Hash)]
+#[derive(Hash, Debug)]
 pub(crate) struct BalanceRequest {
     pub configuration_descriptor: Arc<ConfigurationDescriptor>,
     pub exchange_account_id: ExchangeAccountId,
