@@ -1,5 +1,5 @@
 ## Welcome to mmb
-Mmb is an open-source crypto trading engine
+Mmb is an open-source crypto trading engine implemented in Rust
 
 ## Connectors
 
