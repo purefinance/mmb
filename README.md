@@ -1,5 +1,5 @@
 ## Welcome to mmb
-Mmb is an open-source trading engine with a mission to integrate cryptocurrency (both centralized exchanges and decentralized protocols) and traditional markets.
+Mmb is an open-source trading engine with a mission to integrate cryptocurrency and traditional markets.
 
 ## Connectors
 
