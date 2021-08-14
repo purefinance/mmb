@@ -3,7 +3,7 @@ Mmb is an open-source crypto trading engine implemented in Rust
 
 ## Connectors
 
-![GREEN] GREEN - Connector is working properly and safe to use
+![GREEN](https://via.placeholder.com/15/008000/?text=+) GREEN - Connector is working properly and safe to use
 
 ![YELLOW](https://via.placeholder.com/15/ffff00/?text=+) YELLOW - Connector is either new or has one or more issues
 
