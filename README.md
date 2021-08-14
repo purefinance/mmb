@@ -3,9 +3,9 @@ Mmb is an open-source crypto trading engine implemented in Rust
 
 ## Connectors
 
-| logo | id | name | ver | doc |
 
-|:---:|:---:|:---:|:---:|:---:|:---:|
+| logo | id | name | ver | doc |
+|:---:|:---:|:---:|:---:|:---:|
 | <img src="assets/binance-logo.jpg" alt="Binance" width="90" /> | binance | [Binance](https://www.binance.com/) | 3 | [API](https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md) |
 
 ## Quick Start
