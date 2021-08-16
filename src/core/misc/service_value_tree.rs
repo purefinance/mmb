@@ -187,6 +187,19 @@ impl ServiceValueTree {
             );
         }
     }
+
+    pub fn set_by_balance_request(&mut self, balance_request: &BalanceRequest, value: Decimal) {
+        self.set_by_currency_code(
+            &balance_request.configuration_descriptor.service_name,
+            &balance_request
+                .configuration_descriptor
+                .service_configuration_key,
+            &balance_request.exchange_account_id,
+            &balance_request.currency_pair,
+            &balance_request.currency_code,
+            value,
+        );
+    }
 }
 
 impl ServiceValueTree {
