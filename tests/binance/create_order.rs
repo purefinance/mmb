@@ -9,14 +9,14 @@ use rust_decimal_macros::*;
 
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 
-use crate::core::exchange::ExchangeBuilder;
+use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::Order;
 #[actix_rt::test]
 async fn create_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let mut exchange_builder = match ExchangeBuilder::try_new(
+    let mut binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -31,7 +31,7 @@ async fn create_successfully() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -43,9 +43,9 @@ async fn create_successfully() {
         CancellationToken::default(),
     );
 
-    match order.create(exchange_builder.exchange.clone()).await {
+    match order.create(binance_builder.exchange.clone()).await {
         Ok(order_ref) => {
-            let event = exchange_builder
+            let event = binance_builder
                 .rx
                 .recv()
                 .await
@@ -63,7 +63,7 @@ async fn create_successfully() {
             }
 
             order
-                .cancel_or_fail(&order_ref, exchange_builder.exchange.clone())
+                .cancel_or_fail(&order_ref, binance_builder.exchange.clone())
                 .await;
         }
 
@@ -78,7 +78,7 @@ async fn should_fail() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -93,7 +93,7 @@ async fn should_fail() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -107,7 +107,7 @@ async fn should_fail() {
     order.amount = dec!(1);
     order.price = dec!(0.0000000000000000001);
 
-    match order.create(exchange_builder.exchange.clone()).await {
+    match order.create(binance_builder.exchange.clone()).await {
         Ok(error) => {
             assert!(false, "Create order failed with error {:?}.", error)
         }

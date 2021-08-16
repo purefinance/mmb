@@ -16,20 +16,20 @@ use tokio::sync::broadcast;
 
 use crate::binance::common::{get_binance_credentials, get_timeout_manager};
 
-pub struct ExchangeBuilder {
+pub struct BinanceBuilder {
     pub exchange: Arc<Exchange>,
     pub tx: broadcast::Sender<ExchangeEvent>,
     pub rx: broadcast::Receiver<ExchangeEvent>,
 }
 
-impl ExchangeBuilder {
+impl BinanceBuilder {
     pub async fn try_new(
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
         need_to_clean_up: bool,
-    ) -> Result<ExchangeBuilder> {
+    ) -> Result<BinanceBuilder> {
         let (api_key, secret_key) = match get_binance_credentials() {
             Ok((api_key, secret_key)) => (api_key, secret_key),
             Err(_) => (String::from(""), String::from("")),
@@ -42,7 +42,7 @@ impl ExchangeBuilder {
 
         let settings =
             ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
-        ExchangeBuilder::try_new_with_settings(
+        BinanceBuilder::try_new_with_settings(
             settings,
             exchange_account_id,
             cancellation_token,
@@ -60,7 +60,7 @@ impl ExchangeBuilder {
         features: ExchangeFeatures,
         commission: Commission,
         need_to_clean_up: bool,
-    ) -> Result<ExchangeBuilder> {
+    ) -> Result<BinanceBuilder> {
         let application_manager = ApplicationManager::new(cancellation_token.clone());
         let (tx, rx) = broadcast::channel(10);
 
@@ -98,6 +98,6 @@ impl ExchangeBuilder {
                 .await;
         }
 
-        Ok(ExchangeBuilder { exchange, tx, rx })
+        Ok(BinanceBuilder { exchange, tx, rx })
     }
 }

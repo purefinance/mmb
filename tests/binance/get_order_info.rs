@@ -7,13 +7,13 @@ use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::orders::order::*;
 
-use crate::core::exchange::ExchangeBuilder;
+use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::Order;
 
 #[actix_rt::test]
 async fn get_order_info() {
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -28,7 +28,7 @@ async fn get_order_info() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -42,11 +42,11 @@ async fn get_order_info() {
     order.reservation_id = Some(ReservationId::generate());
 
     let created_order = order
-        .create(exchange_builder.exchange.clone())
+        .create(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
-    let order_info = exchange_builder
+    let order_info = binance_builder
         .exchange
         .get_order_info(&created_order)
         .await

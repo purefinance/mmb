@@ -6,7 +6,7 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::settings::{CurrencyPairSetting, ExchangeSettings};
 
-use crate::core::exchange::ExchangeBuilder;
+use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::Order;
 use crate::get_binance_credentials_or_exit;
 
@@ -17,7 +17,7 @@ async fn open_orders_exists() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -32,7 +32,7 @@ async fn open_orders_exists() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -50,15 +50,15 @@ async fn open_orders_exists() {
         CancellationToken::default(),
     );
 
-    if let Err(error) = first_order.create(exchange_builder.exchange.clone()).await {
+    if let Err(error) = first_order.create(binance_builder.exchange.clone()).await {
         assert!(false, "Create order failed with error {:?}.", error)
     }
 
-    if let Err(error) = second_order.create(exchange_builder.exchange.clone()).await {
+    if let Err(error) = second_order.create(binance_builder.exchange.clone()).await {
         assert!(false, "Create order failed with error {:?}.", error)
     }
 
-    let all_orders = exchange_builder
+    let all_orders = binance_builder
         .exchange
         .clone()
         .get_open_orders(false)
@@ -90,7 +90,7 @@ async fn open_orders_by_currency_pair_exist() {
         },
     ]);
 
-    let exchange_builder = match ExchangeBuilder::try_new_with_settings(
+    let binance_builder = match BinanceBuilder::try_new_with_settings(
         settings.clone(),
         exchange_account_id.clone(),
         CancellationToken::default(),
@@ -106,7 +106,7 @@ async fn open_orders_by_currency_pair_exist() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -119,7 +119,7 @@ async fn open_orders_by_currency_pair_exist() {
     );
 
     first_order
-        .create(exchange_builder.exchange.clone())
+        .create(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
@@ -132,17 +132,17 @@ async fn open_orders_by_currency_pair_exist() {
     second_order.amount = dec!(1000);
 
     second_order
-        .create(exchange_builder.exchange.clone())
+        .create(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
-    let all_orders = exchange_builder
+    let all_orders = binance_builder
         .exchange
         .get_open_orders(true)
         .await
         .expect("in test");
 
-    let _ = exchange_builder
+    let _ = binance_builder
         .exchange
         .cancel_opened_orders(CancellationToken::default(), true)
         .await;
@@ -162,7 +162,7 @@ async fn should_return_open_orders() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -177,7 +177,7 @@ async fn should_return_open_orders() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -191,7 +191,7 @@ async fn should_return_open_orders() {
     );
 
     order
-        .create(exchange_builder.exchange.clone())
+        .create(binance_builder.exchange.clone())
         .await
         .expect("in test");
     // createdOrder
@@ -203,10 +203,10 @@ async fn should_return_open_orders() {
         CancellationToken::default(),
     );
 
-    match order.create(exchange_builder.exchange.clone()).await {
+    match order.create(binance_builder.exchange.clone()).await {
         Ok(order_ref) => {
             // If here are no error - order was cancelled successfully
-            exchange_builder
+            binance_builder
                 .exchange
                 .wait_cancel_order(order_ref, None, true, CancellationToken::new())
                 .await
@@ -227,7 +227,7 @@ async fn should_return_open_orders() {
     );
     order.amount = dec!(0);
 
-    if let Ok(order_ref) = order.create(exchange_builder.exchange.clone()).await {
+    if let Ok(order_ref) = order.create(binance_builder.exchange.clone()).await {
         assert!(
             false,
             "Order {:?} has been created although we expected an error.",
@@ -238,13 +238,13 @@ async fn should_return_open_orders() {
 
     // TODO: orderForCompletion
 
-    let all_orders = exchange_builder
+    let all_orders = binance_builder
         .exchange
         .get_open_orders(true)
         .await
         .expect("in test");
 
-    let _ = exchange_builder
+    let _ = binance_builder
         .exchange
         .cancel_opened_orders(CancellationToken::default(), true)
         .await;

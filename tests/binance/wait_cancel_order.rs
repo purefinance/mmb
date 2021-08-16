@@ -5,7 +5,7 @@ use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 
-use crate::core::exchange::ExchangeBuilder;
+use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::Order;
 
 #[actix_rt::test]
@@ -13,7 +13,7 @@ async fn cancellation_waited_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -28,7 +28,7 @@ async fn cancellation_waited_successfully() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -40,12 +40,12 @@ async fn cancellation_waited_successfully() {
         CancellationToken::default(),
     );
 
-    let created_order = order.create(exchange_builder.exchange.clone()).await;
+    let created_order = order.create(binance_builder.exchange.clone()).await;
 
     match created_order {
         Ok(order_ref) => {
             // If here are no error - order was cancelled successfully
-            exchange_builder
+            binance_builder
                 .exchange
                 .wait_cancel_order(order_ref, None, true, CancellationToken::new())
                 .await
@@ -63,7 +63,7 @@ async fn cancellation_waited_failed_fallback() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -78,7 +78,7 @@ async fn cancellation_waited_failed_fallback() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -90,11 +90,11 @@ async fn cancellation_waited_failed_fallback() {
         CancellationToken::default(),
     );
 
-    let created_order = order.create(exchange_builder.exchange.clone()).await;
+    let created_order = order.create(binance_builder.exchange.clone()).await;
 
     match created_order {
         Ok(order_ref) => {
-            let must_be_error = exchange_builder
+            let must_be_error = binance_builder
                 .exchange
                 .wait_cancel_order(order_ref, None, true, CancellationToken::new())
                 .await;

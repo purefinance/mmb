@@ -1,3 +1,4 @@
+pub mod binance_builder;
 pub mod cancel_order;
 pub mod common;
 pub mod create_order;

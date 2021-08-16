@@ -13,7 +13,7 @@ use std::time::Duration;
 use std::{pin::Pin, sync::Arc};
 use tokio::{sync::oneshot, time::sleep};
 
-use crate::core::exchange::ExchangeBuilder;
+use crate::binance::binance_builder::BinanceBuilder;
 
 #[actix_rt::test]
 pub async fn should_connect_and_reconnect_normally() {
@@ -22,7 +22,7 @@ pub async fn should_connect_and_reconnect_normally() {
     let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -37,13 +37,13 @@ pub async fn should_connect_and_reconnect_normally() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
     };
 
-    let exchange_weak = Arc::downgrade(&exchange_builder.exchange);
+    let exchange_weak = Arc::downgrade(&binance_builder.exchange);
     let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
 
     let connected_count = Arc::new(Mutex::new(0));

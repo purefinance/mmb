@@ -7,7 +7,7 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 
-use crate::core::exchange::ExchangeBuilder;
+use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::Order;
 
 #[actix_rt::test]
@@ -15,7 +15,7 @@ async fn cancelled_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -30,7 +30,7 @@ async fn cancelled_successfully() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -42,10 +42,10 @@ async fn cancelled_successfully() {
         CancellationToken::default(),
     );
 
-    match order.create(exchange_builder.exchange.clone()).await {
+    match order.create(binance_builder.exchange.clone()).await {
         Ok(order_ref) => {
             order
-                .cancel_or_fail(&order_ref, exchange_builder.exchange.clone())
+                .cancel_or_fail(&order_ref, binance_builder.exchange.clone())
                 .await;
         }
         Err(error) => {
@@ -59,7 +59,7 @@ async fn cancel_opened_orders_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -74,7 +74,7 @@ async fn cancel_opened_orders_successfully() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -86,7 +86,7 @@ async fn cancel_opened_orders_successfully() {
         CancellationToken::default(),
     );
     first_order
-        .create(exchange_builder.exchange.clone())
+        .create(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
@@ -96,18 +96,18 @@ async fn cancel_opened_orders_successfully() {
         CancellationToken::default(),
     );
     second_order
-        .create(exchange_builder.exchange.clone())
+        .create(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
-    match &exchange_builder.exchange.get_open_orders(false).await {
+    match &binance_builder.exchange.get_open_orders(false).await {
         Err(error) => {
             log::info!("Opened orders not found for exchange account id: {}", error,);
             assert!(false);
         }
         Ok(orders) => {
             assert_ne!(orders.len(), 0);
-            &exchange_builder
+            &binance_builder
                 .exchange
                 .clone()
                 .cancel_opened_orders(CancellationToken::default(), true)
@@ -115,7 +115,7 @@ async fn cancel_opened_orders_successfully() {
         }
     }
 
-    match &exchange_builder.exchange.get_open_orders(false).await {
+    match &binance_builder.exchange.get_open_orders(false).await {
         Err(error) => {
             log::info!("Opened orders not found for exchange account id: {}", error,);
             assert!(false);
@@ -129,7 +129,7 @@ async fn cancel_opened_orders_successfully() {
 #[actix_rt::test]
 async fn nothing_to_cancel() {
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = match ExchangeBuilder::try_new(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -144,7 +144,7 @@ async fn nothing_to_cancel() {
     )
     .await
     {
-        Ok(exchange_builder) => exchange_builder,
+        Ok(binance_builder) => binance_builder,
         Err(_) => {
             return;
         }
@@ -161,7 +161,7 @@ async fn nothing_to_cancel() {
     };
 
     // Cancel last order
-    let cancel_outcome = exchange_builder
+    let cancel_outcome = binance_builder
         .exchange
         .cancel_order(&order_to_cancel, CancellationToken::default())
         .await
