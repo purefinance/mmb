@@ -24,41 +24,41 @@ pub(crate) struct ServiceValueTree {
 }
 // get
 impl ServiceValueTree {
-    pub fn get(&mut self) -> &mut ServiceNameConfigurationKeyMap {
+    fn get(&mut self) -> &mut ServiceNameConfigurationKeyMap {
         &mut self.tree
     }
 
-    pub fn get_by_service_name(
+    fn get_mut_by_service_name(
         &mut self,
         service_name: &String,
     ) -> Option<&mut ConfigurationKeyExchangeAccountIdMap> {
         Option::from(self.tree.get_mut(service_name)?)
     }
 
-    pub fn get_by_configuration_key(
+    fn get_mut_by_configuration_key(
         &mut self,
         service_name: &String,
         configuration_key: &String,
     ) -> Option<&mut ExchangeAccountIdCurrencyCodePairMap> {
         Option::from(
-            self.get_by_service_name(service_name)?
+            self.get_mut_by_service_name(service_name)?
                 .get_mut(configuration_key)?,
         )
     }
 
-    pub fn get_by_exchange_account_id(
+    fn get_mut_by_exchange_account_id(
         &mut self,
         service_name: &String,
         configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
     ) -> Option<&mut CurrencyPairCurrencyCodeMap> {
         Option::from(
-            self.get_by_configuration_key(service_name, configuration_key)?
+            self.get_mut_by_configuration_key(service_name, configuration_key)?
                 .get_mut(exchange_account_id)?,
         )
     }
 
-    pub fn get_by_currency_pair(
+    fn get_mut_by_currency_pair(
         &mut self,
         service_name: &String,
         configuration_key: &String,
@@ -66,12 +66,16 @@ impl ServiceValueTree {
         currency_pair: &CurrencyPair,
     ) -> Option<&mut CurrencyCodeValueMap> {
         Option::from(
-            self.get_by_exchange_account_id(service_name, configuration_key, exchange_account_id)?
-                .get_mut(currency_pair)?,
+            self.get_mut_by_exchange_account_id(
+                service_name,
+                configuration_key,
+                exchange_account_id,
+            )?
+            .get_mut(currency_pair)?,
         )
     }
 
-    pub fn get_by_currency_code(
+    fn get_mut_by_currency_code(
         &mut self,
         service_name: &String,
         configuration_key: &String,
@@ -80,13 +84,29 @@ impl ServiceValueTree {
         currency_code: &CurrencyCode,
     ) -> Option<&mut Decimal> {
         Option::from(
-            self.get_by_currency_pair(
+            self.get_mut_by_currency_pair(
                 service_name,
                 configuration_key,
                 exchange_account_id,
                 currency_pair,
             )?
             .get_mut(currency_code)?,
+        )
+    }
+
+    pub fn get_by_balance_request(&self, balance_request: &BalanceRequest) -> Option<Decimal> {
+        Some(
+            self.tree
+                .get(&balance_request.configuration_descriptor.service_name)?
+                .get(
+                    &balance_request
+                        .configuration_descriptor
+                        .service_configuration_key,
+                )?
+                .get(&balance_request.exchange_account_id)?
+                .get(&balance_request.currency_pair)?
+                .get(&balance_request.currency_code)?
+                .clone(),
         )
     }
 }
@@ -111,7 +131,7 @@ impl ServiceValueTree {
         configuration_key: &String,
         value: ExchangeAccountIdCurrencyCodePairMap,
     ) {
-        if let Some(sub_tree) = self.get_by_service_name(service_name) {
+        if let Some(sub_tree) = self.get_mut_by_service_name(service_name) {
             sub_tree.insert(configuration_key.clone(), value);
         } else {
             self.set_by_service_name(
@@ -128,7 +148,7 @@ impl ServiceValueTree {
         exchange_account_id: &ExchangeAccountId,
         value: CurrencyPairCurrencyCodeMap,
     ) {
-        if let Some(sub_tree) = self.get_by_configuration_key(service_name, configuration_key) {
+        if let Some(sub_tree) = self.get_mut_by_configuration_key(service_name, configuration_key) {
             sub_tree.insert(exchange_account_id.clone(), value);
         } else {
             self.set_by_configuration_key(
@@ -147,9 +167,11 @@ impl ServiceValueTree {
         currency_pair: &CurrencyPair,
         value: CurrencyCodeValueMap,
     ) {
-        if let Some(sub_tree) =
-            self.get_by_exchange_account_id(service_name, configuration_key, exchange_account_id)
-        {
+        if let Some(sub_tree) = self.get_mut_by_exchange_account_id(
+            service_name,
+            configuration_key,
+            exchange_account_id,
+        ) {
             sub_tree.insert(currency_pair.clone(), value);
         } else {
             self.set_by_exchange_account_id(
@@ -170,7 +192,7 @@ impl ServiceValueTree {
         currency_code: &CurrencyCode,
         value: Decimal,
     ) {
-        if let Some(sub_tree) = self.get_by_currency_pair(
+        if let Some(sub_tree) = self.get_mut_by_currency_pair(
             service_name,
             configuration_key,
             exchange_account_id,
