@@ -17,7 +17,7 @@ Mmb is an open-source crypto trading engine implemented in Rust
 ## Quick Start
 
 1. Go to `src` directory
-2. Configure your strategy in config.toml
+2. Configure your strategy in `config.toml`
 3. Provide api keys and secrets in `credentials.toml`
 ```
 [Binance0]
