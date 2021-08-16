@@ -24,7 +24,8 @@ Mmb is an open-source crypto trading engine implemented in Rust
 api_key = "binance0_api_key"
 secret_key = "binance0_secret_key"
 ```
-4. Start a client by executing `cargo run`
+4. Execute `cargo build`
+5. Execute `cargo run`
 
 ## Contributions
 
