@@ -8,7 +8,7 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::Order;
+use crate::core::order::OrderProxy;
 
 #[actix_rt::test]
 async fn cancelled_successfully() {
@@ -36,16 +36,19 @@ async fn cancelled_successfully() {
         }
     };
 
-    let order = Order::new(
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromCancelledSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
 
-    match order.create(binance_builder.exchange.clone()).await {
+    match order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
         Ok(order_ref) => {
-            order
-                .cancel_or_fail(&order_ref, binance_builder.exchange.clone())
+            order_proxy
+                .cancel_order_or_fail(&order_ref, binance_builder.exchange.clone())
                 .await;
         }
         Err(error) => {
@@ -75,28 +78,26 @@ async fn cancel_opened_orders_successfully() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
-    let first_order = Order::new(
+    let first_order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromCancelOpenedOrdersSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
-    first_order
-        .create(binance_builder.exchange.clone())
+    first_order_proxy
+        .create_order(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
-    let second_order = Order::new(
+    let second_order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromCancelOpenedOrdersSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
-    second_order
-        .create(binance_builder.exchange.clone())
+    second_order_proxy
+        .create_order(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
@@ -150,7 +151,7 @@ async fn nothing_to_cancel() {
         }
     };
 
-    let order = Order::new(
+    let order = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromNothingToCancelTest".to_owned()),
         CancellationToken::default(),

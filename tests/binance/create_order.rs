@@ -10,7 +10,7 @@ use rust_decimal_macros::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::Order;
+use crate::core::order::OrderProxy;
 #[actix_rt::test]
 async fn create_successfully() {
     init_logger();
@@ -37,13 +37,16 @@ async fn create_successfully() {
         }
     };
 
-    let order = Order::new(
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromCreateSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
 
-    match order.create(binance_builder.exchange.clone()).await {
+    match order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
         Ok(order_ref) => {
             let event = binance_builder
                 .rx
@@ -62,8 +65,8 @@ async fn create_successfully() {
                 panic!("Should receive CreateOrderSucceeded event type")
             }
 
-            order
-                .cancel_or_fail(&order_ref, binance_builder.exchange.clone())
+            order_proxy
+                .cancel_order_or_fail(&order_ref, binance_builder.exchange.clone())
                 .await;
         }
 
@@ -99,15 +102,18 @@ async fn should_fail() {
         }
     };
 
-    let mut order = Order::new(
+    let mut order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromShouldFailTest".to_owned()),
         CancellationToken::default(),
     );
-    order.amount = dec!(1);
-    order.price = dec!(0.0000000000000000001);
+    order_proxy.amount = dec!(1);
+    order_proxy.price = dec!(0.0000000000000000001);
 
-    match order.create(binance_builder.exchange.clone()).await {
+    match order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
         Ok(error) => {
             assert!(false, "Create order failed with error {:?}.", error)
         }

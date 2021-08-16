@@ -8,7 +8,7 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::orders::order::*;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::Order;
+use crate::core::order::OrderProxy;
 
 #[actix_rt::test]
 async fn get_order_info() {
@@ -34,15 +34,15 @@ async fn get_order_info() {
         }
     };
 
-    let mut order = Order::new(
+    let mut order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromGetOrderInfoTest".to_owned()),
         CancellationToken::default(),
     );
-    order.reservation_id = Some(ReservationId::generate());
+    order_proxy.reservation_id = Some(ReservationId::generate());
 
-    let created_order = order
-        .create(binance_builder.exchange.clone())
+    let created_order = order_proxy
+        .create_order(binance_builder.exchange.clone())
         .await
         .expect("in test");
 

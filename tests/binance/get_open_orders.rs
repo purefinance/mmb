@@ -7,7 +7,7 @@ use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::settings::{CurrencyPairSetting, ExchangeSettings};
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::Order;
+use crate::core::order::OrderProxy;
 use crate::get_binance_credentials_or_exit;
 
 use rust_decimal_macros::dec;
@@ -38,23 +38,29 @@ async fn open_orders_exists() {
         }
     };
 
-    let first_order = Order::new(
+    let first_order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
     );
 
-    let second_order = Order::new(
+    let second_order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
     );
 
-    if let Err(error) = first_order.create(binance_builder.exchange.clone()).await {
+    if let Err(error) = first_order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
         assert!(false, "Create order failed with error {:?}.", error)
     }
 
-    if let Err(error) = second_order.create(binance_builder.exchange.clone()).await {
+    if let Err(error) = second_order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
         assert!(false, "Create order failed with error {:?}.", error)
     }
 
@@ -112,27 +118,27 @@ async fn open_orders_by_currency_pair_exist() {
         }
     };
 
-    let first_order = Order::new(
+    let first_order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
 
-    first_order
-        .create(binance_builder.exchange.clone())
+    first_order_proxy
+        .create_order(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
-    let mut second_order = Order::new(
+    let mut second_order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
-    second_order.currency_pair = CurrencyPair::from_codes("sngls".into(), "btc".into());
-    second_order.amount = dec!(1000);
+    second_order_proxy.currency_pair = CurrencyPair::from_codes("sngls".into(), "btc".into());
+    second_order_proxy.amount = dec!(1000);
 
-    second_order
-        .create(binance_builder.exchange.clone())
+    second_order_proxy
+        .create_order(binance_builder.exchange.clone())
         .await
         .expect("in test");
 
@@ -151,8 +157,8 @@ async fn open_orders_by_currency_pair_exist() {
 
     for order in all_orders {
         assert!(
-            order.client_order_id == first_order.client_order_id
-                || order.client_order_id == second_order.client_order_id
+            order.client_order_id == first_order_proxy.client_order_id
+                || order.client_order_id == second_order_proxy.client_order_id
         );
     }
 }
@@ -184,26 +190,29 @@ async fn should_return_open_orders() {
     };
 
     // createdOrder
-    let order = Order::new(
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromShouldReturnOpenOrdersTest".to_owned()),
         CancellationToken::default(),
     );
 
-    order
-        .create(binance_builder.exchange.clone())
+    order_proxy
+        .create_order(binance_builder.exchange.clone())
         .await
         .expect("in test");
     // createdOrder
 
     // orderForCancellation
-    let order = Order::new(
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromShouldReturnOpenOrdersTest".to_owned()),
         CancellationToken::default(),
     );
 
-    match order.create(binance_builder.exchange.clone()).await {
+    match order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
         Ok(order_ref) => {
             // If here are no error - order was cancelled successfully
             binance_builder
@@ -220,14 +229,17 @@ async fn should_return_open_orders() {
     // orderForCancellation
 
     // failedToCreateOrder
-    let mut order = Order::new(
+    let mut order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromShouldReturnOpenOrdersTest".to_owned()),
         CancellationToken::default(),
     );
-    order.amount = dec!(0);
+    order_proxy.amount = dec!(0);
 
-    if let Ok(order_ref) = order.create(binance_builder.exchange.clone()).await {
+    if let Ok(order_ref) = order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
         assert!(
             false,
             "Order {:?} has been created although we expected an error.",

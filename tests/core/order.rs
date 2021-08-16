@@ -17,7 +17,7 @@ use crate::core::misc::with_timeout::with_timeout;
 
 use std::sync::Arc;
 
-pub struct Order {
+pub struct OrderProxy {
     pub client_order_id: ClientOrderId,
     pub init_time: DateTime,
     pub exchange_account_id: ExchangeAccountId,
@@ -35,25 +35,25 @@ pub struct Order {
     timeout: Duration,
 }
 
-impl Order {
+impl OrderProxy {
     pub fn new(
         exchange_account_id: ExchangeAccountId,
         strategy_name: Option<String>,
         cancellation_token: CancellationToken,
-    ) -> Order {
-        Order {
+    ) -> Self {
+        Self {
             client_order_id: ClientOrderId::unique_id(),
             init_time: Utc::now(),
             exchange_account_id,
-            currency_pair: Order::default_currency_pair(),
+            currency_pair: OrderProxy::default_currency_pair(),
             order_type: OrderType::Limit,
             side: OrderSide::Buy,
-            amount: Order::default_amount(),
+            amount: OrderProxy::default_amount(),
             execution_type: OrderExecutionType::None,
             reservation_id: None,
             signal_id: None,
             strategy_name: strategy_name.unwrap_or("OrderTest".to_owned()),
-            price: Order::default_price(),
+            price: OrderProxy::default_price(),
             cancellation_token,
             timeout: Duration::from_secs(5),
         }
@@ -87,7 +87,7 @@ impl Order {
         )
     }
 
-    pub async fn create(&self, exchange: Arc<Exchange>) -> Result<OrderRef> {
+    pub async fn create_order(&self, exchange: Arc<Exchange>) -> Result<OrderRef> {
         let header = self.make_header();
         let to_create = OrderCreating {
             price: self.price,
@@ -101,7 +101,7 @@ impl Order {
         .await
     }
 
-    pub async fn cancel_or_fail(&self, order_ref: &OrderRef, exchange: Arc<Exchange>) {
+    pub async fn cancel_order_or_fail(&self, order_ref: &OrderRef, exchange: Arc<Exchange>) {
         let header = self.make_header();
         let exchange_order_id = order_ref.exchange_order_id().expect("in test");
         let order_to_cancel = OrderCancelling {

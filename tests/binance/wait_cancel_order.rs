@@ -6,7 +6,7 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::Order;
+use crate::core::order::OrderProxy;
 
 #[actix_rt::test]
 async fn cancellation_waited_successfully() {
@@ -34,13 +34,15 @@ async fn cancellation_waited_successfully() {
         }
     };
 
-    let order = Order::new(
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromCancellationWaitedSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
 
-    let created_order = order.create(binance_builder.exchange.clone()).await;
+    let created_order = order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await;
 
     match created_order {
         Ok(order_ref) => {
@@ -84,13 +86,15 @@ async fn cancellation_waited_failed_fallback() {
         }
     };
 
-    let order = Order::new(
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromCancellationWaitedFailedFallbackTest".to_owned()),
         CancellationToken::default(),
     );
 
-    let created_order = order.create(binance_builder.exchange.clone()).await;
+    let created_order = order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await;
 
     match created_order {
         Ok(order_ref) => {

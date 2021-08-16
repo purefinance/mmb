@@ -26,7 +26,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::core::order::Order;
+use crate::core::order::OrderProxy;
 use crate::get_binance_credentials_or_exit;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
@@ -113,15 +113,17 @@ async fn orders_cancelled() {
         .await
         .expect("in test");
 
-    let order = Order::new(
+    let order = OrderProxy::new(
         exchange_account_id.clone(),
         Some("FromOrdersCancelledTest".to_owned()),
         CancellationToken::default(),
     );
 
-    let created_order = order.create(exchange.clone()).await.expect("in test");
+    let created_order = order.create_order(exchange.clone()).await.expect("in test");
 
-    let _ = order.cancel_or_fail(&created_order, exchange.clone()).await;
+    let _ = order
+        .cancel_order_or_fail(&created_order, exchange.clone())
+        .await;
 
     let rest_client = RestClient::new();
     let statistics: Value = serde_json::from_str(
