@@ -121,7 +121,7 @@ async fn orders_cancelled() {
 
     let created_order = order.create(exchange.clone()).await.expect("in test");
 
-    let _ = order.cancel(&created_order, exchange.clone()).await;
+    let _ = order.cancel_or_fail(&created_order, exchange.clone()).await;
 
     let rest_client = RestClient::new();
     let statistics: Value = serde_json::from_str(

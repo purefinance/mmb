@@ -44,7 +44,7 @@ impl Order {
         Order {
             client_order_id: ClientOrderId::unique_id(),
             init_time: Utc::now(),
-            exchange_account_id: exchange_account_id,
+            exchange_account_id,
             currency_pair: Order::default_currency_pair(),
             order_type: OrderType::Limit,
             side: OrderSide::Buy,
@@ -54,7 +54,7 @@ impl Order {
             signal_id: None,
             strategy_name: strategy_name.unwrap_or("OrderTest".to_owned()),
             price: Order::default_price(),
-            cancellation_token: cancellation_token,
+            cancellation_token,
             timeout: Duration::from_secs(5),
         }
     }
@@ -101,7 +101,7 @@ impl Order {
         .await
     }
 
-    pub async fn cancel(&self, order_ref: &OrderRef, exchange: Arc<Exchange>) {
+    pub async fn cancel_or_fail(&self, order_ref: &OrderRef, exchange: Arc<Exchange>) {
         let header = self.make_header();
         let exchange_order_id = order_ref.exchange_order_id().expect("in test");
         let order_to_cancel = OrderCancelling {

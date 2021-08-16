@@ -3,6 +3,7 @@ use std::sync::Arc;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 use mmb_lib::core::exchanges::general::exchange::*;
+use mmb_lib::core::exchanges::general::exchange_creation::get_symbols;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
@@ -12,14 +13,13 @@ use mmb_lib::core::settings::ExchangeSettings;
 
 use anyhow::Result;
 use tokio::sync::broadcast;
-use tokio::sync::broadcast::{Receiver, Sender};
 
 use crate::binance::common::{get_binance_credentials, get_timeout_manager};
 
 pub struct ExchangeBuilder {
     pub exchange: Arc<Exchange>,
-    pub tx: Sender<ExchangeEvent>,
-    pub rx: Receiver<ExchangeEvent>,
+    pub tx: broadcast::Sender<ExchangeEvent>,
+    pub rx: broadcast::Receiver<ExchangeEvent>,
 }
 
 impl ExchangeBuilder {
@@ -42,7 +42,7 @@ impl ExchangeBuilder {
 
         let settings =
             ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
-        ExchangeBuilder::try_new_with_custom_settings(
+        ExchangeBuilder::try_new_with_settings(
             settings,
             exchange_account_id,
             cancellation_token,
@@ -53,7 +53,7 @@ impl ExchangeBuilder {
         .await
     }
 
-    pub async fn try_new_with_custom_settings(
+    pub async fn try_new_with_settings(
         mut settings: ExchangeSettings,
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
@@ -69,7 +69,7 @@ impl ExchangeBuilder {
 
         let binance = Box::new(Binance::new(
             exchange_account_id.clone(),
-            settings,
+            settings.clone(),
             tx.clone(),
             application_manager.clone(),
         ));
@@ -87,6 +87,10 @@ impl ExchangeBuilder {
         exchange.clone().connect().await;
         exchange.build_metadata().await;
 
+        if let Some(currency_pairs) = &settings.currency_pairs {
+            exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]));
+        }
+
         if need_to_clean_up {
             exchange
                 .clone()
@@ -94,10 +98,6 @@ impl ExchangeBuilder {
                 .await;
         }
 
-        Ok(ExchangeBuilder {
-            exchange: exchange,
-            tx: tx,
-            rx: rx,
-        })
+        Ok(ExchangeBuilder { exchange, tx, rx })
     }
 }

@@ -13,7 +13,7 @@ use crate::core::order::Order;
 #[actix_rt::test]
 async fn get_order_info() {
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -26,12 +26,13 @@ async fn get_order_info() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let mut order = Order::new(
         exchange_account_id.clone(),

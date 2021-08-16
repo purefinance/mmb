@@ -16,7 +16,7 @@ async fn create_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let mut exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -29,12 +29,13 @@ async fn create_successfully() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let mut exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let order = Order::new(
         exchange_account_id.clone(),
@@ -62,13 +63,12 @@ async fn create_successfully() {
             }
 
             order
-                .cancel(&order_ref, exchange_builder.exchange.clone())
+                .cancel_or_fail(&order_ref, exchange_builder.exchange.clone())
                 .await;
         }
 
-        // Create order failed
-        Err(_) => {
-            assert!(false)
+        Err(error) => {
+            assert!(false, "Create order failed with error {:?}.", error)
         }
     }
 }
@@ -78,7 +78,7 @@ async fn should_fail() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -91,12 +91,13 @@ async fn should_fail() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let mut order = Order::new(
         exchange_account_id.clone(),
@@ -107,8 +108,8 @@ async fn should_fail() {
     order.price = dec!(0.0000000000000000001);
 
     match order.create(exchange_builder.exchange.clone()).await {
-        Ok(_) => {
-            assert!(false)
+        Ok(error) => {
+            assert!(false, "Create order failed with error {:?}.", error)
         }
         Err(error) => {
             assert_eq!(

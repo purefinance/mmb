@@ -1,7 +1,6 @@
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::AllowedEventSourceType;
 use mmb_lib::core::exchanges::general::commission::Commission;
-use mmb_lib::core::exchanges::general::exchange_creation::get_symbols;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
@@ -18,7 +17,7 @@ async fn open_orders_exists() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -31,12 +30,13 @@ async fn open_orders_exists() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let first_order = Order::new(
         exchange_account_id.clone(),
@@ -51,13 +51,11 @@ async fn open_orders_exists() {
     );
 
     if let Err(error) = first_order.create(exchange_builder.exchange.clone()).await {
-        log::error!("{:?}", error);
-        return;
+        assert!(false, "Create order failed with error {:?}.", error)
     }
 
     if let Err(error) = second_order.create(exchange_builder.exchange.clone()).await {
-        log::error!("{:?}", error);
-        return;
+        assert!(false, "Create order failed with error {:?}.", error)
     }
 
     let all_orders = exchange_builder
@@ -92,7 +90,8 @@ async fn open_orders_by_currency_pair_exist() {
         },
     ]);
 
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new_with_settings(
+        settings.clone(),
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -105,24 +104,19 @@ async fn open_orders_by_currency_pair_exist() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let first_order = Order::new(
         exchange_account_id.clone(),
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
-
-    if let Some(currency_pairs) = &settings.currency_pairs {
-        exchange_builder
-            .exchange
-            .set_symbols(get_symbols(&exchange_builder.exchange, &currency_pairs[..]))
-    }
 
     first_order
         .create(exchange_builder.exchange.clone())
@@ -168,7 +162,7 @@ async fn should_return_open_orders() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -181,12 +175,13 @@ async fn should_return_open_orders() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     // createdOrder
     let order = Order::new(
@@ -218,10 +213,8 @@ async fn should_return_open_orders() {
                 .expect("in test");
         }
 
-        // Create order failed
         Err(error) => {
-            dbg!(&error);
-            assert!(false)
+            assert!(false, "Create order failed with error {:?}.", error)
         }
     }
     // orderForCancellation
@@ -235,8 +228,11 @@ async fn should_return_open_orders() {
     order.amount = dec!(0);
 
     if let Ok(order_ref) = order.create(exchange_builder.exchange.clone()).await {
-        dbg!(&order_ref);
-        assert!(false)
+        assert!(
+            false,
+            "Order {:?} has been created although we expected an error.",
+            order_ref
+        )
     }
     // failedToCreateOrder
 

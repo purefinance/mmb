@@ -8,6 +8,6 @@ where
 {
     tokio::select! {
         result = fut => result,
-        _ = tokio::time::sleep(timeout) => panic!("Timeout {} secs is exceeded", timeout.as_secs()),
+        _ = tokio::time::sleep(timeout) => panic!("Timeout {} msecs is exceeded", timeout.as_millis()),
     }
 }

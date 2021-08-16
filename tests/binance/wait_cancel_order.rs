@@ -13,7 +13,7 @@ async fn cancellation_waited_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -26,12 +26,13 @@ async fn cancellation_waited_successfully() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let order = Order::new(
         exchange_account_id.clone(),
@@ -51,10 +52,8 @@ async fn cancellation_waited_successfully() {
                 .expect("in test");
         }
 
-        // Create order failed
         Err(error) => {
-            dbg!(&error);
-            assert!(false)
+            assert!(false, "Create order failed with error {:?}.", error)
         }
     }
 }
@@ -64,7 +63,7 @@ async fn cancellation_waited_failed_fallback() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -77,12 +76,13 @@ async fn cancellation_waited_failed_fallback() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let order = Order::new(
         exchange_account_id.clone(),
@@ -109,10 +109,8 @@ async fn cancellation_waited_failed_fallback() {
             }
         }
 
-        // Create order failed
         Err(error) => {
-            dbg!(&error);
-            assert!(false)
+            assert!(false, "Create order failed with error {:?}.", error)
         }
     }
 }

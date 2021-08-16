@@ -9,6 +9,7 @@ use crate::core::exchange::ExchangeBuilder;
 #[actix_rt::test]
 async fn request_metadata() {
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    // build_metadata is called in try_new, so if it's doesn't panicked metadata fetched successfully
     let _ = ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
@@ -23,5 +24,4 @@ async fn request_metadata() {
         true,
     )
     .await;
-    // if it's not panicked metadata fetched successfully
 }

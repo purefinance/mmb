@@ -15,7 +15,7 @@ async fn cancelled_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -28,12 +28,13 @@ async fn cancelled_successfully() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let order = Order::new(
         exchange_account_id.clone(),
@@ -44,12 +45,11 @@ async fn cancelled_successfully() {
     match order.create(exchange_builder.exchange.clone()).await {
         Ok(order_ref) => {
             order
-                .cancel(&order_ref, exchange_builder.exchange.clone())
+                .cancel_or_fail(&order_ref, exchange_builder.exchange.clone())
                 .await;
         }
         Err(error) => {
-            dbg!(&error);
-            assert!(false)
+            assert!(false, "Create order failed with error {:?}.", error)
         }
     }
 }
@@ -59,7 +59,7 @@ async fn cancel_opened_orders_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -72,12 +72,13 @@ async fn cancel_opened_orders_successfully() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let first_order = Order::new(
         exchange_account_id.clone(),
@@ -128,7 +129,7 @@ async fn cancel_opened_orders_successfully() {
 #[actix_rt::test]
 async fn nothing_to_cancel() {
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let exchange_builder = ExchangeBuilder::try_new(
+    let exchange_builder = match ExchangeBuilder::try_new(
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -141,12 +142,13 @@ async fn nothing_to_cancel() {
         Commission::default(),
         true,
     )
-    .await;
-
-    if let Err(_) = exchange_builder {
-        return;
-    }
-    let exchange_builder = exchange_builder.unwrap();
+    .await
+    {
+        Ok(exchange_builder) => exchange_builder,
+        Err(_) => {
+            return;
+        }
+    };
 
     let order = Order::new(
         exchange_account_id.clone(),
