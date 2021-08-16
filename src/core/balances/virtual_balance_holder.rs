@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{CurrencyCode, ExchangeAccountId};
 use crate::core::misc::service_value_tree::ServiceValueTree;
 
@@ -16,8 +17,8 @@ pub(crate) struct VirtualBalanceHolder {
 impl VirtualBalanceHolder {
     pub fn update_balances(
         &mut self,
-        exchange_account_id: ExchangeAccountId,
-        balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
+        exchange_account_id: &ExchangeAccountId,
+        balances_by_currency_code: &HashMap<CurrencyCode, Decimal>,
     ) {
         self.balance_by_exchange_id.insert(
             exchange_account_id.clone(),
@@ -32,10 +33,10 @@ impl VirtualBalanceHolder {
 
         let all_diffs = self.balance_diff.get_as_balances();
 
-        for currnecy_code in balances_by_currency_code.keys() {
+        for currency_code in balances_by_currency_code.keys() {
             let balance_requests_to_clear = all_diffs.keys().map(|x| {
-                if x.exchange_account_id == exchange_account_id
-                    && x.currency_code == currnecy_code.clone()
+                if &x.exchange_account_id == exchange_account_id
+                    && x.currency_code == currency_code.clone()
                 {
                     return Some(x);
                 }
@@ -57,5 +58,31 @@ impl VirtualBalanceHolder {
                 }
             }
         }
+    }
+
+    pub fn add_balance(
+        &mut self,
+        balance_request: &BalanceRequest,
+        balance_to_add: Decimal,
+        member_name: Option<String>,
+    ) {
+        let current_diff_value = self
+            .balance_diff
+            .get_by_balance_request(balance_request)
+            .unwrap_or(dec!(0));
+        let new_value = current_diff_value + balance_to_add;
+        self.balance_diff
+            .set_by_balance_request(balance_request, new_value);
+
+        log::info!(
+            "VirtualBalanceHolder add_balance {} {} {} {} {} {} {}",
+            member_name.unwrap_or(String::from("")),
+            balance_request.exchange_account_id,
+            balance_request.currency_pair,
+            balance_request.currency_code,
+            current_diff_value,
+            balance_to_add,
+            new_value
+        );
     }
 }
