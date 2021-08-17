@@ -17,6 +17,21 @@ use crate::core::misc::with_timeout::with_timeout;
 
 use std::sync::Arc;
 
+/// This struct needed for creating an orders in tests.
+/// You can create an object and change some fields if it's necessary
+/// and than use create_order function for making order in selected Exchange.
+///
+/// ```no_run
+/// let mut order_proxy = OrderProxy::new(
+///     exchange_account_id.clone(),
+///     Some("FromExample".to_owned()),
+///     CancellationToken::default(),
+/// );
+/// order_proxy.amount = dec!(5000); // Optional amount changing
+/// let created_order = order_proxy
+///     .create_order(exchange.clone())
+///     .await;
+/// ```
 pub struct OrderProxy {
     pub client_order_id: ClientOrderId,
     pub init_time: DateTime,
