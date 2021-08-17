@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
@@ -18,7 +17,7 @@ pub(crate) type ExchangeAccountIdCurrencyCodePairMap =
 pub(crate) type CurrencyPairCurrencyCodeMap = HashMap<CurrencyPair, CurrencyCodeValueMap>;
 pub(crate) type CurrencyCodeValueMap = HashMap<CurrencyCode, Decimal>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ServiceValueTree {
     tree: ServiceNameConfigurationKeyMap,
 }

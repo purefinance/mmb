@@ -25,7 +25,7 @@ pub(crate) struct Balances {
 
     /// In Amount currency
     pub amount_limits: Option<ServiceValueTree>,
-    pub balance_reservations_by_reservation_id: Option<HashMap<u64, BalanceReservation>>,
+    pub balance_reservations_by_reservation_id: Option<HashMap<i64, BalanceReservation>>,
 
     pub last_order_fills: HashMap<TradePlaceAccount, OrderFill>,
 

@@ -4,6 +4,7 @@ use crate::core::DateTime;
 
 use rust_decimal::Decimal;
 
+#[derive(Clone)]
 pub(crate) struct ApprovedPart {
     date_time: DateTime,
     client_order_id: ClientOrderId,

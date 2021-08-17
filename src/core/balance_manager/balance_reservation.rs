@@ -10,6 +10,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 
 use rust_decimal::Decimal;
 
+#[derive(Clone)]
 pub(crate) struct BalanceReservation {
     pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_account_id: ExchangeAccountId,

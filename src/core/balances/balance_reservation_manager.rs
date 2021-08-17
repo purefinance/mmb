@@ -35,12 +35,12 @@ pub(crate) struct BalanceReservationManager {
 impl BalanceReservationManager {
     pub fn update_reserved_balances(
         &mut self,
-        reserved_balances_by_id: HashMap<i64, BalanceReservation>,
+        reserved_balances_by_id: &HashMap<i64, BalanceReservation>,
     ) {
         self.balance_reservation_storage.clear();
         for (reservation_id, reservation) in reserved_balances_by_id {
             self.balance_reservation_storage
-                .add(reservation_id, reservation);
+                .add(reservation_id.clone(), reservation.clone());
         }
         self.sync_reservation_amounts();
     }
@@ -74,5 +74,14 @@ impl BalanceReservationManager {
             svt.set_by_balance_request(&request, reserved);
         }
         self.reserved_amount_in_amount_currency = svt;
+    }
+
+    pub fn restore_fill_amount_limits(
+        &mut self,
+        amount_limits: ServiceValueTree,
+        position_by_fill_amount: BalancePositionByFillAmount,
+    ) {
+        self.amount_limits_in_amount_currency = amount_limits;
+        self.position_by_fill_amount_in_amount_currency = position_by_fill_amount;
     }
 }

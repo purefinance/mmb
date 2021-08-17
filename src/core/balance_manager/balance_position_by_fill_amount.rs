@@ -4,6 +4,8 @@ use crate::core::balance_manager::position_change::PositionChange;
 use crate::core::exchanges::common::TradePlaceAccount;
 
 use rust_decimal::Decimal;
+
+#[derive(Clone)]
 pub(crate) struct BalancePositionByFillAmount {
     /// TradePlace -> AmountInAmountCurrency
     position_by_fill_amount: HashMap<TradePlaceAccount, Decimal>,
