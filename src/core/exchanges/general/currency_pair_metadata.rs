@@ -280,7 +280,7 @@ impl CurrencyPairMetadata {
         amount: Amount,
         currency_pair_price: Decimal,
     ) -> Result<Amount> {
-        if Some(to_currency_code) == self.balance_currency_code {
+        if Some(to_currency_code.clone()) == self.balance_currency_code {
             return Ok(amount);
         }
         if to_currency_code == self.base_currency_code {
