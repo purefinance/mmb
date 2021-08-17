@@ -274,6 +274,30 @@ impl CurrencyPairMetadata {
         bail!("Currency code outside currency pair is not supported yet")
     }
 
+    pub fn convert_amount_from_balance_currency_code(
+        &self,
+        to_currency_code: CurrencyCode,
+        amount: Amount,
+        currency_pair_price: Decimal,
+    ) -> Result<Amount> {
+        if Some(to_currency_code) == self.balance_currency_code {
+            return Ok(amount);
+        }
+        if to_currency_code == self.base_currency_code {
+            return Ok(amount / currency_pair_price);
+        }
+
+        if to_currency_code == self.quote_currency_code {
+            return Ok(amount * currency_pair_price);
+        }
+
+        bail!(
+            "Currency code {} outside currency pair {} is not supported yet",
+            to_currency_code,
+            self.currency_pair()
+        )
+    }
+
     pub fn get_min_amount(&self, price: Price) -> Result<Amount> {
         let min_cost = match self.min_cost {
             None => {
