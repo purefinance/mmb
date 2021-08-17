@@ -29,9 +29,7 @@ async fn get_order_info() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     let mut order_proxy = OrderProxy::new(

@@ -38,9 +38,7 @@ pub async fn should_connect_and_reconnect_normally() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     let exchange_weak = Arc::downgrade(&binance_builder.exchange);

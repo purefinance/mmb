@@ -32,9 +32,7 @@ async fn create_successfully() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     let order_proxy = OrderProxy::new(
@@ -97,9 +95,7 @@ async fn should_fail() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     let mut order_proxy = OrderProxy::new(

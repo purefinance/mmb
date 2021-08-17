@@ -31,9 +31,7 @@ async fn cancelled_successfully() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     let order_proxy = OrderProxy::new(
@@ -146,9 +144,7 @@ async fn nothing_to_cancel() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     let order = OrderProxy::new(

@@ -33,9 +33,7 @@ async fn open_orders_exists() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     let first_order_proxy = OrderProxy::new(
@@ -113,9 +111,7 @@ async fn open_orders_by_currency_pair_exist() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     let first_order_proxy = OrderProxy::new(
@@ -184,9 +180,7 @@ async fn should_return_open_orders() {
     .await
     {
         Ok(binance_builder) => binance_builder,
-        Err(_) => {
-            return;
-        }
+        Err(_) => return,
     };
 
     // createdOrder
