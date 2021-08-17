@@ -248,10 +248,10 @@ impl ServiceValueTree {
                                             .map(move |(currency_code, value)| {
                                                 (
                                                     BalanceRequest::new(
-                                                        Arc::from(ConfigurationDescriptor::new(
+                                                        ConfigurationDescriptor::new(
                                                             service_name.clone(),
                                                             service_configuration_key.clone(),
-                                                        )),
+                                                        ),
                                                         exchange_account_id.clone(),
                                                         currency_pair.clone(),
                                                         currency_code.clone(),
@@ -354,10 +354,10 @@ mod test {
                             );
                             balances.insert(
                                 BalanceRequest::new(
-                                    Arc::from(ConfigurationDescriptor::new(
+                                    ConfigurationDescriptor::new(
                                         service_name.clone(),
                                         service_configuration_key.clone(),
-                                    )),
+                                    ),
                                     exchange_account_id.clone(),
                                     currency_pair.clone(),
                                     currency_code.clone(),

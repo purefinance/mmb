@@ -7,7 +7,7 @@ use crate::core::exchanges::common::{CurrencyCode, CurrencyPair};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 #[derive(Hash, Debug)]
 pub(crate) struct BalanceRequest {
-    pub configuration_descriptor: Arc<ConfigurationDescriptor>,
+    pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
     pub currency_code: CurrencyCode,
@@ -15,7 +15,7 @@ pub(crate) struct BalanceRequest {
 
 impl BalanceRequest {
     pub fn new(
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
         currency_code: CurrencyCode,

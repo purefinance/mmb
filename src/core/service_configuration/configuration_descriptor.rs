@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-#[derive(Hash, Debug)]
+#[derive(Hash, Debug, Clone)]
 pub struct ConfigurationDescriptor {
     pub service_name: String,
     pub service_configuration_key: String,

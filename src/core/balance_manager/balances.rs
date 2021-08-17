@@ -4,6 +4,8 @@ use crate::core::balance_manager::{
     balance_position_by_fill_amount::BalancePositionByFillAmount,
     balance_reservation::BalanceReservation,
 };
+use crate::core::exchanges::common::CurrencyCode;
+use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::common::TradePlaceAccount;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::orders::fill::OrderFill;
@@ -12,7 +14,7 @@ use rust_decimal::Decimal;
 pub(crate) struct Balances {
     pub current_version: usize,
     pub version: usize,
-    pub balances_by_exchange_id: Option<HashMap<String, HashMap<String, Decimal>>>,
+    pub balances_by_exchange_id: Option<HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>>,
     pub virtual_diff_balances: Option<ServiceValueTree>,
 
     /// In Amount currency
