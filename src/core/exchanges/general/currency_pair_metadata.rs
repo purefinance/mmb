@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
@@ -29,7 +30,7 @@ pub enum BeforeAfter {
 }
 
 // Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Precision {
     // Rounding is performed to a number divisible to the specified tick
     // Look at round_by_tick test below
@@ -39,7 +40,7 @@ pub enum Precision {
     ByMantisa { precision: i8 },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct CurrencyPairMetadata {
     pub is_active: bool,
     pub is_derivative: bool,

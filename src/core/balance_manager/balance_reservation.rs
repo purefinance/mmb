@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::core::balance_manager::approved_part::ApprovedPart;
 use crate::core::exchanges::common::Amount;
@@ -14,7 +15,7 @@ use rust_decimal::Decimal;
 pub(crate) struct BalanceReservation {
     pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_account_id: ExchangeAccountId,
-    pub currency_pair_metadata: CurrencyPairMetadata,
+    pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
     pub order_side: OrderSide,
     pub price: Decimal,
     pub amount: Amount,
