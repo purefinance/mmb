@@ -7,6 +7,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 
 use itertools::Itertools;
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 
 pub(crate) type ServiceNameConfigurationKeyMap =
     HashMap<String, ConfigurationKeyExchangeAccountIdMap>;
@@ -273,7 +274,21 @@ impl ServiceValueTree {
             .into_iter()
             .collect()
     }
+
+    pub fn add(&mut self, input: &ServiceValueTree) {
+        for (request, value) in input.get_as_balances() {
+            self.add_by_request(&request, value);
+        }
+    }
+
+    pub fn add_by_request(&mut self, request: &BalanceRequest, value: Decimal) {
+        self.set_by_balance_request(
+            &request,
+            self.get_by_balance_request(request).unwrap_or(dec!(0)) + value,
+        );
+    }
 }
+
 #[cfg(test)]
 mod test {
     use super::*;
