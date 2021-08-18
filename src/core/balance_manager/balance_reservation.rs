@@ -6,12 +6,15 @@ use crate::core::exchanges::common::Amount;
 use crate::core::exchanges::common::CurrencyCode;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::orders::order::ClientOrderId;
 use crate::core::orders::order::OrderSide;
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
+use anyhow::{bail, Result};
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct BalanceReservation {
     pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_account_id: ExchangeAccountId,
@@ -28,5 +31,18 @@ pub(crate) struct BalanceReservation {
 
     /// Not approved amount in AmountCurrencyCode
     pub not_approved_amount: Decimal,
-    pub approved_parts: HashMap<String, ApprovedPart>,
+    pub approved_parts: HashMap<ClientOrderId, ApprovedPart>,
+}
+
+impl BalanceReservation {
+    pub(crate) fn get_proportional_cost_amount(&self, amount: Decimal) -> Result<Decimal> {
+        if self.amount == dec!(0) {
+            if amount != dec!(0) {
+                bail!("Trying to receive a {} proportion out of zero", amount)
+            }
+            return Ok(dec!(0));
+        }
+
+        Ok(self.cost * amount / self.amount)
+    }
 }

@@ -31,6 +31,10 @@ impl BalanceReservationStorage {
         self.reserved_balances_by_id.get(reservation_id)
     }
 
+    pub fn try_get_mut(&mut self, reservation_id: &i64) -> Option<&mut BalanceReservation> {
+        self.reserved_balances_by_id.get_mut(reservation_id)
+    }
+
     fn update_metrics(&self) {
         //TODO: should be implemented
     }

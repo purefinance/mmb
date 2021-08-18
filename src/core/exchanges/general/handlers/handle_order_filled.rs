@@ -355,7 +355,7 @@ impl Exchange {
 
                 let last_fill_amount_in_currency_code = currency_pair_metadata
                     .convert_amount_from_amount_currency_code(
-                        commission_currency_code.clone(),
+                        &commission_currency_code,
                         last_fill_amount,
                         last_fill_price,
                     )?;
@@ -518,7 +518,7 @@ impl Exchange {
     ) -> Result<OrderFill> {
         let last_fill_amount_in_converted_commission_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(
-                converted_commission_currency_code.clone(),
+                &converted_commission_currency_code,
                 last_fill_amount,
                 last_fill_price,
             )?;

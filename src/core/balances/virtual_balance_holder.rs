@@ -62,12 +62,7 @@ impl VirtualBalanceHolder {
         }
     }
 
-    pub fn add_balance(
-        &mut self,
-        balance_request: &BalanceRequest,
-        balance_to_add: Decimal,
-        member_name: Option<String>,
-    ) {
+    pub fn add_balance(&mut self, balance_request: &BalanceRequest, balance_to_add: Decimal) {
         let current_diff_value = self
             .balance_diff
             .get_by_balance_request(balance_request)
@@ -77,8 +72,7 @@ impl VirtualBalanceHolder {
             .set_by_balance_request(balance_request, new_value);
 
         log::info!(
-            "VirtualBalanceHolder add_balance {} {} {} {} {} {} {}",
-            member_name.unwrap_or(String::from("")),
+            "VirtualBalanceHolder add_balance {} {} {} {} {} {}",
             balance_request.exchange_account_id,
             balance_request.currency_pair,
             balance_request.currency_code,
@@ -137,7 +131,7 @@ impl VirtualBalanceHolder {
 
             let cur_balance_diff = match currency_pair_metadata
                 .convert_amount_from_balance_currency_code(
-                    balance_request.currency_code.clone(),
+                    &balance_request.currency_code,
                     balance_currency_code_balance_diff,
                     price?,
                 ) {
@@ -183,7 +177,7 @@ impl VirtualBalanceHolder {
 
         let exchange_balance_in_currency_code = currency_pair_metadata
             .convert_amount_from_balance_currency_code(
-                currency_code.clone(),
+                &currency_code,
                 balance_currency_code_balance,
                 price?,
             );

@@ -257,19 +257,19 @@ impl CurrencyPairMetadata {
 
     pub fn convert_amount_from_amount_currency_code(
         &self,
-        to_currency_code: CurrencyCode,
+        to_currency_code: &CurrencyCode,
         amount_in_amount_currency_code: Amount,
         currency_pair_price: Price,
     ) -> Result<Amount> {
-        if to_currency_code == self.amount_currency_code {
+        if to_currency_code.as_str() == self.amount_currency_code.as_str() {
             return Ok(amount_in_amount_currency_code);
         }
 
-        if to_currency_code == self.base_currency_code {
+        if to_currency_code.as_str() == self.base_currency_code.as_str() {
             return Ok(amount_in_amount_currency_code / currency_pair_price);
         }
 
-        if to_currency_code == self.quote_currency_code {
+        if to_currency_code.as_str() == self.quote_currency_code.as_str() {
             return Ok(amount_in_amount_currency_code * currency_pair_price);
         }
 
@@ -278,18 +278,18 @@ impl CurrencyPairMetadata {
 
     pub fn convert_amount_from_balance_currency_code(
         &self,
-        to_currency_code: CurrencyCode,
+        to_currency_code: &CurrencyCode,
         amount: Amount,
         currency_pair_price: Decimal,
     ) -> Result<Amount> {
         if Some(to_currency_code.clone()) == self.balance_currency_code {
             return Ok(amount);
         }
-        if to_currency_code == self.base_currency_code {
+        if to_currency_code.as_str() == self.base_currency_code.as_str() {
             return Ok(amount / currency_pair_price);
         }
 
-        if to_currency_code == self.quote_currency_code {
+        if to_currency_code.as_str() == self.quote_currency_code.as_str() {
             return Ok(amount * currency_pair_price);
         }
 
@@ -302,19 +302,19 @@ impl CurrencyPairMetadata {
 
     pub fn convert_amount_into_amount_currency_code(
         &self,
-        from_currency_code: CurrencyCode,
+        from_currency_code: &CurrencyCode,
         amount_in_from_currency_code: Decimal,
         currency_pair_price: Decimal,
     ) -> Result<Decimal> {
-        if from_currency_code == self.amount_currency_code {
+        if from_currency_code.as_str() == self.amount_currency_code.as_str() {
             return Ok(amount_in_from_currency_code);
         }
 
-        if from_currency_code == self.base_currency_code() {
+        if from_currency_code.as_str() == self.base_currency_code().as_str() {
             return Ok(amount_in_from_currency_code * currency_pair_price);
         }
 
-        if from_currency_code == self.quote_currency_code {
+        if from_currency_code.as_str() == self.quote_currency_code.as_str() {
             return Ok(amount_in_from_currency_code / currency_pair_price);
         }
         bail!(
