@@ -93,7 +93,7 @@ impl VirtualBalanceHolder {
         balance_request: &BalanceRequest,
         currency_pair_metadata: &CurrencyPairMetadata,
         price: Option<Decimal>,
-        explanation: Option<&mut Explanation>,
+        explanation: &mut Option<Explanation>,
     ) -> Option<Decimal> {
         let exchange_balance = self.get_exchange_balance(
             &balance_request.exchange_account_id,
@@ -102,16 +102,12 @@ impl VirtualBalanceHolder {
             price,
         )?;
 
-        let explanation = match explanation {
-            Some(explanation) => {
-                explanation.add_reason(format!(
-                    "GetVirtualBalance exchangeBalance = {}",
-                    exchange_balance
-                ));
-                Some(explanation)
-            }
-            None => None,
-        };
+        if let Some(explanation) = explanation {
+            explanation.add_reason(format!(
+                "get_virtual_balance exchange_balance = {}",
+                exchange_balance
+            ));
+        }
 
         let current_balance_diff = if !currency_pair_metadata.is_derivative.clone() {
             self.balance_diff
@@ -132,16 +128,12 @@ impl VirtualBalanceHolder {
                 .get_by_balance_request(&balance_currnecy_code_request)
                 .unwrap_or(dec!(0));
 
-            let explanation = match explanation {
-                Some(explanation) => {
-                    explanation.add_reason(format!(
-                        "GetVirtualBalance balance_currency_code_balance_diff = {}",
-                        balance_currency_code_balance_diff
-                    ));
-                    Some(explanation)
-                }
-                None => None,
-            };
+            if let Some(explanation) = explanation {
+                explanation.add_reason(format!(
+                    "get_virtual_balance balance_currency_code_balance_diff = {}",
+                    balance_currency_code_balance_diff
+                ));
+            }
 
             let cur_balance_diff = match currency_pair_metadata
                 .convert_amount_from_balance_currency_code(
@@ -161,10 +153,11 @@ impl VirtualBalanceHolder {
 
             if let Some(explanation) = explanation {
                 explanation.add_reason(format!(
-                    "GetVirtualBalance current_balance_diff = {}",
+                    "get_virtual_balance current_balance_diff = {}",
                     cur_balance_diff
                 ));
             }
+
             cur_balance_diff
         };
         return Some(exchange_balance + current_balance_diff);

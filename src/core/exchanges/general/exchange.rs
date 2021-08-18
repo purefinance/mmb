@@ -7,6 +7,7 @@ use futures::FutureExt;
 use itertools::Itertools;
 use log::{error, info, warn, Level};
 use parking_lot::Mutex;
+use rust_decimal::Decimal;
 use serde_json::Value;
 use tokio::sync::{broadcast, oneshot};
 
@@ -103,6 +104,7 @@ pub struct Exchange {
     pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
     pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
+    pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>, // TODO: implement some logic with me
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -138,6 +140,7 @@ impl Exchange {
             wait_cancel_order: DashMap::new(),
             orders_finish_events: DashMap::new(),
             orders_created_events: DashMap::new(),
+            leverage_by_currency_pair: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();

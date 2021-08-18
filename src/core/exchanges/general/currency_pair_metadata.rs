@@ -55,6 +55,7 @@ pub struct CurrencyPairMetadata {
     pub min_cost: Option<Price>,
     pub amount_currency_code: CurrencyCode,
     pub balance_currency_code: Option<CurrencyCode>,
+    pub amount_multiplier: Decimal,
 
     pub price_precision: Precision,
     pub amount_precision: Precision,
@@ -100,6 +101,7 @@ impl CurrencyPairMetadata {
             max_amount,
             min_cost,
             balance_currency_code,
+            amount_multiplier: dec!(1),
             price_precision,
             amount_precision,
         }
@@ -294,6 +296,30 @@ impl CurrencyPairMetadata {
         bail!(
             "Currency code {} outside currency pair {} is not supported yet",
             to_currency_code,
+            self.currency_pair()
+        )
+    }
+
+    pub fn convert_amount_into_amount_currency_code(
+        &self,
+        from_currency_code: CurrencyCode,
+        amount_in_from_currency_code: Decimal,
+        currency_pair_price: Decimal,
+    ) -> Result<Decimal> {
+        if from_currency_code == self.amount_currency_code {
+            return Ok(amount_in_from_currency_code);
+        }
+
+        if from_currency_code == self.base_currency_code() {
+            return Ok(amount_in_from_currency_code * currency_pair_price);
+        }
+
+        if from_currency_code == self.quote_currency_code {
+            return Ok(amount_in_from_currency_code / currency_pair_price);
+        }
+        bail!(
+            "We don't currently support currency code {} outside currency pair {}",
+            from_currency_code,
             self.currency_pair()
         )
     }
