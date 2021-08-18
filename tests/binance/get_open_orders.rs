@@ -1,55 +1,25 @@
-use std::time::Duration;
-
-use chrono::Utc;
 use mmb_lib::core::exchanges::common::*;
+use mmb_lib::core::exchanges::events::AllowedEventSourceType;
 use mmb_lib::core::exchanges::general::commission::Commission;
-use mmb_lib::core::exchanges::general::exchange::*;
-use mmb_lib::core::exchanges::general::exchange_creation;
 use mmb_lib::core::exchanges::general::features::*;
-use mmb_lib::core::exchanges::{binance::binance::*, events::AllowedEventSourceType};
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
-use mmb_lib::core::orders::order::*;
-use mmb_lib::core::settings;
-use mmb_lib::core::settings::CurrencyPairSetting;
-use rust_decimal_macros::*;
+use mmb_lib::core::settings::{CurrencyPairSetting, ExchangeSettings};
 
-use super::common::get_timeout_manager;
+use crate::binance::binance_builder::BinanceBuilder;
+use crate::core::order::OrderProxy;
 use crate::get_binance_credentials_or_exit;
-use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
-use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
-use tokio::sync::broadcast;
+
+use rust_decimal_macros::dec;
 
 #[actix_rt::test]
-async fn open_orders_exist() {
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
+async fn open_orders_exists() {
+    init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-
-    let mut settings = settings::ExchangeSettings::new_short(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
-        api_key,
-        secret_key,
-        false,
-    );
-
-    let application_manager = ApplicationManager::new(CancellationToken::new());
-    let (tx, _rx) = broadcast::channel(10);
-
-    BinanceBuilder.extend_settings(&mut settings);
-    settings.websocket_channels = vec!["depth".into(), "trade".into()];
-
-    let binance = Binance::new(
-        exchange_account_id.clone(),
-        settings,
-        tx.clone(),
-        application_manager.clone(),
-    );
-
-    let timeout_manager = get_timeout_manager(&exchange_account_id);
-    let exchange = Exchange::new(
-        exchange_account_id.clone(),
-        Box::new(binance),
+        CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             false,
@@ -57,118 +27,60 @@ async fn open_orders_exist() {
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
-        tx,
-        application_manager,
-        timeout_manager,
         Commission::default(),
-    );
-
-    exchange.clone().connect().await;
-
-    let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    let test_price = dec!(0.00000005);
-    let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
-        Utc::now(),
-        exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(10000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromGetOpenOrdersTest".to_owned(),
-    );
-
-    let order_to_create = OrderCreating {
-        header: order_header,
-        price: test_price,
+        true,
+    )
+    .await
+    {
+        Ok(binance_builder) => binance_builder,
+        Err(_) => return,
     };
 
-    // Should be called before any other api calls!
-    exchange.build_metadata().await;
-    let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
+    let first_order_proxy = OrderProxy::new(
+        exchange_account_id.clone(),
+        Some("FromOpenOrdersExistsTest".to_owned()),
+        CancellationToken::default(),
+    );
+
+    let second_order_proxy = OrderProxy::new(
+        exchange_account_id.clone(),
+        Some("FromOpenOrdersExistsTest".to_owned()),
+        CancellationToken::default(),
+    );
+
+    if let Err(error) = first_order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
+        assert!(false, "Create order failed with error {:?}.", error)
+    }
+
+    if let Err(error) = second_order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
+        assert!(false, "Create order failed with error {:?}.", error)
+    }
+
+    let all_orders = binance_builder
+        .exchange
+        .clone()
+        .get_open_orders(false)
         .await
         .expect("in test");
 
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
-
-    const TIMEOUT: Duration = Duration::from_secs(5);
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
-
-    if let Err(error) = created_order {
-        dbg!(&error);
-        assert!(false)
-    }
-
-    let second_test_order_client_id = ClientOrderId::unique_id();
-    let second_order_header = OrderHeader::new(
-        second_test_order_client_id.clone(),
-        Utc::now(),
-        exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(10000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromGetOpenOrdersTest".to_owned(),
-    );
-
-    let second_order_to_create = OrderCreating {
-        header: second_order_header,
-        price: test_price,
-    };
-    let _ = exchange.get_open_orders(true).await.expect("in test");
-
-    let created_order_fut =
-        exchange.create_order(&second_order_to_create, CancellationToken::default());
-
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
-
-    match created_order {
-        Ok(_order_ref) => {
-            let all_orders = exchange.get_open_orders(true).await.expect("in test");
-            assert!(!all_orders.is_empty())
-        }
-
-        // Create order failed
-        Err(error) => {
-            dbg!(&error);
-            assert!(false)
-        }
-    }
+    assert_eq!(all_orders.len(), 2);
 }
 
 #[actix_rt::test]
 async fn open_orders_by_currency_pair_exist() {
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
-
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
+    let mut settings =
+        ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
 
-    let mut settings = settings::ExchangeSettings::new_short(
-        exchange_account_id.clone(),
-        api_key,
-        secret_key,
-        false,
-    );
-
-    let application_manager = ApplicationManager::new(CancellationToken::new());
-    let (tx, _rx) = broadcast::channel(10);
-
-    BinanceBuilder.extend_settings(&mut settings);
     settings.currency_pairs = Some(vec![
         CurrencyPairSetting {
             base: "phb".into(),
@@ -176,21 +88,16 @@ async fn open_orders_by_currency_pair_exist() {
             currency_pair: None,
         },
         CurrencyPairSetting {
-            base: "troy".into(),
+            base: "sngls".into(),
             quote: "btc".into(),
             currency_pair: None,
         },
     ]);
-    let binance = Binance::new(
-        exchange_account_id.clone(),
+
+    let binance_builder = match BinanceBuilder::try_new_with_settings(
         settings.clone(),
-        tx.clone(),
-        application_manager.clone(),
-    );
-    let timeout_manager = get_timeout_manager(&exchange_account_id);
-    let exchange = Exchange::new(
         exchange_account_id.clone(),
-        Box::new(binance),
+        CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::OneCurrencyPair,
             true,
@@ -198,289 +105,155 @@ async fn open_orders_by_currency_pair_exist() {
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
-        tx,
-        application_manager,
-        timeout_manager,
         Commission::default(),
-    );
+        true,
+    )
+    .await
+    {
+        Ok(binance_builder) => binance_builder,
+        Err(_) => return,
+    };
 
-    exchange.clone().connect().await;
-
-    let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    let second_test_currency_pair = CurrencyPair::from_codes("troy".into(), "btc".into());
-
-    let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
-        Utc::now(),
+    let first_order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(2000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromGetOpenOrdersByCurrencyPairTest".to_owned(),
+        Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
+        CancellationToken::default(),
     );
 
-    let order_to_create = OrderCreating {
-        header: order_header,
-        price: dec!(0.0000001),
-    };
+    first_order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+        .expect("in test");
 
-    // Should be called before any other api calls!
-    exchange.build_metadata().await;
-    if let Some(currency_pairs) = &settings.currency_pairs {
-        exchange.set_symbols(exchange_creation::get_symbols(
-            &exchange,
-            &currency_pairs[..],
-        ))
-    }
-    let _ = exchange
-        .clone()
-        .cancel_opened_orders(CancellationToken::default())
-        .await;
-
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
-
-    const TIMEOUT: Duration = Duration::from_secs(5);
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
-
-    if let Err(error) = created_order {
-        dbg!(&error);
-        assert!(false)
-    }
-
-    let second_test_order_client_id = ClientOrderId::unique_id();
-    let second_order_header = OrderHeader::new(
-        second_test_order_client_id.clone(),
-        Utc::now(),
+    let mut second_order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
-        second_test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(2000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromGetOpenOrdersByCurrencyPairTest".to_owned(),
+        Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
+        CancellationToken::default(),
     );
-    let second_order_to_create = OrderCreating {
-        header: second_order_header,
-        price: dec!(0.0000001),
-    };
+    second_order_proxy.currency_pair = CurrencyPair::from_codes("sngls".into(), "btc".into());
+    second_order_proxy.amount = dec!(1000);
 
-    let created_order_fut =
-        exchange.create_order(&second_order_to_create, CancellationToken::default());
+    second_order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+        .expect("in test");
 
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
+    let all_orders = binance_builder
+        .exchange
+        .get_open_orders(true)
+        .await
+        .expect("in test");
 
-    if let Err(error) = created_order {
-        dbg!(&error);
-        assert!(false)
-    }
-
-    let all_orders = exchange.get_open_orders(true).await.expect("in test");
-
-    let _ = exchange
-        .cancel_opened_orders(CancellationToken::default())
+    let _ = binance_builder
+        .exchange
+        .cancel_opened_orders(CancellationToken::default(), true)
         .await;
 
     assert_eq!(all_orders.len(), 2);
 
     for order in all_orders {
         assert!(
-            order.client_order_id == test_order_client_id
-                || order.client_order_id == second_test_order_client_id
+            order.client_order_id == first_order_proxy.client_order_id
+                || order.client_order_id == second_order_proxy.client_order_id
         );
     }
 }
 
 #[actix_rt::test]
 async fn should_return_open_orders() {
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
-
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-
-    let mut settings = settings::ExchangeSettings::new_short(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
-        api_key,
-        secret_key,
-        false,
-    );
-
-    let application_manager = ApplicationManager::new(CancellationToken::new());
-    let (tx, _rx) = broadcast::channel(10);
-
-    BinanceBuilder.extend_settings(&mut settings);
-    let binance = Binance::new(
-        exchange_account_id.clone(),
-        settings.clone(),
-        tx.clone(),
-        application_manager.clone(),
-    );
-    let timeout_manager = get_timeout_manager(&exchange_account_id);
-    let exchange = Exchange::new(
-        exchange_account_id.clone(),
-        Box::new(binance),
+        CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
-            false,
+            true,
             true,
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
-        tx,
-        application_manager,
-        timeout_manager,
         Commission::default(),
-    );
-
-    exchange.clone().connect().await;
-
-    // Should be called before any other api calls!
-    exchange.build_metadata().await;
-
-    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    const TIMEOUT: Duration = Duration::from_secs(5);
-
-    let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
-        .await
-        .expect("in test");
+        true,
+    )
+    .await
+    {
+        Ok(binance_builder) => binance_builder,
+        Err(_) => return,
+    };
 
     // createdOrder
-    let test_order_client_id = ClientOrderId::unique_id();
-    let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
-        Utc::now(),
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(2000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "ShouldReturnOpenOrders".to_owned(),
+        Some("FromShouldReturnOpenOrdersTest".to_owned()),
+        CancellationToken::default(),
     );
 
-    let order_to_create = OrderCreating {
-        header: order_header,
-        price: dec!(0.0000001),
-    };
-
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
-
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
-
-    if let Err(error) = created_order {
-        dbg!(&error);
-        assert!(false)
-    }
+    order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+        .expect("in test");
     // createdOrder
 
     // orderForCancellation
-    let order_for_cancellation_id = ClientOrderId::unique_id();
-
-    let order_header = OrderHeader::new(
-        order_for_cancellation_id.clone(),
-        Utc::now(),
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(2000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "ShouldReturnOpenOrders".to_owned(),
+        Some("FromShouldReturnOpenOrdersTest".to_owned()),
+        CancellationToken::default(),
     );
-    let order_to_create = OrderCreating {
-        header: order_header,
-        price: dec!(0.0000001),
-    };
 
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
-
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
-
-    match created_order {
+    match order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
         Ok(order_ref) => {
             // If here are no error - order was cancelled successfully
-            exchange
+            binance_builder
+                .exchange
                 .wait_cancel_order(order_ref, None, true, CancellationToken::new())
                 .await
                 .expect("in test");
         }
 
-        // Create order failed
         Err(error) => {
-            dbg!(&error);
-            assert!(false)
+            assert!(false, "Create order failed with error {:?}.", error)
         }
     }
-
     // orderForCancellation
 
     // failedToCreateOrder
-    let order_for_cancelation_id = ClientOrderId::unique_id();
-
-    let order_header = OrderHeader::new(
-        order_for_cancelation_id.clone(),
-        Utc::now(),
+    let mut order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(0), // zero amount
-        OrderExecutionType::None,
-        None,
-        None,
-        "ShouldReturnOpenOrders".to_owned(),
+        Some("FromShouldReturnOpenOrdersTest".to_owned()),
+        CancellationToken::default(),
     );
-    let order_to_create = OrderCreating {
-        header: order_header,
-        price: dec!(0.0000001),
-    };
+    order_proxy.amount = dec!(0);
 
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
-
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
-
-    if let Ok(order_ref) = created_order {
-        dbg!(&order_ref);
-        assert!(false)
+    if let Ok(order_ref) = order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await
+    {
+        assert!(
+            false,
+            "Order {:?} has been created although we expected an error.",
+            order_ref
+        )
     }
     // failedToCreateOrder
 
     // TODO: orderForCompletion
 
-    let all_orders = exchange.get_open_orders(true).await.expect("in test");
-
-    // TODO: change to cancel_opened_orders
-    let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
+    let all_orders = binance_builder
+        .exchange
+        .get_open_orders(true)
         .await
         .expect("in test");
+
+    let _ = binance_builder
+        .exchange
+        .cancel_opened_orders(CancellationToken::default(), true)
+        .await;
 
     assert_eq!(all_orders.len(), 1);
 }

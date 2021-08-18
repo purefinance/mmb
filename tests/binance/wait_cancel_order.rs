@@ -1,54 +1,21 @@
-use crate::get_binance_credentials_or_exit;
-use chrono::Utc;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::AllowedEventSourceType;
-use mmb_lib::core::exchanges::general::exchange::*;
+use mmb_lib::core::exchanges::general::commission::Commission;
 use mmb_lib::core::exchanges::general::features::*;
-use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
-use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
-use mmb_lib::core::orders::order::*;
-use mmb_lib::core::settings;
-use rust_decimal_macros::*;
-use tokio::sync::broadcast;
-use tokio::time::Duration;
 
-use super::common::get_timeout_manager;
-use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
+use crate::binance::binance_builder::BinanceBuilder;
+use crate::core::order::OrderProxy;
 
 #[actix_rt::test]
 async fn cancellation_waited_successfully() {
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
-
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let mut settings = settings::ExchangeSettings::new_short(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
-        api_key,
-        secret_key,
-        false,
-    );
-
-    let application_manager = ApplicationManager::new(CancellationToken::default());
-    let (tx, _rx) = broadcast::channel(10);
-
-    BinanceBuilder.extend_settings(&mut settings);
-    settings.websocket_channels = vec!["depth".into(), "trade".into()];
-
-    let binance = Box::new(Binance::new(
-        exchange_account_id.clone(),
-        settings,
-        tx.clone(),
-        application_manager.clone(),
-    )) as BoxExchangeClient;
-
-    let timeout_manager = get_timeout_manager(&exchange_account_id);
-
-    let exchange = Exchange::new(
-        exchange_account_id.clone(),
-        binance,
+        CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             false,
@@ -56,98 +23,49 @@ async fn cancellation_waited_successfully() {
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
-        tx,
-        application_manager,
-        timeout_manager,
         Commission::default(),
-    );
+        true,
+    )
+    .await
+    {
+        Ok(binance_builder) => binance_builder,
+        Err(_) => return,
+    };
 
-    exchange.clone().connect().await;
-
-    let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
-        Utc::now(),
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(10000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromCancelOrderTest".to_owned(),
+        Some("FromCancellationWaitedSuccessfullyTest".to_owned()),
+        CancellationToken::default(),
     );
 
-    let order_to_create = OrderCreating {
-        header: order_header.clone(),
-        price: dec!(0.0000001),
-    };
-
-    // Should be called before any other api calls!
-    exchange.build_metadata().await;
-    let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
-        .await
-        .expect("in test");
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
-
-    const TIMEOUT: Duration = Duration::from_secs(5);
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
+    let created_order = order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await;
 
     match created_order {
         Ok(order_ref) => {
             // If here are no error - order was cancelled successfully
-            exchange
+            binance_builder
+                .exchange
                 .wait_cancel_order(order_ref, None, true, CancellationToken::new())
                 .await
                 .expect("in test");
         }
 
-        // Create order failed
         Err(error) => {
-            dbg!(&error);
-            assert!(false)
+            assert!(false, "Create order failed with error {:?}.", error)
         }
     }
 }
 
 #[actix_rt::test]
 async fn cancellation_waited_failed_fallback() {
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
-
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let mut settings = settings::ExchangeSettings::new_short(
+    let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
-        api_key,
-        secret_key,
-        false,
-    );
-
-    let application_manager = ApplicationManager::new(CancellationToken::default());
-    let (tx, _rx) = broadcast::channel(10);
-
-    BinanceBuilder.extend_settings(&mut settings);
-    settings.websocket_channels = vec!["depth".into(), "trade".into()];
-
-    let binance = Box::new(Binance::new(
-        exchange_account_id.clone(),
-        settings,
-        tx.clone(),
-        application_manager.clone(),
-    )) as BoxExchangeClient;
-
-    let timeout_manager = get_timeout_manager(&exchange_account_id);
-
-    let exchange = Exchange::new(
-        exchange_account_id.clone(),
-        binance,
+        CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             false,
@@ -155,52 +73,29 @@ async fn cancellation_waited_failed_fallback() {
             AllowedEventSourceType::default(),
             AllowedEventSourceType::FallbackOnly,
         ),
-        tx,
-        application_manager,
-        timeout_manager,
         Commission::default(),
-    );
+        true,
+    )
+    .await
+    {
+        Ok(binance_builder) => binance_builder,
+        Err(_) => return,
+    };
 
-    exchange.clone().connect().await;
-
-    let test_order_client_id = ClientOrderId::unique_id();
-    let test_currency_pair = CurrencyPair::from_codes("phb".into(), "btc".into());
-    let order_header = OrderHeader::new(
-        test_order_client_id.clone(),
-        Utc::now(),
+    let order_proxy = OrderProxy::new(
         exchange_account_id.clone(),
-        test_currency_pair.clone(),
-        OrderType::Limit,
-        OrderSide::Buy,
-        dec!(10000),
-        OrderExecutionType::None,
-        None,
-        None,
-        "FromCancelOrderTest".to_owned(),
+        Some("FromCancellationWaitedFailedFallbackTest".to_owned()),
+        CancellationToken::default(),
     );
 
-    let order_to_create = OrderCreating {
-        header: order_header.clone(),
-        price: dec!(0.0000001),
-    };
-
-    // Should be called before any other api calls!
-    exchange.build_metadata().await;
-    let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
-        .await
-        .expect("in test");
-    let created_order_fut = exchange.create_order(&order_to_create, CancellationToken::default());
-
-    const TIMEOUT: Duration = Duration::from_secs(5);
-    let created_order = tokio::select! {
-        created_order = created_order_fut => created_order,
-        _ = tokio::time::sleep(TIMEOUT) => panic!("Timeout {} secs is exceeded", TIMEOUT.as_secs())
-    };
+    let created_order = order_proxy
+        .create_order(binance_builder.exchange.clone())
+        .await;
 
     match created_order {
         Ok(order_ref) => {
-            let must_be_error = exchange
+            let must_be_error = binance_builder
+                .exchange
                 .wait_cancel_order(order_ref, None, true, CancellationToken::new())
                 .await;
             match must_be_error {
@@ -214,10 +109,8 @@ async fn cancellation_waited_failed_fallback() {
             }
         }
 
-        // Create order failed
         Err(error) => {
-            dbg!(&error);
-            assert!(false)
+            assert!(false, "Create order failed with error {:?}.", error)
         }
     }
 }
