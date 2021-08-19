@@ -45,4 +45,9 @@ impl BalanceReservation {
 
         Ok(self.cost * amount / self.amount)
     }
+
+    pub fn is_amount_within_symbol_margin_error(&self, _amount: Decimal) -> bool {
+        // TODO: grays should be implemented, ask Evgeniy
+        false
+    }
 }

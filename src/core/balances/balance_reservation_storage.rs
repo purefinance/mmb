@@ -19,6 +19,11 @@ impl BalanceReservationStorage {
             .insert(reservation_id, reservation);
     }
 
+    pub fn remove(&mut self, reservation_id: i64) {
+        self.reserved_balances_by_id.remove(&reservation_id);
+        self.update_metrics();
+    }
+
     pub fn get_all_raw_reservations(&self) -> &HashMap<i64, BalanceReservation> {
         &self.reserved_balances_by_id
     }
