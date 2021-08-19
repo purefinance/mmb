@@ -8,6 +8,7 @@ use rust_decimal_macros::dec;
 use crate::core::balance_manager::balance_position_by_fill_amount::BalancePositionByFillAmount;
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
+use crate::core::balance_manager::balances::Balances;
 use crate::core::balances::balance_position_model::BalancePositionModel;
 use crate::core::balances::{
     balance_reservation_storage::BalanceReservationStorage,
@@ -853,5 +854,23 @@ impl BalanceReservationManager {
             );
         }
         Ok(())
+    }
+
+    pub fn get_state(&self) -> Balances {
+        Balances::new(
+            self.virtual_balance_holder
+                .get_raw_exchange_balances()
+                .clone(),
+            self.virtual_balance_holder
+                .get_virtual_balance_diffs()
+                .clone(),
+            self.reserved_amount_in_amount_currency.clone(),
+            self.position_by_fill_amount_in_amount_currency.clone(),
+            self.amount_limits_in_amount_currency.clone(),
+            self.balance_reservation_storage
+                .get_all_raw_reservations()
+                .clone(),
+            None,
+        )
     }
 }

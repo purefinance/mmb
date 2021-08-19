@@ -6,6 +6,9 @@ use crate::core::exchanges::common::TradePlaceAccount;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::orders::fill::OrderFill;
 
+use anyhow::{bail, Result};
+use rust_decimal::Decimal;
+
 struct BalanceManager {
     // private readonly IDateTimeService _dateTimeService;
     // private readonly ILogger _logger = Log.ForContext<BalanceManager>();
@@ -43,7 +46,7 @@ impl BalanceManager {
             for (request, diff) in virtual_diff_balances.get_as_balances() {
                 self.balance_reservation_manager
                     .virtual_balance_holder
-                    .add_balance(&request, diff, None);
+                    .add_balance(&request, diff);
             }
         }
 
@@ -64,5 +67,59 @@ impl BalanceManager {
         }
 
         self.last_order_fills = balances.last_order_fills.clone();
+    }
+
+    pub fn get_reservation_ids(&self) -> Vec<i64> {
+        self.balance_reservation_manager
+            .balance_reservation_storage
+            .get_reservation_ids()
+    }
+
+    pub fn restore_balance_state_with_reservations_handling(
+        &mut self,
+        balances: &Balances,
+    ) -> Result<()> {
+        self.restore_balance_state(balances, false);
+
+        let active_reservations = self.get_reservation_ids();
+        for reservation_id in active_reservations {
+            self.unreserve_rest(reservation_id.clone())?;
+        }
+        Ok(())
+    }
+
+    pub fn unreserve_rest(&mut self, reservation_id: i64) -> Result<()> {
+        if let Some(reservation) = self
+            .balance_reservation_manager
+            .get_reservation(&reservation_id)
+        {
+            let amount = reservation.unreserved_amount;
+            return self.unreserve(reservation_id, amount);
+        } else {
+            bail!("Can't find reservation_id: {}", reservation_id)
+        }
+    }
+
+    pub fn unreserve(&mut self, reservation_id: i64, amount: Decimal) -> Result<()> {
+        self.balance_reservation_manager
+            .unreserve(reservation_id, amount, &None)?;
+        self.save_balances();
+        Ok(())
+    }
+
+    fn save_balances(&mut self) {
+        // TODO: uncomment when DataRecorder will be added
+        // if self.data_recorder.is_none() {
+        //     return ()
+        // }
+
+        let _balances = self.get_balances();
+        // self.data_recorder.save(balances);
+    }
+
+    pub fn get_balances(&self) -> Balances {
+        let mut balances = self.balance_reservation_manager.get_state();
+        balances.last_order_fills = self.last_order_fills.clone();
+        balances
     }
 }

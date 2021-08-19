@@ -28,8 +28,8 @@ impl BalanceReservationStorage {
         &self.reserved_balances_by_id
     }
 
-    pub fn get_reservation_ids(&self) -> Vec<&i64> {
-        self.reserved_balances_by_id.keys().collect_vec()
+    pub fn get_reservation_ids(&self) -> Vec<i64> {
+        self.reserved_balances_by_id.keys().cloned().collect_vec()
     }
 
     pub fn try_get(&self, reservation_id: &i64) -> Option<&BalanceReservation> {
