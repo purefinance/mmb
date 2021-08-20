@@ -873,4 +873,31 @@ impl BalanceReservationManager {
             None,
         )
     }
+
+    pub(crate) fn restore_fill_amount_position(
+        &mut self,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        new_position: Decimal,
+    ) -> Result<()> {
+        if currency_pair_metadata.is_derivative {
+            bail!("restore_fill_amount_position is available only for derivative exchanges")
+        }
+        let previous_value = self
+            .position_by_fill_amount_in_amount_currency
+            .get(exchange_account_id, &currency_pair_metadata.currency_pair());
+
+        // let now = self.date_time_service.utc_now // TODO: fix me after adding date_time_service
+        let now = chrono::Utc::now(); // TODO: fix me after adding date_time_service
+
+        self.position_by_fill_amount_in_amount_currency.set(
+            exchange_account_id,
+            &currency_pair_metadata.currency_pair(),
+            previous_value,
+            new_position,
+            None,
+            now,
+        )?;
+        Ok(())
+    }
 }

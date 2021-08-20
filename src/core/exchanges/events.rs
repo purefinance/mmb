@@ -4,6 +4,7 @@ use tokio::sync::broadcast;
 use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price,
 };
+use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::order_book::event::OrderBookEvent;
 use crate::core::orders::event::OrderEvent;
 use crate::core::orders::order::OrderSide;
@@ -20,6 +21,7 @@ pub struct ExchangeBalance {
 #[derive(Debug, Clone)]
 pub struct ExchangeBalancesAndPositions {
     pub balances: Vec<ExchangeBalance>,
+    pub positions: Vec<DerivativePositionInfo>,
 }
 
 #[derive(Debug, Clone)]

@@ -26,6 +26,7 @@ type String15 = SmallString<[u8; 15]>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExchangeIdParseError(String);
 
+// unique user ID on the exchange
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct ExchangeAccountId {
     pub exchange_id: ExchangeId,
@@ -112,7 +113,7 @@ impl Display for ExchangeAccountId {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ExchangeId(String15);
+pub struct ExchangeId(String15); // unique ID of exchange
 
 impl ExchangeId {
     #[inline]

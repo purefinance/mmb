@@ -1,24 +1,28 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::core::balance_manager::balances::Balances;
 use crate::core::balances::balance_reservation_manager::BalanceReservationManager;
-use crate::core::exchanges::common::TradePlaceAccount;
+use crate::core::exchanges::common::{CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::general::exchange::Exchange;
+use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::orders::fill::OrderFill;
+use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
 
 use anyhow::{bail, Result};
+use itertools::Itertools;
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 
 struct BalanceManager {
     // private readonly IDateTimeService _dateTimeService;
     // private readonly ILogger _logger = Log.ForContext<BalanceManager>();
     // private readonly object _syncObject = new object();
-    exchanges_by_id: HashMap<String, Exchange>,
+    exchanges_by_id: HashMap<ExchangeAccountId, Exchange>,
 
     // private readonly ICurrencyPairToSymbolConverter _currencyPairToSymbolConverter;
-    exchange_id_with_restored_positions: HashSet<String>,
+    exchange_id_with_restored_positions: HashSet<ExchangeAccountId>,
     balance_reservation_manager: BalanceReservationManager,
-    position_differs_times_in_row_by_exchange_id: HashMap<String, HashMap<String, usize>>,
+    position_differs_times_in_row_by_exchange_id:
+        HashMap<ExchangeAccountId, HashMap<CurrencyPair, i32>>,
 
     // private readonly IDataRecorder? _dataRecorder;
     // private volatile IBalanceChangesService? _balanceChangesService;
@@ -75,7 +79,7 @@ impl BalanceManager {
             .get_reservation_ids()
     }
 
-    pub fn restore_balance_state_with_reservations_handling(
+    pub(crate) fn restore_balance_state_with_reservations_handling(
         &mut self,
         balances: &Balances,
     ) -> Result<()> {
@@ -121,5 +125,164 @@ impl BalanceManager {
         let mut balances = self.balance_reservation_manager.get_state();
         balances.last_order_fills = self.last_order_fills.clone();
         balances
+    }
+
+    fn restore_fill_amount_position(
+        &mut self,
+        exchange_account_id: &ExchangeAccountId,
+        positions: Option<Vec<DerivativePositionInfo>>,
+    ) -> Result<()> {
+        let positions = if let Some(positions) = positions {
+            if positions.is_empty() {
+                return Ok(());
+            }
+            positions
+        } else {
+            return Ok(());
+        };
+
+        let mut position_info_by_currency_pair_metadata = HashMap::new();
+
+        for position_info in positions {
+            let currency_pair = position_info.currency_pair.clone();
+            let currency_pair_metadata = match self.exchanges_by_id.get(exchange_account_id) {
+                Some(exchange) => exchange.get_currency_pair_metadata(&currency_pair)?,
+                None => {
+                    bail!(
+                        "currency_pair_metadata not found for exchange with account id {:?} and currency pair {}",
+                        exchange_account_id,
+                        currency_pair,
+                    )
+                }
+            };
+            if !currency_pair_metadata.is_derivative {
+                position_info_by_currency_pair_metadata
+                    .insert(currency_pair_metadata.clone(), position_info);
+            }
+        }
+
+        if !self
+            .exchange_id_with_restored_positions
+            .contains(exchange_account_id)
+        {
+            for (currency_pair_metadata, position_info) in position_info_by_currency_pair_metadata {
+                self.balance_reservation_manager
+                    .restore_fill_amount_position(
+                        exchange_account_id,
+                        &currency_pair_metadata,
+                        position_info.position,
+                    )?;
+            }
+            self.exchange_id_with_restored_positions
+                .insert(exchange_account_id.clone());
+        } else {
+            let fill_positions = match self.get_balances().position_by_fill_amount {
+                Some(fill_positions) => fill_positions,
+                None => bail!("Failed to get fill_positions while restoring fill amount positions"),
+            };
+            let currency_pair_metadatas = position_info_by_currency_pair_metadata
+                .keys()
+                .cloned()
+                .collect_vec();
+
+            let expected_positions_by_currency_pair: HashMap<CurrencyPair, Decimal> =
+                position_info_by_currency_pair_metadata
+                    .iter()
+                    .map(|(k, v)| (k.currency_pair(), v.position))
+                    .collect();
+
+            let actual_positions_by_currency_pair: HashMap<CurrencyPair, Decimal> =
+                currency_pair_metadatas
+                    .iter()
+                    .map(move |x| {
+                        (
+                            x.currency_pair(),
+                            fill_positions
+                                .get(exchange_account_id, &x.currency_pair())
+                                .unwrap_or(dec!(0)),
+                        )
+                    })
+                    .collect();
+
+            let mut has_difference = false;
+            let mut currency_pairs_with_diffs = Vec::new();
+            for currency_pair in currency_pair_metadatas
+                .iter()
+                .map(|x| x.currency_pair())
+                .collect_vec()
+            {
+                let expected_position = expected_positions_by_currency_pair.get(&currency_pair);
+                let actual_position = actual_positions_by_currency_pair.get(&currency_pair);
+                if expected_position != actual_position {
+                    has_difference = true;
+                    currency_pairs_with_diffs.push(currency_pair);
+                }
+            }
+
+            if has_difference {
+                if self
+                    .position_differs_times_in_row_by_exchange_id
+                    .get_mut(exchange_account_id)
+                    .is_none()
+                {
+                    self.position_differs_times_in_row_by_exchange_id.insert(
+                        exchange_account_id.clone(),
+                        HashMap::<CurrencyPair, i32>::new(),
+                    );
+                }
+
+                let diff_times_by_currency_pair = if let Some(res) = self
+                    .position_differs_times_in_row_by_exchange_id
+                    .get_mut(exchange_account_id)
+                {
+                    res
+                } else {
+                    bail!(
+                        "diff_times_by_currency_pair not found in {:?} for id: {}",
+                        self.position_differs_times_in_row_by_exchange_id,
+                        exchange_account_id
+                    )
+                };
+                for currency_pair in currency_pairs_with_diffs {
+                    let new_diff_times = if let Some(new_diff_times) =
+                        diff_times_by_currency_pair.get(&currency_pair)
+                    {
+                        new_diff_times + 1
+                    } else {
+                        1
+                    };
+                    diff_times_by_currency_pair.insert(currency_pair, new_diff_times);
+                }
+
+                let max_times_for_error = 5;
+                let any_at_max_times = diff_times_by_currency_pair
+                    .values()
+                    .max()
+                    .cloned()
+                    .unwrap_or(0)
+                    > max_times_for_error;
+
+                let log_level = if any_at_max_times {
+                    log::Level::Error
+                } else {
+                    log::Level::Warn
+                };
+                log::log!(
+                    log_level,
+                    "Position on {} differs from local {:?} {:?}",
+                    exchange_account_id,
+                    expected_positions_by_currency_pair,
+                    actual_positions_by_currency_pair
+                );
+
+                if any_at_max_times {
+                    bail!("Position on {} differs from local", exchange_account_id);
+                }
+            } else {
+                self.position_differs_times_in_row_by_exchange_id
+                    .remove(exchange_account_id);
+            }
+        }
+        Ok(())
     }
 }
