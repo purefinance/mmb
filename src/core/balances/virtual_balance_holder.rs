@@ -211,6 +211,7 @@ impl VirtualBalanceHolder {
     pub fn get_raw_exchange_balances(&self) -> &BalanceByExchangeId {
         &self.balance_by_exchange_id
     }
+
     pub fn get_virtual_balance_diffs(&self) -> &ServiceValueTree {
         &self.balance_diff
     }

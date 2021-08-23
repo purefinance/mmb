@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::core::balances::balance_reservation_manager::BalanceReservationManager;
-use crate::core::exchanges::common::{CurrencyPair, TradePlaceAccount};
+use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
+use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::orders::fill::OrderFill;
@@ -112,7 +113,7 @@ impl BalanceManager {
     }
 
     fn save_balances(&mut self) {
-        // TODO: uncomment when DataRecorder will be added
+        // TODO: fix me when DataRecorder will be added
         // if self.data_recorder.is_none() {
         //     return ()
         // }
@@ -127,10 +128,36 @@ impl BalanceManager {
         balances
     }
 
+    fn save_balance_update(
+        &self,
+        _whole_balance_before: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>,
+        _whole_balance_after: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>,
+    ) {
+        // TODO: fix me when DataRecorder will be added
+        // if self.data_recorder.is_none()
+        // {
+        //     return;
+        // }
+
+        let _reservation_clone = self
+            .balance_reservation_manager
+            .balance_reservation_storage
+            .get_all_raw_reservations()
+            .clone();
+
+        // var balanceUpdate = new BalanceUpdate(
+        //     _dateTimeService.UtcNow,
+        //     reservationsClone,
+        //     wholeBalanceBefore,
+        //     wholeBalanceAfter);
+
+        // _dataRecorder.Save(balanceUpdate);
+    }
+
     fn restore_fill_amount_position(
         &mut self,
         exchange_account_id: &ExchangeAccountId,
-        positions: Option<Vec<DerivativePositionInfo>>,
+        positions: Option<&Vec<DerivativePositionInfo>>,
     ) -> Result<()> {
         let positions = if let Some(positions) = positions {
             if positions.is_empty() {
@@ -284,5 +311,147 @@ impl BalanceManager {
             }
         }
         Ok(())
+    }
+
+    pub fn update_exchange_balance(
+        &mut self,
+        exchange_account_id: &ExchangeAccountId,
+        balances_and_positions: ExchangeBalancesAndPositions,
+    ) -> Result<()> {
+        let mut filtred_exchange_balances = HashMap::new();
+        let mut reservations_by_exchange_account_id = Vec::new();
+
+        let whole_balances_before = self.calculate_whole_balances()?;
+
+        {
+            let exchange_currencies =
+                if let Some(exchange) = self.exchanges_by_id.get(exchange_account_id) {
+                    let tmp_mut = &exchange.currencies;
+                    tmp_mut.lock()
+                } else {
+                    bail!("Failed to get exchange with id {}", exchange_account_id)
+                };
+
+            for exchange_balance in &balances_and_positions.balances {
+                //We skip currencies with zero balances if they are not part of Exchange currency pairs
+                if exchange_balance.balance == dec!(0)
+                    && !exchange_currencies.contains(&exchange_balance.currency_code)
+                {
+                    continue;
+                }
+
+                filtred_exchange_balances.insert(
+                    exchange_balance.currency_code.clone(),
+                    exchange_balance.balance.clone(),
+                );
+            }
+        }
+
+        self.restore_fill_amount_position(
+            exchange_account_id,
+            Some(&balances_and_positions.positions),
+        )?;
+
+        {
+            let exchange_currencies =
+                if let Some(exchange) = self.exchanges_by_id.get(exchange_account_id) {
+                    let tmp_mut = &exchange.currencies;
+                    tmp_mut.lock()
+                } else {
+                    bail!("Failed to get exchange with id {}", exchange_account_id)
+                };
+
+            for exchange_currency in exchange_currencies.iter() {
+                if let Some(balance) = filtred_exchange_balances.get_mut(exchange_currency) {
+                    *balance = dec!(0);
+                }
+            }
+        }
+
+        for x in self
+            .balance_reservation_manager
+            .balance_reservation_storage
+            .get_all_raw_reservations()
+            .values()
+        {
+            if &x.exchange_account_id == exchange_account_id {
+                reservations_by_exchange_account_id.push(x);
+            }
+        }
+
+        for reservation in &reservations_by_exchange_account_id {
+            let not_approved_amount_cost =
+                reservation.get_proportional_cost_amount(reservation.not_approved_amount)?;
+            if let Some(filtred_exchange_balance) =
+                filtred_exchange_balances.get_mut(&reservation.reservation_currency_code)
+            {
+                *filtred_exchange_balance -=
+                    reservation.convert_in_reservation_currency(not_approved_amount_cost)?;
+            }
+        }
+
+        self.balance_reservation_manager
+            .virtual_balance_holder
+            .update_balances(exchange_account_id, &filtred_exchange_balances);
+
+        let whole_balances_after = self.calculate_whole_balances()?;
+
+        log::info!(
+            "Updated balances for {} {:?} {:?} {:?}",
+            exchange_account_id,
+            balances_and_positions,
+            reservations_by_exchange_account_id,
+            filtred_exchange_balances
+        );
+
+        self.save_balances();
+        self.save_balance_update(whole_balances_before, whole_balances_after);
+        Ok(())
+    }
+
+    fn calculate_whole_balances(
+        &self,
+    ) -> Result<HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>> {
+        let mut balances_dict = self
+            .balance_reservation_manager
+            .virtual_balance_holder
+            .get_raw_exchange_balances()
+            .clone();
+        let balance_reservations = self
+            .balance_reservation_manager
+            .balance_reservation_storage
+            .get_all_raw_reservations()
+            .values()
+            .collect_vec();
+
+        for reservation in balance_reservations {
+            if reservation.not_approved_amount == dec!(0) {
+                continue;
+            }
+
+            if !balances_dict.contains_key(&reservation.exchange_account_id) {
+                continue;
+            }
+
+            let balances = match balances_dict.get_mut(&reservation.exchange_account_id) {
+                Some(balances) => balances,
+                None => bail!(
+                    "failed to get balances from balances_dic {:?} for {}",
+                    balances_dict,
+                    reservation.exchange_account_id
+                ),
+            };
+
+            let mut balance = match balances.get_mut(&reservation.reservation_currency_code) {
+                Some(balance) => balance,
+                None => bail!(
+                    "failed to get balance from balances {:?} for {}",
+                    balances,
+                    reservation.reservation_currency_code
+                ),
+            };
+            balance += reservation.get_proportional_cost_amount(reservation.not_approved_amount)?;
+        }
+        Ok(balances_dict)
     }
 }

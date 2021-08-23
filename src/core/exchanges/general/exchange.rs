@@ -99,7 +99,7 @@ pub struct Exchange {
     pub(super) commission: Commission,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
-    pub(super) currencies: Mutex<Vec<CurrencyCode>>,
+    pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
     pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
     pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
