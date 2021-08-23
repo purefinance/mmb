@@ -21,6 +21,7 @@ use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
+use crate::core::orders::order::ReservationId;
 use crate::core::orders::order::{ClientOrderId, OrderSide};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
@@ -34,7 +35,7 @@ pub(crate) struct BalanceReservationManager {
     amount_limits_in_amount_currency: ServiceValueTree,
 
     position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount,
-    reservation_id: i64, // Utils.GetCurrentMiliseconds();
+    reservation_id: ReservationId, // Utils.GetCurrentMiliseconds();
 
     pub virtual_balance_holder: VirtualBalanceHolder,
     pub balance_reservation_storage: BalanceReservationStorage,
@@ -45,7 +46,7 @@ pub(crate) struct BalanceReservationManager {
 impl BalanceReservationManager {
     pub fn update_reserved_balances(
         &mut self,
-        reserved_balances_by_id: &HashMap<i64, BalanceReservation>,
+        reserved_balances_by_id: &HashMap<ReservationId, BalanceReservation>,
     ) {
         self.balance_reservation_storage.clear();
         for (reservation_id, reservation) in reserved_balances_by_id {
@@ -95,17 +96,20 @@ impl BalanceReservationManager {
         self.position_by_fill_amount_in_amount_currency = position_by_fill_amount;
     }
 
-    pub fn get_reservation(&self, reservation_id: &i64) -> Option<&BalanceReservation> {
+    pub fn get_reservation(&self, reservation_id: &ReservationId) -> Option<&BalanceReservation> {
         self.balance_reservation_storage.try_get(reservation_id)
     }
 
-    pub fn get_mut_reservation(&mut self, reservation_id: &i64) -> Option<&mut BalanceReservation> {
+    pub fn get_mut_reservation(
+        &mut self,
+        reservation_id: &ReservationId,
+    ) -> Option<&mut BalanceReservation> {
         self.balance_reservation_storage.try_get_mut(reservation_id)
     }
 
     pub fn unreserve(
         &mut self,
-        reservation_id: i64,
+        reservation_id: ReservationId,
         amount: Decimal,
         client_or_order_id: &Option<ClientOrderId>,
     ) -> Result<()> {
@@ -702,7 +706,10 @@ impl BalanceReservationManager {
         Some(position_in_amount_currency)
     }
 
-    fn easy_get_mut_reservation(&mut self, reservation_id: i64) -> Result<&mut BalanceReservation> {
+    fn easy_get_mut_reservation(
+        &mut self,
+        reservation_id: ReservationId,
+    ) -> Result<&mut BalanceReservation> {
         let res = match self.get_mut_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
@@ -712,7 +719,7 @@ impl BalanceReservationManager {
         Ok(res)
     }
 
-    fn easy_get_reservation(&self, reservation_id: i64) -> Result<&BalanceReservation> {
+    fn easy_get_reservation(&self, reservation_id: ReservationId) -> Result<&BalanceReservation> {
         let res = match self.get_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
@@ -724,7 +731,7 @@ impl BalanceReservationManager {
 
     fn unreserve_not_approved_part(
         &mut self,
-        reservation_id: i64,
+        reservation_id: ReservationId,
         client_order_id: &Option<ClientOrderId>,
         amount_to_unreserve: Decimal,
     ) -> Result<()> {
@@ -770,7 +777,7 @@ impl BalanceReservationManager {
     fn add_reserved_amount(
         &mut self,
         request: &BalanceRequest,
-        reservation_id: i64,
+        reservation_id: ReservationId,
         amount_diff_in_amount_currency: Decimal,
         update_balance: bool,
     ) -> Result<()> {
@@ -810,7 +817,7 @@ impl BalanceReservationManager {
     fn add_virtual_balance(
         &mut self,
         request: &BalanceRequest,
-        reservation_id: i64,
+        reservation_id: ReservationId,
         diff_in_amount_currency: Decimal,
     ) -> Result<()> {
         let reservation = self.easy_get_reservation(reservation_id)?;

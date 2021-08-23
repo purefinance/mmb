@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
+use crate::core::orders::order::ReservationId;
 pub(crate) struct BalanceReservationStorage {
-    reserved_balances_by_id: HashMap<i64, BalanceReservation>,
+    reserved_balances_by_id: HashMap<ReservationId, BalanceReservation>,
     pub is_call_from_me: bool,
 }
 
@@ -14,29 +15,32 @@ impl BalanceReservationStorage {
         self.update_metrics();
     }
 
-    pub fn add(&mut self, reservation_id: i64, reservation: BalanceReservation) {
+    pub fn add(&mut self, reservation_id: ReservationId, reservation: BalanceReservation) {
         self.reserved_balances_by_id
             .insert(reservation_id, reservation);
     }
 
-    pub fn remove(&mut self, reservation_id: i64) {
+    pub fn remove(&mut self, reservation_id: ReservationId) {
         self.reserved_balances_by_id.remove(&reservation_id);
         self.update_metrics();
     }
 
-    pub fn get_all_raw_reservations(&self) -> &HashMap<i64, BalanceReservation> {
+    pub fn get_all_raw_reservations(&self) -> &HashMap<ReservationId, BalanceReservation> {
         &self.reserved_balances_by_id
     }
 
-    pub fn get_reservation_ids(&self) -> Vec<i64> {
+    pub fn get_reservation_ids(&self) -> Vec<ReservationId> {
         self.reserved_balances_by_id.keys().cloned().collect_vec()
     }
 
-    pub fn try_get(&self, reservation_id: &i64) -> Option<&BalanceReservation> {
+    pub fn try_get(&self, reservation_id: &ReservationId) -> Option<&BalanceReservation> {
         self.reserved_balances_by_id.get(reservation_id)
     }
 
-    pub fn try_get_mut(&mut self, reservation_id: &i64) -> Option<&mut BalanceReservation> {
+    pub fn try_get_mut(
+        &mut self,
+        reservation_id: &ReservationId,
+    ) -> Option<&mut BalanceReservation> {
         self.reserved_balances_by_id.get_mut(reservation_id)
     }
 

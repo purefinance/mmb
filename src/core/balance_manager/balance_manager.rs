@@ -6,6 +6,8 @@ use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::orders::fill::OrderFill;
+use crate::core::orders::order::{ClientOrderId, OrderStatus, OrderType, ReservationId};
+use crate::core::orders::pool::OrderRef;
 use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
 
 use anyhow::{bail, Result};
@@ -74,7 +76,7 @@ impl BalanceManager {
         self.last_order_fills = balances.last_order_fills.clone();
     }
 
-    pub fn get_reservation_ids(&self) -> Vec<i64> {
+    pub fn get_reservation_ids(&self) -> Vec<ReservationId> {
         self.balance_reservation_manager
             .balance_reservation_storage
             .get_reservation_ids()
@@ -93,7 +95,7 @@ impl BalanceManager {
         Ok(())
     }
 
-    pub fn unreserve_rest(&mut self, reservation_id: i64) -> Result<()> {
+    pub fn unreserve_rest(&mut self, reservation_id: ReservationId) -> Result<()> {
         if let Some(reservation) = self
             .balance_reservation_manager
             .get_reservation(&reservation_id)
@@ -105,9 +107,24 @@ impl BalanceManager {
         }
     }
 
-    pub fn unreserve(&mut self, reservation_id: i64, amount: Decimal) -> Result<()> {
+    pub fn unreserve(&mut self, reservation_id: ReservationId, amount: Decimal) -> Result<()> {
         self.balance_reservation_manager
             .unreserve(reservation_id, amount, &None)?;
+        self.save_balances();
+        Ok(())
+    }
+
+    pub fn unreserve_by_client_order_id(
+        &mut self,
+        reservation_id: ReservationId,
+        client_order_id: ClientOrderId,
+        amount: Decimal,
+    ) -> Result<()> {
+        self.balance_reservation_manager.unreserve(
+            reservation_id,
+            amount,
+            &Some(client_order_id),
+        )?;
         self.save_balances();
         Ok(())
     }
@@ -453,5 +470,62 @@ impl BalanceManager {
             balance += reservation.get_proportional_cost_amount(reservation.not_approved_amount)?;
         }
         Ok(balances_dict)
+    }
+
+    pub fn clone_and_subtract_not_approved_data(
+        mut balance_manager: BalanceManager,
+        orders: Option<Vec<OrderRef>>,
+    ) -> Result<BalanceManager> {
+        let mut not_full_approved_reservations = HashMap::new();
+        let raw_reservations = balance_manager
+            .balance_reservation_manager
+            .balance_reservation_storage
+            .get_all_raw_reservations()
+            .clone();
+
+        for (reservation_id, reservation) in raw_reservations {
+            if reservation.not_approved_amount > dec!(0) {
+                not_full_approved_reservations.insert(reservation_id, reservation);
+            }
+        }
+
+        let mut applied_orders = HashSet::new();
+        let orders_to_subtract = match orders {
+            Some(orders) => orders,
+            None => Vec::new(),
+        };
+
+        for order in orders_to_subtract {
+            if order.is_finished() || order.status() == OrderStatus::Creating {
+                continue;
+            }
+
+            if order.order_type() == OrderType::Market {
+                bail!("Clone doesn't support market orders because we need to know the price")
+            }
+            if applied_orders.contains(&order.client_order_id()) {
+                continue;
+            }
+            applied_orders.insert(order.client_order_id());
+
+            match order.reservation_id() {
+                Some(reservation_id) => balance_manager.unreserve_by_client_order_id(
+                    reservation_id,
+                    order.client_order_id(),
+                    order.amount(),
+                )?,
+                None => continue,
+            }
+        }
+
+        for (reservation_id, reservation) in not_full_approved_reservations {
+            let amount_to_unreserve = reservation.not_approved_amount;
+            if reservation.is_amount_within_symbol_margin_error(amount_to_unreserve) {
+                // just in case if there is a possible precision error
+                continue;
+            }
+            balance_manager.unreserve(reservation_id.clone(), amount_to_unreserve)?;
+        }
+        Ok(balance_manager)
     }
 }

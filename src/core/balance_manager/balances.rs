@@ -9,6 +9,7 @@ use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::common::TradePlaceAccount;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::orders::fill::OrderFill;
+use crate::core::orders::order::ReservationId;
 
 use itertools::Itertools;
 use rust_decimal::Decimal;
@@ -27,7 +28,7 @@ pub(crate) struct Balances {
 
     /// In Amount currency
     pub amount_limits: Option<ServiceValueTree>,
-    pub balance_reservations_by_reservation_id: Option<HashMap<i64, BalanceReservation>>,
+    pub balance_reservations_by_reservation_id: Option<HashMap<ReservationId, BalanceReservation>>,
 
     pub last_order_fills: HashMap<TradePlaceAccount, OrderFill>,
 }
@@ -39,7 +40,7 @@ impl Balances {
         reserved_amount: ServiceValueTree,
         position_by_fill_amount: BalancePositionByFillAmount,
         amount_limits: ServiceValueTree,
-        balance_reservations_by_reservation_id: HashMap<i64, BalanceReservation>,
+        balance_reservations_by_reservation_id: HashMap<ReservationId, BalanceReservation>,
         serialized_last_order_fills: Option<Vec<(TradePlaceAccount, OrderFill)>>,
     ) -> Self {
         let mut res = Self {
