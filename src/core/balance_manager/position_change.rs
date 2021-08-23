@@ -5,9 +5,9 @@ use rust_decimal::Decimal;
 
 #[derive(Clone, Debug)]
 pub(crate) struct PositionChange {
-    client_order_fill_id: ClientOrderId,
-    date_time: DateTime,
-    portion: Decimal,
+    pub(crate) client_order_fill_id: ClientOrderId,
+    pub(crate) date_time: DateTime,
+    pub(crate) portion: Decimal,
 }
 
 impl PositionChange {

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::{bail, Result};
 use itertools::Itertools;
@@ -9,13 +10,14 @@ use crate::core::balance_manager::balance_position_by_fill_amount::BalancePositi
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
 use crate::core::balance_manager::balances::Balances;
+use crate::core::balance_manager::position_change::PositionChange;
 use crate::core::balances::balance_position_model::BalancePositionModel;
 use crate::core::balances::{
     balance_reservation_storage::BalanceReservationStorage,
     virtual_balance_holder::VirtualBalanceHolder,
 };
 use crate::core::exchanges::common::CurrencyPair;
-use crate::core::exchanges::common::ExchangeAccountId;
+use crate::core::exchanges::common::{ExchangeAccountId, TradePlaceAccount};
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
@@ -24,9 +26,11 @@ use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::orders::order::ReservationId;
 use crate::core::orders::order::{ClientOrderId, OrderSide};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use crate::core::DateTime;
 
+#[derive(Clone)]
 pub(crate) struct BalanceReservationManager {
-    exchanges_by_id: HashMap<ExchangeAccountId, Exchange>,
+    exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
     // private readonly ICurrencyPairToSymbolConverter _currencyPairToSymbolConverter;
     // private readonly IDateTimeService _dateTimeService;
@@ -40,7 +44,7 @@ pub(crate) struct BalanceReservationManager {
     pub virtual_balance_holder: VirtualBalanceHolder,
     pub balance_reservation_storage: BalanceReservationStorage,
 
-    is_call_from_clone: bool,
+    pub(crate) is_call_from_clone: bool,
 }
 
 impl BalanceReservationManager {
@@ -906,5 +910,33 @@ impl BalanceReservationManager {
             now,
         )?;
         Ok(())
+    }
+
+    pub fn get_last_position_change_before_period(
+        &self,
+        trade_place: &TradePlaceAccount,
+        start_of_period: DateTime,
+    ) -> Option<PositionChange> {
+        self.position_by_fill_amount_in_amount_currency
+            .get_last_position_change_before_period(trade_place, start_of_period)
+    }
+
+    pub fn get_fill_amount_position_percent(
+        &self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        side: OrderSide,
+    ) -> Option<Decimal> {
+        let position = self.get_position_values(
+            configuration_descriptor,
+            exchange_account_id,
+            currency_pair_metadata,
+            side,
+        )?;
+        Some(std::cmp::min(
+            dec!(1),
+            std::cmp::max(dec!(0), position.position / position.limit?),
+        ))
     }
 }

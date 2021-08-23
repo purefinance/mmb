@@ -115,4 +115,44 @@ impl BalancePositionByFillAmount {
         self.position_by_fill_amount.insert(key, new_position);
         Ok(())
     }
+
+    pub fn get_last_position_change_before_period(
+        &self,
+        trade_place: &TradePlaceAccount,
+        start_of_period: DateTime,
+    ) -> Option<PositionChange> {
+        if let Some(values) = self.position_changes.get(trade_place) {
+            log::info!(
+                "get_last_position_change_before_period get {} {} {:?}",
+                trade_place.exchange_account_id,
+                trade_place.currency_pair,
+                values
+            );
+
+            let mut position_change = None;
+            for value in values {
+                if value.date_time <= start_of_period {
+                    position_change = Some(value.clone());
+                }
+            }
+
+            match position_change {
+                Some(position_change) => {
+                    log::info!(
+                        "get_last_position_change_before_period {:?}",
+                        position_change,
+                    );
+                    return Some(position_change);
+                }
+                None => (),
+            }
+        }
+        log::info!(
+            "get_last_position_change_before_period {} {} {:?}",
+            trade_place.exchange_account_id,
+            trade_place.currency_pair,
+            self.position_changes.keys(),
+        );
+        None
+    }
 }

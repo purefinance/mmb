@@ -11,6 +11,7 @@ use rust_decimal_macros::dec;
 
 type BalanceByExchangeId = HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>;
 
+#[derive(Clone)]
 pub(crate) struct VirtualBalanceHolder {
     balance_by_exchange_id: BalanceByExchangeId,
     balance_diff: ServiceValueTree,

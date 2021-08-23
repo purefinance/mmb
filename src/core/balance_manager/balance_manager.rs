@@ -1,13 +1,18 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
+use crate::core::balance_manager::position_change::PositionChange;
 use crate::core::balances::balance_reservation_manager::BalanceReservationManager;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
+use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::orders::fill::OrderFill;
-use crate::core::orders::order::{ClientOrderId, OrderStatus, OrderType, ReservationId};
+use crate::core::orders::order::{ClientOrderId, OrderSide, OrderStatus, OrderType, ReservationId};
 use crate::core::orders::pool::OrderRef;
+use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use crate::core::DateTime;
 use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
 
 use anyhow::{bail, Result};
@@ -15,11 +20,12 @@ use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+#[derive(Clone)]
 struct BalanceManager {
     // private readonly IDateTimeService _dateTimeService;
     // private readonly ILogger _logger = Log.ForContext<BalanceManager>();
     // private readonly object _syncObject = new object();
-    exchanges_by_id: HashMap<ExchangeAccountId, Exchange>,
+    exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
     // private readonly ICurrencyPairToSymbolConverter _currencyPairToSymbolConverter;
     exchange_id_with_restored_positions: HashSet<ExchangeAccountId>,
@@ -472,10 +478,21 @@ impl BalanceManager {
         Ok(balances_dict)
     }
 
+    pub fn custom_clone(&self) -> BalanceManager {
+        let mut balance_manager = self.clone();
+        let balances = self.get_balances();
+        balance_manager.restore_balance_state(&balances, true);
+        balance_manager
+            .balance_reservation_manager
+            .is_call_from_clone = true;
+        balance_manager
+    }
+
     pub fn clone_and_subtract_not_approved_data(
-        mut balance_manager: BalanceManager,
+        &self,
         orders: Option<Vec<OrderRef>>,
     ) -> Result<BalanceManager> {
+        let mut balance_manager = self.custom_clone();
         let mut not_full_approved_reservations = HashMap::new();
         let raw_reservations = balance_manager
             .balance_reservation_manager
@@ -528,4 +545,60 @@ impl BalanceManager {
         }
         Ok(balance_manager)
     }
+
+    pub fn get_last_order_fills(&self) -> &HashMap<TradePlaceAccount, OrderFill> {
+        &self.last_order_fills
+    }
+
+    pub fn get_last_position_change_before_period(
+        &self,
+        trade_place: &TradePlaceAccount,
+        start_of_period: DateTime,
+    ) -> Option<PositionChange> {
+        self.balance_reservation_manager
+            .get_last_position_change_before_period(trade_place, start_of_period)
+    }
+
+    pub fn get_position(
+        &self,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair: &CurrencyPair,
+        trade_side: OrderSide,
+    ) -> Option<Decimal> {
+        self.balance_reservation_manager.get_position(
+            exchange_account_id,
+            currency_pair,
+            trade_side,
+        )
+    }
+
+    pub fn get_fill_amount_position_percent(
+        &self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        side: OrderSide,
+    ) -> Option<Decimal> {
+        self.balance_reservation_manager
+            .get_fill_amount_position_percent(
+                configuration_descriptor,
+                exchange_account_id,
+                currency_pair_metadata,
+                side,
+            )
+    }
+
+    // TODO: uncomment me
+    // pub fn set_balance_changes_service(&mut self, service: BalanceChangesService) {
+    //     self.balance_changes_service = Some(service);
+    // }
+
+    // TODO: should be implemented
+    // public void ExecuteTransaction(Action action)
+    // {
+    //     lock (_syncObject)
+    //     {
+    //         action();
+    //     }
+    // }
 }

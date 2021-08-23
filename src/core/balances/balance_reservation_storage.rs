@@ -4,6 +4,7 @@ use itertools::Itertools;
 
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
 use crate::core::orders::order::ReservationId;
+#[derive(Clone)]
 pub(crate) struct BalanceReservationStorage {
     reserved_balances_by_id: HashMap<ReservationId, BalanceReservation>,
     pub is_call_from_me: bool,
