@@ -25,8 +25,6 @@ use rust_decimal_macros::dec;
 #[derive(Clone)]
 struct BalanceManager {
     // private readonly IDateTimeService _dateTimeService;
-    // private readonly ILogger _logger = Log.ForContext<BalanceManager>();
-    // private readonly object _syncObject = new object();
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
     currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
@@ -636,7 +634,7 @@ impl BalanceManager {
             .as_str(),
         );
         self.save_balances();
-        // _balanceChangesService?.AddBalanceChange(configurationDescriptor, order, orderFill); // TODO: fix me
+        // _balanceChangesService?.AddBalanceChange(configurationDescriptor, order, orderFill); // TODO: fix me when added
     }
 
     fn handle_order_fill(

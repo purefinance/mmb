@@ -1,7 +1,3 @@
-use std::sync::Arc;
-
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
-
 use rust_decimal::Decimal;
 
 pub(crate) struct MarketSymbolPrice {
