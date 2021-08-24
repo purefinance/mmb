@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{CurrencyCode, ExchangeAccountId};
@@ -86,13 +87,13 @@ impl VirtualBalanceHolder {
     pub fn get_virtual_balance(
         &self,
         balance_request: &BalanceRequest,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
         price: Option<Decimal>,
         explanation: &mut Option<Explanation>,
     ) -> Option<Decimal> {
         let exchange_balance = self.get_exchange_balance(
             &balance_request.exchange_account_id,
-            currency_pair_metadata,
+            currency_pair_metadata.clone(),
             &balance_request.currency_code,
             price,
         )?;
@@ -161,7 +162,7 @@ impl VirtualBalanceHolder {
     pub fn get_exchange_balance(
         &self,
         exchange_account_id: &ExchangeAccountId,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: &CurrencyCode,
         price: Option<Decimal>,
     ) -> Option<Decimal> {

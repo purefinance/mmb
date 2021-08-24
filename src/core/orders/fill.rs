@@ -7,6 +7,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::order::ClientOrderFillId;
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderFillType {
     UserTrade = 1,
@@ -24,8 +26,8 @@ pub enum EventSourceType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderFill {
-    // TODO ClientOrderID should be here?
     id: Uuid,
+    client_order_fill_id: Option<ClientOrderFillId>,
     receive_time: DateTime,
     fill_type: OrderFillType,
 
@@ -70,8 +72,51 @@ impl OrderFill {
         event_source_type: Option<EventSourceType>,
         side: Option<OrderSide>,
     ) -> Self {
+        OrderFill::new_by_client_order_fill_id(
+            id,
+            None,
+            receive_time,
+            fill_type,
+            trade_id,
+            price,
+            amount,
+            cost,
+            role,
+            commission_currency_code,
+            commission_amount,
+            referral_reward_amount,
+            converted_commission_currency_code,
+            converted_commission_amount,
+            expected_converted_commission_amount,
+            is_diff,
+            event_source_type,
+            side,
+        )
+    }
+
+    pub fn new_by_client_order_fill_id(
+        id: Uuid,
+        client_order_fill_id: Option<ClientOrderFillId>,
+        receive_time: DateTime,
+        fill_type: OrderFillType,
+        trade_id: Option<String>,
+        price: Decimal,
+        amount: Decimal,
+        cost: Decimal,
+        role: OrderFillRole,
+        commission_currency_code: CurrencyCode,
+        commission_amount: Decimal,
+        referral_reward_amount: Decimal,
+        converted_commission_currency_code: CurrencyCode,
+        converted_commission_amount: Decimal,
+        expected_converted_commission_amount: Decimal,
+        is_diff: bool,
+        event_source_type: Option<EventSourceType>,
+        side: Option<OrderSide>,
+    ) -> Self {
         OrderFill {
             id,
+            client_order_fill_id,
             receive_time,
             fill_type,
             trade_id,
@@ -141,5 +186,8 @@ impl OrderFill {
     }
     pub fn side(&self) -> Option<OrderSide> {
         self.side
+    }
+    pub fn client_order_fill_id(&self) -> &Option<ClientOrderFillId> {
+        &self.client_order_fill_id
     }
 }

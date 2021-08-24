@@ -1,11 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::core::balance_manager::balance_reservation::BalanceReservation;
 use crate::core::balance_manager::position_change::PositionChange;
 use crate::core::balances::balance_reservation_manager::BalanceReservationManager;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
+use crate::core::exchanges::general::currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::orders::fill::OrderFill;
@@ -27,7 +29,7 @@ struct BalanceManager {
     // private readonly object _syncObject = new object();
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
-    // private readonly ICurrencyPairToSymbolConverter _currencyPairToSymbolConverter;
+    currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
     exchange_id_with_restored_positions: HashSet<ExchangeAccountId>,
     balance_reservation_manager: BalanceReservationManager,
     position_differs_times_in_row_by_exchange_id:
@@ -219,7 +221,7 @@ impl BalanceManager {
                 self.balance_reservation_manager
                     .restore_fill_amount_position(
                         exchange_account_id,
-                        &currency_pair_metadata,
+                        currency_pair_metadata.clone(),
                         position_info.position,
                     )?;
             }
@@ -576,18 +578,197 @@ impl BalanceManager {
         &self,
         configuration_descriptor: &ConfigurationDescriptor,
         exchange_account_id: &ExchangeAccountId,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
     ) -> Option<Decimal> {
         self.balance_reservation_manager
             .get_fill_amount_position_percent(
                 configuration_descriptor,
                 exchange_account_id,
-                currency_pair_metadata,
+                currency_pair_metadata.clone(),
                 side,
             )
     }
 
+    pub fn order_was_filled(
+        &mut self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        order_ref: OrderRef,
+        order_fill: Option<OrderFill>,
+    ) {
+        let exchange_account_id = order_ref.exchange_account_id();
+        let currency_pair_metadata = self
+            .currency_pair_to_currency_pair_metadata_converter
+            .try_get_currency_pair_metadata(&exchange_account_id, &order_ref.currency_pair())
+            .expect(
+                format!(
+                    "failed to get currency pair metadata with {} {}",
+                    exchange_account_id,
+                    order_ref.currency_pair()
+                )
+                .as_str(),
+            );
+        let order_fill = match order_fill {
+            Some(order_fill) => order_fill,
+            None => order_ref
+                .get_fills()
+                .0
+                .last()
+                .expect(format!("failed to get fills from order {:?}", order_ref).as_str())
+                .clone(),
+        };
+        self.handle_order_fill(
+            configuration_descriptor,
+            &exchange_account_id,
+            currency_pair_metadata.clone(),
+            order_ref.clone(),
+            &order_fill,
+        )
+        .expect(
+            format!(
+                "failed to handle order fill {:?} {} {:?} {:?} {:?}",
+                configuration_descriptor,
+                exchange_account_id,
+                currency_pair_metadata.clone(),
+                order_ref,
+                order_fill,
+            )
+            .as_str(),
+        );
+        self.save_balances();
+        // _balanceChangesService?.AddBalanceChange(configurationDescriptor, order, orderFill); // TODO: fix me
+    }
+
+    fn handle_order_fill(
+        &mut self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        order_ref: OrderRef,
+        order_fill: &OrderFill,
+    ) -> Result<()> {
+        let currency_code_before_trade =
+            &mut currency_pair_metadata.get_trade_code(order_ref.side(), BeforeAfter::Before);
+        let amount_in_before_trade_currenct_code = &mut dec!(0);
+
+        self.balance_reservation_manager
+            .handle_position_fill_amount_change(
+                order_ref.side(),
+                order_fill.client_order_fill_id(),
+                order_fill.amount(),
+                order_fill.price(),
+                configuration_descriptor,
+                exchange_account_id,
+                currency_pair_metadata.clone(),
+                currency_code_before_trade,
+                amount_in_before_trade_currenct_code,
+            )?;
+
+        let currency_code_after_trade =
+            &mut currency_pair_metadata.get_trade_code(order_ref.side(), BeforeAfter::After);
+        let amount_in_after_trade_currenct_code = &mut dec!(0);
+        self.balance_reservation_manager
+            .handle_position_fill_amount_change(
+                order_ref.side(),
+                order_fill.client_order_fill_id(),
+                order_fill.amount(),
+                order_fill.price(),
+                configuration_descriptor,
+                exchange_account_id,
+                currency_pair_metadata.clone(),
+                currency_code_after_trade,
+                amount_in_after_trade_currenct_code,
+            )?;
+
+        self.balance_reservation_manager
+            .handle_position_fill_amount_change_commission(
+                order_fill.commission_currency_code().clone(),
+                order_fill.commission_amount(),
+                order_fill.converted_commission_currency_code().clone(),
+                order_fill.converted_commission_amount(),
+                order_fill.price(),
+                configuration_descriptor,
+                exchange_account_id,
+                currency_pair_metadata.clone(),
+            );
+
+        self.update_last_order_fill(
+            exchange_account_id.clone(),
+            currency_pair_metadata.currency_pair(),
+            order_fill.clone(),
+        );
+
+        let position = self
+            .balance_reservation_manager
+            .get_position_in_amount_currency_code(
+                exchange_account_id,
+                currency_pair_metadata.clone(),
+                order_ref.side(),
+            );
+
+        log::info!(
+            "Order was filled handle_order_fill {} {} {} {:?} {:?} {} {} {} {} {} {} {} {}",
+            position,
+            order_ref.exchange_account_id(),
+            order_ref.client_order_id(),
+            order_ref.exchange_order_id(),
+            order_fill.trade_id(),
+            order_fill.price(),
+            order_fill.amount(),
+            order_fill.commission_currency_code(),
+            order_fill.commission_amount(),
+            currency_code_before_trade,
+            amount_in_before_trade_currenct_code,
+            currency_code_after_trade,
+            amount_in_after_trade_currenct_code
+        );
+        Ok(())
+    }
+
+    fn update_last_order_fill(
+        &mut self,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        order_fill: OrderFill,
+    ) {
+        self.last_order_fills.insert(
+            TradePlaceAccount::new(exchange_account_id, currency_pair),
+            order_fill,
+        );
+    }
+
+    pub fn order_was_finished(
+        &mut self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        order_ref: OrderRef,
+    ) -> Result<()> {
+        for order_fill in order_ref.get_fills().0 {
+            self.order_was_filled(
+                configuration_descriptor,
+                order_ref.clone(),
+                Some(order_fill),
+            );
+        }
+
+        if order_ref.status() == OrderStatus::Canceled {
+            if let Some(reservation_id) = order_ref.reservation_id() {
+                if !self.get_reservation(reservation_id).is_none() {
+                    self.balance_reservation_manager
+                        .cancel_approved_reservation(
+                            reservation_id,
+                            &order_ref.client_order_id(),
+                        )?;
+                    self.save_balances();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn get_reservation(&self, reservation_id: ReservationId) -> Option<&BalanceReservation> {
+        self.balance_reservation_manager
+            .get_reservation(&reservation_id)
+    }
     // TODO: uncomment me
     // pub fn set_balance_changes_service(&mut self, service: BalanceChangesService) {
     //     self.balance_changes_service = Some(service);

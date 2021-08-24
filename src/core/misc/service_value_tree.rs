@@ -24,7 +24,11 @@ pub(crate) struct ServiceValueTree {
 }
 // get
 impl ServiceValueTree {
-    fn get(&mut self) -> &mut ServiceNameConfigurationKeyMap {
+    fn get(&self) -> &ServiceNameConfigurationKeyMap {
+        &self.tree
+    }
+
+    fn get_mut(&mut self) -> &mut ServiceNameConfigurationKeyMap {
         &mut self.tree
     }
 

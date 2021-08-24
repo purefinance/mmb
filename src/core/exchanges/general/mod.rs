@@ -1,5 +1,6 @@
 pub mod commission;
 pub mod currency_pair_metadata;
+pub(crate) mod currency_pair_to_currency_metadata_converter;
 pub mod exchange;
 pub mod exchange_creation;
 pub mod exchange_metadata;

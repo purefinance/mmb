@@ -10,7 +10,7 @@ pub(crate) struct ApprovedPart {
     client_order_id: ClientOrderId,
     /// Order amount in current CurrencyCode
     amount: Amount,
-    is_canceled: bool,
+    pub(crate) is_canceled: bool,
     pub(crate) unreserved_amount: Decimal,
 }
 

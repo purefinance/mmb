@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::core::balance_manager::position_change::PositionChange;
 use crate::core::exchanges::common::{CurrencyPair, ExchangeAccountId, TradePlaceAccount};
-use crate::core::orders::order::ClientOrderId;
+use crate::core::orders::order::ClientOrderFillId;
 use crate::core::DateTime;
 
 use anyhow::{bail, Result};
@@ -38,7 +38,7 @@ impl BalancePositionByFillAmount {
         currency_pair: &CurrencyPair,
         pervious_position: Option<Decimal>,
         new_position: Decimal,
-        client_order_fill_id: Option<ClientOrderId>,
+        client_order_fill_id: Option<ClientOrderFillId>,
         now: DateTime,
     ) -> Result<()> {
         let key = TradePlaceAccount::new(exchange_account_id.clone(), currency_pair.clone());
@@ -114,6 +114,28 @@ impl BalancePositionByFillAmount {
         }
         self.position_by_fill_amount.insert(key, new_position);
         Ok(())
+    }
+
+    pub fn add(
+        &mut self,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair: &CurrencyPair,
+        value_to_add: Decimal,
+        client_order_fill_id: Option<ClientOrderFillId>,
+        now: DateTime,
+    ) -> Result<()> {
+        let current_value = self
+            .get(exchange_account_id, currency_pair)
+            .unwrap_or(dec!(0));
+        let new_value = current_value + value_to_add;
+        self.set(
+            exchange_account_id,
+            currency_pair,
+            Some(current_value),
+            new_value,
+            client_order_fill_id,
+            now,
+        )
     }
 
     pub fn get_last_position_change_before_period(
