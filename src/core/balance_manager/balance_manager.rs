@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
 use crate::core::balance_manager::position_change::PositionChange;
 use crate::core::balances::balance_reservation_manager::BalanceReservationManager;
+use crate::core::exchanges::common::Amount;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
@@ -767,6 +768,61 @@ impl BalanceManager {
         self.balance_reservation_manager
             .get_reservation(&reservation_id)
     }
+
+    pub fn unreserve_pair(
+        &mut self,
+        reservation_id_1: ReservationId,
+        amount_1: Amount,
+        reservation_id_2: ReservationId,
+        amount_2: Amount,
+    ) {
+        self.balance_reservation_manager
+            .unreserve(reservation_id_1, amount_1, &None)
+            .expect(format!("failed to unreserve {} {}", reservation_id_1, amount_1).as_str());
+        self.balance_reservation_manager
+            .unreserve(reservation_id_2, amount_2, &None)
+            .expect(format!("failed to unreserve {} {}", reservation_id_2, amount_2).as_str());
+        self.save_balances();
+    }
+
+    pub fn approve_reservation(
+        &mut self,
+        reservation_id: ReservationId,
+        client_order_id: &ClientOrderId,
+        amount: Amount,
+    ) {
+        self.balance_reservation_manager
+            .approve_reservation(reservation_id, client_order_id, amount)
+            .expect(
+                format!(
+                    "failed to approve reservation {} {} {} ",
+                    reservation_id, client_order_id, amount,
+                )
+                .as_str(),
+            );
+
+        self.save_balances();
+    }
+
+    pub fn try_transfer_reservation(
+        &mut self,
+        src_reservation_id: ReservationId,
+        dst_reservation_id: ReservationId,
+        amount: Amount,
+        client_order_id: &Option<ClientOrderId>,
+    ) -> bool {
+        if !self.balance_reservation_manager.try_transfer_reservation(
+            src_reservation_id,
+            dst_reservation_id,
+            amount,
+            client_order_id,
+        ) {
+            return false;
+        }
+        self.save_balances();
+        true
+    }
+
     // TODO: uncomment me
     // pub fn set_balance_changes_service(&mut self, service: BalanceChangesService) {
     //     self.balance_changes_service = Some(service);

@@ -7,6 +7,7 @@ use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+use crate::core::balance_manager::approved_part::ApprovedPart;
 use crate::core::balance_manager::balance_position_by_fill_amount::BalancePositionByFillAmount;
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
@@ -1178,5 +1179,385 @@ impl BalanceReservationManager {
                 .as_str(),
             );
         }
+    }
+
+    pub fn approve_reservation(
+        &mut self,
+        reservation_id: ReservationId,
+        client_order_id: &ClientOrderId,
+        amount: Amount,
+    ) -> Result<()> {
+        let reservation = match self.get_mut_reservation(&reservation_id) {
+            Some(reservation) => reservation,
+            None => {
+                log::error!(
+                    "Can't find reservation {} in {:?}",
+                    reservation_id,
+                    self.balance_reservation_storage.get_reservation_ids()
+                );
+                return Ok(());
+            }
+        };
+
+        if reservation.approved_parts.contains_key(client_order_id) {
+            log::error!(
+                "Order {} cannot be approved multiple times",
+                client_order_id
+            );
+            return Ok(());
+        }
+
+        reservation.not_approved_amount -= amount;
+
+        if reservation.not_approved_amount < dec!(0)
+            && !reservation.is_amount_within_symbol_margin_error(reservation.not_approved_amount)
+        {
+            log::error!(
+                "RestApprovedAmount < 0 for order {} {} {} {:?}",
+                client_order_id,
+                reservation_id,
+                amount,
+                reservation
+            );
+            bail!(
+                "RestApprovedAmount < 0 for order {} {} {}",
+                client_order_id,
+                reservation_id,
+                amount
+            )
+        }
+        let date_time = Utc::now();
+        match reservation.approved_parts.get_mut(client_order_id) {
+            Some(approved_part) => {
+                *approved_part = ApprovedPart::new(date_time, client_order_id.clone(), amount);
+            }
+            None => bail!(
+                "failed to get approved part for {} from {:?}",
+                client_order_id,
+                reservation.approved_parts
+            ),
+        }
+
+        log::info!("Order {} was approved with {}", client_order_id, amount);
+        Ok(())
+    }
+
+    pub fn try_transfer_reservation(
+        &mut self,
+        src_reservation_id: ReservationId,
+        dst_reservation_id: ReservationId,
+        amount: Amount,
+        client_order_id: &Option<ClientOrderId>,
+    ) -> bool {
+        let src_reservation = self
+            .get_reservation(&src_reservation_id)
+            .expect(format!("Reservation for {} not found", src_reservation_id).as_str());
+
+        let dst_reservation = self
+            .get_reservation(&dst_reservation_id)
+            .expect(format!("Reservation for {} not found", dst_reservation_id).as_str());
+
+        if src_reservation.configuration_descriptor == dst_reservation.configuration_descriptor
+            || src_reservation.exchange_account_id != dst_reservation.exchange_account_id
+            || src_reservation.currency_pair_metadata != dst_reservation.currency_pair_metadata
+            || src_reservation.order_side != dst_reservation.order_side
+        {
+            std::panic!(
+                "Reservations {:?} and {:?} are from different sources",
+                src_reservation,
+                dst_reservation
+            );
+        }
+
+        let amount_to_move = src_reservation
+            .currency_pair_metadata
+            .round_to_remove_amount_precision_error(amount)
+            .expect(
+                format!(
+                    "failed to round to remove amount precision error from {:?} for {}",
+                    src_reservation.currency_pair_metadata, amount
+                )
+                .as_str(),
+            );
+        if amount_to_move == dec!(0) {
+            log::warn!(
+                "Can't transfer zero amount from {} to {}",
+                src_reservation_id,
+                dst_reservation_id
+            );
+            return false;
+        }
+
+        if src_reservation.price != dst_reservation.price {
+            // special case for derivatives because balance for AmountCurrency is auto-calculated
+            if src_reservation.currency_pair_metadata.is_derivative {
+                // check if we have enough balance for the operation
+                let add_amount = src_reservation
+                    .convert_in_reservation_currency(amount_to_move)
+                    .expect(
+                        format!(
+                            "src_reservation: failed to convert in reservation currency: {}",
+                            amount_to_move
+                        )
+                        .as_str(),
+                    );
+                let sub_amount = dst_reservation
+                    .convert_in_reservation_currency(amount_to_move)
+                    .expect(
+                        format!(
+                            "dst_reservation: failed to convert in reservation currency: {}",
+                            amount_to_move
+                        )
+                        .as_str(),
+                    );
+
+                let balance_diff_amount = add_amount - sub_amount;
+
+                let available_balance = self
+                    .try_get_available_balance(
+                        &dst_reservation.configuration_descriptor,
+                        &dst_reservation.exchange_account_id,
+                        dst_reservation.currency_pair_metadata.clone(),
+                        dst_reservation.order_side,
+                        dst_reservation.price,
+                        true,
+                        false,
+                        &mut None,
+                    )
+                    .expect(
+                        format!("failed to get available balance for {:?}", dst_reservation)
+                            .as_str(),
+                    );
+                if available_balance + balance_diff_amount < dec!(0) {
+                    log::warn!(
+                        "Can't transfer {} because there will be insufficient balance ({} => {})",
+                        amount_to_move,
+                        src_reservation_id,
+                        dst_reservation_id
+                    );
+                    return false;
+                }
+            }
+        }
+
+        // we can safely move amount ignoring price because of check that have been done before
+        self.transfer_amount(
+            src_reservation_id,
+            dst_reservation_id,
+            amount_to_move,
+            client_order_id,
+        );
+        true //delete me
+
+        // we can safely move amount ignoring price because of check that have been done before
+        // TransferAmount(
+        //     sourceReservationId,
+        //     sourceReservation,
+        //     targetReservationId,
+        //     targetReservation,
+        //     amountToMove,
+        //     clientOrderId);
+
+        // return true;
+    }
+
+    fn transfer_amount(
+        &mut self,
+        src_reservation_id: ReservationId,
+        dst_reservation_id: ReservationId,
+        amount_to_move: Amount,
+        client_order_id: &Option<ClientOrderId>,
+    ) {
+        let src_reservation = self
+            .get_reservation(&src_reservation_id)
+            .expect(format!("Reservation for {} not found", src_reservation_id).as_str());
+        let new_src_unreserved_amount = src_reservation.unreserved_amount - amount_to_move;
+        let src_cost_diff = &mut dec!(0);
+        log::info!(
+            "trying to update src unreserved amount for transfer: {:?} {} {:?}",
+            src_reservation,
+            new_src_unreserved_amount,
+            client_order_id
+        );
+        self.update_unreserved_amount_for_transfer(
+            src_reservation_id,
+            new_src_unreserved_amount,
+            client_order_id,
+            true,
+            dec!(0),
+            src_cost_diff,
+        )
+        .expect("failed to update src unreserved amount");
+
+        let dst_reservation = self
+            .get_reservation(&dst_reservation_id)
+            .expect(format!("Reservation for {} not found", dst_reservation_id).as_str());
+        let new_dst_unreserved_amount = dst_reservation.unreserved_amount + amount_to_move;
+        log::info!(
+            "trying to update dst unreserved amount for transfer: {:?} {} {:?}",
+            dst_reservation,
+            new_dst_unreserved_amount,
+            client_order_id
+        );
+        self.update_unreserved_amount_for_transfer(
+            dst_reservation_id,
+            new_dst_unreserved_amount,
+            client_order_id,
+            false,
+            -*src_cost_diff,
+            &mut dec!(0),
+        )
+        .expect("failed to update dst unreserved amount");
+
+        log::info!(
+            "Successfully transferred {} from {} to {}",
+            amount_to_move,
+            src_reservation_id,
+            dst_reservation_id
+        );
+    }
+
+    fn update_unreserved_amount_for_transfer(
+        &mut self,
+        reservation_id: ReservationId,
+        new_unreserved_amount: Amount,
+        client_order_id: &Option<ClientOrderId>,
+        is_src_request: bool,
+        target_cost_diff: Decimal,
+        cost_diff: &mut Decimal,
+    ) -> Result<()> {
+        let reservation = self.easy_get_mut_reservation(reservation_id)?;
+        *cost_diff = dec!(0);
+        // we should check the case when we have insignificant calculation errors
+        if new_unreserved_amount < dec!(0)
+            && !reservation.is_amount_within_symbol_margin_error(new_unreserved_amount)
+        {
+            bail!(
+                "Can't set {} amount to reservation {}",
+                new_unreserved_amount,
+                reservation_id
+            )
+        }
+
+        let reservation_amount_diff = new_unreserved_amount - reservation.unreserved_amount;
+        if let Some(client_order_id) = client_order_id {
+            if !reservation
+                .approved_parts
+                .get_mut(client_order_id)
+                .is_none()
+            {
+                let new_amount = reservation
+                    .approved_parts
+                    .get_mut(client_order_id)
+                    .expect("fix me") // TODO: grays fix me and next
+                    .unreserved_amount
+                    + reservation_amount_diff;
+                if reservation.is_amount_within_symbol_margin_error(new_amount) {
+                    reservation.approved_parts.remove(client_order_id);
+                } else if new_amount < dec!(0) {
+                    bail!(
+                            "Attempt to transfer more amount ({}) than we have ({}) for approved part by ClientOrderId {}",
+                            reservation_amount_diff,
+                            reservation
+                                .approved_parts
+                                .get_mut(client_order_id)
+                                .expect("fix me").unreserved_amount,
+                            client_order_id
+                        )
+                } else {
+                    reservation
+                        .approved_parts
+                        .get_mut(client_order_id)
+                        .expect("fix me")
+                        .unreserved_amount = new_amount; // TODO: grays fix me
+                    reservation
+                        .approved_parts
+                        .get_mut(client_order_id)
+                        .expect("fix me")
+                        .amount += reservation_amount_diff;
+                }
+            } else {
+                if is_src_request {
+                    bail!(
+                        "Can't find approved part {} for {}",
+                        client_order_id,
+                        reservation_id
+                    )
+                }
+
+                match reservation.approved_parts.get_mut(client_order_id) {
+                    Some(approved_part) => {
+                        *approved_part = ApprovedPart::new(
+                            Utc::now(),
+                            client_order_id.clone(),
+                            reservation_amount_diff,
+                        );
+                    }
+                    None => bail!("failed to get mut approved part for {}", client_order_id),
+                }
+            }
+        } else {
+            reservation.not_approved_amount += reservation_amount_diff;
+        }
+
+        let balance_request = BalanceRequest::new(
+            reservation.configuration_descriptor.clone(),
+            reservation.exchange_account_id.clone(),
+            reservation.currency_pair_metadata.currency_pair(),
+            reservation.reservation_currency_code.clone(),
+        );
+
+        self.add_reserved_amount(
+            &balance_request,
+            reservation_id,
+            reservation_amount_diff,
+            false,
+        )?;
+        let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
+
+        *cost_diff = if is_src_request {
+            reservation.get_proportional_cost_amount(reservation_amount_diff)?
+        } else {
+            target_cost_diff
+        };
+        let buff_price = reservation.price;
+        let buff_currency_pair_metadata = reservation.currency_pair_metadata.clone();
+        self.add_virtual_balance_by_currency_pair_metadata(
+            &balance_request,
+            buff_currency_pair_metadata,
+            -*cost_diff,
+            buff_price,
+        )?;
+        let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
+
+        reservation.cost += *cost_diff;
+        reservation.amount += reservation_amount_diff;
+
+        if reservation.is_amount_within_symbol_margin_error(new_unreserved_amount) {
+            self.balance_reservation_storage
+                .remove(reservation_id.clone());
+            let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
+
+            if new_unreserved_amount != dec!(0) {
+                log::error!(
+                    "Transfer: AmountLeft {} != 0 for {} {:?}",
+                    reservation.unreserved_amount,
+                    reservation_id,
+                    reservation
+                );
+            }
+        }
+        let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
+        log::info!(
+            "Updated reservation {} {} {} {} {} {} {}",
+            reservation_id,
+            reservation.exchange_account_id,
+            reservation.reservation_currency_code,
+            reservation.order_side,
+            reservation.price,
+            reservation.amount,
+            reservation_amount_diff
+        );
+        Ok(())
     }
 }
