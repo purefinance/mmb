@@ -20,6 +20,7 @@ pub(crate) mod internal_events_loop;
 pub mod lifecycle;
 pub mod math;
 pub mod order_book;
+pub(crate) mod services;
 pub mod settings;
 pub mod text;
 
