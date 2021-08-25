@@ -217,4 +217,11 @@ impl VirtualBalanceHolder {
     pub fn get_virtual_balance_diffs(&self) -> &ServiceValueTree {
         &self.balance_diff
     }
+
+    pub fn has_real_balance_on_exchange(&self, exchange_account_id: &ExchangeAccountId) -> bool {
+        match self.balance_by_exchange_id.get(exchange_account_id) {
+            Some(exchange_balances) => exchange_balances.len() > 0,
+            None => false,
+        }
+    }
 }

@@ -10,8 +10,10 @@ use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
 use crate::core::exchanges::general::currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
+use crate::core::explanation::Explanation;
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::misc::reserve_parameters::ReserveParameters;
+use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::orders::fill::OrderFill;
 use crate::core::orders::order::{ClientOrderId, OrderSide, OrderStatus, OrderType, ReservationId};
 use crate::core::orders::pool::OrderRef;
@@ -839,6 +841,24 @@ impl BalanceManager {
         true
     }
 
+    pub fn try_reserve(
+        &mut self,
+        reserve_parameters: ReserveParameters,
+        reservation_id: &mut ReservationId,
+        explanation: &mut Option<Explanation>,
+    ) -> bool {
+        if self.balance_reservation_manager.try_reserve(
+            &reserve_parameters,
+            reservation_id,
+            explanation,
+        ) {
+            return false;
+        }
+
+        self.save_balances();
+        true
+    }
+
     // TODO: fix it into 1 fn try_reserve_pair/try_reserve_three
     pub fn try_reserve_pair(
         &mut self,
@@ -886,6 +906,174 @@ impl BalanceManager {
         false
     }
 
+    pub fn can_reserve(
+        &self,
+        reserve_parameters: &ReserveParameters,
+        explanation: &mut Option<Explanation>,
+    ) -> bool {
+        self.balance_reservation_manager
+            .can_reserve(reserve_parameters, explanation)
+    }
+
+    pub fn get_exchange_balance_holder(
+        &self,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        currency_code: &CurrencyCode,
+    ) -> Option<Decimal> {
+        self.balance_reservation_manager
+            .virtual_balance_holder
+            .get_exchange_balance(
+                exchange_account_id,
+                currency_pair_metadata.clone(),
+                currency_code,
+                None,
+            )
+    }
+
+    pub fn get_all_virtual_balance_diffs(&self) -> &ServiceValueTree {
+        self.balance_reservation_manager
+            .virtual_balance_holder
+            .get_virtual_balance_diffs()
+    }
+
+    pub fn get_leveraged_balance_in_amount_currency_code(
+        &self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        trade_side: OrderSide,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        price_quote_to_base: Decimal,
+        explanation: &mut Option<Explanation>,
+    ) -> Option<Decimal> {
+        match self
+            .balance_reservation_manager
+            .get_available_leveraged_balance(
+                configuration_descriptor,
+                exchange_account_id,
+                currency_pair_metadata.clone(),
+                trade_side,
+                price_quote_to_base,
+                explanation,
+            ) {
+            Some(balance) => {
+                let currency_code =
+                    currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before);
+                let balance_in_amount_currency_code = currency_pair_metadata
+                    .convert_amount_into_amount_currency_code(
+                        &currency_code,
+                        balance,
+                        price_quote_to_base,
+                    )
+                    .expect(
+                        format!(
+                            "failed to convert amount into amount currency code for {} {} {}",
+                            currency_code, balance, price_quote_to_base
+                        )
+                        .as_str(),
+                    );
+                return Some(
+                    currency_pair_metadata
+                        .round_to_remove_amount_precision_error(balance_in_amount_currency_code)
+                        .expect(
+                            format!(
+                                "failed to round to remove amount precision error from {:?} for {}",
+                                currency_pair_metadata, balance_in_amount_currency_code
+                            )
+                            .as_str(),
+                        ),
+                );
+            }
+            None => {
+                log::warn!(
+                    "There's no balance for {}:{} {}",
+                    exchange_account_id,
+                    currency_pair_metadata.currency_pair(),
+                    trade_side
+                );
+                return None;
+            }
+        }
+    }
+
+    pub fn get_balance_by_currency_code(
+        &self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        currency_code: &CurrencyCode,
+        price: Decimal,
+    ) -> Option<Decimal> {
+        self.balance_reservation_manager
+            .try_get_available_balance_with_unknown_side(
+                configuration_descriptor,
+                exchange_account_id,
+                currency_pair_metadata,
+                currency_code,
+                price,
+            )
+    }
+
+    pub fn get_balance_by_side(
+        &self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        trade_side: OrderSide,
+        price: Decimal,
+    ) -> Option<Decimal> {
+        self.balance_reservation_manager.try_get_available_balance(
+            configuration_descriptor,
+            exchange_account_id,
+            currency_pair_metadata,
+            trade_side,
+            price,
+            true,
+            false,
+            &mut None,
+        )
+    }
+
+    pub fn get_balance_by_reserve_parameters(
+        &self,
+        reserve_parameters: &ReserveParameters,
+    ) -> Option<Decimal> {
+        self.get_balance_by_side(
+            &reserve_parameters.configuration_descriptor,
+            &reserve_parameters.exchange_account_id,
+            reserve_parameters.currency_pair_metadata.clone(),
+            reserve_parameters.order_side,
+            reserve_parameters.price,
+        )
+    }
+
+    pub fn get_balance_reservation_currency_code(
+        &self,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        trade_side: OrderSide,
+    ) -> CurrencyCode {
+        currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before)
+    }
+
+    pub fn balance_was_received(&self, exchange_account_id: &ExchangeAccountId) -> bool {
+        self.balance_reservation_manager
+            .virtual_balance_holder
+            .has_real_balance_on_exchange(exchange_account_id)
+    }
+    pub fn set_target_amount_limit(
+        &mut self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        limit: Decimal,
+    ) {
+        self.balance_reservation_manager.set_target_amount_limit(
+            configuration_descriptor,
+            exchange_account_id,
+            currency_pair_metadata,
+            limit,
+        );
+    }
     // TODO: uncomment me
     // pub fn set_balance_changes_service(&mut self, service: BalanceChangesService) {
     //     self.balance_changes_service = Some(service);

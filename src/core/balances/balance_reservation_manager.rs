@@ -288,6 +288,43 @@ impl BalanceReservationManager {
         .unwrap_or(dec!(0))
     }
 
+    pub fn try_get_available_balance_with_unknown_side(
+        &self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        currency_code: &CurrencyCode,
+        price: Decimal,
+    ) -> Option<Decimal> {
+        for side in [OrderSide::Buy, OrderSide::Sell] {
+            if &currency_pair_metadata.get_trade_code(side, BeforeAfter::Before) == currency_code {
+                return self.try_get_available_balance(
+                    configuration_descriptor,
+                    exchange_account_id,
+                    currency_pair_metadata,
+                    side,
+                    price,
+                    true,
+                    false,
+                    &mut None,
+                );
+            }
+        }
+
+        let request = BalanceRequest::new(
+            configuration_descriptor.clone(),
+            exchange_account_id.clone(),
+            currency_pair_metadata.currency_pair(),
+            currency_code.clone(),
+        );
+        self.virtual_balance_holder.get_virtual_balance(
+            &request,
+            currency_pair_metadata,
+            Some(price),
+            &mut None,
+        )
+    }
+
     pub fn try_get_available_balance(
         &self,
         configuration_descriptor: &ConfigurationDescriptor,
@@ -1570,13 +1607,10 @@ impl BalanceReservationManager {
     ) -> (bool, Vec<ReservationId>) {
         let mut successful_reservations = HashMap::new();
         for reserve_parameter in reserve_parameters {
-            let mut reservation_id = None;
+            let mut reservation_id = ReservationId::default();
 
             if self.try_reserve(reserve_parameter, &mut reservation_id, explanation) {
-                successful_reservations.insert(
-                    reservation_id.expect("impossible to be non none here"),
-                    reserve_parameter,
-                );
+                successful_reservations.insert(reservation_id, reserve_parameter);
             }
         }
 
@@ -1594,17 +1628,16 @@ impl BalanceReservationManager {
     pub fn try_reserve(
         &mut self,
         reserve_parameters: &ReserveParameters,
-        reservation_id: &mut Option<ReservationId>,
+        reservation_id: &mut ReservationId,
         explanation: &mut Option<Explanation>,
     ) -> bool {
-        *reservation_id = None;
+        *reservation_id = ReservationId::default();
 
-        let mut old_balance = dec!(0);
-        let mut new_balance = dec!(0);
-        let mut potential_position = Some(dec!(0));
-        let mut preset =
-            self.get_currency_code_and_reservation_amount(reserve_parameters, explanation);
-        if !self.can_reserve(
+        let mut old_balance = Decimal::default();
+        let mut new_balance = Decimal::default();
+        let mut potential_position = Some(Decimal::default());
+        let mut preset = BalanceReservationPreset::default();
+        if !self.can_reserve_core(
             reserve_parameters,
             &mut old_balance,
             &mut new_balance,
@@ -1642,7 +1675,7 @@ impl BalanceReservationManager {
             preset.reservation_currency_code.clone(),
         );
 
-        *reservation_id = Some(self.reservation_id);
+        *reservation_id = self.reservation_id;
         log::info!(
             "Trying to reserve {:?} {} {} {:?} {} {} {:?}",
             self.reservation_id,
@@ -1673,7 +1706,7 @@ impl BalanceReservationManager {
         true
     }
 
-    fn can_reserve(
+    fn can_reserve_core(
         &self,
         reserve_parameters: &ReserveParameters,
         old_balance: &mut Decimal,
@@ -2008,5 +2041,63 @@ impl BalanceReservationManager {
             new_balance
         );
         true
+    }
+
+    pub fn can_reserve(
+        &self,
+        reserve_parameters: &ReserveParameters,
+        explanation: &mut Option<Explanation>,
+    ) -> bool {
+        self.can_reserve_core(
+            reserve_parameters,
+            &mut Decimal::default(),
+            &mut Decimal::default(),
+            &mut Some(Decimal::default()),
+            &mut BalanceReservationPreset::default(),
+            explanation,
+        )
+    }
+
+    pub fn get_available_leveraged_balance(
+        &self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        trade_side: OrderSide,
+        price: Decimal,
+        explanation: &mut Option<Explanation>,
+    ) -> Option<Decimal> {
+        self.try_get_available_balance(
+            configuration_descriptor,
+            exchange_account_id,
+            currency_pair_metadata.clone(),
+            trade_side,
+            price,
+            true,
+            true,
+            explanation,
+        )
+    }
+
+    pub fn set_target_amount_limit(
+        &mut self,
+        configuration_descriptor: &ConfigurationDescriptor,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        limit: Decimal,
+    ) {
+        for currency_code in [
+            &currency_pair_metadata.base_currency_code,
+            &currency_pair_metadata.quote_currency_code(),
+        ] {
+            let request = BalanceRequest::new(
+                configuration_descriptor.clone(),
+                exchange_account_id.clone(),
+                currency_pair_metadata.currency_pair(),
+                currency_code.clone(),
+            );
+            self.amount_limits_in_amount_currency
+                .set_by_balance_request(&request, limit);
+        }
     }
 }

@@ -188,7 +188,7 @@ impl From<&str> for CurrencyId {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 /// Currency in unified format, e.g. eth, btc
 pub struct CurrencyCode(String4);
