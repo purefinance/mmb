@@ -31,6 +31,8 @@ use crate::core::orders::order::{ClientOrderFillId, ClientOrderId, OrderSide};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::core::DateTime;
 
+use super::balance_reservation_preset::BalanceReservationPreset;
+
 #[derive(Clone)]
 pub(crate) struct BalanceReservationManager {
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
@@ -1559,5 +1561,300 @@ impl BalanceReservationManager {
             reservation_amount_diff
         );
         Ok(())
+    }
+
+    pub fn try_reserve_multiple(
+        &mut self,
+        reserve_parameters: &Vec<ReserveParameters>,
+        explanation: &mut Option<Explanation>,
+    ) -> (bool, Vec<ReservationId>) {
+        let mut successful_reservations = HashMap::new();
+        for reserve_parameter in reserve_parameters {
+            let mut reservation_id = None;
+
+            if self.try_reserve(reserve_parameter, &mut reservation_id, explanation) {
+                successful_reservations.insert(
+                    reservation_id.expect("impossible to be non none here"),
+                    reserve_parameter,
+                );
+            }
+        }
+
+        if successful_reservations.len() != reserve_parameters.len() {
+            for (res_id, res_params) in successful_reservations {
+                self.unreserve(res_id, res_params.amount, &None).expect(
+                    format!("failed to unreserve for {} {}", res_id, res_params.amount).as_str(),
+                );
+            }
+            return (false, Vec::new());
+        }
+        return (true, successful_reservations.keys().cloned().collect_vec());
+    }
+
+    pub fn try_reserve(
+        &mut self,
+        reserve_parameters: &ReserveParameters,
+        reservation_id: &mut Option<ReservationId>,
+        explanation: &mut Option<Explanation>,
+    ) -> bool {
+        *reservation_id = None;
+
+        let mut old_balance = dec!(0);
+        let mut new_balance = dec!(0);
+        let mut potential_position = Some(dec!(0));
+        let mut preset =
+            self.get_currency_code_and_reservation_amount(reserve_parameters, explanation);
+        if !self.can_reserve(
+            reserve_parameters,
+            &mut old_balance,
+            &mut new_balance,
+            &mut potential_position,
+            &mut preset,
+            explanation,
+        ) {
+            log::info!(
+                "Failed to reserve {} {} {:?} {} {} {:?}",
+                preset.reservation_currency_code,
+                preset.amount_in_reservation_currency_code,
+                potential_position,
+                old_balance,
+                new_balance,
+                reserve_parameters
+            );
+            return false;
+        }
+
+        let request = BalanceRequest::new(
+            reserve_parameters.configuration_descriptor.clone(),
+            reserve_parameters.exchange_account_id.clone(),
+            reserve_parameters.currency_pair_metadata.currency_pair(),
+            preset.reservation_currency_code.clone(),
+        );
+        let reservation = BalanceReservation::new(
+            reserve_parameters.configuration_descriptor.clone(),
+            reserve_parameters.exchange_account_id.clone(),
+            reserve_parameters.currency_pair_metadata.clone(),
+            reserve_parameters.order_side,
+            reserve_parameters.price,
+            reserve_parameters.amount,
+            preset.taken_free_amount_in_amount_currency_code,
+            preset.cost_in_amount_currency_code,
+            preset.reservation_currency_code.clone(),
+        );
+
+        *reservation_id = Some(self.reservation_id);
+        log::info!(
+            "Trying to reserve {:?} {} {} {:?} {} {} {:?}",
+            self.reservation_id,
+            preset.reservation_currency_code,
+            preset.amount_in_reservation_currency_code,
+            potential_position,
+            old_balance,
+            new_balance,
+            reservation
+        );
+        self.balance_reservation_storage
+            .add(self.reservation_id, reservation);
+        self.add_reserved_amount(
+            &request,
+            self.reservation_id,
+            reserve_parameters.amount,
+            true,
+        )
+        .expect(
+            format!(
+                "failed to add reserved amount {:?} {} {}",
+                request, self.reservation_id, reserve_parameters.amount,
+            )
+            .as_str(),
+        );
+
+        log::info!("Reserved successfully");
+        true
+    }
+
+    fn can_reserve(
+        &self,
+        reserve_parameters: &ReserveParameters,
+        old_balance: &mut Decimal,
+        new_balance: &mut Decimal,
+        potential_position: &mut Option<Decimal>,
+        preset: &mut BalanceReservationPreset,
+        explanation: &mut Option<Explanation>,
+    ) -> bool {
+        *preset = self.get_currency_code_and_reservation_amount(reserve_parameters, explanation);
+
+        //We set includeFreeAmount to false because we already took FreeAmount into consideration while calculating the preset
+        //Otherwise we would count FreeAmount twice which is wrong
+        *old_balance = self.get_available_balance(reserve_parameters, false, explanation);
+
+        let preset_cost = preset.cost_in_reservation_currency_code;
+
+        *new_balance = *old_balance - preset_cost;
+
+        if let Some(explanation) = explanation {
+            explanation.add_reason(format!(
+                "oldBalance: {} presetCost: {} newBalance: {}",
+                *old_balance, preset_cost, *new_balance
+            ));
+        }
+
+        if !self.can_reserve_with_limit(reserve_parameters, potential_position) {
+            return false;
+        }
+
+        //Added precision error handling for https://github.com/CryptoDreamTeam/CryptoLp/issues/1602
+        //Spot trading might need a more precise solution
+        reserve_parameters
+            .currency_pair_metadata
+            .round_to_remove_amount_precision_error(*new_balance)
+            .expect(
+                format!(
+                    "failed to round to remove amount precision error from {:?} for {}",
+                    reserve_parameters.currency_pair_metadata, *new_balance
+                )
+                .as_str(),
+            )
+            >= dec!(0)
+    }
+
+    fn can_reserve_with_limit(
+        &self,
+        reserve_parameters: &ReserveParameters,
+        potential_position: &mut Option<Decimal>,
+    ) -> bool {
+        let reservation_currency_code = reserve_parameters
+            .currency_pair_metadata
+            .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
+
+        let request = BalanceRequest::new(
+            reserve_parameters.configuration_descriptor.clone(),
+            reserve_parameters.exchange_account_id.clone(),
+            reserve_parameters.currency_pair_metadata.currency_pair(),
+            reservation_currency_code,
+        );
+
+        let limit = match self
+            .amount_limits_in_amount_currency
+            .get_by_balance_request(&request)
+        {
+            Some(limit) => limit,
+            None => {
+                *potential_position = None;
+                return true;
+            }
+        };
+
+        let reserved_amount = self
+            .reserved_amount_in_amount_currency
+            .get_by_balance_request(&request)
+            .unwrap_or(dec!(0));
+        let new_reserved_amount = reserved_amount + reserve_parameters.amount;
+
+        let position = self
+            .position_by_fill_amount_in_amount_currency
+            .get(&request.exchange_account_id, &request.currency_pair)
+            .unwrap_or(dec!(0));
+        *potential_position = if reserve_parameters.order_side == OrderSide::Buy {
+            Some(position + new_reserved_amount)
+        } else {
+            Some(position - new_reserved_amount)
+        };
+
+        let potential_position_abs = potential_position.expect("Must be non None").abs();
+        if potential_position_abs <= limit {
+            // position is within limit range
+            return true;
+        }
+
+        // we are out of limit range there, so it is okay if we are moving to the limit
+        potential_position_abs < position.abs()
+    }
+
+    fn get_currency_code_and_reservation_amount(
+        &self,
+        reserve_parameters: &ReserveParameters,
+        explanation: &mut Option<Explanation>,
+    ) -> BalanceReservationPreset {
+        let price = reserve_parameters.price;
+        let amount = reserve_parameters.amount;
+        let currency_pair_metadata = reserve_parameters.currency_pair_metadata.clone();
+
+        let reservation_currency_code = currency_pair_metadata
+            .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
+
+        let amount_in_reservation_currency_code = currency_pair_metadata
+            .convert_amount_from_amount_currency_code(&reservation_currency_code, amount, price)
+            .expect(
+                format!(
+                    "failed to conver amount from amount currency code {} {} {}",
+                    reservation_currency_code, amount, price
+                )
+                .as_str(),
+            );
+
+        let (cost_in_amount_currency_code, taken_free_amount) =
+            self.calculate_reservation_cost(reserve_parameters);
+        let cost_in_reservation_currency_code = currency_pair_metadata
+            .convert_amount_from_amount_currency_code(
+                &reservation_currency_code,
+                cost_in_amount_currency_code,
+                price,
+            )
+            .expect(
+                format!(
+                    "failed to conver amount from amount currency code {} {} {}",
+                    reservation_currency_code, cost_in_amount_currency_code, price
+                )
+                .as_str(),
+            );
+
+        if let Some(explanation) = explanation {
+            explanation.add_reason(format!(
+                "costInReservationCurrencyCode: {} takenFreeAmount: {}",
+                cost_in_reservation_currency_code, taken_free_amount
+            ));
+        }
+
+        BalanceReservationPreset::new(
+            reservation_currency_code,
+            amount_in_reservation_currency_code,
+            taken_free_amount,
+            cost_in_reservation_currency_code,
+            cost_in_amount_currency_code,
+        )
+    }
+
+    fn calculate_reservation_cost(
+        &self,
+        reserve_parameters: &ReserveParameters,
+    ) -> (Amount, Amount) {
+        if reserve_parameters.currency_pair_metadata.is_derivative {
+            return (reserve_parameters.amount, dec!(0));
+        }
+
+        let free_amount = self.get_unreserved_position_in_amount_currency_code(
+            &reserve_parameters.exchange_account_id,
+            reserve_parameters.currency_pair_metadata.clone(),
+            reserve_parameters.order_side,
+        );
+
+        let amount_to_pay_for = std::cmp::max(dec!(0), reserve_parameters.amount - free_amount);
+
+        let taken_free_amount = reserve_parameters.amount - amount_to_pay_for;
+
+        // todo: use full formula (with fee and etc)
+        let leverage = self
+            .try_get_leverage(
+                &reserve_parameters.exchange_account_id,
+                &reserve_parameters.currency_pair_metadata.currency_pair(),
+            )
+            .expect("failed to get leverage");
+
+        (
+            amount_to_pay_for * reserve_parameters.currency_pair_metadata.amount_multiplier
+                / leverage,
+            taken_free_amount,
+        )
     }
 }

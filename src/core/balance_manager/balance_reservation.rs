@@ -35,6 +35,33 @@ pub(crate) struct BalanceReservation {
 }
 
 impl BalanceReservation {
+    pub fn new(
+        configuration_descriptor: ConfigurationDescriptor,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        order_side: OrderSide,
+        price: Decimal,
+        amount: Amount,
+        taken_free_amount: Decimal,
+        cost: Decimal,
+        reservation_currency_code: CurrencyCode,
+    ) -> Self {
+        Self {
+            configuration_descriptor,
+            exchange_account_id,
+            currency_pair_metadata,
+            order_side,
+            price,
+            amount,
+            taken_free_amount,
+            cost,
+            reservation_currency_code,
+            unreserved_amount: dec!(0),
+            not_approved_amount: amount,
+            approved_parts: HashMap::new(),
+        }
+    }
+
     pub(crate) fn get_proportional_cost_amount(&self, amount: Decimal) -> Result<Decimal> {
         if self.amount == dec!(0) {
             if amount != dec!(0) {

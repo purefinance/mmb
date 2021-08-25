@@ -5,7 +5,7 @@ use std::sync::Arc;
 use rust_decimal::Decimal;
 
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
-use crate::core::exchanges::common::ExchangeAccountId;
+use crate::core::exchanges::common::{Amount, ExchangeAccountId};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::orders::order::OrderSide;
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
@@ -17,7 +17,7 @@ pub(crate) struct ReserveParameters {
     pub(crate) currency_pair_metadata: Arc<CurrencyPairMetadata>,
     pub(crate) order_side: OrderSide,
     pub(crate) price: Decimal,
-    pub(crate) amount: Decimal,
+    pub(crate) amount: Amount,
 }
 
 impl ReserveParameters {
