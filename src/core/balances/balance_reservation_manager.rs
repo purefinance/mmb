@@ -1857,4 +1857,156 @@ impl BalanceReservationManager {
             taken_free_amount,
         )
     }
+
+    pub fn try_update_reservation_price(
+        &mut self,
+        reservation_id: ReservationId,
+        new_price: Decimal,
+    ) -> bool {
+        let reservation = match self.get_reservation(&reservation_id) {
+            Some(reservation) => reservation,
+            None => {
+                log::error!(
+                    "Can't find reservation {} in {:?}",
+                    reservation_id,
+                    self.balance_reservation_storage.get_reservation_ids()
+                );
+                return false;
+            }
+        };
+
+        let mut approved_sum = dec!(0);
+        for (_, approved_part) in reservation.approved_parts.clone() {
+            if !approved_part.is_canceled {
+                approved_sum += approved_part.unreserved_amount;
+            }
+        }
+        let new_raw_rest_amount = reservation.amount - approved_sum;
+        let new_rest_amount_in_reservation_currency = reservation
+            .currency_pair_metadata
+            .convert_amount_from_amount_currency_code(
+                &reservation.reservation_currency_code,
+                new_raw_rest_amount,
+                new_price,
+            )
+            .expect(
+                format!(
+                    "failed to convert amount from amount currency code {} {} {}",
+                    reservation.reservation_currency_code, new_raw_rest_amount, new_price
+                )
+                .as_str(),
+            );
+        let not_approved_amount_in_reservation_currency = reservation
+            .convert_in_reservation_currency(reservation.not_approved_amount)
+            .expect(
+                format!(
+                    "failed to convert in reservation currency {}",
+                    reservation.not_approved_amount
+                )
+                .as_str(),
+            );
+
+        let reservation_amount_diff_in_reservation_currency =
+            new_rest_amount_in_reservation_currency - not_approved_amount_in_reservation_currency;
+
+        let old_balance = self
+            .try_get_available_balance(
+                &reservation.configuration_descriptor,
+                &reservation.exchange_account_id,
+                reservation.currency_pair_metadata.clone(),
+                reservation.order_side,
+                new_price,
+                true,
+                false,
+                &mut None,
+            )
+            .expect(
+                format!(
+                    "failed to get available balance from {:?} for {}",
+                    reservation, new_price
+                )
+                .as_str(),
+            );
+
+        let new_balance = old_balance - reservation_amount_diff_in_reservation_currency;
+        if new_balance < dec!(0) {
+            log::info!(
+                "Failed to update reservation {} {} {} {} {} {} {} {} {}",
+                reservation_id,
+                reservation.exchange_account_id,
+                reservation.reservation_currency_code,
+                reservation.order_side,
+                reservation.price,
+                new_price,
+                reservation.amount,
+                old_balance,
+                new_balance
+            );
+            return false;
+        }
+
+        let balance_request = BalanceRequest::new(
+            reservation.configuration_descriptor.clone(),
+            reservation.exchange_account_id.clone(),
+            reservation.currency_pair_metadata.currency_pair(),
+            reservation.reservation_currency_code.clone(),
+        );
+
+        let reservation = self
+            .easy_get_mut_reservation(reservation_id)
+            .expect("must be non None");
+        reservation.price = new_price;
+
+        // let reservation = reservation.eas
+        let reservation_amount_diff = reservation
+            .currency_pair_metadata
+            .convert_amount_into_amount_currency_code(
+                &reservation.reservation_currency_code,
+                reservation_amount_diff_in_reservation_currency,
+                reservation.price,
+            )
+            .expect(
+                format!(
+                    "failed to convert amount into amount currency code for {:?} {}",
+                    reservation.reservation_currency_code,
+                    reservation_amount_diff_in_reservation_currency
+                )
+                .as_str(),
+            );
+
+        reservation.unreserved_amount -= reservation_amount_diff; // it will be compensated later
+
+        self.add_reserved_amount(
+            &balance_request,
+            reservation_id,
+            reservation_amount_diff,
+            true,
+        )
+        .expect(
+            format!(
+                "failed to reserve amount for {:?} {} {}",
+                balance_request, reservation_id, reservation_amount_diff,
+            )
+            .as_str(),
+        );
+
+        let reservation = self
+            .easy_get_mut_reservation(reservation_id)
+            .expect("must be non None");
+        reservation.not_approved_amount = new_raw_rest_amount;
+
+        log::info!(
+            "Updated reservation {} {} {} {} {} {} {} {} {}",
+            reservation_id,
+            reservation.exchange_account_id,
+            reservation.reservation_currency_code,
+            reservation.order_side,
+            reservation.price,
+            new_price,
+            reservation.amount,
+            old_balance,
+            new_balance
+        );
+        true
+    }
 }

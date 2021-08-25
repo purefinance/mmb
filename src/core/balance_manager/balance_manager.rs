@@ -824,6 +824,43 @@ impl BalanceManager {
         true
     }
 
+    pub fn try_update_reservation(
+        &mut self,
+        reservation_id: ReservationId,
+        new_price: Decimal,
+    ) -> bool {
+        if !self
+            .balance_reservation_manager
+            .try_update_reservation_price(reservation_id, new_price)
+        {
+            return false;
+        }
+        self.save_balances();
+        true
+    }
+
+    // TODO: fix it into 1 fn try_reserve_pair/try_reserve_three
+    pub fn try_reserve_pair(
+        &mut self,
+        order1: ReserveParameters,
+        order2: ReserveParameters,
+        reservation_id_1: &mut Option<ReservationId>,
+        reservation_id_2: &mut Option<ReservationId>,
+    ) -> bool {
+        let (is_success, reservations_id) = self
+            .balance_reservation_manager
+            .try_reserve_multiple(&vec![order1, order2], &mut None);
+        if is_success && !reservations_id.is_empty() && reservations_id.len() == 3 {
+            self.save_balances();
+            *reservation_id_1 = Some(reservations_id[0]);
+            *reservation_id_2 = Some(reservations_id[1]);
+            return true;
+        }
+        *reservation_id_1 = None;
+        *reservation_id_2 = None;
+        false
+    }
+
     pub fn try_reserve_three(
         &mut self,
         order1: ReserveParameters,
