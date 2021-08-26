@@ -6,6 +6,7 @@ use crate::core::exchanges::common::Amount;
 use crate::core::exchanges::common::CurrencyCode;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::currency_pair_metadata::Precision;
 use crate::core::orders::order::ClientOrderId;
 use crate::core::orders::order::OrderSide;
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
@@ -74,12 +75,10 @@ impl BalanceReservation {
     }
 
     pub fn is_amount_within_symbol_margin_error(&self, amount: Decimal) -> bool {
-        amount.abs()
-            <= self
-                .currency_pair_metadata
-                .get_amount_tick()
-                .expect("failed to get amount tick")
-                * dec!(0.01)
+        match self.currency_pair_metadata.amount_precision {
+            Precision::ByTick { tick } => return amount.abs() <= tick * dec!(0.01),
+            Precision::ByMantisa { precision: _ } => std::panic!("Unknown precision type"),
+        }
     }
 
     pub(crate) fn convert_in_reservation_currency(

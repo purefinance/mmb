@@ -226,10 +226,10 @@ impl BalanceReservationManager {
 
             if reservation.unreserved_amount != dec!(0) {
                 log::error!(
-                    "AmountLeft {} != 0 for {} {} {} {:?}",
+                    "AmountLeft {} != 0 for {} {:?} {} {} {:?}",
                     reservation.unreserved_amount,
                     reservation_id,
-                    //     reservation.currency_pair_metadata,get_amount_tick() TODO: grays uncomment me after implemented
+                    reservation.currency_pair_metadata.amount_precision,
                     old_balance,
                     new_balance,
                     reservation
@@ -660,7 +660,7 @@ impl BalanceReservationManager {
                 request,
                 currency_pair_metadata
             );
-        }; // TODO: grays fixe me  {@request} {@symbol}
+        };
 
         Some(std::cmp::max(dec!(0), limited_balance_in_currency_code))
     }
