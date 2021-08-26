@@ -11,11 +11,11 @@ use crate::core::orders::order::OrderSide;
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
 #[derive(Clone, Hash, Debug, Eq, PartialEq)]
-pub(crate) struct ReserveParameters {
+pub struct ReserveParameters {
     pub(crate) configuration_descriptor: ConfigurationDescriptor,
     pub(crate) exchange_account_id: ExchangeAccountId,
     pub(crate) currency_pair_metadata: Arc<CurrencyPairMetadata>,
-    pub(crate) order_side: OrderSide,
+    pub(crate) order_side: Option<OrderSide>,
     pub(crate) price: Decimal,
     pub(crate) amount: Amount,
 }
@@ -25,7 +25,7 @@ impl ReserveParameters {
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        order_side: OrderSide,
+        order_side: Option<OrderSide>,
         price: Decimal,
         amount: Decimal,
     ) -> Self {

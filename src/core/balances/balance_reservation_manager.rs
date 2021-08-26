@@ -78,9 +78,10 @@ impl BalanceReservationManager {
                 reservation.configuration_descriptor.clone(),
                 reservation.exchange_account_id.clone(),
                 reservation.currency_pair_metadata.currency_pair(),
-                reservation
-                    .currency_pair_metadata
-                    .get_trade_code(reservation.order_side, BeforeAfter::Before),
+                reservation.currency_pair_metadata.get_trade_code(
+                    OrderSide::to_trade_side(reservation.order_side),
+                    BeforeAfter::Before,
+                ),
             );
             if let Some(grouped_reservations) = reserved_by_request.get_mut(&balance_request) {
                 *grouped_reservations += reservation.unreserved_amount;
@@ -248,7 +249,7 @@ impl BalanceReservationManager {
             if self.is_call_from_clone {
                 let reservation = self.easy_get_reservation(reservation_id)?;
                 log::info!(
-                    "Unreserved {} from {} {} {} {} {} {} {} {} {} {} {}",
+                    "Unreserved {} from {} {} {} {:?} {} {} {} {} {} {} {}",
                     amount_to_unreserve,
                     reservation_id,
                     reservation.exchange_account_id,
@@ -279,7 +280,7 @@ impl BalanceReservationManager {
             &parameters.configuration_descriptor,
             &parameters.exchange_account_id,
             parameters.currency_pair_metadata.clone(),
-            parameters.order_side,
+            OrderSide::to_trade_side(parameters.order_side),
             parameters.price,
             include_free_amount,
             false,
@@ -475,16 +476,14 @@ impl BalanceReservationManager {
             return dec!(0);
         }
 
-        if let Some(current_position) = self
+        let current_position = self
             .position_by_fill_amount_in_amount_currency
             .get(exchange_account_id, &currency_pair_metadata.currency_pair())
-        {
-            match trade_side {
-                OrderSide::Buy => return std::cmp::max(dec!(0), -current_position),
-                OrderSide::Sell => return std::cmp::max(dec!(0), current_position),
-            }
+            .expect("failed to get position by fill amount in amount currency");
+        match trade_side {
+            OrderSide::Buy => return std::cmp::max(dec!(0), -current_position),
+            OrderSide::Sell => return std::cmp::max(dec!(0), current_position),
         }
-        dec!(0) // TODO: delete me
     }
 
     fn get_unreserved_position_in_amount_currency_code(
@@ -504,7 +503,7 @@ impl BalanceReservationManager {
         let taken_amount = reservation
             .iter()
             .map(|(_, balance_reservation)| {
-                if balance_reservation.order_side == trade_side {
+                if OrderSide::to_trade_side(balance_reservation.order_side) == trade_side {
                     return balance_reservation.taken_free_amount;
                 }
                 dec!(0)
@@ -1357,7 +1356,7 @@ impl BalanceReservationManager {
                         &dst_reservation.configuration_descriptor,
                         &dst_reservation.exchange_account_id,
                         dst_reservation.currency_pair_metadata.clone(),
-                        dst_reservation.order_side,
+                        OrderSide::to_trade_side(dst_reservation.order_side),
                         dst_reservation.price,
                         true,
                         false,
@@ -1588,7 +1587,7 @@ impl BalanceReservationManager {
         }
         let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
         log::info!(
-            "Updated reservation {} {} {} {} {} {} {}",
+            "Updated reservation {} {} {} {:?} {} {} {}",
             reservation_id,
             reservation.exchange_account_id,
             reservation.reservation_currency_code,
@@ -1756,9 +1755,10 @@ impl BalanceReservationManager {
         reserve_parameters: &ReserveParameters,
         potential_position: &mut Option<Decimal>,
     ) -> bool {
-        let reservation_currency_code = reserve_parameters
-            .currency_pair_metadata
-            .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
+        let reservation_currency_code = reserve_parameters.currency_pair_metadata.get_trade_code(
+            OrderSide::to_trade_side(reserve_parameters.order_side),
+            BeforeAfter::Before,
+        );
 
         let request = BalanceRequest::new(
             reserve_parameters.configuration_descriptor.clone(),
@@ -1788,11 +1788,12 @@ impl BalanceReservationManager {
             .position_by_fill_amount_in_amount_currency
             .get(&request.exchange_account_id, &request.currency_pair)
             .unwrap_or(dec!(0));
-        *potential_position = if reserve_parameters.order_side == OrderSide::Buy {
-            Some(position + new_reserved_amount)
-        } else {
-            Some(position - new_reserved_amount)
-        };
+        *potential_position =
+            if OrderSide::to_trade_side(reserve_parameters.order_side) == OrderSide::Buy {
+                Some(position + new_reserved_amount)
+            } else {
+                Some(position - new_reserved_amount)
+            };
 
         let potential_position_abs = potential_position.expect("Must be non None").abs();
         if potential_position_abs <= limit {
@@ -1813,8 +1814,10 @@ impl BalanceReservationManager {
         let amount = reserve_parameters.amount;
         let currency_pair_metadata = reserve_parameters.currency_pair_metadata.clone();
 
-        let reservation_currency_code = currency_pair_metadata
-            .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
+        let reservation_currency_code = currency_pair_metadata.get_trade_code(
+            OrderSide::to_trade_side(reserve_parameters.order_side),
+            BeforeAfter::Before,
+        );
 
         let amount_in_reservation_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(&reservation_currency_code, amount, price)
@@ -1869,7 +1872,7 @@ impl BalanceReservationManager {
         let free_amount = self.get_unreserved_position_in_amount_currency_code(
             &reserve_parameters.exchange_account_id,
             reserve_parameters.currency_pair_metadata.clone(),
-            reserve_parameters.order_side,
+            OrderSide::to_trade_side(reserve_parameters.order_side),
         );
 
         let amount_to_pay_for = std::cmp::max(dec!(0), reserve_parameters.amount - free_amount);
@@ -1947,7 +1950,7 @@ impl BalanceReservationManager {
                 &reservation.configuration_descriptor,
                 &reservation.exchange_account_id,
                 reservation.currency_pair_metadata.clone(),
-                reservation.order_side,
+                OrderSide::to_trade_side(reservation.order_side),
                 new_price,
                 true,
                 false,
@@ -1964,7 +1967,7 @@ impl BalanceReservationManager {
         let new_balance = old_balance - reservation_amount_diff_in_reservation_currency;
         if new_balance < dec!(0) {
             log::info!(
-                "Failed to update reservation {} {} {} {} {} {} {} {} {}",
+                "Failed to update reservation {} {} {} {:?} {} {} {} {} {}",
                 reservation_id,
                 reservation.exchange_account_id,
                 reservation.reservation_currency_code,
@@ -2029,7 +2032,7 @@ impl BalanceReservationManager {
         reservation.not_approved_amount = new_raw_rest_amount;
 
         log::info!(
-            "Updated reservation {} {} {} {} {} {} {} {} {}",
+            "Updated reservation {} {} {} {:?} {} {} {} {} {}",
             reservation_id,
             reservation.exchange_account_id,
             reservation.reservation_currency_code,

@@ -27,7 +27,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 #[derive(Clone)]
-struct BalanceManager {
+pub struct BalanceManager {
     // private readonly IDateTimeService _dateTimeService;
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
@@ -179,7 +179,7 @@ impl BalanceManager {
     fn restore_fill_amount_position(
         &mut self,
         exchange_account_id: &ExchangeAccountId,
-        positions: Option<&Vec<DerivativePositionInfo>>,
+        positions: &Option<Vec<DerivativePositionInfo>>,
     ) -> Result<()> {
         let positions = if let Some(positions) = positions {
             if positions.is_empty() {
@@ -368,11 +368,7 @@ impl BalanceManager {
                 );
             }
         }
-
-        self.restore_fill_amount_position(
-            exchange_account_id,
-            Some(&balances_and_positions.positions),
-        )?;
+        self.restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
 
         {
             let exchange_currencies =
@@ -1037,7 +1033,7 @@ impl BalanceManager {
             &reserve_parameters.configuration_descriptor,
             &reserve_parameters.exchange_account_id,
             reserve_parameters.currency_pair_metadata.clone(),
-            reserve_parameters.order_side,
+            OrderSide::to_trade_side(reserve_parameters.order_side),
             reserve_parameters.price,
         )
     }

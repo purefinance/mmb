@@ -1,6 +1,6 @@
 use chrono::Utc;
 
-mod balance_manager;
+pub mod balance_manager;
 mod balances;
 pub mod connectivity;
 pub mod exchanges;

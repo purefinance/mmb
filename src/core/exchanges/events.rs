@@ -21,7 +21,7 @@ pub struct ExchangeBalance {
 #[derive(Debug, Clone)]
 pub struct ExchangeBalancesAndPositions {
     pub balances: Vec<ExchangeBalance>,
-    pub positions: Vec<DerivativePositionInfo>,
+    pub positions: Option<Vec<DerivativePositionInfo>>,
 }
 
 #[derive(Debug, Clone)]

@@ -15,7 +15,7 @@ use itertools::Itertools;
 use rust_decimal::Decimal;
 
 // TODO: add storage item like in C# if needed
-pub(crate) struct Balances {
+pub struct Balances {
     pub version: usize,
     pub balances_by_exchange_id: Option<HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>>,
     pub virtual_diff_balances: Option<ServiceValueTree>,

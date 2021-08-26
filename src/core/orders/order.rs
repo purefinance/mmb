@@ -33,6 +33,13 @@ impl OrderSide {
             OrderSide::Sell => OrderSide::Buy,
         }
     }
+
+    pub fn to_trade_side(order_side: Option<OrderSide>) -> OrderSide {
+        match order_side {
+            Some(order_side) => order_side,
+            None => std::panic!("failed to unwrap Option<OrderSide>"),
+        }
+    }
 }
 
 impl Display for OrderSide {

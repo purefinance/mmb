@@ -19,7 +19,7 @@ pub(crate) type CurrencyPairCurrencyCodeMap = HashMap<CurrencyPair, CurrencyCode
 pub(crate) type CurrencyCodeValueMap = HashMap<CurrencyCode, Decimal>;
 
 #[derive(Debug, Clone)]
-pub(crate) struct ServiceValueTree {
+pub struct ServiceValueTree {
     tree: ServiceNameConfigurationKeyMap,
 }
 // get

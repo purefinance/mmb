@@ -5,7 +5,7 @@ use crate::core::DateTime;
 use rust_decimal::Decimal;
 
 #[derive(Clone, Debug)]
-pub(crate) struct ApprovedPart {
+pub struct ApprovedPart {
     date_time: DateTime,
     client_order_id: ClientOrderId,
     /// Order amount in current CurrencyCode

@@ -4,7 +4,7 @@ use crate::core::DateTime;
 use rust_decimal::Decimal;
 
 #[derive(Clone, Debug)]
-pub(crate) struct PositionChange {
+pub struct PositionChange {
     pub(crate) client_order_fill_id: ClientOrderFillId,
     pub(crate) date_time: DateTime,
     pub(crate) portion: Decimal,
