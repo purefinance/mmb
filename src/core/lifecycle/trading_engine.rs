@@ -103,7 +103,7 @@ impl EngineContext {
         const TIMEOUT: Duration = Duration::from_secs(5);
 
         tokio::select! {
-            _ = cancel_opened_orders(&self.exchanges, cancellation_token.clone()) => (),
+            _ = cancel_opened_orders(&self.exchanges, cancellation_token.clone(), true) => (),
             _ = tokio::time::sleep(TIMEOUT) => {
                 cancellation_token.cancel();
                 log::error!(
@@ -133,14 +133,14 @@ impl EngineContext {
 async fn cancel_opened_orders(
     exchanges: &DashMap<ExchangeAccountId, Arc<Exchange>>,
     cancellation_token: CancellationToken,
+    add_missing_open_orders: bool,
 ) {
     info!("Canceling opened orders started");
 
-    join_all(
-        exchanges
-            .iter()
-            .map(|x| x.clone().cancel_opened_orders(cancellation_token.clone())),
-    )
+    join_all(exchanges.iter().map(|x| {
+        x.clone()
+            .cancel_opened_orders(cancellation_token.clone(), add_missing_open_orders)
+    }))
     .await;
 
     info!("Canceling opened orders finished");

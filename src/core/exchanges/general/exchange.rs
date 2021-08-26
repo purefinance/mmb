@@ -478,8 +478,12 @@ impl Exchange {
         Ok(())
     }
 
-    pub async fn cancel_opened_orders(self: Arc<Self>, cancellation_token: CancellationToken) {
-        match self.get_open_orders(false).await {
+    pub async fn cancel_opened_orders(
+        self: Arc<Self>,
+        cancellation_token: CancellationToken,
+        add_missing_open_orders: bool,
+    ) {
+        match self.get_open_orders(add_missing_open_orders).await {
             Err(error) => {
                 error!(
                     "Unable to get opened order for exchange account id {}: {:?}",
