@@ -2,7 +2,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, MathematicalOps};
 use rust_decimal_macros::dec;
 
 use crate::core::{
@@ -352,6 +352,13 @@ impl CurrencyPairMetadata {
             None => rounded_amount,
             Some(min_amount) => min_amount.max(rounded_amount),
         })
+    }
+
+    pub fn get_amount_tick(&self) -> Result<Decimal> {
+        match self.amount_precision {
+            Precision::ByTick { tick } => return Ok(dec!(0.1).powd(tick)),
+            Precision::ByMantisa { precision: _ } => bail!("Unknown precision type"),
+        }
     }
 }
 

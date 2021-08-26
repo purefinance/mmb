@@ -73,9 +73,13 @@ impl BalanceReservation {
         Ok(self.cost * amount / self.amount)
     }
 
-    pub fn is_amount_within_symbol_margin_error(&self, _amount: Decimal) -> bool {
-        // TODO: grays should be implemented, ask Evgeniy
-        false
+    pub fn is_amount_within_symbol_margin_error(&self, amount: Decimal) -> bool {
+        amount.abs()
+            <= self
+                .currency_pair_metadata
+                .get_amount_tick()
+                .expect("failed to get amount tick")
+                * dec!(0.01)
     }
 
     pub(crate) fn convert_in_reservation_currency(
