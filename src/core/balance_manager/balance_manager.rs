@@ -45,16 +45,11 @@ struct BalanceManager {
 impl BalanceManager {
     pub fn restore_balance_state(&mut self, balances: &Balances, restore_exchange_balances: bool) {
         if restore_exchange_balances {
-            match &balances.balances_by_exchange_id {
-                Some(balances_by_exchange_id) => {
-                    for (exchange_account_id, balance) in balances_by_exchange_id {
-                        self.balance_reservation_manager
-                            .virtual_balance_holder
-                            .update_balances(exchange_account_id, balance);
-                    }
-                }
-                None => {
-                    log::error!(""); // TODO: grays fix me
+            if let Some(balances_by_exchange_id) = &balances.balances_by_exchange_id {
+                for (exchange_account_id, balance) in balances_by_exchange_id {
+                    self.balance_reservation_manager
+                        .virtual_balance_holder
+                        .update_balances(exchange_account_id, balance);
                 }
             }
         }
