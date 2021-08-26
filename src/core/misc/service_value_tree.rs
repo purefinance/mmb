@@ -516,6 +516,49 @@ mod test {
         log::info!("trees remain the same after changing 'service_configuration_key'");
     }
 
+    #[test]
+    pub fn add_test() {
+        init_logger();
+        let mut test_data = get_test_data();
+        assert_eq!(test_data.0.get_as_balances(), test_data.1);
+
+        let new_service_name = String::from("new_service_name");
+        let new_service_configuration_key = String::from("new_service_configuration_key");
+        let new_exchange_account_id = ExchangeAccountId::new("new_exchange_account_id".into(), 0);
+        let new_currency_pair = CurrencyPair::from_codes(
+            "new_currency_pair_b_0".into(),
+            "new_currency_pair_q_0".into(),
+        );
+        let new_currency_code = CurrencyCode::new("0".into());
+        let new_value = dec!(0);
+
+        let mut new_tree = ServiceValueTree::new();
+        new_tree.set_by_currency_code(
+            &new_service_name,
+            &new_service_configuration_key,
+            &new_exchange_account_id,
+            &new_currency_pair,
+            &new_currency_code,
+            new_value,
+        );
+
+        test_data.1.insert(
+            BalanceRequest::new(
+                ConfigurationDescriptor::new(
+                    new_service_name.clone(),
+                    new_service_configuration_key.clone(),
+                ),
+                new_exchange_account_id.clone(),
+                new_currency_pair.clone(),
+                new_currency_code.clone(),
+            ),
+            new_value,
+        );
+
+        new_tree.add(&test_data.0);
+        assert_eq!(new_tree.get_as_balances(), test_data.1);
+    }
+
     fn compare_trees(
         tree: &ServiceNameConfigurationKeyMap,
         service_name: &String,
