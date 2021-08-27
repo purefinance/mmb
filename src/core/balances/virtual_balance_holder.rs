@@ -179,7 +179,7 @@ impl VirtualBalanceHolder {
         currency_code: &CurrencyCode,
         price: Option<Decimal>,
     ) -> Option<Decimal> {
-        if currency_pair_metadata.is_derivative
+        if !currency_pair_metadata.is_derivative
             || currency_pair_metadata.balance_currency_code == Some(currency_code.clone())
         {
             return self.get_raw_exchange_balance(exchange_account_id, currency_code);

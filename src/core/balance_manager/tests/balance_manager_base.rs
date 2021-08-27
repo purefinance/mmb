@@ -1,5 +1,5 @@
 #[cfg(test)]
-use std::{collections::HashMap, str, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::core::{
     balance_manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
@@ -39,6 +39,12 @@ pub struct BalanceManagerBase {
 }
 // static
 impl BalanceManagerBase {
+    pub fn exchange_name() -> String {
+        "local_exchange_account_id".into()
+    }
+    pub fn exchange_id() -> String {
+        BalanceManagerBase::exchange_name() + "0".into()
+    }
     // Quote currency
     pub fn btc() -> String {
         "BTC".into()
@@ -58,8 +64,71 @@ impl BalanceManagerBase {
             CurrencyCode::new(BalanceManagerBase::btc().into()),
         )
     }
+
+    pub fn update_balance(
+        balance_manager: &mut BalanceManager,
+        exchange_account_id: &ExchangeAccountId,
+        balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
+    ) {
+        balance_manager
+            .update_exchange_balance(
+                exchange_account_id,
+                ExchangeBalancesAndPositions {
+                    balances: balances_by_currency_code
+                        .iter()
+                        .map(|x| ExchangeBalance {
+                            currency_code: x.0.clone(),
+                            balance: x.1.clone(),
+                        })
+                        .collect(),
+                    positions: None,
+                },
+            )
+            .expect("failed to update exchange balance");
+    }
+
+    pub fn update_balance_with_positions(
+        balance_manager: &mut BalanceManager,
+        exchange_account_id: &ExchangeAccountId,
+        balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
+        positions_by_currency_pair: HashMap<CurrencyPair, Decimal>,
+    ) {
+        let balances: Vec<ExchangeBalance> = balances_by_currency_code
+            .iter()
+            .map(|x| ExchangeBalance {
+                currency_code: x.0.clone(),
+                balance: x.1.clone(),
+            })
+            .collect();
+
+        let positions: Vec<DerivativePositionInfo> = positions_by_currency_pair
+            .iter()
+            .map(|x| {
+                DerivativePositionInfo::new(
+                    x.0.clone(),
+                    x.1.clone(),
+                    None,
+                    dec!(0),
+                    dec!(0),
+                    dec!(1),
+                )
+            })
+            .collect();
+
+        balance_manager
+            .update_exchange_balance(
+                exchange_account_id,
+                ExchangeBalancesAndPositions {
+                    balances,
+                    positions: Some(positions),
+                },
+            )
+            .expect("failed to update exchange balance");
+    }
+
     pub fn new() -> Self {
-        let exchange_account_id = ExchangeAccountId::new("Binance".into(), 0);
+        let exchange_account_id =
+            ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 0);
         Self {
             ten_digit_precision: dec!(0.0000000001),
             order_index: 1,
@@ -184,66 +253,5 @@ impl BalanceManagerBase {
             status_history: Default::default(),
             internal_props: Default::default(),
         }
-    }
-
-    pub fn update_balance(
-        balance_manager: &mut BalanceManager,
-        exchange_account_id: &ExchangeAccountId,
-        balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
-    ) {
-        balance_manager
-            .update_exchange_balance(
-                exchange_account_id,
-                ExchangeBalancesAndPositions {
-                    balances: balances_by_currency_code
-                        .iter()
-                        .map(|x| ExchangeBalance {
-                            currency_code: x.0.clone(),
-                            balance: x.1.clone(),
-                        })
-                        .collect(),
-                    positions: None,
-                },
-            )
-            .expect("failed to update exchange balance");
-    }
-
-    pub fn update_balance_with_positions(
-        balance_manager: &mut BalanceManager,
-        exchange_account_id: &ExchangeAccountId,
-        balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
-        positions_by_currency_pair: HashMap<CurrencyPair, Decimal>,
-    ) {
-        let balances: Vec<ExchangeBalance> = balances_by_currency_code
-            .iter()
-            .map(|x| ExchangeBalance {
-                currency_code: x.0.clone(),
-                balance: x.1.clone(),
-            })
-            .collect();
-
-        let positions: Vec<DerivativePositionInfo> = positions_by_currency_pair
-            .iter()
-            .map(|x| {
-                DerivativePositionInfo::new(
-                    x.0.clone(),
-                    x.1.clone(),
-                    None,
-                    dec!(0),
-                    dec!(0),
-                    dec!(1),
-                )
-            })
-            .collect();
-
-        balance_manager
-            .update_exchange_balance(
-                exchange_account_id,
-                ExchangeBalancesAndPositions {
-                    balances,
-                    positions: Some(positions),
-                },
-            )
-            .expect("failed to update exchange balance");
     }
 }

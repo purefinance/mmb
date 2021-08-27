@@ -852,18 +852,17 @@ impl BalanceManager {
 
     pub fn try_reserve(
         &mut self,
-        reserve_parameters: ReserveParameters,
+        reserve_parameters: &ReserveParameters,
         reservation_id: &mut ReservationId,
         explanation: &mut Option<Explanation>,
     ) -> bool {
-        if self.balance_reservation_manager.try_reserve(
-            &reserve_parameters,
+        if !self.balance_reservation_manager.try_reserve(
+            reserve_parameters,
             reservation_id,
             explanation,
         ) {
             return false;
         }
-
         self.save_balances();
         true
     }
@@ -924,7 +923,7 @@ impl BalanceManager {
             .can_reserve(reserve_parameters, explanation)
     }
 
-    pub fn get_exchange_balance_holder(
+    pub fn get_exchange_balance(
         &self,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,

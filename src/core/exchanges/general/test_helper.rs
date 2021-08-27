@@ -28,6 +28,38 @@ use crate::core::{
 pub(crate) fn get_test_exchange(
     is_derivative: bool,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
+    let base_currency_code = "PHB";
+    let quote_currency_code = "BTC";
+    let amount_currency_code = if is_derivative {
+        quote_currency_code.clone()
+    } else {
+        base_currency_code.clone()
+    };
+
+    let price_tick = dec!(0.1);
+    let currency_pair_metadata = Arc::new(CurrencyPairMetadata::new(
+        false,
+        is_derivative,
+        base_currency_code.into(),
+        base_currency_code.into(),
+        quote_currency_code.into(),
+        quote_currency_code.into(),
+        None,
+        None,
+        amount_currency_code.into(),
+        None,
+        None,
+        None,
+        None,
+        Precision::ByTick { tick: price_tick },
+        Precision::ByTick { tick: dec!(0) },
+    ));
+    get_test_exchange_with_currency_pair_metadata(currency_pair_metadata)
+}
+
+pub(crate) fn get_test_exchange_with_currency_pair_metadata(
+    currency_pair_metadata: Arc<CurrencyPairMetadata>,
+) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
     let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
@@ -70,35 +102,11 @@ pub(crate) fn get_test_exchange(
         TimeoutManager::new(HashMap::new()),
         commission,
     );
-    let base_currency_code = "PHB";
-    let quote_currency_code = "BTC";
-    let amount_currency_code = if is_derivative {
-        quote_currency_code.clone()
-    } else {
-        base_currency_code.clone()
-    };
 
-    let price_tick = dec!(0.1);
-    let symbol = CurrencyPairMetadata::new(
-        false,
-        is_derivative,
-        base_currency_code.into(),
-        base_currency_code.into(),
-        quote_currency_code.into(),
-        quote_currency_code.into(),
-        None,
-        None,
-        amount_currency_code.into(),
-        None,
-        None,
-        None,
-        None,
-        Precision::ByTick { tick: price_tick },
-        Precision::ByTick { tick: dec!(0) },
+    exchange.symbols.insert(
+        currency_pair_metadata.currency_pair(),
+        currency_pair_metadata,
     );
-    exchange
-        .symbols
-        .insert(symbol.currency_pair(), Arc::new(symbol));
 
     (exchange, rx)
 }

@@ -9,7 +9,7 @@ use crate::core::{
             currency_pair_metadata::{CurrencyPairMetadata, Precision},
             currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter,
             exchange::Exchange,
-            test_helper::get_test_exchange,
+            test_helper::get_test_exchange_with_currency_pair_metadata,
         },
     },
     orders::{
@@ -66,29 +66,34 @@ impl BalanceManagerDerivative {
         Arc<CurrencyPairMetadata>,
         HashMap<ExchangeAccountId, Arc<Exchange>>,
     ) {
+        let base_currency_code = BalanceManagerBase::eth();
+        let quote_currency_code = BalanceManagerBase::btc();
         let currency_pair_metadata = Arc::from(CurrencyPairMetadata::new(
             false,
             true,
-            CurrencyId::new(BalanceManagerBase::eth().into()),
-            CurrencyCode::new(BalanceManagerBase::eth().into()),
-            CurrencyId::new(BalanceManagerBase::btc().into()),
-            CurrencyCode::new(BalanceManagerBase::btc().into()),
+            base_currency_code.as_str().into(),
+            base_currency_code.as_str().into(),
+            quote_currency_code.as_str().into(),
+            quote_currency_code.as_str().into(),
             None,
             None,
-            CurrencyCode::new(BalanceManagerBase::btc().into()),
+            quote_currency_code.as_str().into(),
             None,
             None,
             None,
-            Some(CurrencyCode::new(BalanceManagerBase::eth().into())),
+            Some(base_currency_code.as_str().into()),
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(3) },
         ));
 
-        let exchange = get_test_exchange(true).0;
-        exchange.set_symbols(vec![currency_pair_metadata.clone()]);
+        let exchange =
+            get_test_exchange_with_currency_pair_metadata(currency_pair_metadata.clone()).0;
+        // exchange.set_symbols(vec![currency_pair_metadata.clone()]);
+
         let mut res = HashMap::new();
         res.insert(exchange.exchange_account_id.clone(), exchange);
-        let exchange = get_test_exchange(true).0;
+        let exchange =
+            get_test_exchange_with_currency_pair_metadata(currency_pair_metadata.clone()).0;
         res.insert(exchange.exchange_account_id.clone(), exchange);
 
         (currency_pair_metadata, res)
