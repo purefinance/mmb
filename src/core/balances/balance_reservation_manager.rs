@@ -741,14 +741,15 @@ impl BalanceReservationManager {
         currency_pair: &CurrencyPair,
         trade_side: OrderSide,
     ) -> Option<Decimal> {
-        let exchange = self.exchanges_by_id.get(exchange_account_id)?;
-
-        let currency_pair_metadata = match exchange.get_currency_pair_metadata(currency_pair) {
+        let currency_pair_metadata = match self
+            .currency_pair_to_currency_pair_metadata_converter
+            .try_get_currency_pair_metadata(exchange_account_id, currency_pair)
+        {
             Ok(currency_pair_metadata) => currency_pair_metadata,
             Err(error) => {
                 log::error!(
                     "failed to get_currency_pair_metadata from exchange with account id {:?} for currency pair {}: {:?}",
-                    exchange.exchange_account_id,
+                    exchange_account_id,
                     currency_pair,
                     error
                 );
