@@ -22,6 +22,7 @@ use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, TradePlaceAccount,
 };
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
+use crate::core::exchanges::general::currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
 use crate::core::misc::reserve_parameters::ReserveParameters;
@@ -37,7 +38,7 @@ use super::balance_reservation_preset::BalanceReservationPreset;
 pub(crate) struct BalanceReservationManager {
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
-    // private readonly ICurrencyPairToSymbolConverter _currencyPairToSymbolConverter;
+    currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
     // private readonly IDateTimeService _dateTimeService;
     // private readonly ILogger _logger = Log.ForContext<BalanceReservationManager>();
     reserved_amount_in_amount_currency: ServiceValueTree,
@@ -53,6 +54,23 @@ pub(crate) struct BalanceReservationManager {
 }
 
 impl BalanceReservationManager {
+    pub fn new(
+        exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+        currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
+    ) -> Self {
+        Self {
+            exchanges_by_id: exchanges_by_id.clone(),
+            currency_pair_to_currency_pair_metadata_converter,
+            reserved_amount_in_amount_currency: ServiceValueTree::new(),
+            amount_limits_in_amount_currency: ServiceValueTree::new(),
+            position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount::new(),
+            reservation_id: ReservationId::generate(),
+            virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),
+            balance_reservation_storage: BalanceReservationStorage::new(),
+            is_call_from_clone: false,
+        }
+    }
+
     pub fn update_reserved_balances(
         &mut self,
         reserved_balances_by_id: &HashMap<ReservationId, BalanceReservation>,

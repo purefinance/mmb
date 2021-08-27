@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{CurrencyCode, ExchangeAccountId};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 
@@ -19,6 +20,18 @@ pub(crate) struct VirtualBalanceHolder {
 }
 
 impl VirtualBalanceHolder {
+    pub fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Self {
+        let mut res = Self {
+            balance_by_exchange_id: HashMap::new(),
+            balance_diff: ServiceValueTree::new(),
+        };
+        for keys in exchanges_by_id.keys() {
+            res.balance_by_exchange_id
+                .insert(keys.clone(), HashMap::new());
+        }
+        res
+    }
+
     pub fn update_balances(
         &mut self,
         exchange_account_id: &ExchangeAccountId,

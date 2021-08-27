@@ -9,7 +9,7 @@ use crate::core::exchanges::general::exchange::Exchange;
 use anyhow::{bail, Result};
 
 #[derive(Clone)]
-pub(crate) struct CurrencyPairToCurrencyMetadataConverter {
+pub struct CurrencyPairToCurrencyMetadataConverter {
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 }
 

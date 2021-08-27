@@ -19,6 +19,13 @@ pub struct BalancePositionByFillAmount {
 }
 
 impl BalancePositionByFillAmount {
+    pub fn new() -> Self {
+        Self {
+            position_by_fill_amount: HashMap::new(),
+            position_changes: HashMap::new(),
+        }
+    }
+
     pub fn get(
         &self,
         exchange_account_id: &ExchangeAccountId,

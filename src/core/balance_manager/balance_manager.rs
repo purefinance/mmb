@@ -43,6 +43,24 @@ pub struct BalanceManager {
 }
 
 impl BalanceManager {
+    pub fn new(
+        exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+        currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
+    ) -> Self {
+        Self {
+            exchanges_by_id: exchanges_by_id.clone(),
+            currency_pair_to_currency_pair_metadata_converter:
+                currency_pair_to_currency_pair_metadata_converter.clone(),
+            exchange_id_with_restored_positions: HashSet::new(),
+            balance_reservation_manager: BalanceReservationManager::new(
+                exchanges_by_id,
+                currency_pair_to_currency_pair_metadata_converter,
+            ),
+            position_differs_times_in_row_by_exchange_id: HashMap::new(),
+            last_order_fills: HashMap::new(),
+        }
+    }
+
     pub fn restore_balance_state(&mut self, balances: &Balances, restore_exchange_balances: bool) {
         if restore_exchange_balances {
             if let Some(balances_by_exchange_id) = &balances.balances_by_exchange_id {

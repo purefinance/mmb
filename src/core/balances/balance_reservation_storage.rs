@@ -11,6 +11,12 @@ pub(crate) struct BalanceReservationStorage {
 }
 
 impl BalanceReservationStorage {
+    pub fn new() -> Self {
+        Self {
+            reserved_balances_by_id: HashMap::new(),
+            is_call_from_me: false,
+        }
+    }
     pub fn clear(&mut self) {
         self.reserved_balances_by_id.clear();
         self.update_metrics();
