@@ -1,6 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+#[cfg(test)]
+use std::{collections::HashMap, str, sync::Arc};
 
-use mmb_lib::core::{
+use crate::core::{
     balance_manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
     exchanges::events::ExchangeBalance,
     exchanges::{
@@ -22,7 +23,7 @@ use chrono::Utc;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-struct BalanceManagerBase {
+pub struct BalanceManagerBase {
     pub ten_digit_precision: Decimal,
     pub order_index: i32,
     //         protected const string ExchangeName = "Binance";
@@ -51,20 +52,24 @@ impl BalanceManagerBase {
         "BNB".into()
     }
 
-    pub fn new() -> Self {
-        let currency_pair = CurrencyPair::from_codes(
+    pub fn currency_pair() -> CurrencyPair {
+        CurrencyPair::from_codes(
             CurrencyCode::new(BalanceManagerBase::eth().into()),
             CurrencyCode::new(BalanceManagerBase::btc().into()),
-        );
+        )
+    }
+    pub fn new() -> Self {
         let exchange_account_id = ExchangeAccountId::new("Binance".into(), 0);
         Self {
             ten_digit_precision: dec!(0.0000000001),
             order_index: 1,
             exchange_account_id: exchange_account_id.clone(),
-            currency_pair: currency_pair.clone(),
+            currency_pair: BalanceManagerBase::currency_pair().clone(),
             configuration_descriptor: ConfigurationDescriptor::new(
                 "LiquidityGenerator".into(),
-                exchange_account_id.to_string() + ";" + currency_pair.as_str(),
+                exchange_account_id.to_string()
+                    + ";"
+                    + BalanceManagerBase::currency_pair().as_str(),
             ),
             currency_pair_metadata: None,
             balance_manager: None,
@@ -85,6 +90,14 @@ impl BalanceManagerBase {
             Some(res) => res,
             None => std::panic!("should be non None here"),
         }
+    }
+
+    pub fn set_balance_manager(&mut self, input: BalanceManager) {
+        self.balance_manager = Some(input);
+    }
+
+    pub fn set_currency_pair_metadata(&mut self, input: Arc<CurrencyPairMetadata>) {
+        self.currency_pair_metadata = Some(input);
     }
 
     pub fn balance_manager_mut(&mut self) -> &mut BalanceManager {
