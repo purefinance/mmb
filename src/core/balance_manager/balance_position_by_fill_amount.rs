@@ -9,7 +9,7 @@ use anyhow::{bail, Result};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BalancePositionByFillAmount {
     /// TradePlace -> AmountInAmountCurrency
     position_by_fill_amount: HashMap<TradePlaceAccount, Decimal>,

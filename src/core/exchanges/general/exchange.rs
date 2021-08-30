@@ -104,7 +104,7 @@ pub struct Exchange {
     pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
     pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
-    pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>, // TODO: implement some logic with me
+    pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;

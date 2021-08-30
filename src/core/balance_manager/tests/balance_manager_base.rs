@@ -46,23 +46,20 @@ impl BalanceManagerBase {
         BalanceManagerBase::exchange_name() + "0".into()
     }
     // Quote currency
-    pub fn btc() -> String {
+    pub fn btc() -> CurrencyCode {
         "BTC".into()
     }
     // Base currency
-    pub fn eth() -> String {
+    pub fn eth() -> CurrencyCode {
         "ETH".into()
     }
     // Another currency
-    pub fn bnb() -> String {
+    pub fn bnb() -> CurrencyCode {
         "BNB".into()
     }
 
     pub fn currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes(
-            CurrencyCode::new(BalanceManagerBase::eth().into()),
-            CurrencyCode::new(BalanceManagerBase::btc().into()),
-        )
+        CurrencyPair::from_codes(BalanceManagerBase::eth(), BalanceManagerBase::btc())
     }
 
     pub fn update_balance(

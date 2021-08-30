@@ -56,16 +56,16 @@ impl BalanceManagerOrdinal {
             false,
             false,
             base_currency_code.as_str().into(),
-            base_currency_code.as_str().into(),
+            base_currency_code.clone(),
             quote_currency_code.as_str().into(),
-            quote_currency_code.as_str().into(),
+            quote_currency_code.clone(),
             None,
             None,
-            quote_currency_code.as_str().into(),
+            quote_currency_code,
             None,
             None,
             None,
-            Some(base_currency_code.as_str().into()),
+            Some(base_currency_code),
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(3) },
         ));
@@ -106,10 +106,10 @@ impl BalanceManagerOrdinal {
             amount,
             cost,
             OrderFillRole::Taker,
-            CurrencyCode::new(BalanceManagerBase::bnb().into()),
+            BalanceManagerBase::bnb(),
             dec!(0.1),
             dec!(0.1),
-            CurrencyCode::new(BalanceManagerBase::bnb().into()),
+            BalanceManagerBase::bnb(),
             dec!(0.1),
             dec!(0.1),
             false,
@@ -142,6 +142,44 @@ mod tests {
 
     use super::BalanceManagerOrdinal;
 
+    fn create_eth_btc_test_obj(btc_amount: Decimal, eth_amount: Decimal) -> BalanceManagerOrdinal {
+        let mut test_object = BalanceManagerOrdinal::new();
+
+        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
+
+        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let btc_currency_code = BalanceManagerBase::btc();
+        let eth_currency_code = BalanceManagerBase::eth();
+        balance_map.insert(btc_currency_code, btc_amount);
+        balance_map.insert(eth_currency_code, eth_amount);
+
+        BalanceManagerBase::update_balance(
+            test_object.balance_manager_mut(),
+            exchange_account_id,
+            balance_map,
+        );
+        test_object
+    }
+
+    fn create_test_obj_by_currency_code(
+        currency_code: CurrencyCode,
+        amount: Decimal,
+    ) -> BalanceManagerOrdinal {
+        let mut test_object = BalanceManagerOrdinal::new();
+
+        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
+
+        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        balance_map.insert(currency_code, amount);
+
+        BalanceManagerBase::update_balance(
+            test_object.balance_manager_mut(),
+            exchange_account_id,
+            balance_map,
+        );
+        test_object
+    }
+
     #[test]
     pub fn balance_was_received_not_existing_exchange_account_id() {
         init_logger();
@@ -169,14 +207,8 @@ mod tests {
     #[test]
     pub fn balance_was_received_existing_exchange_account_id_with_currency() {
         init_logger();
-        let mut test_object = BalanceManagerOrdinal::new();
-
+        let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(2));
         let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
-        BalanceManagerBase::update_balance(
-            test_object.balance_manager_mut(),
-            &exchange_account_id,
-            make_hash_map(CurrencyCode::new(BalanceManagerBase::btc().into()), dec!(2)),
-        );
 
         assert_eq!(
             test_object
@@ -243,6 +275,100 @@ mod tests {
                 &eos_currency_code
             ),
             None
+        );
+    }
+
+    #[test]
+    pub fn get_balance_buy_returns_quote_balance_and_currency_code() {
+        init_logger();
+        let test_object = create_eth_btc_test_obj(dec!(0.5), dec!(0.1));
+        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
+
+        let trade_side = OrderSide::Buy;
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_reservation_currency_code(
+                    test_object.balance_manager_base.currency_pair_metadata(),
+                    trade_side,
+                ),
+            BalanceManagerBase::btc()
+        );
+
+        assert_eq!(
+            test_object.balance_manager().get_balance_by_side(
+                &test_object.balance_manager_base.configuration_descriptor,
+                &exchange_account_id,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                trade_side,
+                dec!(1),
+            ),
+            Some(dec!(0.1))
+        );
+    }
+
+    #[test]
+    pub fn get_balance_sell_return_base_balance_and_currency_code() {
+        init_logger();
+        let test_object = create_eth_btc_test_obj(dec!(0.5), dec!(0.1));
+        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
+
+        let trade_side = OrderSide::Sell;
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_reservation_currency_code(
+                    test_object.balance_manager_base.currency_pair_metadata(),
+                    trade_side,
+                ),
+            BalanceManagerBase::eth()
+        );
+
+        assert_eq!(
+            test_object.balance_manager().get_balance_by_side(
+                &test_object.balance_manager_base.configuration_descriptor,
+                &exchange_account_id,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                trade_side,
+                dec!(1),
+            ),
+            Some(dec!(0.1))
+        );
+    }
+
+    #[test]
+    pub fn can_reserve_buy_not_enough_balance() {
+        init_logger();
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0.5));
+        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            dec!(0.2),
+            dec!(5),
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .can_reserve(&reserve_parameters, &mut None),
+            false
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.5))
         );
     }
 }

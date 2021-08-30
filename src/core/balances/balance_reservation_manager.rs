@@ -446,7 +446,7 @@ impl BalanceReservationManager {
             }
         }
 
-        if self
+        if !self
             .amount_limits_in_amount_currency
             .get_by_balance_request(&request)
             .is_none()
@@ -1884,7 +1884,7 @@ impl BalanceReservationManager {
         &self,
         reserve_parameters: &ReserveParameters,
     ) -> (Amount, Amount) {
-        if reserve_parameters.currency_pair_metadata.is_derivative {
+        if !reserve_parameters.currency_pair_metadata.is_derivative {
             return (reserve_parameters.amount, dec!(0));
         }
 

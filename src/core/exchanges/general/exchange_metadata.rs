@@ -4,6 +4,7 @@ use anyhow::{bail, Result};
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::warn;
+use rust_decimal_macros::dec;
 use std::sync::Arc;
 
 use super::currency_pair_metadata::CurrencyPairMetadata;
@@ -39,6 +40,11 @@ impl Exchange {
         let supported_currencies = Self::get_supported_currencies(&symbols[..]);
         self.set_supported_currencies(supported_currencies);
 
+        let currency_pairs = symbols.iter().map(|x| x.currency_pair()).collect_vec();
+        for currency_pair in currency_pairs {
+            self.leverage_by_currency_pair
+                .insert(currency_pair, dec!(1));
+        }
         *self.supported_symbols.lock() = symbols;
     }
 
