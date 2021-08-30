@@ -57,6 +57,51 @@ pub(crate) fn get_test_exchange(
     get_test_exchange_with_currency_pair_metadata(currency_pair_metadata)
 }
 
+pub(crate) fn get_test_exchange_by_currency_codes_and_amount_code(
+    is_derivative: bool,
+    base_currency_code: &str,
+    quote_currency_code: &str,
+    amount_currency_code: &str,
+) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
+    let price_tick = dec!(0.1);
+    let currency_pair_metadata = Arc::new(CurrencyPairMetadata::new(
+        false,
+        is_derivative,
+        base_currency_code.into(),
+        base_currency_code.into(),
+        quote_currency_code.into(),
+        quote_currency_code.into(),
+        None,
+        None,
+        amount_currency_code.into(),
+        None,
+        None,
+        None,
+        None,
+        Precision::ByTick { tick: price_tick },
+        Precision::ByTick { tick: dec!(0) },
+    ));
+    get_test_exchange_with_currency_pair_metadata(currency_pair_metadata)
+}
+
+pub(crate) fn get_test_exchange_by_currency_codes(
+    is_derivative: bool,
+    base_currency_code: &str,
+    quote_currency_code: &str,
+) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
+    let amount_currency_code = if is_derivative {
+        quote_currency_code.clone()
+    } else {
+        base_currency_code.clone()
+    };
+    get_test_exchange_by_currency_codes_and_amount_code(
+        is_derivative,
+        base_currency_code,
+        quote_currency_code,
+        amount_currency_code,
+    )
+}
+
 pub(crate) fn get_test_exchange_with_currency_pair_metadata(
     currency_pair_metadata: Arc<CurrencyPairMetadata>,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
