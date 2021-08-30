@@ -2,7 +2,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, MathematicalOps};
 use rust_decimal_macros::dec;
 
 use crate::core::{
@@ -171,7 +171,7 @@ impl CurrencyPairMetadata {
                 self.amount_round_precision(amount, Round::ToNearest, precision + 2i8)
             }
             Precision::ByTick { tick } => {
-                Self::round_by_tick(amount, tick * dec!(0.01), Round::ToNearest)
+                Self::round_by_tick(amount, dec!(0.01).powd(tick + dec!(2)), Round::ToNearest)
             }
         }
     }
