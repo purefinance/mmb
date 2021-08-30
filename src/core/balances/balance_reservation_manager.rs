@@ -228,12 +228,11 @@ impl BalanceReservationManager {
 
         log::info!("VirtualBalanceHolder {}", new_balance);
 
-        let reservation = self.easy_get_reservation(reservation_id)?;
+        let reservation = self.easy_get_reservation(reservation_id)?.clone();
         if reservation.unreserved_amount < dec!(0)
             || reservation.is_amount_within_symbol_margin_error(reservation.unreserved_amount)
         {
             self.balance_reservation_storage.remove(reservation_id);
-            let reservation = self.easy_get_reservation(reservation_id)?;
 
             if self.is_call_from_clone {
                 log::info!(
@@ -490,7 +489,7 @@ impl BalanceReservationManager {
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         trade_side: OrderSide,
     ) -> Decimal {
-        if currency_pair_metadata.is_derivative {
+        if !currency_pair_metadata.is_derivative {
             return dec!(0);
         }
 
@@ -903,7 +902,7 @@ impl BalanceReservationManager {
         diff_in_amount_currency: Decimal,
         price: Decimal,
     ) -> Result<()> {
-        if currency_pair_metadata.is_derivative {
+        if !currency_pair_metadata.is_derivative {
             let diff_in_request_currency = currency_pair_metadata
                 .convert_amount_from_amount_currency_code(
                     &request.currency_code,
@@ -963,7 +962,7 @@ impl BalanceReservationManager {
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         new_position: Decimal,
     ) -> Result<()> {
-        if currency_pair_metadata.is_derivative {
+        if !currency_pair_metadata.is_derivative {
             bail!("restore_fill_amount_position is available only for derivative exchanges")
         }
         let previous_value = self
@@ -1031,7 +1030,7 @@ impl BalanceReservationManager {
             currency_code.clone(),
         );
 
-        if !currency_pair_metadata.is_derivative() {
+        if !currency_pair_metadata.is_derivative {
             self.add_virtual_balance_by_currency_pair_metadata(
                 &request,
                 currency_pair_metadata.clone(),
@@ -1186,7 +1185,7 @@ impl BalanceReservationManager {
                 )
                 .as_str(),
             );
-        if currency_pair_metadata.is_derivative
+        if !currency_pair_metadata.is_derivative
             || currency_pair_metadata.base_currency_code() == commission_currency_code
         {
             let request = BalanceRequest::new(

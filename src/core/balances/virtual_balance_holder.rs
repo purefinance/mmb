@@ -118,7 +118,7 @@ impl VirtualBalanceHolder {
             ));
         }
 
-        let current_balance_diff = if !currency_pair_metadata.is_derivative.clone() {
+        let current_balance_diff = if !currency_pair_metadata.is_derivative {
             self.balance_diff
                 .get_by_balance_request(balance_request)
                 .unwrap_or(dec!(0))

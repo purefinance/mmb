@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 use crate::core::{
     balance_manager::balance_manager::BalanceManager,
     exchanges::{
-        common::{Amount, CurrencyCode, CurrencyId, ExchangeAccountId},
+        common::{Amount, ExchangeAccountId},
         general::{
             currency_pair_metadata::{CurrencyPairMetadata, Precision},
             currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter,
@@ -58,10 +58,10 @@ impl BalanceManagerOrdinal {
             base_currency_code.as_str().into(),
             base_currency_code.clone(),
             quote_currency_code.as_str().into(),
-            quote_currency_code.clone(),
-            None,
-            None,
             quote_currency_code,
+            None,
+            None,
+            base_currency_code.clone(),
             None,
             None,
             None,
@@ -208,7 +208,6 @@ mod tests {
     pub fn balance_was_received_existing_exchange_account_id_with_currency() {
         init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(2));
-        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
 
         assert_eq!(
             test_object
@@ -307,7 +306,7 @@ mod tests {
                 trade_side,
                 dec!(1),
             ),
-            Some(dec!(0.1))
+            Some(dec!(0.5))
         );
     }
 
@@ -347,9 +346,7 @@ mod tests {
     #[test]
     pub fn can_reserve_buy_not_enough_balance() {
         init_logger();
-        let mut test_object =
-            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0.5));
-        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
+        let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0.5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             Some(OrderSide::Buy),
@@ -370,5 +367,482 @@ mod tests {
                 .get_balance_by_reserve_parameters(&reserve_parameters),
             Some(dec!(0.5))
         );
+    }
+
+    #[test]
+    pub fn can_reserve_buy_enough_balance() {
+        init_logger();
+        let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.0));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            dec!(0.2),
+            dec!(5),
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .can_reserve(&reserve_parameters, &mut None),
+            true
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(1.0))
+        );
+    }
+
+    #[test]
+    pub fn can_reserve_sell_not_enough_balance() {
+        init_logger();
+        let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0.5));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            dec!(0.2),
+            dec!(5),
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .can_reserve(&reserve_parameters, &mut None),
+            false
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.5))
+        );
+    }
+
+    #[test]
+    pub fn can_reserve_sell_enough_balance() {
+        init_logger();
+        let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5.0));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            dec!(0.2),
+            dec!(5),
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .can_reserve(&reserve_parameters, &mut None),
+            true
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(5.0))
+        );
+    }
+
+    #[test]
+    pub fn try_reserve_buy_not_enough_balance() {
+        init_logger();
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0.5));
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id = ReservationId::default();
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve(
+                &reserve_parameters,
+                &mut reservation_id,
+                &mut None,
+            ),
+            false
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.5))
+        );
+
+        if !test_object
+            .balance_manager()
+            .get_reservation(reservation_id)
+            .is_none()
+        {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    pub fn try_reserve_buy_enough_balance() {
+        init_logger();
+        let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id = ReservationId::default();
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve(
+                &reserve_parameters,
+                &mut reservation_id,
+                &mut None,
+            ),
+            true
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.0))
+        );
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id)
+            .expect("in test");
+
+        assert_eq!(
+            reservation.exchange_account_id,
+            test_object.balance_manager_base.exchange_account_id
+        );
+        assert_eq!(
+            reservation.currency_pair_metadata,
+            test_object.balance_manager_base.currency_pair_metadata()
+        );
+        assert_eq!(reservation.order_side, Some(OrderSide::Buy));
+        assert_eq!(reservation.price, dec!(0.2));
+        assert_eq!(reservation.amount, dec!(5));
+        assert_eq!(reservation.not_approved_amount, dec!(5));
+        assert_eq!(reservation.unreserved_amount, dec!(5));
+        assert!(reservation.approved_parts.is_empty());
+    }
+
+    #[test]
+    pub fn try_reserve_sell_not_enough_balance() {
+        init_logger();
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0.5));
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id = ReservationId::default();
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve(
+                &reserve_parameters,
+                &mut reservation_id,
+                &mut None,
+            ),
+            false
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.5))
+        );
+
+        if !test_object
+            .balance_manager()
+            .get_reservation(reservation_id)
+            .is_none()
+        {
+            assert!(false);
+        }
+    }
+
+    #[test]
+    pub fn try_reserve_sell_enough_balance() {
+        init_logger();
+        let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id = ReservationId::default();
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve(
+                &reserve_parameters,
+                &mut reservation_id,
+                &mut None,
+            ),
+            true
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.0))
+        );
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id)
+            .expect("in test");
+
+        assert_eq!(
+            reservation.exchange_account_id,
+            test_object.balance_manager_base.exchange_account_id
+        );
+        assert_eq!(
+            reservation.currency_pair_metadata,
+            test_object.balance_manager_base.currency_pair_metadata()
+        );
+        assert_eq!(reservation.order_side, Some(OrderSide::Sell));
+        assert_eq!(reservation.price, dec!(0.2));
+        assert_eq!(reservation.amount, dec!(5));
+        assert_eq!(reservation.not_approved_amount, dec!(5));
+        assert_eq!(reservation.unreserved_amount, dec!(5));
+        assert!(reservation.approved_parts.is_empty());
+    }
+
+    #[test]
+    pub fn try_update_reservation_buy_worse_price_not_enough_balance() {
+        init_logger();
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.1));
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id = ReservationId::default();
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve(
+                &reserve_parameters,
+                &mut reservation_id,
+                &mut None,
+            ),
+            true
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_mut()
+                .try_update_reservation(reservation_id, dec!(0.3)),
+            false
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.1))
+        );
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id)
+            .expect("in test");
+        assert_eq!(reservation.price, dec!(0.2));
+        assert_eq!(reservation.not_approved_amount, dec!(5));
+    }
+
+    #[test]
+    pub fn try_update_reservation_buy_worse_price_enough_balance() {
+        init_logger();
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.5));
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id = ReservationId::default();
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve(
+                &reserve_parameters,
+                &mut reservation_id,
+                &mut None,
+            ),
+            true
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_mut()
+                .try_update_reservation(reservation_id, dec!(0.3)),
+            true
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.0))
+        );
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id)
+            .expect("in test");
+        assert_eq!(reservation.price, dec!(0.3));
+        assert_eq!(reservation.not_approved_amount, dec!(5));
+    }
+
+    #[test]
+    pub fn try_update_reservation_buy_better_price() {
+        init_logger();
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.1));
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id = ReservationId::default();
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve(
+                &reserve_parameters,
+                &mut reservation_id,
+                &mut None,
+            ),
+            true
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.1))
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_mut()
+                .try_update_reservation(reservation_id, dec!(0.1)),
+            true
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.6))
+        );
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id)
+            .expect("in test");
+        assert_eq!(reservation.price, dec!(0.1));
+        assert_eq!(reservation.not_approved_amount, dec!(5));
+    }
+
+    #[test]
+    pub fn try_update_reservation_sell() {
+        init_logger();
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5.0));
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id = ReservationId::default();
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve(
+                &reserve_parameters,
+                &mut reservation_id,
+                &mut None,
+            ),
+            true
+        );
+        assert_eq!(
+            test_object
+                .balance_manager_mut()
+                .try_update_reservation(reservation_id, dec!(0.1)),
+            true
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(dec!(0.0))
+        );
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id)
+            .expect("in test");
+        assert_eq!(reservation.price, dec!(0.1));
+        assert_eq!(reservation.not_approved_amount, dec!(5));
+    }
+
+    #[test]
+    pub fn try_reserve_pair_not_enough_balance_for_1() {
+        init_logger();
+        let mut test_object = create_eth_btc_test_obj(dec!(0.0), dec!(5));
+        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id.clone();
+
+        let reserve_parameters_1 = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .clone();
+
+        let reserve_parameters_2 = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .clone();
+
+        let mut reservation_id_1 = ReservationId::default();
+        let mut reservation_id_2 = ReservationId::default();
+
+        assert_eq!(
+            test_object.balance_manager_mut().try_reserve_pair(
+                reserve_parameters_1.clone(),
+                reserve_parameters_2.clone(),
+                &mut Some(reservation_id_1),
+                &mut Some(reservation_id_2),
+            ),
+            false
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters_1),
+            None
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters_2),
+            Some(dec!(5))
+        );
+
+        if !test_object
+            .balance_manager()
+            .get_reservation(reservation_id_1)
+            .is_none()
+        {
+            assert!(false);
+        }
+
+        if !test_object
+            .balance_manager()
+            .get_reservation(reservation_id_2)
+            .is_none()
+        {
+            assert!(false);
+        }
     }
 }
