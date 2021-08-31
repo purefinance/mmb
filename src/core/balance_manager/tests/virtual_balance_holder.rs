@@ -94,13 +94,7 @@ mod tests {
     use rust_decimal_macros::dec;
 
     use crate::core::balance_manager::balance_request::BalanceRequest;
-    use crate::core::exchanges::common::{CurrencyCode, ExchangeId};
     use crate::core::logger::init_logger;
-    use crate::core::orders::order::{OrderSide, ReservationId};
-    use crate::core::{
-        balance_manager::tests::balance_manager_base::BalanceManagerBase,
-        exchanges::common::ExchangeAccountId, misc::make_hash_map::make_hash_map,
-    };
 
     use super::VirtualBalanceHolderTests;
 
@@ -126,6 +120,7 @@ mod tests {
 
     #[test]
     pub fn set_balance_simple() {
+        init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id.clone();
@@ -143,6 +138,7 @@ mod tests {
 
     #[test]
     pub fn get_exchange_balance_multiple_currency_code() {
+        init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id.clone();
@@ -162,6 +158,7 @@ mod tests {
 
     #[test]
     pub fn get_all_balances_valid() {
+        init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id.clone();
@@ -193,6 +190,7 @@ mod tests {
 
     #[test]
     pub fn get_balance_for_derivative_with_mark_price() {
+        init_logger();
         let mut test_obj =
             VirtualBalanceHolderTests::new_with_amount(VirtualBalanceHolderTests::btc().as_str());
 

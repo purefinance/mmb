@@ -228,7 +228,7 @@ impl BalanceReservationManager {
 
         log::info!("VirtualBalanceHolder {}", new_balance);
 
-        let reservation = self.easy_get_reservation(reservation_id)?.clone();
+        let mut reservation = self.easy_get_reservation(reservation_id)?.clone();
         if reservation.unreserved_amount < dec!(0)
             || reservation.is_amount_within_symbol_margin_error(reservation.unreserved_amount)
         {
@@ -255,16 +255,15 @@ impl BalanceReservationManager {
 
                 let amount_diff_in_amount_currency = -reservation.unreserved_amount.clone();
                 // Compensate amount
-                self.add_reserved_amount(
+                self.add_reserved_amount_by_reservation(
                     &balance_request,
-                    reservation_id,
+                    &mut reservation,
                     amount_diff_in_amount_currency,
                     true,
                 )?;
             }
 
             if self.is_call_from_clone {
-                let reservation = self.easy_get_reservation(reservation_id)?;
                 log::info!(
                     "Unreserved {} from {} {} {} {:?} {} {} {} {} {} {} {}",
                     amount_to_unreserve,
@@ -837,14 +836,13 @@ impl BalanceReservationManager {
         Ok(())
     }
 
-    fn add_reserved_amount(
+    fn add_reserved_amount_by_reservation(
         &mut self,
         request: &BalanceRequest,
-        reservation_id: ReservationId,
+        reservation: &mut BalanceReservation,
         amount_diff_in_amount_currency: Decimal,
         update_balance: bool,
     ) -> Result<()> {
-        let reservation = self.easy_get_mut_reservation(reservation_id)?;
         if update_balance {
             let cost =
                 match reservation.get_proportional_cost_amount(amount_diff_in_amount_currency) {
@@ -858,7 +856,53 @@ impl BalanceReservationManager {
                         )
                     }
                 };
-            self.add_virtual_balance(request, reservation_id, -cost)?;
+            self.add_virtual_balance(
+                request,
+                reservation.currency_pair_metadata.clone(),
+                reservation.price,
+                -cost,
+            )?;
+        }
+
+        reservation.unreserved_amount += amount_diff_in_amount_currency;
+
+        // global reservation indicator
+        let res_amount_request = BalanceRequest::new(
+            request.configuration_descriptor.clone(),
+            request.exchange_account_id.clone(),
+            request.currency_pair.clone(),
+            reservation.reservation_currency_code.clone(),
+        );
+
+        self.reserved_amount_in_amount_currency
+            .add_by_request(&res_amount_request, amount_diff_in_amount_currency);
+        Ok(())
+    }
+
+    fn add_reserved_amount(
+        &mut self,
+        request: &BalanceRequest,
+        reservation_id: ReservationId,
+        amount_diff_in_amount_currency: Decimal,
+        update_balance: bool,
+    ) -> Result<()> {
+        let reservation = self.easy_get_reservation(reservation_id)?;
+        if update_balance {
+            let cost =
+                match reservation.get_proportional_cost_amount(amount_diff_in_amount_currency) {
+                    Ok(cost) => cost,
+                    Err(error) => {
+                        bail!(
+                            "Failed to get proportional cost amount form {:?} with {}: {:?}",
+                            reservation,
+                            amount_diff_in_amount_currency,
+                            error
+                        )
+                    }
+                };
+            let currency_pair_metadata = reservation.currency_pair_metadata.clone();
+            let price = reservation.price;
+            self.add_virtual_balance(request, currency_pair_metadata, price, -cost)?;
         }
 
         let reservation = self.easy_get_mut_reservation(reservation_id)?;
@@ -880,13 +924,11 @@ impl BalanceReservationManager {
     fn add_virtual_balance(
         &mut self,
         request: &BalanceRequest,
-        reservation_id: ReservationId,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        price: Decimal,
         diff_in_amount_currency: Decimal,
     ) -> Result<()> {
-        let reservation = self.easy_get_reservation(reservation_id)?;
         // this is https://github.com/rust-lang/rust/issues/59159 explanation of these two variables
-        let currency_pair_metadata = reservation.currency_pair_metadata.clone();
-        let price = reservation.price;
         self.add_virtual_balance_by_currency_pair_metadata(
             request,
             currency_pair_metadata,
@@ -1639,7 +1681,10 @@ impl BalanceReservationManager {
             }
             return (false, Vec::new());
         }
-        return (true, successful_reservations.keys().cloned().collect_vec());
+        let mut result_vec = successful_reservations.keys().cloned().collect_vec();
+        result_vec.sort_by(|x, y| x.cmp(y));
+
+        return (true, result_vec);
     }
 
     pub fn try_reserve(
@@ -1692,6 +1737,7 @@ impl BalanceReservationManager {
             preset.reservation_currency_code.clone(),
         );
 
+        self.reservation_id = ReservationId::generate();
         *reservation_id = self.reservation_id;
         log::info!(
             "Trying to reserve {:?} {} {} {:?} {} {} {:?}",

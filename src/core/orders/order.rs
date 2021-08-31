@@ -251,7 +251,7 @@ impl OrderStatus {
 }
 
 /// Id for reserved amount
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Hash, Ord, PartialOrd)]
 #[serde(transparent)]
 pub struct ReservationId(u64);
 

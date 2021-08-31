@@ -781,6 +781,14 @@ impl BalanceManager {
             .get_reservation(&reservation_id)
     }
 
+    pub fn get_mut_reservation(
+        &mut self,
+        reservation_id: ReservationId,
+    ) -> Option<&mut BalanceReservation> {
+        self.balance_reservation_manager
+            .get_mut_reservation(&reservation_id)
+    }
+
     pub fn unreserve_pair(
         &mut self,
         reservation_id_1: ReservationId,
@@ -872,20 +880,18 @@ impl BalanceManager {
         &mut self,
         order1: ReserveParameters,
         order2: ReserveParameters,
-        reservation_id_1: &mut Option<ReservationId>,
-        reservation_id_2: &mut Option<ReservationId>,
+        reservation_id_1: &mut ReservationId,
+        reservation_id_2: &mut ReservationId,
     ) -> bool {
         let (is_success, reservations_id) = self
             .balance_reservation_manager
             .try_reserve_multiple(&vec![order1, order2], &mut None);
-        if is_success && !reservations_id.is_empty() && reservations_id.len() == 3 {
+        if is_success && !reservations_id.is_empty() && reservations_id.len() == 2 {
             self.save_balances();
-            *reservation_id_1 = Some(reservations_id[0]);
-            *reservation_id_2 = Some(reservations_id[1]);
+            *reservation_id_1 = reservations_id[0];
+            *reservation_id_2 = reservations_id[1];
             return true;
         }
-        *reservation_id_1 = None;
-        *reservation_id_2 = None;
         false
     }
 
@@ -894,23 +900,20 @@ impl BalanceManager {
         order1: ReserveParameters,
         order2: ReserveParameters,
         order3: ReserveParameters,
-        reservation_id_1: &mut Option<ReservationId>,
-        reservation_id_2: &mut Option<ReservationId>,
-        reservation_id_3: &mut Option<ReservationId>,
+        reservation_id_1: &mut ReservationId,
+        reservation_id_2: &mut ReservationId,
+        reservation_id_3: &mut ReservationId,
     ) -> bool {
         let (is_success, reservations_id) = self
             .balance_reservation_manager
             .try_reserve_multiple(&vec![order1, order2, order3], &mut None);
         if is_success && !reservations_id.is_empty() && reservations_id.len() == 3 {
             self.save_balances();
-            *reservation_id_1 = Some(reservations_id[0]);
-            *reservation_id_2 = Some(reservations_id[1]);
-            *reservation_id_3 = Some(reservations_id[2]);
+            *reservation_id_1 = reservations_id[0];
+            *reservation_id_2 = reservations_id[1];
+            *reservation_id_3 = reservations_id[2];
             return true;
         }
-        *reservation_id_1 = None;
-        *reservation_id_2 = None;
-        *reservation_id_3 = None;
         false
     }
 
