@@ -471,13 +471,10 @@ mod tests {
             Some(dec!(0.5))
         );
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[test]
@@ -551,13 +548,10 @@ mod tests {
             Some(dec!(0.5))
         );
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[test]
@@ -798,21 +792,15 @@ mod tests {
             Some(dec!(5))
         );
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id_1)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id_2)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[test]
@@ -857,21 +845,14 @@ mod tests {
             None
         );
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id_1)
-            .is_none()
-        {
-            assert!(false);
-        }
-
-        if !test_object
+            .is_none());
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id_2)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[test]
@@ -1010,21 +991,20 @@ mod tests {
             Some(dec!(5))
         );
 
-        if !test_object
-            .balance_manager()
-            .get_reservation(reservation_id_1)
-            .is_none()
-            || !test_object
+        assert!(
+            test_object
                 .balance_manager()
-                .get_reservation(reservation_id_2)
+                .get_reservation(reservation_id_1)
                 .is_none()
-            || !test_object
-                .balance_manager()
-                .get_reservation(reservation_id_3)
-                .is_none()
-        {
-            assert!(false);
-        }
+                || !test_object
+                    .balance_manager()
+                    .get_reservation(reservation_id_2)
+                    .is_none()
+                || !test_object
+                    .balance_manager()
+                    .get_reservation(reservation_id_3)
+                    .is_none()
+        );
     }
 
     #[test]
@@ -1077,21 +1057,20 @@ mod tests {
             Some(dec!(5))
         );
 
-        if !test_object
-            .balance_manager()
-            .get_reservation(reservation_id_1)
-            .is_none()
-            || !test_object
+        assert!(
+            test_object
                 .balance_manager()
-                .get_reservation(reservation_id_2)
+                .get_reservation(reservation_id_1)
                 .is_none()
-            || !test_object
-                .balance_manager()
-                .get_reservation(reservation_id_3)
-                .is_none()
-        {
-            assert!(false);
-        }
+                || !test_object
+                    .balance_manager()
+                    .get_reservation(reservation_id_2)
+                    .is_none()
+                || !test_object
+                    .balance_manager()
+                    .get_reservation(reservation_id_3)
+                    .is_none()
+        );
     }
 
     #[test]
@@ -1144,21 +1123,20 @@ mod tests {
             Some(dec!(5))
         );
 
-        if !test_object
-            .balance_manager()
-            .get_reservation(reservation_id_1)
-            .is_none()
-            || !test_object
+        assert!(
+            test_object
                 .balance_manager()
-                .get_reservation(reservation_id_2)
+                .get_reservation(reservation_id_1)
                 .is_none()
-            || !test_object
-                .balance_manager()
-                .get_reservation(reservation_id_3)
-                .is_none()
-        {
-            assert!(false);
-        }
+                || !test_object
+                    .balance_manager()
+                    .get_reservation(reservation_id_2)
+                    .is_none()
+                || !test_object
+                    .balance_manager()
+                    .get_reservation(reservation_id_3)
+                    .is_none()
+        );
     }
 
     #[test]
@@ -1345,13 +1323,10 @@ mod tests {
             .unreserve(reservation_id, dec!(5.00001))
             .expect("in test");
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
 
         assert_eq!(
             test_object
@@ -1396,13 +1371,10 @@ mod tests {
             }
         };
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[rstest]
@@ -1575,13 +1547,10 @@ mod tests {
             Some(dec!(1))
         );
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[test]
@@ -1613,13 +1582,10 @@ mod tests {
             Some(dec!(5))
         );
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[test]
@@ -1656,13 +1622,10 @@ mod tests {
             Some(dec!(1))
         );
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[test]
@@ -1699,13 +1662,10 @@ mod tests {
             Some(dec!(5))
         );
 
-        if !test_object
+        assert!(test_object
             .balance_manager()
             .get_reservation(reservation_id)
-            .is_none()
-        {
-            assert!(false);
-        }
+            .is_none());
     }
 
     #[rstest]
@@ -1878,5 +1838,199 @@ mod tests {
         assert_eq!(reservation.amount, dec!(2) + dec!(2));
         assert_eq!(reservation.not_approved_amount, dec!(2) + dec!(2));
         assert_eq!(reservation.unreserved_amount, dec!(2) + dec!(2));
+    }
+
+    #[test]
+    pub fn transfer_reservations_amount_partial() {
+        init_logger();
+        let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
+
+        let reserve_parameters_1 = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .clone();
+
+        let reserve_parameters_2 = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .clone();
+
+        let mut reservation_id_1 = ReservationId::default();
+        assert!(test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters_1,
+            &mut reservation_id_1,
+            &mut None,
+        ));
+        let mut reservation_id_2 = ReservationId::default();
+        assert!(test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters_2,
+            &mut reservation_id_2,
+            &mut None,
+        ));
+
+        assert!(test_object.balance_manager_mut().try_transfer_reservation(
+            reservation_id_1,
+            reservation_id_2,
+            dec!(2),
+            &None
+        ));
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters_1),
+            Some(dec!(0))
+        );
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id_1)
+            .expect("in test");
+
+        assert_eq!(reservation.cost, dec!(1));
+        assert_eq!(reservation.amount, dec!(3) - dec!(2));
+        assert_eq!(reservation.not_approved_amount, dec!(3) - dec!(2));
+        assert_eq!(reservation.unreserved_amount, dec!(3) - dec!(2));
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id_2)
+            .expect("in test");
+
+        assert_eq!(reservation.cost, dec!(4));
+        assert_eq!(reservation.amount, dec!(2) + dec!(2));
+        assert_eq!(reservation.not_approved_amount, dec!(2) + dec!(2));
+        assert_eq!(reservation.unreserved_amount, dec!(2) + dec!(2));
+    }
+
+    #[test]
+    pub fn transfer_reservations_amount_all() {
+        init_logger();
+        let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
+
+        let reserve_parameters_1 = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .clone();
+
+        let reserve_parameters_2 = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .clone();
+
+        let mut reservation_id_1 = ReservationId::default();
+        assert!(test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters_1,
+            &mut reservation_id_1,
+            &mut None,
+        ));
+        let mut reservation_id_2 = ReservationId::default();
+        assert!(test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters_2,
+            &mut reservation_id_2,
+            &mut None,
+        ));
+
+        assert!(test_object.balance_manager_mut().try_transfer_reservation(
+            reservation_id_1,
+            reservation_id_2,
+            dec!(3),
+            &None
+        ));
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters_1),
+            Some(dec!(0))
+        );
+
+        assert!(test_object
+            .balance_manager()
+            .get_reservation(reservation_id_1)
+            .is_none());
+
+        let reservation = test_object
+            .balance_manager()
+            .get_reservation(reservation_id_2)
+            .expect("in test");
+
+        assert_eq!(reservation.cost, dec!(2) + dec!(3));
+        assert_eq!(reservation.amount, dec!(2) + dec!(3));
+        assert_eq!(reservation.not_approved_amount, dec!(2) + dec!(3));
+        assert_eq!(reservation.unreserved_amount, dec!(2) + dec!(3));
+    }
+
+    #[test]
+    pub fn transfer_reservations_amount_more_than_we_have_should_do_nothing_and_panic() {
+        init_logger();
+        let test_object = Arc::new(parking_lot::Mutex::new(create_test_obj_by_currency_code(
+            BalanceManagerBase::eth(),
+            dec!(5),
+        )));
+
+        let reserve_parameters_1 = test_object
+            .lock()
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .clone();
+
+        let reserve_parameters_2 = test_object
+            .lock()
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .clone();
+
+        let mut reservation_id_1 = ReservationId::default();
+        assert!(test_object.lock().balance_manager_mut().try_reserve(
+            &reserve_parameters_1,
+            &mut reservation_id_1,
+            &mut None,
+        ));
+        let mut reservation_id_2 = ReservationId::default();
+        assert!(test_object.lock().balance_manager_mut().try_reserve(
+            &reserve_parameters_2,
+            &mut reservation_id_2,
+            &mut None,
+        ));
+        let test_object_clone = test_object.clone();
+
+        let handle = std::thread::spawn(move || {
+            test_object
+                .lock()
+                .balance_manager_mut()
+                .try_transfer_reservation(reservation_id_1, reservation_id_2, dec!(5), &None);
+        });
+
+        if let Ok(_) = handle.join() {
+            assert!(false);
+        }
+
+        assert_eq!(
+            test_object_clone
+                .lock()
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters_1),
+            Some(dec!(0))
+        );
+
+        assert_eq!(
+            test_object_clone
+                .lock()
+                .balance_manager()
+                .get_reservation(reservation_id_1)
+                .expect("in test")
+                .unreserved_amount,
+            dec!(3)
+        );
+        assert_eq!(
+            test_object_clone
+                .lock()
+                .balance_manager()
+                .get_reservation(reservation_id_2)
+                .expect("in test")
+                .unreserved_amount,
+            dec!(2)
+        );
     }
 }

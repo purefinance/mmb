@@ -1445,18 +1445,7 @@ impl BalanceReservationManager {
             amount_to_move,
             client_order_id,
         );
-        true //delete me
-
-        // we can safely move amount ignoring price because of check that have been done before
-        // TransferAmount(
-        //     sourceReservationId,
-        //     sourceReservation,
-        //     targetReservationId,
-        //     targetReservation,
-        //     amountToMove,
-        //     clientOrderId);
-
-        // return true;
+        true
     }
 
     fn transfer_amount(
@@ -1630,11 +1619,11 @@ impl BalanceReservationManager {
 
         reservation.cost += *cost_diff;
         reservation.amount += reservation_amount_diff;
+        let reservation = self.easy_get_reservation(reservation_id.clone())?.clone();
 
         if reservation.is_amount_within_symbol_margin_error(new_unreserved_amount) {
             self.balance_reservation_storage
                 .remove(reservation_id.clone());
-            let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
 
             if new_unreserved_amount != dec!(0) {
                 log::error!(
@@ -1645,7 +1634,6 @@ impl BalanceReservationManager {
                 );
             }
         }
-        let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
         log::info!(
             "Updated reservation {} {} {} {:?} {} {} {}",
             reservation_id,
