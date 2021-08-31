@@ -1355,7 +1355,7 @@ impl BalanceReservationManager {
             .get_reservation(&dst_reservation_id)
             .expect(format!("Reservation for {} not found", dst_reservation_id).as_str());
 
-        if src_reservation.configuration_descriptor == dst_reservation.configuration_descriptor
+        if src_reservation.configuration_descriptor != dst_reservation.configuration_descriptor
             || src_reservation.exchange_account_id != dst_reservation.exchange_account_id
             || src_reservation.currency_pair_metadata != dst_reservation.currency_pair_metadata
             || src_reservation.order_side != dst_reservation.order_side

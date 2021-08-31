@@ -77,7 +77,7 @@ impl BalanceReservation {
     pub fn is_amount_within_symbol_margin_error(&self, amount: Decimal) -> bool {
         match self.currency_pair_metadata.amount_precision {
             Precision::ByTick { tick } => return amount.abs() <= tick * dec!(0.01),
-            Precision::ByMantisa { precision: _ } => std::panic!("Unknown precision type"),
+            Precision::ByMantissa { precision: _ } => std::panic!("Unknown precision type"),
         }
     }
 

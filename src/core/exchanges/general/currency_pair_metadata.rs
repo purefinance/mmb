@@ -2,7 +2,7 @@ use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
-use rust_decimal::{Decimal, MathematicalOps};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 use crate::core::{
@@ -29,7 +29,11 @@ pub enum BeforeAfter {
     After,
 }
 
-// Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
+/// Precision this is type that describes Decimal value rounding(now is using for rounding amount in orders)
+/// NOTE: Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
+/// ```no_run
+/// Precision::ByTick { tick: dec!(0.001) } // for AmountPrecision = 3 equal pow(0.1, 3)
+/// ```
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Precision {
     // Rounding is performed to a number divisible to the specified tick
@@ -37,7 +41,7 @@ pub enum Precision {
     ByTick { tick: Decimal },
     // Rounding is performed to a number of digits located on `precision` length to the right of start of mantissa
     // Look at round_by_mantissa test below
-    ByMantisa { precision: i8 },
+    ByMantissa { precision: i8 },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -134,14 +138,14 @@ impl CurrencyPairMetadata {
     pub fn price_round(&self, price: Price, round: Round) -> Result<Price> {
         match self.price_precision {
             Precision::ByTick { tick } => Self::round_by_tick(price, tick, round),
-            Precision::ByMantisa { precision } => Self::round_by_mantissa(price, precision, round),
+            Precision::ByMantissa { precision } => Self::round_by_mantissa(price, precision, round),
         }
     }
 
     pub fn amount_round(&self, amount: Amount, round: Round) -> Result<Amount> {
         match self.amount_precision {
             Precision::ByTick { tick } => Self::round_by_tick(amount, tick, round),
-            Precision::ByMantisa { precision } => {
+            Precision::ByMantissa { precision } => {
                 self.amount_round_precision(amount, round, precision)
             }
         }
@@ -155,7 +159,7 @@ impl CurrencyPairMetadata {
         amount_precision: i8,
     ) -> Result<Amount> {
         match self.amount_precision {
-            Precision::ByMantisa { precision: _ } => {
+            Precision::ByMantissa { precision: _ } => {
                 Self::round_by_mantissa(amount, amount_precision, round)
             }
             Precision::ByTick { tick: _ } => {
@@ -167,11 +171,11 @@ impl CurrencyPairMetadata {
     pub fn round_to_remove_amount_precision_error(&self, amount: Amount) -> Result<Amount> {
         // allowed machine error that is less then 0.01 * amount precision
         match self.amount_precision {
-            Precision::ByMantisa { precision } => {
+            Precision::ByMantissa { precision } => {
                 self.amount_round_precision(amount, Round::ToNearest, precision + 2i8)
             }
             Precision::ByTick { tick } => {
-                Self::round_by_tick(amount, dec!(0.01).powd(tick + dec!(2)), Round::ToNearest)
+                Self::round_by_tick(amount, tick * dec!(0.01), Round::ToNearest)
             }
         }
     }
