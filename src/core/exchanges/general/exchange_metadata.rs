@@ -69,7 +69,7 @@ impl Exchange {
         match self.exchange_client.parse_metadata(&response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
-                self.handle_parse_error(error, response, "".into(), None)?;
+                self.handle_parse_error(error, &response, "".into(), None)?;
                 Ok(Vec::new())
             }
         }

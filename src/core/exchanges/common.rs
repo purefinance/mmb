@@ -308,6 +308,14 @@ impl ExchangeError {
         }
     }
 
+    pub(crate) fn unknown_error(message: &str) -> Self {
+        Self {
+            error_type: ExchangeErrorType::Unknown,
+            message: message.to_owned(),
+            code: None,
+        }
+    }
+
     pub fn set_pending(&mut self, pending_time: Duration) {
         self.error_type = ExchangeErrorType::PendingError(pending_time);
     }
