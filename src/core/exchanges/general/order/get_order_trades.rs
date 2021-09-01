@@ -53,6 +53,7 @@ impl Exchange {
         }
     }
 
+    // TODO move to the ../get_my_trades.rs
     pub(crate) async fn get_my_trades(
         &self,
         currency_pair_metadata: &CurrencyPairMetadata,
@@ -65,18 +66,14 @@ impl Exchange {
         // FIXME is is_launched_from_tests necessary here?
 
         match self.get_rest_error(&response) {
-            Some(error) => {
-                // FIXME remove return;
-                return Ok(RequestResult::Error(error));
-            }
-
+            Some(error) => Ok(RequestResult::Error(error)),
             None => match self.parse_get_my_trades(&response, last_date_time) {
-                Ok(data) => return Ok(RequestResult::Success(data)),
+                Ok(data) => Ok(RequestResult::Success(data)),
                 Err(error) => {
                     self.handle_parse_error(error, &response, "".into(), None)?;
-                    return Ok(RequestResult::Error(ExchangeError::unknown_error(
+                    Ok(RequestResult::Error(ExchangeError::unknown_error(
                         &response.content,
-                    )));
+                    )))
                 }
             },
         }
@@ -107,7 +104,6 @@ impl Exchange {
             Some(exchange_order_id) => {
                 let response = self.request_order_trades_core(&exchange_order_id).await;
 
-                // TODO complete when request_order_trades_core will be implemented
                 info!(
                     "get_order_trades_core response {} {:?} on {} {:?}",
                     order.client_order_id(),
@@ -116,16 +112,29 @@ impl Exchange {
                     response
                 );
 
-                if let Some(error) = self.get_rest_error(&response) {
-                    bail!(
-                        "Rest error appeared during request get_open_orders: {}",
-                        error.message
-                    )
+                match self.get_rest_error(&response) {
+                    Some(error) => Ok(RequestResult::Error(error)),
+                    None => match self.parse_get_order_trades_core(&response, exchange_order_id) {
+                        Ok(data) => Ok(RequestResult::Success(data)),
+                        Err(error) => {
+                            self.handle_parse_error(error, &response, "".into(), None)?;
+                            Ok(RequestResult::Error(ExchangeError::unknown_error(
+                                &response.content,
+                            )))
+                        }
+                    },
                 }
             }
             None => bail!("There are no exchange_order_id in order {:?}", order),
         }
-        todo!()
+    }
+
+    pub(crate) fn parse_get_order_trades_core(
+        &self,
+        _response: &RestRequestOutcome,
+        _exchange_order_id: ExchangeOrderId,
+    ) -> Result<Vec<OrderTrade>> {
+        unimplemented!()
     }
 
     async fn request_order_trades_core(
