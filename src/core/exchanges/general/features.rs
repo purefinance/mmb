@@ -17,7 +17,13 @@ pub enum RestFillsType {
     GetOrderInfo,
 }
 
-#[derive(Debug)]
+impl Default for RestFillsType {
+    fn default() -> Self {
+        RestFillsType::None
+    }
+}
+
+#[derive(Default, Debug)]
 pub struct RestFillsFeatures {
     pub fills_type: RestFillsType,
     // TODO all over fields

@@ -22,6 +22,7 @@ async fn open_orders_exists() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
             false,
             true,
             AllowedEventSourceType::default(),
@@ -100,6 +101,7 @@ async fn open_orders_by_currency_pair_exist() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::OneCurrencyPair,
+            RestFillsFeatures::default(),
             true,
             true,
             AllowedEventSourceType::default(),
@@ -169,6 +171,7 @@ async fn should_return_open_orders() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
             true,
             true,
             AllowedEventSourceType::default(),
