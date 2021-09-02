@@ -24,7 +24,7 @@ use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
 use crate::core::settings::ExchangeSettings;
-use crate::core::{connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide};
+use crate::core::{connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide, DateTime};
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use awc::http::Uri;
 
@@ -47,6 +47,12 @@ pub trait ExchangeClient: Support {
     ) -> Result<RestRequestOutcome>;
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
+
+    async fn request_my_trades(
+        &self,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        last_date_time: Option<DateTime>,
+    ) -> RestRequestOutcome;
 }
 
 #[async_trait]

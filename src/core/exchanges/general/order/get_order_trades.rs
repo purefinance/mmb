@@ -11,16 +11,17 @@ use anyhow::{bail, Result};
 use itertools::Itertools;
 use log::info;
 
-pub(crate) struct OrderTrade {
+pub struct OrderTrade {
     pub exchange_order_id: Option<ExchangeOrderId>,
 }
 
 impl Exchange {
-    pub(crate) async fn get_order_trades(
+    pub async fn get_order_trades(
         &self,
         currency_pair_metadata: &CurrencyPairMetadata,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
+        dbg!(&"DAAAAA");
         let fills_type = &self.features.rest_fills_features.fills_type;
         match fills_type {
             RestFillsType::OrderTrades => self.get_order_trades_core(order).await,
@@ -61,7 +62,10 @@ impl Exchange {
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         // FIXME What does this comment mean? Should we keep it in rust?
         // using var timer = UseTimeMetric(ExchangeRequestType.GetMyTrades);
-        let response = self.request_my_trades(currency_pair_metadata, last_date_time);
+        let response = self
+            .exchange_client
+            .request_my_trades(currency_pair_metadata, last_date_time)
+            .await;
 
         // FIXME is is_launched_from_tests necessary here?
 
@@ -77,15 +81,6 @@ impl Exchange {
                 }
             },
         }
-    }
-
-    // TODO implement
-    pub(crate) fn request_my_trades(
-        &self,
-        _currency_pair_metadata: &CurrencyPairMetadata,
-        _last_date_time: Option<chrono::DateTime<chrono::Utc>>,
-    ) -> RestRequestOutcome {
-        unimplemented!()
     }
 
     pub(crate) fn parse_get_my_trades(
