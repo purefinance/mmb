@@ -52,7 +52,7 @@ pub trait ExchangeClient: Support {
         &self,
         currency_pair_metadata: &CurrencyPairMetadata,
         last_date_time: Option<DateTime>,
-    ) -> RestRequestOutcome;
+    ) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait]

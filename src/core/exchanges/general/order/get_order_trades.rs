@@ -21,7 +21,6 @@ impl Exchange {
         currency_pair_metadata: &CurrencyPairMetadata,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        dbg!(&"DAAAAA");
         let fills_type = &self.features.rest_fills_features.fills_type;
         match fills_type {
             RestFillsType::OrderTrades => self.get_order_trades_core(order).await,
@@ -65,7 +64,7 @@ impl Exchange {
         let response = self
             .exchange_client
             .request_my_trades(currency_pair_metadata, last_date_time)
-            .await;
+            .await?;
 
         // FIXME is is_launched_from_tests necessary here?
 

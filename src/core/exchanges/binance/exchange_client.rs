@@ -166,8 +166,29 @@ impl ExchangeClient for Binance {
         &self,
         currency_pair_metadata: &CurrencyPairMetadata,
         last_date_time: Option<DateTime>,
-    ) -> RestRequestOutcome {
-        dbg!(&"HERE");
-        todo!()
+    ) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(&CurrencyPair::from_codes(
+            currency_pair_metadata.base_currency_code.clone(),
+            currency_pair_metadata.quote_currency_code.clone(),
+        ));
+        let mut http_params = vec![(
+            "symbol".to_owned(),
+            specific_currency_pair.as_str().to_owned(),
+        )];
+
+        if let Some(last_date_time) = last_date_time {
+            http_params.push((
+                "startTime".to_owned(),
+                last_date_time.timestamp_millis().to_string(),
+            ));
+        }
+
+        let url_path = match self.settings.is_margin_trading {
+            true => "/fapi/v1/userTrades",
+            false => "/api/v3/myTrades",
+        };
+
+        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
+        self.rest_client.get(full_url, &self.settings.api_key).await
     }
 }
