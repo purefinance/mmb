@@ -1325,16 +1325,10 @@ impl BalanceReservationManager {
             )
         }
         let date_time = Utc::now();
-        match reservation.approved_parts.get_mut(client_order_id) {
-            Some(approved_part) => {
-                *approved_part = ApprovedPart::new(date_time, client_order_id.clone(), amount);
-            }
-            None => bail!(
-                "failed to get approved part for {} from {:?}",
-                client_order_id,
-                reservation.approved_parts
-            ),
-        }
+        reservation.approved_parts.insert(
+            client_order_id.clone(),
+            ApprovedPart::new(date_time, client_order_id.clone(), amount),
+        );
 
         log::info!("Order {} was approved with {}", client_order_id, amount);
         Ok(())
@@ -1528,17 +1522,8 @@ impl BalanceReservationManager {
 
         let reservation_amount_diff = new_unreserved_amount - reservation.unreserved_amount;
         if let Some(client_order_id) = client_order_id {
-            if !reservation
-                .approved_parts
-                .get_mut(client_order_id)
-                .is_none()
-            {
-                let new_amount = reservation
-                    .approved_parts
-                    .get_mut(client_order_id)
-                    .expect("fix me") // TODO: grays fix me and next
-                    .unreserved_amount
-                    + reservation_amount_diff;
+            if let Some(approved_part) = reservation.approved_parts.get_mut(client_order_id) {
+                let new_amount = approved_part.unreserved_amount + reservation_amount_diff;
                 if reservation.is_amount_within_symbol_margin_error(new_amount) {
                     reservation.approved_parts.remove(client_order_id);
                 } else if new_amount < dec!(0) {
@@ -1552,16 +1537,12 @@ impl BalanceReservationManager {
                             client_order_id
                         )
                 } else {
-                    reservation
+                    let approved_part = reservation
                         .approved_parts
                         .get_mut(client_order_id)
-                        .expect("fix me")
-                        .unreserved_amount = new_amount; // TODO: grays fix me
-                    reservation
-                        .approved_parts
-                        .get_mut(client_order_id)
-                        .expect("fix me")
-                        .amount += reservation_amount_diff;
+                        .expect("failed to get approved part");
+                    approved_part.unreserved_amount = new_amount;
+                    approved_part.amount += reservation_amount_diff;
                 }
             } else {
                 if is_src_request {
@@ -1572,16 +1553,10 @@ impl BalanceReservationManager {
                     )
                 }
 
-                match reservation.approved_parts.get_mut(client_order_id) {
-                    Some(approved_part) => {
-                        *approved_part = ApprovedPart::new(
-                            Utc::now(),
-                            client_order_id.clone(),
-                            reservation_amount_diff,
-                        );
-                    }
-                    None => bail!("failed to get mut approved part for {}", client_order_id),
-                }
+                reservation.approved_parts.insert(
+                    client_order_id.clone(),
+                    ApprovedPart::new(Utc::now(), client_order_id.clone(), reservation_amount_diff),
+                );
             }
         } else {
             reservation.not_approved_amount += reservation_amount_diff;

@@ -82,6 +82,15 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata(
     currency_pair_metadata: Arc<CurrencyPairMetadata>,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
+    get_test_exchange_with_currency_pair_metadata_and_id(
+        currency_pair_metadata,
+        &exchange_account_id,
+    )
+}
+pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
+    currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    exchange_account_id: &ExchangeAccountId,
+) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let mut settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         "test_api_key".into(),
@@ -109,7 +118,7 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata(
     );
 
     let exchange = Exchange::new(
-        exchange_account_id,
+        exchange_account_id.clone(),
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,

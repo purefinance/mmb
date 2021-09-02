@@ -26,14 +26,10 @@ use rust_decimal_macros::dec;
 pub struct BalanceManagerBase {
     pub ten_digit_precision: Decimal,
     pub order_index: i32,
-    //         protected const string ExchangeName = "Binance";
-    pub exchange_account_id: ExchangeAccountId,
-    //         protected const string ExchangeName2 = "Binance";
-    //         protected const string ExchangeId2 = "Binance1";
+    pub exchange_account_id_1: ExchangeAccountId,
+    pub exchange_account_id_2: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
     pub configuration_descriptor: ConfigurationDescriptor,
-    //         protected Mock<IDateTimeService> DateTimeService;
-    //         protected Mock<IDataRecorder> DataRecorder = new Mock<IDataRecorder>();
     currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
     balance_manager: Option<BalanceManager>,
 }
@@ -41,9 +37,6 @@ pub struct BalanceManagerBase {
 impl BalanceManagerBase {
     pub fn exchange_name() -> String {
         "local_exchange_account_id".into()
-    }
-    pub fn exchange_id() -> String {
-        BalanceManagerBase::exchange_name() + "0".into()
     }
     // Quote currency
     pub fn btc() -> CurrencyCode {
@@ -124,16 +117,19 @@ impl BalanceManagerBase {
     }
 
     pub fn new() -> Self {
-        let exchange_account_id =
+        let exchange_account_id_1 =
             ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 0);
+        let exchange_account_id_2 =
+            ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 1);
         Self {
             ten_digit_precision: dec!(0.0000000001),
             order_index: 1,
-            exchange_account_id: exchange_account_id.clone(),
+            exchange_account_id_1: exchange_account_id_1.clone(),
+            exchange_account_id_2: exchange_account_id_2.clone(),
             currency_pair: BalanceManagerBase::currency_pair().clone(),
             configuration_descriptor: ConfigurationDescriptor::new(
                 "LiquidityGenerator".into(),
-                exchange_account_id.to_string()
+                exchange_account_id_1.to_string()
                     + ";"
                     + BalanceManagerBase::currency_pair().as_str(),
             ),
@@ -176,7 +172,7 @@ impl BalanceManagerBase {
     pub fn create_balance_request(&self, currency_code: CurrencyCode) -> BalanceRequest {
         BalanceRequest::new(
             self.configuration_descriptor.clone(),
-            self.exchange_account_id.clone(),
+            self.exchange_account_id_1.clone(),
             self.currency_pair.clone(),
             currency_code,
         )
@@ -190,7 +186,7 @@ impl BalanceManagerBase {
     ) -> ReserveParameters {
         ReserveParameters::new(
             self.configuration_descriptor.clone(),
-            self.exchange_account_id.clone(),
+            self.exchange_account_id_1.clone(),
             self.currency_pair_metadata(),
             order_side,
             price,
@@ -205,7 +201,7 @@ impl BalanceManagerBase {
     ) -> Option<Decimal> {
         self.balance_manager().get_balance_by_side(
             &self.configuration_descriptor,
-            &self.exchange_account_id,
+            &self.exchange_account_id_1,
             self.currency_pair_metadata().clone(),
             trade_side,
             price,
@@ -219,7 +215,7 @@ impl BalanceManagerBase {
     ) -> Option<Decimal> {
         self.balance_manager().get_balance_by_currency_code(
             &self.configuration_descriptor,
-            &self.exchange_account_id,
+            &self.exchange_account_id_1,
             self.currency_pair_metadata().clone(),
             &currency_code,
             price,
@@ -227,15 +223,15 @@ impl BalanceManagerBase {
     }
 
     pub fn create_order(
-        &self,
+        &mut self,
         order_side: OrderSide,
         reservation_id: ReservationId,
     ) -> OrderSnapshot {
-        OrderSnapshot {
+        let order_snapshot = OrderSnapshot {
             header: OrderHeader::new(
                 ClientOrderId::new(format!("order{}", self.order_index).into()),
                 Utc::now(),
-                self.exchange_account_id.clone(),
+                self.exchange_account_id_1.clone(),
                 self.currency_pair_metadata().currency_pair().clone(),
                 OrderType::Limit,
                 order_side,
@@ -249,6 +245,8 @@ impl BalanceManagerBase {
             fills: Default::default(),
             status_history: Default::default(),
             internal_props: Default::default(),
-        }
+        };
+        self.order_index += 1;
+        order_snapshot
     }
 }

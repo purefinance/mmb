@@ -15,8 +15,9 @@ use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::orders::fill::OrderFill;
-use crate::core::orders::order::{ClientOrderId, OrderSide, OrderStatus, OrderType, ReservationId};
-use crate::core::orders::pool::OrderRef;
+use crate::core::orders::order::{
+    ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, OrderType, ReservationId,
+};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::core::DateTime;
 use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
@@ -503,7 +504,7 @@ impl BalanceManager {
 
     pub fn clone_and_subtract_not_approved_data(
         &self,
-        orders: Option<Vec<OrderRef>>,
+        orders: Option<Vec<OrderSnapshot>>,
     ) -> Result<BalanceManager> {
         let mut balance_manager = self.custom_clone();
         let mut not_full_approved_reservations = HashMap::new();
@@ -526,22 +527,22 @@ impl BalanceManager {
         };
 
         for order in orders_to_subtract {
-            if order.is_finished() || order.status() == OrderStatus::Creating {
+            if order.props.is_finished() || order.status() == OrderStatus::Creating {
                 continue;
             }
 
-            if order.order_type() == OrderType::Market {
+            if order.header.order_type == OrderType::Market {
                 bail!("Clone doesn't support market orders because we need to know the price")
             }
-            if applied_orders.contains(&order.client_order_id()) {
+            if applied_orders.contains(&order.header.client_order_id) {
                 continue;
             }
-            applied_orders.insert(order.client_order_id());
+            applied_orders.insert(order.header.client_order_id.clone());
 
-            match order.reservation_id() {
+            match order.header.reservation_id {
                 Some(reservation_id) => balance_manager.unreserve_by_client_order_id(
                     reservation_id,
-                    order.client_order_id(),
+                    order.header.client_order_id.clone(),
                     order.amount(),
                 )?,
                 None => continue,
@@ -604,35 +605,37 @@ impl BalanceManager {
     pub fn order_was_filled(
         &mut self,
         configuration_descriptor: &ConfigurationDescriptor,
-        order_ref: OrderRef,
+        order_snapshot: &OrderSnapshot,
         order_fill: Option<OrderFill>,
     ) {
-        let exchange_account_id = order_ref.exchange_account_id();
+        let exchange_account_id = &order_snapshot.header.exchange_account_id;
         let currency_pair_metadata = self
             .currency_pair_to_currency_pair_metadata_converter
-            .try_get_currency_pair_metadata(&exchange_account_id, &order_ref.currency_pair())
+            .try_get_currency_pair_metadata(
+                exchange_account_id,
+                &order_snapshot.header.currency_pair,
+            )
             .expect(
                 format!(
                     "failed to get currency pair metadata with {} {}",
-                    exchange_account_id,
-                    order_ref.currency_pair()
+                    exchange_account_id, order_snapshot.header.currency_pair
                 )
                 .as_str(),
             );
         let order_fill = match order_fill {
             Some(order_fill) => order_fill,
-            None => order_ref
-                .get_fills()
-                .0
+            None => order_snapshot
+                .fills
+                .fills
                 .last()
-                .expect(format!("failed to get fills from order {:?}", order_ref).as_str())
+                .expect(format!("failed to get fills from order {:?}", order_snapshot).as_str())
                 .clone(),
         };
         self.handle_order_fill(
             configuration_descriptor,
-            &exchange_account_id,
+            exchange_account_id,
             currency_pair_metadata.clone(),
-            order_ref.clone(),
+            order_snapshot,
             &order_fill,
         )
         .expect(
@@ -641,7 +644,7 @@ impl BalanceManager {
                 configuration_descriptor,
                 exchange_account_id,
                 currency_pair_metadata.clone(),
-                order_ref,
+                order_snapshot,
                 order_fill,
             )
             .as_str(),
@@ -655,16 +658,16 @@ impl BalanceManager {
         configuration_descriptor: &ConfigurationDescriptor,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        order_ref: OrderRef,
+        order_snapshot: &OrderSnapshot,
         order_fill: &OrderFill,
     ) -> Result<()> {
-        let currency_code_before_trade =
-            &mut currency_pair_metadata.get_trade_code(order_ref.side(), BeforeAfter::Before);
+        let currency_code_before_trade = &mut currency_pair_metadata
+            .get_trade_code(order_snapshot.header.side, BeforeAfter::Before);
         let amount_in_before_trade_currenct_code = &mut dec!(0);
 
         self.balance_reservation_manager
             .handle_position_fill_amount_change(
-                order_ref.side(),
+                order_snapshot.header.side,
                 order_fill.client_order_fill_id(),
                 order_fill.amount(),
                 order_fill.price(),
@@ -675,14 +678,14 @@ impl BalanceManager {
                 amount_in_before_trade_currenct_code,
             )?;
 
-        let currency_code_after_trade =
-            &mut currency_pair_metadata.get_trade_code(order_ref.side(), BeforeAfter::After);
+        let currency_code_after_trade = &mut currency_pair_metadata
+            .get_trade_code(order_snapshot.header.side, BeforeAfter::After);
         let amount_in_after_trade_currenct_code = &mut dec!(0);
         self.balance_reservation_manager
             .handle_position_fill_amount_change(
-                order_ref.side(),
+                order_snapshot.header.side,
                 order_fill.client_order_fill_id(),
-                order_fill.amount(),
+                -order_fill.amount(),
                 order_fill.price(),
                 configuration_descriptor,
                 exchange_account_id,
@@ -714,15 +717,15 @@ impl BalanceManager {
             .get_position_in_amount_currency_code(
                 exchange_account_id,
                 currency_pair_metadata.clone(),
-                order_ref.side(),
+                order_snapshot.header.side,
             );
 
         log::info!(
             "Order was filled handle_order_fill {} {} {} {:?} {:?} {} {} {} {} {} {} {} {}",
             position,
-            order_ref.exchange_account_id(),
-            order_ref.client_order_id(),
-            order_ref.exchange_order_id(),
+            order_snapshot.header.exchange_account_id,
+            order_snapshot.header.client_order_id,
+            order_snapshot.props.exchange_order_id,
             order_fill.trade_id(),
             order_fill.price(),
             order_fill.amount(),
@@ -751,23 +754,23 @@ impl BalanceManager {
     pub fn order_was_finished(
         &mut self,
         configuration_descriptor: &ConfigurationDescriptor,
-        order_ref: OrderRef,
+        order_snapshot: &OrderSnapshot,
     ) -> Result<()> {
-        for order_fill in order_ref.get_fills().0 {
+        for order_fill in &order_snapshot.fills.fills {
             self.order_was_filled(
                 configuration_descriptor,
-                order_ref.clone(),
-                Some(order_fill),
+                order_snapshot,
+                Some(order_fill.clone()),
             );
         }
 
-        if order_ref.status() == OrderStatus::Canceled {
-            if let Some(reservation_id) = order_ref.reservation_id() {
+        if order_snapshot.status() == OrderStatus::Canceled {
+            if let Some(reservation_id) = order_snapshot.header.reservation_id {
                 if !self.get_reservation(reservation_id).is_none() {
                     self.balance_reservation_manager
                         .cancel_approved_reservation(
                             reservation_id,
-                            &order_ref.client_order_id(),
+                            &order_snapshot.header.client_order_id,
                         )?;
                     self.save_balances();
                 }
