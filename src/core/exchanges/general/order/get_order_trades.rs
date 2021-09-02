@@ -60,6 +60,7 @@ impl Exchange {
         currency_pair_metadata: &CurrencyPairMetadata,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
+        dbg!(&"DAAAAA");
         let fills_type = &self.features.rest_fills_features.fills_type;
         match fills_type {
             RestFillsType::MyTrades => {

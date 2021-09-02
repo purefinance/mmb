@@ -186,4 +186,13 @@ impl ExchangeClient for Binance {
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
         self.rest_client.get(full_url, &self.settings.api_key).await
     }
+
+    async fn request_my_trades(
+        &self,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        last_date_time: Option<DateTime>,
+    ) -> RestRequestOutcome {
+        dbg!(&"HERE");
+        todo!()
+    }
 }
