@@ -14,6 +14,7 @@ use super::{
     },
     general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata},
     general::handlers::handle_order_filled::FillEventData,
+    general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::events::ExchangeEvent;
@@ -108,6 +109,12 @@ pub trait Support: Send + Sync {
     ) -> CurrencyCode {
         currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
     }
+    
+    fn parse_get_my_trades(
+        &self,
+        _response: &RestRequestOutcome,
+        _last_date_time: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<Vec<OrderTrade>>;
 }
 
 pub struct ExchangeClientBuilderResult {
