@@ -1,4 +1,6 @@
-use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeError, Price};
+use crate::core::exchanges::common::{
+    Amount, CurrencyCode, ExchangeError, Price, RestRequestOutcome,
+};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::orders::fill::OrderFillType;
@@ -10,6 +12,7 @@ use crate::core::{
 };
 use anyhow::{bail, Result};
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -28,7 +31,7 @@ pub struct OrderTrade {
 
 impl OrderTrade {
     pub fn new(
-        exchange_order_id: ExchangeOrderId,
+        exchange_order_id: Option<ExchangeOrderId>,
         trade_id: String,
         datetime: DateTime,
         price: Price,

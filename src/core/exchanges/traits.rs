@@ -14,7 +14,7 @@ use super::{
     },
     general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata},
     general::handlers::handle_order_filled::FillEventData,
-    general::order::get_order_trades::OrderTrade,
+    general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::events::ExchangeEvent;
