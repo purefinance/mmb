@@ -390,14 +390,16 @@ impl Support for Binance {
         _last_date_time: Option<DateTime>,
     ) -> Result<Vec<OrderTrade>> {
         #[derive(Serialize, Deserialize)]
+        #[serde(rename_all = "camelCase")]
         struct BinanceMyTrade {
-            // FIXME make fields name aliases
             symbol: String,
             id: u64,
             order_id: u64,
             price: Price,
+            #[serde(alias = "qty")]
             amount: Amount,
             comission: Amount,
+            #[serde(alias = "commissionAsset")]
             commission_currency_code: CurrencyId,
             time: u64,
             is_buyer: bool,
@@ -405,45 +407,47 @@ impl Support for Binance {
             is_best_match: bool,
         }
 
-        let binance = self;
         impl BinanceMyTrade {
-            /// Set the binance my trade's is best match.
             pub(super) fn to_unified_order_trade(
                 &self,
-                get_currency_code: impl Fn(CurrencyId) -> Option<CurrencyCode>,
-            ) -> OrderTrade {
+                get_currency_code: impl Fn(&CurrencyId) -> Option<CurrencyCode>,
+            ) -> Result<OrderTrade> {
                 let datetime: DateTime = (UNIX_EPOCH + Duration::from_millis(self.time)).into();
                 let order_role = if self.is_maker {
                     OrderRole::Maker
                 } else {
                     OrderRole::Taker
                 };
-                let commission_currency_code = get_currency_code(self.commission_currency_code);
-
-                OrderTrade::new(
-                    self.order_id.to_string().into(),
-                    self.id.to_string(),
-                    datetime,
-                    self.price,
-                    self.amount,
-                    order_role,
-                    commission_currency_code,
-                    None,
-                    Some(self.comission),
-                    OrderFillType::UserTrade,
-                )
+                let commission_currency_code = get_currency_code(&self.commission_currency_code);
+                if let Some(commission_currency_code) = commission_currency_code {
+                    Ok(OrderTrade::new(
+                        ExchangeOrderId::from(self.order_id.to_string().as_ref()),
+                        self.id.to_string(),
+                        datetime,
+                        self.price,
+                        self.amount,
+                        order_role,
+                        commission_currency_code,
+                        None,
+                        Some(self.comission),
+                        OrderFillType::UserTrade,
+                    ))
+                } else {
+                    bail!("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting");
+                }
             }
         }
 
         let my_trades: Vec<BinanceMyTrade> = serde_json::from_str(&response.content)?;
-        let order_trades = my_trades
-            .iter()
-            .map(|my_trade| {
-                my_trade.to_unified_order_trade(|currency_id| self.get_currency_code(&currency_id))
-            })
-            .collect_vec();
 
-        todo!();
+        let mut order_trades = Vec::new();
+        for my_trade in my_trades.iter() {
+            let unified_order_trade = my_trade
+                .to_unified_order_trade(|currency_id| self.get_currency_code(&currency_id))?;
+            order_trades.push(unified_order_trade);
+        }
+
+        Ok(order_trades)
     }
 }
 

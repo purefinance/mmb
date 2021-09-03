@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct OrderTrade {
-    pub exchange_order_id: Option<ExchangeOrderId>,
+    pub exchange_order_id: ExchangeOrderId,
     pub trade_id: String,
     pub datetime: DateTime,
     pub price: Price,
@@ -31,7 +31,7 @@ pub struct OrderTrade {
 
 impl OrderTrade {
     pub fn new(
-        exchange_order_id: Option<ExchangeOrderId>,
+        exchange_order_id: ExchangeOrderId,
         trade_id: String,
         datetime: DateTime,
         price: Price,
@@ -83,14 +83,16 @@ impl Exchange {
         match my_trades {
             RequestResult::Error(_) => Ok(my_trades),
             RequestResult::Success(my_trades) => {
-                let data = my_trades
-                    .into_iter()
-                    .filter(|order_trade| {
-                        order_trade.exchange_order_id == order.exchange_order_id()
-                    })
-                    .collect_vec();
+                if let Some(exchange_order_id) = order.exchange_order_id() {
+                    let data = my_trades
+                        .into_iter()
+                        .filter(|order_trade| order_trade.exchange_order_id == exchange_order_id)
+                        .collect_vec();
 
-                Ok(RequestResult::Success(data))
+                    Ok(RequestResult::Success(data))
+                } else {
+                    bail!("There is no exchange_order in order {:?}", order);
+                }
             }
         }
     }
