@@ -108,7 +108,7 @@ impl Exchange {
                         pre_reservation_group_id,
                         cancellation_token,
                     )
-                    .await;
+                    .await?;
                 }
 
                 if result_order.status() == OrderStatus::Creating {

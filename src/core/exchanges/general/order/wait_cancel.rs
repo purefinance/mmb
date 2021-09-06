@@ -214,7 +214,7 @@ impl Exchange {
                 pre_reservation_group_id,
                 cancellation_token.clone(),
             )
-            .await;
+            .await?;
         }
 
         if !order.fn_ref(|s| s.internal_props.canceled_not_from_wait_cancel_order)
@@ -386,7 +386,7 @@ impl Exchange {
                                 pre_reservation_group_id,
                                 cancellation_token,
                             )
-                            .await;
+                            .await?;
                         }
                         _ => {}
                     }
