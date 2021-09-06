@@ -234,7 +234,7 @@ impl BalanceReservationManager {
         {
             self.balance_reservation_storage.remove(reservation_id);
 
-            if self.is_call_from_clone {
+            if !self.is_call_from_clone {
                 log::info!(
                     "Removed balance reservation {} on {}",
                     reservation_id,
@@ -263,7 +263,7 @@ impl BalanceReservationManager {
                 )?;
             }
 
-            if self.is_call_from_clone {
+            if !self.is_call_from_clone {
                 log::info!(
                     "Unreserved {} from {} {} {} {:?} {} {} {} {} {} {} {}",
                     amount_to_unreserve,
@@ -758,7 +758,8 @@ impl BalanceReservationManager {
         let currency_code = currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before);
         let mut position_in_amount_currency = self
             .position_by_fill_amount_in_amount_currency
-            .get(exchange_account_id, currency_pair)?;
+            .get(exchange_account_id, currency_pair)
+            .unwrap_or(dec!(0));
 
         if currency_code == currency_pair_metadata.base_currency_code {
             //sell

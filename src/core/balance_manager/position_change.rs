@@ -3,7 +3,7 @@ use crate::core::DateTime;
 
 use rust_decimal::Decimal;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PositionChange {
     pub(crate) client_order_fill_id: ClientOrderFillId,
     pub(crate) date_time: DateTime,

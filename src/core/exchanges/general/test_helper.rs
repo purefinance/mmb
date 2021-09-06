@@ -136,6 +136,14 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
     exchange
         .leverage_by_currency_pair
         .insert(currency_pair_metadata.currency_pair(), dec!(1));
+    exchange
+        .currencies
+        .lock()
+        .push(currency_pair_metadata.base_currency_code());
+    exchange
+        .currencies
+        .lock()
+        .push(currency_pair_metadata.quote_currency_code());
     exchange.symbols.insert(
         currency_pair_metadata.currency_pair(),
         currency_pair_metadata,

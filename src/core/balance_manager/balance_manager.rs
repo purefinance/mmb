@@ -368,7 +368,7 @@ impl BalanceManager {
             let exchange_currencies =
                 if let Some(exchange) = self.exchanges_by_id.get(exchange_account_id) {
                     let tmp_mut = &exchange.currencies;
-                    tmp_mut.lock()
+                    tmp_mut.lock().clone()
                 } else {
                     bail!("Failed to get exchange with id {}", exchange_account_id)
                 };
@@ -399,8 +399,8 @@ impl BalanceManager {
                 };
 
             for exchange_currency in exchange_currencies.iter() {
-                if let Some(balance) = filtred_exchange_balances.get_mut(exchange_currency) {
-                    *balance = dec!(0);
+                if !filtred_exchange_balances.contains_key(exchange_currency) {
+                    filtred_exchange_balances.insert(exchange_currency.clone(), dec!(0));
                 }
             }
         }

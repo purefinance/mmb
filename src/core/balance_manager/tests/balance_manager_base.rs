@@ -222,9 +222,33 @@ impl BalanceManagerBase {
         )
     }
 
+    pub fn get_balance_by_another_balance_manager_and_currency_code(
+        &self,
+        balance_manager: &BalanceManager,
+        currency_code: CurrencyCode,
+        price: Decimal,
+    ) -> Option<Decimal> {
+        balance_manager.get_balance_by_currency_code(
+            &self.configuration_descriptor,
+            &self.exchange_account_id_1,
+            self.currency_pair_metadata().clone(),
+            &currency_code,
+            price,
+        )
+    }
+
     pub fn create_order(
         &mut self,
         order_side: OrderSide,
+        reservation_id: ReservationId,
+    ) -> OrderSnapshot {
+        self.create_order_by_amount(order_side, dec!(5), reservation_id)
+    }
+
+    pub fn create_order_by_amount(
+        &mut self,
+        order_side: OrderSide,
+        amount: Amount,
         reservation_id: ReservationId,
     ) -> OrderSnapshot {
         let order_snapshot = OrderSnapshot {
@@ -235,7 +259,7 @@ impl BalanceManagerBase {
                 self.currency_pair_metadata().currency_pair().clone(),
                 OrderType::Limit,
                 order_side,
-                dec!(5),
+                amount,
                 OrderExecutionType::None,
                 Some(reservation_id),
                 None,

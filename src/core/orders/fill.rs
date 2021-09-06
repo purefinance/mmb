@@ -190,4 +190,9 @@ impl OrderFill {
     pub fn client_order_fill_id(&self) -> &Option<ClientOrderFillId> {
         &self.client_order_fill_id
     }
+
+    #[cfg(test)]
+    pub fn set_client_order_fill_id(&mut self, input: ClientOrderFillId) {
+        self.client_order_fill_id = Some(input);
+    }
 }
