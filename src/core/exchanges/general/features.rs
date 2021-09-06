@@ -1,10 +1,4 @@
-use crate::core::{
-    exchanges::{
-        common::{Amount, CurrencyCode, Price},
-        events::AllowedEventSourceType,
-    },
-    orders::order::OrderRole,
-};
+use crate::core::exchanges::events::AllowedEventSourceType;
 
 #[derive(Debug)]
 pub enum OpenOrdersType {

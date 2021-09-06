@@ -419,7 +419,7 @@ impl Exchange {
         args_to_log: Option<Vec<String>>,
     ) -> anyhow::Result<()> {
         let content = &response.content;
-        let log_event_level = match serde_json::from_str::<Value>(&content) {
+        let log_event_level = match serde_json::from_str::<Value>(content) {
             Ok(_) => Level::Error,
             Err(_) => Level::Warn,
         };

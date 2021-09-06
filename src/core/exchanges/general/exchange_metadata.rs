@@ -57,19 +57,19 @@ impl Exchange {
     }
 
     async fn build_metadata_core(&self) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
-        let response = self.exchange_client.request_metadata().await?;
+        let response = &self.exchange_client.request_metadata().await?;
 
-        if let Some(error) = self.get_rest_error(&response) {
+        if let Some(error) = self.get_rest_error(response) {
             bail!(
                 "Rest error appeared during request request_metadata: {}",
                 error.message
             );
         }
 
-        match self.exchange_client.parse_metadata(&response) {
+        match self.exchange_client.parse_metadata(response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
-                self.handle_parse_error(error, &response, "".into(), None)?;
+                self.handle_parse_error(error, response, "".into(), None)?;
                 Ok(Vec::new())
             }
         }

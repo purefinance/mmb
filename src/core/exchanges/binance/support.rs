@@ -391,7 +391,6 @@ impl Support for Binance {
         #[derive(Serialize, Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct BinanceMyTrade {
-            symbol: String,
             id: u64,
             order_id: u64,
             price: Price,
@@ -401,15 +400,13 @@ impl Support for Binance {
             #[serde(alias = "commissionAsset")]
             commission_currency_code: CurrencyId,
             time: u64,
-            is_buyer: bool,
             is_maker: bool,
-            is_best_match: bool,
         }
 
         impl BinanceMyTrade {
             pub(super) fn to_unified_order_trade(
                 &self,
-                get_currency_code: impl Fn(&CurrencyId) -> Option<CurrencyCode>,
+                commission_currency_code: Option<CurrencyCode>,
             ) -> Result<OrderTrade> {
                 let datetime: DateTime = (UNIX_EPOCH + Duration::from_millis(self.time)).into();
                 let order_role = if self.is_maker {
@@ -417,7 +414,7 @@ impl Support for Binance {
                 } else {
                     OrderRole::Taker
                 };
-                let commission_currency_code = get_currency_code(&self.commission_currency_code);
+
                 if let Some(commission_currency_code) = commission_currency_code {
                     Ok(OrderTrade::new(
                         ExchangeOrderId::from(self.order_id.to_string().as_ref()),
@@ -441,8 +438,9 @@ impl Support for Binance {
 
         let mut order_trades = Vec::new();
         for my_trade in my_trades.iter() {
-            let unified_order_trade = my_trade
-                .to_unified_order_trade(|currency_id| self.get_currency_code(&currency_id))?;
+            let unified_order_trade = my_trade.to_unified_order_trade(
+                self.get_currency_code(&my_trade.commission_currency_code),
+            )?;
             order_trades.push(unified_order_trade);
         }
 

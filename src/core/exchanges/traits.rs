@@ -112,8 +112,8 @@ pub trait Support: Send + Sync {
     
     fn parse_get_my_trades(
         &self,
-        _response: &RestRequestOutcome,
-        _last_date_time: Option<chrono::DateTime<chrono::Utc>>,
+        response: &RestRequestOutcome,
+        last_date_time: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<Vec<OrderTrade>>;
 }
 

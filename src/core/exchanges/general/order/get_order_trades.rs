@@ -102,8 +102,7 @@ impl Exchange {
         currency_pair_metadata: &CurrencyPairMetadata,
         last_date_time: Option<DateTime>,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        // FIXME What does this comment mean? Should we keep it in rust?
-        // using var timer = UseTimeMetric(ExchangeRequestType.GetMyTrades);
+        // TODO UseTime<etric(ExchangeRequestType::GetMyTrades)
         let response = self
             .exchange_client
             .request_my_trades(currency_pair_metadata, last_date_time)
@@ -132,32 +131,33 @@ impl Exchange {
         &self,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        match order.exchange_order_id() {
-            Some(exchange_order_id) => {
-                let response = self.request_order_trades_core(&exchange_order_id).await;
-
-                info!(
-                    "get_order_trades_core response {} {:?} on {} {:?}",
-                    order.client_order_id(),
-                    order.exchange_order_id(),
-                    self.exchange_account_id,
-                    response
-                );
-
-                match self.get_rest_error(&response) {
-                    Some(error) => Ok(RequestResult::Error(error)),
-                    None => match self.parse_get_order_trades_core(&response, exchange_order_id) {
-                        Ok(data) => Ok(RequestResult::Success(data)),
-                        Err(error) => {
-                            self.handle_parse_error(error, &response, "".into(), None)?;
-                            Ok(RequestResult::Error(ExchangeError::unknown_error(
-                                &response.content,
-                            )))
-                        }
-                    },
-                }
-            }
+        let exchange_order_id = match order.exchange_order_id() {
+            Some(exchange_order_id) => exchange_order_id,
             None => bail!("There are no exchange_order_id in order {:?}", order),
+        };
+
+        let response = self.request_order_trades_core(&exchange_order_id).await;
+        // TODO make some metrics
+
+        info!(
+            "get_order_trades_core response {} {:?} on {} {:?}",
+            order.client_order_id(),
+            order.exchange_order_id(),
+            self.exchange_account_id,
+            response
+        );
+
+        match self.get_rest_error(&response) {
+            Some(error) => Ok(RequestResult::Error(error)),
+            None => match self.parse_get_order_trades_core(&response, exchange_order_id) {
+                Ok(data) => Ok(RequestResult::Success(data)),
+                Err(error) => {
+                    self.handle_parse_error(error, &response, "".into(), None)?;
+                    Ok(RequestResult::Error(ExchangeError::unknown_error(
+                        &response.content,
+                    )))
+                }
+            },
         }
     }
 
