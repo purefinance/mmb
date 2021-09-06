@@ -9,6 +9,7 @@ use crate::core::exchanges::general::features::RestFillsType;
 use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::core::nothing_to_do;
 use crate::core::orders::fill::{EventSourceType, OrderFillType};
 use crate::core::orders::order::OrderStatus;
 use crate::core::{
@@ -88,7 +89,7 @@ impl Exchange {
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
-    ) -> Result<()> {
+    ) -> Result<RequestResult<Vec<OrderTrade>>> {
         self.timeout_manager
             .reserve_when_available(
                 &self.exchange_account_id,
@@ -108,44 +109,49 @@ impl Exchange {
             RequestType::GetOrderTrades => {
                 let order_trades = self.get_order_trades(currency_pair_metadata, order).await?;
 
-                match order_trades {
-                    RequestResult::Success(order_trades) => {
-                        for order_trade in order_trades {
-                            if order.get_fills().0.into_iter().any(|order_fill| {
-                                match order_fill.trade_id() {
-                                    Some(fill_trade_id) => fill_trade_id == &order_trade.trade_id,
-                                    None => false,
-                                }
-                            }) {
-                                continue;
-                            };
+                if let RequestResult::Success(ref order_trades) = order_trades {
+                    for order_trade in order_trades {
+                        if order.get_fills().0.into_iter().any(|order_fill| {
+                            match order_fill.trade_id() {
+                                Some(fill_trade_id) => fill_trade_id == &order_trade.trade_id,
+                                None => false,
+                            }
+                        }) {
+                            continue;
+                        };
 
-                            self.handle_order_filled_for_restfallback(order, order_trade)?;
-                        }
+                        self.handle_order_filled_for_restfallback(order, order_trade)?;
                     }
-                    RequestResult::Error(_) => todo!(),
                 }
+
+                return Ok(order_trades);
             }
-            RequestType::GetOrderInfo => todo!(),
+            RequestType::GetOrderInfo => {
+                let order_info = self.get_order_info(order).await;
+
+                if let Ok(order_info) = order_info {
+                    //self.handle_order_filled(event_data);
+                }
+                todo!()
+            }
             _ => bail!(
                 "Unsupported request type {:?} in check_order_fills",
                 request_type
             ),
         }
-        todo!()
     }
 
     pub(crate) fn handle_order_filled_for_restfallback(
         &self,
         order: &OrderRef,
-        order_trade: OrderTrade,
+        order_trade: &OrderTrade,
     ) -> Result<()> {
         let exchange_order_id = order.exchange_order_id().ok_or(anyhow!(
             "No exchange_order_id in order while handle_order_filled_for_restfallback"
         ))?;
         let event_data = FillEventData {
             source_type: EventSourceType::RestFallback,
-            trade_id: order_trade.trade_id,
+            trade_id: order_trade.trade_id.clone(),
             client_order_id: Some(order.client_order_id()),
             exchange_order_id,
             fill_price: order_trade.price,
@@ -153,7 +159,7 @@ impl Exchange {
             is_diff: true,
             total_filled_amount: None,
             order_role: Some(order_trade.order_role),
-            commission_currency_code: Some(order_trade.fee_currency_code),
+            commission_currency_code: Some(order_trade.fee_currency_code.clone()),
             commission_rate: order_trade.fee_rate,
             commission_amount: order_trade.fee_amount,
             fill_type: OrderFillType::UserTrade,
