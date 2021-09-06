@@ -386,7 +386,6 @@ impl Support for Binance {
     fn parse_get_my_trades(
         &self,
         response: &RestRequestOutcome,
-        // FIXME delete cause not used
         _last_date_time: Option<DateTime>,
     ) -> Result<Vec<OrderTrade>> {
         #[derive(Serialize, Deserialize)]
