@@ -97,7 +97,6 @@ impl Exchange {
         }
     }
 
-    // TODO move to the ../get_my_trades.rs
     pub(crate) async fn get_my_trades(
         &self,
         currency_pair_metadata: &CurrencyPairMetadata,

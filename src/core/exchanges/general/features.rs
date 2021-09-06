@@ -1,4 +1,10 @@
-use crate::core::exchanges::events::AllowedEventSourceType;
+use crate::core::{
+    exchanges::{
+        common::{Amount, CurrencyCode, Price},
+        events::AllowedEventSourceType,
+    },
+    orders::order::OrderRole,
+};
 
 #[derive(Debug)]
 pub enum OpenOrdersType {
@@ -26,7 +32,7 @@ impl Default for RestFillsType {
 #[derive(Default, Debug)]
 pub struct RestFillsFeatures {
     pub fills_type: RestFillsType,
-    // TODO all over fields
+    // TODO all over fields for check_order_fills()
 }
 
 impl RestFillsFeatures {

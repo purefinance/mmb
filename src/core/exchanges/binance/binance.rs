@@ -384,7 +384,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 events_channel.clone(),
                 application_manager,
             )) as BoxExchangeClient,
-            // FIXME do we need customise this features?
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::new(RestFillsType::None),
