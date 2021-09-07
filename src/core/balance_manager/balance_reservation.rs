@@ -17,7 +17,7 @@ use rust_decimal_macros::dec;
 
 #[derive(Clone, Debug)]
 pub struct BalanceReservation {
-    pub configuration_descriptor: ConfigurationDescriptor,
+    pub configuration_descriptor: Arc<ConfigurationDescriptor>,
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
     pub order_side: Option<OrderSide>,
@@ -27,7 +27,7 @@ pub struct BalanceReservation {
     pub cost: Decimal,
 
     /// CurrencyCode in which we take away amount
-    pub reservation_currency_code: CurrencyCode, // maybe it should be string
+    pub reservation_currency_code: CurrencyCode,
     pub unreserved_amount: Decimal,
 
     /// Not approved amount in AmountCurrencyCode
@@ -37,7 +37,7 @@ pub struct BalanceReservation {
 
 impl BalanceReservation {
     pub fn new(
-        configuration_descriptor: ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         order_side: Option<OrderSide>,

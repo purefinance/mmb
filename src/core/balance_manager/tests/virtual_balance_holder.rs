@@ -17,7 +17,7 @@ struct VirtualBalanceHolderTests {
     pub exchange_account_id: ExchangeAccountId,
     exchange: Arc<Exchange>,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
-    configuration_descriptor: ConfigurationDescriptor,
+    configuration_descriptor: Arc<ConfigurationDescriptor>,
 }
 
 impl VirtualBalanceHolderTests {
@@ -54,10 +54,10 @@ impl VirtualBalanceHolderTests {
             currency_pair_metadata: tmp_exchange
                 .get_currency_pair_metadata(&VirtualBalanceHolderTests::currency_pair())
                 .expect("in test"),
-            configuration_descriptor: ConfigurationDescriptor::new(
+            configuration_descriptor: Arc::from(ConfigurationDescriptor::new(
                 "service".into(),
                 "config".into(),
-            ),
+            )),
         }
     }
 
@@ -189,6 +189,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore] // Work in progress due to derivatives
     pub fn get_balance_for_derivative_with_mark_price() {
         init_logger();
         let mut test_obj =

@@ -265,15 +265,15 @@ impl CurrencyPairMetadata {
         amount_in_amount_currency_code: Amount,
         currency_pair_price: Price,
     ) -> Result<Amount> {
-        if to_currency_code.as_str() == self.amount_currency_code.as_str() {
+        if to_currency_code == &self.amount_currency_code {
             return Ok(amount_in_amount_currency_code);
         }
 
-        if to_currency_code.as_str() == self.base_currency_code.as_str() {
+        if to_currency_code == &self.base_currency_code {
             return Ok(amount_in_amount_currency_code / currency_pair_price);
         }
 
-        if to_currency_code.as_str() == self.quote_currency_code.as_str() {
+        if to_currency_code == &self.quote_currency_code {
             return Ok(amount_in_amount_currency_code * currency_pair_price);
         }
 

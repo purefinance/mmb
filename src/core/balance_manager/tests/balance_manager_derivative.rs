@@ -347,7 +347,7 @@ mod tests {
                 .clone();
 
             test_object.balance_manager_mut().set_target_amount_limit(
-                &configuration_descriptor,
+                configuration_descriptor.clone(),
                 &exchange_account_id,
                 currency_pair_metadata,
                 limit,
@@ -523,7 +523,7 @@ mod tests {
         let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
 
         tets_object.balance_manager_mut().set_target_amount_limit(
-            &configuration_descriptor,
+            configuration_descriptor.clone(),
             &exchange_account_id,
             currency_pair_metadata,
             limit,
@@ -541,7 +541,7 @@ mod tests {
         ));
         tets_object
             .balance_manager_mut()
-            .order_was_finished(&configuration_descriptor, &order)
+            .order_was_finished(configuration_descriptor.clone(), &order)
             .expect("in test");
     }
 
@@ -587,9 +587,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         assert_eq!(
             tets_object
@@ -641,9 +643,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         assert_eq!(
             tets_object
@@ -698,9 +702,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         assert_eq!(
             tets_object
@@ -759,9 +765,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         assert_eq!(
             tets_object
@@ -816,9 +824,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         assert_eq!(
             tets_object
@@ -905,9 +915,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         tets_object
             .balance_manager_mut()
@@ -1032,9 +1044,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         tets_object
             .balance_manager_mut()
@@ -1159,9 +1173,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         tets_object
             .balance_manager_mut()
@@ -1286,9 +1302,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         tets_object
             .balance_manager_mut()
@@ -1412,9 +1430,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         tets_object
             .balance_manager_mut()
@@ -1589,9 +1609,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         tets_object
             .balance_manager_mut()
@@ -1763,9 +1785,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         tets_object
             .balance_manager_mut()
@@ -1940,9 +1964,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        tets_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        tets_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         tets_object
             .balance_manager_mut()

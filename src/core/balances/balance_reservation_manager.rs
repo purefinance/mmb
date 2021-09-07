@@ -36,16 +36,14 @@ use super::balance_reservation_preset::BalanceReservationPreset;
 
 #[derive(Clone)]
 pub(crate) struct BalanceReservationManager {
-    exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+    pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
-    currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
-    // private readonly IDateTimeService _dateTimeService;
-    // private readonly ILogger _logger = Log.ForContext<BalanceReservationManager>();
+    pub currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
     reserved_amount_in_amount_currency: ServiceValueTree,
     amount_limits_in_amount_currency: ServiceValueTree,
 
     position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount,
-    reservation_id: ReservationId, // Utils.GetCurrentMiliseconds();
+    reservation_id: ReservationId,
 
     pub virtual_balance_holder: VirtualBalanceHolder,
     pub balance_reservation_storage: BalanceReservationStorage,
@@ -293,7 +291,7 @@ impl BalanceReservationManager {
         explanation: &mut Option<Explanation>,
     ) -> Decimal {
         self.try_get_available_balance(
-            &parameters.configuration_descriptor,
+            parameters.configuration_descriptor.clone(),
             &parameters.exchange_account_id,
             parameters.currency_pair_metadata.clone(),
             OrderSide::to_trade_side(parameters.order_side),
@@ -307,7 +305,7 @@ impl BalanceReservationManager {
 
     pub fn try_get_available_balance_with_unknown_side(
         &self,
-        configuration_descriptor: &ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: &CurrencyCode,
@@ -344,7 +342,7 @@ impl BalanceReservationManager {
 
     pub fn try_get_available_balance(
         &self,
-        configuration_descriptor: &ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         trade_side: OrderSide,
@@ -540,7 +538,7 @@ impl BalanceReservationManager {
         explanation: &mut Option<Explanation>,
     ) -> Option<Decimal> {
         let position = self.get_position_values(
-            &request.configuration_descriptor,
+            request.configuration_descriptor.clone(),
             &request.exchange_account_id,
             currency_pair_metadata.clone(),
             trade_side,
@@ -705,7 +703,7 @@ impl BalanceReservationManager {
 
     fn get_position_values(
         &self,
-        configuration_descriptor: &ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         trade_side: OrderSide,
@@ -1037,7 +1035,7 @@ impl BalanceReservationManager {
 
     pub fn get_fill_amount_position_percent(
         &self,
-        configuration_descriptor: &ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -1060,7 +1058,7 @@ impl BalanceReservationManager {
         client_order_fill_id: &Option<ClientOrderFillId>,
         fill_amount: Decimal,
         price: Decimal,
-        configuration_descriptor: &ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: &mut CurrencyCode,
@@ -1221,7 +1219,7 @@ impl BalanceReservationManager {
         converted_commission_currency_code: CurrencyCode,
         converted_commission_amount: Amount,
         price: Decimal,
-        configuration_descriptor: &ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
     ) {
@@ -1416,7 +1414,7 @@ impl BalanceReservationManager {
 
                 let available_balance = self
                     .try_get_available_balance(
-                        &dst_reservation.configuration_descriptor,
+                        dst_reservation.configuration_descriptor.clone(),
                         &dst_reservation.exchange_account_id,
                         dst_reservation.currency_pair_metadata.clone(),
                         OrderSide::to_trade_side(dst_reservation.order_side),
@@ -1983,7 +1981,7 @@ impl BalanceReservationManager {
 
         let old_balance = self
             .try_get_available_balance(
-                &reservation.configuration_descriptor,
+                reservation.configuration_descriptor.clone(),
                 &reservation.exchange_account_id,
                 reservation.currency_pair_metadata.clone(),
                 OrderSide::to_trade_side(reservation.order_side),
@@ -2099,7 +2097,7 @@ impl BalanceReservationManager {
 
     pub fn get_available_leveraged_balance(
         &self,
-        configuration_descriptor: &ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         trade_side: OrderSide,
@@ -2120,7 +2118,7 @@ impl BalanceReservationManager {
 
     pub fn set_target_amount_limit(
         &mut self,
-        configuration_descriptor: &ConfigurationDescriptor,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         limit: Decimal,

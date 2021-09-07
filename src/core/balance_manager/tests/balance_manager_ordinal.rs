@@ -284,7 +284,7 @@ mod tests {
                 .clone();
 
             test_object.balance_manager_mut().set_target_amount_limit(
-                &configuration_descriptor,
+                configuration_descriptor.clone(),
                 &exchange_account_id,
                 currency_pair_metadata,
                 limit,
@@ -432,7 +432,10 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_balance_by_side(
-                &test_object.balance_manager_base.configuration_descriptor,
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
                 &exchange_account_id,
                 test_object
                     .balance_manager_base
@@ -468,7 +471,10 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_balance_by_side(
-                &test_object.balance_manager_base.configuration_descriptor,
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
                 &exchange_account_id,
                 test_object
                     .balance_manager_base
@@ -2796,7 +2802,10 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_balance_by_side(
-                &test_object.balance_manager_base.configuration_descriptor,
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
                 &ExchangeAccountId::new("unknown_id".into(), 0),
                 test_object.balance_manager_base.currency_pair_metadata(),
                 OrderSide::Buy,
@@ -2813,7 +2822,10 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_balance_by_currency_code(
-                &test_object.balance_manager_base.configuration_descriptor,
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
                 &test_object.balance_manager_base.exchange_account_id_1,
                 test_object.balance_manager_base.currency_pair_metadata(),
                 &CurrencyCode::new("not_existing_currency_code".into()),
@@ -3069,7 +3081,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+            .order_was_filled(configuration_descriptor, &order, None);
 
         assert_eq!(
             test_object
@@ -3128,9 +3140,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        test_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         assert_eq!(
             test_object
@@ -3189,7 +3203,7 @@ mod tests {
             .configuration_descriptor
             .clone();
         test_object.balance_manager_mut().order_was_filled(
-            &configuration_descriptor,
+            configuration_descriptor.clone(),
             &order,
             order.fills.fills.first().cloned(),
         );
@@ -3251,7 +3265,7 @@ mod tests {
             .configuration_descriptor
             .clone();
         test_object.balance_manager_mut().order_was_filled(
-            &configuration_descriptor,
+            configuration_descriptor.clone(),
             &order,
             order.fills.fills.first().cloned(),
         );
@@ -3316,7 +3330,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager_mut()
-            .order_was_finished(&configuration_descriptor, &order)
+            .order_was_finished(configuration_descriptor.clone(), &order)
             .expect("in test");
 
         assert_eq!(
@@ -3378,7 +3392,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager_mut()
-            .order_was_finished(&configuration_descriptor, &order)
+            .order_was_finished(configuration_descriptor.clone(), &order)
             .expect("in test");
 
         assert_eq!(
@@ -3440,7 +3454,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager_mut()
-            .order_was_finished(&configuration_descriptor, &order)
+            .order_was_finished(configuration_descriptor.clone(), &order)
             .expect("in test");
 
         let mut order = test_object
@@ -3464,7 +3478,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager_mut()
-            .order_was_finished(&configuration_descriptor, &order)
+            .order_was_finished(configuration_descriptor.clone(), &order)
             .expect("in test");
 
         assert_eq!(
@@ -4662,9 +4676,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        test_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         let position_by_fill_amount = test_object
             .balance_manager()
@@ -4692,7 +4708,7 @@ mod tests {
             .clone();
         assert_eq!(
             test_object.balance_manager().get_balance_by_side(
-                &configuration_descriptor,
+                configuration_descriptor.clone(),
                 &exchange_account_id,
                 test_object
                     .balance_manager_base
@@ -4855,7 +4871,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager_mut()
-            .order_was_finished(&configuration_descriptor, &order)
+            .order_was_finished(configuration_descriptor.clone(), &order)
             .expect("in test");
 
         let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
@@ -5236,7 +5252,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager_mut()
-            .order_was_finished(&configuration_descriptor, &order)
+            .order_was_finished(configuration_descriptor.clone(), &order)
             .expect("in test");
 
         assert_eq!(
@@ -5329,9 +5345,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object
-            .balance_manager_mut()
-            .order_was_filled(&configuration_descriptor, &order, None);
+        test_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
 
         let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(9));
@@ -5594,7 +5612,7 @@ mod tests {
             .clone();
         let order_fill = order.fills.fills.first_mut().expect("in test").clone();
         test_object.balance_manager_mut().order_was_filled(
-            &configuration_descriptor,
+            configuration_descriptor.clone(),
             order,
             Some(order_fill),
         );

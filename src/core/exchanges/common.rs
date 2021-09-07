@@ -111,9 +111,10 @@ impl Display for ExchangeAccountId {
     }
 }
 
+// unique ID of exchange
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct ExchangeId(String15); // unique ID of exchange
+pub struct ExchangeId(String15);
 
 impl ExchangeId {
     #[inline]

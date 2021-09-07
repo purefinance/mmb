@@ -29,7 +29,7 @@ pub struct BalanceManagerBase {
     pub exchange_account_id_1: ExchangeAccountId,
     pub exchange_account_id_2: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
-    pub configuration_descriptor: ConfigurationDescriptor,
+    pub configuration_descriptor: Arc<ConfigurationDescriptor>,
     currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
     balance_manager: Option<BalanceManager>,
 }
@@ -127,12 +127,12 @@ impl BalanceManagerBase {
             exchange_account_id_1: exchange_account_id_1.clone(),
             exchange_account_id_2: exchange_account_id_2.clone(),
             currency_pair: BalanceManagerBase::currency_pair().clone(),
-            configuration_descriptor: ConfigurationDescriptor::new(
+            configuration_descriptor: Arc::from(ConfigurationDescriptor::new(
                 "LiquidityGenerator".into(),
                 exchange_account_id_1.to_string()
                     + ";"
                     + BalanceManagerBase::currency_pair().as_str(),
-            ),
+            )),
             currency_pair_metadata: None,
             balance_manager: None,
         }
@@ -200,7 +200,7 @@ impl BalanceManagerBase {
         price: Decimal,
     ) -> Option<Decimal> {
         self.balance_manager().get_balance_by_side(
-            &self.configuration_descriptor,
+            self.configuration_descriptor.clone(),
             &self.exchange_account_id_1,
             self.currency_pair_metadata().clone(),
             trade_side,
@@ -214,7 +214,7 @@ impl BalanceManagerBase {
         price: Decimal,
     ) -> Option<Decimal> {
         self.balance_manager().get_balance_by_currency_code(
-            &self.configuration_descriptor,
+            self.configuration_descriptor.clone(),
             &self.exchange_account_id_1,
             self.currency_pair_metadata().clone(),
             &currency_code,
@@ -229,7 +229,7 @@ impl BalanceManagerBase {
         price: Decimal,
     ) -> Option<Decimal> {
         balance_manager.get_balance_by_currency_code(
-            &self.configuration_descriptor,
+            self.configuration_descriptor.clone(),
             &self.exchange_account_id_1,
             self.currency_pair_metadata().clone(),
             &currency_code,
