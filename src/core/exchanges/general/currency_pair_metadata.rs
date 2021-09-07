@@ -31,7 +31,7 @@ pub enum BeforeAfter {
 
 /// Precision this is type that describes Decimal value rounding(now is using for rounding amount in orders)
 /// NOTE: Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
-/// ```no_run
+/// ```ignore
 /// Precision::ByTick { tick: dec!(0.001) } // for AmountPrecision = 3 equal pow(0.1, 3)
 /// ```
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
