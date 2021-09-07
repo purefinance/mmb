@@ -495,7 +495,7 @@ impl BalanceReservationManager {
         let current_position = self
             .position_by_fill_amount_in_amount_currency
             .get(exchange_account_id, &currency_pair_metadata.currency_pair())
-            .expect("failed to get position by fill amount in amount currency");
+            .unwrap_or(dec!(0));
         match trade_side {
             OrderSide::Buy => return std::cmp::max(dec!(0), -current_position),
             OrderSide::Sell => return std::cmp::max(dec!(0), current_position),
@@ -1117,6 +1117,13 @@ impl BalanceReservationManager {
                     price,
                 )?;
 
+                *change_amount_in_currency = currency_pair_metadata
+                    .convert_amount_from_amount_currency_code(
+                        currency_code,
+                        diff_in_amount_currency,
+                        price,
+                    )?;
+
                 // reversed derivative
                 if currency_pair_metadata.amount_currency_code
                     == currency_pair_metadata.base_currency_code()
@@ -1229,7 +1236,8 @@ impl BalanceReservationManager {
                 .as_str(),
             );
         if !currency_pair_metadata.is_derivative
-            || currency_pair_metadata.base_currency_code() == commission_currency_code
+            || currency_pair_metadata.balance_currency_code
+                == Some(commission_currency_code.clone())
         {
             let request = BalanceRequest::new(
                 configuration_descriptor.clone(),
