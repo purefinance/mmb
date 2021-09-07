@@ -3,15 +3,15 @@ use chrono::Utc;
 use log::{info, trace, warn};
 use tokio::sync::oneshot;
 
+use crate::core::exchanges::common::{CurrencyCode, ExchangeError};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::exchanges::general::features::RestFillsType;
 use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
-use crate::core::nothing_to_do;
 use crate::core::orders::fill::{EventSourceType, OrderFillType};
-use crate::core::orders::order::OrderStatus;
+use crate::core::orders::order::{OrderInfo, OrderStatus};
 use crate::core::{
     exchanges::general::exchange::Exchange, lifecycle::cancellation_token::CancellationToken,
     orders::pool::OrderRef,
@@ -89,7 +89,7 @@ impl Exchange {
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
-    ) -> Result<RequestResult<Vec<OrderTrade>>> {
+    ) -> Result<Box<dyn OrderFillsCheckingOutcome>> {
         self.timeout_manager
             .reserve_when_available(
                 &self.exchange_account_id,
@@ -124,15 +124,45 @@ impl Exchange {
                     }
                 }
 
-                return Ok(order_trades);
+                Ok(Box::new(order_trades))
             }
             RequestType::GetOrderInfo => {
-                let order_info = self.get_order_info(order).await;
+                let order_info = match self.get_order_info(order).await {
+                    Ok(order_info) => RequestResult::Success(order_info),
+                    Err(exchange_error) => RequestResult::Error::<OrderInfo>(exchange_error),
+                };
 
-                if let Ok(order_info) = order_info {
-                    //self.handle_order_filled(event_data);
+                if let RequestResult::Success(ref order_info) = order_info {
+                    let exchange_order_id = order.exchange_order_id().ok_or(anyhow!(
+                        "No exchange_order_id in order while handle_order_filled_for_restfallback"
+                    ))?;
+                    let commission_currency_code = order_info
+                        .commission_currency_code
+                        .clone()
+                        .map(|currency_code| CurrencyCode::new(currency_code.into()));
+
+                    let event_data = FillEventData {
+                        source_type: EventSourceType::RestFallback,
+                        trade_id: None,
+                        client_order_id: Some(order.client_order_id()),
+                        exchange_order_id,
+                        fill_price: order_info.average_fill_price,
+                        fill_amount: order_info.filled_amount,
+                        is_diff: false,
+                        total_filled_amount: None,
+                        order_role: None,
+                        commission_currency_code,
+                        commission_rate: order_info.commission_rate,
+                        commission_amount: order_info.commission_amount,
+                        fill_type: OrderFillType::UserTrade,
+                        trade_currency_pair: None,
+                        order_side: None,
+                        order_amount: None,
+                    };
+                    self.handle_order_filled(event_data)?;
                 }
-                todo!()
+
+                Ok(Box::new(order_info))
             }
             _ => bail!(
                 "Unsupported request type {:?} in check_order_fills",
@@ -151,7 +181,7 @@ impl Exchange {
         ))?;
         let event_data = FillEventData {
             source_type: EventSourceType::RestFallback,
-            trade_id: order_trade.trade_id.clone(),
+            trade_id: Some(order_trade.trade_id.clone()),
             client_order_id: Some(order.client_order_id()),
             exchange_order_id,
             fill_price: order_trade.price,
@@ -221,6 +251,19 @@ impl Exchange {
     fn finish_order_future(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_finish_events.remove(&order.client_order_id()) {
             let _ = tx.send(());
+        }
+    }
+}
+
+pub trait OrderFillsCheckingOutcome {
+    fn get_error(self) -> Option<ExchangeError>;
+}
+
+impl<T> OrderFillsCheckingOutcome for RequestResult<T> {
+    fn get_error(self) -> Option<ExchangeError> {
+        match self {
+            RequestResult::Success(_) => None,
+            RequestResult::Error(exchange_error) => Some(exchange_error),
         }
     }
 }

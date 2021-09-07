@@ -33,7 +33,7 @@ use crate::core::{
 
 type ArgsToLog = (
     ExchangeAccountId,
-    String,
+    Option<String>,
     Option<ClientOrderId>,
     ExchangeOrderId,
     AllowedEventSourceType,
@@ -43,7 +43,7 @@ type ArgsToLog = (
 #[derive(Debug, Clone)]
 pub struct FillEventData {
     pub source_type: EventSourceType,
-    pub trade_id: String,
+    pub trade_id: Option<String>,
     pub client_order_id: Option<ClientOrderId>,
     pub exchange_order_id: ExchangeOrderId,
     pub fill_price: Price,
@@ -116,28 +116,31 @@ impl Exchange {
     }
 
     fn was_trade_already_received(
-        trade_id: &str,
+        trade_id: &Option<String>,
         order_fills: &Vec<OrderFill>,
         order_ref: &OrderRef,
     ) -> bool {
-        if !trade_id.is_empty()
-            && order_fills.iter().any(|fill| {
-                if let Some(fill_trade_id) = fill.trade_id() {
-                    return fill_trade_id == &trade_id;
+        match trade_id {
+            Some(trade_id) => {
+                if order_fills.iter().any(|fill| {
+                    if let Some(fill_trade_id) = fill.trade_id() {
+                        return fill_trade_id == trade_id;
+                    }
+
+                    false
+                }) {
+                    info!(
+                        "Trade with {} was received already for order {:?}",
+                        trade_id, order_ref
+                    );
+
+                    return true;
                 }
 
                 false
-            })
-        {
-            info!(
-                "Trade with {} was received already for order {:?}",
-                trade_id, order_ref
-            );
-
-            return true;
+            }
+            None => false,
         }
-
-        false
     }
 
     fn diff_fill_after_non_diff(
@@ -476,7 +479,7 @@ impl Exchange {
             .context("Unable to send event, probably receiver is dropped already")?;
 
         info!(
-            "Added a fill {} {} {} {:?} {:?}",
+            "Added a fill {} {:?} {} {:?} {:?}",
             self.exchange_account_id,
             event_data.trade_id,
             order_ref.client_order_id(),
@@ -510,7 +513,7 @@ impl Exchange {
 
     fn add_fill(
         &self,
-        trade_id: &str,
+        trade_id: &Option<String>,
         is_diff: bool,
         fill_type: OrderFillType,
         currency_pair_metadata: &CurrencyPairMetadata,
@@ -545,7 +548,7 @@ impl Exchange {
             Some(ClientOrderFillId::unique_id()),
             Utc::now(),
             fill_type,
-            Some(trade_id.to_owned()),
+            trade_id.clone(),
             rounded_fill_price,
             last_fill_amount,
             last_fill_cost,
@@ -778,7 +781,7 @@ impl Exchange {
         template: &str,
         args_to_log: &(
             ExchangeAccountId,
-            String,
+            Option<String>,
             Option<ClientOrderId>,
             ExchangeOrderId,
             AllowedEventSourceType,
