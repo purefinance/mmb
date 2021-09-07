@@ -37,7 +37,7 @@ impl Exchange {
         let rest_fills_type = &self.features.rest_fills_features.fills_type;
         let request_type_to_use = match rest_fills_type {
             RestFillsType::None => return Ok(()),
-            RestFillsType::OrderTrades | RestFillsType::MyTrades => RequestType::GetOrderTrades,
+            RestFillsType::MyTrades => RequestType::GetOrderTrades,
             RestFillsType::GetOrderInfo => RequestType::GetOrderInfo,
         };
 
