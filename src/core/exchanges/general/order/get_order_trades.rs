@@ -98,13 +98,11 @@ impl Exchange {
         currency_pair_metadata: &CurrencyPairMetadata,
         last_date_time: Option<DateTime>,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        // TODO UseTime<etric(ExchangeRequestType::GetMyTrades)
+        // TODO Add metric UseTimeMetric(RequestType::GetMyTrades)
         let response = self
             .exchange_client
             .request_my_trades(currency_pair_metadata, last_date_time)
             .await?;
-
-        // FIXME is is_launched_from_tests necessary here?
 
         match self.get_rest_error(&response) {
             Some(error) => Ok(RequestResult::Error(error)),

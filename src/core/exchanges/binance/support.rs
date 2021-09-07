@@ -436,15 +436,14 @@ impl Support for Binance {
 
         let my_trades: Vec<BinanceMyTrade> = serde_json::from_str(&response.content)?;
 
-        let mut order_trades = Vec::new();
-        for my_trade in my_trades.iter() {
-            let unified_order_trade = my_trade.to_unified_order_trade(
-                self.get_currency_code(&my_trade.commission_currency_code),
-            )?;
-            order_trades.push(unified_order_trade);
-        }
-
-        Ok(order_trades)
+        my_trades
+            .into_iter()
+            .map(|my_trade| {
+                my_trade.to_unified_order_trade(
+                    self.get_currency_code(&my_trade.commission_currency_code),
+                )
+            })
+            .collect()
     }
 }
 

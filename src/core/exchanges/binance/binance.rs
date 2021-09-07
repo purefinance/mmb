@@ -284,7 +284,7 @@ impl Binance {
         Ok(())
     }
 
-    pub fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
+    pub(crate) fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
         self.supported_currencies
             .get(currency_id)
             .map(|some| some.value().clone())
