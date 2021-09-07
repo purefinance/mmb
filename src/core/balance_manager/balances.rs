@@ -14,7 +14,6 @@ use crate::core::orders::order::ReservationId;
 use itertools::Itertools;
 use rust_decimal::Decimal;
 
-// TODO: add storage item like in C# if needed
 pub struct Balances {
     pub version: usize,
     pub balances_by_exchange_id: Option<HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>>,
@@ -44,7 +43,7 @@ impl Balances {
         serialized_last_order_fills: Option<Vec<(TradePlaceAccount, OrderFill)>>,
     ) -> Self {
         let mut res = Self {
-            version: Balances::get_curren_version(),
+            version: Balances::get_current_version(),
             balances_by_exchange_id: Some(balances_by_exchange_id),
             virtual_diff_balances: Some(virtual_diff_balances),
             reserved_amount: Some(reserved_amount),
@@ -57,7 +56,7 @@ impl Balances {
         res
     }
 
-    pub fn get_curren_version() -> usize {
+    pub fn get_current_version() -> usize {
         1
     }
 

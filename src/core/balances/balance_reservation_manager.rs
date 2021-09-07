@@ -1913,7 +1913,7 @@ impl BalanceReservationManager {
 
         let taken_free_amount = reserve_parameters.amount - amount_to_pay_for;
 
-        // todo: use full formula (with fee and etc)
+        // TODO: use full formula (with fee and etc)
         let leverage = self
             .try_get_leverage(
                 &reserve_parameters.exchange_account_id,

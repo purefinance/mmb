@@ -18,8 +18,8 @@ impl PositionChange {
     ) -> Self {
         Self {
             client_order_fill_id,
-            date_time: date_time,
-            portion: portion,
+            date_time,
+            portion,
         }
     }
 }

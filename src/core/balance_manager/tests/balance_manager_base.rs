@@ -63,7 +63,7 @@ impl BalanceManagerBase {
         balance_manager
             .update_exchange_balance(
                 exchange_account_id,
-                ExchangeBalancesAndPositions {
+                &ExchangeBalancesAndPositions {
                     balances: balances_by_currency_code
                         .iter()
                         .map(|x| ExchangeBalance {
@@ -108,7 +108,7 @@ impl BalanceManagerBase {
         balance_manager
             .update_exchange_balance(
                 exchange_account_id,
-                ExchangeBalancesAndPositions {
+                &ExchangeBalancesAndPositions {
                     balances,
                     positions: Some(positions),
                 },

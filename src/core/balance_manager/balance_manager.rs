@@ -103,9 +103,8 @@ impl BalanceManager {
     ) -> Result<()> {
         self.restore_balance_state(balances, false);
 
-        let active_reservations = self.get_reservation_ids();
-        for reservation_id in active_reservations {
-            self.unreserve_rest(reservation_id.clone())?;
+        for reservation_id in self.get_reservation_ids() {
+            self.unreserve_rest(reservation_id)?;
         }
         Ok(())
     }
@@ -352,7 +351,7 @@ impl BalanceManager {
     pub fn update_exchange_balance(
         &mut self,
         exchange_account_id: &ExchangeAccountId,
-        balances_and_positions: ExchangeBalancesAndPositions,
+        balances_and_positions: &ExchangeBalancesAndPositions,
     ) -> Result<()> {
         let mut filtred_exchange_balances = HashMap::new();
         let mut reservations_by_exchange_account_id = Vec::new();
@@ -556,7 +555,7 @@ impl BalanceManager {
                 // just in case if there is a possible precision error
                 continue;
             }
-            balance_manager.unreserve(reservation_id.clone(), amount_to_unreserve)?;
+            balance_manager.unreserve(reservation_id, amount_to_unreserve)?;
         }
         Ok(balance_manager)
     }
@@ -880,7 +879,6 @@ impl BalanceManager {
         true
     }
 
-    // TODO: fix it into 1 fn try_reserve_pair/try_reserve_three
     pub fn try_reserve_pair(
         &mut self,
         order1: ReserveParameters,
@@ -1090,7 +1088,7 @@ impl BalanceManager {
             limit,
         );
     }
-    // TODO: uncomment me
+    // TODO: uncomment me when BalanceChangeServic will be implemented
     // pub fn set_balance_changes_service(&mut self, service: BalanceChangesService) {
     //     self.balance_changes_service = Some(service);
     // }
