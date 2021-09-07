@@ -417,14 +417,11 @@ mod tests {
             BalanceManagerDerivative::price(),
             dec!(4),
         );
-        assert_eq!(
-            tets_object.balance_manager_mut().try_reserve(
-                &reserve_parameters,
-                &mut ReservationId::default(),
-                &mut None,
-            ),
-            true
-        );
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut ReservationId::default(),
+            &mut None,
+        ));
 
         assert_eq!(
             tets_object
@@ -450,14 +447,11 @@ mod tests {
             BalanceManagerDerivative::price(),
             dec!(5),
         );
-        assert_eq!(
-            tets_object.balance_manager_mut().try_reserve(
-                &reserve_parameters,
-                &mut reservation_id,
-                &mut None,
-            ),
-            true
-        );
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
 
         assert_eq!(
             tets_object
@@ -481,14 +475,11 @@ mod tests {
             BalanceManagerDerivative::price(),
             dec!(4),
         );
-        assert_eq!(
-            tets_object.balance_manager_mut().try_reserve(
-                &reserve_parameters,
-                &mut ReservationId::default(),
-                &mut None,
-            ),
-            true
-        );
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut ReservationId::default(),
+            &mut None,
+        ));
 
         assert_eq!(
             tets_object
@@ -729,6 +720,1480 @@ mod tests {
                     * BalanceManagerDerivative::reversed_amount_multiplier()
                 + dec!(0.00005))
                 * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn fill_sell_should_commission_should_be_deducted_from_balance() {
+        init_logger();
+        let is_reversed = false;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            dec!(0.1),
+            dec!(1),
+            dec!(0.1),
+            dec!(-0.025) / dec!(100),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_currency_code(BalanceManagerBase::eth(), dec!(0.1))
+                .expect("in test"),
+            (dec!(100) - dec!(1) / dec!(0.1) / dec!(5) + dec!(0.00005)) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_currency_code(BalanceManagerBase::btc(), dec!(0.1))
+                .expect("in test"),
+            (dec!(100) * dec!(0.1) + dec!(0.00005) * dec!(0.1)) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn fill_sell_should_commission_should_be_deducted_from_balance_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            dec!(0.1),
+            dec!(1),
+            dec!(0.1),
+            dec!(-0.025) / dec!(100),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_currency_code(BalanceManagerBase::eth(), dec!(0.1))
+                .expect("in test"),
+            (dec!(100) / dec!(0.1)
+                - dec!(1) / dec!(5) * BalanceManagerDerivative::reversed_amount_multiplier()
+                + dec!(0.00005) / dec!(0.1))
+                * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_currency_code(BalanceManagerBase::btc(), dec!(0.1))
+                .expect("in test"),
+            (dec!(100) + dec!(0.00005)) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn reservation_after_fill_in_the_same_direction_buy_should_be_not_free() {
+        init_logger();
+        let is_reversed = false;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.1);
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            price,
+            dec!(1),
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.8) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(98) * dec!(0.95)
+        );
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Buy, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            dec!(1),
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        tets_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, dec!(1))
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.8) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(100) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager()
+                .get_position(
+                    &exchange_account_id,
+                    &tets_object
+                        .balance_manager_base
+                        .currency_pair_metadata()
+                        .currency_pair(),
+                    OrderSide::Sell
+                )
+                .expect("in test"),
+            dec!(-1)
+        );
+
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.6) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(98) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn reservation_after_fill_in_the_same_direction_buy_should_be_not_free_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.1);
+        let amount = dec!(1) / price;
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            price,
+            amount,
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9998) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.998) * dec!(0.95)
+        );
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Buy, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            amount,
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        tets_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, amount)
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9998) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(1000) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager()
+                .get_position(
+                    &exchange_account_id,
+                    &tets_object
+                        .balance_manager_base
+                        .currency_pair_metadata()
+                        .currency_pair(),
+                    OrderSide::Sell
+                )
+                .expect("in test"),
+            -amount
+        );
+
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9996) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.998) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn reservation_after_fill_in_the_same_direction_sell_should_be_not_free() {
+        init_logger();
+        let is_reversed = false;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.1);
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            price,
+            dec!(1),
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.8) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(98) * dec!(0.95)
+        );
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            dec!(1),
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        tets_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, dec!(1))
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(10) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(98) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager()
+                .get_position(
+                    &exchange_account_id,
+                    &tets_object
+                        .balance_manager_base
+                        .currency_pair_metadata()
+                        .currency_pair(),
+                    OrderSide::Buy
+                )
+                .expect("in test"),
+            dec!(-1)
+        );
+
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.8) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(96) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn reservation_after_fill_in_the_same_direction_sell_should_be_not_free_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.1);
+        let amount = dec!(1) / price;
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            price,
+            amount,
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9998) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.998) * dec!(0.95)
+        );
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            amount,
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        tets_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, amount)
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.998) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(100) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager()
+                .get_position(
+                    &exchange_account_id,
+                    &tets_object
+                        .balance_manager_base
+                        .currency_pair_metadata()
+                        .currency_pair(),
+                    OrderSide::Buy
+                )
+                .expect("in test"),
+            -amount
+        );
+
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9998) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.996) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn reservation_after_fill_in_opposite_direction_buy_sell_should_be_partially_free() {
+        init_logger();
+        let is_reversed = false;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.1);
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            price,
+            dec!(1),
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.8) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(98) * dec!(0.95)
+        );
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Buy, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            dec!(1),
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        tets_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, dec!(1))
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager()
+                .get_position(
+                    &exchange_account_id,
+                    &tets_object
+                        .balance_manager_base
+                        .currency_pair_metadata()
+                        .currency_pair(),
+                    OrderSide::Buy
+                )
+                .expect("in test"),
+            dec!(1)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(100) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.8) * dec!(0.95)
+        );
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            price,
+            dec!(1.5),
+        );
+        let mut partially_free_reservation_id = ReservationId::default();
+        //1 out of 1.5 is free
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut partially_free_reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.7) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(97) * dec!(0.95)
+        );
+
+        //the whole 1.5 is not free as we've taken the whole free position with the previous reservation
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.4) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(94) * dec!(0.95)
+        );
+
+        //free amount from position is available again
+        tets_object
+            .balance_manager_mut()
+            .unreserve(partially_free_reservation_id, dec!(1.5))
+            .expect("in test");
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.5) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(97) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn reservation_after_fill_in_opposite_direction_buy_sell_should_be_partially_free_reversed()
+    {
+        init_logger();
+        let is_reversed = true;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.1);
+        let amount = dec!(1) / price;
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            price,
+            amount,
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9998) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.998) * dec!(0.95)
+        );
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Buy, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            amount,
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        tets_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, amount)
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager()
+                .get_position(
+                    &exchange_account_id,
+                    &tets_object
+                        .balance_manager_base
+                        .currency_pair_metadata()
+                        .currency_pair(),
+                    OrderSide::Buy
+                )
+                .expect("in test"),
+            amount
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(1000) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9998) * dec!(0.95)
+        );
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            price,
+            amount * dec!(1.5),
+        );
+        let mut partially_free_reservation_id = ReservationId::default();
+        //1 out of 1.5 is free
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut partially_free_reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9997) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.997) * dec!(0.95)
+        );
+
+        //the whole 1.5 is not free as we've taken the whole free position with the previous reservation
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9994) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.994) * dec!(0.95)
+        );
+
+        //free amount from position is available again
+        tets_object
+            .balance_manager_mut()
+            .unreserve(partially_free_reservation_id, amount * dec!(1.5))
+            .expect("in test");
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9995) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.997) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn reservation_after_fill_in_opposite_direction_sell_buy_should_be_partially_free() {
+        init_logger();
+        let is_reversed = false;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.1);
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            price,
+            dec!(1),
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.8) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(98) * dec!(0.95)
+        );
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            dec!(1),
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        tets_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, dec!(1))
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager()
+                .get_position(
+                    &exchange_account_id,
+                    &tets_object
+                        .balance_manager_base
+                        .currency_pair_metadata()
+                        .currency_pair(),
+                    OrderSide::Buy
+                )
+                .expect("in test"),
+            dec!(-1)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(10) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(98) * dec!(0.95)
+        );
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            price,
+            dec!(1.5),
+        );
+        let mut partially_free_reservation_id = ReservationId::default();
+        //1 out of 1.5 is free
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut partially_free_reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.7) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(97) * dec!(0.95)
+        );
+
+        //the whole 1.5 is not free as we've taken the whole free position with the previous reservation
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.4) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(94) * dec!(0.95)
+        );
+
+        //free amount from position is available again
+        tets_object
+            .balance_manager_mut()
+            .unreserve(partially_free_reservation_id, dec!(1.5))
+            .expect("in test");
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(9.7) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(95) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn reservation_after_fill_in_opposite_direction_sell_buy_should_be_partially_free_reversed()
+    {
+        init_logger();
+        let is_reversed = true;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.1);
+        let amount = dec!(1) / price;
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            price,
+            amount,
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9998) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.998) * dec!(0.95)
+        );
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, ReservationId::default());
+
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            amount,
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = tets_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        tets_object
+            .balance_manager_mut()
+            .order_was_filled(&configuration_descriptor, &order, None);
+
+        tets_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, amount)
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager()
+                .get_position(
+                    &exchange_account_id,
+                    &tets_object
+                        .balance_manager_base
+                        .currency_pair_metadata()
+                        .currency_pair(),
+                    OrderSide::Buy
+                )
+                .expect("in test"),
+            -amount
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.998) * dec!(0.95)
+        );
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(100) * dec!(0.95)
+        );
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            price,
+            amount * dec!(1.5),
+        );
+        let mut partially_free_reservation_id = ReservationId::default();
+        //1 out of 1.5 is free
+        let partially_reserve_parameters = tets_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Buy), price, amount * dec!(1.5));
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &partially_reserve_parameters,
+            &mut partially_free_reservation_id,
+            &mut None,
+        ));
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9997) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.997) * dec!(0.95)
+        );
+
+        //the whole 1.5 is not free as we've taken the whole free position with the previous reservation
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9994) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.994) * dec!(0.95)
+        );
+
+        //free amount from position is available again
+        tets_object
+            .balance_manager_mut()
+            .unreserve(partially_free_reservation_id, amount * dec!(1.5))
+            .expect("in test");
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price)
+                .expect("in test"),
+            dec!(999.995) * dec!(0.95)
+        );
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price)
+                .expect("in test"),
+            dec!(99.9997) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn clone_when_order_got_status_created_but_its_reservation_is_not_approved_possible_precision_error(
+    ) {
+        // This case may happen because parallel nature of handling orders
+
+        init_logger();
+        let is_reversed = false;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(10), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            dec!(0.2),
+            dec!(5),
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        let mut order_1 = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, reservation_id);
+        order_1.set_status(OrderStatus::Created, Utc::now());
+
+        // ApproveReservation wait on lock after Clone started
+        let cloned_balance_manager = tets_object
+            .balance_manager()
+            .clone_and_subtract_not_approved_data(Some(vec![order_1.clone()]))
+            .expect("in test");
+        // TODO: add log checking
+        // TestCorrelator.GetLogEventsFromCurrentContext().Should().NotContain(logEvent => logEvent.Level == LogEventLevel.Error || logEvent.Level == LogEventLevel.Fatal);
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_currency_code(BalanceManagerBase::eth(), order_1.price())
+                .expect("in test"),
+            (dec!(10) - order_1.amount() / order_1.price() / dec!(5)) * dec!(0.95)
+        );
+
+        //cloned BalancedManager should be without reservation
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_another_balance_manager_and_currency_code(
+                    &cloned_balance_manager,
+                    BalanceManagerBase::eth(),
+                    order_1.price()
+                )
+                .expect("in test"),
+            dec!(10) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn clone_when_order_created() {
+        init_logger();
+        let is_reversed = false;
+        let mut tets_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(10), is_reversed);
+
+        let exchange_account_id = tets_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = tets_object.balance_manager_base.currency_pair_metadata();
+
+        tets_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        let price = dec!(0.2);
+
+        let reserve_parameters = tets_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            price,
+            dec!(5),
+        );
+        let mut reservation_id = ReservationId::default();
+        assert!(tets_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        ));
+
+        let mut order = tets_object
+            .balance_manager_base
+            .create_order(OrderSide::Buy, reservation_id);
+        order.fills.filled_amount = order.amount() / dec!(2);
+        order.set_status(OrderStatus::Created, Utc::now());
+
+        tets_object.balance_manager_mut().approve_reservation(
+            reservation_id,
+            &order.header.client_order_id,
+            order.amount(),
+        );
+
+        // ApproveReservation wait on lock after Clone started
+        let cloned_balance_manager = tets_object
+            .balance_manager()
+            .clone_and_subtract_not_approved_data(Some(vec![order.clone()]))
+            .expect("in test");
+
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_currency_code(BalanceManagerBase::eth(), price)
+                .expect("in test"),
+            (dec!(10) - price / dec!(0.2) * dec!(5)) * dec!(0.95)
+        );
+
+        //cloned BalancedManager should be without reservation
+        assert_eq!(
+            tets_object
+                .balance_manager_base
+                .get_balance_by_another_balance_manager_and_currency_code(
+                    &cloned_balance_manager,
+                    BalanceManagerBase::eth(),
+                    price
+                )
+                .expect("in test"),
+            (dec!(10) - price / dec!(0.2) * dec!(5) + price / dec!(0.2) * dec!(5)) * dec!(0.95)
         );
     }
     // public void Reservation_Should_UseBalanceCurrency()
