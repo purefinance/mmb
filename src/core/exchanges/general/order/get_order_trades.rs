@@ -1,6 +1,4 @@
-use crate::core::exchanges::common::{
-    Amount, CurrencyCode, ExchangeError, Price, RestRequestOutcome,
-};
+use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeError, Price};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::orders::fill::OrderFillType;
@@ -12,7 +10,6 @@ use crate::core::{
 };
 use anyhow::{bail, Result};
 use itertools::Itertools;
-use log::info;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -65,7 +62,6 @@ impl Exchange {
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         let fills_type = &self.features.rest_fills_features.fills_type;
         match fills_type {
-            RestFillsType::OrderTrades => self.get_order_trades_core(order).await,
             RestFillsType::MyTrades => {
                 self.get_my_trades_with_filter(currency_pair_metadata, order)
                     .await
@@ -125,54 +121,5 @@ impl Exchange {
                 }
             },
         }
-    }
-
-    async fn get_order_trades_core(
-        &self,
-        order: &OrderRef,
-    ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        let exchange_order_id = match order.exchange_order_id() {
-            Some(exchange_order_id) => exchange_order_id,
-            None => bail!("There are no exchange_order_id in order {:?}", order),
-        };
-
-        let response = self.request_order_trades_core(&exchange_order_id).await;
-        // TODO make some metrics
-
-        info!(
-            "get_order_trades_core response {} {:?} on {} {:?}",
-            order.client_order_id(),
-            order.exchange_order_id(),
-            self.exchange_account_id,
-            response
-        );
-
-        match self.get_rest_error(&response) {
-            Some(error) => Ok(RequestResult::Error(error)),
-            None => match self.parse_get_order_trades_core(&response, exchange_order_id) {
-                Ok(data) => Ok(RequestResult::Success(data)),
-                Err(error) => {
-                    self.handle_parse_error(error, &response, "".into(), None)?;
-                    Ok(RequestResult::Error(ExchangeError::unknown_error(
-                        &response.content,
-                    )))
-                }
-            },
-        }
-    }
-
-    async fn request_order_trades_core(
-        &self,
-        _exchange_order_id: &ExchangeOrderId,
-    ) -> RestRequestOutcome {
-        unimplemented!()
-    }
-
-    pub(crate) fn parse_get_order_trades_core(
-        &self,
-        _response: &RestRequestOutcome,
-        _exchange_order_id: ExchangeOrderId,
-    ) -> Result<Vec<OrderTrade>> {
-        unimplemented!()
     }
 }

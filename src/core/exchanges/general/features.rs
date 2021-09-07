@@ -12,7 +12,6 @@ pub enum OpenOrdersType {
 #[derive(Debug)]
 pub enum RestFillsType {
     None,
-    OrderTrades,
     MyTrades,
     GetOrderInfo,
 }
