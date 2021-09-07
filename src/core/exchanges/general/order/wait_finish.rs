@@ -3,7 +3,7 @@ use chrono::Utc;
 use log::{info, trace, warn};
 use tokio::sync::oneshot;
 
-use crate::core::exchanges::common::{CurrencyCode, ExchangeError};
+use crate::core::exchanges::common::{CurrencyCode, ExchangeError, ExchangeErrorType};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::exchanges::general::features::RestFillsType;
@@ -53,9 +53,7 @@ impl Exchange {
             // (i. e. created\failed to create notification message was missed)
             // We end up here before an order was created, so we do not need to check for fills before the moment
             // when Creation fallback does its job and calls created/failed_to_create
-            // FIXME add exchange.is_launched_from_tests
             if order.status() == OrderStatus::Creating {
-                // && self.is_launched_from_tests
                 warn!(
                     "check_order_fills was called for a creating order with client order id {}",
                     order.client_order_id()
@@ -76,7 +74,24 @@ impl Exchange {
                     pre_reservation_group_id,
                     cancellation_token.clone(),
                 )
-                .await;
+                .await?;
+
+            match result.get_error() {
+                Some(exchange_error) => {
+                    if exchange_error.error_type == ExchangeErrorType::OrderNotFound {
+                        return Ok(());
+                    }
+
+                    warn!("Error received for request_type {:?}, with client_id {}, exchange_order_id {:?}, exchange_account_id {:?}, curency_pair {}: {:?}",
+                        request_type_to_use,
+                        order.client_order_id(),
+                        order.exchange_order_id(),
+                        order.exchange_account_id(),
+                        order.currency_pair(),
+                        exchange_error);
+                }
+                None => return Ok(()),
+            }
         }
 
         todo!()
@@ -256,14 +271,14 @@ impl Exchange {
 }
 
 pub trait OrderFillsCheckingOutcome {
-    fn get_error(self) -> Option<ExchangeError>;
+    fn get_error(&self) -> Option<ExchangeError>;
 }
 
 impl<T> OrderFillsCheckingOutcome for RequestResult<T> {
-    fn get_error(self) -> Option<ExchangeError> {
+    fn get_error(&self) -> Option<ExchangeError> {
         match self {
             RequestResult::Success(_) => None,
-            RequestResult::Error(exchange_error) => Some(exchange_error),
+            RequestResult::Error(exchange_error) => Some(exchange_error.clone()),
         }
     }
 }
