@@ -19,7 +19,6 @@ use crate::core::{
 
 use super::get_order_trades::OrderTrade;
 
-// TODO implement
 impl Exchange {
     pub(super) async fn check_order_fills(
         &self,
@@ -98,7 +97,7 @@ impl Exchange {
             }
         }
 
-        todo!()
+        Ok(())
     }
 
     pub(crate) async fn check_order_fills_using_request_type(
