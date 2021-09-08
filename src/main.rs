@@ -21,7 +21,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("eos".into(), "btc".into())
+        CurrencyPair::from_codes(&"eos".into(), &"btc".into())
     }
 
     fn max_amount(&self) -> Amount {

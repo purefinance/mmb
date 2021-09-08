@@ -289,7 +289,7 @@ impl Support for Binance {
             let specific_currency_pair =
                 SpecificCurrencyPair::from(symbol.get_as_str("symbol")?.as_str());
             let unified_currency_pair =
-                CurrencyPair::from_codes(base_currency_code.clone(), quote_currency_code.clone());
+                CurrencyPair::from_codes(&base_currency_code, &quote_currency_code);
             self.unified_to_specific.write().insert(
                 unified_currency_pair.clone(),
                 specific_currency_pair.clone(),

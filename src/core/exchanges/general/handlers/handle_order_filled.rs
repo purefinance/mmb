@@ -391,8 +391,8 @@ impl Exchange {
             && commission_currency_code != &currency_pair_metadata.quote_currency_code()
         {
             let mut currency_pair = CurrencyPair::from_codes(
-                commission_currency_code.clone(),
-                currency_pair_metadata.quote_currency_code(),
+                &commission_currency_code,
+                &currency_pair_metadata.quote_currency_code(),
             );
             match self.order_book_top.get(&currency_pair) {
                 Some(top_prices) => {
@@ -407,8 +407,8 @@ impl Exchange {
                 }
                 None => {
                     currency_pair = CurrencyPair::from_codes(
-                        currency_pair_metadata.quote_currency_code(),
-                        commission_currency_code.clone(),
+                        &currency_pair_metadata.quote_currency_code(),
+                        &commission_currency_code,
                     );
 
                     match self.order_book_top.get(&currency_pair) {
