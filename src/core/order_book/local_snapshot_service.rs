@@ -92,7 +92,7 @@ mod tests {
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
-            CurrencyPair::from_codes("base".into(), "quote".into()),
+            CurrencyPair::from_codes(&"base".into(), &"quote".into()),
             event::EventType::Snapshot,
             order_book_data::OrderBookData::new(asks, bids),
         );
@@ -135,7 +135,7 @@ mod tests {
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
-            CurrencyPair::from_codes("base".into(), "quote".into()),
+            CurrencyPair::from_codes(&"base".into(), &"quote".into()),
             event::EventType::Update,
             order_book_data::OrderBookData::new(asks, bids),
         );
@@ -150,7 +150,7 @@ mod tests {
     #[test]
     fn successful_update() {
         let test_exchange_id = "exchange_id";
-        let test_currency_pair = CurrencyPair::from_codes("base".into(), "quote".into());
+        let test_currency_pair = CurrencyPair::from_codes(&"base".into(), &"quote".into());
         // Construct main object
         let trade_place_account = TradePlaceAccount::new(
             ExchangeAccountId::new(test_exchange_id.into(), 0),

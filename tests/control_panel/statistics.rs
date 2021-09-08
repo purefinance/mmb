@@ -38,7 +38,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("phb".into(), "btc".into())
+        CurrencyPair::from_codes(&"phb".into(), &"btc".into())
     }
 
     fn max_amount(&self) -> Amount {
@@ -104,10 +104,8 @@ async fn orders_cancelled() {
         .and_then(|exchange_settings| exchange_settings.currency_pairs.clone())
         .expect("in test");
     let currency_pair_setting = currency_pairs.first().expect("in test");
-    let test_currency_pair = CurrencyPair::from_codes(
-        currency_pair_setting.base.clone(),
-        currency_pair_setting.quote.clone(),
-    );
+    let test_currency_pair =
+        CurrencyPair::from_codes(&currency_pair_setting.base, &currency_pair_setting.quote);
     let _ = exchange
         .cancel_all_orders(test_currency_pair.clone())
         .await
