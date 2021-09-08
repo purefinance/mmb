@@ -65,7 +65,6 @@ impl Exchange {
                 order.internal_props.last_order_trades_request_time = Some(Utc::now())
             });
 
-            // FIXME in C# here exception handling
             let result = self
                 .check_order_fills_using_request_type(
                     order,
@@ -89,6 +88,11 @@ impl Exchange {
                         order.exchange_account_id(),
                         order.currency_pair(),
                         exchange_error);
+
+                    // TODO in C# here are placed checking of AAX ServiceUnavailable
+                    // with warning and loop breaking
+                    // TODO in C# here are placed two temporal hack waiting #598 and #1455 issues implementation
+                    // Check all of it later and make better solutions
                 }
                 None => return Ok(()),
             }
