@@ -217,7 +217,7 @@ impl BalanceManager {
                     )
                 }
             };
-            if !currency_pair_metadata.is_derivative {
+            if currency_pair_metadata.is_derivative {
                 position_info_by_currency_pair_metadata
                     .insert(currency_pair_metadata.clone(), position_info);
             }
