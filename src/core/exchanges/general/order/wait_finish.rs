@@ -1,7 +1,8 @@
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
+use dashmap::mapref::entry::Entry::{Occupied, Vacant};
 use log::{info, trace, warn};
-use tokio::sync::oneshot;
+use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
@@ -10,7 +11,7 @@ use crate::core::exchanges::general::features::RestFillsType;
 use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
-use crate::core::orders::fill::{EventSourceType, OrderFillType};
+use crate::core::nothing_to_do;
 use crate::core::orders::order::{OrderInfo, OrderStatus};
 use crate::core::{
     exchanges::general::exchange::Exchange, lifecycle::cancellation_token::CancellationToken,
@@ -20,6 +21,60 @@ use crate::core::{
 use super::get_order_trades::OrderTrade;
 
 impl Exchange {
+    pub async fn wait_order_finish(
+        &self,
+        order: &OrderRef,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
+    ) -> Result<OrderRef> {
+        // TODO make MetricsRegistry.Metrics.Measure.Timer.Time(MetricsRegistry.Timers.WaitOrderFinishTimer,
+        //     MetricsRegistry.Timers.CreateExchangeTimerTags(order.ExchangeId));
+
+        if order.status() == OrderStatus::FailedToCreate {
+            return Ok(order.clone());
+        }
+
+        match self.wait_finish_order.entry(order.client_order_id()) {
+            Occupied(entry) => {
+                let tx = entry.get();
+                let mut rx = tx.subscribe();
+                // Just wait until order cancelling future completed or operation cancelled
+                tokio::select! {
+                    _ = rx.recv() => nothing_to_do(),
+                    _ = cancellation_token.when_cancelled() => nothing_to_do()
+                }
+
+                Ok(order.clone())
+            }
+            Vacant(vacant_entry) => {
+                // Be sure value will be removed anyway
+                let _guard = scopeguard::guard((), |_| {
+                    let _ = self.wait_cancel_order.remove(&order.client_order_id());
+                });
+
+                let (tx, _) = broadcast::channel(1);
+                let _ = *vacant_entry.insert(tx.clone());
+
+                let outcome = self
+                    .wait_finish_order_work(order, pre_reservation_group_id, cancellation_token)
+                    .await?;
+
+                let _ = tx.send(outcome);
+
+                Ok(order.clone())
+            }
+        }
+    }
+
+    pub(crate) async fn wait_finish_order_work(
+        &self,
+        order: &OrderRef,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
+    ) -> Result<OrderRef> {
+        todo!()
+    }
+
     pub(super) async fn check_order_fills(
         &self,
         order: &OrderRef,
