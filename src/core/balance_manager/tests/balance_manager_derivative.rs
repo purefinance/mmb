@@ -250,6 +250,7 @@ mod tests {
         CurrencyPairMetadata, Precision,
     };
     use crate::core::exchanges::general::currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter;
+    use crate::core::explanation::Explanation;
     use crate::core::logger::init_logger;
     use crate::core::misc::make_hash_map::make_hash_map;
     use crate::core::misc::reserve_parameters::ReserveParameters;
@@ -2298,6 +2299,7 @@ mod tests {
     #[rstest]
     #[ignore] // Transfer
     #[case(dec!(25), dec!(0.2), dec!(3), dec!(0.5), dec!(2) ,dec!(2) )] // Optimistic case: price1 < price2
+    #[ignore] // Transfer
     #[case(dec!(25), dec!(0.5), dec!(3), dec!(0.2), dec!(2) ,dec!(2) )] // Pessimistic case: price1 > price2
     pub fn transfer_reservation_different_price_success(
         #[case] src_balance: Decimal,
@@ -2859,7 +2861,7 @@ mod tests {
         init_logger();
         let is_reversed = false;
         let mut test_object =
-            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(10), is_reversed);
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
 
         let exchange_account_id = test_object
             .balance_manager_base
@@ -2933,6 +2935,1886 @@ mod tests {
         );
     }
 
+    #[test]
+    pub fn fills_and_reservations_no_limit_buy_enough_and_not_enough_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+
+        let price = BalanceManagerDerivative::price();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(7));
+
+        let original_balance = dec!(9) / price;
+        let position = dec!(1) / price;
+
+        let symbol_currency_pair = test_object
+            .balance_manager_base
+            .currency_pair_metadata()
+            .currency_pair();
+        BalanceManagerBase::update_balance_with_positions(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::btc(), original_balance),
+            make_hash_map(symbol_currency_pair, position),
+        );
+
+        let mut buy_balance = original_balance;
+        let mut sell_balance = original_balance / price
+            + position / BalanceManagerDerivative::leverage()
+                * BalanceManagerDerivative::reversed_amount_multiplier();
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price),
+            Some(buy_balance * dec!(0.95))
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price),
+            Some(sell_balance * dec!(0.95))
+        );
+
+        let fill_amount = dec!(0.3);
+        test_object.fill_order(OrderSide::Buy, None, Some(fill_amount), is_reversed);
+
+        buy_balance = original_balance
+            - fill_amount * price / BalanceManagerDerivative::leverage()
+                * BalanceManagerDerivative::reversed_amount_multiplier();
+        sell_balance = original_balance / price
+            + position / BalanceManagerDerivative::leverage()
+                * BalanceManagerDerivative::reversed_amount_multiplier();
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price),
+            Some(buy_balance * dec!(0.95))
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager_base
+                        .get_balance_by_trade_side(OrderSide::Sell, price)
+                        .expect("in test"),
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(sell_balance * dec!(0.95))
+                .expect("in test")
+        );
+    }
+
+    #[test]
+    pub fn fills_and_reservations_no_limit_sell_enough_and_not_enough() {
+        init_logger();
+        let is_reversed = false;
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+
+        let price = BalanceManagerDerivative::price();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        let original_balance = dec!(9);
+        let position = dec!(1);
+
+        let symbol_currency_pair = test_object
+            .balance_manager_base
+            .currency_pair_metadata()
+            .currency_pair();
+        BalanceManagerBase::update_balance_with_positions(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::eth(), original_balance),
+            make_hash_map(symbol_currency_pair, position),
+        );
+
+        let mut buy_balance = original_balance * price;
+        let mut sell_balance =
+            original_balance + position / price / BalanceManagerDerivative::leverage();
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price),
+            Some(buy_balance * dec!(0.95))
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price),
+            Some(sell_balance * dec!(0.95))
+        );
+
+        let fill_amount = dec!(0.3);
+        test_object.fill_order(OrderSide::Sell, None, Some(fill_amount), is_reversed);
+
+        buy_balance = original_balance * price + fill_amount / BalanceManagerDerivative::leverage();
+        sell_balance = original_balance
+            + fill_amount / price / BalanceManagerDerivative::leverage()
+            + (position - fill_amount) / price / BalanceManagerDerivative::leverage();
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price),
+            Some(buy_balance * dec!(0.95))
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price),
+            Some(sell_balance * dec!(0.95))
+        );
+    }
+
+    #[test]
+    pub fn fills_and_reservations_no_limit_sell_enough_and_not_enough_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+
+        let price = BalanceManagerDerivative::price();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(7));
+
+        let original_balance = dec!(9) / price;
+        let position = dec!(1) / price;
+
+        let symbol_currency_pair = test_object
+            .balance_manager_base
+            .currency_pair_metadata()
+            .currency_pair();
+        BalanceManagerBase::update_balance_with_positions(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::btc(), original_balance),
+            make_hash_map(symbol_currency_pair, position),
+        );
+
+        let mut buy_balance = original_balance;
+        let mut sell_balance = original_balance / price
+            + position / BalanceManagerDerivative::leverage()
+                * BalanceManagerDerivative::reversed_amount_multiplier();
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price),
+            Some(buy_balance * dec!(0.95))
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Sell, price),
+            Some(sell_balance * dec!(0.95))
+        );
+
+        let fill_amount = dec!(0.3);
+        test_object.fill_order(OrderSide::Sell, None, Some(fill_amount), is_reversed);
+
+        buy_balance = original_balance
+            + fill_amount * price / BalanceManagerDerivative::leverage()
+                * BalanceManagerDerivative::reversed_amount_multiplier();
+        sell_balance = original_balance / price
+            + fill_amount / BalanceManagerDerivative::leverage()
+                * BalanceManagerDerivative::reversed_amount_multiplier()
+            + (position - fill_amount) / BalanceManagerDerivative::leverage()
+                * BalanceManagerDerivative::reversed_amount_multiplier();
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .get_balance_by_trade_side(OrderSide::Buy, price),
+            Some(buy_balance * dec!(0.95))
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager_base
+                        .get_balance_by_trade_side(OrderSide::Sell, price)
+                        .expect("in test"),
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(sell_balance * dec!(0.95))
+                .expect("in test")
+        );
+    }
+
+    #[test]
+    pub fn fills_and_reservations_limit_buy_enough_and_not_enough() {
+        init_logger();
+        let is_reversed = false;
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        let configuration_descriptor = test_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+
+        let amount_limit = dec!(2);
+        test_object.balance_manager_mut().set_target_amount_limit(
+            configuration_descriptor.clone(),
+            &exchange_account_id,
+            currency_pair_metadata.clone(),
+            amount_limit,
+        );
+
+        let price = BalanceManagerDerivative::price();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        BalanceManagerBase::update_balance(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::eth(), dec!(1000)),
+        );
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(
+                Some(OrderSide::Buy),
+                price,
+                BalanceManagerDerivative::amount(),
+            )
+            .clone();
+
+        let balance_before_reservation = amount_limit / BalanceManagerDerivative::leverage();
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(balance_before_reservation)
+        );
+
+        let mut reservation_id = ReservationId::default();
+        test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        );
+
+        let reserved_amount = reserve_parameters.amount;
+        let balance_after_reservation =
+            balance_before_reservation - reserved_amount / BalanceManagerDerivative::leverage();
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(balance_after_reservation)
+        );
+
+        let mut order = test_object
+            .balance_manager_base
+            .create_order(OrderSide::Buy, reservation_id);
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            BalanceManagerDerivative::amount(),
+            price,
+            dec!(0),
+            is_reversed,
+        ));
+
+        test_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
+        test_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, reserved_amount)
+            .expect("in test");
+
+        let position_by_fill_amount = test_object
+            .balance_manager()
+            .get_balances()
+            .position_by_fill_amount
+            .expect("in test");
+
+        assert_eq!(
+            position_by_fill_amount
+                .get(
+                    &exchange_account_id,
+                    &currency_pair_metadata.currency_pair()
+                )
+                .expect("in test"),
+            BalanceManagerDerivative::amount()
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_side(
+                    configuration_descriptor.clone(),
+                    &exchange_account_id,
+                    currency_pair_metadata.clone(),
+                    OrderSide::Buy,
+                    price
+                )
+                .expect("in test"),
+            balance_before_reservation
+                - BalanceManagerDerivative::amount() / BalanceManagerDerivative::leverage()
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager()
+                        .get_balance_by_side(
+                            configuration_descriptor.clone(),
+                            &exchange_account_id,
+                            currency_pair_metadata.clone(),
+                            OrderSide::Sell,
+                            price
+                        )
+                        .expect("in test")
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    (balance_before_reservation
+                        + BalanceManagerDerivative::amount()
+                            / BalanceManagerDerivative::leverage())
+                        / price
+                )
+                .expect("in test")
+        );
+    }
+
+    #[test]
+    pub fn fills_and_reservations_limit_buy_enough_and_not_enough_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        let configuration_descriptor = test_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+
+        let price = BalanceManagerDerivative::price();
+        let amount = BalanceManagerDerivative::amount_reversed();
+        let amount_multiplier = BalanceManagerDerivative::reversed_amount_multiplier();
+        let amount_limit = dec!(2);
+        let adjusted_amount_limit = amount_limit / price / amount_multiplier;
+        test_object.balance_manager_mut().set_target_amount_limit(
+            configuration_descriptor.clone(),
+            &exchange_account_id,
+            currency_pair_metadata.clone(),
+            adjusted_amount_limit,
+        );
+
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        BalanceManagerBase::update_balance(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::btc(), dec!(1000)),
+        );
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Buy), price, amount)
+            .clone();
+
+        let balance_before_reservation = amount_limit / BalanceManagerDerivative::leverage();
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(balance_before_reservation)
+        );
+
+        let mut reservation_id = ReservationId::default();
+        test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        );
+
+        let reserved_amount = reserve_parameters.amount;
+        let balance_after_reservation = balance_before_reservation
+            - reserved_amount / BalanceManagerDerivative::leverage() * price * amount_multiplier;
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_reserve_parameters(&reserve_parameters),
+            Some(balance_after_reservation)
+        );
+
+        let mut order = test_object
+            .balance_manager_base
+            .create_order(OrderSide::Buy, reservation_id);
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            amount,
+            price,
+            dec!(0),
+            is_reversed,
+        ));
+
+        test_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
+        test_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, reserved_amount)
+            .expect("in test");
+
+        let position_by_fill_amount = test_object
+            .balance_manager()
+            .get_balances()
+            .position_by_fill_amount
+            .expect("in test");
+
+        assert_eq!(
+            position_by_fill_amount
+                .get(
+                    &exchange_account_id,
+                    &currency_pair_metadata.currency_pair()
+                )
+                .expect("in test"),
+            amount
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_side(
+                    configuration_descriptor.clone(),
+                    &exchange_account_id,
+                    currency_pair_metadata.clone(),
+                    OrderSide::Buy,
+                    price
+                )
+                .expect("in test"),
+            balance_before_reservation
+                - amount / BalanceManagerDerivative::leverage() * price * amount_multiplier
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager()
+                        .get_balance_by_side(
+                            configuration_descriptor.clone(),
+                            &exchange_account_id,
+                            currency_pair_metadata.clone(),
+                            OrderSide::Sell,
+                            price
+                        )
+                        .expect("in test")
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    (balance_before_reservation
+                        + amount / BalanceManagerDerivative::leverage()
+                            * price
+                            * amount_multiplier)
+                        / price
+                )
+                .expect("in test")
+        );
+    }
+
+    #[test]
+    pub fn fills_and_reservations_limit_sell_enough_and_not_enough() {
+        init_logger();
+        let is_reversed = false;
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        let configuration_descriptor = test_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+
+        let amount_limit = dec!(2);
+        test_object.balance_manager_mut().set_target_amount_limit(
+            configuration_descriptor.clone(),
+            &exchange_account_id,
+            currency_pair_metadata.clone(),
+            amount_limit,
+        );
+
+        let price = BalanceManagerDerivative::price();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        BalanceManagerBase::update_balance(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::eth(), dec!(1000)),
+        );
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(
+                Some(OrderSide::Sell),
+                price,
+                BalanceManagerDerivative::amount(),
+            )
+            .clone();
+
+        let balance_before_reservation =
+            amount_limit / BalanceManagerDerivative::leverage() / price;
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager()
+                        .get_balance_by_reserve_parameters(&reserve_parameters)
+                        .expect("in test")
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(balance_before_reservation)
+                .expect("in test")
+        );
+
+        let mut reservation_id = ReservationId::default();
+        test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        );
+
+        let reserved_amount = reserve_parameters.amount;
+        let balance_after_reservation = balance_before_reservation
+            - reserved_amount / BalanceManagerDerivative::leverage() / price;
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager()
+                        .get_balance_by_reserve_parameters(&reserve_parameters)
+                        .expect("in test")
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(balance_after_reservation)
+                .expect("in test")
+        );
+
+        let mut order = test_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, reservation_id);
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            BalanceManagerDerivative::amount(),
+            price,
+            dec!(0),
+            is_reversed,
+        ));
+
+        test_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
+        test_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, reserved_amount)
+            .expect("in test");
+
+        let position_by_fill_amount = test_object
+            .balance_manager()
+            .get_balances()
+            .position_by_fill_amount
+            .expect("in test");
+
+        assert_eq!(
+            position_by_fill_amount
+                .get(
+                    &exchange_account_id,
+                    &currency_pair_metadata.currency_pair()
+                )
+                .expect("in test"),
+            -BalanceManagerDerivative::amount()
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_side(
+                    configuration_descriptor.clone(),
+                    &exchange_account_id,
+                    currency_pair_metadata.clone(),
+                    OrderSide::Buy,
+                    price
+                )
+                .expect("in test"),
+            (balance_before_reservation
+                + BalanceManagerDerivative::amount()
+                    / BalanceManagerDerivative::leverage()
+                    / price)
+                * price
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager()
+                        .get_balance_by_side(
+                            configuration_descriptor.clone(),
+                            &exchange_account_id,
+                            currency_pair_metadata.clone(),
+                            OrderSide::Sell,
+                            price
+                        )
+                        .expect("in test")
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    balance_before_reservation
+                        - BalanceManagerDerivative::amount()
+                            / BalanceManagerDerivative::leverage()
+                            / price
+                )
+                .expect("in test")
+        );
+    }
+
+    #[test]
+    pub fn fills_and_reservations_limit_sell_enough_and_not_enough_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut test_object =
+            create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        let configuration_descriptor = test_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+
+        let price = BalanceManagerDerivative::price();
+        let amount = BalanceManagerDerivative::amount_reversed();
+        let amount_multiplier = BalanceManagerDerivative::reversed_amount_multiplier();
+        let amount_limit = dec!(2);
+        let adjusted_amount_limit = amount_limit / price / amount_multiplier;
+        test_object.balance_manager_mut().set_target_amount_limit(
+            configuration_descriptor.clone(),
+            &exchange_account_id,
+            currency_pair_metadata.clone(),
+            adjusted_amount_limit,
+        );
+
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        BalanceManagerBase::update_balance(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::btc(), dec!(1000)),
+        );
+
+        let reserve_parameters = test_object
+            .balance_manager_base
+            .create_reserve_parameters(Some(OrderSide::Sell), price, amount)
+            .clone();
+
+        let balance_before_reservation =
+            amount_limit / BalanceManagerDerivative::leverage() / price;
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager()
+                        .get_balance_by_reserve_parameters(&reserve_parameters)
+                        .expect("in test")
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(balance_before_reservation)
+                .expect("in test")
+        );
+
+        let mut reservation_id = ReservationId::default();
+        test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut reservation_id,
+            &mut None,
+        );
+
+        let reserved_amount = reserve_parameters.amount;
+        let balance_after_reservation = balance_before_reservation
+            - reserved_amount / BalanceManagerDerivative::leverage() * amount_multiplier;
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager()
+                        .get_balance_by_reserve_parameters(&reserve_parameters)
+                        .expect("in test")
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(balance_after_reservation)
+                .expect("in test")
+        );
+
+        let mut order = test_object
+            .balance_manager_base
+            .create_order(OrderSide::Sell, reservation_id);
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            price,
+            amount,
+            price,
+            dec!(0),
+            is_reversed,
+        ));
+
+        test_object.balance_manager_mut().order_was_filled(
+            configuration_descriptor.clone(),
+            &order,
+            None,
+        );
+        test_object
+            .balance_manager_mut()
+            .unreserve(reservation_id, reserved_amount)
+            .expect("in test");
+
+        let position_by_fill_amount = test_object
+            .balance_manager()
+            .get_balances()
+            .position_by_fill_amount
+            .expect("in test");
+
+        assert_eq!(
+            position_by_fill_amount
+                .get(
+                    &exchange_account_id,
+                    &currency_pair_metadata.currency_pair()
+                )
+                .expect("in test"),
+            -amount
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_balance_by_side(
+                    configuration_descriptor.clone(),
+                    &exchange_account_id,
+                    currency_pair_metadata.clone(),
+                    OrderSide::Buy,
+                    price
+                )
+                .expect("in test"),
+            (balance_before_reservation
+                + amount / BalanceManagerDerivative::leverage() * amount_multiplier)
+                * price
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    test_object
+                        .balance_manager()
+                        .get_balance_by_side(
+                            configuration_descriptor.clone(),
+                            &exchange_account_id,
+                            currency_pair_metadata.clone(),
+                            OrderSide::Sell,
+                            price
+                        )
+                        .expect("in test")
+                )
+                .expect("in test"),
+            test_object
+                .balance_manager_base
+                .currency_pair_metadata()
+                .round_to_remove_amount_precision_error(
+                    balance_before_reservation
+                        - amount / BalanceManagerDerivative::leverage() * amount_multiplier
+                )
+                .expect("in test")
+        );
+    }
+
+    #[test]
+    pub fn can_reserve_no_limit_enough_and_not_enough() {
+        init_logger();
+        let is_reversed = false;
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(10),
+            None,
+            is_reversed,
+            Some(BalanceManagerDerivative::position()),
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            BalanceManagerDerivative::price(),
+            BalanceManagerDerivative::position() + dec!(1.9) * BalanceManagerDerivative::leverage(),
+        );
+        assert!(test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            BalanceManagerDerivative::price(),
+            BalanceManagerDerivative::position() + dec!(2) * BalanceManagerDerivative::leverage(),
+        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            BalanceManagerDerivative::price(),
+            dec!(1.9) * BalanceManagerDerivative::leverage(),
+        );
+        assert!(test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            BalanceManagerDerivative::price(),
+            dec!(2) * BalanceManagerDerivative::leverage(),
+        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+    }
+
+    #[test]
+    pub fn can_reserve_no_limit_enough_and_not_enough_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::btc(),
+            dec!(2),
+            None,
+            is_reversed,
+            Some(BalanceManagerDerivative::position()),
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            BalanceManagerDerivative::price(),
+            BalanceManagerDerivative::position()
+                + dec!(1.9) / BalanceManagerDerivative::price()
+                    * BalanceManagerDerivative::leverage()
+                    / BalanceManagerDerivative::reversed_amount_multiplier(),
+        );
+        assert!(test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            BalanceManagerDerivative::price(),
+            BalanceManagerDerivative::position()
+                + dec!(2) / BalanceManagerDerivative::price()
+                    * BalanceManagerDerivative::leverage()
+                    / BalanceManagerDerivative::reversed_amount_multiplier(),
+        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            BalanceManagerDerivative::price(),
+            dec!(1.9) / BalanceManagerDerivative::price() * BalanceManagerDerivative::leverage()
+                / BalanceManagerDerivative::reversed_amount_multiplier(),
+        );
+        assert!(test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            BalanceManagerDerivative::price(),
+            dec!(2) / BalanceManagerDerivative::price() * BalanceManagerDerivative::leverage()
+                / BalanceManagerDerivative::reversed_amount_multiplier(),
+        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+    }
+
+    #[test]
+    pub fn can_reserve_limit_enough_and_not_enough() {
+        init_logger();
+        let is_reversed = false;
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(10),
+            Some(dec!(2)),
+            is_reversed,
+            Some(BalanceManagerDerivative::position()),
+        );
+
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            BalanceManagerDerivative::price(),
+            BalanceManagerDerivative::position() + dec!(2),
+        );
+        assert!(test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            BalanceManagerDerivative::price(),
+            BalanceManagerDerivative::position() + dec!(2) + dec!(0.0000000001),
+        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            BalanceManagerDerivative::price(),
+            dec!(2) - BalanceManagerDerivative::position(),
+        );
+        assert!(test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            BalanceManagerDerivative::price(),
+            dec!(2) + dec!(0.0000000001) - BalanceManagerDerivative::position(),
+        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+    }
+
+    #[test]
+    pub fn can_reserve_limit_enough_and_not_enough_reversed() {
+        init_logger();
+        let is_reversed = true;
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::btc(),
+            dec!(2),
+            Some(
+                dec!(2)
+                    / BalanceManagerDerivative::price()
+                    / BalanceManagerDerivative::reversed_amount_multiplier(),
+            ),
+            is_reversed,
+            Some(BalanceManagerDerivative::position()),
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(
+                currency_pair_metadata.currency_pair(),
+                BalanceManagerDerivative::leverage(),
+            );
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            BalanceManagerDerivative::price(),
+            BalanceManagerDerivative::position()
+                + dec!(2)
+                    / BalanceManagerDerivative::price()
+                    / BalanceManagerDerivative::reversed_amount_multiplier(),
+        );
+        assert!(test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            BalanceManagerDerivative::price(),
+            BalanceManagerDerivative::position()
+                + dec!(2)
+                    / BalanceManagerDerivative::price()
+                    / BalanceManagerDerivative::reversed_amount_multiplier()
+                + dec!(0.0000000001),
+        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            BalanceManagerDerivative::price(),
+            -BalanceManagerDerivative::position()
+                + dec!(2)
+                    / BalanceManagerDerivative::price()
+                    / BalanceManagerDerivative::reversed_amount_multiplier(),
+        );
+        assert!(test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Buy),
+            BalanceManagerDerivative::price(),
+            -BalanceManagerDerivative::position()
+                + dec!(2)
+                    / BalanceManagerDerivative::price()
+                    / BalanceManagerDerivative::reversed_amount_multiplier()
+                + dec!(0.0000000001),
+        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
+    }
+
+    #[rstest]
+    #[case(OrderSide::Sell, true, false)]
+    #[case(OrderSide::Buy, false, false)]
+    #[case(OrderSide::Sell, true, true)]
+    #[case(OrderSide::Buy, false, true)]
+    pub fn can_reserve_when_out_of_limit_and_moving_to_the_limit(
+        #[case] order_side: OrderSide,
+        #[case] expected_can_reserve: bool,
+        #[case] is_reversed: bool,
+    ) {
+        init_logger();
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(1000),
+            Some(dec!(450)),
+            is_reversed,
+            Some(dec!(610)),
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(3));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(order_side),
+            dec!(9570),
+            dec!(30),
+        );
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .can_reserve(&reserve_parameters, &mut None),
+            expected_can_reserve
+        );
+    }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_long_position()
+    {
+        init_logger();
+        let amount_limit = dec!(5);
+        let is_reversed = false;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(10),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Buy, None, None, is_reversed);
+
+        let margin_buy = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Buy,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut None,
+            )
+            .expect("in test");
+
+        assert_eq!(margin_buy, dec!(5) - dec!(1.9));
+
+        let margin_sell = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Sell,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut Some(Explanation::default()),
+            )
+            .expect("in test");
+        assert_eq!(margin_sell, (dec!(5) + dec!(1.9)) / dec!(0.2) * dec!(0.2));
+    }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_long_position_reversed(
+    ) {
+        init_logger();
+        let amount_limit = dec!(5) / BalanceManagerDerivative::price();
+        let is_reversed = true;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::btc(),
+            dec!(100),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Buy, None, None, is_reversed);
+
+        let margin_buy = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Buy,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut None,
+            )
+            .expect("in test");
+
+        assert_eq!(
+            margin_buy,
+            amount_limit - BalanceManagerDerivative::amount_reversed()
+        );
+
+        let margin_sell = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Sell,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut Some(Explanation::default()),
+            )
+            .expect("in test");
+        assert_eq!(
+            margin_sell,
+            (amount_limit + BalanceManagerDerivative::amount_reversed()) / dec!(0.2) * dec!(0.2)
+        );
+    }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_short_position()
+    {
+        init_logger();
+        let amount_limit = dec!(5);
+        let is_reversed = false;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(10),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Sell, None, None, is_reversed);
+
+        let margin_buy = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Buy,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut None,
+            )
+            .expect("in test");
+
+        assert_eq!(margin_buy, dec!(5) + dec!(1.9));
+
+        let margin_sell = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Sell,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut Some(Explanation::default()),
+            )
+            .expect("in test");
+        assert_eq!(margin_sell, (dec!(5) - dec!(1.9)) / dec!(0.2) * dec!(0.2));
+    }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_short_position_reversed(
+    ) {
+        init_logger();
+        let amount_limit = dec!(5) / BalanceManagerDerivative::price();
+        let is_reversed = true;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::btc(),
+            dec!(100),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Sell, None, None, is_reversed);
+
+        let margin_buy = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Buy,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut None,
+            )
+            .expect("in test");
+
+        assert_eq!(
+            margin_buy,
+            amount_limit + BalanceManagerDerivative::amount_reversed()
+        );
+
+        let margin_sell = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Sell,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut Some(Explanation::default()),
+            )
+            .expect("in test");
+        assert_eq!(
+            margin_sell,
+            (amount_limit - BalanceManagerDerivative::amount_reversed()) / dec!(0.2) * dec!(0.2)
+        );
+    }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_long_position()
+    {
+        init_logger();
+        let amount_limit = dec!(10);
+        let is_reversed = false;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(10),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Buy, None, None, is_reversed);
+
+        let margin_buy = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Buy,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut None,
+            )
+            .expect("in test");
+
+        assert_eq!(
+            margin_buy,
+            (dec!(10) - dec!(1.9)) * dec!(0.2) * dec!(5) * dec!(0.95)
+        );
+
+        let margin_sell = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Sell,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut Some(Explanation::default()),
+            )
+            .expect("in test");
+
+        assert_eq!(
+            margin_sell,
+            (dec!(10) - dec!(1.9) + dec!(1.9)) * dec!(5) * dec!(0.95) * dec!(0.2)
+        );
+    }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_long_position_reversed(
+    ) {
+        init_logger();
+        let amount_limit = dec!(1000)
+            / BalanceManagerDerivative::price()
+            / BalanceManagerDerivative::reversed_amount_multiplier();
+        let is_reversed = true;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::btc(),
+            dec!(100),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Buy, None, None, is_reversed);
+
+        let margin_buy = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Buy,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut None,
+            )
+            .expect("in test");
+
+        assert_eq!(
+            margin_buy,
+            (dec!(100)
+                - BalanceManagerDerivative::amount_reversed() * BalanceManagerDerivative::price()
+                    / dec!(5)
+                    * BalanceManagerDerivative::reversed_amount_multiplier())
+                / BalanceManagerDerivative::price()
+                * dec!(5)
+                / BalanceManagerDerivative::reversed_amount_multiplier()
+                * dec!(0.95)
+        );
+
+        let margin_sell = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Sell,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut Some(Explanation::default()),
+            )
+            .expect("in test");
+        assert_eq!(
+            margin_sell,
+            dec!(100) / BalanceManagerDerivative::price() * dec!(5)
+                / BalanceManagerDerivative::reversed_amount_multiplier()
+                * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_short_position()
+    {
+        init_logger();
+        let amount_limit = dec!(10);
+        let is_reversed = false;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(10),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Sell, None, None, is_reversed);
+
+        let margin_buy = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Buy,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut None,
+            )
+            .expect("in test");
+
+        assert_eq!(
+            margin_buy,
+            (dec!(10) - dec!(1.9) + dec!(1.9)) * dec!(0.2) * dec!(5) * dec!(0.95)
+        );
+
+        let margin_sell = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Sell,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut Some(Explanation::default()),
+            )
+            .expect("in test");
+        assert_eq!(
+            margin_sell,
+            (dec!(10) - dec!(1.9)) * dec!(5) * dec!(0.2) * dec!(0.95)
+        );
+    }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_short_position_reversed(
+    ) {
+        init_logger();
+        let amount_limit = dec!(1000)
+            / BalanceManagerDerivative::price()
+            / BalanceManagerDerivative::reversed_amount_multiplier();
+        let is_reversed = true;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::btc(),
+            dec!(100),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Sell, None, None, is_reversed);
+
+        let margin_buy = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Buy,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut None,
+            )
+            .expect("in test");
+
+        assert_eq!(
+            margin_buy,
+            dec!(100) / BalanceManagerDerivative::price() * dec!(5) * dec!(0.95)
+                / BalanceManagerDerivative::reversed_amount_multiplier()
+        );
+
+        let margin_sell = test_object
+            .balance_manager()
+            .get_leveraged_balance_in_amount_currency_code(
+                test_object
+                    .balance_manager_base
+                    .configuration_descriptor
+                    .clone(),
+                OrderSide::Sell,
+                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .clone(),
+                BalanceManagerDerivative::price(),
+                &mut Some(Explanation::default()),
+            )
+            .expect("in test");
+        assert_eq!(
+            margin_sell,
+            (dec!(100)
+                - BalanceManagerDerivative::amount_reversed() * BalanceManagerDerivative::price()
+                    / dec!(5)
+                    * BalanceManagerDerivative::reversed_amount_multiplier())
+                / BalanceManagerDerivative::price()
+                * dec!(5)
+                / BalanceManagerDerivative::reversed_amount_multiplier()
+                * dec!(0.95)
+        );
+    }
     // public void Reservation_Should_UseBalanceCurrency()
     // {
 
