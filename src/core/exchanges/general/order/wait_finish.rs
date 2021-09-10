@@ -3,6 +3,7 @@ use chrono::Utc;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::Utc;
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
 use tokio::sync::{broadcast, oneshot};
 
@@ -15,7 +16,7 @@ use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::infrastructure::spawn_future_timed;
 use crate::core::nothing_to_do;
-use crate::core::orders::order::{OrderInfo, OrderStatus};
+use crate::core::orders::order::{OrderInfo, OrderStatus, OrderType};
 use crate::core::{
     exchanges::general::exchange::Exchange, lifecycle::cancellation_token::CancellationToken,
     orders::pool::OrderRef,
@@ -111,10 +112,87 @@ impl Exchange {
     pub(crate) async fn poll_order_fills(
         &self,
         order: &OrderRef,
-        has_websocket_notification: bool,
+        is_fallback: bool,
         pre_reservation_group_id: Option<RequestGroupId>,
-        linked_cancellation_token: CancellationToken,
+        cancellation_token: CancellationToken,
     ) -> () {
+        while !order.is_finished() && cancellation_token.is_cancellation_requested() {
+            if is_fallback {
+                // TODO optimize by counting time since order.LastFillDateTime
+                let current_time = Utc::now();
+
+                let fallback_request_period = if order.order_type() == OrderType::StopLoss {
+                    let order_trades_fallback_request_period_for_stop_loss =
+                        Duration::from_secs(30);
+                    order_trades_fallback_request_period_for_stop_loss
+                } else {
+                    let order_trades_fallback_request_period = Duration::from_secs(300);
+                    order_trades_fallback_request_period
+                };
+
+                let delay_till_fallback_request = match order.fn_ref(|order| {
+                    order
+                        .internal_props
+                        .last_order_cancellation_status_request_time
+                }) {
+                    // FIXME what with Some() variant?
+                    Some(_last_order_cancellation_status_request_time) => fallback_request_period, // - (current_time - last_order_cancellation_status_request_time),
+                    None => fallback_request_period,
+                };
+
+                if delay_till_fallback_request > Duration::ZERO {
+                    let sleep = tokio::time::sleep(delay_till_fallback_request);
+                    tokio::select! {
+                        _ = sleep => {}
+                        _ = cancellation_token.when_cancelled() => {
+                            return;
+                        }
+                    }
+                }
+            } else {
+                // FIXME self.polling_timeout_manager.wait()
+            }
+
+            // If an order was finished while we were waiting for the timeout, we do not need to request fills for it
+            if order.is_finished() {
+                return;
+            }
+
+            let maker_only_order_was_cancelled = self
+                .check_maker_only_order_status(
+                    order,
+                    pre_reservation_group_id,
+                    cancellation_token.clone(),
+                )
+                .await;
+
+            // If a maker only order was cancelled here, it is likely happend because we missed
+            // a refusal/cancellatioin notification due to crissing a market.
+            // But there is a chance this order was created and properly cancelled, so we need to make sure
+            // to retrive the fills which we could have missed
+            let exit_on_order_is_finished_even_if_fills_didnt_received =
+                if maker_only_order_was_cancelled {
+                    false
+                } else {
+                    is_fallback
+                };
+
+            self.check_order_fills(
+                order,
+                exit_on_order_is_finished_even_if_fills_didnt_received,
+                pre_reservation_group_id,
+                cancellation_token.clone(),
+            )
+            .await;
+        }
+    }
+
+    pub(crate) async fn check_maker_only_order_status(
+        &self,
+        order: &OrderRef,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
+    ) -> bool {
         todo!()
     }
 
