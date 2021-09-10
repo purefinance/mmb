@@ -53,10 +53,4 @@ impl ReserveParameters {
             amount,
         }
     }
-
-    pub fn get_hash_code(&self) -> u64 {
-        let mut hasher = DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
-    }
 }

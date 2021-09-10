@@ -8,7 +8,7 @@ use crate::core::exchanges::common::Amount;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
-use crate::core::exchanges::general::currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
@@ -31,8 +31,6 @@ use rust_decimal_macros::dec;
 pub struct BalanceManager {
     exchange_id_with_restored_positions: HashSet<ExchangeAccountId>,
     balance_reservation_manager: BalanceReservationManager,
-    position_differs_times_in_row_by_exchange_id:
-        HashMap<ExchangeAccountId, HashMap<CurrencyPair, i32>>,
 
     last_order_fills: HashMap<TradePlaceAccount, OrderFill>,
 }
@@ -40,21 +38,24 @@ pub struct BalanceManager {
 impl BalanceManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
+        currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
     ) -> Self {
         Self {
             exchange_id_with_restored_positions: HashSet::new(),
             balance_reservation_manager: BalanceReservationManager::new(
                 exchanges_by_id,
-                currency_pair_to_currency_pair_metadata_converter,
+                currency_pair_to_metadata_converter,
             ),
-            position_differs_times_in_row_by_exchange_id: HashMap::new(),
             last_order_fills: HashMap::new(),
         }
     }
 
-    pub fn restore_balance_state(&mut self, balances: &Balances, restore_exchange_balances: bool) {
-        if restore_exchange_balances {
+    pub fn restore_balance_state(
+        &mut self,
+        balances: &Balances,
+        update_exchange_balances_before_restoring: bool,
+    ) {
+        if update_exchange_balances_before_restoring {
             if let Some(balances_by_exchange_id) = &balances.balances_by_exchange_id {
                 for (exchange_account_id, balance) in balances_by_exchange_id {
                     self.balance_reservation_manager
@@ -280,28 +281,26 @@ impl BalanceManager {
                     currency_pairs_with_diffs.push(currency_pair);
                 }
             }
-
+            let mut position_differs_times_in_row_by_exchange_id = HashMap::new();
             if has_difference {
-                if self
-                    .position_differs_times_in_row_by_exchange_id
+                if position_differs_times_in_row_by_exchange_id
                     .get_mut(exchange_account_id)
                     .is_none()
                 {
-                    self.position_differs_times_in_row_by_exchange_id.insert(
+                    position_differs_times_in_row_by_exchange_id.insert(
                         exchange_account_id.clone(),
                         HashMap::<CurrencyPair, i32>::new(),
                     );
                 }
 
-                let diff_times_by_currency_pair = if let Some(res) = self
-                    .position_differs_times_in_row_by_exchange_id
-                    .get_mut(exchange_account_id)
+                let diff_times_by_currency_pair = if let Some(res) =
+                    position_differs_times_in_row_by_exchange_id.get_mut(exchange_account_id)
                 {
                     res
                 } else {
                     bail!(
                         "diff_times_by_currency_pair not found in {:?} for id: {}",
-                        self.position_differs_times_in_row_by_exchange_id,
+                        position_differs_times_in_row_by_exchange_id,
                         exchange_account_id
                     )
                 };
@@ -341,8 +340,7 @@ impl BalanceManager {
                     bail!("Position on {} differs from local", exchange_account_id);
                 }
             } else {
-                self.position_differs_times_in_row_by_exchange_id
-                    .remove(exchange_account_id);
+                position_differs_times_in_row_by_exchange_id.remove(exchange_account_id);
             }
         }
         Ok(())
@@ -611,7 +609,7 @@ impl BalanceManager {
         let exchange_account_id = &order_snapshot.header.exchange_account_id;
         let currency_pair_metadata = self
             .balance_reservation_manager
-            .currency_pair_to_currency_pair_metadata_converter
+            .currency_pair_to_metadata_converter
             .try_get_currency_pair_metadata(
                 exchange_account_id,
                 &order_snapshot.header.currency_pair,

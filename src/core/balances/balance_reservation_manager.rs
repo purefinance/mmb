@@ -22,7 +22,7 @@ use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, TradePlaceAccount,
 };
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
-use crate::core::exchanges::general::currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
 use crate::core::misc::reserve_parameters::ReserveParameters;
@@ -38,7 +38,7 @@ use super::balance_reservation_preset::BalanceReservationPreset;
 pub(crate) struct BalanceReservationManager {
     pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
-    pub currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
+    pub currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
     reserved_amount_in_amount_currency: ServiceValueTree,
     amount_limits_in_amount_currency: ServiceValueTree,
 
@@ -54,11 +54,11 @@ pub(crate) struct BalanceReservationManager {
 impl BalanceReservationManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        currency_pair_to_currency_pair_metadata_converter: CurrencyPairToCurrencyMetadataConverter,
+        currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
     ) -> Self {
         Self {
             exchanges_by_id: exchanges_by_id.clone(),
-            currency_pair_to_currency_pair_metadata_converter,
+            currency_pair_to_metadata_converter,
             reserved_amount_in_amount_currency: ServiceValueTree::new(),
             amount_limits_in_amount_currency: ServiceValueTree::new(),
             position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount::new(),
@@ -738,7 +738,7 @@ impl BalanceReservationManager {
         trade_side: OrderSide,
     ) -> Option<Decimal> {
         let currency_pair_metadata = match self
-            .currency_pair_to_currency_pair_metadata_converter
+            .currency_pair_to_metadata_converter
             .try_get_currency_pair_metadata(exchange_account_id, currency_pair)
         {
             Ok(currency_pair_metadata) => currency_pair_metadata,

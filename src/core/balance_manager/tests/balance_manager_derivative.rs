@@ -7,7 +7,7 @@ use crate::core::{
         common::{Amount, ExchangeAccountId},
         general::{
             currency_pair_metadata::{CurrencyPairMetadata, Precision},
-            currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter,
+            currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
             exchange::Exchange,
             test_helper::{
                 get_test_exchange_with_currency_pair_metadata,
@@ -66,13 +66,11 @@ impl BalanceManagerDerivative {
     ) {
         let (currency_pair_metadata, exchanges_by_id) =
             BalanceManagerDerivative::create_balance_manager_ctor_parameters(is_reversed);
-        let currency_pair_to_currency_pair_metadata_converter =
-            CurrencyPairToCurrencyMetadataConverter::new(exchanges_by_id.clone());
+        let currency_pair_to_metadata_converter =
+            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
 
-        let balance_manager = BalanceManager::new(
-            exchanges_by_id.clone(),
-            currency_pair_to_currency_pair_metadata_converter,
-        );
+        let balance_manager =
+            BalanceManager::new(exchanges_by_id.clone(), currency_pair_to_metadata_converter);
         (currency_pair_metadata, balance_manager, exchanges_by_id)
     }
 
@@ -235,32 +233,18 @@ impl BalanceManagerDerivative {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-    use std::sync::Arc;
-    use std::time::Duration;
 
     use chrono::Utc;
     use rstest::rstest;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
-    use crate::core::balance_manager::balance_manager::BalanceManager;
-    use crate::core::balance_manager::position_change::PositionChange;
-    use crate::core::exchanges::common::{CurrencyCode, TradePlaceAccount};
-    use crate::core::exchanges::general::currency_pair_metadata::{
-        CurrencyPairMetadata, Precision,
-    };
-    use crate::core::exchanges::general::currency_pair_to_currency_metadata_converter::CurrencyPairToCurrencyMetadataConverter;
+    use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
+    use crate::core::exchanges::common::CurrencyCode;
     use crate::core::explanation::Explanation;
     use crate::core::logger::init_logger;
     use crate::core::misc::make_hash_map::make_hash_map;
-    use crate::core::misc::reserve_parameters::ReserveParameters;
-    use crate::core::orders::order::{
-        ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
-    };
-    use crate::core::{
-        balance_manager::tests::balance_manager_base::BalanceManagerBase,
-        exchanges::common::ExchangeAccountId,
-    };
+    use crate::core::orders::order::{OrderSide, OrderStatus, ReservationId};
 
     use super::BalanceManagerDerivative;
 
@@ -567,7 +551,7 @@ mod tests {
         );
     }
 
-    // TODO: fixme add log checking must contain an error
+    // TODO: add log checking must contain an error
     #[rstest]
     #[case(OrderSide::Buy, true)]
     #[case(OrderSide::Sell, true)]
@@ -619,30 +603,37 @@ mod tests {
     }
 
     #[rstest]
-    #[case(OrderSide::Buy, dec!(1), true)]
-    #[case(OrderSide::Sell, dec!(1),true)]
-    #[case(OrderSide::Buy, dec!(1), false)]
-    #[case(OrderSide::Sell, dec!(1),false)]
+    #[case(OrderSide::Buy, dec!(1), None, true)]
+    #[case(OrderSide::Sell, dec!(1),None, true)]
+    #[case(OrderSide::Buy, dec!(1), Some(dec!(5)), true)]
+    #[case(OrderSide::Sell, dec!(1),Some(dec!(5)), true)]
+    #[case(OrderSide::Buy, dec!(1), None,false)]
+    #[case(OrderSide::Sell, dec!(1),None, false)]
+    #[case(OrderSide::Buy, dec!(1), Some(dec!(5)),false)]
+    #[case(OrderSide::Sell, dec!(1),Some(dec!(5)), false)]
     pub fn fill_should_change_position(
         #[case] order_side: OrderSide,
         #[case] expected_position: Decimal,
+        #[case] leverage: Option<Decimal>,
         #[case] is_reversed: bool,
     ) {
         init_logger();
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
-        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
-        test_object
-            .exchanges_by_id
-            .get_mut(&exchange_account_id)
-            .expect("in test")
-            .leverage_by_currency_pair
-            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+        if let Some(leverage) = leverage {
+            let exchange_account_id = test_object
+                .balance_manager_base
+                .exchange_account_id_1
+                .clone();
+            let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+            test_object
+                .exchanges_by_id
+                .get_mut(&exchange_account_id)
+                .expect("in test")
+                .leverage_by_currency_pair
+                .insert(currency_pair_metadata.currency_pair(), leverage);
+        }
 
         let mut order = test_object
             .balance_manager_base
@@ -4815,6 +4806,236 @@ mod tests {
                 * dec!(0.95)
         );
     }
+
+    #[test]
+    pub fn get_leveraged_balance_in_amount_currency_code_max_rounding_error() {
+        //real-life case with a rounding error https://github.com/CryptoDreamTeam/CryptoLp/issues/1348
+        init_logger();
+        let amount_limit = dec!(30);
+        let price = dec!(9341);
+        let is_reversed = false;
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::btc(),
+            dec!(100),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
+        let configuration_descriptor = test_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        test_object
+            .exchanges_by_id
+            .get_mut(&exchange_account_id)
+            .expect("in test")
+            .leverage_by_currency_pair
+            .insert(currency_pair_metadata.currency_pair(), dec!(5));
+
+        test_object.fill_order(OrderSide::Sell, Some(price), Some(dec!(20)), is_reversed);
+        let balance = dec!(0.0139536399914456800684345595);
+
+        BalanceManagerBase::update_balance(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::eth(), balance),
+        );
+
+        assert_eq!(
+            test_object
+                .balance_manager()
+                .get_leveraged_balance_in_amount_currency_code(
+                    configuration_descriptor,
+                    OrderSide::Sell,
+                    &exchange_account_id,
+                    currency_pair_metadata,
+                    price,
+                    &mut Some(Explanation::default())
+                )
+                .expect("in test"),
+            dec!(10)
+        );
+    }
+
+    #[rstest]
+    #[case(true)]
+    #[case(false)]
+    pub fn uodate_exchange_balance_should_restore_position_on_all_exchanges(
+        #[case] is_reversed: bool,
+    ) {
+        init_logger();
+        let position = dec!(2);
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(0),
+            None,
+            is_reversed,
+            Some(position),
+        );
+
+        let exchange_account_id_1 = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let exchange_account_id_2 = test_object
+            .balance_manager_base
+            .exchange_account_id_2
+            .clone();
+        let symbol_currency_pair = test_object
+            .balance_manager_base
+            .currency_pair_metadata()
+            .currency_pair();
+        BalanceManagerBase::update_balance_with_positions(
+            test_object.balance_manager_mut(),
+            &exchange_account_id_2,
+            make_hash_map(BalanceManagerBase::eth(), dec!(0)),
+            make_hash_map(symbol_currency_pair.clone(), position),
+        );
+
+        let positions = test_object
+            .balance_manager()
+            .get_balances()
+            .position_by_fill_amount
+            .expect("in test");
+
+        assert_eq!(
+            positions
+                .get(&exchange_account_id_1, &symbol_currency_pair)
+                .expect("in test"),
+            position
+        );
+        assert_eq!(
+            positions
+                .get(&exchange_account_id_2, &symbol_currency_pair)
+                .expect("in test"),
+            position
+        );
+    }
+
+    #[rstest]
+    #[case(true)]
+    #[case(false)]
+    pub fn uodate_exchange_balance_should_change_fill_position_only_on_first_update(
+        #[case] is_reversed: bool,
+    ) {
+        init_logger();
+        let position = dec!(2);
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(0),
+            None,
+            is_reversed,
+            Some(position),
+        );
+
+        let exchange_account_id = test_object
+            .balance_manager_base
+            .exchange_account_id_1
+            .clone();
+        let symbol_currency_pair = test_object
+            .balance_manager_base
+            .currency_pair_metadata()
+            .currency_pair();
+
+        let positions = test_object
+            .balance_manager()
+            .get_balances()
+            .position_by_fill_amount
+            .expect("in test");
+        assert_eq!(
+            positions
+                .get(&exchange_account_id, &symbol_currency_pair)
+                .expect("in test"),
+            position
+        );
+
+        BalanceManagerBase::update_balance_with_positions(
+            test_object.balance_manager_mut(),
+            &exchange_account_id,
+            make_hash_map(BalanceManagerBase::eth(), dec!(1)),
+            make_hash_map(symbol_currency_pair.clone(), dec!(3)),
+        );
+
+        let positions = test_object
+            .balance_manager()
+            .get_balances()
+            .position_by_fill_amount
+            .expect("in test");
+        assert_eq!(
+            positions
+                .get(&exchange_account_id, &symbol_currency_pair)
+                .expect("in test"),
+            position
+        );
+    }
+
+    #[rstest]
+    #[case(true)]
+    #[case(false)]
+    pub fn reservation_over_limit_should_return_false_on_try_reserve(#[case] is_reversed: bool) {
+        init_logger();
+        let is_reversed = false;
+        let amount_limit = dec!(2);
+
+        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+            BalanceManagerBase::eth(),
+            dec!(100),
+            Some(amount_limit),
+            is_reversed,
+            None,
+        );
+
+        let mut order = test_object
+            .balance_manager_base
+            .create_order(OrderSide::Buy, ReservationId::default());
+        order.add_fill(BalanceManagerDerivative::create_order_fill(
+            dec!(0.1),
+            dec!(2),
+            dec!(0.1),
+            dec!(0),
+            is_reversed,
+        ));
+
+        let configuration_descriptor = test_object
+            .balance_manager_base
+            .configuration_descriptor
+            .clone();
+        test_object
+            .balance_manager_mut()
+            .order_was_filled(configuration_descriptor, &order, None);
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            dec!(0.1),
+            dec!(1),
+        );
+        assert!(test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut ReservationId::default(),
+            &mut None,
+        ));
+
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            Some(OrderSide::Sell),
+            dec!(0.1),
+            dec!(4),
+        );
+        assert!(!test_object.balance_manager_mut().try_reserve(
+            &reserve_parameters,
+            &mut ReservationId::default(),
+            &mut None,
+        ));
+    }
+
     // public void Reservation_Should_UseBalanceCurrency()
     // {
 
