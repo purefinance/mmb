@@ -1,7 +1,9 @@
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
+use std::sync::Arc;
+use std::time::Duration;
+
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
-use log::{info, trace, warn};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
@@ -11,6 +13,7 @@ use crate::core::exchanges::general::features::RestFillsType;
 use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::core::infrastructure::spawn_future_timed;
 use crate::core::nothing_to_do;
 use crate::core::orders::order::{OrderInfo, OrderStatus};
 use crate::core::{
@@ -22,7 +25,7 @@ use super::get_order_trades::OrderTrade;
 
 impl Exchange {
     pub async fn wait_order_finish(
-        &self,
+        self: Arc<Self>,
         order: &OrderRef,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
@@ -56,6 +59,7 @@ impl Exchange {
                 let _ = *vacant_entry.insert(tx.clone());
 
                 let outcome = self
+                    .clone()
                     .wait_finish_order_work(order, pre_reservation_group_id, cancellation_token)
                     .await?;
 
@@ -67,11 +71,50 @@ impl Exchange {
     }
 
     pub(crate) async fn wait_finish_order_work(
-        &self,
+        self: Arc<Self>,
         order: &OrderRef,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
+        let has_websocket_notification = self.features.websocket_options.execution_notification;
+
+        if !has_websocket_notification {
+            // FIXME implement
+            // _polling_trades_counts.add_or_update...
+        }
+
+        let linked_cancellation_token = cancellation_token.create_linked_token();
+
+        // if has_websocket_notification: in background we poll for fills every x seconds for those rare cases then we missed a websocket fill
+        let cloned_order = order.clone();
+        let action = async move {
+            self.poll_order_fills(
+                &cloned_order,
+                has_websocket_notification,
+                pre_reservation_group_id,
+                linked_cancellation_token,
+            )
+            .await;
+            Ok(())
+        };
+        let three_hours = Duration::from_secs(10800);
+        let poll_order_fill_future = spawn_future_timed(
+            "poll_order_fills future",
+            false,
+            three_hours,
+            action.boxed(),
+        );
+
+        todo!()
+    }
+
+    pub(crate) async fn poll_order_fills(
+        &self,
+        order: &OrderRef,
+        has_websocket_notification: bool,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        linked_cancellation_token: CancellationToken,
+    ) -> () {
         todo!()
     }
 

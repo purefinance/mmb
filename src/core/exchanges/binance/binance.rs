@@ -387,6 +387,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::new(RestFillsType::None),
+                WebSocketOptions::default(),
                 false,
                 false,
                 AllowedEventSourceType::All,
