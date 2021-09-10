@@ -23,7 +23,6 @@ pub(crate) type CurrencyCodeValueMap = HashMap<CurrencyCode, Decimal>;
 pub struct ServiceValueTree {
     tree: ServiceNameConfigurationKeyMap,
 }
-// get
 impl ServiceValueTree {
     fn get(&self) -> &ServiceNameConfigurationKeyMap {
         &self.tree
@@ -114,10 +113,7 @@ impl ServiceValueTree {
                 .clone(),
         )
     }
-}
 
-// set
-impl ServiceValueTree {
     pub fn set(&mut self, tree: ServiceNameConfigurationKeyMap) {
         self.tree = tree;
     }
@@ -227,9 +223,7 @@ impl ServiceValueTree {
             value,
         );
     }
-}
 
-impl ServiceValueTree {
     pub fn new() -> Self {
         Self {
             tree: HashMap::new(),
