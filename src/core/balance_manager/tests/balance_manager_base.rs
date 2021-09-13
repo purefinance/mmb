@@ -20,6 +20,7 @@ use crate::core::{
 };
 
 use chrono::Utc;
+use parking_lot::{Mutex, MutexGuard};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -31,7 +32,7 @@ pub struct BalanceManagerBase {
     pub currency_pair: CurrencyPair,
     pub configuration_descriptor: Arc<ConfigurationDescriptor>,
     currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
-    balance_manager: Option<BalanceManager>,
+    balance_manager: Option<Arc<Mutex<BalanceManager>>>,
 }
 // static
 impl BalanceManagerBase {
@@ -56,7 +57,7 @@ impl BalanceManagerBase {
     }
 
     pub fn update_balance(
-        balance_manager: &mut BalanceManager,
+        mut balance_manager: MutexGuard<BalanceManager>,
         exchange_account_id: &ExchangeAccountId,
         balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
     ) {
@@ -78,7 +79,7 @@ impl BalanceManagerBase {
     }
 
     pub fn update_balance_with_positions(
-        balance_manager: &mut BalanceManager,
+        mut balance_manager: MutexGuard<BalanceManager>,
         exchange_account_id: &ExchangeAccountId,
         balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
         positions_by_currency_pair: HashMap<CurrencyPair, Decimal>,
@@ -147,26 +148,19 @@ impl BalanceManagerBase {
         }
     }
 
-    pub fn balance_manager(&self) -> &BalanceManager {
+    pub fn balance_manager(&self) -> MutexGuard<BalanceManager> {
         match self.balance_manager.as_ref() {
-            Some(res) => res,
+            Some(res) => res.lock(),
             None => std::panic!("should be non None here"),
         }
     }
 
-    pub fn set_balance_manager(&mut self, input: BalanceManager) {
+    pub fn set_balance_manager(&mut self, input: Arc<Mutex<BalanceManager>>) {
         self.balance_manager = Some(input);
     }
 
     pub fn set_currency_pair_metadata(&mut self, input: Arc<CurrencyPairMetadata>) {
         self.currency_pair_metadata = Some(input);
-    }
-
-    pub fn balance_manager_mut(&mut self) -> &mut BalanceManager {
-        match self.balance_manager.as_mut() {
-            Some(res) => res,
-            None => std::panic!("should be non None here"),
-        }
     }
 
     pub fn create_balance_request(&self, currency_code: CurrencyCode) -> BalanceRequest {

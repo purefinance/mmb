@@ -24,6 +24,7 @@ use crate::core::{balance_manager::balances::Balances, exchanges::common::Exchan
 
 use anyhow::{bail, Result};
 use itertools::Itertools;
+use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -32,7 +33,6 @@ use rust_decimal_macros::dec;
 pub struct BalanceManager {
     exchange_id_with_restored_positions: HashSet<ExchangeAccountId>,
     balance_reservation_manager: BalanceReservationManager,
-
     last_order_fills: HashMap<TradePlaceAccount, OrderFill>,
 }
 
@@ -40,15 +40,15 @@ impl BalanceManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
-    ) -> Self {
-        Self {
+    ) -> Arc<Mutex<Self>> {
+        Arc::from(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),
             balance_reservation_manager: BalanceReservationManager::new(
                 exchanges_by_id,
                 currency_pair_to_metadata_converter,
             ),
             last_order_fills: HashMap::new(),
-        }
+        }))
     }
 
     pub fn restore_balance_state(
