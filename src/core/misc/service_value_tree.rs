@@ -3,8 +3,9 @@ use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-use crate::core::misc::make_hash_map::make_hash_map;
+
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use crate::hashmap;
 
 use itertools::Itertools;
 use rust_decimal::Decimal;
@@ -135,10 +136,7 @@ impl ServiceValueTree {
         if let Some(sub_tree) = self.get_mut_by_service_name(service_name) {
             sub_tree.insert(configuration_key.clone(), value);
         } else {
-            self.set_by_service_name(
-                service_name,
-                make_hash_map(configuration_key.clone(), value),
-            );
+            self.set_by_service_name(service_name, hashmap![configuration_key.clone() => value]);
         }
     }
 
@@ -155,7 +153,7 @@ impl ServiceValueTree {
             self.set_by_configuration_key(
                 service_name,
                 configuration_key,
-                make_hash_map(exchange_account_id.clone(), value),
+                hashmap![exchange_account_id.clone() => value],
             );
         }
     }
@@ -179,7 +177,7 @@ impl ServiceValueTree {
                 service_name,
                 configuration_key,
                 exchange_account_id,
-                make_hash_map(currency_pair.clone(), value),
+                hashmap![currency_pair.clone() => value],
             );
         }
     }
@@ -206,7 +204,7 @@ impl ServiceValueTree {
                 configuration_key,
                 exchange_account_id,
                 currency_pair,
-                make_hash_map(currency_code.clone(), value),
+                hashmap![currency_code.clone() => value],
             );
         }
     }
@@ -294,7 +292,7 @@ mod test {
 
     use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
     use crate::core::logger::init_logger;
-    use crate::core::misc::make_hash_map::make_hash_map;
+    use crate::hashmap;
 
     use rust_decimal_macros::dec;
 
@@ -386,14 +384,14 @@ mod test {
     }
 
     #[test]
-    pub fn get_as_balances_test() {
+    pub fn get_as_balances() {
         init_logger();
         let test_data = get_test_data();
         assert_eq!(test_data.0.get_as_balances(), test_data.1);
     }
 
     #[test]
-    pub fn set_test() {
+    pub fn set() {
         init_logger();
         let mut service_value_tree = ServiceValueTree::new();
 
@@ -412,17 +410,28 @@ mod test {
 
         service_value_tree.set_by_service_name(
             &service_name,
-            make_hash_map(
-                service_configuration_key.clone(),
-                make_hash_map(
-                    exchange_account_id.clone(),
-                    make_hash_map(
-                        currency_pair.clone(),
-                        make_hash_map(currency_code.clone(), value),
-                    ),
-                ),
-            ),
+            hashmap![
+                service_configuration_key.clone() =>
+                hashmap![
+                    exchange_account_id.clone() =>
+                    hashmap![
+                        currency_pair.clone() =>
+                        hashmap![currency_code.clone() => value]
+                    ]
+                ]
+            ],
         );
+
+        compare_trees(
+            service_value_tree.get(),
+            &service_name,
+            &service_configuration_key,
+            &exchange_account_id,
+            &currency_pair,
+            &currency_code,
+            &value,
+        );
+        log::info!("original trees are same");
 
         service_value_tree.set_by_currency_code(
             &service_name,
@@ -443,7 +452,7 @@ mod test {
         );
         log::info!("trees remain the same after changing 'value'");
 
-        let new_map = make_hash_map(new_currency_code.clone(), new_value.clone());
+        let new_map = hashmap![new_currency_code.clone() => new_value.clone()];
         service_value_tree.set_by_currency_pair(
             &service_name,
             &service_configuration_key,
@@ -462,7 +471,7 @@ mod test {
         );
         log::info!("trees remain the same after changing 'currency_code'");
 
-        let new_map = make_hash_map(new_currency_pair.clone(), new_map.clone());
+        let new_map = hashmap![new_currency_pair.clone() => new_map.clone()];
         service_value_tree.set_by_exchange_account_id(
             &service_name,
             &service_configuration_key,
@@ -480,7 +489,7 @@ mod test {
         );
         log::info!("trees remain the same after changing 'currency_pair'");
 
-        let new_map = make_hash_map(new_exchange_account_id.clone(), new_map.clone());
+        let new_map = hashmap![new_exchange_account_id.clone() => new_map.clone()];
         service_value_tree.set_by_configuration_key(
             &service_name,
             &service_configuration_key,
@@ -497,7 +506,7 @@ mod test {
         );
         log::info!("trees remain the same after changing 'exchange_account_id'");
 
-        let new_map = make_hash_map(new_service_configuration_key.clone(), new_map.clone());
+        let new_map = hashmap![new_service_configuration_key.clone() => new_map.clone()];
         service_value_tree.set_by_service_name(&service_name, new_map.clone());
         compare_trees(
             service_value_tree.get(),
@@ -512,7 +521,7 @@ mod test {
     }
 
     #[test]
-    pub fn add_test() {
+    pub fn add() {
         init_logger();
         let mut test_data = get_test_data();
         assert_eq!(test_data.0.get_as_balances(), test_data.1);
@@ -554,6 +563,271 @@ mod test {
         assert_eq!(new_tree.get_as_balances(), test_data.1);
     }
 
+    #[test]
+    pub fn compare() {
+        init_logger();
+        let mut service_value_tree = ServiceValueTree::new();
+
+        let service_name = String::from("name");
+        let service_configuration_key = String::from("name");
+        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_code = CurrencyCode::new("0".into());
+        let value = dec!(0);
+
+        service_value_tree.set_by_service_name(
+            &service_name,
+            hashmap![
+                service_configuration_key.clone() =>
+                hashmap![
+                    exchange_account_id.clone() =>
+                    hashmap![
+                        currency_pair.clone() =>
+                        hashmap![currency_code.clone() => value]
+                    ]
+                ]
+            ],
+        );
+
+        compare_trees(
+            service_value_tree.get(),
+            &service_name,
+            &service_configuration_key,
+            &exchange_account_id,
+            &currency_pair,
+            &currency_code,
+            &value,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: `(left == right)`")]
+    pub fn compare_failed_by_value() {
+        init_logger();
+        let mut service_value_tree = ServiceValueTree::new();
+
+        let service_name = String::from("name");
+        let service_configuration_key = String::from("name");
+        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_code = CurrencyCode::new("0".into());
+        let value = dec!(0);
+
+        service_value_tree.set_by_service_name(
+            &service_name,
+            hashmap![
+                service_configuration_key.clone() =>
+                hashmap![
+                    exchange_account_id.clone() =>
+                    hashmap![
+                        currency_pair.clone() =>
+                        hashmap![currency_code.clone() => value]
+                    ]
+                ]
+            ],
+        );
+
+        compare_trees(
+            service_value_tree.get(),
+            &service_name,
+            &service_configuration_key,
+            &exchange_account_id,
+            &currency_pair,
+            &currency_code,
+            &dec!(1),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: `(left == right)`")]
+    pub fn compare_failed_by_currency_code() {
+        init_logger();
+        let mut service_value_tree = ServiceValueTree::new();
+
+        let service_name = String::from("name");
+        let service_configuration_key = String::from("name");
+        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_code = CurrencyCode::new("0".into());
+        let value = dec!(0);
+
+        service_value_tree.set_by_service_name(
+            &service_name,
+            hashmap![
+                service_configuration_key.clone() =>
+                hashmap![
+                    exchange_account_id.clone() =>
+                    hashmap![
+                        currency_pair.clone() =>
+                        hashmap![currency_code.clone() => value]
+                    ]
+                ]
+            ],
+        );
+
+        compare_trees(
+            service_value_tree.get(),
+            &service_name,
+            &service_configuration_key,
+            &exchange_account_id,
+            &currency_pair,
+            &CurrencyCode::new("1".into()),
+            &value,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: `(left == right)`")]
+    pub fn compare_failed_by_currency_pair() {
+        init_logger();
+        let mut service_value_tree = ServiceValueTree::new();
+
+        let service_name = String::from("name");
+        let service_configuration_key = String::from("name");
+        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_code = CurrencyCode::new("0".into());
+        let value = dec!(0);
+
+        service_value_tree.set_by_service_name(
+            &service_name,
+            hashmap![
+                service_configuration_key.clone() =>
+                hashmap![
+                    exchange_account_id.clone() =>
+                    hashmap![
+                        currency_pair.clone() =>
+                        hashmap![currency_code.clone() => value]
+                    ]
+                ]
+            ],
+        );
+
+        compare_trees(
+            service_value_tree.get(),
+            &service_name,
+            &service_configuration_key,
+            &exchange_account_id,
+            &CurrencyPair::from_codes("m_b_0".into(), "q_0".into()),
+            &currency_code,
+            &value,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: `(left == right)`")]
+    pub fn compare_failed_by_exchange_account_id() {
+        init_logger();
+        let mut service_value_tree = ServiceValueTree::new();
+
+        let service_name = String::from("name");
+        let service_configuration_key = String::from("name");
+        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_code = CurrencyCode::new("0".into());
+        let value = dec!(0);
+
+        service_value_tree.set_by_service_name(
+            &service_name,
+            hashmap![
+                service_configuration_key.clone() =>
+                hashmap![
+                    exchange_account_id.clone() =>
+                    hashmap![
+                        currency_pair.clone() =>
+                        hashmap![currency_code.clone() => value]
+                    ]
+                ]
+            ],
+        );
+
+        compare_trees(
+            service_value_tree.get(),
+            &service_name,
+            &service_configuration_key,
+            &ExchangeAccountId::new("acc_0".into(), 1),
+            &currency_pair,
+            &currency_code,
+            &value,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: `(left == right)`")]
+    pub fn compare_failed_by_service_configuration_key() {
+        init_logger();
+        let mut service_value_tree = ServiceValueTree::new();
+
+        let service_name = String::from("name");
+        let service_configuration_key = String::from("name");
+        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_code = CurrencyCode::new("0".into());
+        let value = dec!(0);
+
+        service_value_tree.set_by_service_name(
+            &service_name,
+            hashmap![
+                service_configuration_key.clone() =>
+                hashmap![
+                    exchange_account_id.clone() =>
+                    hashmap![
+                        currency_pair.clone() =>
+                        hashmap![currency_code.clone() => value]
+                    ]
+                ]
+            ],
+        );
+
+        compare_trees(
+            service_value_tree.get(),
+            &service_name,
+            &String::from("new_name"),
+            &exchange_account_id,
+            &currency_pair,
+            &currency_code,
+            &value,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed: `(left == right)`")]
+    pub fn compare_failed_by_service_name() {
+        init_logger();
+        let mut service_value_tree = ServiceValueTree::new();
+
+        let service_name = String::from("name");
+        let service_configuration_key = String::from("name");
+        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_code = CurrencyCode::new("0".into());
+        let value = dec!(0);
+
+        service_value_tree.set_by_service_name(
+            &service_name,
+            hashmap![
+                service_configuration_key.clone() =>
+                hashmap![
+                    exchange_account_id.clone() =>
+                    hashmap![
+                        currency_pair.clone() =>
+                        hashmap![currency_code.clone() => value]
+                    ]
+                ]
+            ],
+        );
+
+        compare_trees(
+            service_value_tree.get(),
+            &String::from("new_name"),
+            &service_configuration_key,
+            &exchange_account_id,
+            &currency_pair,
+            &currency_code,
+            &value,
+        );
+    }
+
     fn compare_trees(
         tree: &ServiceNameConfigurationKeyMap,
         service_name: &String,
@@ -565,19 +839,19 @@ mod test {
     ) {
         assert_eq!(
             tree.clone(),
-            make_hash_map(
-                service_name.clone(),
-                make_hash_map(
-                    service_configuration_key.clone(),
-                    make_hash_map(
-                        exchange_account_id.clone(),
-                        make_hash_map(
-                            currency_pair.clone(),
-                            make_hash_map(currency_code.clone(), value.clone()),
-                        ),
-                    ),
-                )
-            )
+            hashmap![
+                service_name.clone() =>
+                hashmap![
+                    service_configuration_key.clone() =>
+                    hashmap![
+                        exchange_account_id.clone() =>
+                        hashmap![
+                            currency_pair.clone() =>
+                            hashmap![currency_code.clone() => value.clone()]
+                        ]
+                    ]
+                ]
+            ]
         );
     }
 }

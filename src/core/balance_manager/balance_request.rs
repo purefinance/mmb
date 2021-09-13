@@ -6,6 +6,7 @@ use crate::core::exchanges::common::{CurrencyCode, CurrencyPair};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
 #[derive(Hash, Debug, PartialEq)]
+/// The entity for getting balance for account with ExchangeAccountId by CurrencyPair in CurrencyCode
 pub struct BalanceRequest {
     pub configuration_descriptor: Arc<ConfigurationDescriptor>,
     pub exchange_account_id: ExchangeAccountId,

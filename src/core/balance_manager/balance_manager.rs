@@ -27,6 +27,7 @@ use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+/// The entity for getting information about account balances for selected exchanges
 #[derive(Clone)]
 pub struct BalanceManager {
     exchange_id_with_restored_positions: HashSet<ExchangeAccountId>,

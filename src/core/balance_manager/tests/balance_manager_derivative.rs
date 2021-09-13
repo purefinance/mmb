@@ -9,10 +9,7 @@ use crate::core::{
             currency_pair_metadata::{CurrencyPairMetadata, Precision},
             currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
             exchange::Exchange,
-            test_helper::{
-                get_test_exchange_with_currency_pair_metadata,
-                get_test_exchange_with_currency_pair_metadata_and_id,
-            },
+            test_helper::get_test_exchange_with_currency_pair_metadata_and_id,
         },
     },
     orders::{
@@ -226,7 +223,9 @@ impl BalanceManagerDerivative {
         let configuration_descriptor = self.balance_manager_base.configuration_descriptor.clone();
         self.balance_manager_mut()
             .order_was_filled(configuration_descriptor, &order, None);
-        self.balance_manager_mut().unreserve(reservation_id, amount);
+        self.balance_manager_mut()
+            .unreserve(reservation_id, amount)
+            .expect("in test");
     }
 }
 
@@ -243,8 +242,9 @@ mod tests {
     use crate::core::exchanges::common::CurrencyCode;
     use crate::core::explanation::Explanation;
     use crate::core::logger::init_logger;
-    use crate::core::misc::make_hash_map::make_hash_map;
+
     use crate::core::orders::order::{OrderSide, OrderStatus, ReservationId};
+    use crate::hashmap;
 
     use super::BalanceManagerDerivative;
 
@@ -420,7 +420,7 @@ mod tests {
                 test_object.balance_manager_mut(),
                 exchange_account_id,
                 balance_map,
-                make_hash_map(symbol_currency_pair, symbol_currency_pair_amount),
+                hashmap![symbol_currency_pair => symbol_currency_pair_amount],
             );
         } else {
             BalanceManagerBase::update_balance(
@@ -2821,8 +2821,8 @@ mod tests {
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::eth(), dec!(25)),
-            make_hash_map(symbol_currency_pair, dec!(1)),
+            hashmap![BalanceManagerBase::eth() => dec!(25)],
+            hashmap![symbol_currency_pair => dec!(1)],
         );
 
         assert_eq!(
@@ -2881,8 +2881,8 @@ mod tests {
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::eth(), original_balance),
-            make_hash_map(symbol_currency_pair, position),
+            hashmap![BalanceManagerBase::eth()=> original_balance],
+            hashmap![symbol_currency_pair=> position],
         );
 
         let mut buy_balance = original_balance * price;
@@ -2957,8 +2957,8 @@ mod tests {
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::btc(), original_balance),
-            make_hash_map(symbol_currency_pair, position),
+            hashmap![BalanceManagerBase::btc() => original_balance],
+            hashmap![symbol_currency_pair=> position],
         );
 
         let mut buy_balance = original_balance;
@@ -3050,8 +3050,8 @@ mod tests {
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::eth(), original_balance),
-            make_hash_map(symbol_currency_pair, position),
+            hashmap![BalanceManagerBase::eth() => original_balance],
+            hashmap![symbol_currency_pair => position],
         );
 
         let mut buy_balance = original_balance * price;
@@ -3126,8 +3126,8 @@ mod tests {
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::btc(), original_balance),
-            make_hash_map(symbol_currency_pair, position),
+            hashmap![BalanceManagerBase::btc()=> original_balance],
+            hashmap![symbol_currency_pair=> position],
         );
 
         let mut buy_balance = original_balance;
@@ -3226,7 +3226,7 @@ mod tests {
         BalanceManagerBase::update_balance(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::eth(), dec!(1000)),
+            hashmap![BalanceManagerBase::eth()=> dec!(1000)],
         );
 
         let reserve_parameters = test_object
@@ -3388,7 +3388,7 @@ mod tests {
         BalanceManagerBase::update_balance(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::btc(), dec!(1000)),
+            hashmap![BalanceManagerBase::btc()=> dec!(1000)],
         );
 
         let reserve_parameters = test_object
@@ -3544,7 +3544,7 @@ mod tests {
         BalanceManagerBase::update_balance(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::eth(), dec!(1000)),
+            hashmap![BalanceManagerBase::eth()=> dec!(1000)],
         );
 
         let reserve_parameters = test_object
@@ -3732,7 +3732,7 @@ mod tests {
         BalanceManagerBase::update_balance(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::btc(), dec!(1000)),
+            hashmap![BalanceManagerBase::btc() => dec!(1000)],
         );
 
         let reserve_parameters = test_object
@@ -4816,7 +4816,7 @@ mod tests {
         let is_reversed = false;
 
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
-            BalanceManagerBase::btc(),
+            BalanceManagerBase::eth(),
             dec!(100),
             Some(amount_limit),
             is_reversed,
@@ -4845,7 +4845,7 @@ mod tests {
         BalanceManagerBase::update_balance(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::eth(), balance),
+            hashmap![BalanceManagerBase::eth() => balance],
         );
 
         assert_eq!(
@@ -4896,8 +4896,8 @@ mod tests {
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager_mut(),
             &exchange_account_id_2,
-            make_hash_map(BalanceManagerBase::eth(), dec!(0)),
-            make_hash_map(symbol_currency_pair.clone(), position),
+            hashmap![BalanceManagerBase::eth() => dec!(0)],
+            hashmap![symbol_currency_pair.clone() => position],
         );
 
         let positions = test_object
@@ -4961,8 +4961,8 @@ mod tests {
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager_mut(),
             &exchange_account_id,
-            make_hash_map(BalanceManagerBase::eth(), dec!(1)),
-            make_hash_map(symbol_currency_pair.clone(), dec!(3)),
+            hashmap![BalanceManagerBase::eth() => dec!(1)],
+            hashmap![symbol_currency_pair.clone() => dec!(3)],
         );
 
         let positions = test_object
@@ -4983,7 +4983,6 @@ mod tests {
     #[case(false)]
     pub fn reservation_over_limit_should_return_false_on_try_reserve(#[case] is_reversed: bool) {
         init_logger();
-        let is_reversed = false;
         let amount_limit = dec!(2);
 
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
