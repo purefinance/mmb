@@ -82,12 +82,11 @@ impl BalanceManager {
                 .update_reserved_balances(balance_reservations_by_reservation_id);
         }
 
-        if let (Some(amount_limits), Some(position_by_fill_amount)) = (
-            balances.amount_limits.clone(),
-            balances.position_by_fill_amount.clone(),
-        ) {
+        if let (Some(amount_limits), Some(position_by_fill_amount)) =
+            (&balances.amount_limits, &balances.position_by_fill_amount)
+        {
             self.balance_reservation_manager
-                .restore_fill_amount_limits(amount_limits, position_by_fill_amount);
+                .restore_fill_amount_limits(amount_limits.clone(), position_by_fill_amount.clone());
         }
 
         self.last_order_fills = balances.last_order_fills.clone();

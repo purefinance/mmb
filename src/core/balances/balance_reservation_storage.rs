@@ -7,14 +7,14 @@ use crate::core::orders::order::ReservationId;
 #[derive(Clone)]
 pub(crate) struct BalanceReservationStorage {
     reserved_balances_by_id: HashMap<ReservationId, BalanceReservation>,
-    pub is_call_from_me: bool,
+    pub is_call_from_clone: bool,
 }
 
 impl BalanceReservationStorage {
     pub fn new() -> Self {
         Self {
             reserved_balances_by_id: HashMap::new(),
-            is_call_from_me: false,
+            is_call_from_clone: false,
         }
     }
     pub fn clear(&mut self) {
@@ -25,6 +25,7 @@ impl BalanceReservationStorage {
     pub fn add(&mut self, reservation_id: ReservationId, reservation: BalanceReservation) {
         self.reserved_balances_by_id
             .insert(reservation_id, reservation);
+        self.update_metrics();
     }
 
     pub fn remove(&mut self, reservation_id: ReservationId) {
@@ -52,6 +53,11 @@ impl BalanceReservationStorage {
     }
 
     fn update_metrics(&self) {
+        if self.is_call_from_clone {
+            // metrics should be saved only for original storage
+            return;
+        }
+
         //TODO: should be implemented
     }
 }

@@ -35,10 +35,7 @@ impl OrderSide {
     }
 
     pub fn to_trade_side(order_side: Option<OrderSide>) -> OrderSide {
-        match order_side {
-            Some(order_side) => order_side,
-            None => std::panic!("failed to unwrap Option<OrderSide>"),
-        }
+        order_side.expect("failed to unwrap Option<OrderSide>")
     }
 }
 
@@ -113,9 +110,9 @@ pub struct ClientOrderId(String16);
 
 impl ClientOrderId {
     pub fn unique_id() -> Self {
-        let client_order_id_length = 15;
-        let generated = nanoid!(client_order_id_length);
-        ClientOrderId(generated.into())
+        static CLIENT_ORDER_FILL_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
+        let new_id = CLIENT_ORDER_FILL_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+        ClientOrderId(new_id.to_string().into())
     }
 
     #[inline]
@@ -155,9 +152,9 @@ pub struct ClientOrderFillId(String16);
 
 impl ClientOrderFillId {
     pub fn unique_id() -> Self {
-        let client_order_id_length = 15;
-        let generated = nanoid!(client_order_id_length);
-        ClientOrderFillId(generated.into())
+        static CLIENT_ORDER_FILL_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
+        let new_id = CLIENT_ORDER_FILL_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+        ClientOrderFillId(new_id.to_string().into())
     }
 
     #[inline]

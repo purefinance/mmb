@@ -43,7 +43,7 @@ impl VirtualBalanceHolder {
         );
 
         log::info!(
-            "VirtualBalanceHolder UpdateBalances {} {:?}",
+            "VirtualBalanceHolder::update_balances {} {:?}",
             exchange_account_id,
             balances_by_currency_code
         );
@@ -51,28 +51,19 @@ impl VirtualBalanceHolder {
         let all_diffs = self.balance_diff.get_as_balances();
 
         for currency_code in balances_by_currency_code.keys() {
-            let balance_requests_to_clear = all_diffs.keys().map(|x| {
-                if &x.exchange_account_id == exchange_account_id
+            let balance_requests_to_clear = all_diffs.iter().filter(|(x, _)| {
+                &x.exchange_account_id == exchange_account_id
                     && x.currency_code == currency_code.clone()
-                {
-                    return Some(x);
-                }
-                None
             });
 
-            for balance_request in balance_requests_to_clear {
-                match balance_request {
-                    Some(balance_request) => {
-                        self.balance_diff
-                            .set_by_balance_request(balance_request, dec!(0));
-                        log::info!(
-                            "VirtualBalanceHolder update_balances Reset {} {}",
-                            balance_request.exchange_account_id,
-                            balance_request.currency_code
-                        );
-                    }
-                    None => (),
-                }
+            for (balance_request, _) in balance_requests_to_clear {
+                self.balance_diff
+                    .set_by_balance_request(balance_request, dec!(0));
+                log::info!(
+                    "VirtualBalanceHolder::update_balances Reset {} {}",
+                    balance_request.exchange_account_id,
+                    balance_request.currency_code
+                );
             }
         }
     }
@@ -87,7 +78,7 @@ impl VirtualBalanceHolder {
             .set_by_balance_request(balance_request, new_value);
 
         log::info!(
-            "VirtualBalanceHolder add_balance {} {} {} {} {} {}",
+            "VirtualBalanceHolder::add_balance {} {} {} {} {} {}",
             balance_request.exchange_account_id,
             balance_request.currency_pair,
             balance_request.currency_code,
