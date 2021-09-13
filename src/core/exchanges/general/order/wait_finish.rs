@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use chrono::Utc;
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
+use log::{error, info, trace};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
@@ -16,7 +17,8 @@ use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::infrastructure::spawn_future_timed;
 use crate::core::nothing_to_do;
-use crate::core::orders::order::{OrderInfo, OrderStatus, OrderType};
+use crate::core::orders::fill::EventSourceType;
+use crate::core::orders::order::{OrderExecutionType, OrderStatus, OrderType};
 use crate::core::{
     exchanges::general::exchange::Exchange, lifecycle::cancellation_token::CancellationToken,
     orders::pool::OrderRef,
@@ -88,15 +90,17 @@ impl Exchange {
 
         // if has_websocket_notification: in background we poll for fills every x seconds for those rare cases then we missed a websocket fill
         let cloned_order = order.clone();
+        let cloned_self = self.clone();
+        let cloned_cancellation_token = linked_cancellation_token.clone();
         let action = async move {
-            self.poll_order_fills(
-                &cloned_order,
-                has_websocket_notification,
-                pre_reservation_group_id,
-                linked_cancellation_token,
-            )
-            .await;
-            Ok(())
+            cloned_self
+                .poll_order_fills(
+                    &cloned_order,
+                    has_websocket_notification,
+                    pre_reservation_group_id,
+                    cloned_cancellation_token,
+                )
+                .await
         };
         let three_hours = Duration::from_secs(10800);
         let poll_order_fill_future = spawn_future_timed(
@@ -106,7 +110,16 @@ impl Exchange {
             action.boxed(),
         );
 
-        todo!()
+        if !has_websocket_notification {
+            poll_order_fill_future.await?;
+            //self.polling_trades_counts...
+        } else {
+            let _ = self.create_order_finish_future(order, linked_cancellation_token.clone());
+        }
+
+        linked_cancellation_token.cancel();
+
+        Ok(order.clone())
     }
 
     pub(crate) async fn poll_order_fills(
@@ -115,7 +128,7 @@ impl Exchange {
         is_fallback: bool,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
-    ) -> () {
+    ) -> Result<()> {
         while !order.is_finished() && cancellation_token.is_cancellation_requested() {
             if is_fallback {
                 // TODO optimize by counting time since order.LastFillDateTime
@@ -135,8 +148,11 @@ impl Exchange {
                         .internal_props
                         .last_order_cancellation_status_request_time
                 }) {
-                    // FIXME what with Some() variant?
-                    Some(_last_order_cancellation_status_request_time) => fallback_request_period, // - (current_time - last_order_cancellation_status_request_time),
+                    Some(last_order_cancellation_status_request_time) => {
+                        fallback_request_period
+                            - (current_time - last_order_cancellation_status_request_time)
+                                .to_std()?
+                    }
                     None => fallback_request_period,
                 };
 
@@ -145,7 +161,7 @@ impl Exchange {
                     tokio::select! {
                         _ = sleep => {}
                         _ = cancellation_token.when_cancelled() => {
-                            return;
+                            return Ok(());
                         }
                     }
                 }
@@ -155,7 +171,7 @@ impl Exchange {
 
             // If an order was finished while we were waiting for the timeout, we do not need to request fills for it
             if order.is_finished() {
-                return;
+                return Ok(());
             }
 
             let maker_only_order_was_cancelled = self
@@ -164,7 +180,7 @@ impl Exchange {
                     pre_reservation_group_id,
                     cancellation_token.clone(),
                 )
-                .await;
+                .await?;
 
             // If a maker only order was cancelled here, it is likely happend because we missed
             // a refusal/cancellatioin notification due to crissing a market.
@@ -185,6 +201,8 @@ impl Exchange {
             )
             .await;
         }
+
+        Ok(())
     }
 
     pub(crate) async fn check_maker_only_order_status(
@@ -192,8 +210,50 @@ impl Exchange {
         order: &OrderRef,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
-    ) -> bool {
-        todo!()
+    ) -> Result<bool> {
+        let order_execution_type = order.fn_ref(|order| order.header.execution_type);
+        if self.features.order_features.maker_only
+            || order_execution_type != OrderExecutionType::MakerOnly
+        {
+            return Ok(false);
+        }
+
+        let exchange_account_id = &self.exchange_account_id;
+        let client_order_id = &order.client_order_id();
+        info!(
+            "check_maker_only_order_status for exchange_account_id: {} and client order_id: {}",
+            exchange_account_id, client_order_id
+        );
+
+        let _ = self
+            .timeout_manager
+            .reserve_when_available(
+                exchange_account_id,
+                RequestType::GetOrderInfo,
+                pre_reservation_group_id,
+                cancellation_token,
+            )?
+            .await;
+
+        match order.exchange_order_id() {
+            None => {
+                error!("check_maker_only_order_status was called for an order with no exchange_order_id with exchange_account_id: {} and client order_id: {}",
+                    exchange_account_id,
+                    client_order_id);
+
+                Ok(false)
+            }
+            Some(exchange_order_id) => {
+                self.handle_cancel_order_succeeded(
+                    Some(&order.client_order_id()),
+                    &exchange_order_id,
+                    None,
+                    EventSourceType::RestFallback,
+                )?;
+
+                Ok(true)
+            }
+        }
     }
 
     pub(super) async fn check_order_fills(

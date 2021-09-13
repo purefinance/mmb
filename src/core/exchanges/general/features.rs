@@ -57,10 +57,43 @@ impl WebSocketOptions {
     }
 }
 
+#[derive(Default)]
+pub struct OrderFeatures {
+    pub maker_only: bool,
+    pub supports_get_order_info_by_client_order_id: bool,
+    pub cancellation_response_from_rest_only_for_errors: bool,
+    pub creation_response_from_rest_only_for_errors: bool,
+    pub order_was_completed_error_for_cancellation: bool,
+    pub supports_already_cancelled_order: bool,
+    pub supports_stop_loss_order: bool,
+}
+
+impl OrderFeatures {
+    pub fn new(
+        maker_only: bool,
+        supports_get_order_info_by_client_order_id: bool,
+        cancellation_response_from_rest_only_for_errors: bool,
+        creation_response_from_rest_only_for_errors: bool,
+        order_was_completed_error_for_cancellation: bool,
+        supports_already_cancelled_order: bool,
+        supports_stop_loss_order: bool,
+    ) -> Self {
+        Self {
+            maker_only,
+            supports_get_order_info_by_client_order_id,
+            cancellation_response_from_rest_only_for_errors,
+            creation_response_from_rest_only_for_errors,
+            order_was_completed_error_for_cancellation,
+            supports_already_cancelled_order,
+            supports_stop_loss_order,
+        }
+    }
+}
 
 pub struct ExchangeFeatures {
     pub open_orders_type: OpenOrdersType,
     pub rest_fills_features: RestFillsFeatures,
+    pub order_features: OrderFeatures,
     pub websocket_options: WebSocketOptions,
     pub empty_response_is_ok: bool,
     pub allows_to_get_order_info_by_client_order_id: bool,
@@ -72,6 +105,7 @@ impl ExchangeFeatures {
     pub fn new(
         open_orders_type: OpenOrdersType,
         rest_fills_features: RestFillsFeatures,
+        order_features: OrderFeatures,
         websocket_options: WebSocketOptions,
         empty_response_is_ok: bool,
         allows_to_get_order_info_by_client_order_id: bool,
@@ -81,6 +115,7 @@ impl ExchangeFeatures {
         Self {
             open_orders_type,
             rest_fills_features,
+            order_features,
             websocket_options,
             empty_response_is_ok,
             allows_to_get_order_info_by_client_order_id,
