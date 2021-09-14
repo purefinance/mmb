@@ -36,11 +36,11 @@ impl ReserveParameters {
         }
     }
 
-    pub fn new_from_reservation(reservation: BalanceReservation, amount: Amount) -> Self {
+    pub fn new_from_reservation(reservation: &BalanceReservation, amount: Amount) -> Self {
         ReserveParameters::new(
-            reservation.configuration_descriptor,
-            reservation.exchange_account_id,
-            reservation.currency_pair_metadata,
+            reservation.configuration_descriptor.clone(),
+            reservation.exchange_account_id.clone(),
+            reservation.currency_pair_metadata.clone(),
             reservation.order_side,
             reservation.price,
             amount,

@@ -2329,10 +2329,8 @@ mod tests {
             .get_reservation(reservation_id_1)
             .expect("in test")
             .clone();
-        let balance_1 = initial_balance
-            - reservation_1
-                .convert_in_reservation_currency(reservation_1.amount)
-                .expect("in test");
+        let balance_1 =
+            initial_balance - reservation_1.convert_in_reservation_currency(reservation_1.amount);
         assert_eq!(
             test_object
                 .balance_manager()
@@ -2354,10 +2352,8 @@ mod tests {
             .get_reservation(reservation_id_2)
             .expect("in test")
             .clone();
-        let balance_2 = balance_1
-            - reservation_2
-                .convert_in_reservation_currency(reservation_2.amount)
-                .expect("in test");
+        let balance_2 =
+            balance_1 - reservation_2.convert_in_reservation_currency(reservation_2.amount);
         assert_eq!(
             test_object
                 .balance_manager()
@@ -2372,12 +2368,8 @@ mod tests {
             &None
         ));
 
-        let add = reservation_1
-            .convert_in_reservation_currency(amount_to_transfer)
-            .expect("in test");
-        let sub = reservation_2
-            .convert_in_reservation_currency(amount_to_transfer)
-            .expect("in test");
+        let add = reservation_1.convert_in_reservation_currency(amount_to_transfer);
+        let sub = reservation_2.convert_in_reservation_currency(amount_to_transfer);
         assert_eq!(
             test_object
                 .balance_manager()

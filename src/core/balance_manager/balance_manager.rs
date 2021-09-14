@@ -421,7 +421,7 @@ impl BalanceManager {
                 filtred_exchange_balances.get_mut(&reservation.reservation_currency_code)
             {
                 *filtred_exchange_balance -=
-                    reservation.convert_in_reservation_currency(not_approved_amount_cost)?;
+                    reservation.convert_in_reservation_currency(not_approved_amount_cost);
             }
         }
 
@@ -976,13 +976,6 @@ impl BalanceManager {
                         &currency_code,
                         balance,
                         price_quote_to_base,
-                    )
-                    .expect(
-                        format!(
-                            "failed to convert amount into amount currency code for {} {} {}",
-                            currency_code, balance, price_quote_to_base
-                        )
-                        .as_str(),
                     );
                 return Some(
                     currency_pair_metadata

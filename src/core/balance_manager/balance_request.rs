@@ -31,12 +31,12 @@ impl BalanceRequest {
         }
     }
 
-    pub fn new_from_reservation(reservation: BalanceReservation) -> Self {
+    pub fn new_from_reservation(reservation: &BalanceReservation) -> Self {
         BalanceRequest::new(
-            reservation.configuration_descriptor,
-            reservation.exchange_account_id,
+            reservation.configuration_descriptor.clone(),
+            reservation.exchange_account_id.clone(),
             reservation.currency_pair_metadata.currency_pair(),
-            reservation.reservation_currency_code,
+            reservation.reservation_currency_code.clone(),
         )
     }
 }

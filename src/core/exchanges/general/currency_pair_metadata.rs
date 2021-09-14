@@ -264,20 +264,20 @@ impl CurrencyPairMetadata {
         to_currency_code: &CurrencyCode,
         amount_in_amount_currency_code: Amount,
         currency_pair_price: Price,
-    ) -> Result<Amount> {
+    ) -> Amount {
         if to_currency_code == &self.amount_currency_code {
-            return Ok(amount_in_amount_currency_code);
+            return amount_in_amount_currency_code;
         }
 
         if to_currency_code == &self.base_currency_code {
-            return Ok(amount_in_amount_currency_code / currency_pair_price);
+            return amount_in_amount_currency_code / currency_pair_price;
         }
 
         if to_currency_code == &self.quote_currency_code {
-            return Ok(amount_in_amount_currency_code * currency_pair_price);
+            return amount_in_amount_currency_code * currency_pair_price;
         }
 
-        bail!("Currency code outside currency pair is not supported yet")
+        std::panic!("Currency code outside currency pair is not supported yet");
     }
 
     pub fn convert_amount_from_balance_currency_code(
@@ -285,16 +285,16 @@ impl CurrencyPairMetadata {
         to_currency_code: &CurrencyCode,
         amount: Amount,
         currency_pair_price: Price,
-    ) -> Result<Amount> {
+    ) -> Amount {
         if Some(to_currency_code) == self.balance_currency_code.as_ref() {
-            return Ok(amount);
+            return amount;
         }
         if to_currency_code == &self.base_currency_code {
-            return Ok(amount / currency_pair_price);
+            return amount / currency_pair_price;
         }
 
         if to_currency_code == &self.quote_currency_code {
-            return Ok(amount * currency_pair_price);
+            return amount * currency_pair_price;
         }
 
         std::panic!(
@@ -309,23 +309,23 @@ impl CurrencyPairMetadata {
         from_currency_code: &CurrencyCode,
         amount_in_from_currency_code: Decimal,
         currency_pair_price: Price,
-    ) -> Result<Decimal> {
+    ) -> Decimal {
         if from_currency_code == &self.amount_currency_code {
-            return Ok(amount_in_from_currency_code);
+            return amount_in_from_currency_code;
         }
 
         if from_currency_code == &self.base_currency_code() {
-            return Ok(amount_in_from_currency_code * currency_pair_price);
+            return amount_in_from_currency_code * currency_pair_price;
         }
 
         if from_currency_code == &self.quote_currency_code {
-            return Ok(amount_in_from_currency_code / currency_pair_price);
+            return amount_in_from_currency_code / currency_pair_price;
         }
-        bail!(
+        std::panic!(
             "We don't currently support currency code {} outside currency pair {}",
             from_currency_code,
             self.currency_pair()
-        )
+        );
     }
 
     pub fn get_min_amount(&self, price: Price) -> Result<Amount> {

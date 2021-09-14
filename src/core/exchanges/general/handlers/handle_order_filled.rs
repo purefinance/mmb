@@ -367,7 +367,7 @@ impl Exchange {
                         &commission_currency_code,
                         last_fill_amount,
                         last_fill_price,
-                    )?;
+                    );
                 Ok(last_fill_amount_in_currency_code * commission_rate)
             }
         }
@@ -530,7 +530,7 @@ impl Exchange {
                 &converted_commission_currency_code,
                 last_fill_amount,
                 last_fill_price,
-            )?;
+            );
         let expected_converted_commission_amount =
             last_fill_amount_in_converted_commission_currency_code * expected_commission_rate;
 

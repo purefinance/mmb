@@ -82,21 +82,23 @@ impl BalanceReservationManager {
     }
 
     pub fn sync_reservation_amounts(&mut self) {
-        let reservations = self
-            .balance_reservation_storage
-            .get_all_raw_reservations()
-            .values();
-
-        let mut reserved_by_request: HashMap<BalanceRequest, Amount> = HashMap::new();
-        for reservation in reservations {
-            let balance_request = BalanceRequest::new(
+        pub fn make_balance_request(reservation: &BalanceReservation) -> BalanceRequest {
+            BalanceRequest::new(
                 reservation.configuration_descriptor.clone(),
                 reservation.exchange_account_id.clone(),
                 reservation.currency_pair_metadata.currency_pair(),
                 reservation
                     .currency_pair_metadata
                     .get_trade_code(reservation.order_side, BeforeAfter::Before),
-            );
+            )
+        }
+
+        let reservations_by_id = self.balance_reservation_storage.get_all_raw_reservations();
+
+        let mut reserved_by_request: HashMap<BalanceRequest, Amount> =
+            HashMap::with_capacity(reservations_by_id.len());
+        for reservation in reservations_by_id.values() {
+            let balance_request = make_balance_request(reservation);
             if let Some(grouped_reservations) = reserved_by_request.get_mut(&balance_request) {
                 *grouped_reservations += reservation.unreserved_amount;
             } else {
@@ -190,7 +192,7 @@ impl BalanceReservationManager {
             return Ok(());
         }
 
-        let balance_params = ReserveParameters::new_from_reservation(reservation.clone(), dec!(0));
+        let balance_params = ReserveParameters::new_from_reservation(reservation, dec!(0));
 
         let old_balance = self.get_available_balance(&balance_params, true, &mut None);
 
@@ -206,7 +208,7 @@ impl BalanceReservationManager {
         };
 
         let reservation = self.try_get_reservation(reservation_id)?;
-        let balance_request = BalanceRequest::new_from_reservation(reservation.clone());
+        let balance_request = BalanceRequest::new_from_reservation(reservation);
         self.add_reserved_amount(&balance_request, reservation_id, -amount_to_unreserve, true)?;
 
         let new_balance = self.get_available_balance(&balance_params, true, &mut None);
@@ -379,21 +381,12 @@ impl BalanceReservationManager {
                     ));
                 }
 
-                let mut free_amount_in_currency_code = match currency_pair_metadata
+                let mut free_amount_in_currency_code = currency_pair_metadata
                     .convert_amount_from_amount_currency_code(
                         &currency_code,
                         free_amount_in_amount_currency_code,
                         price,
-                    ) {
-                    Ok(free_amount_in_currency_code) => free_amount_in_currency_code,
-                    Err(error) => {
-                        log::error!(
-                            "failed to convert amount from amount currnecy code: {:?}",
-                            error
-                        );
-                        return None;
-                    }
-                };
+                    );
                 free_amount_in_currency_code /= leverage;
                 free_amount_in_currency_code *= currency_pair_metadata.amount_multiplier;
 
@@ -583,21 +576,12 @@ impl BalanceReservationManager {
             ));
         }
 
-        let balance_in_amount_currency = match currency_pair_metadata
+        let balance_in_amount_currency = currency_pair_metadata
             .convert_amount_into_amount_currency_code(
                 &request.currency_code,
                 balance_in_currency_code,
                 price,
-            ) {
-            Ok(balance_in_amount_currency) => balance_in_amount_currency,
-            Err(error) => {
-                log::error!(
-                    "failed to convert amount into amount currnecy code: {:?}",
-                    error
-                );
-                return None;
-            }
-        };
+            );
         if let Some(explanation) = explanation {
             explanation.add_reason(format!(
                 "balance_in_amount_currency with leverage and multiplier: {}",
@@ -614,21 +598,12 @@ impl BalanceReservationManager {
             ));
         }
 
-        let mut limited_balance_in_currency_code = match currency_pair_metadata
+        let mut limited_balance_in_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(
                 &request.currency_code,
                 limited_balance_in_amount_currency,
                 price,
-            ) {
-            Ok(balance_in_amount_currency) => balance_in_amount_currency,
-            Err(error) => {
-                log::error!(
-                    "failed to convert amount from amount currnecy code: {:?}",
-                    error
-                );
-                return None;
-            }
-        };
+            );
         if let Some(explanation) = explanation {
             explanation.add_reason(format!(
                 "limited_balance_in_currency_code: {}",
@@ -941,7 +916,7 @@ impl BalanceReservationManager {
                     &request.currency_code,
                     diff_in_amount_currency,
                     price,
-                )?;
+                );
             self.virtual_balance_holder
                 .add_balance(request, diff_in_request_currency);
         } else {
@@ -962,7 +937,7 @@ impl BalanceReservationManager {
                     &balance_currency_code_request.currency_code,
                     diff_in_amount_currency,
                     price,
-                )?;
+                );
             self.virtual_balance_holder.add_balance(
                 &balance_currency_code_request,
                 diff_in_balance_currency_code,
@@ -1071,7 +1046,7 @@ impl BalanceReservationManager {
                 price,
             )?;
             *change_amount_in_currency = currency_pair_metadata
-                .convert_amount_from_amount_currency_code(currency_code, fill_amount, price)?;
+                .convert_amount_from_amount_currency_code(currency_code, fill_amount, price);
         }
         if currency_pair_metadata.amount_currency_code == *currency_code {
             let mut position_change = fill_amount;
@@ -1112,7 +1087,7 @@ impl BalanceReservationManager {
                         currency_code,
                         diff_in_amount_currency,
                         price,
-                    )?;
+                    );
 
                 // reversed derivative
                 if currency_pair_metadata.amount_currency_code
@@ -1250,13 +1225,6 @@ impl BalanceReservationManager {
                     &converted_commission_currency_code,
                     converted_commission_amount,
                     price,
-                )
-                .expect(
-                    format!(
-                        "failed to convert amount into amount currency code for {} {} {}",
-                        converted_commission_currency_code, converted_commission_amount, price
-                    )
-                    .as_str(),
                 );
             let res_commission_amount_in_amount_currency = commission_in_amount_currency / leverage;
             self.add_virtual_balance_by_currency_pair_metadata(
@@ -1383,24 +1351,8 @@ impl BalanceReservationManager {
             // special case for derivatives because balance for AmountCurrency is auto-calculated
             if src_reservation.currency_pair_metadata.is_derivative {
                 // check if we have enough balance for the operation
-                let add_amount = src_reservation
-                    .convert_in_reservation_currency(amount_to_move)
-                    .expect(
-                        format!(
-                            "src_reservation: failed to convert in reservation currency: {}",
-                            amount_to_move
-                        )
-                        .as_str(),
-                    );
-                let sub_amount = dst_reservation
-                    .convert_in_reservation_currency(amount_to_move)
-                    .expect(
-                        format!(
-                            "dst_reservation: failed to convert in reservation currency: {}",
-                            amount_to_move
-                        )
-                        .as_str(),
-                    );
+                let add_amount = src_reservation.convert_in_reservation_currency(amount_to_move);
+                let sub_amount = dst_reservation.convert_in_reservation_currency(amount_to_move);
 
                 let balance_diff_amount = add_amount - sub_amount;
 
@@ -1561,7 +1513,7 @@ impl BalanceReservationManager {
             reservation.not_approved_amount += reservation_amount_diff;
         }
 
-        let balance_request = BalanceRequest::new_from_reservation(reservation.clone());
+        let balance_request = BalanceRequest::new_from_reservation(reservation);
 
         self.add_reserved_amount(
             &balance_request,
@@ -1837,14 +1789,7 @@ impl BalanceReservationManager {
             .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
 
         let amount_in_reservation_currency_code = currency_pair_metadata
-            .convert_amount_from_amount_currency_code(&reservation_currency_code, amount, price)
-            .expect(
-                format!(
-                    "failed to conver amount from amount currency code {} {} {}",
-                    reservation_currency_code, amount, price
-                )
-                .as_str(),
-            );
+            .convert_amount_from_amount_currency_code(&reservation_currency_code, amount, price);
 
         let (cost_in_amount_currency_code, taken_free_amount) =
             self.calculate_reservation_cost(reserve_parameters);
@@ -1853,13 +1798,6 @@ impl BalanceReservationManager {
                 &reservation_currency_code,
                 cost_in_amount_currency_code,
                 price,
-            )
-            .expect(
-                format!(
-                    "failed to conver amount from amount currency code {} {} {}",
-                    reservation_currency_code, cost_in_amount_currency_code, price
-                )
-                .as_str(),
             );
 
         if let Some(explanation) = explanation {
@@ -1941,23 +1879,9 @@ impl BalanceReservationManager {
                 &reservation.reservation_currency_code,
                 new_raw_rest_amount,
                 new_price,
-            )
-            .expect(
-                format!(
-                    "failed to convert amount from amount currency code {} {} {}",
-                    reservation.reservation_currency_code, new_raw_rest_amount, new_price
-                )
-                .as_str(),
             );
-        let not_approved_amount_in_reservation_currency = reservation
-            .convert_in_reservation_currency(reservation.not_approved_amount)
-            .expect(
-                format!(
-                    "failed to convert in reservation currency {}",
-                    reservation.not_approved_amount
-                )
-                .as_str(),
-            );
+        let not_approved_amount_in_reservation_currency =
+            reservation.convert_in_reservation_currency(reservation.not_approved_amount);
 
         let reservation_amount_diff_in_reservation_currency =
             new_rest_amount_in_reservation_currency - not_approved_amount_in_reservation_currency;
@@ -1998,28 +1922,19 @@ impl BalanceReservationManager {
             return false;
         }
 
-        let balance_request = BalanceRequest::new_from_reservation(reservation.clone());
+        let balance_request = BalanceRequest::new_from_reservation(reservation);
 
         let reservation = self
             .try_get_mut_reservation(reservation_id)
             .expect("must be non None");
         reservation.price = new_price;
 
-        // let reservation = reservation.eas
         let reservation_amount_diff = reservation
             .currency_pair_metadata
             .convert_amount_into_amount_currency_code(
                 &reservation.reservation_currency_code,
                 reservation_amount_diff_in_reservation_currency,
                 reservation.price,
-            )
-            .expect(
-                format!(
-                    "failed to convert amount into amount currency code for {:?} {}",
-                    reservation.reservation_currency_code,
-                    reservation_amount_diff_in_reservation_currency
-                )
-                .as_str(),
             );
 
         reservation.unreserved_amount -= reservation_amount_diff; // it will be compensated later

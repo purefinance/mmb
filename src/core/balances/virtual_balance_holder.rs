@@ -132,21 +132,12 @@ impl VirtualBalanceHolder {
                 ));
             }
 
-            let cur_balance_diff = match currency_pair_metadata
+            let cur_balance_diff = currency_pair_metadata
                 .convert_amount_from_balance_currency_code(
                     &balance_request.currency_code,
                     balance_currency_code_balance_diff,
                     price,
-                ) {
-                Ok(cur_balance_diff) => cur_balance_diff,
-                Err(error) => {
-                    log::error!(
-                        "failed to convert amount from balance currency code: {:?}",
-                        error
-                    );
-                    return None;
-                }
-            };
+                );
 
             if let Some(explanation) = explanation {
                 explanation.add_reason(format!(
@@ -184,26 +175,13 @@ impl VirtualBalanceHolder {
                 .clone(),
         )?;
 
-        let exchange_balance_in_currency_code = currency_pair_metadata
-            .convert_amount_from_balance_currency_code(
+        Some(
+            currency_pair_metadata.convert_amount_from_balance_currency_code(
                 &currency_code,
                 balance_currency_code_balance,
                 price,
-            );
-
-        match exchange_balance_in_currency_code {
-            Ok(exchange_balance_in_currency_code) => {
-                return Some(exchange_balance_in_currency_code)
-            }
-            Err(error) => {
-                log::error!(
-                    "failed to convert amount from balance currency code: {:?}",
-                    error
-                );
-            }
-        }
-
-        None
+            ),
+        )
     }
 
     fn get_raw_exchange_balance(

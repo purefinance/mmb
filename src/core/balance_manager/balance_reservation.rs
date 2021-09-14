@@ -85,7 +85,7 @@ impl BalanceReservation {
     pub(crate) fn convert_in_reservation_currency(
         &self,
         amount_in_current_currency: Amount,
-    ) -> Result<Amount> {
+    ) -> Amount {
         self.currency_pair_metadata
             .convert_amount_from_amount_currency_code(
                 &self.reservation_currency_code,
