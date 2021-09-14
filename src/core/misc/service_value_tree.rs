@@ -417,7 +417,7 @@ mod test {
             &currency_pair,
             &currency_code,
             &new_value,
-            Some("trees remain the same after changing 'value'"),
+            Some("trees remain identical after changing 'value'"),
         );
 
         let new_map = hashmap![new_currency_code.clone() => new_value.clone()];
@@ -436,7 +436,7 @@ mod test {
             &currency_pair,
             &new_currency_code,
             &new_value,
-            Some("trees remain the same after changing 'currency_code'"),
+            Some("trees remain identical after changing 'currency_code'"),
         );
 
         let new_map = hashmap![new_currency_pair.clone() => new_map.clone()];
@@ -454,7 +454,7 @@ mod test {
             &new_currency_pair,
             &new_currency_code,
             &new_value,
-            Some("trees remain the same after changing 'currency_pair'"),
+            Some("trees remain identical after changing 'currency_pair'"),
         );
 
         let new_map = hashmap![new_exchange_account_id.clone() => new_map.clone()];
@@ -471,7 +471,7 @@ mod test {
             &new_currency_pair,
             &new_currency_code,
             &new_value,
-            Some("trees remain the same after changing 'exchange_account_id'"),
+            Some("trees remain identical after changing 'exchange_account_id'"),
         );
 
         let new_map = hashmap![new_service_configuration_key.clone() => new_map.clone()];
@@ -484,7 +484,7 @@ mod test {
             &new_currency_pair,
             &new_currency_code,
             &new_value,
-            Some("trees remain the same after changing 'service_configuration_key'"),
+            Some("trees remain identical after changing 'service_configuration_key'"),
         );
     }
 
