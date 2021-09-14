@@ -70,11 +70,17 @@ async fn open_orders_exists() {
         .await
         .expect("in test");
 
+    let _ = binance_builder
+        .exchange
+        .cancel_opened_orders(CancellationToken::default(), true)
+        .await;
+
     assert_eq!(all_orders.len(), 2);
 }
 
+/// It's matter to check branch for OneCurrencyPair variant
 #[actix_rt::test]
-async fn open_orders_by_currency_pair_exist() {
+async fn get_open_orders_for_each_currency_pair_separately() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
@@ -89,7 +95,7 @@ async fn open_orders_by_currency_pair_exist() {
             currency_pair: None,
         },
         CurrencyPairSetting {
-            base: "sngls".into(),
+            base: "cnd".into(),
             quote: "btc".into(),
             currency_pair: None,
         },
@@ -132,7 +138,7 @@ async fn open_orders_by_currency_pair_exist() {
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
-    second_order_proxy.currency_pair = CurrencyPair::from_codes(&"sngls".into(), &"btc".into());
+    second_order_proxy.currency_pair = CurrencyPair::from_codes(&"cnd".into(), &"btc".into());
     second_order_proxy.amount = dec!(1000);
 
     second_order_proxy
