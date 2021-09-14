@@ -16,9 +16,18 @@ use crate::core::{
     },
     math::ConvertPercentToRate,
     orders::{
-        event::OrderEventType, fill::EventSourceType, fill::OrderFill, fill::OrderFillType,
-        order::ClientOrderId, order::ExchangeOrderId, order::OrderRole, order::OrderSide,
-        order::OrderSnapshot, order::OrderStatus, order::OrderType, pool::OrderRef,
+        event::OrderEventType,
+        fill::EventSourceType,
+        fill::OrderFill,
+        fill::OrderFillType,
+        order::ClientOrderId,
+        order::ExchangeOrderId,
+        order::OrderSide,
+        order::OrderSnapshot,
+        order::OrderStatus,
+        order::OrderType,
+        order::{ClientOrderFillId, OrderRole},
+        pool::OrderRef,
     },
 };
 
@@ -530,8 +539,10 @@ impl Exchange {
 
         let rounded_fill_price =
             currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;
+
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
+            Some(ClientOrderFillId::unique_id()),
             Utc::now(),
             fill_type,
             Some(trade_id.to_owned()),
@@ -1087,6 +1098,7 @@ mod test {
         let cost = dec!(0);
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
+            None,
             Utc::now(),
             OrderFillType::Liquidation,
             Some(trade_id),
@@ -1163,6 +1175,7 @@ mod test {
         let cost = dec!(0);
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
+            None,
             Utc::now(),
             OrderFillType::Liquidation,
             Some("different_trade_id".to_owned()),
@@ -1239,6 +1252,7 @@ mod test {
         let cost = dec!(0);
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
+            None,
             Utc::now(),
             OrderFillType::Liquidation,
             Some("different_trade_id".to_owned()),
@@ -1315,6 +1329,7 @@ mod test {
         let cost = dec!(0);
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
+            None,
             Utc::now(),
             OrderFillType::Liquidation,
             Some("different_trade_id".to_owned()),

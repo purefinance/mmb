@@ -105,6 +105,7 @@ impl BalanceManagerOrdinal {
     fn create_order_fill(price: Price, amount: Amount, cost: Decimal) -> OrderFill {
         OrderFill::new(
             Uuid::new_v4(),
+            None,
             Utc::now(),
             OrderFillType::UserTrade,
             None,
@@ -287,7 +288,7 @@ mod tests {
                 limit,
             );
             let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-                Some(OrderSide::Buy),
+                OrderSide::Buy,
                 dec!(0.2),
                 dec!(2),
             );
@@ -490,7 +491,7 @@ mod tests {
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0.5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(5),
         );
@@ -516,7 +517,7 @@ mod tests {
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(5),
         );
@@ -539,7 +540,7 @@ mod tests {
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0.5));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Sell),
+            OrderSide::Sell,
             dec!(0.2),
             dec!(5),
         );
@@ -565,7 +566,7 @@ mod tests {
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5.0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Sell),
+            OrderSide::Sell,
             dec!(0.2),
             dec!(5),
         );
@@ -589,7 +590,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -618,7 +619,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -647,7 +648,7 @@ mod tests {
             reservation.currency_pair_metadata,
             test_object.balance_manager_base.currency_pair_metadata()
         );
-        assert_eq!(reservation.order_side, Some(OrderSide::Buy));
+        assert_eq!(reservation.order_side, OrderSide::Buy);
         assert_eq!(reservation.price, dec!(0.2));
         assert_eq!(reservation.amount, dec!(5));
         assert_eq!(reservation.not_approved_amount, dec!(5));
@@ -662,7 +663,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -691,7 +692,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -720,7 +721,7 @@ mod tests {
             reservation.currency_pair_metadata,
             test_object.balance_manager_base.currency_pair_metadata()
         );
-        assert_eq!(reservation.order_side, Some(OrderSide::Sell));
+        assert_eq!(reservation.order_side, OrderSide::Sell);
         assert_eq!(reservation.price, dec!(0.2));
         assert_eq!(reservation.amount, dec!(5));
         assert_eq!(reservation.not_approved_amount, dec!(5));
@@ -735,7 +736,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -773,7 +774,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -808,7 +809,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -849,7 +850,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -883,12 +884,12 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -933,12 +934,12 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -982,12 +983,12 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -1033,7 +1034,7 @@ mod tests {
             reservation.currency_pair_metadata,
             test_object.balance_manager_base.currency_pair_metadata()
         );
-        assert_eq!(reservation.order_side, Some(OrderSide::Buy));
+        assert_eq!(reservation.order_side, OrderSide::Buy);
         assert_eq!(reservation.price, dec!(0.2));
         assert_eq!(reservation.amount, dec!(5));
         assert_eq!(reservation.not_approved_amount, dec!(5));
@@ -1052,7 +1053,7 @@ mod tests {
             reservation.currency_pair_metadata,
             test_object.balance_manager_base.currency_pair_metadata()
         );
-        assert_eq!(reservation.order_side, Some(OrderSide::Sell));
+        assert_eq!(reservation.order_side, OrderSide::Sell);
         assert_eq!(reservation.price, dec!(0.2));
         assert_eq!(reservation.amount, dec!(5));
         assert_eq!(reservation.not_approved_amount, dec!(5));
@@ -1067,17 +1068,17 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(4))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(4))
             .clone();
 
         let reserve_parameters_3 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(1))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -1130,17 +1131,17 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(6))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(6))
             .clone();
 
         let reserve_parameters_3 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(1))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -1193,17 +1194,17 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_3 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(1))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -1256,17 +1257,17 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_3 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(1))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -1317,7 +1318,7 @@ mod tests {
             reservation.currency_pair_metadata,
             test_object.balance_manager_base.currency_pair_metadata()
         );
-        assert_eq!(reservation.order_side, Some(OrderSide::Buy));
+        assert_eq!(reservation.order_side, OrderSide::Buy);
         assert_eq!(reservation.price, dec!(0.2));
         assert_eq!(reservation.amount, dec!(5));
         assert_eq!(reservation.not_approved_amount, dec!(5));
@@ -1336,7 +1337,7 @@ mod tests {
             reservation.currency_pair_metadata,
             test_object.balance_manager_base.currency_pair_metadata()
         );
-        assert_eq!(reservation.order_side, Some(OrderSide::Sell));
+        assert_eq!(reservation.order_side, OrderSide::Sell);
         assert_eq!(reservation.price, dec!(0.2));
         assert_eq!(reservation.amount, dec!(5));
         assert_eq!(reservation.not_approved_amount, dec!(5));
@@ -1355,7 +1356,7 @@ mod tests {
             reservation.currency_pair_metadata,
             test_object.balance_manager_base.currency_pair_metadata()
         );
-        assert_eq!(reservation.order_side, Some(OrderSide::Sell));
+        assert_eq!(reservation.order_side, OrderSide::Sell);
         assert_eq!(reservation.price, dec!(0.2));
         assert_eq!(reservation.amount, dec!(1));
         assert_eq!(reservation.not_approved_amount, dec!(1));
@@ -1370,7 +1371,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1407,7 +1408,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1443,7 +1444,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1513,7 +1514,7 @@ mod tests {
                 .exchange_account_id_1
                 .clone(),
             currency_pair_metadata.clone(),
-            Some(OrderSide::Sell),
+            OrderSide::Sell,
             dec!(0.2),
             dec!(1),
         );
@@ -1554,7 +1555,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1591,7 +1592,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1628,7 +1629,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1663,7 +1664,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1698,7 +1699,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1738,7 +1739,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -1789,7 +1790,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(side), price_1, amount_1)
+            .create_reserve_parameters(side, price_1, amount_1)
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -1807,7 +1808,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(side), price_2, amount_2)
+            .create_reserve_parameters(side, price_2, amount_2)
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -1872,7 +1873,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(side), price_1, amount_1)
+            .create_reserve_parameters(side, price_1, amount_1)
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -1890,7 +1891,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(side), price_2, amount_2)
+            .create_reserve_parameters(side, price_2, amount_2)
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -1944,12 +1945,12 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -2004,12 +2005,12 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -2066,13 +2067,13 @@ mod tests {
         let reserve_parameters_1 = test_object
             .lock()
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
 
         let reserve_parameters_2 = test_object
             .lock()
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
 
         let mut reservation_id_1 = ReservationId::default();
@@ -2135,7 +2136,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(0))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(0))
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -2163,7 +2164,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2174,7 +2175,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2228,7 +2229,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2239,7 +2240,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2336,7 +2337,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2347,7 +2348,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2400,7 +2401,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2411,7 +2412,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2459,7 +2460,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2470,7 +2471,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2493,7 +2494,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2504,7 +2505,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2590,7 +2591,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(3))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
         let mut reservation_id_1 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2601,7 +2602,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Sell), dec!(0.2), dec!(2))
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
         let mut reservation_id_2 = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -2698,7 +2699,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         let reserve_parameters_2 = ReserveParameters::new(
@@ -2714,7 +2715,7 @@ mod tests {
                 .balance_manager_base
                 .currency_pair_metadata()
                 .clone(),
-            Some(OrderSide::Sell),
+            OrderSide::Sell,
             dec!(0.2),
             dec!(5),
         );
@@ -2823,7 +2824,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
         assert!(test_object.balance_manager().try_reserve(
@@ -2889,7 +2890,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), dec!(0.2), amount)
+            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), amount)
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -2962,7 +2963,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), price, amount)
+            .create_reserve_parameters(OrderSide::Buy, price, amount)
             .clone();
 
         let mut reservation_id = ReservationId::default();
@@ -3491,7 +3492,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(order.header.side), price, order.amount())
+            .create_reserve_parameters(order.header.side, price, order.amount())
             .clone();
 
         assert!(test_object.balance_manager().try_reserve(
@@ -3586,7 +3587,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(order.header.side), price, order.amount())
+            .create_reserve_parameters(order.header.side, price, order.amount())
             .clone();
 
         assert!(test_object.balance_manager().try_reserve(
@@ -3690,7 +3691,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(order.header.side), price, order.amount())
+            .create_reserve_parameters(order.header.side, price, order.amount())
             .clone();
 
         assert!(test_object.balance_manager().try_reserve(
@@ -3797,7 +3798,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(order.header.side), price, order.amount())
+            .create_reserve_parameters(order.header.side, price, order.amount())
             .clone();
 
         assert!(test_object.balance_manager().try_reserve(
@@ -3896,7 +3897,7 @@ mod tests {
 
         let reserve_parameters = test_object
             .balance_manager_base
-            .create_reserve_parameters(Some(OrderSide::Buy), price, dec!(5))
+            .create_reserve_parameters(OrderSide::Buy, price, dec!(5))
             .clone();
         let mut reservation_id = ReservationId::default();
         assert!(test_object.balance_manager().try_reserve(
@@ -4000,7 +4001,7 @@ mod tests {
         let reservation_amount = dec!(3) * order.amount();
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(order.header.side),
+            order.header.side,
             price,
             reservation_amount,
         );
@@ -4109,7 +4110,7 @@ mod tests {
         let reservation_amount = dec!(3) * order_1.amount();
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(order_1.header.side),
+            order_1.header.side,
             price,
             reservation_amount,
         );
@@ -4216,7 +4217,7 @@ mod tests {
         let reservation_amount = order_1_amount + order_2_amount;
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             price,
             reservation_amount,
         );
@@ -4333,7 +4334,7 @@ mod tests {
         let reservation_amount = order_1_amount + order_2_amount + order_3_amount;
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             price,
             reservation_amount,
         );
@@ -4450,7 +4451,7 @@ mod tests {
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(1000));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Sell),
+            OrderSide::Sell,
             dec!(0.2),
             dec!(99),
         );
@@ -4494,7 +4495,7 @@ mod tests {
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1000));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(99),
         );
@@ -4542,7 +4543,7 @@ mod tests {
         );
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(2),
         );
@@ -4590,7 +4591,7 @@ mod tests {
         );
         let buy_price = dec!(0.2);
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             buy_price,
             dec!(1),
         );
@@ -4719,7 +4720,7 @@ mod tests {
         let price = dec!(1);
 
         let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             price,
             dec!(0.08),
         );
@@ -4732,7 +4733,7 @@ mod tests {
         ));
 
         let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             price,
             dec!(0.1),
         );
@@ -4794,7 +4795,7 @@ mod tests {
         let price = dec!(1);
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             price,
             dec!(1),
         );
@@ -4874,7 +4875,7 @@ mod tests {
         let test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(9),
         );
@@ -4913,7 +4914,7 @@ mod tests {
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(9),
         );
@@ -4963,7 +4964,7 @@ mod tests {
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(9),
         );
@@ -5029,7 +5030,7 @@ mod tests {
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(9),
         );
@@ -5073,7 +5074,7 @@ mod tests {
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(9),
         );
@@ -5119,7 +5120,7 @@ mod tests {
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             dec!(0.2),
             dec!(9),
         );
@@ -5161,7 +5162,7 @@ mod tests {
 
         let price = dec!(1);
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             price,
             dec!(1),
         );
@@ -5257,7 +5258,7 @@ mod tests {
 
         let price = dec!(1);
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
-            Some(OrderSide::Buy),
+            OrderSide::Buy,
             price,
             dec!(1),
         );

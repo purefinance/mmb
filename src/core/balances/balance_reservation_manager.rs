@@ -93,10 +93,9 @@ impl BalanceReservationManager {
                 reservation.configuration_descriptor.clone(),
                 reservation.exchange_account_id.clone(),
                 reservation.currency_pair_metadata.currency_pair(),
-                reservation.currency_pair_metadata.get_trade_code(
-                    OrderSide::to_trade_side(reservation.order_side),
-                    BeforeAfter::Before,
-                ),
+                reservation
+                    .currency_pair_metadata
+                    .get_trade_code(reservation.order_side, BeforeAfter::Before),
             );
             if let Some(grouped_reservations) = reserved_by_request.get_mut(&balance_request) {
                 *grouped_reservations += reservation.unreserved_amount;
@@ -279,7 +278,7 @@ impl BalanceReservationManager {
             parameters.configuration_descriptor.clone(),
             &parameters.exchange_account_id,
             parameters.currency_pair_metadata.clone(),
-            OrderSide::to_trade_side(parameters.order_side),
+            parameters.order_side,
             parameters.price,
             include_free_amount,
             false,
@@ -502,7 +501,7 @@ impl BalanceReservationManager {
         let taken_amount = reservation
             .iter()
             .map(|(_, balance_reservation)| {
-                if OrderSide::to_trade_side(balance_reservation.order_side) == trade_side {
+                if balance_reservation.order_side == trade_side {
                     return balance_reservation.taken_free_amount;
                 }
                 dec!(0)
@@ -1410,7 +1409,7 @@ impl BalanceReservationManager {
                         dst_reservation.configuration_descriptor.clone(),
                         &dst_reservation.exchange_account_id,
                         dst_reservation.currency_pair_metadata.clone(),
-                        OrderSide::to_trade_side(dst_reservation.order_side),
+                        dst_reservation.order_side,
                         dst_reservation.price,
                         true,
                         false,
@@ -1777,10 +1776,9 @@ impl BalanceReservationManager {
         reserve_parameters: &ReserveParameters,
         potential_position: &mut Option<Decimal>,
     ) -> bool {
-        let reservation_currency_code = reserve_parameters.currency_pair_metadata.get_trade_code(
-            OrderSide::to_trade_side(reserve_parameters.order_side),
-            BeforeAfter::Before,
-        );
+        let reservation_currency_code = reserve_parameters
+            .currency_pair_metadata
+            .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
 
         let request = BalanceRequest::new(
             reserve_parameters.configuration_descriptor.clone(),
@@ -1810,12 +1808,11 @@ impl BalanceReservationManager {
             .position_by_fill_amount_in_amount_currency
             .get(&request.exchange_account_id, &request.currency_pair)
             .unwrap_or(dec!(0));
-        *potential_position =
-            if OrderSide::to_trade_side(reserve_parameters.order_side) == OrderSide::Buy {
-                Some(position + new_reserved_amount)
-            } else {
-                Some(position - new_reserved_amount)
-            };
+        *potential_position = if reserve_parameters.order_side == OrderSide::Buy {
+            Some(position + new_reserved_amount)
+        } else {
+            Some(position - new_reserved_amount)
+        };
 
         let potential_position_abs = potential_position.expect("Must be non None").abs();
         if potential_position_abs <= limit {
@@ -1836,10 +1833,8 @@ impl BalanceReservationManager {
         let amount = reserve_parameters.amount;
         let currency_pair_metadata = reserve_parameters.currency_pair_metadata.clone();
 
-        let reservation_currency_code = currency_pair_metadata.get_trade_code(
-            OrderSide::to_trade_side(reserve_parameters.order_side),
-            BeforeAfter::Before,
-        );
+        let reservation_currency_code = currency_pair_metadata
+            .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
 
         let amount_in_reservation_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(&reservation_currency_code, amount, price)
@@ -1894,7 +1889,7 @@ impl BalanceReservationManager {
         let free_amount = self.get_unreserved_position_in_amount_currency_code(
             &reserve_parameters.exchange_account_id,
             reserve_parameters.currency_pair_metadata.clone(),
-            OrderSide::to_trade_side(reserve_parameters.order_side),
+            reserve_parameters.order_side,
         );
 
         let amount_to_pay_for = std::cmp::max(dec!(0), reserve_parameters.amount - free_amount);
@@ -1972,7 +1967,7 @@ impl BalanceReservationManager {
                 reservation.configuration_descriptor.clone(),
                 &reservation.exchange_account_id,
                 reservation.currency_pair_metadata.clone(),
-                OrderSide::to_trade_side(reservation.order_side),
+                reservation.order_side,
                 new_price,
                 true,
                 false,

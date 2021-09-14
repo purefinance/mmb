@@ -2,13 +2,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
-use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use crate::core::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId};
 
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::hashmap;
 
-use itertools::Itertools;
-use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 pub(crate) type ServiceNameConfigurationKeyMap =
@@ -18,7 +16,7 @@ pub(crate) type ConfigurationKeyExchangeAccountIdMap =
 pub(crate) type ExchangeAccountIdCurrencyCodePairMap =
     HashMap<ExchangeAccountId, CurrencyPairCurrencyCodeMap>;
 pub(crate) type CurrencyPairCurrencyCodeMap = HashMap<CurrencyPair, CurrencyCodeValueMap>;
-pub(crate) type CurrencyCodeValueMap = HashMap<CurrencyCode, Decimal>;
+pub(crate) type CurrencyCodeValueMap = HashMap<CurrencyCode, Amount>;
 
 #[derive(Debug, Clone)]
 pub struct ServiceValueTree {
@@ -77,7 +75,7 @@ impl ServiceValueTree {
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
         currency_code: &CurrencyCode,
-    ) -> Option<&mut Decimal> {
+    ) -> Option<&mut Amount> {
         self.get_mut_by_currency_pair(
             service_name,
             configuration_key,
@@ -87,7 +85,7 @@ impl ServiceValueTree {
         .get_mut(currency_code)
     }
 
-    pub fn get_by_balance_request(&self, balance_request: &BalanceRequest) -> Option<Decimal> {
+    pub fn get_by_balance_request(&self, balance_request: &BalanceRequest) -> Option<Amount> {
         self.tree
             .get(&balance_request.configuration_descriptor.service_name)?
             .get(
@@ -175,7 +173,7 @@ impl ServiceValueTree {
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
         currency_code: &CurrencyCode,
-        value: Decimal,
+        value: Amount,
     ) {
         if let Some(sub_tree) = self.get_mut_by_currency_pair(
             service_name,
@@ -195,7 +193,7 @@ impl ServiceValueTree {
         }
     }
 
-    pub fn set_by_balance_request(&mut self, balance_request: &BalanceRequest, value: Decimal) {
+    pub fn set_by_balance_request(&mut self, balance_request: &BalanceRequest, value: Amount) {
         self.set_by_currency_code(
             &balance_request.configuration_descriptor.service_name,
             &balance_request
@@ -213,7 +211,7 @@ impl ServiceValueTree {
             tree: HashMap::new(),
         }
     }
-    pub fn get_as_balances(&self) -> HashMap<BalanceRequest, Decimal> {
+    pub fn get_as_balances(&self) -> HashMap<BalanceRequest, Amount> {
         self.tree
             .iter()
             .flat_map(move |(service_name, service_configuration_keys)| {
@@ -223,23 +221,20 @@ impl ServiceValueTree {
                             move |(exchange_account_id, currency_pairs)| {
                                 currency_pairs.iter().flat_map(
                                     move |(currency_pair, currency_codes)| {
-                                        currency_codes
-                                            .iter()
-                                            .map(move |(currency_code, value)| {
-                                                (
-                                                    BalanceRequest::new(
-                                                        Arc::from(ConfigurationDescriptor::new(
-                                                            service_name.clone(),
-                                                            service_configuration_key.clone(),
-                                                        )),
-                                                        exchange_account_id.clone(),
-                                                        currency_pair.clone(),
-                                                        currency_code.clone(),
-                                                    ),
-                                                    value.clone(),
-                                                )
-                                            })
-                                            .collect_vec()
+                                        currency_codes.iter().map(move |(currency_code, value)| {
+                                            (
+                                                BalanceRequest::new(
+                                                    Arc::from(ConfigurationDescriptor::new(
+                                                        service_name.clone(),
+                                                        service_configuration_key.clone(),
+                                                    )),
+                                                    exchange_account_id.clone(),
+                                                    currency_pair.clone(),
+                                                    currency_code.clone(),
+                                                ),
+                                                value.clone(),
+                                            )
+                                        })
                                     },
                                 )
                             },
@@ -256,7 +251,7 @@ impl ServiceValueTree {
         }
     }
 
-    pub fn add_by_request(&mut self, request: &BalanceRequest, value: Decimal) {
+    pub fn add_by_request(&mut self, request: &BalanceRequest, value: Amount) {
         self.set_by_balance_request(
             request,
             self.get_by_balance_request(request).unwrap_or(dec!(0)) + value,
@@ -315,7 +310,7 @@ mod test {
             .to_vec()
     }
 
-    fn get_test_data() -> (ServiceValueTree, HashMap<BalanceRequest, Decimal>) {
+    fn get_test_data() -> (ServiceValueTree, HashMap<BalanceRequest, Amount>) {
         let mut service_value_tree = ServiceValueTree::new();
         let mut balances = HashMap::new();
         for service_name in &get_service_names() {
@@ -802,7 +797,7 @@ mod test {
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
         currency_code: &CurrencyCode,
-        value: &Decimal,
+        value: &Amount,
     ) {
         assert_tree_item_eq_with_message(
             tree,
@@ -823,7 +818,7 @@ mod test {
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
         currency_code: &CurrencyCode,
-        value: &Decimal,
+        value: &Amount,
         err_message: Option<&str>,
     ) {
         assert_eq!(

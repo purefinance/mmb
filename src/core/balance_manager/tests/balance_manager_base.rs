@@ -174,7 +174,7 @@ impl BalanceManagerBase {
 
     pub fn create_reserve_parameters(
         &self,
-        order_side: Option<OrderSide>,
+        order_side: OrderSide,
         price: Price,
         amount: Amount,
     ) -> ReserveParameters {

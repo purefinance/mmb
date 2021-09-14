@@ -41,7 +41,7 @@ impl BalanceManager {
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
     ) -> Arc<Mutex<Self>> {
-        Arc::from(Mutex::new(Self {
+        Arc::new(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),
             balance_reservation_manager: BalanceReservationManager::new(
                 exchanges_by_id,
@@ -1054,7 +1054,7 @@ impl BalanceManager {
             reserve_parameters.configuration_descriptor.clone(),
             &reserve_parameters.exchange_account_id,
             reserve_parameters.currency_pair_metadata.clone(),
-            OrderSide::to_trade_side(reserve_parameters.order_side),
+            reserve_parameters.order_side,
             reserve_parameters.price,
         )
     }

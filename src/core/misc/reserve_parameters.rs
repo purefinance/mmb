@@ -12,7 +12,7 @@ pub struct ReserveParameters {
     pub(crate) configuration_descriptor: Arc<ConfigurationDescriptor>,
     pub(crate) exchange_account_id: ExchangeAccountId,
     pub(crate) currency_pair_metadata: Arc<CurrencyPairMetadata>,
-    pub(crate) order_side: Option<OrderSide>,
+    pub(crate) order_side: OrderSide,
     pub(crate) price: Price,
     pub(crate) amount: Amount,
 }
@@ -22,7 +22,7 @@ impl ReserveParameters {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        order_side: Option<OrderSide>,
+        order_side: OrderSide,
         price: Price,
         amount: Amount,
     ) -> Self {

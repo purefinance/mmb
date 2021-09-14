@@ -32,10 +32,6 @@ impl OrderSide {
             OrderSide::Sell => OrderSide::Buy,
         }
     }
-
-    pub fn to_trade_side(order_side: Option<OrderSide>) -> OrderSide {
-        order_side.expect("failed to unwrap Option<OrderSide>")
-    }
 }
 
 impl Display for OrderSide {
