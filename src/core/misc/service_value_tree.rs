@@ -492,7 +492,6 @@ mod test {
     pub fn add() {
         init_logger();
         let mut test_data = get_test_data();
-        assert_eq!(test_data.0.get_as_balances(), test_data.1);
 
         let new_service_name = "new_service_name".to_string();
         let new_service_configuration_key = "new_service_configuration_key".to_string();

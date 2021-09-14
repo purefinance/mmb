@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
-use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeAccountId};
+use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeAccountId, Price};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
