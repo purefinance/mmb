@@ -39,7 +39,7 @@ impl ServiceValueTree {
     fn get_mut_by_service_name(
         &mut self,
         service_name: &String,
-    ) -> Option<&mut ConfigurationKeyExchangeAccountIdMap> {
+    ) -> Option<&mut ExchangeAccountIdByConfigurationKey> {
         self.tree.get_mut(service_name)
     }
 
@@ -47,7 +47,7 @@ impl ServiceValueTree {
         &mut self,
         service_name: &String,
         configuration_key: &String,
-    ) -> Option<&mut ExchangeAccountIdCurrencyCodePairMap> {
+    ) -> Option<&mut CurrencyCodePairByExchangeAccountId> {
         self.get_mut_by_service_name(service_name)?
             .get_mut(configuration_key)
     }
@@ -57,7 +57,7 @@ impl ServiceValueTree {
         service_name: &String,
         configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
-    ) -> Option<&mut CurrencyPairCurrencyCodeMap> {
+    ) -> Option<&mut CurrencyCodeByCurrencyCodePair> {
         self.get_mut_by_configuration_key(service_name, configuration_key)?
             .get_mut(exchange_account_id)
     }
@@ -68,7 +68,7 @@ impl ServiceValueTree {
         configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
-    ) -> Option<&mut CurrencyCodeValueMap> {
+    ) -> Option<&mut ValueByCurrencyCode> {
         self.get_mut_by_exchange_account_id(service_name, configuration_key, exchange_account_id)?
             .get_mut(currency_pair)
     }
@@ -111,7 +111,7 @@ impl ServiceValueTree {
     pub fn set_by_service_name(
         &mut self,
         service_name: &String,
-        value: ConfigurationKeyExchangeAccountIdMap,
+        value: ExchangeAccountIdByConfigurationKey,
     ) {
         self.tree.insert(service_name.clone(), value);
     }
@@ -120,7 +120,7 @@ impl ServiceValueTree {
         &mut self,
         service_name: &String,
         configuration_key: &String,
-        value: ExchangeAccountIdCurrencyCodePairMap,
+        value: CurrencyCodePairByExchangeAccountId,
     ) {
         if let Some(sub_tree) = self.get_mut_by_service_name(service_name) {
             sub_tree.insert(configuration_key.clone(), value);
@@ -134,7 +134,7 @@ impl ServiceValueTree {
         service_name: &String,
         configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
-        value: CurrencyPairCurrencyCodeMap,
+        value: CurrencyCodeByCurrencyCodePair,
     ) {
         if let Some(sub_tree) = self.get_mut_by_configuration_key(service_name, configuration_key) {
             sub_tree.insert(exchange_account_id.clone(), value);
@@ -153,7 +153,7 @@ impl ServiceValueTree {
         configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
-        value: CurrencyCodeValueMap,
+        value: ValueByCurrencyCode,
     ) {
         if let Some(sub_tree) = self.get_mut_by_exchange_account_id(
             service_name,
