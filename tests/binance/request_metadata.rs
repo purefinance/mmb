@@ -16,6 +16,7 @@ async fn request_metadata() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            WebSocketOptions::default(),
             false,
             true,
             AllowedEventSourceType::default(),

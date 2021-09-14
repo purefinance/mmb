@@ -23,6 +23,7 @@ async fn open_orders_exists() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            WebSocketOptions::default(),
             false,
             true,
             AllowedEventSourceType::default(),
@@ -108,6 +109,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         ExchangeFeatures::new(
             OpenOrdersType::OneCurrencyPair,
             RestFillsFeatures::default(),
+            WebSocketOptions::default(),
             true,
             true,
             AllowedEventSourceType::default(),
@@ -166,3 +168,5 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         );
     }
 }
+
+            WebSocketOptions::default(),
