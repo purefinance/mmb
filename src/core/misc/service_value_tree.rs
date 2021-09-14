@@ -9,25 +9,30 @@ use crate::hashmap;
 
 use rust_decimal_macros::dec;
 
-pub(crate) type ServiceNameConfigurationKeyMap =
-    HashMap<String, ConfigurationKeyExchangeAccountIdMap>;
-pub(crate) type ConfigurationKeyExchangeAccountIdMap =
-    HashMap<String, ExchangeAccountIdCurrencyCodePairMap>;
-pub(crate) type ExchangeAccountIdCurrencyCodePairMap =
-    HashMap<ExchangeAccountId, CurrencyPairCurrencyCodeMap>;
-pub(crate) type CurrencyPairCurrencyCodeMap = HashMap<CurrencyPair, CurrencyCodeValueMap>;
-pub(crate) type CurrencyCodeValueMap = HashMap<CurrencyCode, Amount>;
+pub(crate) type ConfigurationKeyByServiceName =
+    HashMap<String, ExchangeAccountIdByConfigurationKey>;
+pub(crate) type ExchangeAccountIdByConfigurationKey =
+    HashMap<String, CurrencyCodePairByExchangeAccountId>;
+pub(crate) type CurrencyCodePairByExchangeAccountId =
+    HashMap<ExchangeAccountId, CurrencyCodeByCurrencyCodePair>;
+pub(crate) type CurrencyCodeByCurrencyCodePair = HashMap<CurrencyPair, ValueByCurrencyCode>;
+pub(crate) type ValueByCurrencyCode = HashMap<CurrencyCode, Amount>;
 
+/// A tree that contain balance amounts distributed by
+/// ServiceNames -> ConfigurationKeys -> ExchangerAccountIds -> CurrencyPairs -> CurrencyCodes.
+///     NOTE: there is combine all balances by ServiceNames(strategy name),
+///     that will contain several configuration keys for strategies, next layer is one or more accounts for
+///     selected ServiceName and here stored CurrencyCodes by CurrencyPairs and amount for every currency code.
 #[derive(Debug, Clone)]
 pub struct ServiceValueTree {
-    tree: ServiceNameConfigurationKeyMap,
+    tree: ConfigurationKeyByServiceName,
 }
 impl ServiceValueTree {
-    fn get(&self) -> &ServiceNameConfigurationKeyMap {
+    fn get(&self) -> &ConfigurationKeyByServiceName {
         &self.tree
     }
 
-    fn get_mut(&mut self) -> &mut ServiceNameConfigurationKeyMap {
+    fn get_mut(&mut self) -> &mut ConfigurationKeyByServiceName {
         &mut self.tree
     }
 
@@ -99,7 +104,7 @@ impl ServiceValueTree {
             .cloned()
     }
 
-    pub fn set(&mut self, tree: ServiceNameConfigurationKeyMap) {
+    pub fn set(&mut self, tree: ConfigurationKeyByServiceName) {
         self.tree = tree;
     }
 
@@ -791,7 +796,7 @@ mod test {
     }
 
     fn assert_tree_item_eq(
-        tree: &ServiceNameConfigurationKeyMap,
+        tree: &ConfigurationKeyByServiceName,
         service_name: &String,
         service_configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
@@ -812,7 +817,7 @@ mod test {
     }
 
     fn assert_tree_item_eq_with_message(
-        tree: &ServiceNameConfigurationKeyMap,
+        tree: &ConfigurationKeyByServiceName,
         service_name: &String,
         service_configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
