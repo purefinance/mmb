@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use itertools::Itertools;
 use rust_decimal::Decimal;
@@ -192,23 +192,17 @@ impl BalanceReservationManager {
             return Ok(());
         }
 
-        let balance_params = ReserveParameters::new_from_reservation(reservation, dec!(0));
+        let balance_params = ReserveParameters::from_reservation(reservation, dec!(0));
 
         let old_balance = self.get_available_balance(&balance_params, true, &mut None);
 
         log::info!("VirtualBalanceHolder {}", old_balance);
 
-        match self.unreserve_not_approved_part(
-            reservation_id,
-            client_or_order_id,
-            amount_to_unreserve,
-        ) {
-            Ok(_) => (),
-            Err(error) => bail!("failed unreserve not approved part: {:?}", error),
-        };
+        self.unreserve_not_approved_part(reservation_id, client_or_order_id, amount_to_unreserve)
+            .with_context(|| format!("failed unreserve not approved part"))?;
 
         let reservation = self.try_get_reservation(reservation_id)?;
-        let balance_request = BalanceRequest::new_from_reservation(reservation);
+        let balance_request = BalanceRequest::from_reservation(reservation);
         self.add_reserved_amount(&balance_request, reservation_id, -amount_to_unreserve, true)?;
 
         let new_balance = self.get_available_balance(&balance_params, true, &mut None);
@@ -730,23 +724,13 @@ impl BalanceReservationManager {
         &mut self,
         reservation_id: ReservationId,
     ) -> Result<&mut BalanceReservation> {
-        let res = match self.get_mut_reservation(&reservation_id) {
-            Some(reservation) => reservation,
-            None => {
-                bail!("Can't find reservation_id = {}", reservation_id,)
-            }
-        };
-        Ok(res)
+        self.get_mut_reservation(&reservation_id)
+            .with_context(|| format!("Can't find reservation_id = {}", reservation_id))
     }
 
     fn try_get_reservation(&self, reservation_id: ReservationId) -> Result<&BalanceReservation> {
-        let res = match self.get_reservation(&reservation_id) {
-            Some(reservation) => reservation,
-            None => {
-                bail!("Can't find reservation_id = {}", reservation_id,)
-            }
-        };
-        Ok(res)
+        self.get_reservation(&reservation_id)
+            .with_context(|| format!("Can't find reservation_id = {}", reservation_id))
     }
 
     fn unreserve_not_approved_part(
@@ -776,11 +760,11 @@ impl BalanceReservationManager {
         let approved_part = match reservation.approved_parts.get_mut(client_order_id) {
             Some(approved_part) => approved_part,
             None => {
-                log::warn!("UnReserve({}, {}) called with clientOrderId {} for reservation without the approved part {:?}",
+                log::warn!("unreserve({}, {}) called with clientOrderId {} for reservation without the approved part {:?}",
                 reservation_id, amount_to_unreserve, client_order_id, reservation);
                 reservation.not_approved_amount -= amount_to_unreserve;
                 if reservation.not_approved_amount < dec!(0) {
-                    log::error!("NotApprovedAmount for {} was unreserved for the missing order {} and now < 0 {:?}",
+                    log::error!("not_approved_amount for {} was unreserved for the missing order {} and now < 0 {:?}",
                     reservation_id, client_order_id, reservation);
                 }
                 return Ok(());
@@ -791,7 +775,7 @@ impl BalanceReservationManager {
             approved_part.unreserved_amount - amount_to_unreserve;
         if new_unreserved_amount_for_approved_part < dec!(0) {
             bail!(
-                "Attempt to UnReserve more than was approved for order {} ({}): {} > {}",
+                "Attempt to unreserve more than was approved for order {} ({}): {} > {}",
                 client_order_id,
                 reservation_id,
                 amount_to_unreserve,
@@ -810,18 +794,14 @@ impl BalanceReservationManager {
         update_balance: bool,
     ) -> Result<()> {
         if update_balance {
-            let cost =
-                match reservation.get_proportional_cost_amount(amount_diff_in_amount_currency) {
-                    Ok(cost) => cost,
-                    Err(error) => {
-                        bail!(
-                            "Failed to get proportional cost amount form {:?} with {}: {:?}",
-                            reservation,
-                            amount_diff_in_amount_currency,
-                            error
-                        )
-                    }
-                };
+            let cost = reservation
+                .get_proportional_cost_amount(amount_diff_in_amount_currency)
+                .with_context(|| {
+                    format!(
+                        "Failed to get proportional cost amount form {:?} with {}",
+                        reservation, amount_diff_in_amount_currency
+                    )
+                })?;
             self.add_virtual_balance(
                 request,
                 reservation.currency_pair_metadata.clone(),
@@ -854,18 +834,14 @@ impl BalanceReservationManager {
     ) -> Result<()> {
         let reservation = self.try_get_reservation(reservation_id)?;
         if update_balance {
-            let cost =
-                match reservation.get_proportional_cost_amount(amount_diff_in_amount_currency) {
-                    Ok(cost) => cost,
-                    Err(error) => {
-                        bail!(
-                            "Failed to get proportional cost amount form {:?} with {}: {:?}",
-                            reservation,
-                            amount_diff_in_amount_currency,
-                            error
-                        )
-                    }
-                };
+            let cost = reservation
+                .get_proportional_cost_amount(amount_diff_in_amount_currency)
+                .with_context(|| {
+                    format!(
+                        "Failed to get proportional cost amount form {:?} with {}",
+                        reservation, amount_diff_in_amount_currency
+                    )
+                })?;
             let currency_pair_metadata = reservation.currency_pair_metadata.clone();
             let price = reservation.price;
             self.add_virtual_balance(request, currency_pair_metadata, price, -cost)?;
@@ -1513,7 +1489,7 @@ impl BalanceReservationManager {
             reservation.not_approved_amount += reservation_amount_diff;
         }
 
-        let balance_request = BalanceRequest::new_from_reservation(reservation);
+        let balance_request = BalanceRequest::from_reservation(reservation);
 
         self.add_reserved_amount(
             &balance_request,
@@ -1699,7 +1675,7 @@ impl BalanceReservationManager {
 
         if let Some(explanation) = explanation {
             explanation.add_reason(format!(
-                "oldBalance: {} presetCost: {} newBalance: {}",
+                "old_balance: {} preset_cost: {} new_balance: {}",
                 *old_balance, preset_cost, *new_balance
             ));
         }
@@ -1802,7 +1778,7 @@ impl BalanceReservationManager {
 
         if let Some(explanation) = explanation {
             explanation.add_reason(format!(
-                "costInReservationCurrencyCode: {} takenFreeAmount: {}",
+                "cost_in_reservation_currency_code: {} taken_free_amount: {}",
                 cost_in_reservation_currency_code, taken_free_amount
             ));
         }
@@ -1922,7 +1898,7 @@ impl BalanceReservationManager {
             return false;
         }
 
-        let balance_request = BalanceRequest::new_from_reservation(reservation);
+        let balance_request = BalanceRequest::from_reservation(reservation);
 
         let reservation = self
             .try_get_mut_reservation(reservation_id)

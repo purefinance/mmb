@@ -31,7 +31,7 @@ impl BalanceRequest {
         }
     }
 
-    pub fn new_from_reservation(reservation: &BalanceReservation) -> Self {
+    pub fn from_reservation(reservation: &BalanceReservation) -> Self {
         BalanceRequest::new(
             reservation.configuration_descriptor.clone(),
             reservation.exchange_account_id.clone(),

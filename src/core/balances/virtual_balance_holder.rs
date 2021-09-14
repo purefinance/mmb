@@ -118,7 +118,11 @@ impl VirtualBalanceHolder {
                 balance_request.configuration_descriptor.clone(),
                 balance_request.exchange_account_id.clone(),
                 balance_request.currency_pair.clone(),
-                currency_pair_metadata.balance_currency_code.clone()?,
+                currency_pair_metadata
+                    .balance_currency_code
+                    .as_ref()
+                    .expect("failed to create BalanceRequest: currency_pair_metadata.balance_currency_code is None")
+                    .clone(),
             );
             let balance_currency_code_balance_diff = self
                 .balance_diff
