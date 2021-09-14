@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 use crate::core::{
     balance_manager::balance_manager::BalanceManager,
     exchanges::{
-        common::{Amount, ExchangeAccountId},
+        common::{Amount, ExchangeAccountId, Price},
         general::{
             currency_pair_metadata::{CurrencyPairMetadata, Precision},
             currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
@@ -102,7 +102,7 @@ impl BalanceManagerOrdinal {
 }
 
 impl BalanceManagerOrdinal {
-    fn create_order_fill(price: Decimal, amount: Amount, cost: Decimal) -> OrderFill {
+    fn create_order_fill(price: Price, amount: Amount, cost: Decimal) -> OrderFill {
         OrderFill::new(
             Uuid::new_v4(),
             Utc::now(),
@@ -128,10 +128,6 @@ impl BalanceManagerOrdinal {
         self.balance_manager_base.balance_manager()
     }
 
-    // pub fn balance_manager(&mut self) -> MutexGuard<BalanceManager> {
-    //     self.balance_manager_base.balance_manager()
-    // }
-
     fn check_time(&self, seconds: u32) {
         assert_eq!(Utc::now().second() - self.now.second(), seconds);
     }
@@ -149,7 +145,7 @@ mod tests {
 
     use crate::core::balance_manager::balance_manager::BalanceManager;
     use crate::core::balance_manager::position_change::PositionChange;
-    use crate::core::exchanges::common::{CurrencyCode, TradePlaceAccount};
+    use crate::core::exchanges::common::{Amount, CurrencyCode, Price, TradePlaceAccount};
     use crate::core::exchanges::general::currency_pair_metadata::{
         CurrencyPairMetadata, Precision,
     };
@@ -166,7 +162,7 @@ mod tests {
 
     use super::BalanceManagerOrdinal;
 
-    fn create_eth_btc_test_obj(btc_amount: Decimal, eth_amount: Decimal) -> BalanceManagerOrdinal {
+    fn create_eth_btc_test_obj(btc_amount: Amount, eth_amount: Amount) -> BalanceManagerOrdinal {
         let test_object = BalanceManagerOrdinal::new();
 
         let exchange_account_id = &test_object
@@ -174,7 +170,7 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         let btc_currency_code = BalanceManagerBase::btc();
         let eth_currency_code = BalanceManagerBase::eth();
         balance_map.insert(btc_currency_code, btc_amount);
@@ -190,7 +186,7 @@ mod tests {
 
     fn create_test_obj_with_multiple_currencies(
         currency_codes: Vec<CurrencyCode>,
-        amounts: Vec<Decimal>,
+        amounts: Vec<Amount>,
     ) -> BalanceManagerOrdinal {
         if currency_codes.len() != amounts.len() {
             std::panic!("Failed to create test object: currency_codes.len() = {} should be equal amounts.len() = {}",
@@ -203,7 +199,7 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         for i in 0..currency_codes.len() {
             balance_map.insert(
                 currency_codes.get(i).expect("in test").clone(),
@@ -221,9 +217,9 @@ mod tests {
 
     fn create_eth_btc_test_obj_for_two_exchanges(
         cc_for_first: CurrencyCode,
-        amount_for_first: Decimal,
+        amount_for_first: Amount,
         cc_for_second: CurrencyCode,
-        amount_for_second: Decimal,
+        amount_for_second: Amount,
     ) -> BalanceManagerOrdinal {
         let test_object = BalanceManagerOrdinal::new();
 
@@ -236,9 +232,9 @@ mod tests {
             .exchange_account_id_2
             .clone();
 
-        let mut balance_first_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_first_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_first_map.insert(cc_for_first, amount_for_first);
-        let mut balance_second_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_second_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_second_map.insert(cc_for_second, amount_for_second);
 
         BalanceManagerBase::update_balance(
@@ -257,15 +253,15 @@ mod tests {
 
     fn create_test_obj_by_currency_code(
         currency_code: CurrencyCode,
-        amount: Decimal,
+        amount: Amount,
     ) -> BalanceManagerOrdinal {
         create_test_obj_by_currency_code_with_limit(currency_code, amount, None)
     }
 
     fn create_test_obj_by_currency_code_with_limit(
         currency_code: CurrencyCode,
-        amount: Decimal,
-        limit: Option<Decimal>,
+        amount: Amount,
+        limit: Option<Amount>,
     ) -> BalanceManagerOrdinal {
         let test_object = BalanceManagerOrdinal::new();
 
@@ -303,7 +299,7 @@ mod tests {
             );
         }
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(currency_code, amount);
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
@@ -357,7 +353,7 @@ mod tests {
             .balance_manager_base
             .exchange_account_id_1
             .clone();
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         let btc_currency_code: CurrencyCode = BalanceManagerBase::btc().as_str().into();
         let eth_currency_code: CurrencyCode = BalanceManagerBase::eth().as_str().into();
         let bnb_currency_code: CurrencyCode = BalanceManagerBase::bnb().as_str().into();
@@ -1485,7 +1481,7 @@ mod tests {
     #[case(dec!(0))]
     // min positive value in rust_decimaL::Decimal (Scale maximum precision - 28)
     #[case(dec!(1e-28))]
-    pub fn unreserve_zero_amount(#[case] amount_to_unreserve: Decimal) {
+    pub fn unreserve_zero_amount(#[case] amount_to_unreserve: Amount) {
         init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
@@ -1779,12 +1775,12 @@ mod tests {
     #[case(dec!(5), dec!(0.2), dec!(3), dec!(0.5), dec!(2) ,dec!(2) )]
     #[case(dec!(5), dec!(0.2), dec!(3), dec!(0.2), dec!(2) ,dec!(2) )]
     pub fn transfer_reservation_different_price_sell(
-        #[case] src_balance: Decimal,
-        #[case] price_1: Decimal,
-        #[case] amount_1: Decimal,
-        #[case] price_2: Decimal,
-        #[case] amount_2: Decimal,
-        #[case] amount_to_transfer: Decimal,
+        #[case] src_balance: Amount,
+        #[case] price_1: Price,
+        #[case] amount_1: Amount,
+        #[case] price_2: Price,
+        #[case] amount_2: Amount,
+        #[case] amount_to_transfer: Amount,
     ) {
         init_logger();
         let test_object = create_eth_btc_test_obj(src_balance, src_balance);
@@ -1862,12 +1858,12 @@ mod tests {
     #[case(dec!(5), dec!(0.2), dec!(3), dec!(0.5), dec!(2) ,dec!(2) )]
     #[case(dec!(5), dec!(0.2), dec!(3), dec!(0.2), dec!(2) ,dec!(2) )]
     pub fn transfer_reservation_different_price_buy(
-        #[case] src_balance: Decimal,
-        #[case] price_1: Decimal,
-        #[case] amount_1: Decimal,
-        #[case] price_2: Decimal,
-        #[case] amount_2: Decimal,
-        #[case] amount_to_transfer: Decimal,
+        #[case] src_balance: Amount,
+        #[case] price_1: Price,
+        #[case] amount_1: Amount,
+        #[case] price_2: Price,
+        #[case] amount_2: Amount,
+        #[case] amount_to_transfer: Amount,
     ) {
         init_logger();
         let test_object = create_eth_btc_test_obj(src_balance, src_balance);
@@ -2814,7 +2810,7 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(2));
         balance_map.insert(BalanceManagerBase::eth(), dec!(0.5));
         balance_map.insert(BalanceManagerBase::bnb(), dec!(0.1));
@@ -2877,7 +2873,7 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(2));
         balance_map.insert(BalanceManagerBase::eth(), dec!(0.5));
         balance_map.insert(BalanceManagerBase::bnb(), dec!(0.1));
@@ -2948,7 +2944,7 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(2));
         balance_map.insert(BalanceManagerBase::eth(), dec!(0.5));
         balance_map.insert(BalanceManagerBase::bnb(), dec!(0.1));
@@ -4712,7 +4708,7 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(1));
         BalanceManagerBase::update_balance(
             balance_manager.lock(),
@@ -4839,7 +4835,7 @@ mod tests {
             .order_was_finished(configuration_descriptor.clone(), &order)
             .expect("in test");
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(10));
         let exchange_account_id = test_object
             .balance_manager_base
@@ -5221,7 +5217,7 @@ mod tests {
             Some(dec!(1))
         );
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(9));
         balance_map.insert(BalanceManagerBase::eth(), dec!(1));
         let exchange_account_id = test_object
@@ -5304,7 +5300,7 @@ mod tests {
             None,
         );
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(9));
         balance_map.insert(BalanceManagerBase::eth(), dec!(0.5));
         let exchange_account_id = test_object

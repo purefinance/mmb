@@ -6,7 +6,7 @@ use std::{collections::HashMap, sync::Arc};
 use crate::core::{
     balance_manager::balance_manager::BalanceManager,
     exchanges::{
-        common::{Amount, ExchangeAccountId},
+        common::{Amount, ExchangeAccountId, Price},
         general::{
             currency_pair_metadata::{CurrencyPairMetadata, Precision},
             currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
@@ -34,7 +34,7 @@ pub struct BalanceManagerDerivative {
 
 // static
 impl BalanceManagerDerivative {
-    pub fn price() -> Decimal {
+    pub fn price() -> Price {
         dec!(0.2)
     }
     pub fn reversed_price_x_multiplier() -> Decimal {
@@ -143,7 +143,7 @@ impl BalanceManagerDerivative {
         }
     }
     fn create_order_fill(
-        price: Decimal,
+        price: Price,
         amount: Amount,
         cost: Decimal,
         commission_amount: Decimal,
@@ -184,7 +184,7 @@ impl BalanceManagerDerivative {
     pub fn fill_order(
         &mut self,
         side: OrderSide,
-        price: Option<Decimal>,
+        price: Option<Price>,
         amount: Option<Amount>,
         is_reversed: bool,
     ) {
@@ -237,7 +237,7 @@ mod tests {
     use rust_decimal_macros::dec;
 
     use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
-    use crate::core::exchanges::common::CurrencyCode;
+    use crate::core::exchanges::common::{Amount, CurrencyCode, Price};
     use crate::core::explanation::Explanation;
     use crate::core::logger::init_logger;
 
@@ -247,8 +247,8 @@ mod tests {
     use super::BalanceManagerDerivative;
 
     fn create_eth_btc_test_obj(
-        btc_amount: Decimal,
-        eth_amount: Decimal,
+        btc_amount: Amount,
+        eth_amount: Amount,
         is_reversed: bool,
     ) -> BalanceManagerDerivative {
         let test_object = BalanceManagerDerivative::new(is_reversed);
@@ -258,7 +258,7 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         let btc_currency_code = BalanceManagerBase::btc();
         let eth_currency_code = BalanceManagerBase::eth();
         balance_map.insert(btc_currency_code, btc_amount);
@@ -274,7 +274,7 @@ mod tests {
 
     fn create_test_obj_with_multiple_currencies(
         currency_codes: Vec<CurrencyCode>,
-        amounts: Vec<Decimal>,
+        amounts: Vec<Amount>,
         is_reversed: bool,
     ) -> BalanceManagerDerivative {
         if currency_codes.len() != amounts.len() {
@@ -288,7 +288,7 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         for i in 0..currency_codes.len() {
             balance_map.insert(
                 currency_codes.get(i).expect("in test").clone(),
@@ -306,9 +306,9 @@ mod tests {
 
     fn create_eth_btc_test_obj_for_two_exchanges(
         cc_for_first: CurrencyCode,
-        amount_for_first: Decimal,
+        amount_for_first: Amount,
         cc_for_second: CurrencyCode,
-        amount_for_second: Decimal,
+        amount_for_second: Amount,
         is_reversed: bool,
     ) -> BalanceManagerDerivative {
         let test_object = BalanceManagerDerivative::new(is_reversed);
@@ -322,9 +322,9 @@ mod tests {
             .exchange_account_id_2
             .clone();
 
-        let mut balance_first_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_first_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_first_map.insert(cc_for_first, amount_for_first);
-        let mut balance_second_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_second_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_second_map.insert(cc_for_second, amount_for_second);
 
         BalanceManagerBase::update_balance(
@@ -343,7 +343,7 @@ mod tests {
 
     fn create_test_obj_by_currency_code(
         currency_code: CurrencyCode,
-        amount: Decimal,
+        amount: Amount,
         is_reversed: bool,
     ) -> BalanceManagerDerivative {
         create_test_obj_by_currency_code_with_limit(currency_code, amount, None, is_reversed)
@@ -351,8 +351,8 @@ mod tests {
 
     fn create_test_obj_by_currency_code_with_limit(
         currency_code: CurrencyCode,
-        amount: Decimal,
-        limit: Option<Decimal>,
+        amount: Amount,
+        limit: Option<Amount>,
         is_reversed: bool,
     ) -> BalanceManagerDerivative {
         create_test_obj_by_currency_code_and_symbol_currency_pair(
@@ -366,10 +366,10 @@ mod tests {
 
     fn create_test_obj_by_currency_code_and_symbol_currency_pair(
         currency_code: CurrencyCode,
-        amount: Decimal,
-        limit: Option<Decimal>,
+        amount: Amount,
+        limit: Option<Amount>,
         is_reversed: bool,
-        symbol_currency_pair_amount: Option<Decimal>,
+        symbol_currency_pair_amount: Option<Amount>,
     ) -> BalanceManagerDerivative {
         let test_object = BalanceManagerDerivative::new(is_reversed);
 
@@ -407,7 +407,7 @@ mod tests {
             );
         }
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(currency_code, amount);
         if let Some(symbol_currency_pair_amount) = symbol_currency_pair_amount {
             let symbol_currency_pair = test_object
@@ -2291,12 +2291,12 @@ mod tests {
     #[ignore] // Transfer
     #[case(dec!(25), dec!(0.5), dec!(3), dec!(0.2), dec!(2) ,dec!(2) )] // Pessimistic case: price1 > price2
     pub fn transfer_reservation_different_price_success(
-        #[case] src_balance: Decimal,
-        #[case] price_1: Decimal,
-        #[case] amount_1: Decimal,
-        #[case] price_2: Decimal,
-        #[case] amount_2: Decimal,
-        #[case] amount_to_transfer: Decimal,
+        #[case] src_balance: Amount,
+        #[case] price_1: Price,
+        #[case] amount_1: Amount,
+        #[case] price_2: Price,
+        #[case] amount_2: Amount,
+        #[case] amount_to_transfer: Amount,
     ) {
         init_logger();
         let is_reversed = false;
@@ -2407,12 +2407,12 @@ mod tests {
     #[ignore] // Transfer
     #[case(dec!(20), dec!(0.5), dec!(3), dec!(0.2), dec!(2) ,dec!(2) )] // Pessimistic case: price1 > price2
     pub fn transfer_reservation_different_price_failure(
-        #[case] src_balance: Decimal,
-        #[case] price_1: Decimal,
-        #[case] amount_1: Decimal,
-        #[case] price_2: Decimal,
-        #[case] amount_2: Decimal,
-        #[case] amount_to_transfer: Decimal,
+        #[case] src_balance: Amount,
+        #[case] price_1: Price,
+        #[case] amount_1: Amount,
+        #[case] price_2: Price,
+        #[case] amount_2: Amount,
+        #[case] amount_to_transfer: Amount,
     ) {
         init_logger();
         let is_reversed = false;
@@ -2727,7 +2727,7 @@ mod tests {
             dec!(25)
         );
 
-        let mut balance_map: HashMap<CurrencyCode, Decimal> = HashMap::new();
+        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::eth(), dec!(25));
 
         BalanceManagerBase::update_balance(

@@ -2,16 +2,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
-use crate::core::exchanges::common::{CurrencyCode, ExchangeAccountId};
+use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeAccountId};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 
-use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-type BalanceByExchangeId = HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>;
+type BalanceByExchangeId = HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>;
 
 #[derive(Clone)]
 pub(crate) struct VirtualBalanceHolder {
@@ -35,7 +34,7 @@ impl VirtualBalanceHolder {
     pub fn update_balances(
         &mut self,
         exchange_account_id: &ExchangeAccountId,
-        balances_by_currency_code: &HashMap<CurrencyCode, Decimal>,
+        balances_by_currency_code: &HashMap<CurrencyCode, Amount>,
     ) {
         self.balance_by_exchange_id.insert(
             exchange_account_id.clone(),
@@ -68,7 +67,7 @@ impl VirtualBalanceHolder {
         }
     }
 
-    pub fn add_balance(&mut self, balance_request: &BalanceRequest, balance_to_add: Decimal) {
+    pub fn add_balance(&mut self, balance_request: &BalanceRequest, balance_to_add: Amount) {
         let current_diff_value = self
             .balance_diff
             .get_by_balance_request(balance_request)
@@ -92,9 +91,9 @@ impl VirtualBalanceHolder {
         &self,
         balance_request: &BalanceRequest,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        price: Option<Decimal>,
+        price: Option<Price>,
         explanation: &mut Option<Explanation>,
-    ) -> Option<Decimal> {
+    ) -> Option<Amount> {
         let exchange_balance = self.get_exchange_balance(
             &balance_request.exchange_account_id,
             currency_pair_metadata.clone(),
@@ -114,10 +113,8 @@ impl VirtualBalanceHolder {
                 .get_by_balance_request(balance_request)
                 .unwrap_or(dec!(0))
         } else {
-            if price.is_none() {
-                return None;
-            }
-            let balance_currnecy_code_request = BalanceRequest::new(
+            let price = price?;
+            let balance_currency_code_request = BalanceRequest::new(
                 balance_request.configuration_descriptor.clone(),
                 balance_request.exchange_account_id.clone(),
                 balance_request.currency_pair.clone(),
@@ -125,7 +122,7 @@ impl VirtualBalanceHolder {
             );
             let balance_currency_code_balance_diff = self
                 .balance_diff
-                .get_by_balance_request(&balance_currnecy_code_request)
+                .get_by_balance_request(&balance_currency_code_request)
                 .unwrap_or(dec!(0));
 
             if let Some(explanation) = explanation {
@@ -139,7 +136,7 @@ impl VirtualBalanceHolder {
                 .convert_amount_from_balance_currency_code(
                     &balance_request.currency_code,
                     balance_currency_code_balance_diff,
-                    price?,
+                    price,
                 ) {
                 Ok(cur_balance_diff) => cur_balance_diff,
                 Err(error) => {
@@ -168,24 +165,30 @@ impl VirtualBalanceHolder {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: &CurrencyCode,
-        price: Option<Decimal>,
-    ) -> Option<Decimal> {
+        price: Option<Price>,
+    ) -> Option<Amount> {
         if !currency_pair_metadata.is_derivative
             || currency_pair_metadata.balance_currency_code == Some(currency_code.clone())
         {
             return self.get_raw_exchange_balance(exchange_account_id, currency_code);
         }
 
+        let price = price?;
+
         let balance_currency_code_balance = self.get_raw_exchange_balance(
             exchange_account_id,
-            &currency_pair_metadata.balance_currency_code.clone()?,
+            &currency_pair_metadata
+                .balance_currency_code
+                .as_ref()
+                .expect("failed to get exchange balance: balance_currency_code should be non None")
+                .clone(),
         )?;
 
         let exchange_balance_in_currency_code = currency_pair_metadata
             .convert_amount_from_balance_currency_code(
                 &currency_code,
                 balance_currency_code_balance,
-                price?,
+                price,
             );
 
         match exchange_balance_in_currency_code {
@@ -207,7 +210,7 @@ impl VirtualBalanceHolder {
         &self,
         exchange_account_id: &ExchangeAccountId,
         currency_code: &CurrencyCode,
-    ) -> Option<Decimal> {
+    ) -> Option<Amount> {
         self.balance_by_exchange_id
             .get(exchange_account_id)?
             .get(currency_code)
@@ -223,9 +226,9 @@ impl VirtualBalanceHolder {
     }
 
     pub fn has_real_balance_on_exchange(&self, exchange_account_id: &ExchangeAccountId) -> bool {
-        match self.balance_by_exchange_id.get(exchange_account_id) {
-            Some(exchange_balances) => exchange_balances.len() > 0,
-            None => false,
-        }
+        self.balance_by_exchange_id
+            .get(exchange_account_id)
+            .map(|x| x.len() > 0)
+            .unwrap_or(false)
     }
 }

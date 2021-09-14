@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::core::{
     balance_manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
-    exchanges::events::ExchangeBalance,
+    exchanges::{common::Price, events::ExchangeBalance},
     exchanges::{
         common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId},
         events::ExchangeBalancesAndPositions,
@@ -59,7 +59,7 @@ impl BalanceManagerBase {
     pub fn update_balance(
         mut balance_manager: MutexGuard<BalanceManager>,
         exchange_account_id: &ExchangeAccountId,
-        balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
+        balances_by_currency_code: HashMap<CurrencyCode, Amount>,
     ) {
         balance_manager
             .update_exchange_balance(
@@ -81,7 +81,7 @@ impl BalanceManagerBase {
     pub fn update_balance_with_positions(
         mut balance_manager: MutexGuard<BalanceManager>,
         exchange_account_id: &ExchangeAccountId,
-        balances_by_currency_code: HashMap<CurrencyCode, Decimal>,
+        balances_by_currency_code: HashMap<CurrencyCode, Amount>,
         positions_by_currency_pair: HashMap<CurrencyPair, Decimal>,
     ) {
         let balances: Vec<ExchangeBalance> = balances_by_currency_code
@@ -175,7 +175,7 @@ impl BalanceManagerBase {
     pub fn create_reserve_parameters(
         &self,
         order_side: Option<OrderSide>,
-        price: Decimal,
+        price: Price,
         amount: Amount,
     ) -> ReserveParameters {
         ReserveParameters::new(
@@ -188,11 +188,7 @@ impl BalanceManagerBase {
         )
     }
 
-    pub fn get_balance_by_trade_side(
-        &self,
-        trade_side: OrderSide,
-        price: Decimal,
-    ) -> Option<Decimal> {
+    pub fn get_balance_by_trade_side(&self, trade_side: OrderSide, price: Price) -> Option<Amount> {
         self.balance_manager().get_balance_by_side(
             self.configuration_descriptor.clone(),
             &self.exchange_account_id_1,
@@ -205,8 +201,8 @@ impl BalanceManagerBase {
     pub fn get_balance_by_currency_code(
         &self,
         currency_code: CurrencyCode,
-        price: Decimal,
-    ) -> Option<Decimal> {
+        price: Price,
+    ) -> Option<Amount> {
         self.balance_manager().get_balance_by_currency_code(
             self.configuration_descriptor.clone(),
             &self.exchange_account_id_1,
@@ -220,8 +216,8 @@ impl BalanceManagerBase {
         &self,
         balance_manager: &BalanceManager,
         currency_code: CurrencyCode,
-        price: Decimal,
-    ) -> Option<Decimal> {
+        price: Price,
+    ) -> Option<Amount> {
         balance_manager.get_balance_by_currency_code(
             self.configuration_descriptor.clone(),
             &self.exchange_account_id_1,

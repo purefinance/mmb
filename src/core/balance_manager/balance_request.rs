@@ -5,6 +5,8 @@ use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
+use super::balance_reservation::BalanceReservation;
+
 #[derive(Hash, Debug, PartialEq)]
 /// The entity for getting balance for account with ExchangeAccountId by CurrencyPair in CurrencyCode
 pub struct BalanceRequest {
@@ -27,6 +29,15 @@ impl BalanceRequest {
             currency_pair,
             currency_code,
         }
+    }
+
+    pub fn new_from_reservation(reservation: BalanceReservation) -> Self {
+        BalanceRequest::new(
+            reservation.configuration_descriptor,
+            reservation.exchange_account_id,
+            reservation.currency_pair_metadata.currency_pair(),
+            reservation.reservation_currency_code,
+        )
     }
 }
 

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
 use crate::core::balance_manager::position_change::PositionChange;
 use crate::core::balances::balance_reservation_manager::BalanceReservationManager;
-use crate::core::exchanges::common::Amount;
+use crate::core::exchanges::common::{Amount, Price};
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
@@ -122,7 +122,7 @@ impl BalanceManager {
         }
     }
 
-    pub fn unreserve(&mut self, reservation_id: ReservationId, amount: Decimal) -> Result<()> {
+    pub fn unreserve(&mut self, reservation_id: ReservationId, amount: Amount) -> Result<()> {
         self.balance_reservation_manager
             .unreserve(reservation_id, amount, &None)?;
         self.save_balances();
@@ -133,7 +133,7 @@ impl BalanceManager {
         &mut self,
         reservation_id: ReservationId,
         client_order_id: ClientOrderId,
-        amount: Decimal,
+        amount: Amount,
     ) -> Result<()> {
         self.balance_reservation_manager.unreserve(
             reservation_id,
@@ -162,8 +162,8 @@ impl BalanceManager {
 
     fn save_balance_update(
         &self,
-        _whole_balance_before: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>,
-        _whole_balance_after: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>,
+        _whole_balance_before: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>,
+        _whole_balance_after: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>,
     ) {
         // TODO: fix me when DataRecorder will be added
         // if self.data_recorder.is_none()
@@ -370,7 +370,7 @@ impl BalanceManager {
 
             for exchange_balance in &balances_and_positions.balances {
                 //We skip currencies with zero balances if they are not part of Exchange currency pairs
-                if exchange_balance.balance == dec!(0)
+                if exchange_balance.balance.is_zero()
                     && !exchange_currencies.contains(&exchange_balance.currency_code)
                 {
                     continue;
@@ -446,7 +446,7 @@ impl BalanceManager {
 
     fn calculate_whole_balances(
         &self,
-    ) -> Result<HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>> {
+    ) -> Result<HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>> {
         let mut balances_dict = self
             .balance_reservation_manager
             .virtual_balance_holder
@@ -460,7 +460,7 @@ impl BalanceManager {
             .collect_vec();
 
         for reservation in balance_reservations {
-            if reservation.not_approved_amount == dec!(0) {
+            if reservation.not_approved_amount.is_zero() {
                 continue;
             }
 
@@ -765,7 +765,7 @@ impl BalanceManager {
 
         if order_snapshot.status() == OrderStatus::Canceled {
             if let Some(reservation_id) = order_snapshot.header.reservation_id {
-                if !self.get_reservation(reservation_id).is_none() {
+                if self.get_reservation(reservation_id).is_some() {
                     self.balance_reservation_manager
                         .cancel_approved_reservation(
                             reservation_id,
@@ -848,7 +848,7 @@ impl BalanceManager {
     pub fn try_update_reservation(
         &mut self,
         reservation_id: ReservationId,
-        new_price: Decimal,
+        new_price: Price,
     ) -> bool {
         if !self
             .balance_reservation_manager
@@ -932,7 +932,7 @@ impl BalanceManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: &CurrencyCode,
-    ) -> Option<Decimal> {
+    ) -> Option<Amount> {
         self.balance_reservation_manager
             .virtual_balance_holder
             .get_exchange_balance(
@@ -955,7 +955,7 @@ impl BalanceManager {
         trade_side: OrderSide,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        price_quote_to_base: Decimal,
+        price_quote_to_base: Price,
         explanation: &mut Option<Explanation>,
     ) -> Option<Decimal> {
         match self
@@ -1014,8 +1014,8 @@ impl BalanceManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: &CurrencyCode,
-        price: Decimal,
-    ) -> Option<Decimal> {
+        price: Price,
+    ) -> Option<Amount> {
         self.balance_reservation_manager
             .try_get_available_balance_with_unknown_side(
                 configuration_descriptor.clone(),
@@ -1032,8 +1032,8 @@ impl BalanceManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         trade_side: OrderSide,
-        price: Decimal,
-    ) -> Option<Decimal> {
+        price: Price,
+    ) -> Option<Amount> {
         self.balance_reservation_manager.try_get_available_balance(
             configuration_descriptor.clone(),
             exchange_account_id,
@@ -1049,7 +1049,7 @@ impl BalanceManager {
     pub fn get_balance_by_reserve_parameters(
         &self,
         reserve_parameters: &ReserveParameters,
-    ) -> Option<Decimal> {
+    ) -> Option<Amount> {
         self.get_balance_by_side(
             reserve_parameters.configuration_descriptor.clone(),
             &reserve_parameters.exchange_account_id,
@@ -1077,7 +1077,7 @@ impl BalanceManager {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        limit: Decimal,
+        limit: Amount,
     ) {
         self.balance_reservation_manager.set_target_amount_limit(
             configuration_descriptor,

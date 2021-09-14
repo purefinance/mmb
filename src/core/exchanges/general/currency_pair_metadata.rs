@@ -206,7 +206,7 @@ impl CurrencyPairMetadata {
     }
 
     fn round_by_mantissa(value: Price, precision: i8, round: Round) -> Result<Price> {
-        if value == dec!(0) {
+        if value.is_zero() {
             return Ok(dec!(0));
         }
 
@@ -284,7 +284,7 @@ impl CurrencyPairMetadata {
         &self,
         to_currency_code: &CurrencyCode,
         amount: Amount,
-        currency_pair_price: Decimal,
+        currency_pair_price: Price,
     ) -> Result<Amount> {
         if Some(to_currency_code) == self.balance_currency_code.as_ref() {
             return Ok(amount);
@@ -297,18 +297,18 @@ impl CurrencyPairMetadata {
             return Ok(amount * currency_pair_price);
         }
 
-        bail!(
-            "Currency code {} outside currency pair {} is not supported yet",
+        std::panic!(
+            "Currency code {} outside currency pair {} is not supported",
             to_currency_code,
             self.currency_pair()
-        )
+        );
     }
 
     pub fn convert_amount_into_amount_currency_code(
         &self,
         from_currency_code: &CurrencyCode,
         amount_in_from_currency_code: Decimal,
-        currency_pair_price: Decimal,
+        currency_pair_price: Price,
     ) -> Result<Decimal> {
         if from_currency_code == &self.amount_currency_code {
             return Ok(amount_in_from_currency_code);

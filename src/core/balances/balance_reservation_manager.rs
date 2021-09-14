@@ -19,7 +19,7 @@ use crate::core::balances::{
     virtual_balance_holder::VirtualBalanceHolder,
 };
 use crate::core::exchanges::common::{
-    Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, TradePlaceAccount,
+    Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
@@ -85,10 +85,9 @@ impl BalanceReservationManager {
         let reservations = self
             .balance_reservation_storage
             .get_all_raw_reservations()
-            .values()
-            .collect_vec();
+            .values();
 
-        let mut reserved_by_request: HashMap<BalanceRequest, Decimal> = HashMap::new();
+        let mut reserved_by_request: HashMap<BalanceRequest, Amount> = HashMap::new();
         for reservation in reservations {
             let balance_request = BalanceRequest::new(
                 reservation.configuration_descriptor.clone(),
@@ -136,16 +135,18 @@ impl BalanceReservationManager {
     pub fn unreserve(
         &mut self,
         reservation_id: ReservationId,
-        amount: Decimal,
+        amount: Amount,
         client_or_order_id: &Option<ClientOrderId>,
     ) -> Result<()> {
         let reservation = match self.get_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
                 let reservation_ids = self.balance_reservation_storage.get_reservation_ids();
-                if self.is_call_from_clone || amount == dec!(0) {
+                if self.is_call_from_clone || amount.is_zero() {
+                    // Due to async nature of our trading engine we may receive in Clone reservation_ids which are already removed,
+                    // so we need to ignore them instead of throwing an exception
                     log::error!(
-                        "Can't find reservation {} ({}) for UnReserve {} in list: {:?}",
+                        "Can't find reservation {} ({}) for BalanceReservationManager::unreserve {} in list: {:?}",
                         reservation_id,
                         self.is_call_from_clone,
                         amount,
@@ -155,7 +156,7 @@ impl BalanceReservationManager {
                 }
 
                 bail!(
-                    "Can't find reservation_id={} for UnReserve({}) attempt in list: {:?}",
+                    "Can't find reservation_id={} for BalanceReservationManager::unreserve({}) attempt in list: {:?}",
                     reservation_id,
                     amount,
                     reservation_ids
@@ -171,7 +172,7 @@ impl BalanceReservationManager {
             Err(error) => bail!("Can't get amount_to_unreserve: {:?}", error),
         };
 
-        if amount_to_unreserve == dec!(0) && reservation.amount != dec!(0) {
+        if amount_to_unreserve.is_zero() && !reservation.amount.is_zero() {
             // to prevent error logging in case when amount == 0
             if amount != amount_to_unreserve {
                 log::info!("UnReserveInner {} != {}", amount, amount_to_unreserve);
@@ -184,20 +185,13 @@ impl BalanceReservationManager {
             .contains_key(&reservation.exchange_account_id)
         {
             log::error!(
-                "Trying to UnReserve for not existing exchange {}",
+                "Trying to BalanceReservationManager::unreserve for not existing exchange {}",
                 reservation.exchange_account_id
             );
             return Ok(());
         }
 
-        let balance_params = ReserveParameters::new(
-            reservation.configuration_descriptor.clone(),
-            reservation.exchange_account_id.clone(),
-            reservation.currency_pair_metadata.clone(),
-            reservation.order_side,
-            reservation.price,
-            dec!(0),
-        );
+        let balance_params = ReserveParameters::new_from_reservation(reservation.clone(), dec!(0));
 
         let old_balance = self.get_available_balance(&balance_params, true, &mut None);
 
@@ -212,21 +206,14 @@ impl BalanceReservationManager {
             Err(error) => bail!("failed unreserve not approved part: {:?}", error),
         };
 
-        let reservation = self.easy_get_reservation(reservation_id)?;
-
-        let balance_request = BalanceRequest::new(
-            reservation.configuration_descriptor.clone(),
-            reservation.exchange_account_id.clone(),
-            reservation.currency_pair_metadata.currency_pair(),
-            reservation.reservation_currency_code.clone(),
-        );
-
+        let reservation = self.try_get_reservation(reservation_id)?;
+        let balance_request = BalanceRequest::new_from_reservation(reservation.clone());
         self.add_reserved_amount(&balance_request, reservation_id, -amount_to_unreserve, true)?;
-        let new_balance = self.get_available_balance(&balance_params, true, &mut None);
 
+        let new_balance = self.get_available_balance(&balance_params, true, &mut None);
         log::info!("VirtualBalanceHolder {}", new_balance);
 
-        let mut reservation = self.easy_get_reservation(reservation_id)?.clone();
+        let mut reservation = self.try_get_reservation(reservation_id)?.clone();
         if reservation.unreserved_amount < dec!(0)
             || reservation.is_amount_within_symbol_margin_error(reservation.unreserved_amount)
         {
@@ -240,7 +227,7 @@ impl BalanceReservationManager {
                 );
             }
 
-            if reservation.unreserved_amount != dec!(0) {
+            if !reservation.unreserved_amount.is_zero() {
                 log::error!(
                     "AmountLeft {} != 0 for {} {:?} {} {} {:?}",
                     reservation.unreserved_amount,
@@ -251,7 +238,7 @@ impl BalanceReservationManager {
                     reservation
                 );
 
-                let amount_diff_in_amount_currency = -reservation.unreserved_amount.clone();
+                let amount_diff_in_amount_currency = -reservation.unreserved_amount;
                 // Compensate amount
                 self.add_reserved_amount_by_reservation(
                     &balance_request,
@@ -263,7 +250,7 @@ impl BalanceReservationManager {
 
             if !self.is_call_from_clone {
                 log::info!(
-                    "Unreserved {} from {} {} {} {:?} {} {} {} {} {} {} {}",
+                    "Unreserved {} from {} {} {} {:?} {} {} {} {} {:?} {} {}",
                     amount_to_unreserve,
                     reservation_id,
                     reservation.exchange_account_id,
@@ -273,9 +260,7 @@ impl BalanceReservationManager {
                     reservation.amount,
                     reservation.not_approved_amount,
                     reservation.unreserved_amount,
-                    client_or_order_id
-                        .clone()
-                        .unwrap_or(ClientOrderId::new("<order id is not set>".into())),
+                    client_or_order_id,
                     old_balance,
                     new_balance
                 );
@@ -289,7 +274,7 @@ impl BalanceReservationManager {
         parameters: &ReserveParameters,
         include_free_amount: bool,
         explanation: &mut Option<Explanation>,
-    ) -> Decimal {
+    ) -> Amount {
         self.try_get_available_balance(
             parameters.configuration_descriptor.clone(),
             &parameters.exchange_account_id,
@@ -309,8 +294,8 @@ impl BalanceReservationManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: &CurrencyCode,
-        price: Decimal,
-    ) -> Option<Decimal> {
+        price: Price,
+    ) -> Option<Amount> {
         for side in [OrderSide::Buy, OrderSide::Sell] {
             if &currency_pair_metadata.get_trade_code(side, BeforeAfter::Before) == currency_code {
                 return self.try_get_available_balance(
@@ -346,11 +331,11 @@ impl BalanceReservationManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         trade_side: OrderSide,
-        price: Decimal,
+        price: Price,
         include_free_amount: bool,
         is_leveraged: bool,
         explanation: &mut Option<Explanation>,
-    ) -> Option<Decimal> {
+    ) -> Option<Amount> {
         let currency_code = currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before);
         let request = BalanceRequest::new(
             configuration_descriptor.clone(),
@@ -522,7 +507,7 @@ impl BalanceReservationManager {
                 }
                 dec!(0)
             })
-            .sum::<Decimal>();
+            .sum::<Amount>();
 
         std::cmp::max(dec!(0), position - taken_amount)
     }
@@ -532,11 +517,11 @@ impl BalanceReservationManager {
         request: &BalanceRequest,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         trade_side: OrderSide,
-        mut balance_in_currency_code: Decimal,
-        price: Decimal,
+        mut balance_in_currency_code: Amount,
+        price: Price,
         leverage: Decimal,
         explanation: &mut Option<Explanation>,
-    ) -> Option<Decimal> {
+    ) -> Option<Amount> {
         let position = self.get_position_values(
             request.configuration_descriptor.clone(),
             &request.exchange_account_id,
@@ -680,8 +665,8 @@ impl BalanceReservationManager {
 
     fn get_untouchable_amount(
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        amount: Decimal,
-    ) -> Decimal {
+        amount: Amount,
+    ) -> Amount {
         if currency_pair_metadata.is_derivative {
             return amount * dec!(0.05);
         }
@@ -767,7 +752,7 @@ impl BalanceReservationManager {
         Some(position_in_amount_currency)
     }
 
-    fn easy_get_mut_reservation(
+    fn try_get_mut_reservation(
         &mut self,
         reservation_id: ReservationId,
     ) -> Result<&mut BalanceReservation> {
@@ -780,7 +765,7 @@ impl BalanceReservationManager {
         Ok(res)
     }
 
-    fn easy_get_reservation(&self, reservation_id: ReservationId) -> Result<&BalanceReservation> {
+    fn try_get_reservation(&self, reservation_id: ReservationId) -> Result<&BalanceReservation> {
         let res = match self.get_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
@@ -794,44 +779,52 @@ impl BalanceReservationManager {
         &mut self,
         reservation_id: ReservationId,
         client_order_id: &Option<ClientOrderId>,
-        amount_to_unreserve: Decimal,
+        amount_to_unreserve: Amount,
     ) -> Result<()> {
-        let reservation = self.easy_get_mut_reservation(reservation_id)?;
-        if let Some(client_order_id) = client_order_id {
-            if let Some(approved_part) = reservation.approved_parts.get_mut(client_order_id) {
-                let new_unreserved_amount_for_approved_part =
-                    approved_part.unreserved_amount - amount_to_unreserve;
-                if new_unreserved_amount_for_approved_part < dec!(0) {
+        let reservation = self.try_get_mut_reservation(reservation_id)?;
+        let client_order_id = match client_order_id {
+            Some(client_order_id) => client_order_id,
+            None => {
+                reservation.not_approved_amount -= amount_to_unreserve;
+                // this case will be handled by UnReserve itself
+                if reservation.not_approved_amount < dec!(0)
+                    && reservation.unreserved_amount > amount_to_unreserve
+                {
                     bail!(
-                        "Attempt to UnReserve more than was approved for order {} ({}): {} > {}",
-                        client_order_id,
-                        reservation_id,
-                        amount_to_unreserve,
-                        approved_part.unreserved_amount
+                        "Possibly BalanceReservationManager::unreserve_not_approved_part {} should be called with clientOrderId parameter",
+                        reservation_id
                     )
                 }
-                approved_part.unreserved_amount = new_unreserved_amount_for_approved_part
-            } else {
+                return Ok(());
+            }
+        };
+
+        let approved_part = match reservation.approved_parts.get_mut(client_order_id) {
+            Some(approved_part) => approved_part,
+            None => {
                 log::warn!("UnReserve({}, {}) called with clientOrderId {} for reservation without the approved part {:?}",
-                    reservation_id, amount_to_unreserve, client_order_id, reservation);
+                reservation_id, amount_to_unreserve, client_order_id, reservation);
                 reservation.not_approved_amount -= amount_to_unreserve;
                 if reservation.not_approved_amount < dec!(0) {
                     log::error!("NotApprovedAmount for {} was unreserved for the missing order {} and now < 0 {:?}",
-                        reservation_id, client_order_id, reservation);
+                    reservation_id, client_order_id, reservation);
                 }
+                return Ok(());
             }
-        } else {
-            reservation.not_approved_amount -= amount_to_unreserve;
-            // this case will be handled by UnReserve itself
-            if reservation.not_approved_amount < dec!(0)
-                && reservation.unreserved_amount > amount_to_unreserve
-            {
-                bail!(
-                    "Possibly UnReserve {} should be called with clientOrderId parameter",
-                    reservation_id
-                )
-            }
+        };
+
+        let new_unreserved_amount_for_approved_part =
+            approved_part.unreserved_amount - amount_to_unreserve;
+        if new_unreserved_amount_for_approved_part < dec!(0) {
+            bail!(
+                "Attempt to UnReserve more than was approved for order {} ({}): {} > {}",
+                client_order_id,
+                reservation_id,
+                amount_to_unreserve,
+                approved_part.unreserved_amount
+            )
         }
+        approved_part.unreserved_amount = new_unreserved_amount_for_approved_part;
         Ok(())
     }
 
@@ -839,7 +832,7 @@ impl BalanceReservationManager {
         &mut self,
         request: &BalanceRequest,
         reservation: &mut BalanceReservation,
-        amount_diff_in_amount_currency: Decimal,
+        amount_diff_in_amount_currency: Amount,
         update_balance: bool,
     ) -> Result<()> {
         if update_balance {
@@ -882,10 +875,10 @@ impl BalanceReservationManager {
         &mut self,
         request: &BalanceRequest,
         reservation_id: ReservationId,
-        amount_diff_in_amount_currency: Decimal,
+        amount_diff_in_amount_currency: Amount,
         update_balance: bool,
     ) -> Result<()> {
-        let reservation = self.easy_get_reservation(reservation_id)?;
+        let reservation = self.try_get_reservation(reservation_id)?;
         if update_balance {
             let cost =
                 match reservation.get_proportional_cost_amount(amount_diff_in_amount_currency) {
@@ -904,7 +897,7 @@ impl BalanceReservationManager {
             self.add_virtual_balance(request, currency_pair_metadata, price, -cost)?;
         }
 
-        let reservation = self.easy_get_mut_reservation(reservation_id)?;
+        let reservation = self.try_get_mut_reservation(reservation_id)?;
         reservation.unreserved_amount += amount_diff_in_amount_currency;
 
         // global reservation indicator
@@ -924,8 +917,8 @@ impl BalanceReservationManager {
         &mut self,
         request: &BalanceRequest,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        price: Decimal,
-        diff_in_amount_currency: Decimal,
+        price: Price,
+        diff_in_amount_currency: Amount,
     ) -> Result<()> {
         // this is https://github.com/rust-lang/rust/issues/59159 explanation of these two variables
         self.add_virtual_balance_by_currency_pair_metadata(
@@ -940,8 +933,8 @@ impl BalanceReservationManager {
         &mut self,
         request: &BalanceRequest,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        diff_in_amount_currency: Decimal,
-        price: Decimal,
+        diff_in_amount_currency: Amount,
+        price: Price,
     ) -> Result<()> {
         if !currency_pair_metadata.is_derivative {
             let diff_in_request_currency = currency_pair_metadata
@@ -1056,8 +1049,8 @@ impl BalanceReservationManager {
         &mut self,
         trade_side: OrderSide,
         client_order_fill_id: &Option<ClientOrderFillId>,
-        fill_amount: Decimal,
-        price: Decimal,
+        fill_amount: Amount,
+        price: Price,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
@@ -1218,7 +1211,7 @@ impl BalanceReservationManager {
         commission_amount: Amount,
         converted_commission_currency_code: CurrencyCode,
         converted_commission_amount: Amount,
-        price: Decimal,
+        price: Price,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
@@ -1378,7 +1371,7 @@ impl BalanceReservationManager {
                 )
                 .as_str(),
             );
-        if amount_to_move == dec!(0) {
+        if amount_to_move.is_zero() {
             log::warn!(
                 "Can't transfer zero amount from {} to {}",
                 src_reservation_id,
@@ -1514,7 +1507,7 @@ impl BalanceReservationManager {
         target_cost_diff: Decimal,
         cost_diff: &mut Decimal,
     ) -> Result<()> {
-        let reservation = self.easy_get_mut_reservation(reservation_id)?;
+        let reservation = self.try_get_mut_reservation(reservation_id)?;
         *cost_diff = dec!(0);
         // we should check the case when we have insignificant calculation errors
         if new_unreserved_amount < dec!(0)
@@ -1569,12 +1562,7 @@ impl BalanceReservationManager {
             reservation.not_approved_amount += reservation_amount_diff;
         }
 
-        let balance_request = BalanceRequest::new(
-            reservation.configuration_descriptor.clone(),
-            reservation.exchange_account_id.clone(),
-            reservation.currency_pair_metadata.currency_pair(),
-            reservation.reservation_currency_code.clone(),
-        );
+        let balance_request = BalanceRequest::new_from_reservation(reservation.clone());
 
         self.add_reserved_amount(
             &balance_request,
@@ -1582,7 +1570,7 @@ impl BalanceReservationManager {
             reservation_amount_diff,
             false,
         )?;
-        let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
+        let reservation = self.try_get_mut_reservation(reservation_id.clone())?;
 
         *cost_diff = if is_src_request {
             reservation.get_proportional_cost_amount(reservation_amount_diff)?
@@ -1597,17 +1585,17 @@ impl BalanceReservationManager {
             -*cost_diff,
             buff_price,
         )?;
-        let reservation = self.easy_get_mut_reservation(reservation_id.clone())?;
+        let reservation = self.try_get_mut_reservation(reservation_id.clone())?;
 
         reservation.cost += *cost_diff;
         reservation.amount += reservation_amount_diff;
-        let reservation = self.easy_get_reservation(reservation_id.clone())?.clone();
+        let reservation = self.try_get_reservation(reservation_id.clone())?.clone();
 
         if reservation.is_amount_within_symbol_margin_error(new_unreserved_amount) {
             self.balance_reservation_storage
                 .remove(reservation_id.clone());
 
-            if new_unreserved_amount != dec!(0) {
+            if !new_unreserved_amount.is_zero() {
                 log::error!(
                     "Transfer: AmountLeft {} != 0 for {} {:?}",
                     reservation.unreserved_amount,
@@ -1665,8 +1653,8 @@ impl BalanceReservationManager {
     ) -> bool {
         *reservation_id = ReservationId::default();
 
-        let mut old_balance = Decimal::default();
-        let mut new_balance = Decimal::default();
+        let mut old_balance = Amount::default();
+        let mut new_balance = Amount::default();
         let mut potential_position = Some(Decimal::default());
         let mut preset = BalanceReservationPreset::default();
         if !self.can_reserve_core(
@@ -1742,8 +1730,8 @@ impl BalanceReservationManager {
     fn can_reserve_core(
         &self,
         reserve_parameters: &ReserveParameters,
-        old_balance: &mut Decimal,
-        new_balance: &mut Decimal,
+        old_balance: &mut Amount,
+        new_balance: &mut Amount,
         potential_position: &mut Option<Decimal>,
         preset: &mut BalanceReservationPreset,
         explanation: &mut Option<Explanation>,
@@ -1931,7 +1919,7 @@ impl BalanceReservationManager {
     pub fn try_update_reservation_price(
         &mut self,
         reservation_id: ReservationId,
-        new_price: Decimal,
+        new_price: Price,
     ) -> bool {
         let reservation = match self.get_reservation(&reservation_id) {
             Some(reservation) => reservation,
@@ -2015,15 +2003,10 @@ impl BalanceReservationManager {
             return false;
         }
 
-        let balance_request = BalanceRequest::new(
-            reservation.configuration_descriptor.clone(),
-            reservation.exchange_account_id.clone(),
-            reservation.currency_pair_metadata.currency_pair(),
-            reservation.reservation_currency_code.clone(),
-        );
+        let balance_request = BalanceRequest::new_from_reservation(reservation.clone());
 
         let reservation = self
-            .easy_get_mut_reservation(reservation_id)
+            .try_get_mut_reservation(reservation_id)
             .expect("must be non None");
         reservation.price = new_price;
 
@@ -2061,7 +2044,7 @@ impl BalanceReservationManager {
         );
 
         let reservation = self
-            .easy_get_mut_reservation(reservation_id)
+            .try_get_mut_reservation(reservation_id)
             .expect("must be non None");
         reservation.not_approved_amount = new_raw_rest_amount;
 
@@ -2087,8 +2070,8 @@ impl BalanceReservationManager {
     ) -> bool {
         self.can_reserve_core(
             reserve_parameters,
-            &mut Decimal::default(),
-            &mut Decimal::default(),
+            &mut Amount::default(),
+            &mut Amount::default(),
             &mut Some(Decimal::default()),
             &mut BalanceReservationPreset::default(),
             explanation,
@@ -2101,9 +2084,9 @@ impl BalanceReservationManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         trade_side: OrderSide,
-        price: Decimal,
+        price: Price,
         explanation: &mut Option<Explanation>,
-    ) -> Option<Decimal> {
+    ) -> Option<Amount> {
         self.try_get_available_balance(
             configuration_descriptor,
             exchange_account_id,
@@ -2121,7 +2104,7 @@ impl BalanceReservationManager {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        limit: Decimal,
+        limit: Amount,
     ) {
         for currency_code in [
             &currency_pair_metadata.base_currency_code,

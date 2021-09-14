@@ -1,4 +1,4 @@
-use crate::core::exchanges::common::CurrencyPair;
+use crate::core::exchanges::common::{CurrencyPair, Price};
 use crate::core::orders::order::OrderSide;
 
 use rust_decimal::Decimal;
@@ -8,8 +8,8 @@ pub struct DerivativePositionInfo {
     pub currency_pair: CurrencyPair,
     pub position: Decimal,
     pub side: Option<OrderSide>,
-    pub average_entry_price: Decimal,
-    pub liquidation_price: Decimal,
+    pub average_entry_price: Price,
+    pub liquidation_price: Price,
     pub leverage: Decimal,
 }
 
@@ -18,8 +18,8 @@ impl DerivativePositionInfo {
         currency_pair: CurrencyPair,
         position: Decimal,
         side: Option<OrderSide>,
-        average_entry_price: Decimal,
-        liquidation_price: Decimal,
+        average_entry_price: Price,
+        liquidation_price: Price,
         leverage: Decimal,
     ) -> DerivativePositionInfo {
         DerivativePositionInfo {

@@ -5,6 +5,7 @@ use crate::core::balance_manager::approved_part::ApprovedPart;
 use crate::core::exchanges::common::Amount;
 use crate::core::exchanges::common::CurrencyCode;
 use crate::core::exchanges::common::ExchangeAccountId;
+use crate::core::exchanges::common::Price;
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::currency_pair_metadata::Precision;
 use crate::core::orders::order::ClientOrderId;
@@ -21,17 +22,17 @@ pub struct BalanceReservation {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
     pub order_side: Option<OrderSide>,
-    pub price: Decimal,
+    pub price: Price,
     pub amount: Amount,
-    pub taken_free_amount: Decimal,
+    pub taken_free_amount: Amount,
     pub cost: Decimal,
 
     /// CurrencyCode in which we take away amount
     pub reservation_currency_code: CurrencyCode,
-    pub unreserved_amount: Decimal,
+    pub unreserved_amount: Amount,
 
     /// Not approved amount in AmountCurrencyCode
-    pub not_approved_amount: Decimal,
+    pub not_approved_amount: Amount,
     pub approved_parts: HashMap<ClientOrderId, ApprovedPart>,
 }
 
@@ -41,9 +42,9 @@ impl BalanceReservation {
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         order_side: Option<OrderSide>,
-        price: Decimal,
+        price: Price,
         amount: Amount,
-        taken_free_amount: Decimal,
+        taken_free_amount: Amount,
         cost: Decimal,
         reservation_currency_code: CurrencyCode,
     ) -> Self {
@@ -63,9 +64,9 @@ impl BalanceReservation {
         }
     }
 
-    pub(crate) fn get_proportional_cost_amount(&self, amount: Decimal) -> Result<Decimal> {
-        if self.amount == dec!(0) {
-            if amount != dec!(0) {
+    pub(crate) fn get_proportional_cost_amount(&self, amount: Amount) -> Result<Decimal> {
+        if self.amount.is_zero() {
+            if !amount.is_zero() {
                 bail!("Trying to receive a {} proportion out of zero", amount)
             }
             return Ok(dec!(0));
@@ -74,7 +75,7 @@ impl BalanceReservation {
         Ok(self.cost * amount / self.amount)
     }
 
-    pub fn is_amount_within_symbol_margin_error(&self, amount: Decimal) -> bool {
+    pub fn is_amount_within_symbol_margin_error(&self, amount: Amount) -> bool {
         match self.currency_pair_metadata.amount_precision {
             Precision::ByTick { tick } => return amount.abs() <= tick * dec!(0.01),
             Precision::ByMantissa { precision: _ } => std::panic!("Unknown precision type"),
@@ -83,8 +84,8 @@ impl BalanceReservation {
 
     pub(crate) fn convert_in_reservation_currency(
         &self,
-        amount_in_current_currency: Decimal,
-    ) -> Result<Decimal> {
+        amount_in_current_currency: Amount,
+    ) -> Result<Amount> {
         self.currency_pair_metadata
             .convert_amount_from_amount_currency_code(
                 &self.reservation_currency_code,

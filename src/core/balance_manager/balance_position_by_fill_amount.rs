@@ -67,7 +67,7 @@ impl BalancePositionByFillAmount {
             if position_change_contains_key {
                 if (pervious_position.is_sign_negative() && new_position.is_sign_positive())
                     || (pervious_position.is_sign_positive() && new_position.is_sign_negative())
-                    || (pervious_position == dec!(0) && new_position == dec!(0))
+                    || (pervious_position.is_zero() && new_position.is_zero())
                 {
                     let opened_position_portion = new_position / (new_position - pervious_position);
                     match self.position_changes.get_mut(&key) {
@@ -92,7 +92,7 @@ impl BalancePositionByFillAmount {
                     );
                 }
             } else {
-                if pervious_position != dec!(0) {
+                if !pervious_position.is_zero() {
                     log::error!(
                         "_lostPositionOpenTime has no records but position is not zero {} {} {}",
                         key.exchange_account_id,

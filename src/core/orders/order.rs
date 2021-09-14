@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use enum_map::Enum;
-use nanoid::nanoid;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
