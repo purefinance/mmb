@@ -82,8 +82,11 @@ impl Exchange {
         let has_websocket_notification = self.features.websocket_options.execution_notification;
 
         if !has_websocket_notification {
-            // FIXME implement
-            // _polling_trades_counts.add_or_update...
+            let _ = self
+                .polling_trades_counts
+                .entry(self.exchange_account_id.clone())
+                .and_modify(|value| *value += 1)
+                .or_insert(1);
         }
 
         let linked_cancellation_token = cancellation_token.create_linked_token();
@@ -112,7 +115,11 @@ impl Exchange {
 
         if !has_websocket_notification {
             poll_order_fill_future.await?;
-            //self.polling_trades_counts...
+            let _ = self
+                .polling_trades_counts
+                .entry(self.exchange_account_id.clone())
+                .and_modify(|value| *value -= 1)
+                .or_insert(0);
         } else {
             let _ = self.create_order_finish_future(order, linked_cancellation_token.clone());
         }
@@ -166,7 +173,24 @@ impl Exchange {
                     }
                 }
             } else {
-                // FIXME self.polling_timeout_manager.wait()
+                let last_order_trades_request_date_time =
+                    order.fn_ref(|order| order.internal_props.last_order_trades_request_time);
+                let polling_trades_range = 20f32;
+                let counter = *self
+                    .polling_trades_counts
+                    .get(&self.exchange_account_id)
+                    .ok_or(anyhow!(
+                        "No counts for exchange_account_id {}",
+                        self.exchange_account_id
+                    ))? as f32;
+
+                self.polling_timeout_manager
+                    .wait(
+                        last_order_trades_request_date_time,
+                        polling_trades_range / counter,
+                        cancellation_token.clone(),
+                    )
+                    .await?;
             }
 
             // If an order was finished while we were waiting for the timeout, we do not need to request fills for it

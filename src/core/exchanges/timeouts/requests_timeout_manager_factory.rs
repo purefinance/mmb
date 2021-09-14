@@ -80,3 +80,12 @@ impl Display for RequestTimeoutArguments {
         )
     }
 }
+
+impl Default for RequestTimeoutArguments {
+    fn default() -> Self {
+        RequestTimeoutArguments {
+            requests_per_period: Default::default(),
+            period: Duration::zero(),
+        }
+    }
+}
