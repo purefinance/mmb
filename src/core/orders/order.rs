@@ -3,9 +3,11 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::Utc;
 use enum_map::Enum;
+use lazy_static::lazy_static;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
@@ -103,9 +105,19 @@ pub enum OrderExecutionType {
 #[serde(transparent)]
 pub struct ClientOrderId(String16);
 
+lazy_static! {
+    static ref CLIENT_ORDER_ID_COUNTER: AtomicU64 = {
+        AtomicU64::new(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Failed to get system time since UNIX_EPOCH")
+                .as_secs(),
+        )
+    };
+}
+
 impl ClientOrderId {
     pub fn unique_id() -> Self {
-        static CLIENT_ORDER_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
         let new_id = CLIENT_ORDER_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
         ClientOrderId(new_id.to_string().into())
     }
@@ -145,9 +157,19 @@ impl fmt::Display for ClientOrderId {
 #[serde(transparent)]
 pub struct ClientOrderFillId(String16);
 
+lazy_static! {
+    static ref CLIENT_ORDER_FILL_ID_COUNTER: AtomicU64 = {
+        AtomicU64::new(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Failed to get system time since UNIX_EPOCH")
+                .as_secs(),
+        )
+    };
+}
+
 impl ClientOrderFillId {
     pub fn unique_id() -> Self {
-        static CLIENT_ORDER_FILL_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
         let new_id = CLIENT_ORDER_FILL_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
         ClientOrderFillId(new_id.to_string().into())
     }

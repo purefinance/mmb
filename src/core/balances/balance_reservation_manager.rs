@@ -86,7 +86,7 @@ impl BalanceReservationManager {
     }
 
     pub fn sync_reservation_amounts(&mut self) {
-        pub fn make_balance_request(reservation: &BalanceReservation) -> BalanceRequest {
+        fn make_balance_request(reservation: &BalanceReservation) -> BalanceRequest {
             BalanceRequest::new(
                 reservation.configuration_descriptor.clone(),
                 reservation.exchange_account_id.clone(),
