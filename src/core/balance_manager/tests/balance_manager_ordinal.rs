@@ -440,14 +440,14 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let trade_side = OrderSide::Buy;
+        let side = OrderSide::Buy;
 
         assert_eq!(
             test_object
                 .balance_manager()
                 .get_balance_reservation_currency_code(
                     test_object.balance_manager_base.currency_pair_metadata(),
-                    trade_side,
+                    side,
                 ),
             BalanceManagerBase::btc()
         );
@@ -463,7 +463,7 @@ mod tests {
                     .balance_manager_base
                     .currency_pair_metadata()
                     .clone(),
-                trade_side,
+                side,
                 dec!(1),
             ),
             Some(dec!(0.5))
@@ -479,14 +479,14 @@ mod tests {
             .exchange_account_id_1
             .clone();
 
-        let trade_side = OrderSide::Sell;
+        let side = OrderSide::Sell;
 
         assert_eq!(
             test_object
                 .balance_manager()
                 .get_balance_reservation_currency_code(
                     test_object.balance_manager_base.currency_pair_metadata(),
-                    trade_side,
+                    side,
                 ),
             BalanceManagerBase::eth()
         );
@@ -502,7 +502,7 @@ mod tests {
                     .balance_manager_base
                     .currency_pair_metadata()
                     .clone(),
-                trade_side,
+                side,
                 dec!(1),
             ),
             Some(dec!(0.1))
@@ -5610,10 +5610,11 @@ mod tests {
             .balance_manager_base
             .currency_pair_metadata()
             .currency_pair();
-        let amount_position = test_object
-            .balance_manager()
-            .get_position(&exchange_account_id, &currency_pair, OrderSide::Sell)
-            .expect("in test");
+        let amount_position = test_object.balance_manager().get_position(
+            &exchange_account_id,
+            &currency_pair,
+            OrderSide::Sell,
+        );
 
         assert_eq!(position, amount_position);
     }

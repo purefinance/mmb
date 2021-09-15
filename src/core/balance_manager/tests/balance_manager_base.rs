@@ -187,12 +187,12 @@ impl BalanceManagerBase {
         )
     }
 
-    pub fn get_balance_by_trade_side(&self, trade_side: OrderSide, price: Price) -> Option<Amount> {
+    pub fn get_balance_by_trade_side(&self, side: OrderSide, price: Price) -> Option<Amount> {
         self.balance_manager().get_balance_by_side(
             self.configuration_descriptor.clone(),
             &self.exchange_account_id_1,
             self.currency_pair_metadata().clone(),
-            trade_side,
+            side,
             price,
         )
     }

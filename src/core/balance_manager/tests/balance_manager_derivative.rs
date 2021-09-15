@@ -661,17 +661,14 @@ mod tests {
         );
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &test_object.balance_manager_base.exchange_account_id_1,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    order_side,
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &test_object.balance_manager_base.exchange_account_id_1,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                order_side,
+            ),
             expected_position
         );
     }
@@ -1009,17 +1006,14 @@ mod tests {
         );
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &exchange_account_id,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Sell
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &exchange_account_id,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Sell
+            ),
             dec!(-1)
         );
 
@@ -1139,17 +1133,14 @@ mod tests {
         );
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &exchange_account_id,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Sell
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &exchange_account_id,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Sell
+            ),
             -amount
         );
 
@@ -1267,17 +1258,14 @@ mod tests {
         );
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &exchange_account_id,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Buy
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &exchange_account_id,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Buy
+            ),
             dec!(-1)
         );
 
@@ -1397,17 +1385,14 @@ mod tests {
         );
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &exchange_account_id,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Buy
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &exchange_account_id,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Buy
+            ),
             -amount
         );
 
@@ -1509,17 +1494,14 @@ mod tests {
             .expect("in test");
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &exchange_account_id,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Buy
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &exchange_account_id,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Buy
+            ),
             dec!(1)
         );
 
@@ -1688,17 +1670,14 @@ mod tests {
             .expect("in test");
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &exchange_account_id,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Buy
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &exchange_account_id,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Buy
+            ),
             amount
         );
 
@@ -1864,17 +1843,14 @@ mod tests {
             .expect("in test");
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &exchange_account_id,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Buy
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &exchange_account_id,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Buy
+            ),
             dec!(-1)
         );
 
@@ -2043,17 +2019,14 @@ mod tests {
             .expect("in test");
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &exchange_account_id,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Buy
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &exchange_account_id,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Buy
+            ),
             -amount
         );
 
@@ -2604,17 +2577,14 @@ mod tests {
         );
 
         assert_eq!(
-            test_object
-                .balance_manager()
-                .get_position(
-                    &test_object.balance_manager_base.exchange_account_id_1,
-                    &test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
-                    OrderSide::Buy,
-                )
-                .expect("in test"),
+            test_object.balance_manager().get_position(
+                &test_object.balance_manager_base.exchange_account_id_1,
+                &test_object
+                    .balance_manager_base
+                    .currency_pair_metadata()
+                    .currency_pair(),
+                OrderSide::Buy,
+            ),
             dec!(1)
         );
         test_object

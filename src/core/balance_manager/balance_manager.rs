@@ -23,7 +23,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 use crate::core::DateTime;
 use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
@@ -114,15 +114,12 @@ impl BalanceManager {
     }
 
     pub fn unreserve_rest(&mut self, reservation_id: ReservationId) -> Result<()> {
-        if let Some(reservation) = self
+        let reservation = self
             .balance_reservation_manager
             .get_reservation(&reservation_id)
-        {
-            let amount = reservation.unreserved_amount;
-            return self.unreserve(reservation_id, amount);
-        } else {
-            bail!("Can't find reservation_id: {}", reservation_id)
-        }
+            .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?;
+        let amount = reservation.unreserved_amount;
+        return self.unreserve(reservation_id, amount);
     }
 
     pub fn unreserve(&mut self, reservation_id: ReservationId, amount: Amount) -> Result<()> {
@@ -578,13 +575,10 @@ impl BalanceManager {
         &self,
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
-        trade_side: OrderSide,
-    ) -> Option<Decimal> {
-        self.balance_reservation_manager.get_position(
-            exchange_account_id,
-            currency_pair,
-            trade_side,
-        )
+        side: OrderSide,
+    ) -> Decimal {
+        self.balance_reservation_manager
+            .get_position(exchange_account_id, currency_pair, side)
     }
 
     pub fn get_fill_amount_position_percent(
@@ -593,7 +587,7 @@ impl BalanceManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
-    ) -> Option<Decimal> {
+    ) -> Decimal {
         self.balance_reservation_manager
             .get_fill_amount_position_percent(
                 configuration_descriptor.clone(),
@@ -613,17 +607,7 @@ impl BalanceManager {
         let currency_pair_metadata = self
             .balance_reservation_manager
             .currency_pair_to_metadata_converter
-            .try_get_currency_pair_metadata(
-                exchange_account_id,
-                &order_snapshot.header.currency_pair,
-            )
-            .expect(
-                format!(
-                    "failed to get currency pair metadata with {} {}",
-                    exchange_account_id, order_snapshot.header.currency_pair
-                )
-                .as_str(),
-            );
+            .get_currency_pair_metadata(exchange_account_id, &order_snapshot.header.currency_pair);
         let order_fill = match order_fill {
             Some(order_fill) => order_fill,
             None => order_snapshot
@@ -955,7 +939,7 @@ impl BalanceManager {
     pub fn get_leveraged_balance_in_amount_currency_code(
         &self,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
-        trade_side: OrderSide,
+        side: OrderSide,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         price_quote_to_base: Price,
@@ -967,13 +951,13 @@ impl BalanceManager {
                 configuration_descriptor.clone(),
                 exchange_account_id,
                 currency_pair_metadata.clone(),
-                trade_side,
+                side,
                 price_quote_to_base,
                 explanation,
             ) {
             Some(balance) => {
                 let currency_code =
-                    currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before);
+                    currency_pair_metadata.get_trade_code(side, BeforeAfter::Before);
                 let balance_in_amount_currency_code = currency_pair_metadata
                     .convert_amount_into_amount_currency_code(
                         &currency_code,
@@ -997,7 +981,7 @@ impl BalanceManager {
                     "There's no balance for {}:{} {}",
                     exchange_account_id,
                     currency_pair_metadata.currency_pair(),
-                    trade_side
+                    side
                 );
                 return None;
             }
@@ -1027,14 +1011,14 @@ impl BalanceManager {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        trade_side: OrderSide,
+        side: OrderSide,
         price: Price,
     ) -> Option<Amount> {
         self.balance_reservation_manager.try_get_available_balance(
             configuration_descriptor.clone(),
             exchange_account_id,
             currency_pair_metadata,
-            trade_side,
+            side,
             price,
             true,
             false,
@@ -1058,9 +1042,9 @@ impl BalanceManager {
     pub fn get_balance_reservation_currency_code(
         &self,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        trade_side: OrderSide,
+        side: OrderSide,
     ) -> CurrencyCode {
-        currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before)
+        currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
     }
 
     pub fn balance_was_received(&self, exchange_account_id: &ExchangeAccountId) -> bool {

@@ -329,39 +329,45 @@ impl BalanceReservationManager {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        trade_side: OrderSide,
+        side: OrderSide,
         price: Price,
         include_free_amount: bool,
         is_leveraged: bool,
         explanation: &mut Option<Explanation>,
     ) -> Option<Amount> {
-        let currency_code = currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before);
+        let currency_code = currency_pair_metadata.get_trade_code(side, BeforeAfter::Before);
         let request = BalanceRequest::new(
             configuration_descriptor.clone(),
             exchange_account_id.clone(),
             currency_pair_metadata.currency_pair(),
             currency_code.clone(),
         );
-        let mut balance_in_currency_code = self.virtual_balance_holder.get_virtual_balance(
+        let balance_in_currency_code = self.virtual_balance_holder.get_virtual_balance(
             &request,
             currency_pair_metadata.clone(),
             Some(price),
             explanation,
-        )?;
+        );
 
         if let Some(explanation) = explanation {
             explanation.add_reason(format!(
-                "balance_in_currency_code_raw = {}",
+                "balance_in_currency_code_raw = {:?}",
                 balance_in_currency_code
             ));
         }
 
+        let mut balance_in_currency_code = balance_in_currency_code?;
+
         let leverage =
-            self.try_get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair())?;
+            self.try_get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair());
 
         if let Some(explanation) = explanation {
-            explanation.add_reason(format!("leverage = {}", leverage));
+            explanation.add_reason(format!("leverage = {:?}", leverage));
         }
+
+        let leverage = leverage.expect(
+            "failed to get leverage in BalanceReservationManager::try_get_available_balance",
+        );
 
         if currency_pair_metadata.is_derivative {
             if include_free_amount {
@@ -369,7 +375,7 @@ impl BalanceReservationManager {
                     .get_unreserved_position_in_amount_currency_code(
                         exchange_account_id,
                         currency_pair_metadata.clone(),
-                        trade_side,
+                        side,
                     );
 
                 if let Some(explanation) = explanation {
@@ -425,12 +431,12 @@ impl BalanceReservationManager {
             balance_in_currency_code = self.get_balance_with_applied_limits(
                 &request,
                 currency_pair_metadata.clone(),
-                trade_side,
+                side,
                 balance_in_currency_code,
                 price,
                 leverage,
                 explanation,
-            )?;
+            );
         }
 
         if let Some(explanation) = explanation {
@@ -459,7 +465,7 @@ impl BalanceReservationManager {
         &self,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        trade_side: OrderSide,
+        side: OrderSide,
     ) -> Decimal {
         if !currency_pair_metadata.is_derivative {
             return dec!(0);
@@ -469,9 +475,9 @@ impl BalanceReservationManager {
             .position_by_fill_amount_in_amount_currency
             .get(exchange_account_id, &currency_pair_metadata.currency_pair())
             .unwrap_or(dec!(0));
-        match trade_side {
-            OrderSide::Buy => return std::cmp::max(dec!(0), -current_position),
-            OrderSide::Sell => return std::cmp::max(dec!(0), current_position),
+        match side {
+            OrderSide::Buy => dec!(0).max(-current_position),
+            OrderSide::Sell => dec!(0).max(current_position),
         }
     }
 
@@ -479,45 +485,41 @@ impl BalanceReservationManager {
         &self,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        trade_side: OrderSide,
+        side: OrderSide,
     ) -> Decimal {
         let position = self.get_position_in_amount_currency_code(
             exchange_account_id,
             currency_pair_metadata,
-            trade_side,
+            side,
         );
 
-        let reservation = self.balance_reservation_storage.get_all_raw_reservations();
-
-        let taken_amount = reservation
+        let taken_amount = self
+            .balance_reservation_storage
+            .get_all_raw_reservations()
             .iter()
-            .map(|(_, balance_reservation)| {
-                if balance_reservation.order_side == trade_side {
-                    return balance_reservation.taken_free_amount;
-                }
-                dec!(0)
-            })
+            .filter(|(_, balance_reservation)| balance_reservation.order_side == side)
+            .map(|(_, balance_reservation)| balance_reservation.taken_free_amount)
             .sum::<Amount>();
 
-        std::cmp::max(dec!(0), position - taken_amount)
+        dec!(0).max(position - taken_amount)
     }
 
     fn get_balance_with_applied_limits(
         &self,
         request: &BalanceRequest,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        trade_side: OrderSide,
+        side: OrderSide,
         mut balance_in_currency_code: Amount,
         price: Price,
         leverage: Decimal,
         explanation: &mut Option<Explanation>,
-    ) -> Option<Amount> {
+    ) -> Amount {
         let position = self.get_position_values(
             request.configuration_descriptor.clone(),
             &request.exchange_account_id,
             currency_pair_metadata.clone(),
-            trade_side,
-        )?;
+            side,
+        );
 
         let position_amount_in_amount_currency = position.position;
         if let Some(explanation) = explanation {
@@ -632,17 +634,19 @@ impl BalanceReservationManager {
             );
         };
 
-        Some(std::cmp::max(dec!(0), limited_balance_in_currency_code))
+        dec!(0).max(limited_balance_in_currency_code)
     }
 
     fn get_untouchable_amount(
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         amount: Amount,
     ) -> Amount {
-        if currency_pair_metadata.is_derivative {
-            return amount * dec!(0.05);
+        // We want to keep the trading engine from reserving all the balance for derivatives as so far we don't take into account
+        // many derivative nuances (commissions, funding, probably something else
+        match currency_pair_metadata.is_derivative {
+            true => amount * dec!(0.05),
+            false => dec!(0),
         }
-        return dec!(0);
     }
 
     fn try_get_leverage(
@@ -650,8 +654,8 @@ impl BalanceReservationManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
     ) -> Option<Decimal> {
-        let exchange = self.exchanges_by_id.get(exchange_account_id)?;
-        exchange
+        self.exchanges_by_id
+            .get(exchange_account_id)?
             .leverage_by_currency_pair
             .get(currency_pair)
             .as_deref()
@@ -663,9 +667,9 @@ impl BalanceReservationManager {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        trade_side: OrderSide,
-    ) -> Option<BalancePositionModel> {
-        let currency_code = currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before);
+        side: OrderSide,
+    ) -> BalancePositionModel {
+        let currency_code = currency_pair_metadata.get_trade_code(side, BeforeAfter::Before);
         let request = BalanceRequest::new(
             configuration_descriptor.clone(),
             exchange_account_id.clone(),
@@ -679,38 +683,26 @@ impl BalanceReservationManager {
         let position = self.get_position(
             exchange_account_id,
             &currency_pair_metadata.currency_pair(),
-            trade_side,
-        )?;
+            side,
+        );
 
-        Some(BalancePositionModel {
+        BalancePositionModel {
             position,
             limit: total_amount_limit_in_amount_currency,
-        })
+        }
     }
 
     pub fn get_position(
         &self,
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
-        trade_side: OrderSide,
-    ) -> Option<Decimal> {
-        let currency_pair_metadata = match self
+        side: OrderSide,
+    ) -> Decimal {
+        let currency_pair_metadata = self
             .currency_pair_to_metadata_converter
-            .try_get_currency_pair_metadata(exchange_account_id, currency_pair)
-        {
-            Ok(currency_pair_metadata) => currency_pair_metadata,
-            Err(error) => {
-                log::error!(
-                    "failed to get_currency_pair_metadata from exchange with account id {:?} for currency pair {}: {:?}",
-                    exchange_account_id,
-                    currency_pair,
-                    error
-                );
-                return None;
-            }
-        };
+            .get_currency_pair_metadata(exchange_account_id, currency_pair);
 
-        let currency_code = currency_pair_metadata.get_trade_code(trade_side, BeforeAfter::Before);
+        let currency_code = currency_pair_metadata.get_trade_code(side, BeforeAfter::Before);
         let mut position_in_amount_currency = self
             .position_by_fill_amount_in_amount_currency
             .get(exchange_account_id, currency_pair)
@@ -721,7 +713,7 @@ impl BalanceReservationManager {
             position_in_amount_currency *= dec!(-1);
         }
 
-        Some(position_in_amount_currency)
+        position_in_amount_currency
     }
 
     fn try_get_mut_reservation(
@@ -985,22 +977,27 @@ impl BalanceReservationManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
-    ) -> Option<Decimal> {
+    ) -> Decimal {
         let position = self.get_position_values(
             configuration_descriptor,
             exchange_account_id,
             currency_pair_metadata.clone(),
             side,
-        )?;
-        Some(std::cmp::min(
+        );
+        std::cmp::min(
             dec!(1),
-            std::cmp::max(dec!(0), position.position / position.limit?),
-        ))
+            dec!(0).max(
+                position.position
+                    / position
+                        .limit
+                        .expect("failed to get_fill_amount_position_percent, limit is None"),
+            ),
+        )
     }
 
     pub fn handle_position_fill_amount_change(
         &mut self,
-        trade_side: OrderSide,
+        side: OrderSide,
         client_order_fill_id: &Option<ClientOrderFillId>,
         fill_amount: Amount,
         price: Price,
@@ -1033,7 +1030,7 @@ impl BalanceReservationManager {
                 let free_amount = self.get_position_in_amount_currency_code(
                     exchange_account_id,
                     currency_pair_metadata.clone(),
-                    trade_side,
+                    side,
                 );
                 let move_amount = fill_amount.abs();
                 let (add_amount, sub_amount) = if free_amount - move_amount >= dec!(0) {
@@ -1810,7 +1807,7 @@ impl BalanceReservationManager {
             reserve_parameters.order_side,
         );
 
-        let amount_to_pay_for = std::cmp::max(dec!(0), reserve_parameters.amount - free_amount);
+        let amount_to_pay_for = dec!(0).max(reserve_parameters.amount - free_amount);
 
         let taken_free_amount = reserve_parameters.amount - amount_to_pay_for;
 
@@ -1973,7 +1970,7 @@ impl BalanceReservationManager {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        trade_side: OrderSide,
+        side: OrderSide,
         price: Price,
         explanation: &mut Option<Explanation>,
     ) -> Option<Amount> {
@@ -1981,7 +1978,7 @@ impl BalanceReservationManager {
             configuration_descriptor,
             exchange_account_id,
             currency_pair_metadata.clone(),
-            trade_side,
+            side,
             price,
             true,
             true,
