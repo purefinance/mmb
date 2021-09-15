@@ -129,8 +129,6 @@ async fn cancel_opened_orders_successfully() {
 
 #[actix_rt::test]
 async fn nothing_to_cancel() {
-    init_logger();
-
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id.clone(),
