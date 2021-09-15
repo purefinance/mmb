@@ -276,11 +276,6 @@ impl ReservationId {
         let new_id = RESERVATION_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
         ReservationId(new_id)
     }
-
-    // you cannot use this value like ID, only for resetting or lazy initialization
-    pub fn default() -> Self {
-        ReservationId(0)
-    }
 }
 
 impl fmt::Display for ReservationId {

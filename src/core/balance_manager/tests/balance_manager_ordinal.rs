@@ -617,23 +617,16 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(!test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None,)
+            .is_none());
         assert_eq!(
             test_object
                 .balance_manager()
                 .get_balance_by_reserve_parameters(&reserve_parameters),
             Some(dec!(0.5))
         );
-
-        assert!(test_object
-            .balance_manager()
-            .get_reservation(reservation_id)
-            .is_none());
     }
 
     #[test]
@@ -646,12 +639,11 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
+
         assert_eq!(
             test_object
                 .balance_manager()
@@ -690,23 +682,16 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(!test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None,)
+            .is_none());
         assert_eq!(
             test_object
                 .balance_manager()
                 .get_balance_by_reserve_parameters(&reserve_parameters),
             Some(dec!(0.5))
         );
-
-        assert!(test_object
-            .balance_manager()
-            .get_reservation(reservation_id)
-            .is_none());
     }
 
     #[test]
@@ -719,12 +704,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
         assert_eq!(
             test_object
                 .balance_manager()
@@ -763,12 +746,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -801,12 +782,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert!(test_object
             .balance_manager()
@@ -836,12 +815,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
         assert_eq!(
             test_object
                 .balance_manager()
@@ -877,12 +854,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
         assert!(test_object
             .balance_manager()
             .try_update_reservation(reservation_id, dec!(0.1)));
@@ -916,15 +891,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        let mut reservation_id_2 = ReservationId::default();
-
-        assert!(!test_object.balance_manager().try_reserve_pair(
-            reserve_parameters_1.clone(),
-            reserve_parameters_2.clone(),
-            &mut reservation_id_1,
-            &mut reservation_id_2,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve_pair(reserve_parameters_1.clone(), reserve_parameters_2.clone(),)
+            .is_none());
 
         assert_eq!(
             test_object
@@ -939,16 +909,6 @@ mod tests {
                 .get_balance_by_reserve_parameters(&reserve_parameters_2),
             Some(dec!(5))
         );
-
-        assert!(test_object
-            .balance_manager()
-            .get_reservation(reservation_id_1)
-            .is_none());
-
-        assert!(test_object
-            .balance_manager()
-            .get_reservation(reservation_id_2)
-            .is_none());
     }
 
     #[test]
@@ -966,15 +926,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        let mut reservation_id_2 = ReservationId::default();
-
-        assert!(!test_object.balance_manager().try_reserve_pair(
-            reserve_parameters_1.clone(),
-            reserve_parameters_2.clone(),
-            &mut reservation_id_1,
-            &mut reservation_id_2,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve_pair(reserve_parameters_1.clone(), reserve_parameters_2.clone(),)
+            .is_none());
 
         assert_eq!(
             test_object
@@ -989,15 +944,6 @@ mod tests {
                 .get_balance_by_reserve_parameters(&reserve_parameters_2),
             Some(dec!(0))
         );
-
-        assert!(test_object
-            .balance_manager()
-            .get_reservation(reservation_id_1)
-            .is_none());
-        assert!(test_object
-            .balance_manager()
-            .get_reservation(reservation_id_2)
-            .is_none());
     }
 
     #[test]
@@ -1015,15 +961,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        let mut reservation_id_2 = ReservationId::default();
-
-        assert!(test_object.balance_manager().try_reserve_pair(
-            reserve_parameters_1.clone(),
-            reserve_parameters_2.clone(),
-            &mut reservation_id_1,
-            &mut reservation_id_2,
-        ));
+        let (reservation_id_1, reservation_id_2) = test_object
+            .balance_manager()
+            .try_reserve_pair(reserve_parameters_1.clone(), reserve_parameters_2.clone())
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1038,12 +979,6 @@ mod tests {
                 .get_balance_by_reserve_parameters(&reserve_parameters_2),
             Some(dec!(0.0))
         );
-
-        if reservation_id_1 == ReservationId::default()
-            || reservation_id_2 == ReservationId::default()
-        {
-            assert!(false);
-        }
 
         let balance_manager = test_object.balance_manager();
         let reservation = balance_manager
@@ -1105,18 +1040,14 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        let mut reservation_id_2 = ReservationId::default();
-        let mut reservation_id_3 = ReservationId::default();
-
-        assert!(!test_object.balance_manager().try_reserve_three(
-            reserve_parameters_1.clone(),
-            reserve_parameters_2.clone(),
-            reserve_parameters_3.clone(),
-            &mut reservation_id_1,
-            &mut reservation_id_2,
-            &mut reservation_id_3,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve_three(
+                reserve_parameters_1.clone(),
+                reserve_parameters_2.clone(),
+                reserve_parameters_3.clone(),
+            )
+            .is_none());
 
         assert_eq!(
             test_object
@@ -1130,21 +1061,6 @@ mod tests {
                 .balance_manager()
                 .get_balance_by_reserve_parameters(&reserve_parameters_3),
             Some(dec!(5))
-        );
-
-        assert!(
-            test_object
-                .balance_manager()
-                .get_reservation(reservation_id_1)
-                .is_none()
-                || !test_object
-                    .balance_manager()
-                    .get_reservation(reservation_id_2)
-                    .is_none()
-                || !test_object
-                    .balance_manager()
-                    .get_reservation(reservation_id_3)
-                    .is_none()
         );
     }
 
@@ -1168,18 +1084,14 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        let mut reservation_id_2 = ReservationId::default();
-        let mut reservation_id_3 = ReservationId::default();
-
-        assert!(!test_object.balance_manager().try_reserve_three(
-            reserve_parameters_1.clone(),
-            reserve_parameters_2.clone(),
-            reserve_parameters_3.clone(),
-            &mut reservation_id_1,
-            &mut reservation_id_2,
-            &mut reservation_id_3,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve_three(
+                reserve_parameters_1.clone(),
+                reserve_parameters_2.clone(),
+                reserve_parameters_3.clone(),
+            )
+            .is_none());
 
         assert_eq!(
             test_object
@@ -1193,21 +1105,6 @@ mod tests {
                 .balance_manager()
                 .get_balance_by_reserve_parameters(&reserve_parameters_3),
             Some(dec!(5))
-        );
-
-        assert!(
-            test_object
-                .balance_manager()
-                .get_reservation(reservation_id_1)
-                .is_none()
-                || !test_object
-                    .balance_manager()
-                    .get_reservation(reservation_id_2)
-                    .is_none()
-                || !test_object
-                    .balance_manager()
-                    .get_reservation(reservation_id_3)
-                    .is_none()
         );
     }
 
@@ -1231,19 +1128,14 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        let mut reservation_id_2 = ReservationId::default();
-        let mut reservation_id_3 = ReservationId::default();
-
-        assert!(!test_object.balance_manager().try_reserve_three(
-            reserve_parameters_1.clone(),
-            reserve_parameters_2.clone(),
-            reserve_parameters_3.clone(),
-            &mut reservation_id_1,
-            &mut reservation_id_2,
-            &mut reservation_id_3,
-        ));
-
+        assert!(test_object
+            .balance_manager()
+            .try_reserve_three(
+                reserve_parameters_1.clone(),
+                reserve_parameters_2.clone(),
+                reserve_parameters_3.clone(),
+            )
+            .is_none());
         assert_eq!(
             test_object
                 .balance_manager()
@@ -1256,21 +1148,6 @@ mod tests {
                 .balance_manager()
                 .get_balance_by_reserve_parameters(&reserve_parameters_3),
             Some(dec!(5))
-        );
-
-        assert!(
-            test_object
-                .balance_manager()
-                .get_reservation(reservation_id_1)
-                .is_none()
-                || !test_object
-                    .balance_manager()
-                    .get_reservation(reservation_id_2)
-                    .is_none()
-                || !test_object
-                    .balance_manager()
-                    .get_reservation(reservation_id_3)
-                    .is_none()
         );
     }
 
@@ -1294,18 +1171,14 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        let mut reservation_id_2 = ReservationId::default();
-        let mut reservation_id_3 = ReservationId::default();
-
-        assert!(test_object.balance_manager().try_reserve_three(
-            reserve_parameters_1.clone(),
-            reserve_parameters_2.clone(),
-            reserve_parameters_3.clone(),
-            &mut reservation_id_1,
-            &mut reservation_id_2,
-            &mut reservation_id_3,
-        ));
+        let (reservation_id_1, reservation_id_2, reservation_id_3) = test_object
+            .balance_manager()
+            .try_reserve_three(
+                reserve_parameters_1.clone(),
+                reserve_parameters_2.clone(),
+                reserve_parameters_3.clone(),
+            )
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1398,13 +1271,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1435,13 +1305,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1471,13 +1338,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1543,12 +1407,10 @@ mod tests {
             dec!(1),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         // TODO: add cehcking that log didn't contain Err lvl messages
         test_object
@@ -1582,12 +1444,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1619,12 +1479,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1656,12 +1514,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1691,12 +1547,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1726,12 +1580,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1766,12 +1618,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -1816,12 +1666,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(side, price_1, amount_1)
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
         let balance_1 = src_balance - amount_1;
         assert_eq!(
             test_object
@@ -1834,12 +1682,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(side, price_2, amount_2)
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
         let balance_2 = balance_1 - amount_2;
         assert_eq!(
             test_object
@@ -1899,12 +1745,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(side, price_1, amount_1)
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
         let balance_1 = src_balance - amount_1 * price_1;
         assert_eq!(
             test_object
@@ -1917,12 +1761,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(side, price_2, amount_2)
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
         let balance_2 = balance_1 - amount_2 * price_2;
         assert_eq!(
             test_object
@@ -1977,18 +1819,14 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         assert!(test_object.balance_manager().try_transfer_reservation(
             reservation_id_1,
@@ -2037,18 +1875,14 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         assert!(test_object.balance_manager().try_transfer_reservation(
             reservation_id_1,
@@ -2100,18 +1934,16 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
 
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.lock().balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.lock().balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .lock()
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
+        let reservation_id_2 = test_object
+            .lock()
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
         let test_object_clone = test_object.clone();
 
         let handle = std::thread::spawn(move || {
@@ -2163,12 +1995,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(0))
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -2190,23 +2020,19 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -2255,27 +2081,23 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         let order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         let amount = test_object
             .balance_manager()
@@ -2363,27 +2185,23 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         let order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         let amount = test_object
             .balance_manager()
@@ -2427,27 +2245,23 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         let order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         test_object.balance_manager().approve_reservation(
             reservation_id_1,
@@ -2486,23 +2300,19 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
         test_object.balance_manager().try_transfer_reservation(
             reservation_id_1,
             reservation_id_2,
@@ -2520,30 +2330,26 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         let order_1 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
         let order_2 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         test_object.balance_manager().approve_reservation(
             reservation_id_1,
@@ -2617,30 +2423,26 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         let order_1 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
         let order_2 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         test_object.balance_manager().approve_reservation(
             reservation_id_1,
@@ -2744,14 +2546,10 @@ mod tests {
             dec!(5),
         );
 
-        let mut reservation_id_1 = ReservationId::default();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve_pair(
-            reserve_parameters_1.clone(),
-            reserve_parameters_2.clone(),
-            &mut reservation_id_1,
-            &mut reservation_id_2,
-        ));
+        let (reservation_id_1, reservation_id_2) = test_object
+            .balance_manager()
+            .try_reserve_pair(reserve_parameters_1.clone(), reserve_parameters_2.clone())
+            .expect("in test");
 
         test_object.balance_manager().unreserve_pair(
             reservation_id_1,
@@ -2851,11 +2649,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
             .clone();
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut ReservationId::default(),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
@@ -2917,12 +2714,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, dec!(0.2), amount)
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -2990,12 +2785,10 @@ mod tests {
             .create_reserve_parameters(OrderSide::Buy, price, amount)
             .clone();
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object.balance_manager().approve_reservation(
             reservation_id,
@@ -3050,7 +2843,7 @@ mod tests {
         let price = dec!(0.2);
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerOrdinal::create_order_fill(
             price,
@@ -3111,7 +2904,7 @@ mod tests {
         let price = dec!(0.2);
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         order.add_fill(BalanceManagerOrdinal::create_order_fill(
             price,
@@ -3174,7 +2967,7 @@ mod tests {
         let price = dec!(0.2);
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerOrdinal::create_order_fill(
             price,
@@ -3236,7 +3029,7 @@ mod tests {
         let price = dec!(0.2);
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         order.add_fill(BalanceManagerOrdinal::create_order_fill(
             price,
@@ -3298,7 +3091,7 @@ mod tests {
         let price = dec!(0.2);
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerOrdinal::create_order_fill(
             price,
@@ -3361,7 +3154,7 @@ mod tests {
         let price = dec!(0.2);
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
         order.add_fill(BalanceManagerOrdinal::create_order_fill(
             price,
             dec!(5),
@@ -3423,7 +3216,7 @@ mod tests {
         let price = dec!(0.2);
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         order.add_fill(BalanceManagerOrdinal::create_order_fill(
             price,
             dec!(5),
@@ -3447,7 +3240,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
         order.add_fill(BalanceManagerOrdinal::create_order_fill(
             price,
             dec!(5),
@@ -3509,7 +3302,7 @@ mod tests {
         let price = dec!(0.2);
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.fills.filled_amount = order.amount() / dec!(2);
         order.set_status(OrderStatus::Creating, Utc::now());
@@ -3519,11 +3312,10 @@ mod tests {
             .create_reserve_parameters(order.header.side, price, order.amount())
             .clone();
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut order.header.reservation_id.expect("in test"),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         let clone_balance_manager = test_object
             .balance_manager()
@@ -3605,7 +3397,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         order.set_status(OrderStatus::Created, Utc::now());
         let price = dec!(1.5) * order.price();
 
@@ -3614,11 +3406,10 @@ mod tests {
             .create_reserve_parameters(order.header.side, price, order.amount())
             .clone();
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut order.header.reservation_id.expect("in test"),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         let clone_balance_manager = test_object
             .balance_manager()
@@ -3708,7 +3499,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         order.fills.filled_amount = order.amount() / dec!(2);
         order.set_status(OrderStatus::Created, Utc::now());
         let price = dec!(0.2);
@@ -3718,11 +3509,10 @@ mod tests {
             .create_reserve_parameters(order.header.side, price, order.amount())
             .clone();
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut order.header.reservation_id.expect("in test"),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
         test_object.balance_manager().approve_reservation(
             order.header.reservation_id.expect("in test"),
             &order.header.client_order_id,
@@ -3818,18 +3608,17 @@ mod tests {
         let price = dec!(0.2);
         let order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         let reserve_parameters = test_object
             .balance_manager_base
             .create_reserve_parameters(order.header.side, price, order.amount())
             .clone();
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut order.header.reservation_id.expect("in test"),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         let clone_balance_manager = test_object
             .balance_manager()
@@ -3923,12 +3712,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Buy, price, dec!(5))
             .clone();
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let order = test_object
             .balance_manager_base
@@ -4020,7 +3807,7 @@ mod tests {
 
         let order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         let price = dec!(1.5) * order.price();
         let reservation_amount = dec!(3) * order.amount();
 
@@ -4029,12 +3816,10 @@ mod tests {
             price,
             reservation_amount,
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
         test_object.balance_manager().approve_reservation(
             reservation_id,
             &order.header.client_order_id,
@@ -4122,11 +3907,11 @@ mod tests {
 
         let order_1 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         let mut order_2 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
             dec!(1.3) * order_1.amount(),
-            ReservationId::default(),
+            ReservationId::generate(),
         );
         order_2.props.raw_price = Some(dec!(1.2) * order_2.price());
 
@@ -4138,12 +3923,10 @@ mod tests {
             price,
             reservation_amount,
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
         test_object.balance_manager().approve_reservation(
             reservation_id,
             &order_1.header.client_order_id,
@@ -4246,12 +4029,10 @@ mod tests {
             reservation_amount,
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order_1 = test_object.balance_manager_base.create_order_by_amount(
             OrderSide::Buy,
@@ -4363,12 +4144,10 @@ mod tests {
             reservation_amount,
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order_1 = test_object
             .balance_manager_base
@@ -4480,12 +4259,10 @@ mod tests {
             dec!(99),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -4524,12 +4301,10 @@ mod tests {
             dec!(99),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         test_object
             .balance_manager()
@@ -4578,11 +4353,10 @@ mod tests {
                 .get_balance_by_reserve_parameters(&reserve_parameters),
             Some(dec!(2) * dec!(0.2))
         );
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut ReservationId::default(),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -4627,12 +4401,10 @@ mod tests {
                 .get_balance_by_reserve_parameters(&reserve_parameters),
             Some(balance_before_reservations)
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let reservation_amount = buy_price;
         let balance_after_reservation = balance_before_reservations - reservation_amount;
@@ -4750,24 +4522,20 @@ mod tests {
             dec!(0.08),
         );
 
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(balance_manager.lock().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = balance_manager
+            .lock()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Buy,
             price,
             dec!(0.1),
         );
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(balance_manager.lock().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = balance_manager
+            .lock()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         let original_balances = balance_manager.lock().get_balances();
 
@@ -4826,12 +4594,10 @@ mod tests {
             dec!(1),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -4906,12 +4672,10 @@ mod tests {
             dec!(9),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut balance_manager = test_object.balance_manager();
         let reservation = balance_manager
@@ -4945,12 +4709,10 @@ mod tests {
             dec!(9),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -4995,12 +4757,10 @@ mod tests {
             dec!(9),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -5061,12 +4821,10 @@ mod tests {
             dec!(9),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -5105,12 +4863,10 @@ mod tests {
             dec!(9),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -5151,12 +4907,10 @@ mod tests {
             dec!(9),
         );
 
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -5192,12 +4946,10 @@ mod tests {
             price,
             dec!(1),
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -5288,12 +5040,10 @@ mod tests {
             price,
             dec!(1),
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -5395,7 +5145,7 @@ mod tests {
 
         let mut sell_5 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
         sell_5.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(5),
@@ -5405,7 +5155,7 @@ mod tests {
 
         let mut buy_1 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         buy_1.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(1),
@@ -5415,7 +5165,7 @@ mod tests {
 
         let mut buy_2 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         buy_2.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(2),
@@ -5425,7 +5175,7 @@ mod tests {
 
         let mut buy_4 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         buy_4.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(4),
@@ -5435,7 +5185,7 @@ mod tests {
 
         let mut buy_0 = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         buy_0.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(0),

@@ -1508,9 +1508,7 @@ impl BalanceReservationManager {
     ) -> (bool, Vec<ReservationId>) {
         let mut successful_reservations = HashMap::new();
         for reserve_parameter in reserve_parameters {
-            let mut reservation_id = ReservationId::default();
-
-            if self.try_reserve(reserve_parameter, &mut reservation_id, explanation) {
+            if let Some(reservation_id) = self.try_reserve(reserve_parameter, explanation) {
                 successful_reservations.insert(reservation_id, reserve_parameter);
             }
         }
@@ -1532,11 +1530,8 @@ impl BalanceReservationManager {
     pub fn try_reserve(
         &mut self,
         reserve_parameters: &ReserveParameters,
-        reservation_id: &mut ReservationId,
         explanation: &mut Option<Explanation>,
-    ) -> bool {
-        *reservation_id = ReservationId::default();
-
+    ) -> Option<ReservationId> {
         let mut old_balance = Amount::default();
         let mut new_balance = Amount::default();
         let mut potential_position = Some(Decimal::default());
@@ -1558,7 +1553,7 @@ impl BalanceReservationManager {
                 new_balance,
                 reserve_parameters
             );
-            return false;
+            return None;
         }
 
         let request = BalanceRequest::new(
@@ -1580,7 +1575,6 @@ impl BalanceReservationManager {
         );
 
         self.reservation_id = ReservationId::generate();
-        *reservation_id = self.reservation_id;
         log::info!(
             "Trying to reserve {:?} {} {} {:?} {} {} {:?}",
             self.reservation_id,
@@ -1608,7 +1602,7 @@ impl BalanceReservationManager {
         );
 
         log::info!("Reserved successfully");
-        true
+        Some(self.reservation_id)
     }
 
     fn can_reserve_core(

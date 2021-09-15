@@ -17,7 +17,7 @@ use crate::core::{
     misc::date_time_service::DateTimeService,
     orders::{
         fill::{OrderFill, OrderFillType},
-        order::{OrderFillRole, OrderSide, ReservationId},
+        order::{OrderFillRole, OrderSide},
     },
 };
 use chrono::Utc;
@@ -212,9 +212,10 @@ impl BalanceManagerDerivative {
         let reserve_parameters = self
             .balance_manager_base
             .create_reserve_parameters(side, price, amount);
-        let mut reservation_id = ReservationId::default();
-        self.balance_manager()
-            .try_reserve(&reserve_parameters, &mut reservation_id, &mut None);
+        let reservation_id = self
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
         let mut order = self.balance_manager_base.create_order(side, reservation_id);
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -441,20 +442,15 @@ mod tests {
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), false);
 
-        let mut reservation_id = ReservationId::default();
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Sell,
             BalanceManagerDerivative::price(),
             dec!(5),
         );
-        assert_eq!(
-            test_object.balance_manager().try_reserve(
-                &reserve_parameters,
-                &mut reservation_id,
-                &mut None,
-            ),
-            true
-        );
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -477,11 +473,10 @@ mod tests {
             BalanceManagerDerivative::price(),
             dec!(4),
         );
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut ReservationId::default(),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -501,17 +496,15 @@ mod tests {
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), true);
 
-        let mut reservation_id = ReservationId::default();
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Sell,
             BalanceManagerDerivative::price(),
             dec!(5),
         );
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -535,11 +528,10 @@ mod tests {
             BalanceManagerDerivative::price(),
             dec!(4),
         );
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut ReservationId::default(),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -591,7 +583,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(order_side, ReservationId::default());
+            .create_order(order_side, ReservationId::generate());
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             dec!(0.1),
             fill_amount,
@@ -640,7 +632,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(order_side, ReservationId::default());
+            .create_order(order_side, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             dec!(0.1),
@@ -694,7 +686,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             dec!(0.1),
@@ -753,7 +745,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             dec!(0.1),
@@ -815,7 +807,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             dec!(0.1),
@@ -874,7 +866,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             dec!(0.1),
@@ -941,12 +933,10 @@ mod tests {
             price,
             dec!(1),
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -965,7 +955,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -1017,11 +1007,10 @@ mod tests {
             dec!(-1)
         );
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -1067,12 +1056,10 @@ mod tests {
             price,
             amount,
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1091,7 +1078,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -1144,11 +1131,10 @@ mod tests {
             -amount
         );
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -1193,12 +1179,10 @@ mod tests {
             price,
             dec!(1),
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1217,7 +1201,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -1269,11 +1253,10 @@ mod tests {
             dec!(-1)
         );
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -1319,12 +1302,10 @@ mod tests {
             price,
             amount,
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1343,7 +1324,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -1396,11 +1377,10 @@ mod tests {
             -amount
         );
 
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -1444,12 +1424,10 @@ mod tests {
             price,
             dec!(1),
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1468,7 +1446,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -1526,13 +1504,10 @@ mod tests {
             price,
             dec!(1.5),
         );
-        let mut partially_free_reservation_id = ReservationId::default();
-        //1 out of 1.5 is free
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut partially_free_reservation_id,
-            &mut None,
-        ));
+        let partially_free_reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1550,11 +1525,10 @@ mod tests {
         );
 
         //the whole 1.5 is not free as we've taken the whole free position with the previous reservation
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -1620,12 +1594,10 @@ mod tests {
             price,
             amount,
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1644,7 +1616,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -1702,13 +1674,12 @@ mod tests {
             price,
             amount * dec!(1.5),
         );
-        let mut partially_free_reservation_id = ReservationId::default();
+
         //1 out of 1.5 is free
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut partially_free_reservation_id,
-            &mut None,
-        ));
+        let partially_free_reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1726,11 +1697,10 @@ mod tests {
         );
 
         //the whole 1.5 is not free as we've taken the whole free position with the previous reservation
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
         assert_eq!(
             test_object
                 .balance_manager_base
@@ -1793,12 +1763,10 @@ mod tests {
             price,
             dec!(1),
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1817,7 +1785,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -1875,13 +1843,12 @@ mod tests {
             price,
             dec!(1.5),
         );
-        let mut partially_free_reservation_id = ReservationId::default();
+
         //1 out of 1.5 is free
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut partially_free_reservation_id,
-            &mut None,
-        ));
+        let partially_free_reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1899,11 +1866,10 @@ mod tests {
         );
 
         //the whole 1.5 is not free as we've taken the whole free position with the previous reservation
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -1969,12 +1935,10 @@ mod tests {
             price,
             amount,
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -1993,7 +1957,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Sell, ReservationId::default());
+            .create_order(OrderSide::Sell, ReservationId::generate());
 
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -2051,16 +2015,16 @@ mod tests {
             price,
             amount * dec!(1.5),
         );
-        let mut partially_free_reservation_id = ReservationId::default();
+
         //1 out of 1.5 is free
         let partially_reserve_parameters = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Buy, price, amount * dec!(1.5));
-        assert!(test_object.balance_manager().try_reserve(
-            &partially_reserve_parameters,
-            &mut partially_free_reservation_id,
-            &mut None,
-        ));
+
+        let partially_free_reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&partially_reserve_parameters, &mut None)
+            .expect("in test");
 
         assert_eq!(
             test_object
@@ -2078,11 +2042,10 @@ mod tests {
         );
 
         //the whole 1.5 is not free as we've taken the whole free position with the previous reservation
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
         assert_eq!(
             test_object
                 .balance_manager_base
@@ -2147,12 +2110,10 @@ mod tests {
             dec!(0.2),
             dec!(5),
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order_1 = test_object
             .balance_manager_base
@@ -2216,12 +2177,10 @@ mod tests {
             price,
             dec!(5),
         );
-        let mut reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        ));
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -2295,12 +2254,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(side, price_1, amount_1)
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
         let mut balance_manager = test_object.balance_manager();
         let reservation_1 = balance_manager
             .get_reservation(reservation_id_1)
@@ -2319,12 +2276,9 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(side, price_2, amount_2)
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(balance_manager.try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = balance_manager
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
         let reservation_2 = balance_manager
             .get_reservation(reservation_id_2)
             .expect("in test")
@@ -2393,12 +2347,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, price_1, amount_1)
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
         let balance_1 = src_balance - amount_1 / price_1;
         assert_eq!(
             test_object
@@ -2411,12 +2363,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, price_2, amount_2)
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
         let balance_2 = balance_1 - amount_2 / price_2;
         assert_eq!(
             test_object
@@ -2452,23 +2402,19 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
 
         let expected_balance = dec!(5);
         assert_eq!(
@@ -2521,12 +2467,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, price, dec!(3))
             .clone();
-        let mut reservation_id_1 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_1,
-            &mut reservation_id_1,
-            &mut None,
-        ));
+        let reservation_id_1 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_1, &mut None)
+            .expect("in test");
         assert_eq!(
             test_object
                 .balance_manager()
@@ -2548,12 +2492,10 @@ mod tests {
             Some(dec!(25) * price - dec!(3))
         );
 
-        let mut buy_reservation_id = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &buy_reservation_params,
-            &mut buy_reservation_id,
-            &mut None,
-        ));
+        let buy_reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&buy_reservation_params, &mut None)
+            .expect("in test");
 
         let mut order = test_object
             .balance_manager_base
@@ -2596,12 +2538,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, price, dec!(1.9))
             .clone();
-        let mut reservation_id_2 = ReservationId::default();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters_2,
-            &mut reservation_id_2,
-            &mut None,
-        ));
+        let reservation_id_2 = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters_2, &mut None)
+            .expect("in test");
         assert_eq!(
             test_object
                 .balance_manager()
@@ -2663,11 +2603,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, price, dec!(2))
             .clone();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut ReservationId::default(),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -2743,11 +2682,10 @@ mod tests {
             .balance_manager_base
             .create_reserve_parameters(OrderSide::Sell, price, dec!(2))
             .clone();
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut ReservationId::default(),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         assert_eq!(
             test_object
@@ -3203,12 +3141,10 @@ mod tests {
             Some(balance_before_reservation)
         );
 
-        let mut reservation_id = ReservationId::default();
-        test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        );
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let reserved_amount = reserve_parameters.amount;
         let balance_after_reservation =
@@ -3361,12 +3297,10 @@ mod tests {
             Some(balance_before_reservation)
         );
 
-        let mut reservation_id = ReservationId::default();
-        test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        );
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let reserved_amount = reserve_parameters.amount;
         let balance_after_reservation = balance_before_reservation
@@ -3529,12 +3463,10 @@ mod tests {
                 .expect("in test")
         );
 
-        let mut reservation_id = ReservationId::default();
-        test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        );
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let reserved_amount = reserve_parameters.amount;
         let balance_after_reservation = balance_before_reservation
@@ -3713,12 +3645,10 @@ mod tests {
                 .expect("in test")
         );
 
-        let mut reservation_id = ReservationId::default();
-        test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut reservation_id,
-            &mut None,
-        );
+        let reservation_id = test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .expect("in test");
 
         let reserved_amount = reserve_parameters.amount;
         let balance_after_reservation = balance_before_reservation
@@ -4947,7 +4877,7 @@ mod tests {
 
         let mut order = test_object
             .balance_manager_base
-            .create_order(OrderSide::Buy, ReservationId::default());
+            .create_order(OrderSide::Buy, ReservationId::generate());
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             dec!(0.1),
             dec!(2),
@@ -4969,21 +4899,19 @@ mod tests {
             dec!(0.1),
             dec!(1),
         );
-        assert!(test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut ReservationId::default(),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None)
+            .is_some());
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Sell,
             dec!(0.1),
             dec!(4),
         );
-        assert!(!test_object.balance_manager().try_reserve(
-            &reserve_parameters,
-            &mut ReservationId::default(),
-            &mut None,
-        ));
+        assert!(test_object
+            .balance_manager()
+            .try_reserve(&reserve_parameters, &mut None,)
+            .is_none());
     }
 }
