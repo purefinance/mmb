@@ -158,8 +158,7 @@ impl BalancePositionByFillAmount {
 
             let position_change = values
                 .iter()
-                .take_while(|&x| x.change_time <= start_of_period)
-                .last()
+                .rfind(|&x| x.change_time <= start_of_period)
                 .cloned();
 
             if let Some(position_change) = position_change {
