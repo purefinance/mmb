@@ -825,50 +825,21 @@ impl BalanceReservationManager {
 
     fn add_reserved_amount(
         &mut self,
-        request: &BalanceRequest,
+        balance_request: &BalanceRequest,
         reservation_id: ReservationId,
         amount_diff_in_amount_currency: Amount,
         update_balance: bool,
     ) -> Result<()> {
-        let reservation = self
-            .get_reservation(&reservation_id)
-            .expect("Failed to get reservation");
-        if update_balance {
-            let cost = reservation
-                .get_proportional_cost_amount(amount_diff_in_amount_currency)
-                .with_context(|| {
-                    format!(
-                        "Failed to get proportional cost amount form {:?} with {}",
-                        reservation, amount_diff_in_amount_currency
-                    )
-                })?;
-            let currency_pair_metadata = reservation.currency_pair_metadata.clone();
-            let price = reservation.price;
-            self.virtual_balance_holder
-                .add_balance_by_currency_pair_metadata(
-                    request,
-                    currency_pair_metadata,
-                    -cost,
-                    price,
-                );
-        }
-
-        let reservation = self
-            .get_mut_reservation(&reservation_id)
-            .expect("Failed to get mut reservation");
-        reservation.unreserved_amount += amount_diff_in_amount_currency;
-
-        // global reservation indicator
-        let res_amount_request = BalanceRequest::new(
-            request.configuration_descriptor.clone(),
-            request.exchange_account_id.clone(),
-            request.currency_pair.clone(),
-            reservation.reservation_currency_code.clone(),
-        );
-
-        self.reserved_amount_in_amount_currency
-            .add_by_request(&res_amount_request, amount_diff_in_amount_currency);
-        Ok(())
+        BalanceReservationManager::add_reserved_amount_by_reservation(
+            &balance_request,
+            &mut self.virtual_balance_holder,
+            self.balance_reservation_storage
+                .try_get_mut(&reservation_id)
+                .expect("Failed to get reservation"),
+            &mut self.reserved_amount_in_amount_currency,
+            amount_diff_in_amount_currency,
+            update_balance,
+        )
     }
 
     pub fn get_state(&self) -> Balances {
