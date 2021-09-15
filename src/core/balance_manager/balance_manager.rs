@@ -114,11 +114,11 @@ impl BalanceManager {
     }
 
     pub fn unreserve_rest(&mut self, reservation_id: ReservationId) -> Result<()> {
-        let reservation = self
+        let amount = self
             .balance_reservation_manager
             .get_reservation(&reservation_id)
-            .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?;
-        let amount = reservation.unreserved_amount;
+            .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?
+            .unreserved_amount;
         return self.unreserve(reservation_id, amount);
     }
 
@@ -623,17 +623,6 @@ impl BalanceManager {
             currency_pair_metadata.clone(),
             order_snapshot,
             &order_fill,
-        )
-        .expect(
-            format!(
-                "failed to handle order fill {:?} {} {:?} {:?} {:?}",
-                configuration_descriptor,
-                exchange_account_id,
-                currency_pair_metadata.clone(),
-                order_snapshot,
-                order_fill,
-            )
-            .as_str(),
         );
         self.save_balances();
         // _balanceChangesService?.AddBalanceChange(configurationDescriptor, order, orderFill); // TODO: fix me when added
@@ -646,7 +635,7 @@ impl BalanceManager {
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         order_snapshot: &OrderSnapshot,
         order_fill: &OrderFill,
-    ) -> Result<()> {
+    ) {
         let currency_code_before_trade = &mut currency_pair_metadata
             .get_trade_code(order_snapshot.header.side, BeforeAfter::Before);
         let amount_in_before_trade_currenct_code = &mut dec!(0);
@@ -662,7 +651,7 @@ impl BalanceManager {
                 currency_pair_metadata.clone(),
                 currency_code_before_trade,
                 amount_in_before_trade_currenct_code,
-            )?;
+            );
 
         let currency_code_after_trade = &mut currency_pair_metadata
             .get_trade_code(order_snapshot.header.side, BeforeAfter::After);
@@ -678,7 +667,7 @@ impl BalanceManager {
                 currency_pair_metadata.clone(),
                 currency_code_after_trade,
                 amount_in_after_trade_currenct_code,
-            )?;
+            );
 
         self.balance_reservation_manager
             .handle_position_fill_amount_change_commission(
@@ -722,7 +711,6 @@ impl BalanceManager {
             currency_code_after_trade,
             amount_in_after_trade_currenct_code
         );
-        Ok(())
     }
 
     fn update_last_order_fill(

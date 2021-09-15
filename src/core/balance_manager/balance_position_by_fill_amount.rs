@@ -5,7 +5,6 @@ use crate::core::exchanges::common::{CurrencyPair, ExchangeAccountId, TradePlace
 use crate::core::orders::order::ClientOrderFillId;
 use crate::core::DateTime;
 
-use anyhow::{bail, Result};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -47,7 +46,7 @@ impl BalancePositionByFillAmount {
         new_position: Decimal,
         client_order_fill_id: Option<ClientOrderFillId>,
         now: DateTime,
-    ) -> Result<()> {
+    ) {
         let key = TradePlaceAccount::new(exchange_account_id.clone(), currency_pair.clone());
 
         log::info!(
@@ -76,7 +75,7 @@ impl BalancePositionByFillAmount {
                             now,
                             opened_position_portion,
                         )),
-                        None => bail!(
+                        None => std::panic!(
                             "failed to get PositionChange from position_changes {:?} with key {:?}",
                             self.position_changes,
                             key
@@ -120,7 +119,6 @@ impl BalancePositionByFillAmount {
             }
         }
         self.position_by_fill_amount.insert(key, new_position);
-        Ok(())
     }
 
     pub fn add(
@@ -130,7 +128,7 @@ impl BalancePositionByFillAmount {
         value_to_add: Decimal,
         client_order_fill_id: Option<ClientOrderFillId>,
         now: DateTime,
-    ) -> Result<()> {
+    ) {
         let current_value = self
             .get(exchange_account_id, currency_pair)
             .unwrap_or(dec!(0));

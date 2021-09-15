@@ -2354,7 +2354,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "failed to update src unreserved amount")]
+    #[should_panic]
     pub fn transfer_reservations_amount_more_thane_we_have() {
         init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
@@ -2418,7 +2418,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "failed to update src unreserved amount")]
+    #[should_panic]
     pub fn transfer_reservations_amount_more_than_we_have_by_approve_client_order_id() {
         init_logger();
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
@@ -2477,7 +2477,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "failed to update src unreserved amount")]
+    #[should_panic]
     pub fn transfer_reservations_unknown_client_order_id() {
         init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));

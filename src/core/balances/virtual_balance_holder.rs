@@ -87,6 +87,45 @@ impl VirtualBalanceHolder {
         );
     }
 
+    pub fn add_balance_by_currency_pair_metadata(
+        &mut self,
+        request: &BalanceRequest,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        diff_in_amount_currency: Amount,
+        price: Price,
+    ) {
+        if !currency_pair_metadata.is_derivative {
+            let diff_in_request_currency = currency_pair_metadata
+                .convert_amount_from_amount_currency_code(
+                    &request.currency_code,
+                    diff_in_amount_currency,
+                    price,
+                );
+            self.add_balance(request, diff_in_request_currency);
+        } else {
+            let balance_currency_code_request = BalanceRequest::new(
+                request.configuration_descriptor.clone(),
+                request.exchange_account_id.clone(),
+                request.currency_pair.clone(),
+                currency_pair_metadata
+                    .balance_currency_code
+                    .as_ref()
+                    .expect("currency_pair_metadata.balance_currency_code should be non None")
+                    .clone(),
+            );
+            let diff_in_balance_currency_code = currency_pair_metadata
+                .convert_amount_from_amount_currency_code(
+                    &balance_currency_code_request.currency_code,
+                    diff_in_amount_currency,
+                    price,
+                );
+            self.add_balance(
+                &balance_currency_code_request,
+                diff_in_balance_currency_code,
+            );
+        }
+    }
+
     pub fn get_virtual_balance(
         &self,
         balance_request: &BalanceRequest,
