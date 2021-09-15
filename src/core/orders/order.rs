@@ -105,8 +105,8 @@ pub struct ClientOrderId(String16);
 
 impl ClientOrderId {
     pub fn unique_id() -> Self {
-        static CLIENT_ORDER_FILL_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
-        let new_id = CLIENT_ORDER_FILL_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+        static CLIENT_ORDER_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
+        let new_id = CLIENT_ORDER_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
         ClientOrderId(new_id.to_string().into())
     }
 
