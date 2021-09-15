@@ -936,14 +936,12 @@ impl BalanceReservationManager {
             currency_pair_metadata.clone(),
             side,
         );
-        dec!(1).min(
-            dec!(0).max(
-                position.position
-                    / position
-                        .limit
-                        .expect("failed to get_fill_amount_position_percent, limit is None"),
-            ),
-        )
+
+        let limit = position
+            .limit
+            .expect("failed to get_fill_amount_position_percent, limit is None");
+
+        dec!(1).min(dec!(0).max(position.position / limit))
     }
 
     pub fn handle_position_fill_amount_change(
