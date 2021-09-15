@@ -130,7 +130,7 @@ async fn open_orders_by_currency_pair_exist() {
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
-    second_order_proxy.currency_pair = CurrencyPair::from_codes("sngls".into(), "btc".into());
+    second_order_proxy.currency_pair = CurrencyPair::from_codes(&"sngls".into(), &"btc".into());
     second_order_proxy.amount = dec!(1000);
 
     second_order_proxy

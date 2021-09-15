@@ -106,10 +106,7 @@ impl CurrencyPairMetadata {
 
     // Currency pair in unified for crate format
     pub fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes(
-            self.base_currency_code.clone(),
-            self.quote_currency_code.clone(),
-        )
+        CurrencyPair::from_codes(&self.base_currency_code, &self.quote_currency_code)
     }
 
     pub fn get_trade_code(&self, side: OrderSide, before_after: BeforeAfter) -> CurrencyCode {
