@@ -4,9 +4,11 @@ use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::vec::Vec;
 
 use chrono::Utc;
 use enum_map::Enum;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -281,6 +283,16 @@ impl ReservationId {
 impl fmt::Display for ReservationId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+pub trait ReservationIdVecToStringExt {
+    fn to_string(&self) -> String;
+}
+
+impl ReservationIdVecToStringExt for Vec<ReservationId> {
+    fn to_string(&self) -> String {
+        self.iter().join(", ")
     }
 }
 

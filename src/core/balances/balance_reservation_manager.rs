@@ -28,8 +28,8 @@ use crate::core::explanation::Explanation;
 use crate::core::misc::date_time_service::DateTimeService;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
-use crate::core::orders::order::ReservationId;
 use crate::core::orders::order::{ClientOrderFillId, ClientOrderId, OrderSide};
+use crate::core::orders::order::{ReservationId, ReservationIdVecToStringExt};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::core::DateTime;
 
@@ -152,20 +152,22 @@ impl BalanceReservationManager {
                     // Due to async nature of our trading engine we may receive in Clone reservation_ids which are already removed,
                     // so we need to ignore them instead of throwing an exception
                     log::error!(
-                        "Can't find reservation {} ({}) for BalanceReservationManager::unreserve {} in list: {:?}",
+                        "Can't find reservation {} ({}) for BalanceReservationManager::unreserve {} in list: {}",
                         reservation_id,
                         self.is_call_from_clone,
                         amount,
                         reservation_ids
+                        .to_string()
                     );
                     return Ok(());
                 }
 
                 bail!(
-                    "Can't find reservation_id={} for BalanceReservationManager::unreserve({}) attempt in list: {:?}",
+                    "Can't find reservation_id={} for BalanceReservationManager::unreserve({}) attempt in list: {}",
                     reservation_id,
                     amount,
                     reservation_ids
+                    .to_string()
                 )
             }
         };
@@ -1071,9 +1073,11 @@ impl BalanceReservationManager {
             Some(reservation_id) => reservation_id,
             None => {
                 log::error!(
-                    "Can't find reservation {} in {:?}",
+                    "Can't find reservation {} in {}",
                     reservation_id,
-                    self.balance_reservation_storage.get_reservation_ids()
+                    self.balance_reservation_storage
+                        .get_reservation_ids()
+                        .to_string()
                 );
                 return Ok(());
             }
@@ -1174,9 +1178,11 @@ impl BalanceReservationManager {
             Some(reservation) => reservation,
             None => {
                 log::error!(
-                    "Can't find reservation {} in {:?}",
+                    "Can't find reservation {} in {}",
                     reservation_id,
-                    self.balance_reservation_storage.get_reservation_ids()
+                    self.balance_reservation_storage
+                        .get_reservation_ids()
+                        .to_string()
                 );
                 return Ok(());
             }
@@ -1785,9 +1791,11 @@ impl BalanceReservationManager {
             Some(reservation) => reservation,
             None => {
                 log::error!(
-                    "Can't find reservation {} in {:?}",
+                    "Can't find reservation {} in {}",
                     reservation_id,
-                    self.balance_reservation_storage.get_reservation_ids()
+                    self.balance_reservation_storage
+                        .get_reservation_ids()
+                        .to_string()
                 );
                 return false;
             }
