@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use chrono::Utc;
 use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -598,7 +599,7 @@ impl BalanceReservationManager {
         }
 
         let limited_balance_in_amount_currency =
-            std::cmp::min(balance_in_amount_currency, limit_left_in_amount_currency);
+            balance_in_amount_currency.min(limit_left_in_amount_currency);
         if let Some(explanation) = explanation {
             explanation.add_reason(format!(
                 "limited_balance_in_amount_currency: {}",
@@ -873,6 +874,7 @@ impl BalanceReservationManager {
             self.virtual_balance_holder
                 .get_raw_exchange_balances()
                 .clone(),
+            Utc::now(),
             self.virtual_balance_holder
                 .get_virtual_balance_diffs()
                 .clone(),
@@ -934,8 +936,7 @@ impl BalanceReservationManager {
             currency_pair_metadata.clone(),
             side,
         );
-        std::cmp::min(
-            dec!(1),
+        dec!(1).min(
             dec!(0).max(
                 position.position
                     / position
@@ -1170,7 +1171,7 @@ impl BalanceReservationManager {
         client_order_id: &ClientOrderId,
         amount: Amount,
     ) -> Result<()> {
-        let date_time = self.date_time_service.now();
+        let approve_time = self.date_time_service.now();
         let reservation = match self.get_mut_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
@@ -1212,7 +1213,7 @@ impl BalanceReservationManager {
         }
         reservation.approved_parts.insert(
             client_order_id.clone(),
-            ApprovedPart::new(date_time, client_order_id.clone(), amount),
+            ApprovedPart::new(approve_time, client_order_id.clone(), amount),
         );
 
         log::info!("Order {} was approved with {}", client_order_id, amount);
@@ -1374,7 +1375,7 @@ impl BalanceReservationManager {
         target_cost_diff: Decimal,
         cost_diff: &mut Decimal,
     ) {
-        let date_time = self.date_time_service.now();
+        let approve_time = self.date_time_service.now();
         let reservation = self
             .get_mut_reservation(&reservation_id)
             .expect("Failed to get mut reservation");
@@ -1425,7 +1426,11 @@ impl BalanceReservationManager {
 
                 reservation.approved_parts.insert(
                     client_order_id.clone(),
-                    ApprovedPart::new(date_time, client_order_id.clone(), reservation_amount_diff),
+                    ApprovedPart::new(
+                        approve_time,
+                        client_order_id.clone(),
+                        reservation_amount_diff,
+                    ),
                 );
             }
         } else {

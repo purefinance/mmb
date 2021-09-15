@@ -4703,10 +4703,10 @@ mod tests {
                 OrderSide::Buy,
                 fill_price
             ),
-            Some(std::cmp::min(
-                dec!(0.7) / fill_price,
-                (limit - (reservation_amount + fill_amount)) * fill_price
-            ))
+            Some(
+                (dec!(0.7) / fill_price)
+                    .min((limit - (reservation_amount + fill_amount)) * fill_price)
+            )
         );
 
         assert!(!test_object

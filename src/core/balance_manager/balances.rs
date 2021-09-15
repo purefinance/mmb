@@ -10,12 +10,14 @@ use crate::core::exchanges::common::TradePlaceAccount;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::orders::fill::OrderFill;
 use crate::core::orders::order::ReservationId;
+use crate::core::DateTime;
 
 use itertools::Itertools;
 use rust_decimal::Decimal;
 
 pub struct Balances {
     pub version: usize,
+    pub init_time: DateTime,
     pub balances_by_exchange_id: Option<HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>>,
     pub virtual_diff_balances: Option<ServiceValueTree>,
 
@@ -35,6 +37,7 @@ pub struct Balances {
 impl Balances {
     pub fn new(
         balances_by_exchange_id: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Decimal>>,
+        init_time: DateTime,
         virtual_diff_balances: ServiceValueTree,
         reserved_amount: ServiceValueTree,
         position_by_fill_amount: BalancePositionByFillAmount,
@@ -44,6 +47,7 @@ impl Balances {
     ) -> Self {
         let mut res = Self {
             version: Balances::get_current_version(),
+            init_time,
             balances_by_exchange_id: Some(balances_by_exchange_id),
             virtual_diff_balances: Some(virtual_diff_balances),
             reserved_amount: Some(reserved_amount),

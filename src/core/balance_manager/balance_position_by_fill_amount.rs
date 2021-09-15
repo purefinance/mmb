@@ -156,22 +156,18 @@ impl BalancePositionByFillAmount {
                 values
             );
 
-            let mut position_change = None;
-            for value in values {
-                if value.date_time <= start_of_period {
-                    position_change = Some(value.clone());
-                }
-            }
+            let position_change = values
+                .iter()
+                .take_while(|&x| x.change_time <= start_of_period)
+                .last()
+                .cloned();
 
-            match position_change {
-                Some(position_change) => {
-                    log::info!(
-                        "get_last_position_change_before_period {:?}",
-                        position_change,
-                    );
-                    return Some(position_change);
-                }
-                None => (),
+            if let Some(position_change) = position_change {
+                log::info!(
+                    "get_last_position_change_before_period {:?}",
+                    position_change,
+                );
+                return Some(position_change);
             }
         }
         log::info!(
