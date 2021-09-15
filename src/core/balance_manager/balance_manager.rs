@@ -11,6 +11,7 @@ use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, Curre
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
+use crate::core::misc::date_time_service::DateTimeService;
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
@@ -40,12 +41,14 @@ impl BalanceManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+        date_time_service: DateTimeService,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),
             balance_reservation_manager: BalanceReservationManager::new(
                 exchanges_by_id,
                 currency_pair_to_metadata_converter,
+                date_time_service,
             ),
             last_order_fills: HashMap::new(),
         }))
@@ -1092,4 +1095,13 @@ impl BalanceManager {
     //         action();
     //     }
     // }
+
+    #[cfg(test)]
+    pub fn set_date_time_service_now(&mut self, now: DateTime) {
+        self.balance_reservation_manager.date_time_service.now = now;
+    }
+    #[cfg(test)]
+    pub fn get_date_time_service_now(&self) -> DateTime {
+        self.balance_reservation_manager.date_time_service.now
+    }
 }

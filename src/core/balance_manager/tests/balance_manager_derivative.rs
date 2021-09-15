@@ -14,6 +14,7 @@ use crate::core::{
             test_helper::get_test_exchange_with_currency_pair_metadata_and_id,
         },
     },
+    misc::date_time_service::DateTimeService,
     orders::{
         fill::{OrderFill, OrderFillType},
         order::{OrderFillRole, OrderSide, ReservationId},
@@ -68,8 +69,11 @@ impl BalanceManagerDerivative {
         let currency_pair_to_metadata_converter =
             CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
 
-        let balance_manager =
-            BalanceManager::new(exchanges_by_id.clone(), currency_pair_to_metadata_converter);
+        let balance_manager = BalanceManager::new(
+            exchanges_by_id.clone(),
+            currency_pair_to_metadata_converter,
+            DateTimeService::new(Utc::now()),
+        );
         (currency_pair_metadata, balance_manager, exchanges_by_id)
     }
 

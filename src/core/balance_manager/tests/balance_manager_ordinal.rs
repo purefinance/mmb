@@ -1,7 +1,7 @@
 #[cfg(test)]
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use crate::core::{
     balance_manager::balance_manager::BalanceManager,
@@ -14,6 +14,7 @@ use crate::core::{
             test_helper::get_test_exchange_with_currency_pair_metadata_and_id,
         },
     },
+    misc::date_time_service::DateTimeService,
     orders::{
         fill::{OrderFill, OrderFillType},
         order::OrderFillRole,
@@ -41,8 +42,11 @@ impl BalanceManagerOrdinal {
         let currency_pair_to_metadata_converter =
             CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
 
-        let balance_manager =
-            BalanceManager::new(exchanges_by_id.clone(), currency_pair_to_metadata_converter);
+        let balance_manager = BalanceManager::new(
+            exchanges_by_id.clone(),
+            currency_pair_to_metadata_converter,
+            DateTimeService::new(Utc::now()),
+        );
         (currency_pair_metadata, balance_manager)
     }
 
@@ -88,25 +92,34 @@ impl BalanceManagerOrdinal {
     }
 
     fn new() -> Self {
-        let now = Utc::now();
         let (currency_pair_metadata, balance_manager) =
             BalanceManagerOrdinal::create_balance_manager();
         let mut balance_manager_base = BalanceManagerBase::new();
         balance_manager_base.set_balance_manager(balance_manager);
         balance_manager_base.set_currency_pair_metadata(currency_pair_metadata);
+        let now = balance_manager_base
+            .balance_manager()
+            .get_date_time_service_now();
         Self {
             balance_manager_base,
             now,
         }
     }
-}
 
-impl BalanceManagerOrdinal {
     fn create_order_fill(price: Price, amount: Amount, cost: Decimal) -> OrderFill {
+        BalanceManagerOrdinal::create_order_fill_with_time(price, amount, cost, Utc::now())
+    }
+
+    fn create_order_fill_with_time(
+        price: Price,
+        amount: Amount,
+        cost: Decimal,
+        receive_time: DateTime,
+    ) -> OrderFill {
         OrderFill::new(
             Uuid::new_v4(),
             None,
-            Utc::now(),
+            receive_time,
             OrderFillType::UserTrade,
             None,
             price,
@@ -115,7 +128,7 @@ impl BalanceManagerOrdinal {
             OrderFillRole::Taker,
             BalanceManagerBase::bnb(),
             dec!(0.1),
-            dec!(0.1),
+            dec!(0),
             BalanceManagerBase::bnb(),
             dec!(0.1),
             dec!(0.1),
@@ -130,7 +143,17 @@ impl BalanceManagerOrdinal {
     }
 
     fn check_time(&self, seconds: u32) {
-        assert_eq!(Utc::now().second() - self.now.second(), seconds);
+        assert_eq!(
+            self.balance_manager().get_date_time_service_now().second() - self.now.second(),
+            seconds
+        );
+    }
+
+    fn timer_add_second(&mut self) {
+        let now = self.balance_manager().get_date_time_service_now();
+        self.balance_manager().set_date_time_service_now(
+            now + chrono::Duration::from_std(Duration::from_secs(1)).expect("in test"),
+        )
     }
 }
 #[cfg(test)]
@@ -152,6 +175,7 @@ mod tests {
     };
     use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
     use crate::core::logger::init_logger;
+    use crate::core::misc::date_time_service::DateTimeService;
     use crate::core::misc::reserve_parameters::ReserveParameters;
     use crate::core::orders::order::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
@@ -4702,6 +4726,7 @@ mod tests {
         let balance_manager = BalanceManager::new(
             exchanges_by_id.clone(),
             currency_pair_to_metadata_converter.clone(),
+            DateTimeService::new(Utc::now()),
         );
 
         let exchange_account_id = &test_object
@@ -4751,6 +4776,7 @@ mod tests {
             .set_balance_manager(BalanceManager::new(
                 exchanges_by_id,
                 currency_pair_to_metadata_converter,
+                DateTimeService::new(Utc::now()),
             ));
 
         test_object
@@ -5346,7 +5372,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // TODO: fix after DateTimeService adding
     pub fn get_last_position_change_before_period_base_cases() {
         init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
@@ -5371,46 +5396,51 @@ mod tests {
         let mut sell_5 = test_object
             .balance_manager_base
             .create_order(OrderSide::Sell, ReservationId::default());
-        sell_5.add_fill(BalanceManagerOrdinal::create_order_fill(
+        sell_5.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(5),
             dec!(2.5),
+            test_object.now,
         ));
 
         let mut buy_1 = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::default());
-        buy_1.add_fill(BalanceManagerOrdinal::create_order_fill(
+        buy_1.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(1),
             dec!(2.5),
+            test_object.now,
         ));
 
         let mut buy_2 = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::default());
-        buy_2.add_fill(BalanceManagerOrdinal::create_order_fill(
+        buy_2.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(2),
             dec!(2.5),
+            test_object.now,
         ));
 
         let mut buy_4 = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::default());
-        buy_4.add_fill(BalanceManagerOrdinal::create_order_fill(
+        buy_4.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(4),
             dec!(2.5),
+            test_object.now,
         ));
 
         let mut buy_0 = test_object
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::default());
-        buy_0.add_fill(BalanceManagerOrdinal::create_order_fill(
+        buy_0.add_fill(BalanceManagerOrdinal::create_order_fill_with_time(
             price,
             dec!(0),
             dec!(2.5),
+            test_object.now,
         ));
 
         let order_fill_id_1 = order_was_filled(&mut test_object, &mut sell_5);
@@ -5424,7 +5454,7 @@ mod tests {
             PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
         );
 
-        // TimerAddSecond();
+        test_object.timer_add_second();
         let _order_fill_id_2 = order_was_filled(&mut test_object, &mut buy_4);
         test_object.check_time(1);
         check_position(&test_object, dec!(-1));
@@ -5436,7 +5466,7 @@ mod tests {
             PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
         );
 
-        // TimerAddSecond();
+        test_object.timer_add_second();
         let order_fill_id_3 = order_was_filled(&mut test_object, &mut buy_4);
         test_object.check_time(2);
         check_position(&test_object, dec!(3));
@@ -5457,7 +5487,7 @@ mod tests {
             )
         );
 
-        // TimerAddSecond();
+        test_object.timer_add_second();
         let _order_fill_id_4 = order_was_filled(&mut test_object, &mut buy_4);
         test_object.check_time(3);
         check_position(&test_object, dec!(7));
@@ -5478,7 +5508,7 @@ mod tests {
             )
         );
 
-        // TimerAddSecond();
+        test_object.timer_add_second();
         let _order_fill_id_5 = order_was_filled(&mut test_object, &mut sell_5);
         test_object.check_time(4);
         check_position(&test_object, dec!(2));
@@ -5499,7 +5529,7 @@ mod tests {
             )
         );
 
-        // TimerAddSecond();
+        test_object.timer_add_second();
         let order_fill_id_6 = order_was_filled(&mut test_object, &mut sell_5);
         test_object.check_time(5);
         check_position(&test_object, dec!(-3));
@@ -5520,7 +5550,7 @@ mod tests {
             )
         );
 
-        // TimerAddSecond();
+        test_object.timer_add_second();
         let _order_fill_id_7 = order_was_filled(&mut test_object, &mut buy_1);
         let order_fill_id_8 = order_was_filled(&mut test_object, &mut buy_2);
 

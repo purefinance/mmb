@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
-use chrono::Utc;
 use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -25,6 +24,7 @@ use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, Curre
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
+use crate::core::misc::date_time_service::DateTimeService;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::orders::order::ReservationId;
@@ -49,12 +49,15 @@ pub(crate) struct BalanceReservationManager {
     pub balance_reservation_storage: BalanceReservationStorage,
 
     pub(crate) is_call_from_clone: bool,
+
+    pub date_time_service: DateTimeService,
 }
 
 impl BalanceReservationManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+        date_time_service: DateTimeService,
     ) -> Self {
         Self {
             exchanges_by_id: exchanges_by_id.clone(),
@@ -66,6 +69,7 @@ impl BalanceReservationManager {
             virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),
             balance_reservation_storage: BalanceReservationStorage::new(),
             is_call_from_clone: false,
+            date_time_service,
         }
     }
 
@@ -953,8 +957,7 @@ impl BalanceReservationManager {
             .position_by_fill_amount_in_amount_currency
             .get(exchange_account_id, &currency_pair_metadata.currency_pair());
 
-        // let now = self.date_time_service.utc_now
-        let now = Utc::now(); // TODO: fix me after adding date_time_service
+        let now = self.date_time_service.now();
 
         self.position_by_fill_amount_in_amount_currency.set(
             exchange_account_id,
@@ -1072,7 +1075,7 @@ impl BalanceReservationManager {
                     position_change *= dec!(-1);
                 }
             }
-            let now = Utc::now();
+            let now = self.date_time_service.now();
             self.position_by_fill_amount_in_amount_currency.add(
                 &request.exchange_account_id,
                 &request.currency_pair,
@@ -1228,6 +1231,7 @@ impl BalanceReservationManager {
         client_order_id: &ClientOrderId,
         amount: Amount,
     ) -> Result<()> {
+        let date_time = self.date_time_service.now();
         let reservation = match self.get_mut_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
@@ -1267,7 +1271,6 @@ impl BalanceReservationManager {
                 amount
             )
         }
-        let date_time = Utc::now();
         reservation.approved_parts.insert(
             client_order_id.clone(),
             ApprovedPart::new(date_time, client_order_id.clone(), amount),
@@ -1434,6 +1437,7 @@ impl BalanceReservationManager {
         target_cost_diff: Decimal,
         cost_diff: &mut Decimal,
     ) -> Result<()> {
+        let date_time = self.date_time_service.now();
         let reservation = self.try_get_mut_reservation(reservation_id)?;
         *cost_diff = dec!(0);
         // we should check the case when we have insignificant calculation errors
@@ -1482,7 +1486,7 @@ impl BalanceReservationManager {
 
                 reservation.approved_parts.insert(
                     client_order_id.clone(),
-                    ApprovedPart::new(Utc::now(), client_order_id.clone(), reservation_amount_diff),
+                    ApprovedPart::new(date_time, client_order_id.clone(), reservation_amount_diff),
                 );
             }
         } else {
