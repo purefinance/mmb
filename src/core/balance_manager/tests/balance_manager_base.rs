@@ -52,7 +52,7 @@ impl BalanceManagerBase {
     }
 
     pub fn currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes(BalanceManagerBase::eth(), BalanceManagerBase::btc())
+        CurrencyPair::from_codes(&BalanceManagerBase::eth(), &BalanceManagerBase::btc())
     }
 
     pub fn update_balance(

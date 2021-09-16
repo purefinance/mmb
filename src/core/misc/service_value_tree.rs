@@ -288,7 +288,7 @@ mod test {
             ("b_3", "q_3"),
             ("b_4", "q_4"),
         ]
-        .map(|x| CurrencyPair::from_codes(x.0.into(), x.1.into()))
+        .map(|x| CurrencyPair::from_codes(&x.0.into(), &x.1.into()))
         .to_vec()
     }
 
@@ -366,13 +366,14 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
         let new_service_configuration_key = "new_name".to_string();
         let new_exchange_account_id = ExchangeAccountId::new("new_acc".into(), 0);
-        let new_currency_pair = CurrencyPair::from_codes("new_code_b".into(), "new_code_q".into());
+        let new_currency_pair =
+            CurrencyPair::from_codes(&"new_code_b".into(), &"new_code_q".into());
         let new_currency_code = CurrencyCode::new("new_code".into());
         let new_value = dec!(1);
 
@@ -497,8 +498,8 @@ mod test {
         let new_service_configuration_key = "new_service_configuration_key".to_string();
         let new_exchange_account_id = ExchangeAccountId::new("new_exchange_account_id".into(), 0);
         let new_currency_pair = CurrencyPair::from_codes(
-            "new_currency_pair_b_0".into(),
-            "new_currency_pair_q_0".into(),
+            &"new_currency_pair_b_0".into(),
+            &"new_currency_pair_q_0".into(),
         );
         let new_currency_code = CurrencyCode::new("0".into());
         let new_value = dec!(0);
@@ -538,7 +539,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -576,7 +577,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -614,7 +615,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -652,7 +653,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -675,7 +676,7 @@ mod test {
             &service_name,
             &service_configuration_key,
             &exchange_account_id,
-            &CurrencyPair::from_codes("m_b_0".into(), "q_0".into()),
+            &CurrencyPair::from_codes(&"new_b_0".into(), &"q_0".into()),
             &currency_code,
             &value,
         );
@@ -690,7 +691,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -728,7 +729,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -766,7 +767,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
+        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 

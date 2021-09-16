@@ -71,8 +71,8 @@ impl VirtualBalanceHolderTests {
 
     fn currency_pair() -> CurrencyPair {
         CurrencyPair::from_codes(
-            VirtualBalanceHolderTests::eth(),
-            VirtualBalanceHolderTests::btc(),
+            &VirtualBalanceHolderTests::eth(),
+            &VirtualBalanceHolderTests::btc(),
         )
     }
 
