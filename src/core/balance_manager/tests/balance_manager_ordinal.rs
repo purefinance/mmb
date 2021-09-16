@@ -3111,8 +3111,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order)
-            .expect("in test");
+            .order_was_finished(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object
@@ -3173,8 +3172,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order)
-            .expect("in test");
+            .order_was_finished(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object
@@ -3235,8 +3233,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order)
-            .expect("in test");
+            .order_was_finished(configuration_descriptor.clone(), &order);
 
         let mut order = test_object
             .balance_manager_base
@@ -3259,8 +3256,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order)
-            .expect("in test");
+            .order_was_finished(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object
@@ -4625,8 +4621,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order)
-            .expect("in test");
+            .order_was_finished(configuration_descriptor.clone(), &order);
 
         let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(10));
@@ -4980,8 +4975,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order)
-            .expect("in test");
+            .order_was_finished(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object

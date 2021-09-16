@@ -593,8 +593,7 @@ mod tests {
         ));
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order)
-            .expect("in test");
+            .order_was_finished(configuration_descriptor.clone(), &order);
     }
 
     #[rstest]

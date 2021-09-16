@@ -729,7 +729,7 @@ impl BalanceManager {
         &mut self,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         order_snapshot: &OrderSnapshot,
-    ) -> Result<()> {
+    ) {
         for order_fill in &order_snapshot.fills.fills {
             self.order_was_filled(
                 configuration_descriptor.clone(),
@@ -745,12 +745,11 @@ impl BalanceManager {
                         .cancel_approved_reservation(
                             reservation_id,
                             &order_snapshot.header.client_order_id,
-                        )?;
+                        );
                     self.save_balances();
                 }
             }
         }
-        Ok(())
     }
 
     pub fn get_reservation(&self, reservation_id: ReservationId) -> Option<&BalanceReservation> {
@@ -855,10 +854,10 @@ impl BalanceManager {
         order1: ReserveParameters,
         order2: ReserveParameters,
     ) -> Option<(ReservationId, ReservationId)> {
-        let (is_success, reservations_id) = self
+        let reservations_id = self
             .balance_reservation_manager
-            .try_reserve_multiple(&vec![order1, order2], &mut None);
-        if is_success && !reservations_id.is_empty() && reservations_id.len() == 2 {
+            .try_reserve_multiple(&[order1, order2], &mut None)?;
+        if reservations_id.len() == 2 {
             self.save_balances();
             return Some((reservations_id[0], reservations_id[1]));
         }
@@ -871,10 +870,10 @@ impl BalanceManager {
         order2: ReserveParameters,
         order3: ReserveParameters,
     ) -> Option<(ReservationId, ReservationId, ReservationId)> {
-        let (is_success, reservations_id) = self
+        let reservations_id = self
             .balance_reservation_manager
-            .try_reserve_multiple(&vec![order1, order2, order3], &mut None);
-        if is_success && !reservations_id.is_empty() && reservations_id.len() == 3 {
+            .try_reserve_multiple(&[order1, order2, order3], &mut None)?;
+        if reservations_id.len() == 3 {
             self.save_balances();
             return Some((reservations_id[0], reservations_id[1], reservations_id[2]));
         }

@@ -370,15 +370,11 @@ impl BalanceReservationManager {
         let mut balance_in_currency_code = balance_in_currency_code?;
 
         let leverage =
-            self.try_get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair());
+            self.get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair());
 
         if let Some(explanation) = explanation {
             explanation.add_reason(format!("leverage = {:?}", leverage));
         }
-
-        let leverage = leverage.expect(
-            "failed to get leverage in BalanceReservationManager::try_get_available_balance",
-        );
 
         if currency_pair_metadata.is_derivative {
             if include_free_amount {
@@ -660,17 +656,19 @@ impl BalanceReservationManager {
         }
     }
 
-    fn try_get_leverage(
+    fn get_leverage(
         &self,
         exchange_account_id: &ExchangeAccountId,
         currency_pair: &CurrencyPair,
-    ) -> Option<Decimal> {
+    ) -> Decimal {
         self.exchanges_by_id
-            .get(exchange_account_id)?
+            .get(exchange_account_id)
+            .expect("failed to get exchange")
             .leverage_by_currency_pair
             .get(currency_pair)
             .as_deref()
-            .cloned()
+            .expect("failed to get leverage")
+            .clone()
     }
 
     fn get_position_values(
@@ -963,15 +961,8 @@ impl BalanceReservationManager {
                     (free_amount, (free_amount - move_amount).abs())
                 };
 
-                let leverage = self
-                    .try_get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair())
-                    .expect(
-                        format!(
-                            "Failed to get leverage for {} from {:?}",
-                            exchange_account_id, currency_pair_metadata
-                        )
-                        .as_str(),
-                    );
+                let leverage =
+                    self.get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair());
                 let diff_in_amount_currency =
                     (add_amount - sub_amount) / leverage * currency_pair_metadata.amount_multiplier;
                 self.virtual_balance_holder
@@ -1039,7 +1030,7 @@ impl BalanceReservationManager {
         &mut self,
         reservation_id: ReservationId,
         client_order_id: &ClientOrderId,
-    ) -> Result<()> {
+    ) {
         let reservation = match self.get_mut_reservation(&reservation_id) {
             Some(reservation_id) => reservation_id,
             None => {
@@ -1050,7 +1041,7 @@ impl BalanceReservationManager {
                         .get_reservation_ids()
                         .to_string()
                 );
-                return Ok(());
+                return ();
             }
         };
 
@@ -1058,16 +1049,16 @@ impl BalanceReservationManager {
             Some(approved_part) => approved_part,
             None => {
                 log::error!("There is no approved part for order {}", client_order_id);
-                return Ok(());
+                return ();
             }
         };
 
         if approved_part.is_canceled {
-            bail!(
+            std::panic!(
                 "Approved part was already canceled for {} {}",
                 client_order_id,
                 reservation_id
-            );
+            )
         }
 
         reservation.not_approved_amount += approved_part.unreserved_amount;
@@ -1077,7 +1068,6 @@ impl BalanceReservationManager {
             client_order_id,
             approved_part.unreserved_amount
         );
-        Ok(())
     }
 
     pub fn handle_position_fill_amount_change_commission(
@@ -1091,16 +1081,8 @@ impl BalanceReservationManager {
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
     ) {
-        let leverage = self
-            .try_get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair())
-            .expect(
-                format!(
-                    "failed to get leverage for {} and {}",
-                    exchange_account_id,
-                    currency_pair_metadata.currency_pair()
-                )
-                .as_str(),
-            );
+        let leverage =
+            self.get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair());
         if !currency_pair_metadata.is_derivative
             || currency_pair_metadata.balance_currency_code
                 == Some(commission_currency_code.clone())
@@ -1368,10 +1350,10 @@ impl BalanceReservationManager {
 
         let reservation_amount_diff = new_unreserved_amount - reservation.unreserved_amount;
         if let Some(client_order_id) = client_order_id {
-            if let Some(approved_part) = reservation.approved_parts.get_mut(client_order_id) {
+            if let Some(approved_part) = reservation.approved_parts.get(client_order_id) {
                 let new_amount = approved_part.unreserved_amount + reservation_amount_diff;
                 if reservation.is_amount_within_symbol_margin_error(new_amount) {
-                    reservation.approved_parts.remove(client_order_id);
+                    let _ = reservation.approved_parts.remove(client_order_id);
                 } else if new_amount < dec!(0) {
                     std::panic!(
                             "Attempt to transfer more amount ({}) than we have ({}) for approved part by ClientOrderId {}",
@@ -1480,15 +1462,13 @@ impl BalanceReservationManager {
 
     pub fn try_reserve_multiple(
         &mut self,
-        reserve_parameters: &Vec<ReserveParameters>,
+        reserve_parameters: &[ReserveParameters],
         explanation: &mut Option<Explanation>,
-    ) -> (bool, Vec<ReservationId>) {
-        let mut successful_reservations = HashMap::new();
-        for reserve_parameter in reserve_parameters {
-            if let Some(reservation_id) = self.try_reserve(reserve_parameter, explanation) {
-                successful_reservations.insert(reservation_id, reserve_parameter);
-            }
-        }
+    ) -> Option<Vec<ReservationId>> {
+        let successful_reservations: HashMap<_, _> = reserve_parameters
+            .iter()
+            .filter_map(|rp| self.try_reserve(rp, explanation).map(|id| (id, rp)))
+            .collect();
 
         if successful_reservations.len() != reserve_parameters.len() {
             for (res_id, res_params) in successful_reservations {
@@ -1496,12 +1476,12 @@ impl BalanceReservationManager {
                     format!("failed to unreserve for {} {}", res_id, res_params.amount).as_str(),
                 );
             }
-            return (false, Vec::new());
+            return None;
         }
         let mut result_vec = successful_reservations.keys().cloned().collect_vec();
         result_vec.sort_by(|x, y| x.cmp(y));
 
-        return (true, result_vec);
+        Some(result_vec)
     }
 
     pub fn try_reserve(
@@ -1612,7 +1592,7 @@ impl BalanceReservationManager {
             return false;
         }
 
-        //Added precision error handling for https://github.com/CryptoDreamTeam/CryptoLp/issues/1602
+        //Added precision error handling for an issue "Could not reserve balance for hedge in OrderRecreationManager"
         //Spot trading might need a more precise solution
         reserve_parameters
             .currency_pair_metadata
@@ -1664,13 +1644,14 @@ impl BalanceReservationManager {
             .position_by_fill_amount_in_amount_currency
             .get(&request.exchange_account_id, &request.currency_pair)
             .unwrap_or(dec!(0));
-        *potential_position = if reserve_parameters.order_side == OrderSide::Buy {
-            Some(position + new_reserved_amount)
-        } else {
-            Some(position - new_reserved_amount)
+
+        let potential_position_tmp = match reserve_parameters.order_side {
+            OrderSide::Buy => position + new_reserved_amount,
+            OrderSide::Sell => position - new_reserved_amount,
         };
 
-        let potential_position_abs = potential_position.expect("Must be non None").abs();
+        *potential_position = Some(potential_position_tmp);
+        let potential_position_abs = potential_position_tmp.abs();
         if potential_position_abs <= limit {
             // position is within limit range
             return true;
@@ -1739,12 +1720,10 @@ impl BalanceReservationManager {
         let taken_free_amount = reserve_parameters.amount - amount_to_pay_for;
 
         // TODO: use full formula (with fee and etc)
-        let leverage = self
-            .try_get_leverage(
-                &reserve_parameters.exchange_account_id,
-                &reserve_parameters.currency_pair_metadata.currency_pair(),
-            )
-            .expect("failed to get leverage");
+        let leverage = self.get_leverage(
+            &reserve_parameters.exchange_account_id,
+            &reserve_parameters.currency_pair_metadata.currency_pair(),
+        );
 
         (
             amount_to_pay_for * reserve_parameters.currency_pair_metadata.amount_multiplier
