@@ -590,32 +590,39 @@ impl BalanceManager {
             )
     }
 
+    /// here we have OrderSnapshot in non actual state it's a cloned_order
+    /// from OrderEventType::OrderFilled
     pub fn order_was_filled(
         &mut self,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         order_snapshot: &OrderSnapshot,
-        order_fill: Option<OrderFill>,
+    ) {
+        let order_fill = order_snapshot
+            .fills
+            .fills
+            .last()
+            .expect(format!("failed to get fills from order {:?}", order_snapshot).as_str());
+
+        self.order_was_filled_with_fill(configuration_descriptor, order_snapshot, order_fill)
+    }
+
+    pub fn order_was_filled_with_fill(
+        &mut self,
+        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        order_snapshot: &OrderSnapshot,
+        order_fill: &OrderFill,
     ) {
         let exchange_account_id = &order_snapshot.header.exchange_account_id;
         let currency_pair_metadata = self
             .balance_reservation_manager
             .currency_pair_to_metadata_converter
             .get_currency_pair_metadata(exchange_account_id, &order_snapshot.header.currency_pair);
-        let order_fill = match order_fill {
-            Some(order_fill) => order_fill,
-            None => order_snapshot
-                .fills
-                .fills
-                .last()
-                .expect(format!("failed to get fills from order {:?}", order_snapshot).as_str())
-                .clone(),
-        };
         self.handle_order_fill(
             configuration_descriptor,
             exchange_account_id,
             currency_pair_metadata,
             order_snapshot,
-            &order_fill,
+            order_fill,
         );
         self.save_balances();
         // _balanceChangesService?.AddBalanceChange(configurationDescriptor, order, orderFill); // TODO: fix me when added
@@ -718,16 +725,18 @@ impl BalanceManager {
         );
     }
 
+    /// here we have OrderSnapshot in non actual state it's a cloned_order
+    /// from OrderEventType::OrderCompleted
     pub fn order_was_finished(
         &mut self,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         order_snapshot: &OrderSnapshot,
     ) {
         for order_fill in &order_snapshot.fills.fills {
-            self.order_was_filled(
+            self.order_was_filled_with_fill(
                 configuration_descriptor.clone(),
                 order_snapshot,
-                Some(order_fill.clone()),
+                order_fill,
             );
         }
 

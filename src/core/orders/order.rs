@@ -124,26 +124,22 @@ impl ClientOrderId {
         ClientOrderId(new_id.to_string().into())
     }
 
-    #[inline]
     pub fn new(client_order_id: String16) -> Self {
         ClientOrderId(client_order_id)
     }
 
     /// Extracts a string slice containing the entire string.
-    #[inline]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 
     /// Extracts a string slice containing the entire string.
-    #[inline]
     pub fn as_mut_str(&mut self) -> &mut str {
         self.0.as_mut_str()
     }
 }
 
 impl From<&str> for ClientOrderId {
-    #[inline]
     fn from(value: &str) -> Self {
         ClientOrderId(String16::from_str(value))
     }
@@ -176,26 +172,22 @@ impl ClientOrderFillId {
         ClientOrderFillId(new_id.to_string().into())
     }
 
-    #[inline]
     pub fn new(client_order_id: String16) -> Self {
         ClientOrderFillId(client_order_id)
     }
 
     /// Extracts a string slice containing the entire string.
-    #[inline]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 
     /// Extracts a string slice containing the entire string.
-    #[inline]
     pub fn as_mut_str(&mut self) -> &mut str {
         self.0.as_mut_str()
     }
 }
 
 impl From<&str> for ClientOrderFillId {
-    #[inline]
     fn from(value: &str) -> Self {
         ClientOrderFillId(String16::from_str(value))
     }

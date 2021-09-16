@@ -226,7 +226,7 @@ impl BalanceManagerDerivative {
         ));
         let configuration_descriptor = self.balance_manager_base.configuration_descriptor.clone();
         self.balance_manager()
-            .order_was_filled(configuration_descriptor, &order, None);
+            .order_was_filled(configuration_descriptor, &order);
         self.balance_manager()
             .unreserve(reservation_id, amount)
             .expect("in test");
@@ -646,11 +646,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object.balance_manager().get_position(
@@ -699,11 +697,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object
@@ -758,11 +754,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object
@@ -821,11 +815,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object
@@ -880,11 +872,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object
@@ -969,11 +959,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         test_object
             .balance_manager()
@@ -1092,11 +1080,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         test_object
             .balance_manager()
@@ -1215,11 +1201,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         test_object
             .balance_manager()
@@ -1338,11 +1322,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         test_object
             .balance_manager()
@@ -1460,11 +1442,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         test_object
             .balance_manager()
@@ -1630,11 +1610,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         test_object
             .balance_manager()
@@ -1799,11 +1777,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         test_object
             .balance_manager()
@@ -1971,11 +1947,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         test_object
             .balance_manager()
@@ -2525,11 +2499,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object.balance_manager().get_position(
@@ -3181,11 +3153,9 @@ mod tests {
             is_reversed,
         ));
 
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
         test_object
             .balance_manager()
             .unreserve(reservation_id, reserved_amount)
@@ -3337,11 +3307,9 @@ mod tests {
             is_reversed,
         ));
 
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
         test_object
             .balance_manager()
             .unreserve(reservation_id, reserved_amount)
@@ -3514,11 +3482,9 @@ mod tests {
             is_reversed,
         ));
 
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
         test_object
             .balance_manager()
             .unreserve(reservation_id, reserved_amount)
@@ -3696,11 +3662,9 @@ mod tests {
             is_reversed,
         ));
 
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
         test_object
             .balance_manager()
             .unreserve(reservation_id, reserved_amount)
@@ -4905,7 +4869,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor, &order, None);
+            .order_was_filled(configuration_descriptor, &order);
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Sell,

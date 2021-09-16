@@ -28,6 +28,7 @@ use crate::core::explanation::Explanation;
 use crate::core::misc::date_time_service::DateTimeService;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
+use crate::core::misc::traits_ext::decimal_inverse_sign::DecimalInverseSign;
 use crate::core::orders::order::{ClientOrderFillId, ClientOrderId, OrderSide};
 use crate::core::orders::order::{ReservationId, ReservationIdVecToStringExt};
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
@@ -719,8 +720,7 @@ impl BalanceReservationManager {
 
         if currency_code == currency_pair_metadata.base_currency_code {
             //sell
-            position_in_amount_currency
-                .set_sign_positive(!position_in_amount_currency.is_sign_positive());
+            position_in_amount_currency.inverse_sign();
         }
 
         position_in_amount_currency
@@ -983,7 +983,7 @@ impl BalanceReservationManager {
                 if currency_pair_metadata.amount_currency_code
                     == currency_pair_metadata.base_currency_code()
                 {
-                    position_change.set_sign_positive(!position_change.is_sign_positive());
+                    position_change.inverse_sign();
                 }
             }
             let now = self.date_time_service.now();
@@ -1464,10 +1464,10 @@ impl BalanceReservationManager {
         reserve_parameters: &[ReserveParameters],
         explanation: &mut Option<Explanation>,
     ) -> Option<Vec<ReservationId>> {
-        let successful_reservations: HashMap<_, _> = reserve_parameters
+        let successful_reservations = reserve_parameters
             .iter()
             .filter_map(|rp| self.try_reserve(rp, explanation).map(|id| (id, rp)))
-            .collect();
+            .collect_vec();
 
         if successful_reservations.len() != reserve_parameters.len() {
             for (res_id, res_params) in successful_reservations {
@@ -1477,8 +1477,7 @@ impl BalanceReservationManager {
             }
             return None;
         }
-        let mut result_vec = successful_reservations.keys().cloned().collect_vec();
-        result_vec.sort_by(|x, y| x.cmp(y));
+        let result_vec = successful_reservations.iter().map(|x| x.0).collect_vec();
 
         Some(result_vec)
     }

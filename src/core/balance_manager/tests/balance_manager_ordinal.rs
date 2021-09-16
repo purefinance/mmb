@@ -2862,7 +2862,7 @@ mod tests {
             .clone();
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor, &order, None);
+            .order_was_filled(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -2921,11 +2921,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         assert_eq!(
             test_object
@@ -2983,10 +2981,10 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
+        test_object.balance_manager().order_was_filled_with_fill(
             configuration_descriptor.clone(),
             &order,
-            order.fills.fills.first().cloned(),
+            order.fills.fills.first().expect("in test"),
         );
 
         assert_eq!(
@@ -3045,10 +3043,10 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
+        test_object.balance_manager().order_was_filled_with_fill(
             configuration_descriptor.clone(),
             &order,
-            order.fills.fills.first().cloned(),
+            order.fills.fills.first().expect("in test"),
         );
 
         assert_eq!(
@@ -4484,11 +4482,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         let position_by_fill_amount = test_object
             .balance_manager()
@@ -5119,11 +5115,9 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        test_object.balance_manager().order_was_filled(
-            configuration_descriptor.clone(),
-            &order,
-            None,
-        );
+        test_object
+            .balance_manager()
+            .order_was_filled(configuration_descriptor.clone(), &order);
 
         let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(9));
@@ -5388,11 +5382,11 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        let order_fill = order.fills.fills.first_mut().expect("in test").clone();
-        test_object.balance_manager().order_was_filled(
+        let order_fill = order.fills.fills.first().expect("in test");
+        test_object.balance_manager().order_was_filled_with_fill(
             configuration_descriptor.clone(),
             order,
-            Some(order_fill),
+            order_fill,
         );
 
         return order_fill_id;
