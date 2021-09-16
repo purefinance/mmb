@@ -2242,10 +2242,7 @@ mod tests {
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
         let mut balance_manager = test_object.balance_manager();
-        let reservation_1 = balance_manager
-            .get_reservation(reservation_id_1)
-            .expect("in test")
-            .clone();
+        let reservation_1 = balance_manager.get_reservation(&reservation_id_1).clone();
         let balance_1 =
             initial_balance - reservation_1.convert_in_reservation_currency(reservation_1.amount);
         assert_eq!(
@@ -2262,10 +2259,7 @@ mod tests {
         let reservation_id_2 = balance_manager
             .try_reserve(&reserve_parameters_2, &mut None)
             .expect("in test");
-        let reservation_2 = balance_manager
-            .get_reservation(reservation_id_2)
-            .expect("in test")
-            .clone();
+        let reservation_2 = balance_manager.get_reservation(&reservation_id_2).clone();
         let balance_2 =
             balance_1 - reservation_2.convert_in_reservation_currency(reservation_2.amount);
         assert_eq!(
@@ -2291,18 +2285,14 @@ mod tests {
             Some(balance_2 + add - sub)
         );
         let balance_manager = test_object.balance_manager();
-        let reservation = balance_manager
-            .get_reservation(reservation_id_1)
-            .expect("in test");
+        let reservation = balance_manager.get_reservation(&reservation_id_1);
 
         assert_eq!(reservation.cost, dec!(3) - dec!(2));
         assert_eq!(reservation.amount, dec!(3) - dec!(2));
         assert_eq!(reservation.not_approved_amount, dec!(3) - dec!(2));
         assert_eq!(reservation.unreserved_amount, dec!(3) - dec!(2));
 
-        let reservation = balance_manager
-            .get_reservation(reservation_id_2)
-            .expect("in test");
+        let reservation = balance_manager.get_reservation(&reservation_id_2);
 
         assert_eq!(reservation.cost, dec!(2) + dec!(2));
         assert_eq!(reservation.amount, dec!(2) + dec!(2));
@@ -2421,16 +2411,12 @@ mod tests {
         );
 
         let balance_manager = test_object.balance_manager();
-        let reservation = balance_manager
-            .get_reservation(reservation_id_1)
-            .expect("in test");
+        let reservation = balance_manager.get_reservation(&reservation_id_1);
         assert_eq!(reservation.amount, dec!(3) - dec!(2));
         assert_eq!(reservation.not_approved_amount, dec!(3) - dec!(2));
         assert_eq!(reservation.unreserved_amount, dec!(3) - dec!(2));
 
-        let reservation = balance_manager
-            .get_reservation(reservation_id_2)
-            .expect("in test");
+        let reservation = balance_manager.get_reservation(&reservation_id_2);
         assert_eq!(reservation.amount, dec!(2) + dec!(2));
         assert_eq!(reservation.not_approved_amount, dec!(2) + dec!(2));
         assert_eq!(reservation.unreserved_amount, dec!(2) + dec!(2));
@@ -2457,8 +2443,7 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .get_reservation(reservation_id_1)
-                .expect("in test")
+                .get_reservation(&reservation_id_1)
                 .cost,
             dec!(3)
         );
@@ -2526,8 +2511,7 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .get_reservation(reservation_id_1)
-                .expect("in test")
+                .get_reservation(&reservation_id_1)
                 .cost,
             dec!(0.9)
         );
@@ -2554,17 +2538,13 @@ mod tests {
         );
 
         let balance_manager = test_object.balance_manager();
-        let reservation = balance_manager
-            .get_reservation(reservation_id_1)
-            .expect("in test");
+        let reservation = balance_manager.get_reservation(&reservation_id_1);
         assert_eq!(reservation.amount, dec!(3) - dec!(2));
         assert_eq!(reservation.not_approved_amount, dec!(3) - dec!(2));
         assert_eq!(reservation.unreserved_amount, dec!(3) - dec!(2));
         assert_eq!(reservation.cost, dec!(3) - dec!(2));
 
-        let reservation = balance_manager
-            .get_reservation(reservation_id_2)
-            .expect("in test");
+        let reservation = balance_manager.get_reservation(&reservation_id_2);
         assert_eq!(reservation.amount, dec!(1.9) + dec!(2));
         assert_eq!(reservation.not_approved_amount, dec!(1.9) + dec!(2));
         assert_eq!(reservation.unreserved_amount, dec!(1.9) + dec!(2));

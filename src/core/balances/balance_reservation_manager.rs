@@ -24,7 +24,7 @@ use crate::core::exchanges::common::{
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
-use crate::core::explanation::Explanation;
+use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::misc::traits_ext::decimal_inverse_sign::DecimalInverseSign;
@@ -123,8 +123,15 @@ impl BalanceReservationManager {
         self.position_by_fill_amount_in_amount_currency = position_by_fill_amount;
     }
 
-    pub fn get_reservation(&self, reservation_id: &ReservationId) -> Option<&BalanceReservation> {
+    pub fn try_get_reservation(
+        &self,
+        reservation_id: &ReservationId,
+    ) -> Option<&BalanceReservation> {
         self.balance_reservation_storage.try_get(reservation_id)
+    }
+    pub fn get_reservation(&self, reservation_id: &ReservationId) -> &BalanceReservation {
+        self.try_get_reservation(reservation_id)
+            .expect("failed to get reservation for reservation_id: {}")
     }
 
     pub fn get_mut_reservation(
@@ -140,7 +147,7 @@ impl BalanceReservationManager {
         amount: Amount,
         client_or_order_id: &Option<ClientOrderId>,
     ) -> Result<()> {
-        let reservation = match self.get_reservation(&reservation_id) {
+        let reservation = match self.try_get_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
                 let reservation_ids = self.balance_reservation_storage.get_reservation_ids();
@@ -204,19 +211,14 @@ impl BalanceReservationManager {
         self.unreserve_not_approved_part(reservation_id, client_or_order_id, amount_to_unreserve)
             .with_context(|| format!("failed unreserve not approved part"))?;
 
-        let reservation = self
-            .get_reservation(&reservation_id)
-            .expect("Failed to get reservation");
+        let reservation = self.get_reservation(&reservation_id);
         let balance_request = BalanceRequest::from_reservation(reservation);
         self.add_reserved_amount(&balance_request, reservation_id, -amount_to_unreserve, true)?;
 
         let new_balance = self.get_available_balance(&balance_params, true, &mut None);
         log::info!("VirtualBalanceHolder {}", new_balance);
 
-        let mut reservation = self
-            .get_reservation(&reservation_id)
-            .expect("Failed to get reservation")
-            .clone();
+        let mut reservation = self.get_reservation(&reservation_id).clone();
         if reservation.unreserved_amount < dec!(0)
             || reservation.is_amount_within_symbol_margin_error(reservation.unreserved_amount)
         {
@@ -356,21 +358,17 @@ impl BalanceReservationManager {
             explanation,
         );
 
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "balance_in_currency_code_raw = {:?}",
-                balance_in_currency_code
-            ));
-        }
+        explanation.add_reason(format!(
+            "balance_in_currency_code_raw = {:?}",
+            balance_in_currency_code
+        ));
 
         let mut balance_in_currency_code = balance_in_currency_code?;
 
         let leverage =
             self.get_leverage(exchange_account_id, &currency_pair_metadata.currency_pair());
 
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!("leverage = {:?}", leverage));
-        }
+        explanation.add_reason(format!("leverage = {:?}", leverage));
 
         if currency_pair_metadata.is_derivative {
             if include_free_amount {
@@ -381,12 +379,10 @@ impl BalanceReservationManager {
                         side,
                     );
 
-                if let Some(explanation) = explanation {
-                    explanation.add_reason(format!(
-                        "free_amount_in_amount_currency_code with leverage and amount_multiplier = {}",
-                        free_amount_in_amount_currency_code
-                    ));
-                }
+                explanation.add_reason(format!(
+                    "free_amount_in_amount_currency_code with leverage and amount_multiplier = {}",
+                    free_amount_in_amount_currency_code
+                ));
 
                 let mut free_amount_in_currency_code = currency_pair_metadata
                     .convert_amount_from_amount_currency_code(
@@ -397,35 +393,29 @@ impl BalanceReservationManager {
                 free_amount_in_currency_code /= leverage;
                 free_amount_in_currency_code *= currency_pair_metadata.amount_multiplier;
 
-                if let Some(explanation) = explanation {
-                    explanation.add_reason(format!(
-                        "free_amount_in_currency_code = {}",
-                        free_amount_in_currency_code
-                    ));
-                }
+                explanation.add_reason(format!(
+                    "free_amount_in_currency_code = {}",
+                    free_amount_in_currency_code
+                ));
 
                 balance_in_currency_code += free_amount_in_currency_code;
 
-                if let Some(explanation) = explanation {
-                    explanation.add_reason(format!(
-                        "balance_in_currency_code with free amount: {}",
-                        balance_in_currency_code
-                    ));
-                }
+                explanation.add_reason(format!(
+                    "balance_in_currency_code with free amount: {}",
+                    balance_in_currency_code
+                ));
             }
 
             balance_in_currency_code -= BalanceReservationManager::get_untouchable_amount(
                 currency_pair_metadata.clone(),
                 balance_in_currency_code,
             );
-            if let Some(explanation) = explanation {
-                explanation.add_reason(format!(
-                    "balance_in_currency_code without untouchable: {}",
-                    balance_in_currency_code
-                ));
-            }
-        }
 
+            explanation.add_reason(format!(
+                "balance_in_currency_code without untouchable: {}",
+                balance_in_currency_code
+            ));
+        }
         if !self
             .amount_limits_in_amount_currency
             .get_by_balance_request(&request)
@@ -442,24 +432,20 @@ impl BalanceReservationManager {
             );
         }
 
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "balance_in_currency_code with limit: {}",
-                balance_in_currency_code
-            ));
-        }
+        explanation.add_reason(format!(
+            "balance_in_currency_code with limit: {}",
+            balance_in_currency_code
+        ));
 
         // isLeveraged is used when we need to know how much funds we can use for orders
         if is_leveraged {
             balance_in_currency_code *= leverage;
             balance_in_currency_code /= currency_pair_metadata.amount_multiplier;
 
-            if let Some(explanation) = explanation {
-                explanation.add_reason(format!(
-                    "balance_in_currency_code with leverage and multiplier: {}",
-                    balance_in_currency_code
-                ));
-            }
+            explanation.add_reason(format!(
+                "balance_in_currency_code with leverage and multiplier: {}",
+                balance_in_currency_code
+            ));
         }
         Some(balance_in_currency_code)
     }
@@ -525,59 +511,47 @@ impl BalanceReservationManager {
         );
 
         let position_amount_in_amount_currency = position.position;
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "position_amount_in_amount_currency: {}",
-                position_amount_in_amount_currency
-            ));
-        }
+        explanation.add_reason(format!(
+            "position_amount_in_amount_currency: {}",
+            position_amount_in_amount_currency
+        ));
 
         let reserved_amount_in_amount_currency = self
             .reserved_amount_in_amount_currency
             .get_by_balance_request(request)
             .unwrap_or(dec!(0));
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "reserved_amount_in_amount_currency: {}",
-                reserved_amount_in_amount_currency
-            ));
-        }
+        explanation.add_reason(format!(
+            "reserved_amount_in_amount_currency: {}",
+            reserved_amount_in_amount_currency
+        ));
 
         let reservation_with_fills_in_amount_currency =
             reserved_amount_in_amount_currency + position_amount_in_amount_currency;
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "reservation_with_fills_in_amount_currency: {}",
-                reservation_with_fills_in_amount_currency
-            ));
-        }
+        explanation.add_reason(format!(
+            "reservation_with_fills_in_amount_currency: {}",
+            reservation_with_fills_in_amount_currency
+        ));
 
         let total_amount_limit_in_amount_currency = position.limit.unwrap_or(dec!(0));
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "total_amount_limit_in_amount_currency: {}",
-                total_amount_limit_in_amount_currency
-            ));
-        }
+        explanation.add_reason(format!(
+            "total_amount_limit_in_amount_currency: {}",
+            total_amount_limit_in_amount_currency
+        ));
 
         let limit_left_in_amount_currency =
             total_amount_limit_in_amount_currency - reservation_with_fills_in_amount_currency;
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "limit_left_in_amount_currency: {}",
-                limit_left_in_amount_currency
-            ));
-        }
+        explanation.add_reason(format!(
+            "limit_left_in_amount_currency: {}",
+            limit_left_in_amount_currency
+        ));
 
         //AmountLimit is applied to full amount
         balance_in_currency_code *= leverage;
         balance_in_currency_code /= currency_pair_metadata.amount_multiplier;
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "balance_in_currency_code with leverage and multiplier: {}",
-                balance_in_currency_code
-            ));
-        }
+        explanation.add_reason(format!(
+            "balance_in_currency_code with leverage and multiplier: {}",
+            balance_in_currency_code
+        ));
 
         let balance_in_amount_currency = currency_pair_metadata
             .convert_amount_into_amount_currency_code(
@@ -585,21 +559,17 @@ impl BalanceReservationManager {
                 balance_in_currency_code,
                 price,
             );
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "balance_in_amount_currency with leverage and multiplier: {}",
-                balance_in_amount_currency
-            ));
-        }
+        explanation.add_reason(format!(
+            "balance_in_amount_currency with leverage and multiplier: {}",
+            balance_in_amount_currency
+        ));
 
         let limited_balance_in_amount_currency =
             balance_in_amount_currency.min(limit_left_in_amount_currency);
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "limited_balance_in_amount_currency: {}",
-                limited_balance_in_amount_currency
-            ));
-        }
+        explanation.add_reason(format!(
+            "limited_balance_in_amount_currency: {}",
+            limited_balance_in_amount_currency
+        ));
 
         let mut limited_balance_in_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(
@@ -607,22 +577,18 @@ impl BalanceReservationManager {
                 limited_balance_in_amount_currency,
                 price,
             );
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "limited_balance_in_currency_code: {}",
-                limited_balance_in_currency_code
-            ));
-        }
+        explanation.add_reason(format!(
+            "limited_balance_in_currency_code: {}",
+            limited_balance_in_currency_code
+        ));
 
         //converting back to pure balance
         limited_balance_in_currency_code /= leverage;
         limited_balance_in_currency_code *= currency_pair_metadata.amount_multiplier;
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "limited_balance_in_currency_code without leverage and multiplier: {}",
-                limited_balance_in_currency_code
-            ));
-        }
+        explanation.add_reason(format!(
+            "limited_balance_in_currency_code without leverage and multiplier: {}",
+            limited_balance_in_currency_code
+        ));
 
         if limited_balance_in_currency_code < dec!(0) {
             log::warn!(
@@ -1178,13 +1144,9 @@ impl BalanceReservationManager {
         amount: Amount,
         client_order_id: &Option<ClientOrderId>,
     ) -> bool {
-        let src_reservation = self
-            .get_reservation(&src_reservation_id)
-            .expect(format!("Reservation for {} not found", src_reservation_id).as_str());
+        let src_reservation = self.get_reservation(&src_reservation_id);
 
-        let dst_reservation = self
-            .get_reservation(&dst_reservation_id)
-            .expect(format!("Reservation for {} not found", dst_reservation_id).as_str());
+        let dst_reservation = self.get_reservation(&dst_reservation_id);
 
         if src_reservation.configuration_descriptor != dst_reservation.configuration_descriptor
             || src_reservation.exchange_account_id != dst_reservation.exchange_account_id
@@ -1270,9 +1232,7 @@ impl BalanceReservationManager {
         amount_to_move: Amount,
         client_order_id: &Option<ClientOrderId>,
     ) {
-        let src_reservation = self
-            .get_reservation(&src_reservation_id)
-            .expect(format!("Reservation for {} not found", src_reservation_id).as_str());
+        let src_reservation = self.get_reservation(&src_reservation_id);
         let new_src_unreserved_amount = src_reservation.unreserved_amount - amount_to_move;
         let src_cost_diff = &mut dec!(0);
         log::info!(
@@ -1290,9 +1250,7 @@ impl BalanceReservationManager {
             src_cost_diff,
         );
 
-        let dst_reservation = self
-            .get_reservation(&dst_reservation_id)
-            .expect(format!("Reservation for {} not found", dst_reservation_id).as_str());
+        let dst_reservation = self.get_reservation(&dst_reservation_id);
         let new_dst_unreserved_amount = dst_reservation.unreserved_amount + amount_to_move;
         log::info!(
             "trying to update dst unreserved amount for transfer: {:?} {} {:?}",
@@ -1424,10 +1382,7 @@ impl BalanceReservationManager {
 
         reservation.cost += *cost_diff;
         reservation.amount += reservation_amount_diff;
-        let reservation = self
-            .get_reservation(&reservation_id)
-            .expect("Failed to get reservation")
-            .clone();
+        let reservation = self.get_reservation(&reservation_id).clone();
 
         if reservation.is_amount_within_symbol_margin_error(new_unreserved_amount) {
             self.balance_reservation_storage
@@ -1574,12 +1529,10 @@ impl BalanceReservationManager {
 
         *new_balance = *old_balance - preset_cost;
 
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "old_balance: {} preset_cost: {} new_balance: {}",
-                *old_balance, preset_cost, *new_balance
-            ));
-        }
+        explanation.add_reason(format!(
+            "old_balance: {} preset_cost: {} new_balance: {}",
+            *old_balance, preset_cost, *new_balance
+        ));
 
         if !self.can_reserve_with_limit(reserve_parameters, potential_position) {
             return false;
@@ -1684,12 +1637,10 @@ impl BalanceReservationManager {
                 price,
             );
 
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
-                "cost_in_reservation_currency_code: {} taken_free_amount: {}",
-                cost_in_reservation_currency_code, taken_free_amount
-            ));
-        }
+        explanation.add_reason(format!(
+            "cost_in_reservation_currency_code: {} taken_free_amount: {}",
+            cost_in_reservation_currency_code, taken_free_amount
+        ));
 
         BalanceReservationPreset::new(
             reservation_currency_code,
@@ -1736,7 +1687,7 @@ impl BalanceReservationManager {
         reservation_id: ReservationId,
         new_price: Price,
     ) -> bool {
-        let reservation = match self.get_reservation(&reservation_id) {
+        let reservation = match self.try_get_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
                 log::error!(

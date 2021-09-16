@@ -113,7 +113,7 @@ impl BalanceManager {
     pub fn unreserve_rest(&mut self, reservation_id: ReservationId) -> Result<()> {
         let amount = self
             .balance_reservation_manager
-            .get_reservation(&reservation_id)
+            .try_get_reservation(&reservation_id)
             .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?
             .unreserved_amount;
         return self.unreserve(reservation_id, amount);
@@ -738,7 +738,7 @@ impl BalanceManager {
 
         if order_snapshot.status() == OrderStatus::Canceled {
             if let Some(reservation_id) = order_snapshot.header.reservation_id {
-                if self.get_reservation(reservation_id).is_some() {
+                if self.try_get_reservation(&reservation_id).is_some() {
                     self.balance_reservation_manager
                         .cancel_approved_reservation(
                             reservation_id,
@@ -749,10 +749,18 @@ impl BalanceManager {
             }
         }
     }
-
-    pub fn get_reservation(&self, reservation_id: ReservationId) -> Option<&BalanceReservation> {
+    pub fn try_get_reservation(
+        &self,
+        reservation_id: &ReservationId,
+    ) -> Option<&BalanceReservation> {
         self.balance_reservation_manager
-            .get_reservation(&reservation_id)
+            .balance_reservation_storage
+            .try_get(reservation_id)
+    }
+
+    pub fn get_reservation(&self, reservation_id: &ReservationId) -> &BalanceReservation {
+        self.try_get_reservation(reservation_id)
+            .expect("failed to get reservation for reservation_id: {}")
     }
 
     pub fn get_mut_reservation(
