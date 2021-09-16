@@ -354,6 +354,15 @@ impl CurrencyPairMetadata {
             Some(min_amount) => min_amount.max(rounded_amount),
         })
     }
+
+    pub fn get_amount_tick(&self) -> Decimal {
+        match self.amount_precision {
+            Precision::ByTick { tick } => return tick,
+            Precision::ByMantissa { precision: _ } => {
+                std::panic!("get_amount_tick cannot be called with Precision::ByMantissa variant")
+            }
+        }
+    }
 }
 
 impl Exchange {

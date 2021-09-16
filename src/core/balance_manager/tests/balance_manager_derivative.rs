@@ -68,10 +68,8 @@ impl BalanceManagerDerivative {
         let currency_pair_to_metadata_converter =
             CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
 
-        let balance_manager = BalanceManager::new(
-            exchanges_by_id.clone(),
-            currency_pair_to_metadata_converter,
-        );
+        let balance_manager =
+            BalanceManager::new(exchanges_by_id.clone(), currency_pair_to_metadata_converter);
         (currency_pair_metadata, balance_manager, exchanges_by_id)
     }
 

@@ -161,13 +161,11 @@ impl BalancePositionByFillAmount {
                 .rfind(|&x| x.change_time <= start_of_period)
                 .cloned();
 
-            if let Some(position_change) = position_change {
-                log::info!(
-                    "get_last_position_change_before_period {:?}",
-                    position_change,
-                );
-                return Some(position_change);
-            }
+            log::info!(
+                "get_last_position_change_before_period {:?}",
+                position_change,
+            );
+            return position_change;
         }
         log::info!(
             "get_last_position_change_before_period {} {} {:?}",
