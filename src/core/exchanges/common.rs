@@ -226,7 +226,7 @@ pub struct CurrencyPair(String12);
 
 impl CurrencyPair {
     #[inline]
-    pub fn from_codes(base: CurrencyCode, quote: CurrencyCode) -> Self {
+    pub fn from_codes(base: &CurrencyCode, quote: &CurrencyCode) -> Self {
         CurrencyPair([base.as_str(), quote.as_str()].join("/").into()) // convention from ccxt
     }
 
