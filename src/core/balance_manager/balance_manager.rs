@@ -11,7 +11,6 @@ use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, Curre
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
-use crate::core::misc::date_time_service::DateTimeService;
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
@@ -41,14 +40,12 @@ impl BalanceManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
-        date_time_service: DateTimeService,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),
             balance_reservation_manager: BalanceReservationManager::new(
                 exchanges_by_id,
                 currency_pair_to_metadata_converter,
-                date_time_service,
             ),
             last_order_fills: HashMap::new(),
         }))
@@ -483,7 +480,6 @@ impl BalanceManager {
         let new_balance_manager = Self::new(
             exchanges_by_id.clone(),
             CurrencyPairToMetadataConverter::new(exchanges_by_id.clone()),
-            DateTimeService::new(),
         );
         drop(this_locked);
 
@@ -638,7 +634,7 @@ impl BalanceManager {
     ) {
         let currency_code_before_trade = &mut currency_pair_metadata
             .get_trade_code(order_snapshot.header.side, BeforeAfter::Before);
-        let amount_in_before_trade_currenct_code = &mut dec!(0);
+        let amount_in_before_trade_currency_code = &mut dec!(0);
 
         self.balance_reservation_manager
             .handle_position_fill_amount_change(
@@ -650,12 +646,12 @@ impl BalanceManager {
                 exchange_account_id,
                 currency_pair_metadata.clone(),
                 currency_code_before_trade,
-                amount_in_before_trade_currenct_code,
+                amount_in_before_trade_currency_code,
             );
 
         let currency_code_after_trade = &mut currency_pair_metadata
             .get_trade_code(order_snapshot.header.side, BeforeAfter::After);
-        let amount_in_after_trade_currenct_code = &mut dec!(0);
+        let amount_in_after_trade_currency_code = &mut dec!(0);
         self.balance_reservation_manager
             .handle_position_fill_amount_change(
                 order_snapshot.header.side,
@@ -666,7 +662,7 @@ impl BalanceManager {
                 exchange_account_id,
                 currency_pair_metadata.clone(),
                 currency_code_after_trade,
-                amount_in_after_trade_currenct_code,
+                amount_in_after_trade_currency_code,
             );
 
         self.balance_reservation_manager
@@ -707,9 +703,9 @@ impl BalanceManager {
             order_fill.commission_currency_code(),
             order_fill.commission_amount(),
             currency_code_before_trade,
-            amount_in_before_trade_currenct_code,
+            amount_in_before_trade_currency_code,
             currency_code_after_trade,
-            amount_in_after_trade_currenct_code
+            amount_in_after_trade_currency_code
         );
     }
 
@@ -1018,10 +1014,15 @@ impl BalanceManager {
 
     pub fn get_balance_reservation_currency_code(
         &self,
+        exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
     ) -> CurrencyCode {
-        currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
+        self.balance_reservation_manager
+            .exchanges_by_id
+            .get(exchange_account_id)
+            .expect("failed to get exchange")
+            .get_balance_reservation_currency_code(currency_pair_metadata, side)
     }
 
     pub fn balance_was_received(&self, exchange_account_id: &ExchangeAccountId) -> bool {
@@ -1056,13 +1057,4 @@ impl BalanceManager {
     //         action();
     //     }
     // }
-
-    #[cfg(test)]
-    pub fn set_date_time_service_now(&mut self, now: DateTime) {
-        self.balance_reservation_manager.date_time_service.now = now;
-    }
-    #[cfg(test)]
-    pub fn get_date_time_service_now(&self) -> DateTime {
-        self.balance_reservation_manager.date_time_service.now
-    }
 }

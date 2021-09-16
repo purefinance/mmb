@@ -20,7 +20,7 @@ use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::orders::event::OrderEventType;
-use crate::core::orders::order::OrderHeader;
+use crate::core::orders::order::{OrderHeader, OrderSide};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
 use crate::core::{
@@ -509,5 +509,14 @@ impl Exchange {
                 }
             }
         }
+    }
+
+    pub fn get_balance_reservation_currency_code(
+        &self,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        side: OrderSide,
+    ) -> CurrencyCode {
+        self.exchange_client
+            .get_balance_reservation_currency_code(currency_pair_metadata, side)
     }
 }

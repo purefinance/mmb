@@ -12,11 +12,10 @@ use super::{
     common::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
-    general::currency_pair_metadata::CurrencyPairMetadata,
+    general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata},
     general::handlers::handle_order_filled::FillEventData,
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
-use crate::core::connectivity::connectivity_manager::WebSocketRole;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::lifecycle::application_manager::ApplicationManager;
@@ -25,6 +24,7 @@ use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
 use crate::core::settings::ExchangeSettings;
+use crate::core::{connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide};
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use awc::http::Uri;
 
@@ -47,6 +47,14 @@ pub trait ExchangeClient: Support {
     ) -> Result<RestRequestOutcome>;
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
+
+    fn get_balance_reservation_currency_code(
+        &self,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        side: OrderSide,
+    ) -> CurrencyCode {
+        currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
+    }
 }
 
 #[async_trait]

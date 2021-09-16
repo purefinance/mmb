@@ -25,7 +25,6 @@ use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, Curre
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
-use crate::core::misc::date_time_service::DateTimeService;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::misc::traits_ext::decimal_inverse_sign::DecimalInverseSign;
@@ -51,15 +50,12 @@ pub(crate) struct BalanceReservationManager {
     pub balance_reservation_storage: BalanceReservationStorage,
 
     pub(crate) is_call_from_clone: bool,
-
-    pub date_time_service: DateTimeService,
 }
 
 impl BalanceReservationManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
-        date_time_service: DateTimeService,
     ) -> Self {
         Self {
             exchanges_by_id: exchanges_by_id.clone(),
@@ -71,7 +67,6 @@ impl BalanceReservationManager {
             virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),
             balance_reservation_storage: BalanceReservationStorage::new(),
             is_call_from_clone: false,
-            date_time_service,
         }
     }
 
@@ -871,7 +866,7 @@ impl BalanceReservationManager {
             .position_by_fill_amount_in_amount_currency
             .get(exchange_account_id, &currency_pair_metadata.currency_pair());
 
-        let now = self.date_time_service.now();
+        let now = Self::now();
 
         self.position_by_fill_amount_in_amount_currency.set(
             exchange_account_id,
@@ -986,7 +981,7 @@ impl BalanceReservationManager {
                     position_change.inverse_sign();
                 }
             }
-            let now = self.date_time_service.now();
+            let now = Self::now();
             self.position_by_fill_amount_in_amount_currency.add(
                 &request.exchange_account_id,
                 &request.currency_pair,
@@ -1125,7 +1120,7 @@ impl BalanceReservationManager {
         client_order_id: &ClientOrderId,
         amount: Amount,
     ) -> Result<()> {
-        let approve_time = self.date_time_service.now();
+        let approve_time = Self::now();
         let reservation = match self.get_mut_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
@@ -1331,7 +1326,7 @@ impl BalanceReservationManager {
         target_cost_diff: Decimal,
         cost_diff: &mut Decimal,
     ) {
-        let approve_time = self.date_time_service.now();
+        let approve_time = Self::now();
         let reservation = self
             .get_mut_reservation(&reservation_id)
             .expect("Failed to get mut reservation");
@@ -1668,8 +1663,14 @@ impl BalanceReservationManager {
         let amount = reserve_parameters.amount;
         let currency_pair_metadata = reserve_parameters.currency_pair_metadata.clone();
 
-        let reservation_currency_code = currency_pair_metadata
-            .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
+        let reservation_currency_code = self
+            .exchanges_by_id
+            .get(&reserve_parameters.exchange_account_id)
+            .expect("failed to get exchange")
+            .get_balance_reservation_currency_code(
+                currency_pair_metadata.clone(),
+                reserve_parameters.order_side,
+            );
 
         let amount_in_reservation_currency_code = currency_pair_metadata
             .convert_amount_from_amount_currency_code(&reservation_currency_code, amount, price);
@@ -1913,5 +1914,10 @@ impl BalanceReservationManager {
             self.amount_limits_in_amount_currency
                 .set_by_balance_request(&request, limit);
         }
+    }
+
+    // NOTE: in future will be needed for mock in tests
+    pub fn now() -> DateTime {
+        Utc::now()
     }
 }

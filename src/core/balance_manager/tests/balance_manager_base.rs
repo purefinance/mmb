@@ -19,6 +19,7 @@ use crate::core::{
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 
+use chrono::Utc;
 use parking_lot::{Mutex, MutexGuard};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -243,7 +244,7 @@ impl BalanceManagerBase {
         let order_snapshot = OrderSnapshot {
             header: OrderHeader::new(
                 ClientOrderId::new(format!("order{}", self.order_index).into()),
-                self.balance_manager().get_date_time_service_now(),
+                Utc::now(),
                 self.exchange_account_id_1.clone(),
                 self.currency_pair_metadata().currency_pair().clone(),
                 OrderType::Limit,
