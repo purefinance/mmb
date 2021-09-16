@@ -510,4 +510,50 @@ mod test {
 
         Ok(())
     }
+
+    #[test]
+    pub fn get_trade_code() {
+        let base_currency = "PHB";
+        let quote_currency = "BTC";
+        let price_tick = dec!(0.1);
+        let is_derivative = false;
+        let balance_currency_code = CurrencyCode::new("ETH".into());
+
+        let base_code = CurrencyCode::new(base_currency.into());
+        let quote_code = CurrencyCode::new(quote_currency.into());
+        let currency_pair_metadata = CurrencyPairMetadata::new(
+            false,
+            is_derivative,
+            base_currency.into(),
+            base_code.clone(),
+            quote_currency.into(),
+            quote_code.clone(),
+            None,
+            None,
+            base_code.clone(),
+            None,
+            None,
+            None,
+            Some(balance_currency_code.clone()),
+            Precision::ByTick { tick: price_tick },
+            Precision::ByTick { tick: dec!(0) },
+        );
+
+        assert_eq!(
+            currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::After),
+            base_code.clone()
+        );
+        assert_eq!(
+            currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::Before),
+            quote_code.clone()
+        );
+        assert_eq!(
+            currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::After),
+            quote_code
+        );
+        assert_eq!(
+            currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::Before),
+            base_code
+        );
+    }
 }
