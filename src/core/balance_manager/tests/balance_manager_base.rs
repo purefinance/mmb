@@ -30,8 +30,8 @@ pub struct BalanceManagerBase {
     pub exchange_account_id_2: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
     pub configuration_descriptor: Arc<ConfigurationDescriptor>,
+    pub balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
-    balance_manager: Option<Arc<Mutex<BalanceManager>>>,
 }
 // static
 impl BalanceManagerBase {

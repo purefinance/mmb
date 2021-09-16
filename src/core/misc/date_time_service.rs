@@ -1,3 +1,5 @@
+use chrono::Utc;
+
 use crate::core::DateTime;
 
 #[derive(Clone)]
@@ -12,13 +14,16 @@ impl DateTimeService {
         Self {}
     }
     pub fn now(&self) -> DateTime {
-        chrono::Utc::now()
+        Utc::now()
     }
 }
 
 #[cfg(test)]
 impl DateTimeService {
-    pub fn new(now: DateTime) -> Self {
+    pub fn new() -> Self {
+        DateTimeService::from(Utc::now())
+    }
+    pub fn from(now: DateTime) -> Self {
         Self { now }
     }
     pub fn now(&self) -> DateTime {

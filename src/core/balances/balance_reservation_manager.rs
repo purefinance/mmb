@@ -855,7 +855,6 @@ impl BalanceReservationManager {
             self.balance_reservation_storage
                 .get_all_raw_reservations()
                 .clone(),
-            None,
         )
     }
 
@@ -1594,7 +1593,7 @@ impl BalanceReservationManager {
 
         //Added precision error handling for an issue "Could not reserve balance for hedge in OrderRecreationManager"
         //Spot trading might need a more precise solution
-        reserve_parameters
+        let rounded_balance = reserve_parameters
             .currency_pair_metadata
             .round_to_remove_amount_precision_error(*new_balance)
             .expect(
@@ -1603,8 +1602,8 @@ impl BalanceReservationManager {
                     reserve_parameters.currency_pair_metadata, *new_balance
                 )
                 .as_str(),
-            )
-            >= dec!(0)
+            );
+        rounded_balance >= dec!(0)
     }
 
     fn can_reserve_with_limit(
@@ -1751,12 +1750,13 @@ impl BalanceReservationManager {
             }
         };
 
-        let mut approved_sum = dec!(0);
-        for (_, approved_part) in reservation.approved_parts.clone() {
-            if !approved_part.is_canceled {
-                approved_sum += approved_part.unreserved_amount;
-            }
-        }
+        let approved_sum: Decimal = reservation
+            .approved_parts
+            .iter()
+            .filter(|(_, approved_part)| approved_part.is_canceled)
+            .map(|(_, approved_part)| approved_part.unreserved_amount)
+            .sum();
+
         let new_raw_rest_amount = reservation.amount - approved_sum;
         let new_rest_amount_in_reservation_currency = reservation
             .currency_pair_metadata

@@ -12,7 +12,6 @@ use crate::core::orders::fill::OrderFill;
 use crate::core::orders::order::ReservationId;
 use crate::core::DateTime;
 
-use itertools::Itertools;
 use rust_decimal::Decimal;
 
 pub struct Balances {
@@ -43,9 +42,8 @@ impl Balances {
         position_by_fill_amount: BalancePositionByFillAmount,
         amount_limits: ServiceValueTree,
         balance_reservations_by_reservation_id: HashMap<ReservationId, BalanceReservation>,
-        serialized_last_order_fills: Option<Vec<(TradePlaceAccount, OrderFill)>>,
     ) -> Self {
-        let mut res = Self {
+        Self {
             version: Balances::get_current_version(),
             init_time,
             balances_by_exchange_id: Some(balances_by_exchange_id),
@@ -55,30 +53,10 @@ impl Balances {
             amount_limits: Some(amount_limits),
             balance_reservations_by_reservation_id: Some(balance_reservations_by_reservation_id),
             last_order_fills: HashMap::new(),
-        };
-        res.set_serialized_last_order_fiils(serialized_last_order_fills);
-        res
+        }
     }
 
     pub fn get_current_version() -> usize {
         1
-    }
-
-    pub fn get_serialized_last_order_fills(&self) -> Option<Vec<(&TradePlaceAccount, &OrderFill)>> {
-        Some(self.last_order_fills.iter().collect_vec())
-    }
-
-    pub fn set_serialized_last_order_fiils(
-        &mut self,
-        input: Option<Vec<(TradePlaceAccount, OrderFill)>>,
-    ) {
-        match input {
-            Some(input) => {
-                for (k, v) in input {
-                    self.last_order_fills.insert(k, v);
-                }
-            }
-            None => self.last_order_fills = HashMap::new(),
-        }
     }
 }

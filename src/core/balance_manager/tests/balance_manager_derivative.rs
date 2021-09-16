@@ -72,7 +72,7 @@ impl BalanceManagerDerivative {
         let balance_manager = BalanceManager::new(
             exchanges_by_id.clone(),
             currency_pair_to_metadata_converter,
-            DateTimeService::new(Utc::now()),
+            DateTimeService::from(Utc::now()),
         );
         (currency_pair_metadata, balance_manager, exchanges_by_id)
     }
@@ -242,6 +242,7 @@ mod tests {
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
+    use crate::core::balance_manager::balance_manager::BalanceManager;
     use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
     use crate::core::exchanges::common::{Amount, CurrencyCode, Price};
     use crate::core::explanation::Explanation;
@@ -2120,10 +2121,17 @@ mod tests {
         order_1.set_status(OrderStatus::Created, Utc::now());
 
         // ApproveReservation wait on lock after Clone started
-        let cloned_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(Some(vec![order_1.clone()]))
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            Some(vec![order_1.clone()]),
+        )
+        .expect("in test");
+
         // TODO: add log checking
         // TestCorrelator.GetLogEventsFromCurrentContext().Should().NotContain(logEvent => logEvent.Level == LogEventLevel.Error || logEvent.Level == LogEventLevel.Fatal);
 
@@ -2140,7 +2148,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &cloned_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     order_1.price()
                 )
@@ -2194,10 +2202,16 @@ mod tests {
         );
 
         // ApproveReservation wait on lock after Clone started
-        let cloned_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(Some(vec![order.clone()]))
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            Some(vec![order.clone()]),
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -2212,7 +2226,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &cloned_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )

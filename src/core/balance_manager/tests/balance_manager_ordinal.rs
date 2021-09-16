@@ -45,7 +45,7 @@ impl BalanceManagerOrdinal {
         let balance_manager = BalanceManager::new(
             exchanges_by_id.clone(),
             currency_pair_to_metadata_converter,
-            DateTimeService::new(Utc::now()),
+            DateTimeService::from(Utc::now()),
         );
         (currency_pair_metadata, balance_manager)
     }
@@ -3313,10 +3313,16 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .is_some());
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(Some(vec![order]))
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            Some(vec![order.clone()]),
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -3346,7 +3352,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -3358,7 +3364,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -3370,7 +3376,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -3407,10 +3413,16 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .is_some());
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(Some(vec![order.clone()]))
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            Some(vec![order.clone()]),
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -3440,7 +3452,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -3451,7 +3463,7 @@ mod tests {
         test_object
             .balance_manager_base
             .get_balance_by_another_balance_manager_and_currency_code(
-                &clone_balance_manager,
+                &cloned_balance_manager.lock(),
                 BalanceManagerBase::btc(),
                 price,
             )
@@ -3460,7 +3472,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -3472,7 +3484,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -3515,10 +3527,16 @@ mod tests {
             order.amount(),
         );
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(Some(vec![order.clone()]))
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            Some(vec![order.clone()]),
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -3548,7 +3566,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -3559,7 +3577,7 @@ mod tests {
         test_object
             .balance_manager_base
             .get_balance_by_another_balance_manager_and_currency_code(
-                &clone_balance_manager,
+                &cloned_balance_manager.lock(),
                 BalanceManagerBase::btc(),
                 price,
             )
@@ -3568,7 +3586,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -3580,7 +3598,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -3616,10 +3634,16 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .is_some());
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(None)
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            None,
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -3649,7 +3673,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -3660,7 +3684,7 @@ mod tests {
         test_object
             .balance_manager_base
             .get_balance_by_another_balance_manager_and_currency_code(
-                &clone_balance_manager,
+                &cloned_balance_manager.lock(),
                 BalanceManagerBase::btc(),
                 price,
             )
@@ -3669,7 +3693,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -3681,7 +3705,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -3722,10 +3746,16 @@ mod tests {
             order.amount(),
         );
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(None)
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            None,
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -3755,7 +3785,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -3767,7 +3797,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -3779,7 +3809,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -3822,10 +3852,16 @@ mod tests {
             order.amount(),
         );
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(None)
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            None,
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -3855,7 +3891,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -3867,7 +3903,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -3879,7 +3915,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -3935,10 +3971,16 @@ mod tests {
             order_2.amount(),
         );
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(None)
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            None,
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -3968,7 +4010,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -3980,7 +4022,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -3992,7 +4034,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -4050,10 +4092,16 @@ mod tests {
             order_1.amount(),
         );
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(Some(vec![order_1]))
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            Some(vec![order_1.clone()]),
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -4083,7 +4131,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -4095,7 +4143,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -4107,7 +4155,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -4178,10 +4226,16 @@ mod tests {
             order_3.amount(),
         );
 
-        let clone_balance_manager = test_object
-            .balance_manager()
-            .clone_and_subtract_not_approved_data(Some(vec![order_1, order_2, order_3]))
-            .expect("in test");
+        let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+            test_object
+                .balance_manager_base
+                .balance_manager
+                .as_ref()
+                .expect("in test")
+                .clone(),
+            Some(vec![order_1, order_2, order_3]),
+        )
+        .expect("in test");
 
         assert_eq!(
             test_object
@@ -4211,7 +4265,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::eth(),
                     price
                 )
@@ -4223,7 +4277,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::btc(),
                     price
                 )
@@ -4235,7 +4289,7 @@ mod tests {
             test_object
                 .balance_manager_base
                 .get_balance_by_another_balance_manager_and_currency_code(
-                    &clone_balance_manager,
+                    &cloned_balance_manager.lock(),
                     BalanceManagerBase::bnb(),
                     price
                 )
@@ -4494,7 +4548,7 @@ mod tests {
         let balance_manager = BalanceManager::new(
             exchanges_by_id.clone(),
             currency_pair_to_metadata_converter.clone(),
-            DateTimeService::new(Utc::now()),
+            DateTimeService::from(Utc::now()),
         );
 
         let exchange_account_id = &test_object
@@ -4540,7 +4594,7 @@ mod tests {
             .set_balance_manager(BalanceManager::new(
                 exchanges_by_id,
                 currency_pair_to_metadata_converter,
-                DateTimeService::new(Utc::now()),
+                DateTimeService::from(Utc::now()),
             ));
 
         test_object

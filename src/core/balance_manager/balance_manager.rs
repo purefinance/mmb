@@ -239,10 +239,12 @@ impl BalanceManager {
             self.exchange_id_with_restored_positions
                 .insert(exchange_account_id.clone());
         } else {
-            let fill_positions = match self.get_balances().position_by_fill_amount {
-                Some(fill_positions) => fill_positions,
-                None => bail!("Failed to get fill_positions while restoring fill amount positions"),
-            };
+            let fill_positions =
+                self.get_balances()
+                    .position_by_fill_amount
+                    .with_context(|| {
+                        "Failed to get fill_positions while restoring fill amount positions"
+                    })?;
             let currency_pair_metadatas = position_info_by_currency_pair_metadata
                 .keys()
                 .cloned()
@@ -257,7 +259,7 @@ impl BalanceManager {
             let actual_positions_by_currency_pair: HashMap<CurrencyPair, Decimal> =
                 currency_pair_metadatas
                     .iter()
-                    .map(move |x| {
+                    .map(|x| {
                         (
                             x.currency_pair(),
                             fill_positions
@@ -267,22 +269,19 @@ impl BalanceManager {
                     })
                     .collect();
 
-            let mut has_difference = false;
-            let mut currency_pairs_with_diffs = Vec::new();
-            for currency_pair in currency_pair_metadatas
+            let currency_pairs_with_diffs = currency_pair_metadatas
                 .iter()
+                .filter(|metadata| {
+                    let currency_pair = &metadata.currency_pair();
+                    let expected_position = expected_positions_by_currency_pair.get(currency_pair);
+                    let actual_position = actual_positions_by_currency_pair.get(currency_pair);
+                    expected_position != actual_position
+                })
                 .map(|x| x.currency_pair())
-                .collect_vec()
-            {
-                let expected_position = expected_positions_by_currency_pair.get(&currency_pair);
-                let actual_position = actual_positions_by_currency_pair.get(&currency_pair);
-                if expected_position != actual_position {
-                    has_difference = true;
-                    currency_pairs_with_diffs.push(currency_pair);
-                }
-            }
+                .collect_vec();
+
             let mut position_differs_times_in_row_by_exchange_id = HashMap::new();
-            if has_difference {
+            if !currency_pairs_with_diffs.is_empty() {
                 if position_differs_times_in_row_by_exchange_id
                     .get_mut(exchange_account_id)
                     .is_none()
@@ -293,35 +292,21 @@ impl BalanceManager {
                     );
                 }
 
-                let diff_times_by_currency_pair = if let Some(res) =
-                    position_differs_times_in_row_by_exchange_id.get_mut(exchange_account_id)
-                {
-                    res
-                } else {
-                    bail!(
-                        "diff_times_by_currency_pair not found in {:?} for id: {}",
-                        position_differs_times_in_row_by_exchange_id,
-                        exchange_account_id
-                    )
-                };
+                let diff_times_by_currency_pair: &mut HashMap<_, _> =
+                    position_differs_times_in_row_by_exchange_id
+                        .entry(exchange_account_id.clone())
+                        .or_default();
+
                 for currency_pair in currency_pairs_with_diffs {
-                    let new_diff_times = if let Some(new_diff_times) =
-                        diff_times_by_currency_pair.get(&currency_pair)
-                    {
-                        new_diff_times + 1
-                    } else {
-                        1
-                    };
-                    diff_times_by_currency_pair.insert(currency_pair, new_diff_times);
+                    *diff_times_by_currency_pair
+                        .entry(currency_pair)
+                        .or_default() += 1;
                 }
 
-                let max_times_for_error = 5;
+                const MAX_TIMES_FOR_ERROR: i32 = 5;
                 let any_at_max_times = diff_times_by_currency_pair
                     .values()
-                    .max()
-                    .cloned()
-                    .unwrap_or(0)
-                    > max_times_for_error;
+                    .any(|&x| x > MAX_TIMES_FOR_ERROR);
 
                 let log_level = if any_at_max_times {
                     log::Level::Error
@@ -468,62 +453,67 @@ impl BalanceManager {
                 continue;
             }
 
-            let balances = match balances_dict.get_mut(&reservation.exchange_account_id) {
-                Some(balances) => balances,
-                None => bail!(
-                    "failed to get balances from balances_dic {:?} for {}",
-                    balances_dict,
-                    reservation.exchange_account_id
-                ),
-            };
+            let balances = balances_dict
+                .get_mut(&reservation.exchange_account_id)
+                .with_context(|| {
+                    format!(
+                        "failed to get balances from for {}",
+                        reservation.exchange_account_id,
+                    )
+                })?;
 
-            let mut balance = match balances.get_mut(&reservation.reservation_currency_code) {
-                Some(balance) => balance,
-                None => bail!(
-                    "failed to get balance from balances {:?} for {}",
-                    balances,
-                    reservation.reservation_currency_code
-                ),
-            };
+            let mut balance = balances
+                .get_mut(&reservation.reservation_currency_code)
+                .with_context(|| {
+                    format!(
+                        "failed to get balance from balances for {}",
+                        reservation.reservation_currency_code,
+                    )
+                })?;
+
             balance += reservation.get_proportional_cost_amount(reservation.not_approved_amount)?;
         }
         Ok(balances_dict)
     }
 
-    pub fn custom_clone(&self) -> BalanceManager {
-        let mut balance_manager = self.clone();
-        let balances = self.get_balances();
-        balance_manager.restore_balance_state(&balances, true);
-        balance_manager
-            .balance_reservation_manager
-            .is_call_from_clone = true;
-        balance_manager
+    pub fn custom_clone(this: Arc<Mutex<Self>>) -> Arc<Mutex<BalanceManager>> {
+        let this_locked = this.lock();
+        let balances = this_locked.get_balances();
+        let exchanges_by_id = &this_locked.balance_reservation_manager.exchanges_by_id;
+        let new_balance_manager = Self::new(
+            exchanges_by_id.clone(),
+            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone()),
+            DateTimeService::new(),
+        );
+        drop(this_locked);
+
+        let mut new_bm_lock = new_balance_manager.lock();
+        new_bm_lock.restore_balance_state(&balances, true);
+        new_bm_lock.balance_reservation_manager.is_call_from_clone = true;
+        drop(new_bm_lock);
+
+        new_balance_manager
     }
 
     pub fn clone_and_subtract_not_approved_data(
-        &self,
+        this: Arc<Mutex<Self>>,
         orders: Option<Vec<OrderSnapshot>>,
-    ) -> Result<BalanceManager> {
-        let mut balance_manager = self.custom_clone();
-        let mut not_full_approved_reservations = HashMap::new();
-        let raw_reservations = balance_manager
+    ) -> Result<Arc<Mutex<BalanceManager>>> {
+        let balance_manager = Self::custom_clone(this.clone());
+
+        let mut bm_locked = balance_manager.lock();
+        let not_full_approved_reservations: HashMap<_, _> = bm_locked
             .balance_reservation_manager
             .balance_reservation_storage
             .get_all_raw_reservations()
-            .clone();
+            .iter()
+            .filter(|(_, reservation)| reservation.not_approved_amount > dec!(0))
+            .map(|(id, reservation)| (id.clone(), reservation.clone()))
+            .collect();
 
-        for (reservation_id, reservation) in raw_reservations {
-            if reservation.not_approved_amount > dec!(0) {
-                not_full_approved_reservations.insert(reservation_id, reservation);
-            }
-        }
+        let orders_to_subtract = orders.unwrap_or_default();
 
         let mut applied_orders = HashSet::new();
-        let orders_to_subtract = match orders {
-            Some(orders) => orders,
-            None => Vec::new(),
-        };
-
         for order in orders_to_subtract {
             if order.props.is_finished() || order.status() == OrderStatus::Creating {
                 continue;
@@ -532,18 +522,18 @@ impl BalanceManager {
             if order.header.order_type == OrderType::Market {
                 bail!("Clone doesn't support market orders because we need to know the price")
             }
-            if applied_orders.contains(&order.header.client_order_id) {
-                continue;
-            }
-            applied_orders.insert(order.header.client_order_id.clone());
 
-            match order.header.reservation_id {
-                Some(reservation_id) => balance_manager.unreserve_by_client_order_id(
+            if applied_orders.insert(order.header.client_order_id.clone()) {
+                let reservation_id = match order.header.reservation_id {
+                    Some(reservation_id) => reservation_id,
+                    None => continue,
+                };
+
+                bm_locked.unreserve_by_client_order_id(
                     reservation_id,
                     order.header.client_order_id.clone(),
                     order.amount(),
-                )?,
-                None => continue,
+                )?
             }
         }
 
@@ -553,8 +543,11 @@ impl BalanceManager {
                 // just in case if there is a possible precision error
                 continue;
             }
-            balance_manager.unreserve(reservation_id, amount_to_unreserve)?;
+            bm_locked.unreserve(reservation_id.clone(), amount_to_unreserve)?;
         }
+
+        drop(bm_locked);
+
         Ok(balance_manager)
     }
 
@@ -618,9 +611,9 @@ impl BalanceManager {
                 .clone(),
         };
         self.handle_order_fill(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
-            currency_pair_metadata.clone(),
+            currency_pair_metadata,
             order_snapshot,
             &order_fill,
         );
@@ -923,7 +916,7 @@ impl BalanceManager {
         match self
             .balance_reservation_manager
             .get_available_leveraged_balance(
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 currency_pair_metadata.clone(),
                 side,
