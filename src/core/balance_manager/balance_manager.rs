@@ -625,7 +625,7 @@ impl BalanceManager {
         order_snapshot: &OrderSnapshot,
         order_fill: &OrderFill,
     ) {
-        let amount_in_before_trade_currency_code = self
+        let (amount_in_before_trade_currency_code, currency_code_before_trade) = self
             .balance_reservation_manager
             .handle_position_fill_amount_change(
                 order_snapshot.header.side,
@@ -638,7 +638,7 @@ impl BalanceManager {
                 currency_pair_metadata.clone(),
             );
 
-        let amount_in_after_trade_currency_code = self
+        let (amount_in_after_trade_currency_code, currency_code_after_trade) = self
             .balance_reservation_manager
             .handle_position_fill_amount_change(
                 order_snapshot.header.side,
@@ -688,9 +688,9 @@ impl BalanceManager {
             order_fill.amount(),
             order_fill.commission_currency_code(),
             order_fill.commission_amount(),
-            currency_pair_metadata.get_trade_code(order_snapshot.header.side, BeforeAfter::Before),
+            currency_code_before_trade,
             amount_in_before_trade_currency_code,
-            currency_pair_metadata.get_trade_code(order_snapshot.header.side, BeforeAfter::After),
+            currency_code_after_trade,
             amount_in_after_trade_currency_code
         );
     }

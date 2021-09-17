@@ -35,6 +35,14 @@ use crate::core::DateTime;
 
 use super::balance_reservation_preset::BalanceReservationPreset;
 
+pub(super) struct CanReserveResult {
+    can: bool,
+    preset: BalanceReservationPreset,
+    potential_position: Option<Decimal>,
+    old_balance: Decimal,
+    new_balance: Decimal,
+}
+
 #[derive(Clone)]
 pub(crate) struct BalanceReservationManager {
     pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
@@ -885,10 +893,10 @@ impl BalanceReservationManager {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-    ) -> Amount {
+    ) -> (Amount, CurrencyCode) {
         let mut change_amount_in_currency = dec!(0);
 
-        let currency_code = &currency_pair_metadata.get_trade_code(side, before_after);
+        let currency_code = currency_pair_metadata.get_trade_code(side, before_after);
         let request = BalanceRequest::new(
             configuration_descriptor.clone(),
             exchange_account_id.clone(),
@@ -906,9 +914,9 @@ impl BalanceReservationManager {
                 );
 
             change_amount_in_currency = currency_pair_metadata
-                .convert_amount_from_amount_currency_code(currency_code, fill_amount, price);
+                .convert_amount_from_amount_currency_code(&currency_code, fill_amount, price);
         }
-        if &currency_pair_metadata.amount_currency_code == currency_code {
+        if currency_pair_metadata.amount_currency_code == currency_code {
             let mut position_change = fill_amount;
             if currency_pair_metadata.is_derivative {
                 let free_amount = self.get_position_in_amount_currency_code(
@@ -937,7 +945,7 @@ impl BalanceReservationManager {
 
                 change_amount_in_currency = currency_pair_metadata
                     .convert_amount_from_amount_currency_code(
-                        currency_code,
+                        &currency_code,
                         diff_in_amount_currency,
                         price,
                     );
@@ -959,7 +967,7 @@ impl BalanceReservationManager {
             );
             self.validate_position_and_limits(&request);
         }
-        change_amount_in_currency
+        (change_amount_in_currency, currency_code)
     }
 
     fn validate_position_and_limits(&self, request: &BalanceRequest) {
@@ -1436,16 +1444,17 @@ impl BalanceReservationManager {
         reserve_parameters: &ReserveParameters,
         explanation: &mut Option<Explanation>,
     ) -> Option<ReservationId> {
-        let (res, preset, potential_position, old_balance, new_balance) =
-            self.can_reserve_core(reserve_parameters, explanation);
-        if !res {
+        let can_reserve_result = self.can_reserve_core(reserve_parameters, explanation);
+        if !can_reserve_result.can {
             log::info!(
                 "Failed to reserve {} {} {:?} {} {} {:?}",
-                preset.reservation_currency_code,
-                preset.amount_in_reservation_currency_code,
-                potential_position,
-                old_balance,
-                new_balance,
+                can_reserve_result.preset.reservation_currency_code,
+                can_reserve_result
+                    .preset
+                    .amount_in_reservation_currency_code,
+                can_reserve_result.potential_position,
+                can_reserve_result.old_balance,
+                can_reserve_result.new_balance,
                 reserve_parameters
             );
             return None;
@@ -1455,7 +1464,7 @@ impl BalanceReservationManager {
             reserve_parameters.configuration_descriptor.clone(),
             reserve_parameters.exchange_account_id.clone(),
             reserve_parameters.currency_pair_metadata.currency_pair(),
-            preset.reservation_currency_code.clone(),
+            can_reserve_result.preset.reservation_currency_code.clone(),
         );
         let reservation = BalanceReservation::new(
             reserve_parameters.configuration_descriptor.clone(),
@@ -1464,20 +1473,24 @@ impl BalanceReservationManager {
             reserve_parameters.order_side,
             reserve_parameters.price,
             reserve_parameters.amount,
-            preset.taken_free_amount_in_amount_currency_code,
-            preset.cost_in_amount_currency_code,
-            preset.reservation_currency_code.clone(),
+            can_reserve_result
+                .preset
+                .taken_free_amount_in_amount_currency_code,
+            can_reserve_result.preset.cost_in_amount_currency_code,
+            can_reserve_result.preset.reservation_currency_code.clone(),
         );
 
         self.reservation_id = ReservationId::generate();
         log::info!(
             "Trying to reserve {:?} {} {} {:?} {} {} {:?}",
             self.reservation_id,
-            preset.reservation_currency_code,
-            preset.amount_in_reservation_currency_code,
-            potential_position,
-            old_balance,
-            new_balance,
+            can_reserve_result.preset.reservation_currency_code,
+            can_reserve_result
+                .preset
+                .amount_in_reservation_currency_code,
+            can_reserve_result.potential_position,
+            can_reserve_result.old_balance,
+            can_reserve_result.new_balance,
             reservation
         );
         self.balance_reservation_storage
@@ -1504,13 +1517,7 @@ impl BalanceReservationManager {
         &self,
         reserve_parameters: &ReserveParameters,
         explanation: &mut Option<Explanation>,
-    ) -> (
-        bool,
-        BalanceReservationPreset,
-        Option<Decimal>,
-        Decimal,
-        Decimal,
-    ) {
+    ) -> CanReserveResult {
         let preset = self.get_currency_code_and_reservation_amount(reserve_parameters, explanation);
         //We set includeFreeAmount to false because we already took FreeAmount into consideration while calculating the preset
         //Otherwise we would count FreeAmount twice which is wrong
@@ -1528,7 +1535,13 @@ impl BalanceReservationManager {
         let (can_reserve, potential_position) = self.can_reserve_with_limit(reserve_parameters);
 
         if !can_reserve {
-            return (false, preset, potential_position, old_balance, new_balance);
+            return CanReserveResult {
+                can: false,
+                preset,
+                potential_position,
+                old_balance,
+                new_balance,
+            };
         }
 
         //Spot trading might need a more precise solution
@@ -1542,13 +1555,13 @@ impl BalanceReservationManager {
                 )
                 .as_str(),
             );
-        (
-            rounded_balance >= dec!(0),
+        CanReserveResult {
+            can: rounded_balance >= dec!(0),
             preset,
             potential_position,
             old_balance,
             new_balance,
-        )
+        }
     }
 
     fn can_reserve_with_limit(
@@ -1812,7 +1825,7 @@ impl BalanceReservationManager {
         reserve_parameters: &ReserveParameters,
         explanation: &mut Option<Explanation>,
     ) -> bool {
-        self.can_reserve_core(reserve_parameters, explanation).0
+        self.can_reserve_core(reserve_parameters, explanation).can
     }
 
     pub fn get_available_leveraged_balance(
