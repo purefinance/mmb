@@ -36,7 +36,7 @@ use crate::core::DateTime;
 use super::balance_reservation_preset::BalanceReservationPreset;
 
 pub(super) struct CanReserveResult {
-    can: bool,
+    can_reserve: bool,
     preset: BalanceReservationPreset,
     potential_position: Option<Decimal>,
     old_balance: Decimal,
@@ -1445,7 +1445,7 @@ impl BalanceReservationManager {
         explanation: &mut Option<Explanation>,
     ) -> Option<ReservationId> {
         let can_reserve_result = self.can_reserve_core(reserve_parameters, explanation);
-        if !can_reserve_result.can {
+        if !can_reserve_result.can_reserve {
             log::info!(
                 "Failed to reserve {} {} {:?} {} {} {:?}",
                 can_reserve_result.preset.reservation_currency_code,
@@ -1536,7 +1536,7 @@ impl BalanceReservationManager {
 
         if !can_reserve {
             return CanReserveResult {
-                can: false,
+                can_reserve: false,
                 preset,
                 potential_position,
                 old_balance,
@@ -1556,7 +1556,7 @@ impl BalanceReservationManager {
                 .as_str(),
             );
         CanReserveResult {
-            can: rounded_balance >= dec!(0),
+            can_reserve: rounded_balance >= dec!(0),
             preset,
             potential_position,
             old_balance,
@@ -1825,7 +1825,8 @@ impl BalanceReservationManager {
         reserve_parameters: &ReserveParameters,
         explanation: &mut Option<Explanation>,
     ) -> bool {
-        self.can_reserve_core(reserve_parameters, explanation).can
+        self.can_reserve_core(reserve_parameters, explanation)
+            .can_reserve
     }
 
     pub fn get_available_leveraged_balance(
