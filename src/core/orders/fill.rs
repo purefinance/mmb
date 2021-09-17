@@ -7,6 +7,8 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::order::ClientOrderFillId;
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderFillType {
     UserTrade = 1,
@@ -24,8 +26,8 @@ pub enum EventSourceType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderFill {
-    // TODO ClientOrderID should be here?
     id: Uuid,
+    client_order_fill_id: Option<ClientOrderFillId>,
     receive_time: DateTime,
     fill_type: OrderFillType,
 
@@ -53,6 +55,7 @@ pub struct OrderFill {
 impl OrderFill {
     pub fn new(
         id: Uuid,
+        client_order_fill_id: Option<ClientOrderFillId>,
         receive_time: DateTime,
         fill_type: OrderFillType,
         trade_id: Option<String>,
@@ -72,6 +75,7 @@ impl OrderFill {
     ) -> Self {
         OrderFill {
             id,
+            client_order_fill_id,
             receive_time,
             fill_type,
             trade_id,
@@ -141,5 +145,13 @@ impl OrderFill {
     }
     pub fn side(&self) -> Option<OrderSide> {
         self.side
+    }
+    pub fn client_order_fill_id(&self) -> &Option<ClientOrderFillId> {
+        &self.client_order_fill_id
+    }
+
+    #[cfg(test)]
+    pub fn set_client_order_fill_id(&mut self, input: ClientOrderFillId) {
+        self.client_order_fill_id = Some(input);
     }
 }

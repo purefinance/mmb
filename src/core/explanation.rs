@@ -90,6 +90,18 @@ impl<T: PartialEq> PartialEq for WithExplanation<T> {
 
 impl<T: Eq + PartialEq> Eq for WithExplanation<T> {}
 
+pub trait OptionExplanationAddReasonExt {
+    fn add_reason(&mut self, reason: String);
+}
+
+impl OptionExplanationAddReasonExt for Option<Explanation> {
+    fn add_reason(&mut self, reason: String) {
+        if let Some(explanation) = self {
+            explanation.add_reason(reason);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

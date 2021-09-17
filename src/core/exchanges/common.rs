@@ -26,6 +26,7 @@ type String15 = SmallString<[u8; 15]>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExchangeIdParseError(String);
 
+// unique user ID on the exchange
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct ExchangeAccountId {
     pub exchange_id: ExchangeId,
@@ -110,6 +111,7 @@ impl Display for ExchangeAccountId {
     }
 }
 
+// unique ID of exchange
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct ExchangeId(String15);
@@ -187,7 +189,7 @@ impl From<&str> for CurrencyId {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 /// Currency in unified format, e.g. eth, btc
 pub struct CurrencyCode(String4);

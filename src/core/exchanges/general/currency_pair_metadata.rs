@@ -1,3 +1,4 @@
+use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{bail, Result};
@@ -28,18 +29,22 @@ pub enum BeforeAfter {
     After,
 }
 
-// Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
-#[derive(Debug, Clone)]
+/// Precision this is type that describes Decimal value rounding(now is using for rounding amount in orders)
+/// NOTE: Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
+/// ```ignore
+/// Precision::ByTick { tick: dec!(0.001) } // for AmountPrecision = 3 equal pow(0.1, 3)
+/// ```
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Precision {
     // Rounding is performed to a number divisible to the specified tick
     // Look at round_by_tick test below
     ByTick { tick: Decimal },
     // Rounding is performed to a number of digits located on `precision` length to the right of start of mantissa
     // Look at round_by_mantissa test below
-    ByMantisa { precision: i8 },
+    ByMantissa { precision: i8 },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct CurrencyPairMetadata {
     pub is_active: bool,
     pub is_derivative: bool,
@@ -54,6 +59,7 @@ pub struct CurrencyPairMetadata {
     pub min_cost: Option<Price>,
     pub amount_currency_code: CurrencyCode,
     pub balance_currency_code: Option<CurrencyCode>,
+    pub amount_multiplier: Decimal,
 
     pub price_precision: Precision,
     pub amount_precision: Precision,
@@ -99,6 +105,7 @@ impl CurrencyPairMetadata {
             max_amount,
             min_cost,
             balance_currency_code,
+            amount_multiplier: dec!(1),
             price_precision,
             amount_precision,
         }
@@ -128,14 +135,14 @@ impl CurrencyPairMetadata {
     pub fn price_round(&self, price: Price, round: Round) -> Result<Price> {
         match self.price_precision {
             Precision::ByTick { tick } => Self::round_by_tick(price, tick, round),
-            Precision::ByMantisa { precision } => Self::round_by_mantissa(price, precision, round),
+            Precision::ByMantissa { precision } => Self::round_by_mantissa(price, precision, round),
         }
     }
 
     pub fn amount_round(&self, amount: Amount, round: Round) -> Result<Amount> {
         match self.amount_precision {
             Precision::ByTick { tick } => Self::round_by_tick(amount, tick, round),
-            Precision::ByMantisa { precision } => {
+            Precision::ByMantissa { precision } => {
                 self.amount_round_precision(amount, round, precision)
             }
         }
@@ -149,7 +156,7 @@ impl CurrencyPairMetadata {
         amount_precision: i8,
     ) -> Result<Amount> {
         match self.amount_precision {
-            Precision::ByMantisa { precision: _ } => {
+            Precision::ByMantissa { precision: _ } => {
                 Self::round_by_mantissa(amount, amount_precision, round)
             }
             Precision::ByTick { tick: _ } => {
@@ -161,7 +168,7 @@ impl CurrencyPairMetadata {
     pub fn round_to_remove_amount_precision_error(&self, amount: Amount) -> Result<Amount> {
         // allowed machine error that is less then 0.01 * amount precision
         match self.amount_precision {
-            Precision::ByMantisa { precision } => {
+            Precision::ByMantissa { precision } => {
                 self.amount_round_precision(amount, Round::ToNearest, precision + 2i8)
             }
             Precision::ByTick { tick } => {
@@ -196,7 +203,7 @@ impl CurrencyPairMetadata {
     }
 
     fn round_by_mantissa(value: Price, precision: i8, round: Round) -> Result<Price> {
-        if value == dec!(0) {
+        if value.is_zero() {
             return Ok(dec!(0));
         }
 
@@ -251,23 +258,71 @@ impl CurrencyPairMetadata {
 
     pub fn convert_amount_from_amount_currency_code(
         &self,
-        to_currency_code: CurrencyCode,
+        to_currency_code: &CurrencyCode,
         amount_in_amount_currency_code: Amount,
         currency_pair_price: Price,
-    ) -> Result<Amount> {
-        if to_currency_code == self.amount_currency_code {
-            return Ok(amount_in_amount_currency_code);
+    ) -> Amount {
+        if to_currency_code == &self.amount_currency_code {
+            return amount_in_amount_currency_code;
         }
 
-        if to_currency_code == self.base_currency_code {
-            return Ok(amount_in_amount_currency_code / currency_pair_price);
+        if to_currency_code == &self.base_currency_code {
+            return amount_in_amount_currency_code / currency_pair_price;
         }
 
-        if to_currency_code == self.quote_currency_code {
-            return Ok(amount_in_amount_currency_code * currency_pair_price);
+        if to_currency_code == &self.quote_currency_code {
+            return amount_in_amount_currency_code * currency_pair_price;
         }
 
-        bail!("Currency code outside currency pair is not supported yet")
+        std::panic!("Currency code outside currency pair is not supported yet");
+    }
+
+    pub fn convert_amount_from_balance_currency_code(
+        &self,
+        to_currency_code: &CurrencyCode,
+        amount: Amount,
+        currency_pair_price: Price,
+    ) -> Amount {
+        if Some(to_currency_code) == self.balance_currency_code.as_ref() {
+            return amount;
+        }
+        if to_currency_code == &self.base_currency_code {
+            return amount / currency_pair_price;
+        }
+
+        if to_currency_code == &self.quote_currency_code {
+            return amount * currency_pair_price;
+        }
+
+        std::panic!(
+            "Currency code {} outside currency pair {} is not supported",
+            to_currency_code,
+            self.currency_pair()
+        );
+    }
+
+    pub fn convert_amount_into_amount_currency_code(
+        &self,
+        from_currency_code: &CurrencyCode,
+        amount_in_from_currency_code: Decimal,
+        currency_pair_price: Price,
+    ) -> Decimal {
+        if from_currency_code == &self.amount_currency_code {
+            return amount_in_from_currency_code;
+        }
+
+        if from_currency_code == &self.base_currency_code() {
+            return amount_in_from_currency_code * currency_pair_price;
+        }
+
+        if from_currency_code == &self.quote_currency_code {
+            return amount_in_from_currency_code / currency_pair_price;
+        }
+        std::panic!(
+            "We don't currently support currency code {} outside currency pair {}",
+            from_currency_code,
+            self.currency_pair()
+        );
     }
 
     pub fn get_min_amount(&self, price: Price) -> Result<Amount> {
@@ -298,6 +353,15 @@ impl CurrencyPairMetadata {
             None => rounded_amount,
             Some(min_amount) => min_amount.max(rounded_amount),
         })
+    }
+
+    pub fn get_amount_tick(&self) -> Decimal {
+        match self.amount_precision {
+            Precision::ByTick { tick } => return tick,
+            Precision::ByMantissa { precision: _ } => {
+                std::panic!("get_amount_tick cannot be called with Precision::ByMantissa variant")
+            }
+        }
     }
 }
 
@@ -454,5 +518,51 @@ mod test {
         assert_eq!(rounded, expected);
 
         Ok(())
+    }
+
+    #[test]
+    pub fn get_trade_code() {
+        let base_currency = "PHB";
+        let quote_currency = "BTC";
+        let price_tick = dec!(0.1);
+        let is_derivative = false;
+        let balance_currency_code = CurrencyCode::new("ETH".into());
+
+        let base_code = CurrencyCode::new(base_currency.into());
+        let quote_code = CurrencyCode::new(quote_currency.into());
+        let currency_pair_metadata = CurrencyPairMetadata::new(
+            false,
+            is_derivative,
+            base_currency.into(),
+            base_code.clone(),
+            quote_currency.into(),
+            quote_code.clone(),
+            None,
+            None,
+            base_code.clone(),
+            None,
+            None,
+            None,
+            Some(balance_currency_code.clone()),
+            Precision::ByTick { tick: price_tick },
+            Precision::ByTick { tick: dec!(0) },
+        );
+
+        assert_eq!(
+            currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::After),
+            base_code.clone()
+        );
+        assert_eq!(
+            currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::Before),
+            quote_code.clone()
+        );
+        assert_eq!(
+            currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::After),
+            quote_code
+        );
+        assert_eq!(
+            currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::Before),
+            base_code
+        );
     }
 }

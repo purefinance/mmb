@@ -32,7 +32,7 @@ impl BinanceBuilder {
     ) -> Result<BinanceBuilder> {
         let (api_key, secret_key) = match get_binance_credentials() {
             Ok((api_key, secret_key)) => (api_key, secret_key),
-            Err(_) => (String::from(""), String::from("")),
+            Err(_) => ("".to_string(), "".to_string()),
         };
         if api_key == "" || secret_key == "" {
             return Err(anyhow::Error::msg(

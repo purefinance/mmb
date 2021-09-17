@@ -1,11 +1,15 @@
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::vec::Vec;
 
 use chrono::Utc;
 use enum_map::Enum;
-use nanoid::nanoid;
+use itertools::Itertools;
+use lazy_static::lazy_static;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
@@ -103,33 +107,39 @@ pub enum OrderExecutionType {
 #[serde(transparent)]
 pub struct ClientOrderId(String16);
 
+lazy_static! {
+    static ref CLIENT_ORDER_ID_COUNTER: AtomicU64 = {
+        AtomicU64::new(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Failed to get system time since UNIX_EPOCH")
+                .as_secs(),
+        )
+    };
+}
+
 impl ClientOrderId {
     pub fn unique_id() -> Self {
-        let client_order_id_length = 15;
-        let generated = nanoid!(client_order_id_length);
-        ClientOrderId(generated.into())
+        let new_id = CLIENT_ORDER_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+        ClientOrderId(new_id.to_string().into())
     }
 
-    #[inline]
     pub fn new(client_order_id: String16) -> Self {
         ClientOrderId(client_order_id)
     }
 
     /// Extracts a string slice containing the entire string.
-    #[inline]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
 
     /// Extracts a string slice containing the entire string.
-    #[inline]
     pub fn as_mut_str(&mut self) -> &mut str {
         self.0.as_mut_str()
     }
 }
 
 impl From<&str> for ClientOrderId {
-    #[inline]
     fn from(value: &str) -> Self {
         ClientOrderId(String16::from_str(value))
     }
@@ -141,6 +151,53 @@ impl fmt::Display for ClientOrderId {
     }
 }
 
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
+#[serde(transparent)]
+pub struct ClientOrderFillId(String16);
+
+lazy_static! {
+    static ref CLIENT_ORDER_FILL_ID_COUNTER: AtomicU64 = {
+        AtomicU64::new(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Failed to get system time since UNIX_EPOCH")
+                .as_secs(),
+        )
+    };
+}
+
+impl ClientOrderFillId {
+    pub fn unique_id() -> Self {
+        let new_id = CLIENT_ORDER_FILL_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+        ClientOrderFillId(new_id.to_string().into())
+    }
+
+    pub fn new(client_order_id: String16) -> Self {
+        ClientOrderFillId(client_order_id)
+    }
+
+    /// Extracts a string slice containing the entire string.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Extracts a string slice containing the entire string.
+    pub fn as_mut_str(&mut self) -> &mut str {
+        self.0.as_mut_str()
+    }
+}
+
+impl From<&str> for ClientOrderFillId {
+    fn from(value: &str) -> Self {
+        ClientOrderFillId(String16::from_str(value))
+    }
+}
+
+impl fmt::Display for ClientOrderFillId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
 #[serde(transparent)]
 pub struct ExchangeOrderId(String16);
@@ -202,7 +259,7 @@ impl OrderStatus {
 }
 
 /// Id for reserved amount
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Hash, Ord, PartialOrd)]
 #[serde(transparent)]
 pub struct ReservationId(u64);
 
@@ -212,6 +269,22 @@ impl ReservationId {
 
         let new_id = RESERVATION_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
         ReservationId(new_id)
+    }
+}
+
+impl fmt::Display for ReservationId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+pub trait ReservationIdVecToStringExt {
+    fn to_string(&self) -> String;
+}
+
+impl ReservationIdVecToStringExt for Vec<ReservationId> {
+    fn to_string(&self) -> String {
+        self.iter().join(", ")
     }
 }
 

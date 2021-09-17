@@ -1,10 +1,14 @@
 use chrono::Utc;
 
+pub mod balance_manager;
+mod balances;
 pub mod connectivity;
 pub mod exchanges;
 pub mod infrastructure;
 pub mod logger;
+pub mod misc;
 pub mod orders;
+pub mod service_configuration;
 pub mod statistic_service;
 pub mod utils;
 
@@ -16,6 +20,7 @@ pub(crate) mod internal_events_loop;
 pub mod lifecycle;
 pub mod math;
 pub mod order_book;
+pub(crate) mod services;
 pub mod settings;
 pub mod text;
 

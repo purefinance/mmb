@@ -7,6 +7,7 @@ use futures::FutureExt;
 use itertools::Itertools;
 use log::{error, info, warn, Level};
 use parking_lot::Mutex;
+use rust_decimal::Decimal;
 use serde_json::Value;
 use tokio::sync::{broadcast, oneshot};
 
@@ -19,7 +20,7 @@ use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::orders::event::OrderEventType;
-use crate::core::orders::order::OrderHeader;
+use crate::core::orders::order::{OrderHeader, OrderSide};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
 use crate::core::{
@@ -98,11 +99,12 @@ pub struct Exchange {
     pub(super) commission: Commission,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
     pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
-    pub(super) currencies: Mutex<Vec<CurrencyCode>>,
+    pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
     pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
     pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
+    pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -138,6 +140,7 @@ impl Exchange {
             wait_cancel_order: DashMap::new(),
             orders_finish_events: DashMap::new(),
             orders_created_events: DashMap::new(),
+            leverage_by_currency_pair: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -506,5 +509,14 @@ impl Exchange {
                 }
             }
         }
+    }
+
+    pub fn get_balance_reservation_currency_code(
+        &self,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        side: OrderSide,
+    ) -> CurrencyCode {
+        self.exchange_client
+            .get_balance_reservation_currency_code(currency_pair_metadata, side)
     }
 }

@@ -106,7 +106,7 @@ async fn cancel_opened_orders_successfully() {
         }
         Ok(orders) => {
             assert_ne!(orders.len(), 0);
-            &binance_builder
+            binance_builder
                 .exchange
                 .clone()
                 .cancel_opened_orders(CancellationToken::default(), true)
