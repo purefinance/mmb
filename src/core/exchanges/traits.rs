@@ -47,14 +47,6 @@ pub trait ExchangeClient: Support {
     ) -> Result<RestRequestOutcome>;
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
-
-    fn get_balance_reservation_currency_code(
-        &self,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        side: OrderSide,
-    ) -> CurrencyCode {
-        currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
-    }
 }
 
 #[async_trait]
@@ -102,6 +94,14 @@ pub trait Support: Send + Sync {
         &self,
         response: &RestRequestOutcome,
     ) -> Result<Vec<Arc<CurrencyPairMetadata>>>;
+
+    fn get_balance_reservation_currency_code(
+        &self,
+        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        side: OrderSide,
+    ) -> CurrencyCode {
+        currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
+    }
 }
 
 pub struct ExchangeClientBuilderResult {

@@ -277,18 +277,11 @@ impl BalanceManager {
                 .map(|x| x.currency_pair())
                 .collect_vec();
 
-            let mut position_differs_times_in_row_by_exchange_id = HashMap::new();
+            let mut position_differs_times_in_row_by_exchange_id: HashMap<
+                ExchangeAccountId,
+                HashMap<CurrencyPair, i32>,
+            > = HashMap::new();
             if !currency_pairs_with_diffs.is_empty() {
-                if position_differs_times_in_row_by_exchange_id
-                    .get_mut(exchange_account_id)
-                    .is_none()
-                {
-                    position_differs_times_in_row_by_exchange_id.insert(
-                        exchange_account_id.clone(),
-                        HashMap::<CurrencyPair, i32>::new(),
-                    );
-                }
-
                 let diff_times_by_currency_pair: &mut HashMap<_, _> =
                     position_differs_times_in_row_by_exchange_id
                         .entry(exchange_account_id.clone())
@@ -632,34 +625,30 @@ impl BalanceManager {
         order_snapshot: &OrderSnapshot,
         order_fill: &OrderFill,
     ) {
-        let currency_code_before_trade = &mut currency_pair_metadata
-            .get_trade_code(order_snapshot.header.side, BeforeAfter::Before);
         let amount_in_before_trade_currency_code = self
             .balance_reservation_manager
             .handle_position_fill_amount_change(
                 order_snapshot.header.side,
+                BeforeAfter::Before,
                 order_fill.client_order_fill_id(),
                 order_fill.amount(),
                 order_fill.price(),
                 configuration_descriptor.clone(),
                 exchange_account_id,
                 currency_pair_metadata.clone(),
-                currency_code_before_trade,
             );
 
-        let currency_code_after_trade = &mut currency_pair_metadata
-            .get_trade_code(order_snapshot.header.side, BeforeAfter::After);
         let amount_in_after_trade_currency_code = self
             .balance_reservation_manager
             .handle_position_fill_amount_change(
                 order_snapshot.header.side,
+                BeforeAfter::After,
                 order_fill.client_order_fill_id(),
                 -order_fill.amount(),
                 order_fill.price(),
                 configuration_descriptor.clone(),
                 exchange_account_id,
                 currency_pair_metadata.clone(),
-                currency_code_after_trade,
             );
 
         self.balance_reservation_manager
@@ -699,9 +688,9 @@ impl BalanceManager {
             order_fill.amount(),
             order_fill.commission_currency_code(),
             order_fill.commission_amount(),
-            currency_code_before_trade,
+            currency_pair_metadata.get_trade_code(order_snapshot.header.side, BeforeAfter::Before),
             amount_in_before_trade_currency_code,
-            currency_code_after_trade,
+            currency_pair_metadata.get_trade_code(order_snapshot.header.side, BeforeAfter::After),
             amount_in_after_trade_currency_code
         );
     }

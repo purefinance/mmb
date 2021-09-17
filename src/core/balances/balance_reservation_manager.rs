@@ -878,15 +878,17 @@ impl BalanceReservationManager {
     pub fn handle_position_fill_amount_change(
         &mut self,
         side: OrderSide,
+        before_after: BeforeAfter,
         client_order_fill_id: &Option<ClientOrderFillId>,
         fill_amount: Amount,
         price: Price,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         exchange_account_id: &ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        currency_code: &mut CurrencyCode,
     ) -> Amount {
         let mut change_amount_in_currency = dec!(0);
+
+        let currency_code = &currency_pair_metadata.get_trade_code(side, before_after);
         let request = BalanceRequest::new(
             configuration_descriptor.clone(),
             exchange_account_id.clone(),
@@ -906,7 +908,7 @@ impl BalanceReservationManager {
             change_amount_in_currency = currency_pair_metadata
                 .convert_amount_from_amount_currency_code(currency_code, fill_amount, price);
         }
-        if currency_pair_metadata.amount_currency_code == *currency_code {
+        if &currency_pair_metadata.amount_currency_code == currency_code {
             let mut position_change = fill_amount;
             if currency_pair_metadata.is_derivative {
                 let free_amount = self.get_position_in_amount_currency_code(
@@ -1529,7 +1531,6 @@ impl BalanceReservationManager {
             return (false, preset, potential_position, old_balance, new_balance);
         }
 
-        //Added precision error handling for an issue "Could not reserve balance for hedge in OrderRecreationManager"
         //Spot trading might need a more precise solution
         let rounded_balance = reserve_parameters
             .currency_pair_metadata
@@ -1811,8 +1812,7 @@ impl BalanceReservationManager {
         reserve_parameters: &ReserveParameters,
         explanation: &mut Option<Explanation>,
     ) -> bool {
-        let (res, _, _, _, _) = self.can_reserve_core(reserve_parameters, explanation);
-        res
+        self.can_reserve_core(reserve_parameters, explanation).0
     }
 
     pub fn get_available_leveraged_balance(
