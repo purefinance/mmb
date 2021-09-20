@@ -50,10 +50,10 @@ pub(crate) fn get_test_exchange_by_currency_codes_and_amount_code(
         quote_currency_code.into(),
         None,
         None,
+        None,
+        None,
+        None,
         amount_currency_code.into(),
-        None,
-        None,
-        None,
         None,
         Precision::ByTick { tick: price_tick },
         Precision::ByTick { tick: dec!(0) },
@@ -135,7 +135,6 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
         commission,
     );
 
-        amount_currency_code.into(),
     exchange
         .leverage_by_currency_pair
         .insert(currency_pair_metadata.currency_pair(), dec!(1));
