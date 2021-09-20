@@ -11,6 +11,7 @@ use crate::core::{
     },
     misc::{
         derivative_position_info::DerivativePositionInfo, reserve_parameters::ReserveParameters,
+        time_manager::time_manager,
     },
     orders::order::{
         ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
@@ -244,7 +245,7 @@ impl BalanceManagerBase {
         let order_snapshot = OrderSnapshot {
             header: OrderHeader::new(
                 ClientOrderId::new(format!("order{}", self.order_index).into()),
-                Utc::now(),
+                time_manager::now(),
                 self.exchange_account_id_1.clone(),
                 self.currency_pair_metadata().currency_pair().clone(),
                 OrderType::Limit,

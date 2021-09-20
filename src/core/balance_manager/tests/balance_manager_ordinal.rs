@@ -3,9 +3,10 @@ use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use std::{collections::HashMap, sync::Arc};
 
+#[double]
+use crate::core::misc::time_manager::time_manager;
 use crate::core::{
     balance_manager::balance_manager::BalanceManager,
-    balances::balance_reservation_manager::BalanceReservationManager,
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
@@ -21,7 +22,9 @@ use crate::core::{
     },
     DateTime,
 };
-use chrono::Utc;
+
+use chrono::{TimeZone, Utc};
+use mockall_double::double;
 use uuid::Uuid;
 
 use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
@@ -32,6 +35,8 @@ use rust_decimal_macros::dec;
 pub struct BalanceManagerOrdinal {
     pub balance_manager_base: BalanceManagerBase,
     pub now: DateTime,
+    pub seconds_offset_in_mock: Arc<Mutex<u32>>,
+    mock_object: time_manager::__now::Context,
 }
 
 // static
@@ -89,20 +94,32 @@ impl BalanceManagerOrdinal {
     }
 
     fn new() -> Self {
+        let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
+        let mock_object = time_manager::now_context();
+        let seconds = seconds_offset_in_mock.clone();
+        mock_object.expect().returning(move || {
+            chrono::Utc
+                .ymd(2021, 9, 20)
+                .and_hms(0, 0, seconds.lock().clone())
+        });
+
         let (currency_pair_metadata, balance_manager) =
             BalanceManagerOrdinal::create_balance_manager();
         let mut balance_manager_base = BalanceManagerBase::new();
         balance_manager_base.set_balance_manager(balance_manager);
         balance_manager_base.set_currency_pair_metadata(currency_pair_metadata);
-        let now = BalanceReservationManager::now();
+        let now = time_manager::now();
+
         Self {
             balance_manager_base,
             now,
+            seconds_offset_in_mock,
+            mock_object,
         }
     }
 
     fn create_order_fill(price: Price, amount: Amount, cost: Decimal) -> OrderFill {
-        BalanceManagerOrdinal::create_order_fill_with_time(price, amount, cost, Utc::now())
+        BalanceManagerOrdinal::create_order_fill_with_time(price, amount, cost, time_manager::now())
     }
 
     fn create_order_fill_with_time(
@@ -142,16 +159,19 @@ impl BalanceManagerOrdinal {
     }
 
     fn timer_add_second(&mut self) {
-        // TODO: fix me when mock will be added
+        let new_time = self.seconds_offset_in_mock.lock().clone() + 1;
+        *self.seconds_offset_in_mock.lock() = new_time;
     }
 }
 #[cfg(test)]
 mod tests {
+    use parking_lot::Mutex;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
 
-    use chrono::Utc;
+    use chrono::{TimeZone, Utc};
+    use mockall_double::double;
     use rstest::rstest;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
@@ -165,6 +185,8 @@ mod tests {
     use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
     use crate::core::logger::init_logger;
     use crate::core::misc::reserve_parameters::ReserveParameters;
+    #[double]
+    use crate::core::misc::time_manager::time_manager;
     use crate::core::orders::order::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
     };
@@ -5072,9 +5094,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // https://github.com/CryptoDreamTeam/rusttradingengine/issues/182
     pub fn get_last_position_change_before_period_base_cases() {
         init_logger();
+
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let exchange_account_id = &test_object.balance_manager_base.exchange_account_id_1;
@@ -5089,7 +5111,7 @@ mod tests {
 
         assert!(test_object
             .balance_manager()
-            .get_last_position_change_before_period(&trade_place, test_object.now)
+            .get_last_position_change_before_period(&trade_place, time_manager::now())
             .is_none());
 
         let price = dec!(0.2);
@@ -5101,7 +5123,7 @@ mod tests {
             price,
             dec!(5),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let mut buy_1 = test_object
@@ -5111,7 +5133,7 @@ mod tests {
             price,
             dec!(1),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let mut buy_2 = test_object
@@ -5121,7 +5143,7 @@ mod tests {
             price,
             dec!(2),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let mut buy_4 = test_object
@@ -5131,7 +5153,7 @@ mod tests {
             price,
             dec!(4),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let mut buy_0 = test_object
@@ -5141,7 +5163,7 @@ mod tests {
             price,
             dec!(0),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let order_fill_id_1 = order_was_filled(&mut test_object, &mut sell_5);
@@ -5150,11 +5172,10 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .get_last_position_change_before_period(&trade_place, test_object.now)
+                .get_last_position_change_before_period(&trade_place, time_manager::now())
                 .expect("in test"),
-            PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
+            PositionChange::new(order_fill_id_1.clone(), time_manager::now(), dec!(1))
         );
-
         test_object.timer_add_second();
         let _order_fill_id_2 = order_was_filled(&mut test_object, &mut buy_4);
         test_object.check_time(1);
