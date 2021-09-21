@@ -23,7 +23,6 @@ use crate::core::{
     DateTime,
 };
 
-use chrono::{TimeZone, Utc};
 use mockall_double::double;
 use uuid::Uuid;
 
@@ -35,8 +34,6 @@ use rust_decimal_macros::dec;
 pub struct BalanceManagerOrdinal {
     pub balance_manager_base: BalanceManagerBase,
     pub now: DateTime,
-    pub seconds_offset_in_mock: Arc<Mutex<u32>>,
-    mock_object: time_manager::__now::Context,
 }
 
 // static
@@ -94,15 +91,6 @@ impl BalanceManagerOrdinal {
     }
 
     fn new() -> Self {
-        let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
-        let mock_object = time_manager::now_context();
-        let seconds = seconds_offset_in_mock.clone();
-        mock_object.expect().returning(move || {
-            chrono::Utc
-                .ymd(2021, 9, 20)
-                .and_hms(0, 0, seconds.lock().clone())
-        });
-
         let (currency_pair_metadata, balance_manager) =
             BalanceManagerOrdinal::create_balance_manager();
         let mut balance_manager_base = BalanceManagerBase::new();
@@ -113,8 +101,6 @@ impl BalanceManagerOrdinal {
         Self {
             balance_manager_base,
             now,
-            seconds_offset_in_mock,
-            mock_object,
         }
     }
 
@@ -159,18 +145,23 @@ impl BalanceManagerOrdinal {
     }
 
     fn timer_add_second(&mut self) {
-        let new_time = self.seconds_offset_in_mock.lock().clone() + 1;
-        *self.seconds_offset_in_mock.lock() = new_time;
+        let new_time = self
+            .balance_manager_base
+            .seconds_offset_in_mock
+            .lock()
+            .clone()
+            + 1;
+        *self.balance_manager_base.seconds_offset_in_mock.lock() = new_time;
     }
 }
 #[cfg(test)]
 mod tests {
-    use parking_lot::Mutex;
+
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
 
-    use chrono::{TimeZone, Utc};
+    use chrono::Utc;
     use mockall_double::double;
     use rstest::rstest;
     use rust_decimal::Decimal;
@@ -1920,16 +1911,16 @@ mod tests {
             .expect("in test");
         let test_object_clone = test_object.clone();
 
-        let handle = std::thread::spawn(move || {
-            test_object
-                .lock()
-                .balance_manager()
-                .try_transfer_reservation(reservation_id_1, reservation_id_2, dec!(5), &None);
-        });
+        // let handle = std::thread::spawn(move || {
+        //     test_object
+        //         .lock()
+        //         .balance_manager()
+        //         .try_transfer_reservation(reservation_id_1, reservation_id_2, dec!(5), &None);
+        // });
 
-        if let Ok(_) = handle.join() {
-            assert!(false);
-        }
+        // if let Ok(_) = handle.join() {
+        //     assert!(false);
+        // }
 
         assert_eq!(
             test_object_clone
