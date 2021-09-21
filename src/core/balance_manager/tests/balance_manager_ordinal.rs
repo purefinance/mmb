@@ -36,7 +36,6 @@ pub struct BalanceManagerOrdinal {
     pub now: DateTime,
 }
 
-// static
 impl BalanceManagerOrdinal {
     fn create_balance_manager() -> (Arc<CurrencyPairMetadata>, Arc<Mutex<BalanceManager>>) {
         let (currency_pair_metadata, exchanges_by_id) =
@@ -145,13 +144,7 @@ impl BalanceManagerOrdinal {
     }
 
     fn timer_add_second(&mut self) {
-        let new_time = self
-            .balance_manager_base
-            .seconds_offset_in_mock
-            .lock()
-            .clone()
-            + 1;
-        *self.balance_manager_base.seconds_offset_in_mock.lock() = new_time;
+        *self.balance_manager_base.seconds_offset_in_mock.lock() += 1;
     }
 }
 #[cfg(test)]

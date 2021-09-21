@@ -45,7 +45,7 @@ pub struct BalanceManagerBase {
     mock_object: time_manager::__now::Context,
     mock_locker: MutexGuard<'static, ()>,
 }
-// static
+
 impl BalanceManagerBase {
     pub fn exchange_name() -> String {
         "local_exchange_account_id".into()
