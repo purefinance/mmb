@@ -163,6 +163,7 @@ mod tests {
 
     use chrono::Utc;
     use mockall_double::double;
+    use parking_lot::Mutex;
     use rstest::rstest;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
@@ -1882,7 +1883,7 @@ mod tests {
     #[test]
     pub fn transfer_reservations_amount_more_than_we_have_should_do_nothing_and_panic() {
         init_logger();
-        let test_object = Arc::new(parking_lot::Mutex::new(create_test_obj_by_currency_code(
+        let test_object = Arc::new(Mutex::new(create_test_obj_by_currency_code(
             BalanceManagerBase::eth(),
             dec!(5),
         )));
@@ -1909,21 +1910,23 @@ mod tests {
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
             .expect("in test");
-        let test_object_clone = test_object.clone();
+        let balance_manager_cloned = Mutex::new(test_object.lock().balance_manager().clone());
 
-        // let handle = std::thread::spawn(move || {
-        //     test_object
-        //         .lock()
-        //         .balance_manager()
-        //         .try_transfer_reservation(reservation_id_1, reservation_id_2, dec!(5), &None);
-        // });
+        let handle = std::thread::spawn(move || {
+            balance_manager_cloned.lock().try_transfer_reservation(
+                reservation_id_1,
+                reservation_id_2,
+                dec!(5),
+                &None,
+            );
+        });
 
-        // if let Ok(_) = handle.join() {
-        //     assert!(false);
-        // }
+        if let Ok(_) = handle.join() {
+            assert!(false);
+        }
 
         assert_eq!(
-            test_object_clone
+            test_object
                 .lock()
                 .balance_manager()
                 .get_balance_by_reserve_parameters(&reserve_parameters_1),
@@ -1931,7 +1934,7 @@ mod tests {
         );
 
         assert_eq!(
-            test_object_clone
+            test_object
                 .lock()
                 .balance_manager()
                 .get_reservation(&reservation_id_1)
@@ -1939,7 +1942,7 @@ mod tests {
             dec!(3)
         );
         assert_eq!(
-            test_object_clone
+            test_object
                 .lock()
                 .balance_manager()
                 .get_reservation(&reservation_id_2)
