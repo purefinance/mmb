@@ -156,7 +156,6 @@ impl BalanceManagerOrdinal {
 }
 #[cfg(test)]
 mod tests {
-
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;
@@ -5090,7 +5089,6 @@ mod tests {
     #[test]
     pub fn get_last_position_change_before_period_base_cases() {
         init_logger();
-
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
         let exchange_account_id = &test_object.balance_manager_base.exchange_account_id_1;
