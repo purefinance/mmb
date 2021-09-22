@@ -3,9 +3,10 @@ use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use std::{collections::HashMap, sync::Arc};
 
+#[double]
+use crate::core::misc::time_manager::time_manager;
 use crate::core::{
     balance_manager::balance_manager::BalanceManager,
-    balances::balance_reservation_manager::BalanceReservationManager,
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
@@ -21,7 +22,8 @@ use crate::core::{
     },
     DateTime,
 };
-use chrono::Utc;
+
+use mockall_double::double;
 use uuid::Uuid;
 
 use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
@@ -34,7 +36,6 @@ pub struct BalanceManagerOrdinal {
     pub now: DateTime,
 }
 
-// static
 impl BalanceManagerOrdinal {
     fn create_balance_manager() -> (Arc<CurrencyPairMetadata>, Arc<Mutex<BalanceManager>>) {
         let (currency_pair_metadata, exchanges_by_id) =
@@ -94,7 +95,8 @@ impl BalanceManagerOrdinal {
         let mut balance_manager_base = BalanceManagerBase::new();
         balance_manager_base.set_balance_manager(balance_manager);
         balance_manager_base.set_currency_pair_metadata(currency_pair_metadata);
-        let now = BalanceReservationManager::now();
+        let now = time_manager::now();
+
         Self {
             balance_manager_base,
             now,
@@ -102,7 +104,7 @@ impl BalanceManagerOrdinal {
     }
 
     fn create_order_fill(price: Price, amount: Amount, cost: Decimal) -> OrderFill {
-        BalanceManagerOrdinal::create_order_fill_with_time(price, amount, cost, Utc::now())
+        BalanceManagerOrdinal::create_order_fill_with_time(price, amount, cost, time_manager::now())
     }
 
     fn create_order_fill_with_time(
@@ -142,7 +144,7 @@ impl BalanceManagerOrdinal {
     }
 
     fn timer_add_second(&mut self) {
-        // TODO: fix me when mock will be added
+        *self.balance_manager_base.seconds_offset_in_mock.lock() += 1;
     }
 }
 #[cfg(test)]
@@ -152,6 +154,8 @@ mod tests {
     use std::time::Duration;
 
     use chrono::Utc;
+    use mockall_double::double;
+    use parking_lot::Mutex;
     use rstest::rstest;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
@@ -165,6 +169,8 @@ mod tests {
     use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
     use crate::core::logger::init_logger;
     use crate::core::misc::reserve_parameters::ReserveParameters;
+    #[double]
+    use crate::core::misc::time_manager::time_manager;
     use crate::core::orders::order::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
     };
@@ -1869,7 +1875,7 @@ mod tests {
     #[test]
     pub fn transfer_reservations_amount_more_than_we_have_should_do_nothing_and_panic() {
         init_logger();
-        let test_object = Arc::new(parking_lot::Mutex::new(create_test_obj_by_currency_code(
+        let test_object = Arc::new(Mutex::new(create_test_obj_by_currency_code(
             BalanceManagerBase::eth(),
             dec!(5),
         )));
@@ -1896,13 +1902,15 @@ mod tests {
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
             .expect("in test");
-        let test_object_clone = test_object.clone();
+        let balance_manager_cloned = Mutex::new(test_object.lock().balance_manager().clone());
 
         let handle = std::thread::spawn(move || {
-            test_object
-                .lock()
-                .balance_manager()
-                .try_transfer_reservation(reservation_id_1, reservation_id_2, dec!(5), &None);
+            balance_manager_cloned.lock().try_transfer_reservation(
+                reservation_id_1,
+                reservation_id_2,
+                dec!(5),
+                &None,
+            );
         });
 
         if let Ok(_) = handle.join() {
@@ -1910,7 +1918,7 @@ mod tests {
         }
 
         assert_eq!(
-            test_object_clone
+            test_object
                 .lock()
                 .balance_manager()
                 .get_balance_by_reserve_parameters(&reserve_parameters_1),
@@ -1918,7 +1926,7 @@ mod tests {
         );
 
         assert_eq!(
-            test_object_clone
+            test_object
                 .lock()
                 .balance_manager()
                 .get_reservation(&reservation_id_1)
@@ -1926,7 +1934,7 @@ mod tests {
             dec!(3)
         );
         assert_eq!(
-            test_object_clone
+            test_object
                 .lock()
                 .balance_manager()
                 .get_reservation(&reservation_id_2)
@@ -5072,7 +5080,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // https://github.com/CryptoDreamTeam/rusttradingengine/issues/182
     pub fn get_last_position_change_before_period_base_cases() {
         init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
@@ -5089,7 +5096,7 @@ mod tests {
 
         assert!(test_object
             .balance_manager()
-            .get_last_position_change_before_period(&trade_place, test_object.now)
+            .get_last_position_change_before_period(&trade_place, time_manager::now())
             .is_none());
 
         let price = dec!(0.2);
@@ -5101,7 +5108,7 @@ mod tests {
             price,
             dec!(5),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let mut buy_1 = test_object
@@ -5111,7 +5118,7 @@ mod tests {
             price,
             dec!(1),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let mut buy_2 = test_object
@@ -5121,7 +5128,7 @@ mod tests {
             price,
             dec!(2),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let mut buy_4 = test_object
@@ -5131,7 +5138,7 @@ mod tests {
             price,
             dec!(4),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let mut buy_0 = test_object
@@ -5141,7 +5148,7 @@ mod tests {
             price,
             dec!(0),
             dec!(2.5),
-            test_object.now,
+            time_manager::now(),
         ));
 
         let order_fill_id_1 = order_was_filled(&mut test_object, &mut sell_5);
@@ -5150,11 +5157,10 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .get_last_position_change_before_period(&trade_place, test_object.now)
+                .get_last_position_change_before_period(&trade_place, time_manager::now())
                 .expect("in test"),
-            PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
+            PositionChange::new(order_fill_id_1.clone(), time_manager::now(), dec!(1))
         );
-
         test_object.timer_add_second();
         let _order_fill_id_2 = order_was_filled(&mut test_object, &mut buy_4);
         test_object.check_time(1);

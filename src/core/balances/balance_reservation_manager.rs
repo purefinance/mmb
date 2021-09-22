@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
-use chrono::Utc;
 use itertools::Itertools;
+use mockall_double::double;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -27,6 +27,8 @@ use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
+#[double]
+use crate::core::misc::time_manager::time_manager;
 use crate::core::misc::traits_ext::decimal_inverse_sign::DecimalInverseSign;
 use crate::core::orders::order::{ClientOrderFillId, ClientOrderId, OrderSide};
 use crate::core::orders::order::{ReservationId, ReservationIdVecToStringExt};
@@ -814,7 +816,7 @@ impl BalanceReservationManager {
             self.virtual_balance_holder
                 .get_raw_exchange_balances()
                 .clone(),
-            Utc::now(),
+            time_manager::now(),
             self.virtual_balance_holder
                 .get_virtual_balance_diffs()
                 .clone(),
@@ -840,7 +842,7 @@ impl BalanceReservationManager {
             .position_by_fill_amount_in_amount_currency
             .get(exchange_account_id, &currency_pair_metadata.currency_pair());
 
-        let now = Self::now();
+        let now = time_manager::now();
 
         self.position_by_fill_amount_in_amount_currency.set(
             exchange_account_id,
@@ -957,7 +959,7 @@ impl BalanceReservationManager {
                     position_change.inverse_sign();
                 }
             }
-            let now = Self::now();
+            let now = time_manager::now();
             self.position_by_fill_amount_in_amount_currency.add(
                 &request.exchange_account_id,
                 &request.currency_pair,
@@ -1097,7 +1099,7 @@ impl BalanceReservationManager {
         client_order_id: &ClientOrderId,
         amount: Amount,
     ) -> Result<()> {
-        let approve_time = Self::now();
+        let approve_time = time_manager::now();
         let reservation = match self.get_mut_reservation(&reservation_id) {
             Some(reservation) => reservation,
             None => {
@@ -1291,7 +1293,7 @@ impl BalanceReservationManager {
         is_src_request: bool,
         target_cost_diff: Decimal,
     ) -> Decimal {
-        let approve_time = Self::now();
+        let approve_time = time_manager::now();
         let reservation = self
             .get_mut_reservation(&reservation_id)
             .expect("Failed to get mut reservation");
@@ -1870,10 +1872,5 @@ impl BalanceReservationManager {
             self.amount_limits_in_amount_currency
                 .set_by_balance_request(&request, limit);
         }
-    }
-
-    // NOTE: in future will be needed for mock in tests
-    pub fn now() -> DateTime {
-        Utc::now()
     }
 }
