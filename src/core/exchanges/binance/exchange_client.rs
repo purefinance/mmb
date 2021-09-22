@@ -8,8 +8,9 @@ use crate::core::{
     exchanges::common::{CurrencyPair, RestRequestOutcome},
     orders::pool::OrderRef,
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use async_trait::async_trait;
+use chrono::Utc;
 
 #[async_trait]
 impl ExchangeClient for Binance {
@@ -176,12 +177,8 @@ impl ExchangeClient for Binance {
             specific_currency_pair.as_str().to_owned(),
         )];
 
-        if let Some(last_date_time) = last_date_time {
-            http_params.push((
-                "startTime".to_owned(),
-                last_date_time.timestamp_millis().to_string(),
-            ));
-        }
+        self.add_authentification_headers(&mut http_params)?;
+        dbg!(&http_params);
 
         let url_path = match self.settings.is_margin_trading {
             true => "/fapi/v1/userTrades",
@@ -189,6 +186,7 @@ impl ExchangeClient for Binance {
         };
 
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
+        dbg!(&full_url);
         self.rest_client.get(full_url, &self.settings.api_key).await
     }
 }

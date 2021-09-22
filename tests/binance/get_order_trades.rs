@@ -23,7 +23,7 @@ async fn empty_open_trades_returned_successfully() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
+            RestFillsFeatures::new(RestFillsType::MyTrades),
             false,
             true,
             AllowedEventSourceType::default(),
@@ -66,10 +66,12 @@ async fn empty_open_trades_returned_successfully() {
                 Precision::ByTick { tick: dec!(0) },
                 Precision::ByTick { tick: dec!(0) },
             );
-            binance_builder
+            let test = binance_builder
                 .exchange
                 .get_order_trades(&currency_pair_metadata, &order_ref)
-                .await;
+                .await
+                .expect("in test");
+            dbg!(&test);
 
             order_proxy
                 .cancel_order_or_fail(&order_ref, binance_builder.exchange.clone())

@@ -12,7 +12,7 @@ use anyhow::{bail, Result};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct OrderTrade {
     pub exchange_order_id: ExchangeOrderId,
     pub trade_id: String,
