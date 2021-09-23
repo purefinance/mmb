@@ -91,8 +91,7 @@ impl BinanceBuilder {
             exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]));
         }
 
-        // TODO Not connected with settings getting
-        // Probably need to use scopeguard in fixture for every test which need it
+        // TODO Remove that workaround when RAII order clearing will be implemented
         if need_to_clean_up {
             exchange
                 .clone()
