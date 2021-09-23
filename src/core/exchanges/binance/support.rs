@@ -150,6 +150,11 @@ impl Support for Binance {
                 let data = &data["data"];
 
                 // TODO handle public stream
+                if stream.ends_with("@trade") {
+                    self.handle_print_inner(&currency_pair, data)?;
+                }
+
+                // TODO handle public stream
                 if stream.ends_with("depth20") {
                     self.process_snapshot_update(&currency_pair, data)?;
                 }
@@ -465,6 +470,30 @@ impl GetOrErr for Value {
 }
 
 impl Binance {
+    pub(crate) fn handle_print_inner(
+        &self,
+        currency_pair: &CurrencyPair,
+        data: &Value,
+    ) -> Result<()> {
+        let trade_id: u64 = data["t"].to_string().parse()?;
+
+        // FIXME add ISReducingMarketData field
+        if self.last_trade_id[currency_pair] >= trade_id {
+            info!(
+                "Current last_trade_id for currency_pair {} is {} >= print_trade_id {}",
+                currency_pair, self.last_trade_id[currency_pair], trade_id
+            );
+
+            return Ok(());
+        }
+
+        self.last_trade_id
+            .insert(currency_pair.clone(), trade_id)
+            .ok_or(anyhow!("Unable to insert new trade id"))?;
+
+        todo!()
+    }
+
     pub fn process_snapshot_update(
         &self,
         currency_pair: &CurrencyPair,

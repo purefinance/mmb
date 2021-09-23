@@ -49,6 +49,7 @@ pub struct Binance {
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     // Currencies used for trading according to user settings
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
+    pub(super) last_trade_id: HashMap<CurrencyPair, u64>,
 
     pub(super) application_manager: Arc<ApplicationManager>,
 
@@ -75,6 +76,7 @@ impl Binance {
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
             traded_specific_currencies: Default::default(),
+            last_trade_id: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
             settings,
             events_channel,
