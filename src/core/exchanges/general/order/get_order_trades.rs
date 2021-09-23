@@ -1,6 +1,4 @@
-use crate::core::exchanges::common::{
-    Amount, CurrencyCode, ExchangeError, Price, RestRequestOutcome,
-};
+use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeError, Price};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::orders::fill::OrderFillType;
@@ -13,11 +11,10 @@ use crate::core::{
 use anyhow::{bail, Result};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OrderTrade {
-    pub exchange_order_id: ExchangeOrderId,
+    pub exchange_order_id: Option<ExchangeOrderId>,
     pub trade_id: String,
     pub datetime: DateTime,
     pub price: Price,
@@ -63,7 +60,6 @@ impl Exchange {
         currency_pair_metadata: &CurrencyPairMetadata,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        dbg!(&"DAAAAA");
         let fills_type = &self.features.rest_fills_features.fills_type;
         match fills_type {
             RestFillsType::MyTrades => {
@@ -83,17 +79,14 @@ impl Exchange {
         match my_trades {
             RequestResult::Error(_) => Ok(my_trades),
             RequestResult::Success(my_trades) => {
-                if let Some(exchange_order_id) = order.exchange_order_id() {
-                    let data = my_trades
-                        .into_iter()
-                        .filter(|order_trade| order_trade.exchange_order_id == exchange_order_id)
-                        .collect_vec();
-                    dbg!(&data);
+                let data = my_trades
+                    .into_iter()
+                    .filter(|order_trade| {
+                        order_trade.exchange_order_id == order.exchange_order_id()
+                    })
+                    .collect_vec();
 
-                    Ok(RequestResult::Success(data))
-                } else {
-                    bail!("There is no exchange_order in order {:?}", order);
-                }
+                Ok(RequestResult::Success(data))
             }
         }
     }
