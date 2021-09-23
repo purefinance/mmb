@@ -95,7 +95,7 @@ impl Exchange {
                         open_orders.append(open_orders_tmp);
                     }
                     Err(error) => {
-                        self.handle_parse_error(error, response, "".into(), None)?;
+                        self.handle_parse_error(error, &response, "".into(), None)?;
                         return Ok(Vec::new());
                     }
                 }
@@ -123,7 +123,7 @@ impl Exchange {
                                     open_orders.append(open_orders_tmp);
                                 }
                                 Err(error) => {
-                                    self.handle_parse_error(error, response, "".into(), None)?;
+                                    self.handle_parse_error(error, &response, "".into(), None)?;
                                     return Ok(Vec::new());
                                 }
                             }

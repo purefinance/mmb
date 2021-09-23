@@ -18,6 +18,7 @@ async fn cancellation_waited_successfully() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
             false,
             true,
             AllowedEventSourceType::default(),
@@ -68,6 +69,7 @@ async fn cancellation_waited_failed_fallback() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
             false,
             true,
             AllowedEventSourceType::default(),

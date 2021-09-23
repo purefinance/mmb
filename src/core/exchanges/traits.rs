@@ -14,6 +14,7 @@ use super::{
     },
     general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata},
     general::handlers::handle_order_filled::FillEventData,
+    general::order::get_order_trades::OrderTrade,
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::events::ExchangeEvent;
@@ -24,7 +25,9 @@ use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
 use crate::core::settings::ExchangeSettings;
-use crate::core::{connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide};
+use crate::core::{
+    connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide, DateTime,
+};
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use awc::http::Uri;
 
@@ -47,6 +50,12 @@ pub trait ExchangeClient: Support {
     ) -> Result<RestRequestOutcome>;
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
+
+    async fn request_my_trades(
+        &self,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        last_date_time: Option<DateTime>,
+    ) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait]
@@ -102,6 +111,12 @@ pub trait Support: Send + Sync {
     ) -> CurrencyCode {
         currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
     }
+
+    fn parse_get_my_trades(
+        &self,
+        response: &RestRequestOutcome,
+        last_date_time: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<Vec<OrderTrade>>;
 }
 
 pub struct ExchangeClientBuilderResult {

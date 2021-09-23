@@ -18,6 +18,7 @@ async fn get_order_info() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
             false,
             true,
             AllowedEventSourceType::default(),

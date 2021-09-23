@@ -1,7 +1,9 @@
 use super::binance::Binance;
+use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
 use crate::core::orders::order::*;
+use crate::core::DateTime;
 use crate::core::{
     exchanges::common::{CurrencyPair, RestRequestOutcome},
     orders::pool::OrderRef,
@@ -157,6 +159,31 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
 
+        self.rest_client.get(full_url, &self.settings.api_key).await
+    }
+
+    async fn request_my_trades(
+        &self,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        _last_date_time: Option<DateTime>,
+    ) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(&CurrencyPair::from_codes(
+            &currency_pair_metadata.base_currency_code,
+            &currency_pair_metadata.quote_currency_code,
+        ));
+        let mut http_params = vec![(
+            "symbol".to_owned(),
+            specific_currency_pair.as_str().to_owned(),
+        )];
+
+        self.add_authentification_headers(&mut http_params)?;
+
+        let url_path = match self.settings.is_margin_trading {
+            true => "/fapi/v1/userTrades",
+            false => "/api/v3/myTrades",
+        };
+
+        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
         self.rest_client.get(full_url, &self.settings.api_key).await
     }
 }

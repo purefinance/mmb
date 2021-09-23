@@ -1,5 +1,6 @@
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
@@ -15,6 +16,7 @@ use serde_json::Value;
 use super::binance::Binance;
 use crate::core::exchanges::common::SortedOrderData;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::general::order::get_order_trades::OrderTrade;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
@@ -23,7 +25,9 @@ use crate::core::exchanges::{
 };
 use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
+use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::*;
+use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::general::currency_pair_metadata::Precision,
@@ -364,10 +368,10 @@ impl Support for Binance {
                 quote_currency_code,
                 min_price,
                 max_price,
-                amount_currency_code.as_str().into(),
                 min_amount,
                 max_amount,
                 min_cost,
+                amount_currency_code.as_str().into(),
                 Some(balance_currency_code.as_str().into()),
                 price_precision,
                 amount_precision,
@@ -377,6 +381,69 @@ impl Support for Binance {
         }
 
         Ok(result)
+    }
+
+    fn parse_get_my_trades(
+        &self,
+        response: &RestRequestOutcome,
+        _last_date_time: Option<DateTime>,
+    ) -> Result<Vec<OrderTrade>> {
+        #[derive(Serialize, Deserialize, Debug)]
+        #[serde(rename_all = "camelCase")]
+        struct BinanceMyTrade {
+            id: u64,
+            order_id: u64,
+            price: Price,
+            #[serde(alias = "qty")]
+            amount: Amount,
+            commission: Amount,
+            #[serde(alias = "commissionAsset")]
+            commission_currency_code: CurrencyId,
+            time: u64,
+            is_maker: bool,
+        }
+
+        impl BinanceMyTrade {
+            pub(super) fn to_unified_order_trade(
+                &self,
+                commission_currency_code: Option<CurrencyCode>,
+            ) -> Result<OrderTrade> {
+                let datetime: DateTime = (UNIX_EPOCH + Duration::from_millis(self.time)).into();
+                let order_role = if self.is_maker {
+                    OrderRole::Maker
+                } else {
+                    OrderRole::Taker
+                };
+
+                if let Some(commission_currency_code) = commission_currency_code {
+                    Ok(OrderTrade::new(
+                        ExchangeOrderId::from(self.order_id.to_string().as_ref()),
+                        self.id.to_string(),
+                        datetime,
+                        self.price,
+                        self.amount,
+                        order_role,
+                        commission_currency_code,
+                        None,
+                        Some(self.commission),
+                        OrderFillType::UserTrade,
+                    ))
+                } else {
+                    bail!("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting");
+                }
+            }
+        }
+
+        let my_trades: Vec<BinanceMyTrade> = serde_json::from_str(&response.content)?;
+
+        my_trades
+            .into_iter()
+            .map(|my_trade| {
+                my_trade.to_unified_order_trade(
+                    self.get_currency_code(&my_trade.commission_currency_code),
+                )
+            })
+            .collect()
     }
 }
 
