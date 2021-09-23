@@ -44,7 +44,8 @@ impl UsdConverter {
         if from_currency_code == &self.usd_currency_code {
             return Some(src_amount);
         }
-        let usd_amount = self
+
+        match self
             .price_source_service
             .convert_amount(
                 from_currency_code,
@@ -53,15 +54,18 @@ impl UsdConverter {
                 cancellation_token,
             )
             .await
-            .expect(
-                format!(
-                    "Failed to calculate price {} -> {}",
-                    from_currency_code, self.usd_currency_code
-                )
-                .as_str(),
-            );
-        if usd_amount.is_some() {
-            return usd_amount;
+        {
+            Ok(usd_amount) => {
+                if usd_amount.is_some() {
+                    return usd_amount;
+                }
+            }
+            Err(error) => log::warn!(
+                "Failed to calculate price {} -> {}: {:?}",
+                from_currency_code,
+                self.usd_currency_code,
+                error
+            ),
         }
 
         log::warn!("Can't calculate USD price using PriceSourceService => trying to use UsdDenominator ({})", from_currency_code);
