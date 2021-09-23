@@ -157,7 +157,6 @@ impl UsdDenominator {
 
     pub fn currency_to_usd(
         &self,
-
         currency_code: &CurrencyCode,
         amount_in_base: Amount,
     ) -> Option<Amount> {
