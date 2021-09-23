@@ -84,6 +84,7 @@ impl Exchange {
                         .into_iter()
                         .filter(|order_trade| order_trade.exchange_order_id == exchange_order_id)
                         .collect_vec();
+                    dbg!(&data);
 
                     Ok(RequestResult::Success(data))
                 } else {
@@ -93,7 +94,7 @@ impl Exchange {
         }
     }
 
-    pub(crate) async fn get_my_trades(
+    pub async fn get_my_trades(
         &self,
         currency_pair_metadata: &CurrencyPairMetadata,
         last_date_time: Option<DateTime>,

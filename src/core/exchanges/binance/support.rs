@@ -388,7 +388,7 @@ impl Support for Binance {
         response: &RestRequestOutcome,
         _last_date_time: Option<DateTime>,
     ) -> Result<Vec<OrderTrade>> {
-        #[derive(Serialize, Deserialize)]
+        #[derive(Serialize, Deserialize, Debug)]
         #[serde(rename_all = "camelCase")]
         struct BinanceMyTrade {
             id: u64,
@@ -396,7 +396,7 @@ impl Support for Binance {
             price: Price,
             #[serde(alias = "qty")]
             amount: Amount,
-            comission: Amount,
+            commission: Amount,
             #[serde(alias = "commissionAsset")]
             commission_currency_code: CurrencyId,
             time: u64,
@@ -425,7 +425,7 @@ impl Support for Binance {
                         order_role,
                         commission_currency_code,
                         None,
-                        Some(self.comission),
+                        Some(self.commission),
                         OrderFillType::UserTrade,
                     ))
                 } else {
