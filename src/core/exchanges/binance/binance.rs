@@ -49,7 +49,7 @@ pub struct Binance {
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     // Currencies used for trading according to user settings
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
-    pub(super) last_trade_id: HashMap<CurrencyPair, u64>,
+    pub(super) last_trade_id: DashMap<CurrencyPair, u64>,
 
     pub(super) application_manager: Arc<ApplicationManager>,
 
