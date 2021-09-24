@@ -3,7 +3,7 @@ use chrono::Utc;
 use log::{info, trace, warn};
 use tokio::sync::oneshot;
 
-use crate::core::exchanges::common::{CurrencyCode, ExchangeError, ExchangeErrorType};
+use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::exchanges::general::features::RestFillsType;
@@ -109,7 +109,7 @@ impl Exchange {
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
-    ) -> Result<Box<dyn OrderFillsCheckingOutcome>> {
+    ) -> Result<RequestResult<()>> {
         self.timeout_manager
             .reserve_when_available(
                 &self.exchange_account_id,
@@ -144,7 +144,10 @@ impl Exchange {
                     }
                 }
 
-                Ok(Box::new(order_trades))
+                match order_trades {
+                    RequestResult::Success(_) => Ok(RequestResult::Success(())),
+                    RequestResult::Error(error) => Ok(RequestResult::Error(error)),
+                }
             }
             RequestType::GetOrderInfo => {
                 let order_info = match self.get_order_info(order).await {
@@ -183,7 +186,11 @@ impl Exchange {
                     Err(exchange_error) => RequestResult::Error::<OrderInfo>(exchange_error),
                 };
 
-                Ok(Box::new(order_info))
+                match order_info {
+                    RequestResult::Success(_) => Ok(RequestResult::Success(())),
+                    RequestResult::Error(error) => Ok(RequestResult::Error(error)),
+                }
+                //Ok(Box::new(order_info))
             }
             _ => bail!(
                 "Unsupported request type {:?} in check_order_fills",
@@ -276,28 +283,10 @@ impl Exchange {
     }
 }
 
-pub trait OrderFillsCheckingOutcome {
-    fn get_error(&self) -> Option<ExchangeError>;
-}
-
-impl<T> OrderFillsCheckingOutcome for RequestResult<T> {
-    fn get_error(&self) -> Option<ExchangeError> {
-        match self {
-            RequestResult::Success(_) => None,
-            RequestResult::Error(exchange_error) => Some(exchange_error.clone()),
-        }
-    }
-}
-
 fn is_finished(
     order: &OrderRef,
     exit_on_order_is_finished_even_if_fills_didnt_received: bool,
 ) -> bool {
-    if order.status() == OrderStatus::Completed
+    order.status() == OrderStatus::Completed
         || order.is_finished() && exit_on_order_is_finished_even_if_fills_didnt_received
-    {
-        return true;
-    }
-
-    false
 }

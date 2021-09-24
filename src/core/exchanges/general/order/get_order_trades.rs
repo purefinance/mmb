@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OrderTrade {
-    pub exchange_order_id: Option<ExchangeOrderId>,
+    pub exchange_order_id: ExchangeOrderId,
     pub trade_id: String,
     pub datetime: DateTime,
     pub price: Price,
@@ -28,7 +28,7 @@ pub struct OrderTrade {
 
 impl OrderTrade {
     pub fn new(
-        exchange_order_id: Option<ExchangeOrderId>,
+        exchange_order_id: ExchangeOrderId,
         trade_id: String,
         datetime: DateTime,
         price: Price,
@@ -82,7 +82,11 @@ impl Exchange {
                 let data = my_trades
                     .into_iter()
                     .filter(|order_trade| {
-                        order_trade.exchange_order_id == order.exchange_order_id()
+                        if let Some(order_id_from_exchange) = order.exchange_order_id() {
+                            return order_trade.exchange_order_id == order_id_from_exchange;
+                        }
+
+                        false
                     })
                     .collect_vec();
 

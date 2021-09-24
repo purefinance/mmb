@@ -417,7 +417,7 @@ impl Support for Binance {
 
                 if let Some(commission_currency_code) = commission_currency_code {
                     Ok(OrderTrade::new(
-                        Some(ExchangeOrderId::from(self.order_id.to_string().as_ref())),
+                        ExchangeOrderId::from(self.order_id.to_string().as_ref()),
                         self.id.to_string(),
                         datetime,
                         self.price,
