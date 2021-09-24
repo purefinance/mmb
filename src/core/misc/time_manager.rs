@@ -9,7 +9,7 @@ use mockall::automock;
 pub(crate) mod time_manager {
     use crate::core::DateTime;
 
-    /// Return current date in UTC timezone
+    /// Return current date in UTC
     pub(crate) fn now() -> DateTime {
         chrono::Utc::now()
     }
