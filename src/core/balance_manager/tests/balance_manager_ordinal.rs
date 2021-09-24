@@ -5096,7 +5096,7 @@ mod tests {
 
         assert!(test_object
             .balance_manager()
-            .get_last_position_change_before_period(&trade_place, time_manager::now())
+            .get_last_position_change_before_period(&trade_place, test_object.now)
             .is_none());
 
         let price = dec!(0.2);
@@ -5108,7 +5108,7 @@ mod tests {
             price,
             dec!(5),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let mut buy_1 = test_object
@@ -5118,7 +5118,7 @@ mod tests {
             price,
             dec!(1),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let mut buy_2 = test_object
@@ -5128,7 +5128,7 @@ mod tests {
             price,
             dec!(2),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let mut buy_4 = test_object
@@ -5138,7 +5138,7 @@ mod tests {
             price,
             dec!(4),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let mut buy_0 = test_object
@@ -5148,7 +5148,7 @@ mod tests {
             price,
             dec!(0),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let order_fill_id_1 = order_was_filled(&mut test_object, &mut sell_5);
@@ -5157,9 +5157,9 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .get_last_position_change_before_period(&trade_place, time_manager::now())
+                .get_last_position_change_before_period(&trade_place, test_object.now)
                 .expect("in test"),
-            PositionChange::new(order_fill_id_1.clone(), time_manager::now(), dec!(1))
+            PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
         );
         test_object.timer_add_second();
         let _order_fill_id_2 = order_was_filled(&mut test_object, &mut buy_4);
