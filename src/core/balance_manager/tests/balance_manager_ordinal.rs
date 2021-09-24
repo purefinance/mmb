@@ -154,7 +154,6 @@ mod tests {
     use std::time::Duration;
 
     use chrono::Utc;
-    use mockall_double::double;
     use parking_lot::Mutex;
     use rstest::rstest;
     use rust_decimal::Decimal;
@@ -169,8 +168,6 @@ mod tests {
     use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
     use crate::core::logger::init_logger;
     use crate::core::misc::reserve_parameters::ReserveParameters;
-    #[double]
-    use crate::core::misc::time_manager::time_manager;
     use crate::core::orders::order::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
     };
