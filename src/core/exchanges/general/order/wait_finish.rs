@@ -190,7 +190,6 @@ impl Exchange {
                     RequestResult::Success(_) => Ok(RequestResult::Success(())),
                     RequestResult::Error(error) => Ok(RequestResult::Error(error)),
                 }
-                //Ok(Box::new(order_info))
             }
             _ => bail!(
                 "Unsupported request type {:?} in check_order_fills",
