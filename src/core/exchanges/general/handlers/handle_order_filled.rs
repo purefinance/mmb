@@ -120,27 +120,25 @@ impl Exchange {
         order_fills: &Vec<OrderFill>,
         order_ref: &OrderRef,
     ) -> bool {
-        match trade_id {
-            Some(trade_id) => {
-                if order_fills.iter().any(|fill| {
-                    if let Some(fill_trade_id) = fill.trade_id() {
-                        return fill_trade_id == trade_id;
-                    }
+        let current_trade_id = match trade_id {
+            None => return false,
+            Some(trade_id) => trade_id,
+        };
 
-                    false
-                }) {
-                    info!(
-                        "Trade with {} was received already for order {:?}",
-                        trade_id, order_ref
-                    );
+        if order_fills.iter().any(|fill| {
+            fill.trade_id()
+                .map(|fill_trade_id| fill_trade_id == current_trade_id)
+                .unwrap_or(false)
+        }) {
+            info!(
+                "Trade with {} was received already for order {:?}",
+                current_trade_id, order_ref
+            );
 
-                    return true;
-                }
-
-                false
-            }
-            None => false,
+            return true;
         }
+
+        false
     }
 
     fn diff_fill_after_non_diff(

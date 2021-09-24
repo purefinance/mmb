@@ -388,7 +388,7 @@ impl Exchange {
                             )
                             .await?;
                         }
-                        _ => {}
+                        _ => nothing_to_do(),
                     }
 
                     break;

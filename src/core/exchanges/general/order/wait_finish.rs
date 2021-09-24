@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
 use log::{info, trace, warn};
 use tokio::sync::oneshot;
@@ -28,10 +28,12 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         let currency_pair = order.currency_pair();
-        let currency_pair_metadata = self.symbols.get(&currency_pair).ok_or(anyhow!(
-            "No such currency_pair_metadata for given currency_pair {}",
-            currency_pair
-        ))?;
+        let currency_pair_metadata = self.symbols.get(&currency_pair).with_context(|| {
+            format!(
+                "No such currency_pair_metadata for given currency_pair {}",
+                currency_pair,
+            )
+        })?;
 
         let rest_fills_type = &self.features.rest_fills_features.fills_type;
         let request_type_to_use = match rest_fills_type {
@@ -130,10 +132,10 @@ impl Exchange {
                 if let RequestResult::Success(ref order_trades) = order_trades {
                     for order_trade in order_trades {
                         if order.get_fills().0.into_iter().any(|order_fill| {
-                            match order_fill.trade_id() {
-                                Some(fill_trade_id) => fill_trade_id == &order_trade.trade_id,
-                                None => false,
-                            }
+                            order_fill
+                                .trade_id()
+                                .map(|fill_trade_id| fill_trade_id == &order_trade.trade_id)
+                                .unwrap_or(false)
                         }) {
                             continue;
                         };
@@ -146,39 +148,40 @@ impl Exchange {
             }
             RequestType::GetOrderInfo => {
                 let order_info = match self.get_order_info(order).await {
-                    Ok(order_info) => RequestResult::Success(order_info),
+                    Ok(order_info) => {
+                        let exchange_order_id = order.exchange_order_id().with_context(|| {
+                        "No exchange_order_id in order while handle_order_filled_for_restfallback"
+                    })?;
+
+                        let commission_currency_code = order_info
+                            .commission_currency_code
+                            .clone()
+                            .map(|currency_code| CurrencyCode::new(currency_code.into()));
+
+                        let event_data = FillEventData {
+                            source_type: EventSourceType::RestFallback,
+                            trade_id: None,
+                            client_order_id: Some(order.client_order_id()),
+                            exchange_order_id,
+                            fill_price: order_info.average_fill_price,
+                            fill_amount: order_info.filled_amount,
+                            is_diff: false,
+                            total_filled_amount: None,
+                            order_role: None,
+                            commission_currency_code,
+                            commission_rate: order_info.commission_rate,
+                            commission_amount: order_info.commission_amount,
+                            fill_type: OrderFillType::UserTrade,
+                            trade_currency_pair: None,
+                            order_side: None,
+                            order_amount: None,
+                        };
+                        self.handle_order_filled(event_data)?;
+
+                        RequestResult::Success(order_info)
+                    }
                     Err(exchange_error) => RequestResult::Error::<OrderInfo>(exchange_error),
                 };
-
-                if let RequestResult::Success(ref order_info) = order_info {
-                    let exchange_order_id = order.exchange_order_id().ok_or(anyhow!(
-                        "No exchange_order_id in order while handle_order_filled_for_restfallback"
-                    ))?;
-                    let commission_currency_code = order_info
-                        .commission_currency_code
-                        .clone()
-                        .map(|currency_code| CurrencyCode::new(currency_code.into()));
-
-                    let event_data = FillEventData {
-                        source_type: EventSourceType::RestFallback,
-                        trade_id: None,
-                        client_order_id: Some(order.client_order_id()),
-                        exchange_order_id,
-                        fill_price: order_info.average_fill_price,
-                        fill_amount: order_info.filled_amount,
-                        is_diff: false,
-                        total_filled_amount: None,
-                        order_role: None,
-                        commission_currency_code,
-                        commission_rate: order_info.commission_rate,
-                        commission_amount: order_info.commission_amount,
-                        fill_type: OrderFillType::UserTrade,
-                        trade_currency_pair: None,
-                        order_side: None,
-                        order_amount: None,
-                    };
-                    self.handle_order_filled(event_data)?;
-                }
 
                 Ok(Box::new(order_info))
             }
@@ -293,8 +296,8 @@ fn is_finished(
     if order.status() == OrderStatus::Completed
         || order.is_finished() && exit_on_order_is_finished_even_if_fills_didnt_received
     {
-        true
-    } else {
-        false
+        return true;
     }
+
+    false
 }
