@@ -493,9 +493,10 @@ impl Exchange {
     ) {
         match self.get_open_orders(add_missing_open_orders).await {
             Err(error) => {
-                error!(
+                log::error!(
                     "Unable to get opened order for exchange account id {}: {:?}",
-                    self.exchange_account_id, error,
+                    self.exchange_account_id,
+                    error,
                 );
             }
             Ok(orders) => {

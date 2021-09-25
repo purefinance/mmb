@@ -378,15 +378,15 @@ impl Exchange {
         &self,
         currency_pair: &CurrencyPair,
     ) -> Result<Arc<CurrencyPairMetadata>> {
-        let maybe_currency_pair_metadata = self.symbols.get(currency_pair);
-        match maybe_currency_pair_metadata {
-            Some(suitable_currency_pair_metadata) => Ok(suitable_currency_pair_metadata.clone()),
-            None => bail!(
-                "Unsupported currency pair on {} {:?}",
-                self.exchange_account_id,
-                currency_pair
-            ),
-        }
+        self.symbols
+            .get(currency_pair)
+            .with_context(|| {
+                format!(
+                    "Unsupported currency pair on {} {:?}",
+                    self.exchange_account_id, currency_pair
+                )
+            })
+            .map(|pair| pair.value().clone())
     }
 }
 

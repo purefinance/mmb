@@ -201,20 +201,18 @@ impl BalanceManager {
 
         for position_info in positions {
             let currency_pair = position_info.currency_pair.clone();
-            let currency_pair_metadata = match self
+            let currency_pair_metadata = self
                 .balance_reservation_manager
                 .exchanges_by_id
                 .get(exchange_account_id)
-            {
-                Some(exchange) => exchange.get_currency_pair_metadata(&currency_pair)?,
-                None => {
-                    bail!(
+                .with_context(|| format!(
                         "currency_pair_metadata not found for exchange with account id {:?} and currency pair {}",
                         exchange_account_id,
                         currency_pair,
                     )
-                }
-            };
+                )?
+                .get_currency_pair_metadata(&currency_pair)?;
+
             if currency_pair_metadata.is_derivative {
                 position_info_by_currency_pair_metadata
                     .insert(currency_pair_metadata.clone(), position_info);
@@ -332,16 +330,14 @@ impl BalanceManager {
         let whole_balances_before = self.calculate_whole_balances()?;
 
         {
-            let exchange_currencies = if let Some(exchange) = self
+            let exchange_currencies = self
                 .balance_reservation_manager
                 .exchanges_by_id
                 .get(exchange_account_id)
-            {
-                let tmp_mut = &exchange.currencies;
-                tmp_mut.lock().clone()
-            } else {
-                bail!("Failed to get exchange with id {}", exchange_account_id)
-            };
+                .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
+                .currencies
+                .lock()
+                .clone();
 
             for exchange_balance in &balances_and_positions.balances {
                 //We skip currencies with zero balances if they are not part of Exchange currency pairs
@@ -360,21 +356,18 @@ impl BalanceManager {
         self.restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
 
         {
-            let exchange_currencies = if let Some(exchange) = self
+            let exchange_currencies = self
                 .balance_reservation_manager
                 .exchanges_by_id
                 .get(exchange_account_id)
-            {
-                let tmp_mut = &exchange.currencies;
-                tmp_mut.lock()
-            } else {
-                bail!("Failed to get exchange with id {}", exchange_account_id)
-            };
+                .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
+                .currencies
+                .lock();
 
             for exchange_currency in exchange_currencies.iter() {
-                if !filtred_exchange_balances.contains_key(exchange_currency) {
-                    filtred_exchange_balances.insert(exchange_currency.clone(), dec!(0));
-                }
+                filtred_exchange_balances
+                    .entry(exchange_currency.clone())
+                    .or_insert_with(|| dec!(0));
             }
         }
 

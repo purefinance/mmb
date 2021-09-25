@@ -841,26 +841,25 @@ mod tests {
         exchange_blocker.block(&exchange_account_id(), reason, Manual);
         assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
 
-        {
-            let exchange_blocker = exchange_blocker.clone();
-            let signal = signal.clone();
-            let cancellation_token = cancellation_token.clone();
+        let _ = spawn_future(
+            "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
+            false,
+            {
+                let exchange_blocker = exchange_blocker.clone();
+                let signal = signal.clone();
+                let cancellation_token = cancellation_token.clone();
+                async move {
+                    exchange_blocker
+                        .wait_unblock(exchange_account_id(), cancellation_token)
+                        .await;
 
-            let action = async move {
-                exchange_blocker
-                    .wait_unblock(exchange_account_id(), cancellation_token)
-                    .await;
+                    *signal.lock() = true;
 
-                *signal.lock() = true;
-
-                Ok(())
-            };
-            let _ = spawn_future(
-                "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
-                false,
-                action.boxed(),
-            );
-        };
+                    Ok(())
+                }
+                .boxed()
+            },
+        );
 
         tokio::task::yield_now().await;
         assert_eq!(*signal.lock(), false);
@@ -884,6 +883,7 @@ mod tests {
         let duration = Duration::from_millis(50);
 
         let timer = Instant::now();
+
         let action = async move {
             exchange_blocker.block(&exchange_account_id(), reason, Timed(duration));
             assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
@@ -919,6 +919,7 @@ mod tests {
         let duration_sleep = Duration::from_millis(20);
 
         let timer = Instant::now();
+
         let action = async move {
             exchange_blocker.block(&exchange_account_id(), reason, Timed(duration));
             assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
@@ -1002,20 +1003,21 @@ mod tests {
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
 
-        {
+        exchange_blocker.register_handler({
             let times_count = times_count.clone();
-            exchange_blocker.register_handler(Box::new(move |event, _| {
+            Box::new(move |event, _| {
                 let times_count = times_count.clone();
                 async move {
                     if event.moment == ExchangeBlockerMoment::Blocked
                         && event.exchange_account_id == exchange_account_id()
                     {
-                        *times_count.lock().deref_mut() += 1;
+                        *times_count.lock() += 1;
                     }
                 }
                 .boxed()
-            }));
-        }
+            })
+        });
+
         let reason = "reason".into();
 
         exchange_blocker.block(&exchange_account_id(), reason, Manual);
@@ -1034,25 +1036,24 @@ mod tests {
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
 
-        {
+        exchange_blocker.register_handler({
             let times_count = times_count.clone();
-            exchange_blocker.register_handler(Box::new(move |event, _| {
+            Box::new(move |event, _| {
                 let times_count = times_count.clone();
                 async move {
                     match event.moment {
                         ExchangeBlockerMoment::Blocked => {
                             sleep(Duration::from_millis(40)).await;
-                            *times_count.lock().deref_mut() += 1;
+                            *times_count.lock() += 1;
                         }
-                        ExchangeBlockerMoment::BeforeUnblocked => {
-                            *times_count.lock().deref_mut() += 1
-                        }
+                        ExchangeBlockerMoment::BeforeUnblocked => *times_count.lock() += 1,
                         _ => nothing_to_do(),
                     }
                 }
                 .boxed()
-            }));
-        }
+            })
+        });
+
         let reason = "reason".into();
 
         exchange_blocker.block(&exchange_account_id(), reason, Manual);
@@ -1081,20 +1082,20 @@ mod tests {
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
 
-        {
+        exchange_blocker.register_handler({
             let times_count = times_count.clone();
-            exchange_blocker.register_handler(Box::new(move |event, _| {
+            Box::new(move |event, _| {
                 let times_count = times_count.clone();
                 async move {
                     if event.moment == ExchangeBlockerMoment::Blocked
                         && event.exchange_account_id == exchange_account_id()
                     {
-                        *times_count.lock().deref_mut() += 1;
+                        *times_count.lock() += 1;
                     }
                 }
                 .boxed()
-            }));
-        }
+            })
+        });
 
         exchange_blocker.stop_blocker().await;
 
@@ -1130,9 +1131,9 @@ mod tests {
         let exchange_blocker = &exchange_blocker();
         let times_count = &Signal::<u32>::default();
 
-        {
+        exchange_blocker.register_handler({
             let times_count = times_count.clone();
-            exchange_blocker.register_handler(Box::new(move |event, _| {
+            Box::new(move |event, _| {
                 let times_count = times_count.clone();
                 async move {
                     if event.moment == ExchangeBlockerMoment::Blocked
@@ -1142,8 +1143,8 @@ mod tests {
                     }
                 }
                 .boxed()
-            }));
-        }
+            })
+        });
 
         const TIMES_COUNT: u32 = 200;
         const REASONS_COUNT: u32 = 20;
@@ -1153,7 +1154,6 @@ mod tests {
                 .map(|(i, b)| {
                     let action = async move {
                         do_action(i, b).await;
-
                         Ok(())
                     };
                     spawn_future("do_action in block_many_times test", false, action.boxed())
@@ -1186,22 +1186,22 @@ mod tests {
         let mut rng = rand::thread_rng();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
-        let times_count = &Signal::<usize>::default();
+        let times_count = Signal::<usize>::default();
 
-        {
+        exchange_blocker.register_handler({
             let times_count = times_count.clone();
-            exchange_blocker.register_handler(Box::new(move |event, _| {
+            Box::new(move |event, _| {
                 let times_count = times_count.clone();
                 async move {
                     if event.moment == ExchangeBlockerMoment::Blocked
                         && event.exchange_account_id == exchange_account_id()
                     {
-                        *times_count.lock().deref_mut() += 1;
+                        *times_count.lock() += 1;
                     }
                 }
                 .boxed()
-            }));
-        }
+            })
+        });
 
         const TIMES_COUNT: usize = 200;
         let jobs = repeat_with(|| rng.gen_range(0..10u32))
@@ -1372,22 +1372,22 @@ mod tests {
         exchange_blocker.block(&exchange_account_id(), reason1, Manual);
         exchange_blocker.block(&exchange_account_id(), reason2, Manual);
 
-        {
-            let exchange_blocker = exchange_blocker.clone();
-            let wait_completed = wait_completed.clone();
-            let action = async move {
-                exchange_blocker
-                    .wait_unblock(exchange_account_id(), CancellationToken::new())
-                    .await;
-                *wait_completed.lock() = true;
-                Ok(())
-            };
-            let _ = spawn_future(
-                "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
-                true,
-                action.boxed(),
-            );
-        }
+        let _ = spawn_future(
+            "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
+            true,
+            {
+                let exchange_blocker = exchange_blocker.clone();
+                let wait_completed = wait_completed.clone();
+                async move {
+                    exchange_blocker
+                        .wait_unblock(exchange_account_id(), CancellationToken::new())
+                        .await;
+                    *wait_completed.lock() = true;
+                    Ok(())
+                }
+            }
+            .boxed(),
+        );
 
         tokio::task::yield_now().await;
         assert_eq!(*wait_completed.lock(), false);

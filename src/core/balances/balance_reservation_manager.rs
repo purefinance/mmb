@@ -185,13 +185,10 @@ impl BalanceReservationManager {
             }
         };
 
-        let amount_to_unreserve = match reservation
+        let amount_to_unreserve = reservation
             .currency_pair_metadata
             .round_to_remove_amount_precision_error(amount)
-        {
-            Ok(amount_to_unreserve) => amount_to_unreserve,
-            Err(error) => bail!("Can't get amount_to_unreserve: {:?}", error),
-        };
+            .context("Can't get amount_to_unreserve")?;
 
         if amount_to_unreserve.is_zero() && !reservation.amount.is_zero() {
             // to prevent error logging in case when amount == 0
