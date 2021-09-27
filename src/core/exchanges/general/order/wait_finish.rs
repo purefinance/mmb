@@ -44,7 +44,7 @@ impl Exchange {
             Occupied(entry) => {
                 let tx = entry.get();
                 let mut rx = tx.subscribe();
-                // Just wait until order cancelling future completed or operation cancelled
+                // Just wait until order finishing future completed or operation cancelled
                 tokio::select! {
                     _ = rx.recv() => nothing_to_do(),
                     _ = cancellation_token.when_cancelled() => nothing_to_do()
@@ -55,11 +55,11 @@ impl Exchange {
             Vacant(vacant_entry) => {
                 // Be sure value will be removed anyway
                 let _guard = scopeguard::guard((), |_| {
-                    let _ = self.wait_cancel_order.remove(&order.client_order_id());
+                    let _ = self.wait_finish_order.remove(&order.client_order_id());
                 });
 
                 let (tx, _) = broadcast::channel(1);
-                let _ = *vacant_entry.insert(tx.clone());
+                let _ = vacant_entry.insert(tx.clone());
 
                 let outcome = self
                     .clone()
@@ -95,6 +95,10 @@ impl Exchange {
         let cloned_order = order.clone();
         let cloned_self = self.clone();
         let cloned_cancellation_token = linked_cancellation_token.clone();
+        let _guard = scopeguard::guard((), |_| {
+            linked_cancellation_token.cancel();
+        });
+
         let action = async move {
             cloned_self
                 .poll_order_fills(
@@ -124,8 +128,6 @@ impl Exchange {
             let _ = self.create_order_finish_future(order, linked_cancellation_token.clone());
         }
 
-        linked_cancellation_token.cancel();
-
         Ok(order.clone())
     }
 
@@ -136,18 +138,18 @@ impl Exchange {
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        while !order.is_finished() && cancellation_token.is_cancellation_requested() {
+        while !order.is_finished() && !cancellation_token.is_cancellation_requested() {
             if is_fallback {
                 // TODO optimize by counting time since order.LastFillDateTime
                 let current_time = Utc::now();
 
+                const ORDER_TRADES_FALLBACK_REQUEST_PERIOD_FOR_STOP_LOSS: Duration =
+                    Duration::from_secs(30);
+                const ORDER_TRADES_FALLBACK_REQUEST_PERIOD: Duration = Duration::from_secs(300);
                 let fallback_request_period = if order.order_type() == OrderType::StopLoss {
-                    let order_trades_fallback_request_period_for_stop_loss =
-                        Duration::from_secs(30);
-                    order_trades_fallback_request_period_for_stop_loss
+                    ORDER_TRADES_FALLBACK_REQUEST_PERIOD_FOR_STOP_LOSS
                 } else {
-                    let order_trades_fallback_request_period = Duration::from_secs(300);
-                    order_trades_fallback_request_period
+                    ORDER_TRADES_FALLBACK_REQUEST_PERIOD
                 };
 
                 let delay_till_fallback_request = match order.fn_ref(|order| {
@@ -156,9 +158,11 @@ impl Exchange {
                         .last_order_cancellation_status_request_time
                 }) {
                     Some(last_order_cancellation_status_request_time) => {
-                        fallback_request_period
-                            - (current_time - last_order_cancellation_status_request_time)
-                                .to_std()?
+                        let duration_from_last_cancellatioion_status = (current_time
+                            - last_order_cancellation_status_request_time)
+                            .to_std()
+                            .expect("Unable to convert chrono::Duration to std::time::Duration in poll_order_fills()");
+                        fallback_request_period - duration_from_last_cancellatioion_status
                     }
                     None => fallback_request_period,
                 };
@@ -166,7 +170,7 @@ impl Exchange {
                 if delay_till_fallback_request > Duration::ZERO {
                     let sleep = tokio::time::sleep(delay_till_fallback_request);
                     tokio::select! {
-                        _ = sleep => {}
+                        _ = sleep => nothing_to_do(),
                         _ = cancellation_token.when_cancelled() => {
                             return Ok(());
                         }
@@ -175,14 +179,17 @@ impl Exchange {
             } else {
                 let last_order_trades_request_date_time =
                     order.fn_ref(|order| order.internal_props.last_order_trades_request_time);
-                let polling_trades_range = 20f32;
+                let polling_trades_range = 20f64;
+
                 let counter = *self
                     .polling_trades_counts
                     .get(&self.exchange_account_id)
-                    .ok_or(anyhow!(
-                        "No counts for exchange_account_id {}",
-                        self.exchange_account_id
-                    ))? as f32;
+                    .with_context(|| {
+                        format!(
+                            "No counts for exchange_account_id {}",
+                            self.exchange_account_id
+                        )
+                    })? as f64;
 
                 self.polling_timeout_manager
                     .wait(
@@ -190,7 +197,7 @@ impl Exchange {
                         polling_trades_range / counter,
                         cancellation_token.clone(),
                     )
-                    .await?;
+                    .await;
             }
 
             // If an order was finished while we were waiting for the timeout, we do not need to request fills for it
@@ -206,10 +213,10 @@ impl Exchange {
                 )
                 .await?;
 
-            // If a maker only order was cancelled here, it is likely happend because we missed
-            // a refusal/cancellatioin notification due to crissing a market.
+            // If a maker only order was cancelled here, it is likely happened because we missed
+            // a refusal/cancellation notification due to crossing a market.
             // But there is a chance this order was created and properly cancelled, so we need to make sure
-            // to retrive the fills which we could have missed
+            // to retrieve the fills which we could have missed
             let exit_on_order_is_finished_even_if_fills_didnt_received =
                 if maker_only_order_was_cancelled {
                     false
@@ -236,7 +243,7 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<bool> {
         let order_execution_type = order.fn_ref(|order| order.header.execution_type);
-        if self.features.order_features.maker_only
+        if !self.features.order_features.maker_only
             || order_execution_type != OrderExecutionType::MakerOnly
         {
             return Ok(false);
@@ -258,6 +265,16 @@ impl Exchange {
                 cancellation_token,
             )?
             .await;
+
+        let order_info_result = self.get_order_info(order).await;
+        match order_info_result {
+            Err(_) => return Ok(false),
+            Ok(order_info) => {
+                if order_info.order_status != OrderStatus::Canceled {
+                    return Ok(false);
+                }
+            }
+        }
 
         match order.exchange_order_id() {
             None => {

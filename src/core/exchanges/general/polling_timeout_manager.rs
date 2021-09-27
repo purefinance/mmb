@@ -1,6 +1,4 @@
-use anyhow::Result;
-
-use chrono::Utc;
+use chrono::{Duration, Utc};
 
 use crate::core::{
     exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
@@ -19,33 +17,34 @@ impl PollingTimeoutManager {
 
     pub(crate) async fn wait(
         &self,
-        last_request_date_time: Option<DateTime>,
-        request_range: f32,
+        last_request_time: Option<DateTime>,
+        request_range: f64,
         cancellation_token: CancellationToken,
-    ) -> Result<()> {
-        let last_request_date_time = match last_request_date_time {
-            Some(last_request_date_time) => last_request_date_time,
-            None => return Ok(()),
+    ) {
+        let last_request_time = match last_request_time {
+            Some(last_request_time) => last_request_time,
+            None => return,
         };
 
         let period = self.timeout_arguments.period;
         let requests_per_period = self.timeout_arguments.requests_per_period;
 
-        // FIXME How to divide Duration by f32?
-        let divisor = requests_per_period as f32 * request_range * 0.01;
-        let interval = period / divisor as i32;
+        let divisor = requests_per_period as f64 * request_range * 0.01;
+        let interval = Duration::milliseconds(period.num_milliseconds() / divisor as i64);
 
-        let time_since_last_request = Utc::now() - last_request_date_time;
+        let time_since_last_request = Utc::now() - last_request_time;
         let delay_till_fallback_request = interval - time_since_last_request;
 
         if delay_till_fallback_request.num_milliseconds() > 0 {
-            let sleep = tokio::time::sleep(delay_till_fallback_request.to_std()?);
+            let sleep = tokio::time::sleep(
+                delay_till_fallback_request
+                    .to_std()
+                    .expect("Unable to convert chrono::Duration to std::time::Duration in PollingTimeoutManager::wait()"),
+            );
             tokio::select! {
                 _ = sleep => {}
                 _ = cancellation_token.when_cancelled() => {}
             }
         }
-
-        Ok(())
     }
 }
