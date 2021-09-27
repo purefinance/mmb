@@ -280,7 +280,7 @@ impl Exchange {
         // TODO all other logs and finish_connected
     }
 
-    pub(super) fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
+    pub(crate) fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
         self.get_rest_error_main(response, None, None)
     }
 
@@ -414,12 +414,12 @@ impl Exchange {
     pub(super) fn handle_parse_error(
         &self,
         error: Error,
-        response: RestRequestOutcome,
+        response: &RestRequestOutcome,
         log_template: String,
         args_to_log: Option<Vec<String>>,
     ) -> anyhow::Result<()> {
-        let content = response.content;
-        let log_event_level = match serde_json::from_str::<Value>(&content) {
+        let content = &response.content;
+        let log_event_level = match serde_json::from_str::<Value>(content) {
             Ok(_) => Level::Error,
             Err(_) => Level::Warn,
         };

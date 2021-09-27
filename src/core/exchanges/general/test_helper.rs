@@ -11,6 +11,7 @@ use super::{
 };
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::general::features::RestFillsFeatures;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
@@ -49,10 +50,10 @@ pub(crate) fn get_test_exchange_by_currency_codes_and_amount_code(
         quote_currency_code.into(),
         None,
         None,
+        None,
+        None,
+        None,
         amount_currency_code.into(),
-        None,
-        None,
-        None,
         None,
         Precision::ByTick { tick: price_tick },
         Precision::ByTick { tick: dec!(0) },
@@ -122,6 +123,7 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
             false,
             true,
             AllowedEventSourceType::default(),

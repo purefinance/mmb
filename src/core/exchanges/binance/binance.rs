@@ -13,6 +13,7 @@ use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::general::features::{RestFillsFeatures, RestFillsType};
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
@@ -283,7 +284,7 @@ impl Binance {
         Ok(())
     }
 
-    fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
+    pub(crate) fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
         self.supported_currencies
             .get(currency_id)
             .map(|some| some.value().clone())
@@ -385,6 +386,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::new(RestFillsType::None),
                 false,
                 false,
                 AllowedEventSourceType::All,

@@ -91,6 +91,7 @@ impl BinanceBuilder {
             exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]));
         }
 
+        // TODO Remove that workaround when RAII order clearing will be implemented
         if need_to_clean_up {
             exchange
                 .clone()
