@@ -74,7 +74,7 @@ impl UsdDenominator {
         this
     }
 
-    pub async fn crate_async<T>(
+    pub async fn create_async<T>(
         auto_refresh_data: bool,
         application_manager: Arc<ApplicationManager>,
     ) -> Arc<Mutex<Self>>

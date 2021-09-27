@@ -9,13 +9,13 @@ use async_trait::async_trait;
 use futures::FutureExt;
 use tokio::sync::Mutex;
 
-/// ATTENTION: timer_action must be panic safety, because we can't handle it while function taking `&mut self`
+/// ATTENTION: timer_action must be panic safety, because we can't handle it, with unwind_catch, while function taking `&mut self`
 #[async_trait]
 pub trait TimerAction {
     async fn timer_action(&mut self) -> Result<()>;
 }
 
-/// It's an entity for executing repeatable tasks with some period
+/// This is an entity for executing repeatable tasks with some period
 pub struct SafeTimer {
     task: Arc<Mutex<dyn TimerAction + Send>>,
     name: String,
@@ -44,7 +44,9 @@ impl SafeTimer {
         let action = async move {
             loop {
                 tokio::time::sleep(period).await;
-                this_for_timer.lock().await.timer_callback().await;
+                let task = this_for_timer.lock().await.task.clone();
+                let application_manager = this_for_timer.lock().await.application_manager.clone();
+                SafeTimer::timer_callback(task, application_manager).await;
             }
         };
 
@@ -54,9 +56,12 @@ impl SafeTimer {
     }
     fn create_timer(&self) {}
 
-    async fn timer_callback(&mut self) {
-        if let Err(error) = self.task.lock().await.timer_action().await {
-            self.application_manager
+    async fn timer_callback(
+        task: Arc<Mutex<dyn TimerAction + Send>>,
+        application_manager: Arc<ApplicationManager>,
+    ) {
+        if let Err(error) = task.lock().await.timer_action().await {
+            application_manager
                 .run_graceful_shutdown(
                     format!("Timer execution callback failed: {:?}", error).as_str(),
                 )
