@@ -1,15 +1,18 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use anyhow::{bail, Result};
-use futures::{lock::Mutex, FutureExt};
+use anyhow::Result;
+use async_trait::async_trait;
 use itertools::Itertools;
+use tokio::sync::Mutex;
 
 use crate::{
     core::{
         exchanges::common::{Amount, CurrencyCode, Price},
-        infrastructure::spawn_future,
-        lifecycle::cancellation_token::CancellationToken,
-        misc::traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
+        lifecycle::application_manager::ApplicationManager,
+        misc::{
+            safe_timer::{SafeTimer, TimerAction},
+            traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
+        },
         services::market_prices::market_currency_code_price::MarketCurrencyCodePrice,
     },
     hashmap,
@@ -17,17 +20,26 @@ use crate::{
 
 pub struct UsdDenominator {
     market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
-    // вернуть applicationManager
-    cancellation_token: CancellationToken, // review: нужен ли тут ApplicationManager или достаточно токена?
+    application_manager: Arc<ApplicationManager>,
     market_prices_by_symbol: HashMap<CurrencyCode, MarketCurrencyCodePrice>,
-    pub event_handler: Option<fn()>,
+    /// must be panic safety(look at comment for TimerAction)
+    pub price_update_callback: fn() -> Result<()>,
+    pub refresh_timer: Option<Arc<Mutex<SafeTimer>>>,
+}
+
+#[async_trait]
+impl TimerAction for UsdDenominator {
+    async fn timer_action(&mut self) -> Result<()> {
+        let market_prices = self.market_service.get_market_currency_code_price().await;
+        self.market_prices_by_symbol = UsdDenominator::to_prices_dictionary(market_prices);
+        (self.price_update_callback)()
+    }
 }
 
 impl UsdDenominator {
     fn to_prices_dictionary(
-        mut tickers: Vec<MarketCurrencyCodePrice>,
+        tickers: Vec<MarketCurrencyCodePrice>,
     ) -> HashMap<CurrencyCode, MarketCurrencyCodePrice> {
-        tickers.dedup(); // review: не уверен, что здесь все правильно сделал
         tickers
             .iter()
             .map(|x| (x.symbol.clone(), x.clone()))
@@ -38,56 +50,33 @@ impl UsdDenominator {
         market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
         market_prices: Vec<MarketCurrencyCodePrice>,
         auto_refresh_data: bool,
-        cancellation_token: CancellationToken,
+        application_manager: Arc<ApplicationManager>,
     ) -> Arc<Mutex<Self>> {
         let this = Arc::new(Mutex::new(Self {
             market_service,
-            cancellation_token,
+            application_manager: application_manager.clone(),
             market_prices_by_symbol: UsdDenominator::to_prices_dictionary(market_prices),
-            event_handler: None,
+            price_update_callback: || Ok(()),
+            refresh_timer: None,
         }));
 
         if auto_refresh_data {
-            let this_for_timer = this.clone();
-            let action = async move {
-                let two_hours = 7200;
-                let mut period = Duration::from_secs(two_hours);
-                loop {
-                    tokio::time::sleep(period).await;
-                    if this_for_timer
-                        .lock()
-                        .await
-                        .cancellation_token
-                        .is_cancellation_requested()
-                    {
-                        break; // остановить здесь apllication manager
-                    } // выделить SafeTimer ловить внутри панику catch_unwind
-                    this_for_timer.lock().await.refresh_data().await?;
-                    period = Duration::from_secs(two_hours);
-                }
-                Ok(())
-            };
-            spawn_future("Start UsdDenominator refresh timer", true, action.boxed());
+            let cloned_this = this.clone();
+            this.try_lock().expect("msg").refresh_timer = Some(SafeTimer::new(
+                cloned_this as Arc<Mutex<dyn TimerAction + Send>>,
+                "UsdDenominator::refresh_data()".into(),
+                Duration::from_secs(7200), // 2 hours
+                application_manager,
+                true,
+            ));
         }
 
         this
     }
 
-    async fn refresh_data(&mut self) -> Result<()> {
-        let market_prices = self.market_service.get_market_currency_code_price().await;
-        self.market_prices_by_symbol = UsdDenominator::to_prices_dictionary(market_prices);
-        // review: нужен ли тут amotic exchange?
-        // Interlocked.Exchange(ref _marketPricesBySymbol, newMarketPricesDict);
-        if let Some(event_handler) = self.event_handler {
-            event_handler();
-            return Ok(());
-        }
-        bail!("UsdDenominator::refresh_data event_handler is not set")
-    }
-
     pub async fn crate_async<T>(
         auto_refresh_data: bool,
-        cancellation_token: CancellationToken,
+        application_manager: Arc<ApplicationManager>,
     ) -> Arc<Mutex<Self>>
     where
         T: GetMarketCurrencyCodePrice + CreateMarketService,
@@ -98,16 +87,16 @@ impl UsdDenominator {
             service,
             market_prices,
             auto_refresh_data,
-            cancellation_token,
+            application_manager,
         )
     }
 
-    pub fn get_non_refreshing_usd_denominator(&self) -> Arc<Mutex<UsdDenominator>> {
+    pub fn get_non_refreshing_usd_denominator(&self) -> Arc<Mutex<Self>> {
         UsdDenominator::new(
             self.market_service.clone(),
             self.market_prices_by_symbol.values().cloned().collect_vec(),
             false,
-            self.cancellation_token.clone(),
+            self.application_manager.clone(),
         )
     }
 

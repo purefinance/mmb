@@ -5,31 +5,34 @@ use crate::core::{
 };
 
 use anyhow::Result;
+use async_trait::async_trait;
 use futures::FutureExt;
 use tokio::sync::Mutex;
 
-use super::traits::async_function::AsyncFnCall;
+/// ATTENTION: timer_action must be panic safety, because we can't handle it while function taking `&mut self`
+#[async_trait]
+pub trait TimerAction {
+    async fn timer_action(&mut self) -> Result<()>;
+}
 
+/// It's an entity for executing repeatable tasks with some period
 pub struct SafeTimer {
-    action: Option<Box<dyn FnMut() -> Result<()> + Send + Sync>>,
-    task: Option<Box<dyn AsyncFnCall>>,
+    task: Arc<Mutex<dyn TimerAction + Send>>,
     name: String,
     period: Duration,
-    application_manager: ApplicationManager,
+    application_manager: Arc<ApplicationManager>,
     is_critical: bool,
 }
 
 impl SafeTimer {
     pub fn new(
-        action: Option<Box<dyn FnMut() -> Result<()> + Send + Sync>>,
-        task: Option<Box<dyn AsyncFnCall>>,
+        task: Arc<Mutex<dyn TimerAction + Send>>,
         name: String,
         period: Duration,
-        application_manager: ApplicationManager,
+        application_manager: Arc<ApplicationManager>,
         is_critical: bool,
     ) -> Arc<Mutex<Self>> {
         let this = Arc::new(Mutex::new(Self {
-            action,
             task,
             name: name.clone(),
             period: period.clone(),
@@ -52,17 +55,7 @@ impl SafeTimer {
     fn create_timer(&self) {}
 
     async fn timer_callback(&mut self) {
-        let res = if let Some(ref mut task) = self.task {
-            task.call().await
-        } else if let Some(ref mut action) = self.action {
-            (action)()
-        } else {
-            Err(anyhow::Error::msg(
-                "Task or action is not assigned for SafeTimer",
-            ))
-        };
-
-        if let Err(error) = res {
+        if let Err(error) = self.task.lock().await.timer_action().await {
             self.application_manager
                 .run_graceful_shutdown(
                     format!("Timer execution callback failed: {:?}", error).as_str(),
