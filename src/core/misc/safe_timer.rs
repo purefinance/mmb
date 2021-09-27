@@ -54,7 +54,6 @@ impl SafeTimer {
 
         this
     }
-    fn create_timer(&self) {}
 
     async fn timer_callback(
         task: Arc<Mutex<dyn TimerAction + Send>>,
