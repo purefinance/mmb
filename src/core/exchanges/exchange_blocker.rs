@@ -103,7 +103,7 @@ struct ProgressState {
     status: ProgressStatus,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 struct BlockerId {
     exchange_account_id: ExchangeAccountId,
     reason: BlockReason,
