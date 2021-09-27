@@ -52,6 +52,15 @@ pub enum RequestResult<T> {
     //Error(ExchangeErrorType),
 }
 
+impl<T> RequestResult<T> {
+    pub fn get_error(&self) -> Option<ExchangeError> {
+        match self {
+            RequestResult::Success(_) => None,
+            RequestResult::Error(exchange_error) => Some(exchange_error.clone()),
+        }
+    }
+}
+
 enum CheckContent {
     Empty,
     Err(ExchangeError),
