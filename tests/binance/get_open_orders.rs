@@ -168,5 +168,3 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         );
     }
 }
-
-            WebSocketOptions::default(),
