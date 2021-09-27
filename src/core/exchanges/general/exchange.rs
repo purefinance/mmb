@@ -333,7 +333,7 @@ impl Exchange {
                     ExchangeError::new(Unknown, "Empty response".to_owned(), None)
                 }
                 CheckContent::Err(error) => error,
-                CheckContent::Usable => match self.exchange_client.is_rest_error_code(&response) {
+                CheckContent::Usable => match self.exchange_client.is_rest_error_code(response) {
                     Ok(_) => return None,
                     Err(mut error) => match error.error_type {
                         ParsingError => error,
@@ -363,7 +363,7 @@ impl Exchange {
             _ => Level::Warn,
         };
 
-        log::log!(log_level, "{}. Response: {:?}", &msg, &response);
+        log::log!(log_level, "{}. Response: {:?}", &msg, response);
 
         // TODO some HandleRestError via BotBase
 
