@@ -9,23 +9,24 @@ use crate::{
         exchanges::common::{Amount, CurrencyCode, Price},
         infrastructure::spawn_future,
         lifecycle::cancellation_token::CancellationToken,
-        misc::traits::market_service::{MarketService, NewMarketService},
-        services::market_prices::market_symbol_price::MarketSymbolPrice,
+        misc::traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
+        services::market_prices::market_currency_code_price::MarketCurrencyCodePrice,
     },
     hashmap,
 };
 
 pub struct UsdDenominator {
-    market_service: Arc<dyn MarketService + Send + Sync>,
+    market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
+    // вернуть applicationManager
     cancellation_token: CancellationToken, // review: нужен ли тут ApplicationManager или достаточно токена?
-    market_prices_by_symbol: HashMap<CurrencyCode, MarketSymbolPrice>,
+    market_prices_by_symbol: HashMap<CurrencyCode, MarketCurrencyCodePrice>,
     pub event_handler: Option<fn()>,
 }
 
 impl UsdDenominator {
     fn to_prices_dictionary(
-        mut tickers: Vec<MarketSymbolPrice>,
-    ) -> HashMap<CurrencyCode, MarketSymbolPrice> {
+        mut tickers: Vec<MarketCurrencyCodePrice>,
+    ) -> HashMap<CurrencyCode, MarketCurrencyCodePrice> {
         tickers.dedup(); // review: не уверен, что здесь все правильно сделал
         tickers
             .iter()
@@ -34,8 +35,8 @@ impl UsdDenominator {
     }
 
     fn new(
-        market_service: Arc<dyn MarketService + Send + Sync>,
-        market_prices: Vec<MarketSymbolPrice>,
+        market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
+        market_prices: Vec<MarketCurrencyCodePrice>,
         auto_refresh_data: bool,
         cancellation_token: CancellationToken,
     ) -> Arc<Mutex<Self>> {
@@ -53,16 +54,16 @@ impl UsdDenominator {
                 let mut period = Duration::from_secs(two_hours);
                 loop {
                     tokio::time::sleep(period).await;
-                    match this_for_timer.try_lock() {
-                        Some(ref mut this) => {
-                            if this.cancellation_token.is_cancellation_requested() {
-                                break;
-                            }
-                            this.refresh_data().await?;
-                            period = Duration::from_secs(two_hours);
-                        }
-                        None => period = Duration::from_secs(5),
-                    }
+                    if this_for_timer
+                        .lock()
+                        .await
+                        .cancellation_token
+                        .is_cancellation_requested()
+                    {
+                        break; // остановить здесь apllication manager
+                    } // выделить SafeTimer ловить внутри панику catch_unwind
+                    this_for_timer.lock().await.refresh_data().await?;
+                    period = Duration::from_secs(two_hours);
                 }
                 Ok(())
             };
@@ -73,7 +74,7 @@ impl UsdDenominator {
     }
 
     async fn refresh_data(&mut self) -> Result<()> {
-        let market_prices = self.market_service.get_market_symbol_price().await;
+        let market_prices = self.market_service.get_market_currency_code_price().await;
         self.market_prices_by_symbol = UsdDenominator::to_prices_dictionary(market_prices);
         // review: нужен ли тут amotic exchange?
         // Interlocked.Exchange(ref _marketPricesBySymbol, newMarketPricesDict);
@@ -89,10 +90,10 @@ impl UsdDenominator {
         cancellation_token: CancellationToken,
     ) -> Arc<Mutex<Self>>
     where
-        T: MarketService + NewMarketService,
+        T: GetMarketCurrencyCodePrice + CreateMarketService,
     {
         let service = T::new();
-        let market_prices = service.get_market_symbol_price().await;
+        let market_prices = service.get_market_currency_code_price().await;
         UsdDenominator::new(
             service,
             market_prices,

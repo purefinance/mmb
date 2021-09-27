@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::core::services::market_prices::market_symbol_price::MarketSymbolPrice;
+use crate::core::services::market_prices::market_currency_code_price::MarketCurrencyCodePrice;
 
 #[async_trait]
-pub trait MarketService {
-    async fn get_market_symbol_price(&self) -> Vec<MarketSymbolPrice>;
+pub trait GetMarketCurrencyCodePrice {
+    async fn get_market_currency_code_price(&self) -> Vec<MarketCurrencyCodePrice>;
 }
 
-pub trait NewMarketService {
-    fn new() -> Arc<dyn MarketService + Send + Sync>;
+pub trait CreateMarketService {
+    fn new() -> Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>;
 }
