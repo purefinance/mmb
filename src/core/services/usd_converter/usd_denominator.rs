@@ -108,20 +108,15 @@ impl UsdDenominator {
         let mut result: HashMap<_, _> = self
             .market_prices_by_symbol
             .iter()
-            .filter(|(_, v)| v.price_usd.is_some())
-            .map(|(k, v)| {
-                (
-                    k.clone(),
-                    v.price_usd.expect("cannot be None: filter is broken"),
-                )
+            .filter_map(|(k, v)| match v.price_usd {
+                Some(price_usd) => Some((k.clone(), price_usd)),
+                None => None,
             })
             .collect();
 
         for (source_code, mapped_code) in UsdDenominator::currency_code_exceptions() {
             if let Some(price_in_usd) = result.get(&mapped_code).cloned() {
-                *result
-                    .get_mut(&source_code)
-                    .expect("failed to get value from dictionary by source_code") = price_in_usd;
+                result.insert(source_code, price_in_usd);
                 let _ = result.remove(&mapped_code);
             }
         }
@@ -151,9 +146,5 @@ impl UsdDenominator {
         amount_in_base: Amount,
     ) -> Option<Amount> {
         Some(amount_in_base * self.get_price_in_usd(currency_code)?)
-    }
-
-    pub fn to_usd_string(amount_in_usd: Amount) -> String {
-        amount_in_usd.to_string() + " USD"
     }
 }
