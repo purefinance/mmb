@@ -7,7 +7,7 @@ pub(crate) mod prices_calculator {
         exchanges::common::{Amount, Price, TradePlace},
         misc::price_by_order_side::PriceByOrderSide,
         order_book::local_snapshot_service::LocalSnapshotsService,
-        services::usd_converter::prices_source_chain::PriceSourceChain,
+        services::usd_converter::price_source_chain::PriceSourceChain,
         DateTime,
     };
 
