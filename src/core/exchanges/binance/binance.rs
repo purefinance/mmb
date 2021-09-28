@@ -12,6 +12,7 @@ use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
+use crate::core::exchanges::common::{Amount, Price};
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::{
     OrderFeatures, RestFillsFeatures, RestFillsType, WebSocketOptions,
@@ -32,6 +33,7 @@ use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventDa
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
+use crate::core::DateTime;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 
@@ -43,6 +45,10 @@ pub struct Binance {
     pub order_cancelled_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
+    // FIXME Rename
+    pub handle_print_callback: Mutex<
+        Box<dyn FnMut(&CurrencyPair, String, Price, Amount, OrderSide, DateTime) + Send + Sync>,
+    >,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
@@ -72,6 +78,7 @@ impl Binance {
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
             handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
+            handle_print_callback: Mutex::new(Box::new(|_, _, _, _, _, _| {})),
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),

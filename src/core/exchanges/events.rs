@@ -90,6 +90,7 @@ pub struct TradesEvent {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
     pub trades: Vec<Trade>,
+    pub datetime: DateTime,
 }
 
 #[derive(Debug, Clone)]

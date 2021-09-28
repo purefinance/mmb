@@ -8,7 +8,7 @@ use tokio::sync::broadcast;
 
 use super::{
     common::CurrencyCode,
-    common::CurrencyId,
+    common::{Amount, CurrencyId, Price},
     common::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
@@ -17,7 +17,6 @@ use super::{
     general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
-use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::orders::fill::EventSourceType;
@@ -28,6 +27,7 @@ use crate::core::settings::ExchangeSettings;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide, DateTime,
 };
+use crate::core::{exchanges::events::ExchangeEvent, DateTime};
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use awc::http::Uri;
 
@@ -79,6 +79,13 @@ pub trait Support: Send + Sync {
     fn set_handle_order_filled_callback(
         &self,
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
+    );
+
+    fn set_handle_print_callback(
+        &self,
+        callback: Box<
+            dyn FnMut(&CurrencyPair, String, Price, Amount, OrderSide, DateTime) + Send + Sync,
+        >,
     );
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>);

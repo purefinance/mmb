@@ -5,7 +5,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use awc::http::Uri;
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::{error, info};
@@ -27,6 +27,7 @@ use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::*;
+use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::general::currency_pair_metadata::Precision,
@@ -196,6 +197,15 @@ impl Support for Binance {
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     ) {
         *self.handle_order_filled_callback.lock() = callback;
+    }
+
+    fn set_handle_print_callback(
+        &self,
+        callback: Box<
+            dyn FnMut(&CurrencyPair, String, Price, Amount, OrderSide, DateTime) + Send + Sync,
+        >,
+    ) {
+        *self.handle_print_callback.lock() = callback;
     }
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
@@ -469,6 +479,59 @@ impl GetOrErr for Value {
 }
 
 impl Binance {
+    pub(crate) fn handle_print_inner(
+        &self,
+        currency_pair: &CurrencyPair,
+        data: &Value,
+    ) -> Result<()> {
+        if !self.subscribe_to_market_data {
+            return Ok(());
+        }
+
+        let trade_id: u64 = data["t"].to_string().parse()?;
+
+        match self.last_trade_id.get_mut(currency_pair) {
+            Some(mut trade_id_from_lasts) => {
+                // FIXME add ISReducingMarketData field
+                if *trade_id_from_lasts >= trade_id {
+                    info!(
+                        "Current last_trade_id for currency_pair {} is {} >= print_trade_id {}",
+                        currency_pair, *trade_id_from_lasts, trade_id
+                    );
+
+                    return Ok(());
+                }
+
+                *trade_id_from_lasts = trade_id;
+
+                let price = Decimal::from_str(&data["p"].to_string())?;
+                let quantity = Decimal::from_str(&data["q"].to_string())?;
+                let order_side = if data["m"] == true {
+                    OrderSide::Sell
+                } else {
+                    OrderSide::Buy
+                };
+                let datetime: i64 = data["T"].to_string().parse()?;
+
+                (&self.handle_print_callback).lock()(
+                    currency_pair,
+                    trade_id.to_string(),
+                    price,
+                    quantity,
+                    order_side,
+                    Utc.timestamp_millis(datetime),
+                );
+            }
+            None => bail!(
+                "There are trade_id {} for given currency_pair {}",
+                trade_id,
+                currency_pair
+            ),
+        }
+
+        todo!()
+    }
+
     pub fn process_snapshot_update(
         &self,
         currency_pair: &CurrencyPair,
