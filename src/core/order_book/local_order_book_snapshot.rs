@@ -1,4 +1,5 @@
 use crate::core::exchanges::common::*;
+use crate::core::misc::price_by_order_side::PriceByOrderSide;
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::order::*;
 use crate::core::DateTime;
@@ -22,7 +23,7 @@ impl DataToExcludeOrder {
 
 /// Snapshot of certain ask and bids collection
 /// Identified by ExchangeId
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LocalOrderBookSnapshot {
     pub asks: SortedOrderData,
     pub bids: SortedOrderData,
@@ -117,6 +118,19 @@ impl LocalOrderBookSnapshot {
                 let _ = current_value.insert(*key, *value);
             }
         }
+    }
+
+    pub fn calculate_price(&self) -> PriceByOrderSide {
+        let top_bid = match self.get_top_bid() {
+            Some((price, _)) => Some(price),
+            None => None,
+        };
+
+        let top_ask = match self.get_top_ask() {
+            Some((price, _)) => Some(price),
+            None => None,
+        };
+        PriceByOrderSide::new(top_bid, top_ask)
     }
 }
 

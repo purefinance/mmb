@@ -42,7 +42,7 @@ impl UsdDenominator {
     ) -> HashMap<CurrencyCode, MarketCurrencyCodePrice> {
         tickers
             .iter()
-            .map(|x| (x.symbol.clone(), x.clone()))
+            .map(|x| (x.currency_code.clone(), x.clone()))
             .collect()
     }
 
