@@ -1,3 +1,4 @@
+pub(crate) mod convert_currency_direction;
 pub mod denominator_usd_converter;
 pub mod price_source_chain;
 pub mod price_source_service;
