@@ -29,7 +29,7 @@ impl PollingTimeoutManager {
         let requests_per_period = self.timeout_arguments.requests_per_period;
 
         let divisor = requests_per_period as f64 * request_range * 0.01;
-        let interval = Duration::milliseconds(period.num_milliseconds() / divisor as i64);
+        let interval = Duration::milliseconds((period.num_milliseconds() as f64 / divisor) as i64);
 
         let time_since_last_request = Utc::now() - last_request_time;
         let delay_till_fallback_request = interval - time_since_last_request;
