@@ -23,6 +23,7 @@ async fn open_orders_exists() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
             WebSocketOptions::default(),
             false,
             true,
@@ -109,6 +110,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         ExchangeFeatures::new(
             OpenOrdersType::OneCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
             WebSocketOptions::default(),
             true,
             true,

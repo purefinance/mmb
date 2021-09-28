@@ -19,6 +19,7 @@ use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
+use crate::core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{OrderHeader, OrderSide};
@@ -128,12 +129,14 @@ impl Exchange {
         exchange_account_id: ExchangeAccountId,
         exchange_client: BoxExchangeClient,
         features: ExchangeFeatures,
+        timeout_arguments: RequestTimeoutArguments,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
         timeout_manager: Arc<TimeoutManager>,
         commission: Commission,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+        let polling_timeout_manager = PollingTimeoutManager::new(timeout_arguments);
 
         let exchange = Arc::new(Self {
             exchange_account_id: exchange_account_id.clone(),
@@ -154,7 +157,7 @@ impl Exchange {
             wait_cancel_order: DashMap::new(),
             wait_finish_order: DashMap::new(),
             polling_trades_counts: DashMap::new(),
-            polling_timeout_manager: Default::default(),
+            polling_timeout_manager,
             orders_finish_events: DashMap::new(),
             orders_created_events: DashMap::new(),
             leverage_by_currency_pair: DashMap::new(),

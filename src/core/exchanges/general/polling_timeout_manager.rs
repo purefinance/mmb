@@ -5,7 +5,6 @@ use crate::core::{
     lifecycle::cancellation_token::CancellationToken, DateTime,
 };
 
-#[derive(Default)]
 pub(crate) struct PollingTimeoutManager {
     timeout_arguments: RequestTimeoutArguments,
 }

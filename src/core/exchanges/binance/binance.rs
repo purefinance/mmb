@@ -14,7 +14,7 @@ use tokio::sync::broadcast;
 use super::support::BinanceOrderInfo;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::{
-    RestFillsFeatures, RestFillsType, WebSocketOptions,
+    OrderFeatures, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
@@ -389,6 +389,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::new(RestFillsType::None),
+                OrderFeatures::default(),
                 WebSocketOptions::default(),
                 false,
                 false,

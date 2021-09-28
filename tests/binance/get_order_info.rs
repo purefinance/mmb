@@ -19,6 +19,7 @@ async fn get_order_info() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
             WebSocketOptions::default(),
             false,
             true,

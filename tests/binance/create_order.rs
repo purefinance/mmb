@@ -22,6 +22,7 @@ async fn create_successfully() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
             WebSocketOptions::default(),
             false,
             true,
@@ -87,6 +88,7 @@ async fn should_fail() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
             WebSocketOptions::default(),
             false,
             true,

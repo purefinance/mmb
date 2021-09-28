@@ -105,6 +105,7 @@ impl ExchangeFeatures {
     pub fn new(
         open_orders_type: OpenOrdersType,
         rest_fills_features: RestFillsFeatures,
+        order_features: OrderFeatures,
         websocket_options: WebSocketOptions,
         empty_response_is_ok: bool,
         allows_to_get_order_info_by_client_order_id: bool,
@@ -114,7 +115,7 @@ impl ExchangeFeatures {
         Self {
             open_orders_type,
             rest_fills_features,
-            order_features: OrderFeatures::default(),
+            order_features,
             websocket_options,
             empty_response_is_ok,
             allows_to_get_order_info_by_client_order_id,

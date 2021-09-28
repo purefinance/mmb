@@ -1,7 +1,9 @@
 use anyhow::Result;
 use futures::Future;
 use log::info;
-use mmb_lib::core::exchanges::general::features::{RestFillsFeatures, WebSocketOptions};
+use mmb_lib::core::exchanges::general::features::{
+    OrderFeatures, RestFillsFeatures, WebSocketOptions,
+};
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::{
     connectivity::connectivity_manager::ConnectivityManager,
@@ -29,6 +31,7 @@ pub async fn should_connect_and_reconnect_normally() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
             WebSocketOptions::default(),
             false,
             true,
