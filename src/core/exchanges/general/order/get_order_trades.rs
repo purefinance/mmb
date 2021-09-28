@@ -79,17 +79,18 @@ impl Exchange {
         match my_trades {
             RequestResult::Error(_) => Ok(my_trades),
             RequestResult::Success(my_trades) => {
-                if let Some(exchange_order_id) = order.exchange_order_id() {
-                    let data = my_trades
-                        .into_iter()
-                        .filter(|order_trade| order_trade.exchange_order_id == exchange_order_id)
-                        .collect_vec();
-                    dbg!(&data);
+                let data = my_trades
+                    .into_iter()
+                    .filter(|order_trade| {
+                        if let Some(order_id_from_exchange) = order.exchange_order_id() {
+                            return order_trade.exchange_order_id == order_id_from_exchange;
+                        }
 
-                    Ok(RequestResult::Success(data))
-                } else {
-                    bail!("There is no exchange_order in order {:?}", order);
-                }
+                        false
+                    })
+                    .collect_vec();
+
+                Ok(RequestResult::Success(data))
             }
         }
     }

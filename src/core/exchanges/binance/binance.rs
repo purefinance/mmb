@@ -334,7 +334,7 @@ impl Binance {
 
         let event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id,
+            trade_id: Some(trade_id),
             client_order_id: Some(client_order_id),
             exchange_order_id,
             fill_price: last_filled_price.parse()?,

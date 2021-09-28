@@ -12,9 +12,9 @@ use super::{
     common::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
-    general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata},
+    general::currency_pair_metadata::BeforeAfter,
     general::handlers::handle_order_filled::FillEventData,
-    general::order::get_order_trades::OrderTrade,
+    general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::events::ExchangeEvent;
