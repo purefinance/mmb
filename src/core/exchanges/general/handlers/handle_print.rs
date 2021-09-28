@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::Utc;
+use log::info;
 
 use crate::core::{
     exchanges::{
@@ -43,6 +44,19 @@ impl Exchange {
 
         self.last_trades_update_time
             .insert(trade_place, trades_event.datetime);
+
+        if self
+            .supported_symbols
+            .lock()
+            .iter()
+            .all(|symbol| symbol.currency_pair() != trades_event.currency_pair)
+        //&& self.features.trae
+        {
+            info!(
+                "Unknown currency pair {} for trades on {}",
+                trades_event.currency_pair, self.exchange_account_id
+            );
+        }
 
         Ok(())
     }
