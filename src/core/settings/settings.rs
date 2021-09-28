@@ -1,7 +1,5 @@
-use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use crate::core::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId};
 use serde::{Deserialize, Serialize};
-
-use super::exchanges::common::Amount;
 
 pub trait BaseStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId;

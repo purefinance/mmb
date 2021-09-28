@@ -11,7 +11,7 @@ use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
-use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
+use crate::core::settings::settings::{AppSettings, BaseStrategySettings, CoreSettings};
 use crate::core::{config::load_settings, statistic_service::StatisticEventHandler};
 use crate::core::{
     disposition_execution::executor::DispositionExecutorService,

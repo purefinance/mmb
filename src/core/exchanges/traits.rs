@@ -24,7 +24,7 @@ use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
-use crate::core::settings::ExchangeSettings;
+use crate::core::settings::settings::ExchangeSettings;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide, DateTime,
 };

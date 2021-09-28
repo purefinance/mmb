@@ -3,7 +3,7 @@ use std::{fmt::Debug, fs::File};
 use toml::value::Value;
 
 use crate::{
-    core::settings::{AppSettings, BaseStrategySettings},
+    core::settings::settings::{AppSettings, BaseStrategySettings},
     hashmap,
 };
 use anyhow::{anyhow, Context, Result};

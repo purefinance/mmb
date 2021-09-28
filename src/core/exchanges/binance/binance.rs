@@ -29,7 +29,7 @@ use crate::core::exchanges::{
 use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
-use crate::core::settings::ExchangeSettings;
+use crate::core::settings::settings::ExchangeSettings;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 

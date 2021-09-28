@@ -7,7 +7,7 @@ use mmb_lib::core::explanation::Explanation;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_lib::core::orders::order::OrderSnapshot;
-use mmb_lib::core::settings::BaseStrategySettings;
+use mmb_lib::core::settings::settings::BaseStrategySettings;
 use mmb_lib::core::{
     exchanges::common::Amount,
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
