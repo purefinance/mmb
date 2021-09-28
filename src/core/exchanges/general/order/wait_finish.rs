@@ -1,11 +1,11 @@
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
+use futures::FutureExt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
-use log::{error, info, trace};
+use log::{error, info, trace, warn};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
@@ -17,8 +17,8 @@ use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::infrastructure::spawn_future_timed;
 use crate::core::nothing_to_do;
-use crate::core::orders::fill::EventSourceType;
-use crate::core::orders::order::{OrderExecutionType, OrderStatus, OrderType};
+use crate::core::orders::fill::{EventSourceType, OrderFillType};
+use crate::core::orders::order::{OrderExecutionType, OrderInfo, OrderStatus, OrderType};
 use crate::core::{
     exchanges::general::exchange::Exchange, lifecycle::cancellation_token::CancellationToken,
     orders::pool::OrderRef,
@@ -230,7 +230,7 @@ impl Exchange {
                 pre_reservation_group_id,
                 cancellation_token.clone(),
             )
-            .await;
+            .await?;
         }
 
         Ok(())
