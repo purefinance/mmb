@@ -1,6 +1,8 @@
 #[cfg(test)]
 use std::{collections::HashMap, sync::Arc};
 
+#[double]
+use crate::core::misc::time_manager::time_manager;
 use crate::core::{
     balance_manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
     exchanges::{common::Price, events::ExchangeBalance},
@@ -19,10 +21,15 @@ use crate::core::{
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 
-use chrono::Utc;
+use chrono::TimeZone;
+use mockall_double::double;
 use parking_lot::{Mutex, MutexGuard};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+
+use once_cell::sync::Lazy;
+/// Needs for syncing mock objects https://docs.rs/mockall/0.10.2/mockall/#static-methods
+static MOCK_MUTEX: Lazy<Mutex<()>> = Lazy::new(Mutex::default);
 
 pub struct BalanceManagerBase {
     pub ten_digit_precision: Decimal,
@@ -32,9 +39,13 @@ pub struct BalanceManagerBase {
     pub currency_pair: CurrencyPair,
     pub configuration_descriptor: Arc<ConfigurationDescriptor>,
     pub balance_manager: Option<Arc<Mutex<BalanceManager>>>,
+    pub seconds_offset_in_mock: Arc<Mutex<u32>>,
     currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
+
+    mock_object: time_manager::__now::Context,
+    mock_locker: MutexGuard<'static, ()>,
 }
-// static
+
 impl BalanceManagerBase {
     pub fn exchange_name() -> String {
         "local_exchange_account_id".into()
@@ -118,6 +129,17 @@ impl BalanceManagerBase {
     }
 
     pub fn new() -> Self {
+        let mock_locker = MOCK_MUTEX.lock();
+
+        let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
+        let mock_object = time_manager::now_context();
+        let seconds = seconds_offset_in_mock.clone();
+        mock_object.expect().returning(move || {
+            chrono::Utc
+                .ymd(2021, 9, 20)
+                .and_hms(0, 0, seconds.lock().clone())
+        });
+
         let exchange_account_id_1 =
             ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 0);
         let exchange_account_id_2 =
@@ -134,8 +156,11 @@ impl BalanceManagerBase {
                     + ";"
                     + BalanceManagerBase::currency_pair().as_str(),
             )),
+            seconds_offset_in_mock,
             currency_pair_metadata: None,
             balance_manager: None,
+            mock_object,
+            mock_locker,
         }
     }
 }
@@ -244,7 +269,7 @@ impl BalanceManagerBase {
         let order_snapshot = OrderSnapshot {
             header: OrderHeader::new(
                 ClientOrderId::new(format!("order{}", self.order_index).into()),
-                Utc::now(),
+                time_manager::now(),
                 self.exchange_account_id_1.clone(),
                 self.currency_pair_metadata().currency_pair().clone(),
                 OrderType::Limit,

@@ -32,7 +32,6 @@ pub struct BalanceManagerDerivative {
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 }
 
-// static
 impl BalanceManagerDerivative {
     pub fn price() -> Price {
         dec!(0.2)
