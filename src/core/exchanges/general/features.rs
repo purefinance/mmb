@@ -90,10 +90,24 @@ impl OrderFeatures {
     }
 }
 
+#[derive(Default)]
+pub struct OrderTradeOption {
+    pub supports_trade_time: bool,
+    pub supports_trade_incremented_id: bool,
+    // FIXME Do we need huge field only for Dragonex now?
+
+    // At ByBit subscription to Print notification only available for all currency pairs
+    pub notification_on_each_currency_pair: bool,
+    pub supports_get_prints: bool,
+    pub supports_tick_direction: bool,
+    pub supports_my_trades_from_time: bool,
+}
+
 pub struct ExchangeFeatures {
     pub open_orders_type: OpenOrdersType,
     pub rest_fills_features: RestFillsFeatures,
     pub order_features: OrderFeatures,
+    pub trade_option: OrderTradeOption,
     pub websocket_options: WebSocketOptions,
     pub empty_response_is_ok: bool,
     pub allows_to_get_order_info_by_client_order_id: bool,
@@ -106,6 +120,7 @@ impl ExchangeFeatures {
         open_orders_type: OpenOrdersType,
         rest_fills_features: RestFillsFeatures,
         order_features: OrderFeatures,
+        trade_option: OrderTradeOption,
         websocket_options: WebSocketOptions,
         empty_response_is_ok: bool,
         allows_to_get_order_info_by_client_order_id: bool,
@@ -116,6 +131,7 @@ impl ExchangeFeatures {
             open_orders_type,
             rest_fills_features,
             order_features,
+            trade_option,
             websocket_options,
             empty_response_is_ok,
             allows_to_get_order_info_by_client_order_id,

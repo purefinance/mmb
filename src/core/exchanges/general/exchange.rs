@@ -16,7 +16,7 @@ use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
 use crate::core::exchanges::common::TradePlace;
-use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::events::{ExchangeEvent, Trade};
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
@@ -123,6 +123,7 @@ pub struct Exchange {
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
     pub(crate) last_trades_update_time: DashMap<TradePlace, DateTime>,
+    pub(crate) last_trades: DashMap<TradePlace, Trade>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -165,6 +166,7 @@ impl Exchange {
             orders_created_events: DashMap::new(),
             leverage_by_currency_pair: DashMap::new(),
             last_trades_update_time: DashMap::new(),
+            last_trades: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();

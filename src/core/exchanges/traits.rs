@@ -17,6 +17,7 @@ use super::{
     general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
+use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::orders::fill::EventSourceType;
@@ -27,7 +28,6 @@ use crate::core::settings::ExchangeSettings;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide, DateTime,
 };
-use crate::core::{exchanges::events::ExchangeEvent, DateTime};
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use awc::http::Uri;
 
@@ -124,6 +124,9 @@ pub trait Support: Send + Sync {
         response: &RestRequestOutcome,
         last_date_time: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<Vec<OrderTrade>>;
+
+    // FIXME Is that OK to share settigns this way?
+    fn get_settings(&self) -> &ExchangeSettings;
 }
 
 pub struct ExchangeClientBuilderResult {

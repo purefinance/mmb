@@ -41,6 +41,7 @@ pub struct ExchangeSettings {
     pub api_key: String,
     pub secret_key: String,
     pub is_margin_trading: bool,
+    pub request_trades: bool,
     // TODO change String to URI
     pub web_socket_host: String,
     // Some exchanges have two websockets, for public and private data
@@ -64,6 +65,7 @@ impl ExchangeSettings {
             api_key,
             secret_key,
             is_margin_trading,
+            request_trades: false,
             web_socket_host: "".into(),
             web_socket2_host: "".into(),
             rest_host: "".into(),
@@ -81,6 +83,7 @@ impl Default for ExchangeSettings {
             api_key: "".to_string(),
             secret_key: "".to_string(),
             is_margin_trading: false,
+            request_trades: false,
             web_socket_host: "".to_string(),
             web_socket2_host: "".to_string(),
             rest_host: "".to_string(),

@@ -27,6 +27,7 @@ use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::*;
+use crate::core::settings::ExchangeSettings;
 use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
@@ -453,6 +454,10 @@ impl Support for Binance {
                 )
             })
             .collect()
+    }
+
+    fn get_settings(&self) -> &ExchangeSettings {
+        &self.settings
     }
 }
 

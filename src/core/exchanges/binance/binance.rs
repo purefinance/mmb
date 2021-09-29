@@ -15,7 +15,7 @@ use super::support::BinanceOrderInfo;
 use crate::core::exchanges::common::{Amount, Price};
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::{
-    OrderFeatures, RestFillsFeatures, RestFillsType, WebSocketOptions,
+    OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
@@ -399,6 +399,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::new(RestFillsType::None),
                 OrderFeatures::default(),
+                OrderTradeOption::default(),
                 WebSocketOptions::default(),
                 false,
                 false,
