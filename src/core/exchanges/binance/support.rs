@@ -150,7 +150,6 @@ impl Support for Binance {
                 let currency_pair = self.currency_pair_from_web_socket(&stream[..byte_index])?;
                 let data = &data["data"];
 
-                // TODO handle public stream
                 if stream.ends_with("@trade") {
                     self.handle_print_inner(&currency_pair, data)?;
                 }
@@ -495,46 +494,45 @@ impl Binance {
 
         let trade_id: u64 = data["t"].to_string().parse()?;
 
-        match self.last_trade_id.get_mut(currency_pair) {
-            Some(mut trade_id_from_lasts) => {
-                // FIXME add ISReducingMarketData field
-                if *trade_id_from_lasts >= trade_id {
-                    info!(
-                        "Current last_trade_id for currency_pair {} is {} >= print_trade_id {}",
-                        currency_pair, *trade_id_from_lasts, trade_id
-                    );
+        let mut trade_id_from_lasts =
+            self.last_trade_id.get_mut(currency_pair).with_context(|| {
+                format!(
+                    "There are trade_id {} for given currency_pair {}",
+                    trade_id, currency_pair
+                )
+            })?;
 
-                    return Ok(());
-                }
+        // FIXME add ISReducingMarketData field
+        if *trade_id_from_lasts >= trade_id {
+            info!(
+                "Current last_trade_id for currency_pair {} is {} >= print_trade_id {}",
+                currency_pair, *trade_id_from_lasts, trade_id
+            );
 
-                *trade_id_from_lasts = trade_id;
-
-                let price = Decimal::from_str(&data["p"].to_string())?;
-                let quantity = Decimal::from_str(&data["q"].to_string())?;
-                let order_side = if data["m"] == true {
-                    OrderSide::Sell
-                } else {
-                    OrderSide::Buy
-                };
-                let datetime: i64 = data["T"].to_string().parse()?;
-
-                (&self.handle_print_callback).lock()(
-                    currency_pair,
-                    trade_id.to_string(),
-                    price,
-                    quantity,
-                    order_side,
-                    Utc.timestamp_millis(datetime),
-                );
-            }
-            None => bail!(
-                "There are trade_id {} for given currency_pair {}",
-                trade_id,
-                currency_pair
-            ),
+            return Ok(());
         }
 
-        todo!()
+        *trade_id_from_lasts = trade_id;
+
+        let price = Decimal::from_str(&data["p"].to_string())?;
+        let quantity = Decimal::from_str(&data["q"].to_string())?;
+        let order_side = if data["m"] == true {
+            OrderSide::Sell
+        } else {
+            OrderSide::Buy
+        };
+        let datetime: i64 = data["T"].to_string().parse()?;
+
+        (&self.handle_print_callback).lock()(
+            currency_pair,
+            trade_id.to_string(),
+            price,
+            quantity,
+            order_side,
+            Utc.timestamp_millis(datetime),
+        );
+
+        Ok(())
     }
 
     pub fn process_snapshot_update(
