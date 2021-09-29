@@ -79,6 +79,7 @@ impl BinanceBuilder {
             exchange_account_id.clone(),
             binance,
             features,
+            BinanceBuilder.get_timeout_argments(),
             tx.clone(),
             application_manager,
             timeout_manager,
