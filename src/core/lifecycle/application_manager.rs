@@ -38,11 +38,9 @@ impl ApplicationManager {
     pub fn spawn_graceful_shutdown(self: Arc<Self>, reason: String) -> Option<JoinHandle<()>> {
         let engine_context_guard = match self.engine_context.try_lock() {
             Ok(engine_context_guard) => engine_context_guard,
-            Err(_) => {
-                // if we can't acquire lock, it mean's that someone another acquire lock and will invoke graceful shutdown or it was already invoked
-                // Return to not hold tasks that should be finished as soon as EngineContext::is_graceful_shutdown_started should be true
-                return None;
-            }
+            // if we can't acquire lock, it mean's that someone another acquire lock and will invoke graceful shutdown or it was already invoked
+            // Return to not hold tasks that should be finished as soon as EngineContext::is_graceful_shutdown_started should be true
+            Err(_) => return None,
         };
 
         let graceful_shutdown_handler =

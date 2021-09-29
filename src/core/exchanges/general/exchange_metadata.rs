@@ -1,6 +1,6 @@
 use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
 use crate::core::exchanges::general::exchange::Exchange;
-use anyhow::{bail, Result};
+use anyhow::{Context, Result};
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::warn;
@@ -60,10 +60,7 @@ impl Exchange {
         let response = &self.exchange_client.request_metadata().await?;
 
         if let Some(error) = self.get_rest_error(response) {
-            bail!(
-                "Rest error appeared during request request_metadata: {}",
-                error.message
-            );
+            Err(error).context("Rest error appeared during request request_metadata")?;
         }
 
         match self.exchange_client.parse_metadata(response) {

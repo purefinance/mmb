@@ -74,7 +74,6 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
         current_time: DateTime,
     ) {
         let is_greater = available_requests_count_on_last_request_time >= self.count_threshold;
-
         if is_greater {
             return;
         }
