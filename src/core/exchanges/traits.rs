@@ -81,7 +81,7 @@ pub trait Support: Send + Sync {
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     );
 
-    fn set_handle_print_callback(
+    fn set_handle_trade_callback(
         &self,
         callback: Box<
             dyn FnMut(&CurrencyPair, String, Price, Amount, OrderSide, DateTime) + Send + Sync,

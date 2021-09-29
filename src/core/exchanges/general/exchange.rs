@@ -240,11 +240,11 @@ impl Exchange {
             }));
 
         let exchange_weak = Arc::downgrade(&self);
-        self.exchange_client.set_handle_print_callback(Box::new(
+        self.exchange_client.set_handle_trade_callback(Box::new(
             move |currency_pair, trade_id, price, quantity, order_side, transaction_time| {
                 match exchange_weak.upgrade() {
                     Some(exchange) => {
-                        let handle_outcome = exchange.handle_print(
+                        let handle_outcome = exchange.handle_trade(
                             currency_pair,
                             trade_id,
                             price,
@@ -253,10 +253,10 @@ impl Exchange {
                             transaction_time,
                         );
 
-                        // FIXME It will lead to stop bot if error occured in Exchange::handle_print()
+                        // FIXME It will lead to stop bot if error occured in Exchange::handle_trade()
                         // FIXME Is that OK?
                         if let Err(error) = handle_outcome {
-                            let error_message = format!("Error in handle_print: {:?}", error);
+                            let error_message = format!("Error in handle_trade: {:?}", error);
                             error!("{}", error_message);
                             exchange
                                 .application_manager

@@ -45,8 +45,7 @@ pub struct Binance {
     pub order_cancelled_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
-    // FIXME Rename
-    pub handle_print_callback: Mutex<
+    pub handle_trade_callback: Mutex<
         Box<dyn FnMut(&CurrencyPair, String, Price, Amount, OrderSide, DateTime) + Send + Sync>,
     >,
 
@@ -84,7 +83,7 @@ impl Binance {
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
             handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
-            handle_print_callback: Mutex::new(Box::new(|_, _, _, _, _, _| {})),
+            handle_trade_callback: Mutex::new(Box::new(|_, _, _, _, _, _| {})),
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
@@ -219,7 +218,7 @@ impl Binance {
         )
     }
 
-    pub(super) fn handle_trade(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
+    pub(super) fn handle_order_fill(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
         let original_client_order_id = json_response["C"]
             .as_str()
             .ok_or(anyhow!("Unable to parse original client order id"))?;

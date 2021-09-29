@@ -14,7 +14,7 @@ use crate::core::{
 };
 
 impl Exchange {
-    pub fn handle_print(
+    pub fn handle_trade(
         &self,
         currency_pair: &CurrencyPair,
         trade_id: String,

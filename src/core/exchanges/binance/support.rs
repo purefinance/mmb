@@ -151,7 +151,7 @@ impl Support for Binance {
                 let data = &data["data"];
 
                 if stream.ends_with("@trade") {
-                    self.handle_print_inner(&currency_pair, data)?;
+                    self.handle_trade(&currency_pair, data)?;
                 }
 
                 // TODO handle public stream
@@ -168,7 +168,7 @@ impl Support for Binance {
             .as_str()
             .ok_or(anyhow!("Unable to parse event_type"))?;
         if event_type == "executionReport" {
-            self.handle_trade(msg, data)?;
+            self.handle_order_fill(msg, data)?;
         } else if false {
             // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
         } else {
@@ -199,13 +199,13 @@ impl Support for Binance {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
-    fn set_handle_print_callback(
+    fn set_handle_trade_callback(
         &self,
         callback: Box<
             dyn FnMut(&CurrencyPair, String, Price, Amount, OrderSide, DateTime) + Send + Sync,
         >,
     ) {
-        *self.handle_print_callback.lock() = callback;
+        *self.handle_trade_callback.lock() = callback;
     }
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
@@ -483,11 +483,7 @@ impl GetOrErr for Value {
 }
 
 impl Binance {
-    pub(crate) fn handle_print_inner(
-        &self,
-        currency_pair: &CurrencyPair,
-        data: &Value,
-    ) -> Result<()> {
+    pub(crate) fn handle_trade(&self, currency_pair: &CurrencyPair, data: &Value) -> Result<()> {
         if !self.subscribe_to_market_data {
             return Ok(());
         }
@@ -504,7 +500,7 @@ impl Binance {
 
         if self.is_reducing_market_data && *trade_id_from_lasts >= trade_id {
             info!(
-                "Current last_trade_id for currency_pair {} is {} >= print_trade_id {}",
+                "Current last_trade_id for currency_pair {} is {} >= trade_id {}",
                 currency_pair, *trade_id_from_lasts, trade_id
             );
 
@@ -522,7 +518,7 @@ impl Binance {
         };
         let datetime: i64 = data["T"].to_string().parse()?;
 
-        (&self.handle_print_callback).lock()(
+        (&self.handle_trade_callback).lock()(
             currency_pair,
             trade_id.to_string(),
             price,
