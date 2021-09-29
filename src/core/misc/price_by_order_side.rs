@@ -1,5 +1,6 @@
 use crate::core::exchanges::common::Price;
 
+#[derive(Clone, PartialEq, Eq)]
 pub struct PriceByOrderSide {
     pub top_bid: Option<Price>,
     pub top_ask: Option<Price>,
