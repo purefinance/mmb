@@ -502,8 +502,7 @@ impl Binance {
                 )
             })?;
 
-        // FIXME add ISReducingMarketData field
-        if *trade_id_from_lasts >= trade_id {
+        if self.is_reducing_market_data && *trade_id_from_lasts >= trade_id {
             info!(
                 "Current last_trade_id for currency_pair {} is {} >= print_trade_id {}",
                 currency_pair, *trade_id_from_lasts, trade_id

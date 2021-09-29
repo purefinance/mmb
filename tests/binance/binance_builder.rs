@@ -72,6 +72,7 @@ impl BinanceBuilder {
             settings.clone(),
             tx.clone(),
             application_manager.clone(),
+            false,
         ));
 
         let timeout_manager = get_timeout_manager(&exchange_account_id);

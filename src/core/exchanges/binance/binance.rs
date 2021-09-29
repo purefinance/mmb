@@ -62,6 +62,7 @@ pub struct Binance {
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
 
     pub(super) subscribe_to_market_data: bool,
+    pub(super) is_reducing_market_data: bool,
 
     pub(super) rest_client: RestClient,
 }
@@ -72,7 +73,12 @@ impl Binance {
         settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
+        is_reducing_market_data: bool,
     ) -> Self {
+        let is_reducing_market_data = settings
+            .is_reducing_market_data
+            .unwrap_or(is_reducing_market_data);
+
         Self {
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
@@ -85,6 +91,7 @@ impl Binance {
             traded_specific_currencies: Default::default(),
             last_trade_id: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
+            is_reducing_market_data,
             settings,
             events_channel,
             application_manager,
@@ -394,6 +401,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 exchange_settings,
                 events_channel.clone(),
                 application_manager,
+                false,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
@@ -451,6 +459,7 @@ mod tests {
             settings,
             tx,
             ApplicationManager::new(CancellationToken::default()),
+            false,
         );
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.generate_signature(params).expect("in test");

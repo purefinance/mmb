@@ -47,6 +47,7 @@ pub struct ExchangeSettings {
     // Some exchanges have two websockets, for public and private data
     pub web_socket2_host: String,
     pub rest_host: String,
+    pub is_reducing_market_data: Option<bool>,
     pub subscribe_to_market_data: bool,
     pub websocket_channels: Vec<String>,
     pub currency_pairs: Option<Vec<CurrencyPairSetting>>,
@@ -72,6 +73,7 @@ impl ExchangeSettings {
             websocket_channels: vec![],
             currency_pairs: None,
             subscribe_to_market_data: true,
+            is_reducing_market_data: None,
         }
     }
 }
@@ -90,6 +92,7 @@ impl Default for ExchangeSettings {
             websocket_channels: vec![],
             currency_pairs: None,
             subscribe_to_market_data: true,
+            is_reducing_market_data: None,
         }
     }
 }

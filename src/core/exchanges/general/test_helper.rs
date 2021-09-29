@@ -111,6 +111,7 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
         settings.clone(),
         tx.clone(),
         application_manager.clone(),
+        false,
     ));
     let referral_reward = dec!(40);
     let commission = Commission::new(
