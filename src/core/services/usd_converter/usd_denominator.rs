@@ -108,7 +108,7 @@ impl UsdDenominator {
         let mut result: HashMap<_, _> = self
             .market_prices_by_symbol
             .iter()
-            .filter_map(|(k, v)| Some((k.clone(), v.price_usd?)))
+            .filter_map(|(k, v)| v.price_usd.map(|price| (k.clone(), price)))
             .collect();
 
         for (source_code, mapped_code) in UsdDenominator::currency_code_exceptions() {
