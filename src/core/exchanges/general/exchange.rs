@@ -253,8 +253,6 @@ impl Exchange {
                             transaction_time,
                         );
 
-                        // FIXME It will lead to stop bot if error occured in Exchange::handle_trade()
-                        // FIXME Is that OK?
                         if let Err(error) = handle_outcome {
                             let error_message = format!("Error in handle_trade: {:?}", error);
                             error!("{}", error_message);

@@ -94,7 +94,6 @@ impl OrderFeatures {
 pub struct OrderTradeOption {
     pub supports_trade_time: bool,
     pub supports_trade_incremented_id: bool,
-    // FIXME Do we need huge field only for Dragonex now?
 
     // At ByBit subscription to Print notification only available for all currency pairs
     pub notification_on_each_currency_pair: bool,

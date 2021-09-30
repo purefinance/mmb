@@ -125,7 +125,6 @@ pub trait Support: Send + Sync {
         last_date_time: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<Vec<OrderTrade>>;
 
-    // FIXME Is that OK to share settigns this way?
     fn get_settings(&self) -> &ExchangeSettings;
 }
 

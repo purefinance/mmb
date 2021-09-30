@@ -35,7 +35,7 @@ impl Exchange {
             exchange_account_id: self.exchange_account_id.clone(),
             currency_pair: currency_pair.clone(),
             trades,
-            datetime: Utc::now(),
+            receipt_time: Utc::now(),
         };
 
         let trade_place = TradePlace::new(
@@ -44,7 +44,11 @@ impl Exchange {
         );
 
         self.last_trades_update_time
-            .insert(trade_place.clone(), trades_event.datetime);
+            .insert(trade_place.clone(), trades_event.receipt_time);
+
+        if self.exchange_client.get_settings().subscribe_to_market_data {
+            return Ok(());
+        }
 
         if self
             .supported_symbols
@@ -68,6 +72,7 @@ impl Exchange {
             let mut should_add_event = false;
 
             if let Some(last_trade) = self.last_trades.get_mut(&trade_place) {
+                // TODO use drain_filter here when it will be stabilized
                 trade_items = if self.features.trade_option.supports_trade_incremented_id {
                     trade_items
                         .into_iter()
@@ -84,11 +89,11 @@ impl Exchange {
                 should_add_event = true;
             };
 
-            // FIXME is that good substitution for C# FirstOrDefault?
-            match trade_items.iter().nth(0) {
+            match trade_items.first() {
                 Some(trade) => {
-                    trades_event.trades = trade_items.clone();
-                    self.last_trades.insert(trade_place, trade.clone());
+                    let trade = trade.clone();
+                    trades_event.trades = trade_items;
+                    self.last_trades.insert(trade_place, trade);
 
                     if !should_add_event {
                         return Ok(());

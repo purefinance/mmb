@@ -152,11 +152,13 @@ impl Support for Binance {
 
                 if stream.ends_with("@trade") {
                     self.handle_trade(&currency_pair, data)?;
+                    return Ok(());
                 }
 
                 // TODO handle public stream
                 if stream.ends_with("depth20") {
                     self.process_snapshot_update(&currency_pair, data)?;
+                    return Ok(());
                 }
             }
 
@@ -488,12 +490,14 @@ impl Binance {
             return Ok(());
         }
 
-        let trade_id: u64 = data["t"].to_string().parse()?;
+        let trade_id = data["t"]
+            .as_u64()
+            .with_context(|| "Unable to get u64 from t field json data")?;
 
         let mut trade_id_from_lasts =
             self.last_trade_id.get_mut(currency_pair).with_context(|| {
                 format!(
-                    "There are trade_id {} for given currency_pair {}",
+                    "There are no such trade_id {} for given currency_pair {}",
                     trade_id, currency_pair
                 )
             })?;
@@ -509,14 +513,23 @@ impl Binance {
 
         *trade_id_from_lasts = trade_id;
 
-        let price = Decimal::from_str(&data["p"].to_string())?;
-        let quantity = Decimal::from_str(&data["q"].to_string())?;
+        let price: Decimal = data["p"]
+            .as_str()
+            .with_context(|| "Unable to get string from p field json data")?
+            .parse()?;
+
+        let quantity: Decimal = data["q"]
+            .as_str()
+            .with_context(|| "Unable to get string from q field json data")?
+            .parse()?;
         let order_side = if data["m"] == true {
             OrderSide::Sell
         } else {
             OrderSide::Buy
         };
-        let datetime: i64 = data["T"].to_string().parse()?;
+        let datetime = data["T"]
+            .as_i64()
+            .with_context(|| "Unable to get i64 from T field json data")?;
 
         (&self.handle_trade_callback).lock()(
             currency_pair,
