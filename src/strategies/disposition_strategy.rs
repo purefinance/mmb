@@ -37,7 +37,7 @@ pub trait DispositionStrategy: Send + Sync + 'static {
 pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,
     currency_pair: CurrencyPair,
-    _ctx: Arc<EngineContext>,
+    _engine_context: Arc<EngineContext>,
 }
 
 impl ExampleStrategy {
@@ -49,7 +49,7 @@ impl ExampleStrategy {
         ExampleStrategy {
             target_eai,
             currency_pair,
-            _ctx: engine_ctx,
+            _engine_context: engine_ctx,
         }
     }
 
