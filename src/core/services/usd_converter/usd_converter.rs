@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
-
 use crate::core::{
     exchanges::common::{Amount, CurrencyCode},
     lifecycle::cancellation_token::CancellationToken,
@@ -22,7 +20,7 @@ impl UsdConverter {
     pub fn new(
         currencies: &Vec<CurrencyCode>,
         price_source_service: PriceSourceService,
-        usd_denominator: Arc<Mutex<UsdDenominator>>,
+        usd_denominator: Arc<UsdDenominator>,
     ) -> Self {
         Self {
             price_source_service,

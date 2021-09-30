@@ -446,21 +446,25 @@ mod test {
         #[tokio::test]
         async fn repetable_action() {
             let counter: Arc<Mutex<i32>> = Arc::new(Mutex::new(0));
-            {
+            let future_outcome = {
                 async fn future(counter: Arc<Mutex<i32>>) {
                     *counter.lock() += 1;
                 }
 
                 let counter = counter.clone();
-                let _ = spawn_repeatable(
-                    move || Box::pin((future)(counter.clone())),
+                spawn_repeatable(
+                    move || (future)(counter.clone()).boxed(),
                     "spawn_repeatable".into(),
-                    Duration::from_secs(2), // 2 hours
+                    Duration::from_secs(2),
                     true,
-                );
-            }
+                )
+            };
 
             tokio::time::sleep(Duration::from_secs(11)).await;
+            assert_eq!(*counter.lock(), 5);
+
+            future_outcome.abort();
+            tokio::time::sleep(Duration::from_secs(3)).await;
             assert_eq!(*counter.lock(), 5);
         }
     }
