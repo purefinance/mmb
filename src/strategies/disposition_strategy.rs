@@ -11,6 +11,7 @@ use crate::core::exchanges::common::{
 };
 use crate::core::explanation::{Explanation, WithExplanation};
 use crate::core::lifecycle::cancellation_token::CancellationToken;
+use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
 use crate::core::DateTime;
@@ -36,13 +37,19 @@ pub trait DispositionStrategy: Send + Sync + 'static {
 pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,
     currency_pair: CurrencyPair,
+    _ctx: Arc<EngineContext>,
 }
 
 impl ExampleStrategy {
-    pub fn new(target_eai: ExchangeAccountId, currency_pair: CurrencyPair) -> Self {
+    pub fn new(
+        target_eai: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        engine_ctx: Arc<EngineContext>,
+    ) -> Self {
         ExampleStrategy {
             target_eai,
             currency_pair,
+            _ctx: engine_ctx,
         }
     }
 
