@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use crate::{
     core::{
         exchanges::common::{Amount, CurrencyCode, Price},
-        infrastructure::spawn_repeatable,
+        infrastructure::spawn_by_timer,
         lifecycle::application_manager::ApplicationManager,
         misc::traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
         services::market_prices::market_currency_code_price::MarketCurrencyCodePrice,
@@ -49,9 +49,10 @@ impl UsdDenominator {
 
         if auto_refresh_data {
             let cloned_this = this.clone();
-            let _ = spawn_repeatable(
+            let _ = spawn_by_timer(
                 move || Self::refresh_data(cloned_this.clone()).boxed(),
                 "UsdDenominator::refresh_data()",
+                Duration::ZERO,
                 Duration::from_secs(7200), // 2 hours
                 true,
             );

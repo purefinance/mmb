@@ -208,9 +208,12 @@ fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
     }
 }
 
-pub fn spawn_repeatable(
+/// This function spawn a future after waiting for some `delay`
+/// and will repeat the `callback` endlessly with some `period`
+pub fn spawn_by_timer(
     callback: impl Fn() -> BoxFuture<'static, ()> + Send + Sync + 'static,
     name: &str,
+    delay: Duration,
     period: Duration,
     is_critical: bool,
 ) -> JoinHandle<FutureOutcome> {
@@ -218,9 +221,10 @@ pub fn spawn_repeatable(
         name,
         is_critical,
         async move {
+            tokio::time::sleep(delay).await;
             loop {
-                tokio::time::sleep(period).await;
                 (callback)().await;
+                tokio::time::sleep(period).await;
             }
         }
         .boxed(),
@@ -445,27 +449,30 @@ mod test {
 
         #[tokio::test]
         async fn repetable_action() {
-            let counter: Arc<Mutex<i32>> = Arc::new(Mutex::new(0));
+            let counter = Arc::new(Mutex::new(0u64));
+            let duration = 200;
+            let repeats_count = 5;
             let future_outcome = {
-                async fn future(counter: Arc<Mutex<i32>>) {
+                async fn future(counter: Arc<Mutex<u64>>) {
                     *counter.lock() += 1;
                 }
 
                 let counter = counter.clone();
-                spawn_repeatable(
+                spawn_by_timer(
                     move || (future)(counter.clone()).boxed(),
                     "spawn_repeatable".into(),
-                    Duration::from_secs(2),
+                    Duration::ZERO,
+                    Duration::from_millis(duration),
                     true,
                 )
             };
 
-            tokio::time::sleep(Duration::from_secs(11)).await;
-            assert_eq!(*counter.lock(), 5);
+            tokio::time::sleep(Duration::from_millis(repeats_count * duration)).await;
+            assert_eq!(*counter.lock(), repeats_count);
 
             future_outcome.abort();
-            tokio::time::sleep(Duration::from_secs(3)).await;
-            assert_eq!(*counter.lock(), 5);
+            tokio::time::sleep(Duration::from_millis(repeats_count / 2)).await;
+            assert_eq!(*counter.lock(), repeats_count);
         }
     }
 }
