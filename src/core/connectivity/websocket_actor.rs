@@ -6,7 +6,7 @@ use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, 
 use actix_codec::Framed;
 use actix_web::web::Buf;
 use actix_web_actors::ws::ProtocolError;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Context as AnyhowContext, Result};
 use awc::http::StatusCode;
 use awc::{
     error::WsProtocolError,
@@ -63,41 +63,36 @@ impl WebSocketActor {
             .ws(params.url)
             .header("Accept-Encoding", "gzip")
             .connect()
-            .await;
+            .await
+            .map_err(|e| anyhow!("{:?}", e))
+            .context("Error occurred during websocket connect")?;
 
-        match connected_client {
-            Err(error) => {
-                bail!("Error occurred during websocket connect: {:?}", error);
-            }
-            Ok(connected_client) => {
-                let (response, framed) = connected_client;
+        let (response, framed) = connected_client;
 
-                trace!(
-                    "WebsocketActor {} {:?} connecting status: {}",
-                    exchange_account_id,
-                    role,
-                    response.status()
-                );
-                if !(response.status() == StatusCode::SWITCHING_PROTOCOLS) {
-                    bail!("Status code is SWITCHING_PROTOCOLS so unable to communicate")
-                }
-
-                let (sink, stream) = framed.split();
-
-                let addr = WebSocketActor::create(|ctx| {
-                    WebSocketActor::add_stream(stream, ctx);
-
-                    WebSocketActor::new(
-                        exchange_account_id,
-                        role,
-                        SinkWrite::new(sink, ctx),
-                        connectivity_manager_notifier,
-                    )
-                });
-
-                Ok(addr)
-            }
+        trace!(
+            "WebsocketActor {} {:?} connecting status: {}",
+            exchange_account_id,
+            role,
+            response.status()
+        );
+        if !(response.status() == StatusCode::SWITCHING_PROTOCOLS) {
+            bail!("Status code is SWITCHING_PROTOCOLS so unable to communicate")
         }
+
+        let (sink, stream) = framed.split();
+
+        let addr = WebSocketActor::create(|ctx| {
+            WebSocketActor::add_stream(stream, ctx);
+
+            WebSocketActor::new(
+                exchange_account_id,
+                role,
+                SinkWrite::new(sink, ctx),
+                connectivity_manager_notifier,
+            )
+        });
+
+        Ok(addr)
     }
 
     fn new(

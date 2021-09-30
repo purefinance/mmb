@@ -13,11 +13,13 @@ use tokio::sync::{broadcast, oneshot};
 
 use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
+use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
+use crate::core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{OrderHeader, OrderSide};
@@ -43,6 +45,7 @@ use crate::core::{
     exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
+use std::fmt::{Arguments, Debug, Write};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult<T> {
@@ -50,6 +53,15 @@ pub enum RequestResult<T> {
     Error(ExchangeError),
     // TODO for that we need match binance_error_code as number with ExchangeErrorType
     //Error(ExchangeErrorType),
+}
+
+impl<T> RequestResult<T> {
+    pub fn get_error(&self) -> Option<ExchangeError> {
+        match self {
+            RequestResult::Success(_) => None,
+            RequestResult::Error(exchange_error) => Some(exchange_error.clone()),
+        }
+    }
 }
 
 enum CheckContent {
@@ -102,6 +114,9 @@ pub struct Exchange {
     pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
     pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
+    pub(super) wait_finish_order: DashMap<ClientOrderId, broadcast::Sender<OrderRef>>,
+    pub(super) polling_trades_counts: DashMap<ExchangeAccountId, u32>,
+    pub(super) polling_timeout_manager: PollingTimeoutManager,
     pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
@@ -114,12 +129,14 @@ impl Exchange {
         exchange_account_id: ExchangeAccountId,
         exchange_client: BoxExchangeClient,
         features: ExchangeFeatures,
+        timeout_arguments: RequestTimeoutArguments,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
         timeout_manager: Arc<TimeoutManager>,
         commission: Commission,
     ) -> Arc<Self> {
         let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+        let polling_timeout_manager = PollingTimeoutManager::new(timeout_arguments);
 
         let exchange = Arc::new(Self {
             exchange_account_id: exchange_account_id.clone(),
@@ -138,6 +155,9 @@ impl Exchange {
             currencies: Default::default(),
             order_book_top: Default::default(),
             wait_cancel_order: DashMap::new(),
+            wait_finish_order: DashMap::new(),
+            polling_trades_counts: DashMap::new(),
+            polling_timeout_manager,
             orders_finish_events: DashMap::new(),
             orders_created_events: DashMap::new(),
             leverage_by_currency_pair: DashMap::new(),
@@ -281,7 +301,7 @@ impl Exchange {
     }
 
     pub(crate) fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
-        self.get_rest_error_main(response, None, None)
+        self.get_rest_error_main(response, format_args!(""))
     }
 
     pub(super) fn get_rest_error_order(
@@ -289,33 +309,30 @@ impl Exchange {
         response: &RestRequestOutcome,
         order_header: &OrderHeader,
     ) -> Option<ExchangeError> {
-        let client_order_id = order_header.client_order_id.to_string();
-        let exchange_account_id = order_header.exchange_account_id.to_string();
-        let log_template = format!("order {} {}", client_order_id, exchange_account_id);
-        let args_to_log = Some(vec![client_order_id, exchange_account_id]);
-
-        self.get_rest_error_main(response, Some(log_template), args_to_log)
+        let client_order_id = &order_header.client_order_id;
+        let exchange_account_id = &order_header.exchange_account_id;
+        self.get_rest_error_main(
+            response,
+            format_args!("order {} {}", client_order_id, exchange_account_id),
+        )
     }
 
     pub fn get_rest_error_main(
         &self,
         response: &RestRequestOutcome,
-        log_template: Option<String>,
-        args_to_log: Option<Vec<String>>,
+        log_template: Arguments,
     ) -> Option<ExchangeError> {
-        let result_error = match response.status {
-            StatusCode::UNAUTHORIZED => ExchangeError::new(
-                ExchangeErrorType::Authentication,
-                response.content.clone(),
-                None,
-            ),
-            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => ExchangeError::new(
-                ExchangeErrorType::ServiceUnavailable,
-                response.content.clone(),
-                None,
-            ),
+        use ExchangeErrorType::*;
+
+        let error = match response.status {
+            StatusCode::UNAUTHORIZED => {
+                ExchangeError::new(Authentication, response.content.clone(), None)
+            }
+            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => {
+                ExchangeError::new(ServiceUnavailable, response.content.clone(), None)
+            }
             StatusCode::TOO_MANY_REQUESTS => {
-                ExchangeError::new(ExchangeErrorType::RateLimit, response.content.clone(), None)
+                ExchangeError::new(RateLimit, response.content.clone(), None)
             }
             _ => match Self::check_content(&response.content) {
                 CheckContent::Empty => {
@@ -323,17 +340,13 @@ impl Exchange {
                         return None;
                     }
 
-                    ExchangeError::new(
-                        ExchangeErrorType::Unknown,
-                        "Empty response".to_owned(),
-                        None,
-                    )
+                    ExchangeError::new(Unknown, "Empty response".to_owned(), None)
                 }
                 CheckContent::Err(error) => error,
-                CheckContent::Usable => match self.exchange_client.is_rest_error_code(&response) {
+                CheckContent::Usable => match self.exchange_client.is_rest_error_code(response) {
                     Ok(_) => return None,
                     Err(mut error) => match error.error_type {
-                        ExchangeErrorType::ParsingError => error,
+                        ParsingError => error,
                         _ => {
                             // TODO For Aax Pending time should be received inside clarify_error_type
                             self.exchange_client.clarify_error_type(&mut error);
@@ -344,32 +357,27 @@ impl Exchange {
             },
         };
 
-        let mut msg_to_log = format!(
+        let extra_data_len = 512; // just apriori estimation
+        let mut msg = String::with_capacity(error.message.len() + extra_data_len);
+        write!(
+            &mut msg,
             "Response has an error {:?}, on {}: {:?}",
-            result_error.error_type, self.exchange_account_id, result_error
-        );
+            error.error_type, self.exchange_account_id, error
+        )
+        .expect("Writing rest error");
 
-        if let Some(args) = args_to_log {
-            msg_to_log = format!(" {} with args: {:?}", msg_to_log, args);
-        }
+        write!(&mut msg, " {}", log_template).expect("Writing rest error");
 
-        if let Some(template) = log_template {
-            msg_to_log = format!(" {}", template);
-        }
-
-        let log_level = match result_error.error_type {
-            ExchangeErrorType::RateLimit
-            | ExchangeErrorType::Authentication
-            | ExchangeErrorType::InsufficientFunds
-            | ExchangeErrorType::InvalidOrder => Level::Error,
+        let log_level = match error.error_type {
+            RateLimit | Authentication | InsufficientFunds | InvalidOrder => Level::Error,
             _ => Level::Warn,
         };
 
-        log::log!(log_level, "{}. Response: {:?}", &msg_to_log, &response);
+        log::log!(log_level, "{}. Response: {:?}", &msg, response);
 
         // TODO some HandleRestError via BotBase
 
-        Some(result_error)
+        Some(error)
     }
 
     fn check_content(content: &str) -> CheckContent {
@@ -485,9 +493,10 @@ impl Exchange {
     ) {
         match self.get_open_orders(add_missing_open_orders).await {
             Err(error) => {
-                error!(
+                log::error!(
                     "Unable to get opened order for exchange account id {}: {:?}",
-                    self.exchange_account_id, error,
+                    self.exchange_account_id,
+                    error,
                 );
             }
             Ok(orders) => {

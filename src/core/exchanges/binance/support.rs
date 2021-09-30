@@ -320,7 +320,7 @@ impl Support for Binance {
             let filters = symbol
                 .get("filters")
                 .and_then(|filters| filters.as_array())
-                .ok_or(anyhow!("Unable to get filters as array from Binance"))?;
+                .context("Unable to get filters as array from Binance")?;
             for filter in filters {
                 let filter_name = filter.get_as_str("filterType")?;
                 match filter_name.as_str() {
@@ -341,22 +341,20 @@ impl Support for Binance {
                 }
             }
 
-            let price_precision = if let Some(tick) = price_tick {
-                Precision::ByTick { tick }
-            } else {
-                bail!(
+            let price_precision = match price_tick {
+                Some(tick) => Precision::ByTick { tick },
+                None => bail!(
                     "Unable to get price precision from Binance for {:?}",
                     specific_currency_pair
-                );
+                ),
             };
 
-            let amount_precision = if let Some(tick) = amount_tick {
-                Precision::ByTick { tick }
-            } else {
-                bail!(
+            let amount_precision = match amount_tick {
+                Some(tick) => Precision::ByTick { tick },
+                None => bail!(
                     "Unable to get amount precision from Binance for {:?}",
                     specific_currency_pair
-                );
+                ),
             };
 
             let currency_pair_metadata = CurrencyPairMetadata::new(
@@ -415,22 +413,19 @@ impl Support for Binance {
                     OrderRole::Taker
                 };
 
-                if let Some(commission_currency_code) = commission_currency_code {
-                    Ok(OrderTrade::new(
-                        ExchangeOrderId::from(self.order_id.to_string().as_ref()),
-                        self.id.to_string(),
-                        datetime,
-                        self.price,
-                        self.amount,
-                        order_role,
-                        commission_currency_code,
-                        None,
-                        Some(self.commission),
-                        OrderFillType::UserTrade,
-                    ))
-                } else {
-                    bail!("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting");
-                }
+                let fee_currency_code = commission_currency_code.context("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting")?;
+                Ok(OrderTrade::new(
+                    ExchangeOrderId::from(self.order_id.to_string().as_ref()),
+                    self.id.to_string(),
+                    datetime,
+                    self.price,
+                    self.amount,
+                    order_role,
+                    fee_currency_code,
+                    None,
+                    Some(self.commission),
+                    OrderFillType::UserTrade,
+                ))
             }
         }
 
@@ -456,9 +451,9 @@ impl GetOrErr for Value {
     fn get_as_str(&self, key: &str) -> Result<String> {
         Ok(self
             .get(key)
-            .ok_or(anyhow!("Unable to get {} from Binance", key))?
+            .with_context(|| format!("Unable to get {} from Binance", key))?
             .as_str()
-            .ok_or(anyhow!("Unable to get {} as string from Binance", key))?
+            .with_context(|| format!("Unable to get {} as string from Binance", key))?
             .to_string())
     }
 

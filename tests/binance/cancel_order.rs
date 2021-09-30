@@ -21,6 +21,8 @@ async fn cancelled_successfully() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
+            WebSocketOptions::default(),
             true,
             true,
             AllowedEventSourceType::default(),
@@ -67,6 +69,8 @@ async fn cancel_opened_orders_successfully() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
+            WebSocketOptions::default(),
             true,
             true,
             AllowedEventSourceType::default(),
@@ -136,6 +140,8 @@ async fn nothing_to_cancel() {
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
+            WebSocketOptions::default(),
             false,
             true,
             AllowedEventSourceType::default(),

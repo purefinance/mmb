@@ -1,10 +1,10 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use tokio::sync::oneshot;
 
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
-use crate::core::nothing_to_do;
+use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::orders::event::OrderEventType;
 use crate::core::{
     exchanges::common::ExchangeAccountId,
@@ -20,6 +20,7 @@ use crate::core::{
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
+use crate::core::{nothing_to_do, OPERATION_CANCELED_MSG};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CreateOrderResult {
@@ -47,15 +48,17 @@ impl Exchange {
     pub async fn create_order(
         &self,
         order_to_create: &OrderCreating,
+        pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
         info!("Submitting order {:?}", order_to_create);
         self.orders
             .add_simple_initial(order_to_create.header.clone(), Some(order_to_create.price));
 
-        let _linked_cancellation_token = cancellation_token.create_linked_token();
+        let linked_cancellation_token = cancellation_token.create_linked_token();
 
-        let create_order_future = self.create_order_base(order_to_create, cancellation_token);
+        let create_order_future =
+            self.create_order_base(order_to_create, linked_cancellation_token);
 
         // TODO if AllowedCreateEventSourceType != AllowedEventSourceType.OnlyFallback
         // TODO self.poll_order_create(order, pre_reservation_group_id, _linked_cancellation_token)
@@ -64,7 +67,7 @@ impl Exchange {
             created_order_outcome = create_order_future => {
                 match created_order_outcome {
                     Ok(created_order_result) => {
-                        self.match_created_order_outcome(&created_order_result.outcome)
+                        self.match_created_order_outcome( &created_order_result.outcome, pre_reservation_group_id, cancellation_token).await
                     }
                     Err(exchange_error) => {
                         bail!("Exchange error: {:?}", exchange_error)
@@ -75,9 +78,11 @@ impl Exchange {
         }
     }
 
-    fn match_created_order_outcome(
+    async fn match_created_order_outcome(
         &self,
         outcome: &RequestResult<ExchangeOrderId>,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
         match outcome {
             Success(exchange_order_id) => {
@@ -90,7 +95,21 @@ impl Exchange {
 
                 // TODO create_order_cancellation_token_source.cancel();
 
-                // TODO check_order_fills(order...)
+                let is_rest_fallback = result_order.fn_ref(|x| {
+                    x.internal_props.creation_event_source_type
+                        == Some(EventSourceType::RestFallback)
+                });
+                let failed_to_create = result_order.status() == OrderStatus::FailedToCreate;
+
+                if is_rest_fallback && !failed_to_create {
+                    self.check_order_fills(
+                        result_order,
+                        false,
+                        pre_reservation_group_id,
+                        cancellation_token,
+                    )
+                    .await?;
+                }
 
                 if result_order.status() == OrderStatus::Creating {
                     error!(
@@ -158,7 +177,7 @@ impl Exchange {
             return Ok(created_order);
         }
 
-        bail!("Task was cancelled")
+        bail!(OPERATION_CANCELED_MSG)
     }
 
     fn handle_create_order_failed(
@@ -182,30 +201,22 @@ impl Exchange {
             bail!("{}", error_msg);
         }
 
-        match self.orders.cache_by_client_id.get(client_order_id) {
-            None => {
-                let error_msg = format!(
+        let order_ref = self.orders.cache_by_client_id.get(client_order_id).with_context(|| {
+            let error_msg = format!(
                 "CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}",
                 args_to_log
             );
-                error!("{}", error_msg);
 
-                bail!("{}", error_msg);
-            }
-            Some(order_ref) => {
-                let args_to_log = (
-                    exchange_account_id,
-                    client_order_id,
-                    &order_ref.exchange_order_id(),
-                );
-                self.react_on_status_when_failed(
-                    &order_ref,
-                    args_to_log,
-                    source_type,
-                    exchange_error,
-                )
-            }
-        }
+            error!("{}", error_msg);
+            error_msg
+        })?;
+
+        let args_to_log = (
+            exchange_account_id,
+            client_order_id,
+            &order_ref.exchange_order_id(),
+        );
+        self.react_on_status_when_failed(&order_ref, args_to_log, source_type, exchange_error)
     }
 
     fn react_on_status_when_failed(

@@ -65,6 +65,7 @@ pub async fn create_exchange(
         user_settings.exchange_account_id.clone(),
         exchange_client.client,
         exchange_client.features,
+        exchange_client_builder.get_timeout_argments(),
         events_channel,
         application_manager,
         timeout_manager.clone(),

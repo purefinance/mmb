@@ -9,8 +9,8 @@ use crate::core::orders::order::{
 use crate::core::{
     exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType,
 };
-use anyhow::bail;
 use anyhow::Error;
+use anyhow::{bail, Context};
 use log::{info, warn};
 use parking_lot::RwLock;
 
@@ -84,16 +84,11 @@ impl Exchange {
                 );
 
                 if let Some(error) = self.get_rest_error(&response) {
-                    bail!(
-                        "Rest error appeared during request get_open_orders: {}",
-                        error.message
-                    )
+                    Err(error).context("From request get_open_orders by all currency pair")?;
                 }
 
                 match self.exchange_client.parse_open_orders(&response) {
-                    Ok(ref mut open_orders_tmp) => {
-                        open_orders.append(open_orders_tmp);
-                    }
+                    Ok(ref mut open_orders_tmp) => open_orders.append(open_orders_tmp),
                     Err(error) => {
                         self.handle_parse_error(error, &response, "".into(), None)?;
                         return Ok(Vec::new());
@@ -109,34 +104,24 @@ impl Exchange {
                         .map(|x| self.request_when_available_by_currency_pair(x.currency_pair())),
                 )
                 .await;
-                for response_result in responses {
-                    match response_result {
-                        Ok(response) => {
-                            if let Some(error) = self.get_rest_error(&response) {
-                                bail!(
-                                    "Rest error appeared during request get_open_orders by currency pair: {}",
-                                    error.message
-                                )
-                            }
-                            match self.exchange_client.parse_open_orders(&response) {
-                                Ok(ref mut open_orders_tmp) => {
-                                    open_orders.append(open_orders_tmp);
-                                }
-                                Err(error) => {
-                                    self.handle_parse_error(error, &response, "".into(), None)?;
-                                    return Ok(Vec::new());
-                                }
-                            }
+                for response in responses {
+                    let response = &response.with_context(|| {
+                        format!("From get_open_orders() on {}", self.exchange_account_id)
+                    })?;
+
+                    if let Some(error) = self.get_rest_error(response) {
+                        Err(error).context("From request get_open_orders by currency pair")?;
+                    }
+                    match self.exchange_client.parse_open_orders(response) {
+                        Ok(ref mut orders) => open_orders.append(orders),
+                        Err(error) => {
+                            self.handle_parse_error(error, response, "".into(), None)?;
+                            return Ok(Vec::new());
                         }
-                        Err(error) => bail!(
-                            "get_open_orders() response on {} returned an error: {:?}",
-                            self.exchange_account_id,
-                            error
-                        ),
                     }
                 }
             }
-            _ => bail!(
+            OpenOrdersType::None => bail!(
                 "Unsupported open_orders_type: {:?}",
                 self.features.open_orders_type
             ),

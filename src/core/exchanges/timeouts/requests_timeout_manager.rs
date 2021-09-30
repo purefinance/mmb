@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Weak};
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::Duration;
 use futures::FutureExt;
 use log::{error, info};
@@ -18,9 +18,9 @@ use super::{
     triggers::less_or_equals_requests_count_trigger::LessOrEqualsRequestsCountTrigger,
 };
 use crate::core::{
-    exchanges::common::ExchangeAccountId, exchanges::common::OPERATION_CANCELED_MSG,
-    exchanges::general::request_type::RequestType, infrastructure::spawn_future,
-    infrastructure::FutureOutcome, lifecycle::cancellation_token::CancellationToken, DateTime,
+    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType,
+    infrastructure::spawn_future, infrastructure::FutureOutcome,
+    lifecycle::cancellation_token::CancellationToken, DateTime, OPERATION_CANCELED_MSG,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -315,49 +315,44 @@ impl RequestsTimeoutManager {
         delay: Duration,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        match delay.to_std() {
-            Ok(delay) => {
-                let sleep_future = sleep(delay);
-                let cancellation_token = cancellation_token.when_cancelled();
+        let delay = delay.to_std().with_context(|| {
+            let msg = "Unable to convert chrono::Duration to std::Duration";
+            log::error!("{}", msg);
+            msg
+        })?;
 
-                tokio::select! {
-                    _ = sleep_future => {
-                        let strong_self = Self::try_get_strong(weak_self)?;
-                        (strong_self.inner.lock().time_has_come_for_request)(request)?;
-                    }
+        let sleep_future = sleep(delay);
+        let cancellation_token = cancellation_token.when_cancelled();
 
-                    _ = cancellation_token => {
-                        let strong_self = Self::try_get_strong(weak_self)?;
-                        let mut inner = strong_self.inner.lock();
-                        (inner.time_has_come_for_request)(request.clone())?;
-                        if let Some(position) = inner.requests.iter().position(|stored_request| *stored_request == request) {
-                            inner.requests.remove(position);
-                        }
-
-                        bail!(OPERATION_CANCELED_MSG)
-                    }
-                };
-
-                Ok(())
+        tokio::select! {
+            _ = sleep_future => {
+                let strong_self = Self::try_get_strong(weak_self)?;
+                (strong_self.inner.lock().time_has_come_for_request)(request)?;
             }
-            Err(error) => {
-                error!("Unable to convert chrono::Duration to std::Duration");
-                bail!(error)
+
+            _ = cancellation_token => {
+                let strong_self = Self::try_get_strong(weak_self)?;
+                let mut inner = strong_self.inner.lock();
+                (inner.time_has_come_for_request)(request.clone())?;
+                if let Some(position) = inner.requests.iter().position(|stored_request| *stored_request == request) {
+                    inner.requests.remove(position);
+                }
+
+                bail!(OPERATION_CANCELED_MSG)
             }
-        }
+        };
+
+        Ok(())
     }
 
     fn try_get_strong(
         weak_timout_manager: Weak<RequestsTimeoutManager>,
     ) -> Result<Arc<RequestsTimeoutManager>> {
-        match weak_timout_manager.upgrade() {
-            Some(strong) => Ok(strong),
-            None => {
-                let error_message = "Unable to upgrade weak reference to RequestsTimeoutManager instance. Probably it's dropped";
-                info!("{}", error_message);
-                bail!(error_message)
-            }
-        }
+        weak_timout_manager.upgrade().with_context(|| {
+            let error_message = "Unable to upgrade weak reference to RequestsTimeoutManager instance. Probably it's dropped";
+            info!("{}", error_message);
+            anyhow!(error_message)
+        })
     }
 
     pub fn register_trigger_on_more_or_equals(

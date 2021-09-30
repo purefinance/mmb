@@ -11,7 +11,9 @@ use super::{
 };
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::general::features::RestFillsFeatures;
+use crate::core::exchanges::general::features::{
+    OrderFeatures, RestFillsFeatures, WebSocketOptions,
+};
 use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
@@ -124,11 +126,14 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
+            OrderFeatures::default(),
+            WebSocketOptions::default(),
             false,
             true,
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
+        BinanceBuilder.get_timeout_argments(),
         tx,
         application_manager,
         TimeoutManager::new(HashMap::new()),
