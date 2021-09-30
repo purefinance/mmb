@@ -18,7 +18,7 @@ use crate::{
 pub struct UsdDenominator {
     market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
     application_manager: Arc<ApplicationManager>,
-    market_prices_by_symbol: Mutex<HashMap<CurrencyCode, MarketCurrencyCodePrice>>,
+    market_prices_by_currency_code: Mutex<HashMap<CurrencyCode, MarketCurrencyCodePrice>>,
     pub price_update_callback: fn(),
 }
 
@@ -41,7 +41,7 @@ impl UsdDenominator {
         let this = Arc::new(Self {
             market_service,
             application_manager: application_manager.clone(),
-            market_prices_by_symbol: Mutex::new(UsdDenominator::to_prices_dictionary(
+            market_prices_by_currency_code: Mutex::new(UsdDenominator::to_prices_dictionary(
                 market_prices,
             )),
             price_update_callback: || (),
@@ -62,7 +62,8 @@ impl UsdDenominator {
 
     pub async fn refresh_data(this: Arc<Self>) {
         let market_prices = this.market_service.get_market_currency_code_price().await;
-        *this.market_prices_by_symbol.lock() = UsdDenominator::to_prices_dictionary(market_prices);
+        *this.market_prices_by_currency_code.lock() =
+            UsdDenominator::to_prices_dictionary(market_prices);
         (this.price_update_callback)()
     }
 
@@ -86,7 +87,7 @@ impl UsdDenominator {
     pub fn get_non_refreshing_usd_denominator(&self) -> Arc<Self> {
         UsdDenominator::new(
             self.market_service.clone(),
-            self.market_prices_by_symbol
+            self.market_prices_by_currency_code
                 .lock()
                 .values()
                 .cloned()
@@ -107,7 +108,7 @@ impl UsdDenominator {
                 .map(|(k, v)| (v.clone(), k.clone()))
                 .collect();
 
-        self.market_prices_by_symbol
+        self.market_prices_by_currency_code
             .lock()
             .iter()
             .filter_map(|(k, v)| {
@@ -124,7 +125,7 @@ impl UsdDenominator {
             .get(currency_code)
             .cloned()
             .unwrap_or(currency_code.clone());
-        self.market_prices_by_symbol
+        self.market_prices_by_currency_code
             .lock()
             .get(&currency_code)?
             .price_usd
