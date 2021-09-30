@@ -4,7 +4,7 @@ use crate::core::exchanges::{
     common::ExchangeId, general::currency_pair_metadata::CurrencyPairMetadata,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RebasePriceStep {
     pub exchange_id: ExchangeId,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,

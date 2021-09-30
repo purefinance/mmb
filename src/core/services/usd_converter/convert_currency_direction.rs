@@ -1,6 +1,6 @@
 use crate::core::exchanges::common::CurrencyCode;
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub(crate) struct ConvertCurrencyDirection {
     pub from_currency_code: CurrencyCode,
     pub to_currency_code: CurrencyCode,
