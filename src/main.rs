@@ -39,10 +39,11 @@ async fn main() -> Result<()> {
         CREDENTIALS_PATH.to_owned(),
     );
 
-    let engine = launch_trading_engine(&engine_config, init_settings, |settings| {
+    let engine = launch_trading_engine(&engine_config, init_settings, |settings, ctx| {
         Box::new(ExampleStrategy::new(
             settings.strategy.exchange_account_id().clone(),
             settings.strategy.currency_pair().clone(),
+            ctx,
         ))
     })
     .await?;

@@ -62,7 +62,10 @@ where
 pub async fn launch_trading_engine<'a, TStrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<TStrategySettings>,
-    build_strategy: impl Fn(&AppSettings<TStrategySettings>) -> Box<dyn DispositionStrategy + 'static>,
+    build_strategy: impl Fn(
+        &AppSettings<TStrategySettings>,
+        Arc<EngineContext>,
+    ) -> Box<dyn DispositionStrategy + 'static>,
 ) -> Result<TradingEngine>
 where
     TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
@@ -137,7 +140,7 @@ where
         error!("Unable to start rest api: {}", error);
     }
 
-    let disposition_strategy = build_strategy(&settings);
+    let disposition_strategy = build_strategy(&settings, engine_context.clone());
     let disposition_executor_service = create_disposition_executor_service(
         &settings.strategy,
         &engine_context,
