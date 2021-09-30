@@ -45,9 +45,8 @@ pub struct Binance {
     pub order_cancelled_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
-    pub handle_trade_callback: Mutex<
-        Box<dyn FnMut(&CurrencyPair, String, Price, Amount, OrderSide, DateTime) + Send + Sync>,
-    >,
+    pub handle_trade_callback:
+        Mutex<Box<dyn FnMut(&CurrencyPair, u64, Price, Amount, OrderSide, DateTime) + Send + Sync>>,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,

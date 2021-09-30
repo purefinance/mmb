@@ -204,7 +204,7 @@ impl Support for Binance {
     fn set_handle_trade_callback(
         &self,
         callback: Box<
-            dyn FnMut(&CurrencyPair, String, Price, Amount, OrderSide, DateTime) + Send + Sync,
+            dyn FnMut(&CurrencyPair, u64, Price, Amount, OrderSide, DateTime) + Send + Sync,
         >,
     ) {
         *self.handle_trade_callback.lock() = callback;
@@ -486,10 +486,6 @@ impl GetOrErr for Value {
 
 impl Binance {
     pub(crate) fn handle_trade(&self, currency_pair: &CurrencyPair, data: &Value) -> Result<()> {
-        if !self.subscribe_to_market_data {
-            return Ok(());
-        }
-
         let trade_id = data["t"]
             .as_u64()
             .with_context(|| "Unable to get u64 from t field json data")?;
@@ -533,7 +529,7 @@ impl Binance {
 
         (&self.handle_trade_callback).lock()(
             currency_pair,
-            trade_id.to_string(),
+            trade_id,
             price,
             quantity,
             order_side,

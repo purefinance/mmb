@@ -77,7 +77,7 @@ pub enum TickDirection {
 
 #[derive(Debug, Clone)]
 pub struct Trade {
-    pub trade_id: String,
+    pub trade_id: u64,
     pub price: Price,
     pub quantity: Amount,
     pub side: OrderSide,

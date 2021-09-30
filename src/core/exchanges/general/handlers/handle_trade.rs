@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use chrono::Utc;
 use itertools::Itertools;
 use log::info;
 
@@ -8,6 +7,7 @@ use crate::core::{
         common::{Amount, CurrencyPair, Price, TradePlace},
         events::{ExchangeEvent, TickDirection, Trade, TradesEvent},
         general::exchange::Exchange,
+        timeouts::timeout_manager,
     },
     orders::order::OrderSide,
     DateTime,
@@ -17,7 +17,7 @@ impl Exchange {
     pub fn handle_trade(
         &self,
         currency_pair: &CurrencyPair,
-        trade_id: String,
+        trade_id: u64,
         price: Price,
         quantity: Amount,
         side: OrderSide,
@@ -35,7 +35,7 @@ impl Exchange {
             exchange_account_id: self.exchange_account_id.clone(),
             currency_pair: currency_pair.clone(),
             trades,
-            receipt_time: Utc::now(),
+            receipt_time: timeout_manager::now(),
         };
 
         let trade_place = TradePlace::new(
@@ -76,7 +76,6 @@ impl Exchange {
                 trade_items = if self.features.trade_option.supports_trade_incremented_id {
                     trade_items
                         .into_iter()
-                        // FIXME is that OK not to cast Strings here to integer?
                         .filter(|item| item.trade_id > last_trade.trade_id)
                         .collect_vec()
                 } else {
