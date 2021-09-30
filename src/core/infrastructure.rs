@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
 use log::{error, info, trace, Level};
@@ -205,6 +206,25 @@ fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
         None => error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
             log_template),
     }
+}
+
+pub fn spawn_repeatable(
+    callback: impl Fn() -> BoxFuture<'static, ()> + Send + Sync + 'static,
+    name: &str,
+    period: Duration,
+    is_critical: bool,
+) -> JoinHandle<FutureOutcome> {
+    spawn_future(
+        name,
+        is_critical,
+        async move {
+            loop {
+                tokio::time::sleep(period).await;
+                (callback)().await;
+            }
+        }
+        .boxed(),
+    )
 }
 
 #[cfg(test)]
@@ -421,6 +441,27 @@ mod test {
 
             // Assert
             assert_eq!(*test_value.lock(), false);
+        }
+
+        #[tokio::test]
+        async fn repetable_action() {
+            let counter: Arc<Mutex<i32>> = Arc::new(Mutex::new(0));
+            {
+                async fn future(counter: Arc<Mutex<i32>>) {
+                    *counter.lock() += 1;
+                }
+
+                let counter = counter.clone();
+                let _ = spawn_repeatable(
+                    move || Box::pin((future)(counter.clone())),
+                    "spawn_repeatable".into(),
+                    Duration::from_secs(2), // 2 hours
+                    true,
+                );
+            }
+
+            tokio::time::sleep(Duration::from_secs(11)).await;
+            assert_eq!(*counter.lock(), 5);
         }
     }
 }
