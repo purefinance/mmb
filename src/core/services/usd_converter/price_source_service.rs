@@ -4,6 +4,7 @@ use crate::core::{
 };
 
 use anyhow::Result;
+
 pub struct PriceSourceService {}
 
 impl PriceSourceService {

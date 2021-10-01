@@ -99,7 +99,7 @@ impl UsdDenominator {
     }
 
     fn currency_code_exceptions() -> HashMap<CurrencyCode, CurrencyCode> {
-        hashmap![CurrencyCode::from( "IOTA") => CurrencyCode::from("MIOTA")]
+        hashmap![CurrencyCode::from("IOTA") => CurrencyCode::from("MIOTA")]
     }
 
     pub fn get_all_prices_in_usd(&self) -> HashMap<CurrencyCode, Price> {
