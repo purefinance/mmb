@@ -492,7 +492,7 @@ impl Binance {
         let mut trade_id_from_lasts =
             self.last_trade_id.get_mut(currency_pair).with_context(|| {
                 format!(
-                    "There are no such trade_id {:?} for given currency_pair {}",
+                    "There are no such trade_id {} for given currency_pair {}",
                     trade_id, currency_pair
                 )
             })?;
@@ -500,7 +500,7 @@ impl Binance {
         if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
         {
             info!(
-                "Current last_trade_id for currency_pair {} is {:?} >= trade_id {:?}",
+                "Current last_trade_id for currency_pair {} is {} >= trade_id {}",
                 currency_pair, *trade_id_from_lasts, trade_id
             );
 
