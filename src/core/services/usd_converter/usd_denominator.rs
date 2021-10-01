@@ -112,10 +112,15 @@ impl UsdDenominator {
         self.market_prices_by_currency_code
             .lock()
             .iter()
-            .filter_map(|(k, v)| {
-                v.price_usd.map(|price| {
-                    let k = exceptions.get(k).unwrap_or(k);
-                    (k.clone(), price)
+            .filter_map(|(currency_code, market_currency_code_price)| {
+                market_currency_code_price.price_usd.map(|price| {
+                    (
+                        exceptions
+                            .get(currency_code)
+                            .unwrap_or(currency_code)
+                            .clone(),
+                        price,
+                    )
                 })
             })
             .collect()

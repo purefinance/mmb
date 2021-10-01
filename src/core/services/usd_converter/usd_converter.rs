@@ -22,13 +22,15 @@ impl UsdConverter {
         price_source_service: PriceSourceService,
         usd_denominator: Arc<UsdDenominator>,
     ) -> Self {
+        let usd = CurrencyCode::from("USD");
+        let usdt = CurrencyCode::from("USDT");
         Self {
             price_source_service,
             usd_currency_code: currencies
                 .iter()
-                .find(|&x| x == &CurrencyCode::from("USDT") || x == &CurrencyCode::from("USD"))
+                .find(|&x| x == &usdt || x == &usd)
                 .cloned()
-                .unwrap_or(CurrencyCode::from("USD")),
+                .unwrap_or(usd),
             denominator_usd_converter: DenominatorUsdConverter::new(usd_denominator),
         }
     }
