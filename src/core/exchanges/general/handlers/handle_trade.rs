@@ -5,7 +5,7 @@ use log::trace;
 use crate::core::{
     exchanges::{
         common::{Amount, CurrencyPair, Price, TradePlace},
-        events::{ExchangeEvent, TickDirection, Trade, TradesEvent},
+        events::{ExchangeEvent, TickDirection, Trade, TradeId, TradesEvent},
         general::exchange::Exchange,
         timeouts::timeout_manager,
     },
@@ -17,7 +17,7 @@ impl Exchange {
     pub fn handle_trade(
         &self,
         currency_pair: &CurrencyPair,
-        trade_id: u64,
+        trade_id: TradeId,
         price: Price,
         quantity: Amount,
         side: OrderSide,
@@ -73,7 +73,9 @@ impl Exchange {
                     trades_event
                         .trades
                         .into_iter()
-                        .filter(|item| item.trade_id > last_trade.trade_id)
+                        .filter(|item| {
+                            item.trade_id.get_number() > last_trade.trade_id.get_number()
+                        })
                         .collect_vec()
                 } else {
                     trades_event

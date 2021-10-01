@@ -15,7 +15,7 @@ use serde_json::Value;
 
 use super::binance::Binance;
 use crate::core::exchanges::common::SortedOrderData;
-use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::events::{ExchangeEvent, TradeId};
 use crate::core::exchanges::general::order::get_order_trades::OrderTrade;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
@@ -204,7 +204,7 @@ impl Support for Binance {
     fn set_handle_trade_callback(
         &self,
         callback: Box<
-            dyn FnMut(&CurrencyPair, u64, Price, Amount, OrderSide, DateTime) + Send + Sync,
+            dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
         >,
     ) {
         *self.handle_trade_callback.lock() = callback;
@@ -486,28 +486,28 @@ impl GetOrErr for Value {
 
 impl Binance {
     pub(crate) fn handle_trade(&self, currency_pair: &CurrencyPair, data: &Value) -> Result<()> {
-        let trade_id = data["t"]
-            .as_u64()
-            .with_context(|| "Unable to get u64 from t field json data")?;
+        let test = data["t"].clone();
+        let trade_id = TradeId::from(test);
 
         let mut trade_id_from_lasts =
             self.last_trade_id.get_mut(currency_pair).with_context(|| {
                 format!(
-                    "There are no such trade_id {} for given currency_pair {}",
+                    "There are no such trade_id {:?} for given currency_pair {}",
                     trade_id, currency_pair
                 )
             })?;
 
-        if self.is_reducing_market_data && *trade_id_from_lasts >= trade_id {
+        if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
+        {
             info!(
-                "Current last_trade_id for currency_pair {} is {} >= trade_id {}",
+                "Current last_trade_id for currency_pair {} is {:?} >= trade_id {:?}",
                 currency_pair, *trade_id_from_lasts, trade_id
             );
 
             return Ok(());
         }
 
-        *trade_id_from_lasts = trade_id;
+        *trade_id_from_lasts = trade_id.clone();
 
         let price: Decimal = data["p"]
             .as_str()

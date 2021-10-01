@@ -13,7 +13,7 @@ use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
 use crate::core::exchanges::common::{Amount, Price};
-use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::events::{ExchangeEvent, TradeId};
 use crate::core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
@@ -45,15 +45,16 @@ pub struct Binance {
     pub order_cancelled_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
-    pub handle_trade_callback:
-        Mutex<Box<dyn FnMut(&CurrencyPair, u64, Price, Amount, OrderSide, DateTime) + Send + Sync>>,
+    pub handle_trade_callback: Mutex<
+        Box<dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>,
+    >,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     // Currencies used for trading according to user settings
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
-    pub(super) last_trade_id: DashMap<CurrencyPair, u64>,
+    pub(super) last_trade_id: DashMap<CurrencyPair, TradeId>,
 
     pub(super) application_manager: Arc<ApplicationManager>,
 
