@@ -4,6 +4,7 @@ use futures::FutureExt;
 use log::{error, info, trace, Level};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
+use std::fmt::Display;
 use std::panic;
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
@@ -422,5 +423,24 @@ mod test {
             // Assert
             assert_eq!(*test_value.lock(), false);
         }
+    }
+}
+
+pub trait WithExpect<T> {
+    /// Unwrap the value or panic with additional context that is evaluated lazily
+    /// only for None variant
+    fn with_expect<C, F>(self, f: F) -> T
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C;
+}
+
+impl<T> WithExpect<T> for Option<T> {
+    fn with_expect<C, F>(self, f: F) -> T
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C,
+    {
+        self.unwrap_or_else(|| panic!("{}", f()))
     }
 }
