@@ -94,7 +94,7 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
     currency_pair_metadata: Arc<CurrencyPairMetadata>,
     exchange_account_id: &ExchangeAccountId,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
-    let mut settings = settings::ExchangeSettings::new_short(
+    let mut settings = settings::settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         "test_api_key".into(),
         "test_secret_key".into(),
