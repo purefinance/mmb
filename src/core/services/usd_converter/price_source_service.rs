@@ -22,10 +22,7 @@ use crate::core::{
 };
 
 use anyhow::{bail, Context, Result};
-use futures::{
-    future::{join_all, BoxFuture},
-    Future, FutureExt,
-};
+use futures::FutureExt;
 use itertools::Itertools;
 use rust_decimal::Decimal;
 use tokio::sync::broadcast;
@@ -35,6 +32,7 @@ use super::{
     price_sources_loader::PriceSourcesLoader, prices_sources_saver::PriceSourcesSaver,
     rebase_price_step::RebasePriceStep,
 };
+
 pub struct PriceSourceService {
     currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     price_sources_saver: PriceSourcesSaver,
@@ -53,7 +51,6 @@ pub struct PriceSourceService {
 impl PriceSourceService {
     pub fn new(
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
-
         price_source_settings: &Vec<CurrencyPriceSourceSettings>,
         price_sources_saver: PriceSourcesSaver,
         price_sources_loader: PriceSourcesLoader,
@@ -200,7 +197,6 @@ impl PriceSourceService {
         price_source_chains
             .iter()
             .flat_map(|price_source_chain| {
-                // let b: HashSet<TradePlace> =
                 price_source_chain.rebase_price_steps.iter().map(|step| {
                     TradePlace::new(
                         step.exchange_id.clone(),
@@ -311,13 +307,14 @@ impl PriceSourceService {
             .price_cache
             .entry(trade_place)
             .or_insert(new_value.clone());
-
+        // REVIEW: сомневаюсь что поведение такое же как в C# реализации
+        // перезаписывает ли эта `_priceCache.Add(ens, newValue)` строка результат в oldValue?
         match value == &new_value {
-            true => {
+            true => false,
+            false => {
                 *value = new_value;
                 true
             }
-            false => false,
         }
     }
 
@@ -372,14 +369,7 @@ impl PriceSourceService {
                         .context(format!(
                             "failed to get price_sources_chain from {:?} with {:?}",
                             self.price_source_chains, convert_amount_now,
-                        ))
-                        .expect(
-                            format!(
-                                "failed to get price_sources_chain from {:?} with {:?}",
-                                self.price_source_chains, convert_amount_now,
-                            )
-                            .as_str(),
-                        );
+                        ))?;
 
                     let result = prices_calculator::convert_amount_now(
                         convert_amount_now.src_amount,
@@ -409,6 +399,7 @@ enum PriceSourceServiceEvent {
     OrderBookEvent(OrderBookEvent),
     ConvertAmountNow(ConvertAmountNow),
 }
+
 #[derive(Clone, Debug)]
 struct ConvertAmountNow {
     pub convert_currency_direction: ConvertCurrencyDirection,

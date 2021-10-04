@@ -121,15 +121,9 @@ impl LocalOrderBookSnapshot {
     }
 
     pub fn calculate_price(&self) -> PriceByOrderSide {
-        let top_bid = match self.get_top_bid() {
-            Some((price, _)) => Some(price),
-            None => None,
-        };
+        let top_bid = self.get_top_bid().map(|(price, _)| price);
+        let top_ask = self.get_top_ask().map(|(price, _)| price);
 
-        let top_ask = match self.get_top_ask() {
-            Some((price, _)) => Some(price),
-            None => None,
-        };
         PriceByOrderSide::new(top_bid, top_ask)
     }
 }

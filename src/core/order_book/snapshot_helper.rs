@@ -23,6 +23,7 @@ impl LocalSnapshotsService {
         }
     }
 }
+
 impl LocalOrderBookSnapshot {
     pub fn calculate_middle_price(&self, trade_place: &TradePlace) -> Option<Price> {
         let prices = self.calculate_price();

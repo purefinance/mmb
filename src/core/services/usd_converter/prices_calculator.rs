@@ -71,15 +71,10 @@ pub(crate) mod prices_calculator {
                     return None;
                 }
             };
-            let top_ask = match prices.top_ask {
-                Some(top_ask) => top_ask,
-                None => return None,
-            };
 
-            let top_bid = match prices.top_bid {
-                Some(top_bid) => top_bid,
-                None => return None,
-            };
+            let top_bid = prices.top_ask?;
+            let top_ask = prices.top_bid?;
+
             Some((top_ask + top_bid) / dec!(2))
         })
     }
