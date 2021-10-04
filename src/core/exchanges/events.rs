@@ -88,9 +88,9 @@ pub enum TradeId {
 impl TradeId {
     pub fn get_number(&self) -> u64 {
         match self {
-            TradeId::Number(number) => number.clone(),
+            TradeId::Number(number) => *number,
             TradeId::String(_) => {
-                panic!("Unable to get number from string trade id. Probably it is logic error")
+                panic!("Unable to get number from string trade id")
             }
         }
     }
@@ -107,17 +107,14 @@ impl From<Value> for TradeId {
 
 impl Display for TradeId {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let outer_number;
-        let variant = match self {
+        match self {
             TradeId::Number(number) => {
-                outer_number = number.to_string().into_boxed_str();
-
-                outer_number.as_ref()
+                write!(f, "{}", number)
             }
-            TradeId::String(string) => string,
-        };
-
-        write!(f, "{}", variant)
+            TradeId::String(string) => {
+                write!(f, "{}", string)
+            }
+        }
     }
 }
 

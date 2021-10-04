@@ -489,13 +489,10 @@ impl Binance {
         let test = data["t"].clone();
         let trade_id = TradeId::from(test);
 
-        let mut trade_id_from_lasts =
-            self.last_trade_id.get_mut(currency_pair).with_context(|| {
-                format!(
-                    "There are no such trade_id {} for given currency_pair {}",
-                    trade_id, currency_pair
-                )
-            })?;
+        let mut trade_id_from_lasts = self.last_trade_id.get_mut(currency_pair).expect(&format!(
+            "There are no last_trade_id for given currency_pair {}",
+            currency_pair
+        ));
 
         if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
         {
@@ -511,12 +508,12 @@ impl Binance {
 
         let price: Decimal = data["p"]
             .as_str()
-            .with_context(|| "Unable to get string from p field json data")?
+            .context("Unable to get string from 'p' field json data")?
             .parse()?;
 
         let quantity: Decimal = data["q"]
             .as_str()
-            .with_context(|| "Unable to get string from q field json data")?
+            .context("Unable to get string from 'q' field json data")?
             .parse()?;
         let order_side = if data["m"] == true {
             OrderSide::Sell
@@ -525,7 +522,7 @@ impl Binance {
         };
         let datetime = data["T"]
             .as_i64()
-            .with_context(|| "Unable to get i64 from T field json data")?;
+            .context("Unable to get i64 from 'T' field json data")?;
 
         (&self.handle_trade_callback).lock()(
             currency_pair,
