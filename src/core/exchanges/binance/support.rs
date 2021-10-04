@@ -180,6 +180,19 @@ impl Support for Binance {
         Ok(())
     }
 
+    fn on_connecting(&self) -> Result<()> {
+        self.unified_to_specific
+            .read()
+            .iter()
+            .for_each(|(currency_pair, _)| {
+                let _ = self
+                    .last_trade_ids
+                    .insert(currency_pair.clone(), TradeId::Number(0));
+            });
+
+        Ok(())
+    }
+
     fn set_order_created_callback(
         &self,
         callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
@@ -489,7 +502,7 @@ impl Binance {
         let test = data["t"].clone();
         let trade_id = TradeId::from(test);
 
-        let mut trade_id_from_lasts = self.last_trade_id.get_mut(currency_pair).expect(&format!(
+        let mut trade_id_from_lasts = self.last_trade_ids.get_mut(currency_pair).expect(&format!(
             "There are no last_trade_id for given currency_pair {}",
             currency_pair
         ));

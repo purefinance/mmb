@@ -66,6 +66,7 @@ pub trait Support: Send + Sync {
     fn clarify_error_type(&self, error: &mut ExchangeError);
 
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
+    fn on_connecting(&self) -> Result<()>;
 
     fn set_order_created_callback(
         &self,

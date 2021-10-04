@@ -182,6 +182,13 @@ impl Exchange {
                 Some(exchange) => exchange.on_websocket_message(data),
                 None => info!("Unable to upgrade weak reference to Exchange instance"),
             }));
+
+        let exchange_weak = Arc::downgrade(&self);
+        self.connectivity_manager
+            .set_callback_connecting(Box::new(move || match exchange_weak.upgrade() {
+                Some(exchange) => exchange.on_connecting(),
+                None => info!("Unable to upgrade weak reference to Exchange instance"),
+            }));
     }
 
     fn setup_exchange_client(self: Arc<Self>) {
@@ -282,6 +289,24 @@ impl Exchange {
         }
 
         let callback_outcome = self.exchange_client.on_websocket_message(msg);
+        if let Err(error) = callback_outcome {
+            warn!(
+                "Error occurred while websocket message processing: {:?}",
+                error
+            );
+        }
+    }
+
+    fn on_connecting(&self) {
+        if self
+            .application_manager
+            .stop_token()
+            .is_cancellation_requested()
+        {
+            return;
+        }
+
+        let callback_outcome = self.exchange_client.on_connecting();
         if let Err(error) = callback_outcome {
             warn!(
                 "Error occurred while websocket message processing: {:?}",
