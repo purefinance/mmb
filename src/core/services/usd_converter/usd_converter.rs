@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use tokio::sync::Mutex;
-
 use crate::core::{
     exchanges::common::{Amount, CurrencyCode},
     lifecycle::cancellation_token::CancellationToken,
@@ -22,15 +20,17 @@ impl UsdConverter {
     pub fn new(
         currencies: &Vec<CurrencyCode>,
         price_source_service: PriceSourceService,
-        usd_denominator: Arc<Mutex<UsdDenominator>>,
+        usd_denominator: Arc<UsdDenominator>,
     ) -> Self {
+        let usd = CurrencyCode::from("USD");
+        let usdt = CurrencyCode::from("USDT");
         Self {
             price_source_service,
             usd_currency_code: currencies
                 .iter()
-                .find(|&x| x == &CurrencyCode::from("USDT") || x == &CurrencyCode::from("USD"))
+                .find(|&x| x == &usdt || x == &usd)
                 .cloned()
-                .unwrap_or(CurrencyCode::from("USD")),
+                .unwrap_or(usd),
             denominator_usd_converter: DenominatorUsdConverter::new(usd_denominator),
         }
     }

@@ -1,18 +1,15 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use anyhow::Result;
-use async_trait::async_trait;
+use futures::FutureExt;
 use itertools::Itertools;
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 
 use crate::{
     core::{
-        exchanges::common::{Amount, CurrencyCode, Price},
+        exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
+        infrastructure::spawn_by_timer,
         lifecycle::application_manager::ApplicationManager,
-        misc::{
-            safe_timer::{SafeTimer, TimerAction},
-            traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
-        },
+        misc::traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
         services::market_prices::market_currency_code_price::MarketCurrencyCodePrice,
     },
     hashmap,
@@ -21,28 +18,29 @@ use crate::{
 pub struct UsdDenominator {
     market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
     application_manager: Arc<ApplicationManager>,
-    market_prices_by_symbol: HashMap<CurrencyCode, MarketCurrencyCodePrice>,
-    /// must be panic safety(look at comment for TimerAction)
-    pub price_update_callback: fn() -> Result<()>,
-    pub refresh_timer: Option<Arc<Mutex<SafeTimer>>>,
-}
-
-#[async_trait]
-impl TimerAction for UsdDenominator {
-    async fn timer_action(&mut self) -> Result<()> {
-        let market_prices = self.market_service.get_market_currency_code_price().await;
-        self.market_prices_by_symbol = UsdDenominator::to_prices_dictionary(market_prices);
-        (self.price_update_callback)()
-    }
+    market_prices_by_currency_code: Mutex<HashMap<CurrencyCode, MarketCurrencyCodePrice>>,
+    pub price_update_callback: fn(),
 }
 
 impl UsdDenominator {
-    fn to_prices_dictionary(
+    fn create_prices_dictionary(
         tickers: Vec<MarketCurrencyCodePrice>,
     ) -> HashMap<CurrencyCode, MarketCurrencyCodePrice> {
+        let exceptions: HashMap<CurrencyId, CurrencyCode> =
+            UsdDenominator::currency_code_exceptions()
+                .iter()
+                .map(|(k, v)| (v.clone(), k.clone()))
+                .collect();
+
         tickers
-            .iter()
-            .map(|x| (x.currency_code.clone(), x.clone()))
+            .into_iter()
+            .map(|x| {
+                let currency_code = exceptions
+                    .get(&CurrencyId::from(x.currency_code.as_str()))
+                    .unwrap_or(&x.currency_code)
+                    .clone();
+                (currency_code, x)
+            })
             .collect()
     }
 
@@ -51,33 +49,41 @@ impl UsdDenominator {
         market_prices: Vec<MarketCurrencyCodePrice>,
         auto_refresh_data: bool,
         application_manager: Arc<ApplicationManager>,
-    ) -> Arc<Mutex<Self>> {
-        let this = Arc::new(Mutex::new(Self {
+    ) -> Arc<Self> {
+        let this = Arc::new(Self {
             market_service,
             application_manager: application_manager.clone(),
-            market_prices_by_symbol: UsdDenominator::to_prices_dictionary(market_prices),
-            price_update_callback: || Ok(()),
-            refresh_timer: None,
-        }));
+            market_prices_by_currency_code: Mutex::new(UsdDenominator::create_prices_dictionary(
+                market_prices,
+            )),
+            price_update_callback: || (),
+        });
 
         if auto_refresh_data {
             let cloned_this = this.clone();
-            this.try_lock().expect("msg").refresh_timer = Some(SafeTimer::new(
-                cloned_this as Arc<Mutex<dyn TimerAction + Send>>,
-                "UsdDenominator::refresh_data()".into(),
+            let _ = spawn_by_timer(
+                move || Self::refresh_data(cloned_this.clone()).boxed(),
+                "UsdDenominator::refresh_data()",
+                Duration::ZERO,
                 Duration::from_secs(7200), // 2 hours
-                application_manager,
                 true,
-            ));
+            );
         }
 
         this
     }
 
+    pub async fn refresh_data(this: Arc<Self>) {
+        let market_prices = this.market_service.get_market_currency_code_price().await;
+        *this.market_prices_by_currency_code.lock() =
+            UsdDenominator::create_prices_dictionary(market_prices);
+        (this.price_update_callback)()
+    }
+
     pub async fn create_async<T>(
         auto_refresh_data: bool,
         application_manager: Arc<ApplicationManager>,
-    ) -> Arc<Mutex<Self>>
+    ) -> Arc<Self>
     where
         T: GetMarketCurrencyCodePrice + CreateMarketService,
     {
@@ -91,45 +97,40 @@ impl UsdDenominator {
         )
     }
 
-    pub fn get_non_refreshing_usd_denominator(&self) -> Arc<Mutex<Self>> {
+    pub fn get_non_refreshing_usd_denominator(&self) -> Arc<Self> {
         UsdDenominator::new(
             self.market_service.clone(),
-            self.market_prices_by_symbol.values().cloned().collect_vec(),
+            self.market_prices_by_currency_code
+                .lock()
+                .values()
+                .cloned()
+                .collect_vec(),
             false,
             self.application_manager.clone(),
         )
     }
 
-    fn currency_code_exceptions() -> HashMap<CurrencyCode, CurrencyCode> {
-        hashmap![CurrencyCode::from( "IOTA") => CurrencyCode::from("MIOTA")]
+    fn currency_code_exceptions() -> HashMap<CurrencyCode, CurrencyId> {
+        hashmap!["IOTA".into() => "MIOTA".into()]
     }
 
     pub fn get_all_prices_in_usd(&self) -> HashMap<CurrencyCode, Price> {
-        let mut result: HashMap<_, _> = self
-            .market_prices_by_symbol
+        self.market_prices_by_currency_code
+            .lock()
             .iter()
-            .filter_map(|(k, v)| match v.price_usd {
-                Some(price_usd) => Some((k.clone(), price_usd)),
-                None => None,
+            .filter_map(|(currency_code, market_currency_code_price)| {
+                market_currency_code_price
+                    .price_usd
+                    .map(|price| (currency_code.clone(), price))
             })
-            .collect();
-
-        for (source_code, mapped_code) in UsdDenominator::currency_code_exceptions() {
-            if let Some(price_in_usd) = result.get(&mapped_code).cloned() {
-                result.insert(source_code, price_in_usd);
-                let _ = result.remove(&mapped_code);
-            }
-        }
-
-        result
+            .collect()
     }
 
     pub fn get_price_in_usd(&self, currency_code: &CurrencyCode) -> Option<Price> {
-        let currency_code = UsdDenominator::currency_code_exceptions()
-            .get(currency_code)
-            .cloned()
-            .unwrap_or(currency_code.clone());
-        self.market_prices_by_symbol.get(&currency_code)?.price_usd
+        self.market_prices_by_currency_code
+            .lock()
+            .get(&currency_code)?
+            .price_usd
     }
 
     pub fn usd_to_currency(

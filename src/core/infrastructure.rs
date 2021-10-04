@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
 use log::{error, info, trace, Level};
@@ -205,6 +206,29 @@ fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
         None => error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
             log_template),
     }
+}
+
+/// This function spawn a future after waiting for some `delay`
+/// and will repeat the `callback` endlessly with some `period`
+pub fn spawn_by_timer(
+    callback: impl Fn() -> BoxFuture<'static, ()> + Send + Sync + 'static,
+    name: &str,
+    delay: Duration,
+    period: Duration,
+    is_critical: bool,
+) -> JoinHandle<FutureOutcome> {
+    spawn_future(
+        name,
+        is_critical,
+        async move {
+            tokio::time::sleep(delay).await;
+            loop {
+                (callback)().await;
+                tokio::time::sleep(period).await;
+            }
+        }
+        .boxed(),
+    )
 }
 
 #[cfg(test)]
@@ -421,6 +445,34 @@ mod test {
 
             // Assert
             assert_eq!(*test_value.lock(), false);
+        }
+
+        #[tokio::test]
+        async fn repetable_action() {
+            let counter = Arc::new(Mutex::new(0u64));
+            let duration = 200;
+            let repeats_count = 5;
+            let future_outcome = {
+                async fn future(counter: Arc<Mutex<u64>>) {
+                    *counter.lock() += 1;
+                }
+
+                let counter = counter.clone();
+                spawn_by_timer(
+                    move || (future)(counter.clone()).boxed(),
+                    "spawn_repeatable".into(),
+                    Duration::ZERO,
+                    Duration::from_millis(duration),
+                    true,
+                )
+            };
+
+            tokio::time::sleep(Duration::from_millis(repeats_count * duration)).await;
+            assert_eq!(*counter.lock(), repeats_count);
+
+            future_outcome.abort();
+            tokio::time::sleep(Duration::from_millis(repeats_count / 2)).await;
+            assert_eq!(*counter.lock(), repeats_count);
         }
     }
 }
