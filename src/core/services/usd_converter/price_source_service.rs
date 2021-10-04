@@ -5,22 +5,27 @@ use std::{
 
 use crate::core::{
     exchanges::{
-        common::{Amount, CurrencyCode, ExchangeAccountId, ExchangeId, TradePlace},
+        common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, TradePlace},
         events::ExchangeEvent,
         general::{
             currency_pair_metadata::CurrencyPairMetadata,
             currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
-            exchange::Exchange,
         },
     },
+    infrastructure::spawn_future,
     lifecycle::{application_manager::ApplicationManager, cancellation_token::CancellationToken},
     misc::price_by_order_side::PriceByOrderSide,
     order_book::{event::OrderBookEvent, local_snapshot_service::LocalSnapshotsService},
     services::usd_converter::prices_calculator::prices_calculator,
     settings::engine::price_source::CurrencyPriceSourceSettings,
+    DateTime,
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use futures::{
+    future::{join_all, BoxFuture},
+    Future, FutureExt,
+};
 use itertools::Itertools;
 use rust_decimal::Decimal;
 use tokio::sync::broadcast;
@@ -31,59 +36,65 @@ use super::{
     rebase_price_step::RebasePriceStep,
 };
 pub struct PriceSourceService {
-    currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+    currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     price_sources_saver: PriceSourcesSaver,
     price_sources_loader: PriceSourcesLoader,
-    core_receiver: broadcast::Receiver<ExchangeEvent>,
-    main_receiver: broadcast::Receiver<PriceSourceServiceEvent>,
-    price_sources_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
+    tx_core: broadcast::Sender<ExchangeEvent>,
+    rx_core: broadcast::Receiver<ExchangeEvent>,
+    tx_main: broadcast::Sender<PriceSourceServiceEvent>,
+    rx_main: broadcast::Receiver<PriceSourceServiceEvent>,
+    price_source_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
     local_snapshot_service: LocalSnapshotsService,
     all_trade_places: HashSet<TradePlace>,
     price_cache: HashMap<TradePlace, PriceByOrderSide>,
+    application_manager: Arc<ApplicationManager>,
 }
 
 impl PriceSourceService {
-    // pub fn new(
-    //     exchanges_by_id: HashMap<ExchangeAccountId, Exchange>,
-    //     currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+    pub fn new(
+        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
 
-    //     // EventsChannelAsync<IExchangeEvent> coreChannel,
-    //     price_source_settings: Vec<CurrencyPriceSourceSettings>,
-    //     // IPricesCalculator pricesCalculator,
-    //     price_sources_saver: PriceSourcesSaver,
-    //     price_sources_loader: PriceSourcesLoader,
-    //     application_manager: Arc<ApplicationManager>,
-    // ) -> Self {
-    //     Self {
-    //         currency_pair_to_metadata_converter,
-    //         price_sources_saver,
-    //         price_sources_loader,
-    //         price_sources_chains,
-    //         local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
-    //         all_trade_places,
-    //         price_cache,
-    //     }
-    // }
-
-    // _localSnapshotService = new LocalSnapshotService(exchangesById);
-    // _priceCache = new Dictionary<ExchangeNameSymbol, PricesBySide>();
-
-    // _coreChannel = coreChannel;
-    // _mainChannel = new EventsChannelAsync<PriceSourceServiceEvent>(
-    //     $"{nameof(PriceSourceService)}_MainLoop",
-    //     dateTimeService,
-    //     applicationManager);
-
-    // var priceSourceChains =
-    //     PreparePriceSourceChains(priceSourceSettings, exchangesById, currencyPairToSymbolConverter);
-    // _priceSourceChains = priceSourceChains
-    //     .ToDictionary(x => new ConvertCurrencyDirection(x.StartCurrencyCode, x.EndCurrencyCode));
-    // _allEns = GetUsedEns(priceSourceChains);
-    // }
+        price_source_settings: &Vec<CurrencyPriceSourceSettings>,
+        price_sources_saver: PriceSourcesSaver,
+        price_sources_loader: PriceSourcesLoader,
+        application_manager: Arc<ApplicationManager>,
+    ) -> Self {
+        let (tx_core, rx_core) = broadcast::channel(20_000);
+        let (tx_main, rx_main) = broadcast::channel(20_000);
+        let price_source_chains = PriceSourceService::prepare_price_source_chains(
+            price_source_settings,
+            currency_pair_to_metadata_converter.clone(),
+        );
+        Self {
+            currency_pair_to_metadata_converter,
+            price_sources_saver,
+            price_sources_loader,
+            tx_core,
+            rx_core,
+            tx_main,
+            rx_main,
+            price_source_chains: price_source_chains
+                .iter()
+                .map(|x| {
+                    (
+                        ConvertCurrencyDirection::new(
+                            x.start_currency_code.clone(),
+                            x.end_currency_code.clone(),
+                        ),
+                        x.clone(),
+                    )
+                })
+                .collect(),
+            local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
+            all_trade_places: PriceSourceService::get_used_trade_places(price_source_chains),
+            price_cache: HashMap::new(),
+            application_manager,
+        }
+    }
 
     pub fn prepare_price_source_chains(
-        price_source_settings: Vec<CurrencyPriceSourceSettings>,
-        currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+        price_source_settings: &Vec<CurrencyPriceSourceSettings>,
+        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Vec<PriceSourceChain> {
         if price_source_settings.is_empty() {
             std::panic!("price_source_settings shouldn't be empty");
@@ -226,196 +237,172 @@ impl PriceSourceService {
         src_amount: Amount,
         cancellation_token: CancellationToken,
     ) -> Result<Option<Amount>> {
-        //TODO: should be implemented
         let convert_currency_direction =
             ConvertCurrencyDirection::new(from_currency_code.clone(), to_currency_code.clone());
-        Ok(None)
+
+        let (tx_result, mut rx_result) = broadcast::channel(20_000);
+        // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
+        let _ = self.tx_main.send(PriceSourceServiceEvent::ConvertAmountNow(
+            ConvertAmountNow::new(convert_currency_direction, src_amount, tx_result),
+        ));
+        tokio::select! {
+            // REVIEW: корректно ли так из tokio::Result конвертировать в anyhow::Result?
+            result = rx_result.recv() => Ok(result?),
+            _ = cancellation_token.when_cancelled() => Ok(None),
+        }
     }
-    //     /// <summary>
-    //     /// Convert amount from <see cref="fromCurrencyCode"/> currency position to <see cref="toCurrencyCode"/> currency by current price
-    //     /// </summary>
-    //     /// <returns>
-    //     /// Return converted amount or null if can't calculate price for converting
-    //     /// </returns>
-    //     public async Task<decimal?> ConvertAmount(
-    //         string fromCurrencyCode,
-    //         string toCurrencyCode,
-    //         decimal sourceAmount,
-    //         CancellationToken cancellationToken)
-    //     {
-    //         var tcs = new TaskCompletionSource<decimal?>(TaskCreationOptions.RunContinuationsAsynchronously);
-    //         var convertCurrencyDirection = new ConvertCurrencyDirection(fromCurrencyCode, toCurrencyCode);
-    //         _mainChannel.AddEvent(new PriceSourceService_ConvertAmountNow(convertCurrencyDirection, sourceAmount, tcs));
 
-    //         await using (cancellationToken.Register(() => tcs.SetCanceled()))
-    //         {
-    //             return await tcs.Task;
-    //         }
-    //     }
+    pub async fn convert_amount_in_past(
+        &self,
+        from_currency_code: &CurrencyCode,
+        to_currency_code: &CurrencyCode,
+        src_amount: Amount,
+        time_in_past: DateTime,
+        cancellation_token: CancellationToken,
+    ) -> Option<Amount> {
+        let price_sources = self
+            .price_sources_loader
+            .load(time_in_past, cancellation_token.clone())
+            .await
+            .expect(
+                format!(
+                    "Failed to get price_sources for {} from database",
+                    time_in_past
+                )
+                .as_str(),
+            );
 
-    //     public async Task<decimal?> ConvertAmountInPast(
-    //         string fromCurrencyCode,
-    //         string toCurrencyCode,
-    //         decimal sourceAmount,
-    //         DateTime timeInPast,
-    //         CancellationToken cancellationToken)
-    //     {
-    //         var priceSources = await _priceSourcesLoader.Load(timeInPast, cancellationToken);
-    //         if (priceSources == null || priceSources.Count == 0)
-    //         {
-    //             return null;
-    //         }
+        let convert_currency_direction =
+            ConvertCurrencyDirection::new(from_currency_code.clone(), to_currency_code.clone());
 
-    //         var convertCurrencyDirection = new ConvertCurrencyDirection(fromCurrencyCode, toCurrencyCode);
-    //         return _pricesCalculator.ConvertAmountInPast(
-    //             sourceAmount,
-    //             priceSources,
-    //             timeInPast,
-    //             _priceSourceChains[convertCurrencyDirection]);
-    //     }
+        let prices_source_chain = self
+            .price_source_chains
+            .get(&convert_currency_direction)
+            .expect(
+                format!(
+                    "Failed to get price_source_chain for {:?} from {:?}",
+                    convert_currency_direction, self.price_source_chains
+                )
+                .as_str(),
+            );
+        prices_calculator::convert_amount_in_past(
+            src_amount,
+            price_sources,
+            time_in_past,
+            prices_source_chain,
+        )
+    }
 
-    //     private ExchangeNameSymbol GetEns(string exchangeId, string exchangeName, string currencyPair)
-    //     {
-    //         var symbol = _currencyPairToSymbolConverter.GetSymbol(exchangeId, currencyPair);
-    //         return new ExchangeNameSymbol(exchangeName, symbol.CurrencyCodePair);
-    //     }
+    fn get_trade_place(
+        &self,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair: &CurrencyPair,
+    ) -> TradePlace {
+        TradePlace::new(
+            exchange_account_id.exchange_id.clone(),
+            self.currency_pair_to_metadata_converter
+                .get_currency_pair_metadata(exchange_account_id, currency_pair)
+                .currency_pair(),
+        )
+    }
 
-    fn try_update_cache(&mut self, trade_place: TradePlace, new_value: &PriceByOrderSide) -> bool {
+    fn try_update_cache(&mut self, trade_place: TradePlace, new_value: PriceByOrderSide) -> bool {
         let value = self
             .price_cache
             .entry(trade_place)
             .or_insert(new_value.clone());
 
-        match value == new_value {
+        match value == &new_value {
             true => {
-                *value = new_value.clone();
-                false
+                *value = new_value;
+                true
             }
             false => false,
         }
     }
 
-    //     private void UpdateCacheAndSave(ExchangeNameSymbol ens)
-    //     {
-    //         if (!_localSnapshotService.TryGetSnapshot(ens, out var snapshot))
-    //         {
-    //             throw new Exception($"Can't get snapshot for {ens} (this shouldn't happen)");
-    //         }
+    fn update_cache_and_save(&mut self, trade_place: TradePlace) {
+        let snapshot = self
+            .local_snapshot_service
+            .get_snapshot(&trade_place)
+            .expect(
+                format!(
+                    "Can't get snapshot for {:?} (this shouldn't happen)",
+                    trade_place
+                )
+                .as_str(),
+            );
 
-    //         var pricesBySide = snapshot.CalculatePrice().IntoPricesBySide();
-    //         if (TryUpdateCache(ens, pricesBySide))
-    //         {
-    //             _priceSourcesSaver.Save(ens, pricesBySide);
-    //         }
-    //     }
+        let price_by_order_side = snapshot.calculate_price();
+        if self.try_update_cache(trade_place.clone(), price_by_order_side.clone()) {
+            self.price_sources_saver
+                .save(trade_place, price_by_order_side);
+        }
+    }
 
-    //     public async Task Start(CancellationToken cancellationToken)
-    //     {
-    //         var coreLoopTask = Task.Run(() => FromCoreLoop(cancellationToken), cancellationToken);
-    //         var mainLoopTask = Task.Run(() => MainLoop(cancellationToken), cancellationToken);
-    //         await Task.WhenAll(coreLoopTask, mainLoopTask);
-    //     }
+    pub async fn start(&'static mut self, cancellation_token: CancellationToken) {
+        spawn_future(
+            "PriceSourceService",
+            true,
+            self.run_loop(cancellation_token.clone()).boxed(),
+        )
+        .await
+        .expect("Failed to spawn PriceSourceService::run_loop() future");
+    }
 
-    // private async Task FromCoreLoop(CancellationToken cancellationToken)
-    // {
-    //     await EventLoop.RunSimple(_coreChannel, cancellationToken, newEvent =>
-    //     {
-    //         if (newEvent is OrderBookEvent orderBookEvent)
-    //         {
-    //             _mainChannel.AddEvent(new PriceSourceService_OrderBookEvent(orderBookEvent));
-    //         }
-    //     });
-    // }
-
-    pub async fn main_loop(&mut self, cancellation_token: CancellationToken) -> Result<()> {
-        // let mut trading_context: Option<TradingContext> = None;
-
+    async fn run_loop(&mut self, cancellation_token: CancellationToken) -> Result<()> {
         loop {
-            // let a = self.main_receiver.recv();
             let event = tokio::select! {
-                event_res = self.main_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
-                // event_res = self.main_channel.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
-                _ = cancellation_token.when_cancelled() => {
-                    // let _ = self.work_finished_sender.take().ok_or(anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
-                    return Ok(());
+                main_event_res = self.rx_main.recv() => main_event_res.context("Error during receiving event on rx_main")?,
+                core_event_res = self.rx_core.recv() => {
+                    let event = core_event_res.context("Error during receiving event on rx_core")?;
+                    match event {
+                        ExchangeEvent::OrderBookEvent(event) => PriceSourceServiceEvent::OrderBookEvent(event),
+                        _ => bail!("Unsupported event {:?} on rx_core", event),
+                    }
                 }
+                _ = cancellation_token.when_cancelled() => bail!("main_loop has been stopped by CancellationToken"),
             };
 
             match event {
                 PriceSourceServiceEvent::ConvertAmountNow(convert_amount_now) => {
-                    let result = match self
-                        .price_sources_chains
+                    let chain = self
+                        .price_source_chains
                         .get(&convert_amount_now.convert_currency_direction)
                         .context(format!(
                             "failed to get price_sources_chain from {:?} with {:?}",
-                            self.price_sources_chains, convert_amount_now,
-                        )) {
-                        Ok(chain) => Ok(prices_calculator::convert_amount_now(
-                            convert_amount_now.src_amount,
-                            &self.local_snapshot_service,
-                            chain,
-                        )),
-                        Err(error) => Err(error),
-                    };
-                    convert_amount_now.task_finished_sender.send(result);
+                            self.price_source_chains, convert_amount_now,
+                        ))
+                        .expect(
+                            format!(
+                                "failed to get price_sources_chain from {:?} with {:?}",
+                                self.price_source_chains, convert_amount_now,
+                            )
+                            .as_str(),
+                        );
+
+                    let result = prices_calculator::convert_amount_now(
+                        convert_amount_now.src_amount,
+                        &self.local_snapshot_service,
+                        chain,
+                    );
+                    // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
+                    let _ = convert_amount_now.task_finished_sender.send(result);
                 }
-                PriceSourceServiceEvent::OrderBookEvent(orer_book_event) => (),
+                PriceSourceServiceEvent::OrderBookEvent(order_book_event) => {
+                    let trade_place = self.get_trade_place(
+                        &order_book_event.exchange_account_id,
+                        &order_book_event.currency_pair,
+                    );
+                    if self.all_trade_places.contains(&trade_place) {
+                        let _ = self.local_snapshot_service.update(order_book_event);
+                        self.update_cache_and_save(trade_place);
+                    }
+                }
             }
-            // self.handle_event(event, &mut trading_context)?;
         }
     }
-    //     private async Task MainLoop(CancellationToken cancellationToken)
-    //     {
-    //         await EventLoop.RunSimple(_mainChannel, cancellationToken, newEvent =>
-    //         {
-    //             switch (newEvent)
-    //             {
-    //                 case PriceSourceService_ConvertAmountNow convertAmountNow:
-    //                 {
-    //                     try
-    //                     {
-    //                         var result = _pricesCalculator.ConvertAmountNow(
-    //                             convertAmountNow.SourceAmount,
-    //                             _localSnapshotService,
-    //                             _priceSourceChains[convertAmountNow.ConvertCurrencyDirection]);
-    //                         convertAmountNow.Tcs.TrySetResult(result);
-    //                     }
-    //                     catch (Exception ex)
-    //                     {
-    //                         convertAmountNow.Tcs.TrySetException(ex);
-    //                     }
-    //                     break;
-    //                 }
-
-    //                 case PriceSourceService_OrderBookEvent orderBookEvent:
-    //                 {
-    //                     var snapshot = orderBookEvent.OrderBookEvent;
-    //                     var ens = GetEns(snapshot.ExchangeId, snapshot.ExchangeName, snapshot.CurrencyPair);
-    //                     if (_allEns.Contains(ens))
-    //                     {
-    //                         _localSnapshotService.Update(snapshot);
-    //                         UpdateCacheAndSave(ens);
-    //                     }
-    //                     break;
-    //                 }
-
-    //                 default:
-    //                     throw new ArgumentOutOfRangeException(nameof(newEvent), newEvent, "Unsupported event");
-    //             }
-    //         });
-    //     }
-
-    // }
 }
-//     private class PriceSourceService_OrderBookEvent : PriceSourceServiceEvent
-//     {
-//         public OrderBookEvent OrderBookEvent { get; }
-
-//         public PriceSourceService_OrderBookEvent(OrderBookEvent orderBookEvent)
-//         {
-//             OrderBookEvent = orderBookEvent;
-//         }
-//     }
 
 #[derive(Clone)]
 enum PriceSourceServiceEvent {
@@ -426,14 +413,14 @@ enum PriceSourceServiceEvent {
 struct ConvertAmountNow {
     pub convert_currency_direction: ConvertCurrencyDirection,
     pub src_amount: Amount,
-    pub task_finished_sender: broadcast::Sender<Result<Option<Decimal>>>,
+    pub task_finished_sender: broadcast::Sender<Option<Decimal>>,
 }
 
 impl ConvertAmountNow {
     pub fn new(
         convert_currency_direction: ConvertCurrencyDirection,
         src_amount: Amount,
-        task_finished_sender: broadcast::Sender<Result<Option<Decimal>>>,
+        task_finished_sender: broadcast::Sender<Option<Decimal>>,
     ) -> Self {
         Self {
             convert_currency_direction,

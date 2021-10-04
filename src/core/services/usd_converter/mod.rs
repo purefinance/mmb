@@ -2,7 +2,7 @@ pub(crate) mod convert_currency_direction;
 pub mod denominator_usd_converter;
 pub mod price_source_chain;
 pub mod price_source_service;
-pub(crate) mod price_sources_loader;
+pub mod price_sources_loader;
 pub(crate) mod prices_calculator;
 pub(crate) mod prices_sources_saver;
 pub mod rebase_price_step;

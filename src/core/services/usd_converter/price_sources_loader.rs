@@ -5,7 +5,7 @@ use crate::core::{
     misc::price_by_order_side::PriceByOrderSide, DateTime,
 };
 
-pub(crate) struct PriceSourcesLoader {
+pub struct PriceSourcesLoader {
     // TODO: fix when DatabaseManager will be added
 //database_manager: DatabaseManager
 }
@@ -19,9 +19,10 @@ impl PriceSourcesLoader {
     }
 
     pub async fn load(
-        save_time: DateTime,
-        cancellation_token: CancellationToken,
-    ) -> HashMap<TradePlace, PriceByOrderSide> {
+        &self,
+        _save_time: DateTime,
+        _cancellation_token: CancellationToken,
+    ) -> Option<HashMap<TradePlace, PriceByOrderSide>> {
         //     const string sqlQuery =
         //         "SELECT a.* FROM public.\"PriceSources\" a " +
         //         "JOIN ( " +
@@ -39,6 +40,6 @@ impl PriceSourcesLoader {
         //             x => new PricesBySide(x.Ask, x.Bid),
         //             cancellationToken);
 
-        HashMap::new()
+        Some(HashMap::new())
     }
 }

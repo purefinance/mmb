@@ -2,7 +2,7 @@ use crate::core::exchanges::common::CurrencyCode;
 
 use super::rebase_price_step::RebasePriceStep;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PriceSourceChain {
     pub start_currency_code: CurrencyCode,
     pub end_currency_code: CurrencyCode,
