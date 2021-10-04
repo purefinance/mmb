@@ -44,6 +44,7 @@ futures = "0.3"
 smallstr = { version = "0.2", features = ["serde"]}
 
 anyhow = "1"
+thiserror = "1"
 rust_decimal = { version = "1" , features = ["maths"]}
 rust_decimal_macros = "1"
 derive-getters = "0.2"

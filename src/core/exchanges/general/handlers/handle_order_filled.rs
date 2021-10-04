@@ -333,15 +333,11 @@ impl Exchange {
                     bail!("{}", error_msg)
                 }
 
-                match order_ref.role() {
-                    Some(role) => Ok(role),
-                    None => {
-                        let error_msg = format!("Unable to determine order_role");
-
-                        error!("{}", error_msg);
-                        bail!("{}", error_msg)
-                    }
-                }
+                order_ref.role().with_context(|| {
+                    let error_msg = format!("Unable to determine order_role");
+                    error!("{}", error_msg);
+                    error_msg
+                })
             }
         }
     }

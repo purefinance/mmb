@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -329,24 +329,32 @@ impl CurrencyPairMetadata {
         let min_cost = match self.min_cost {
             None => {
                 let min_price = match self.min_price {
-                    None => match self.min_amount {
-                        None => bail!("Can't calculate min amount: no data at all"),
-                        Some(min_amount) => return Ok(min_amount),
-                    },
+                    None => {
+                        return self
+                            .min_amount
+                            .context("Can't calculate min amount: no data at all")
+                    }
                     Some(v) => v,
                 };
 
-                let min_amount = match self.min_amount {
-                    None => bail!("Can't calculate min amount: missing min_amount and min_cost"),
-                    Some(v) => v,
-                };
+                let min_amount = self
+                    .min_amount
+                    .context("Can't calculate min amount: missing min_amount and min_cost");
 
-                min_price * min_amount
+                if self.is_derivative {
+                    return min_amount;
+                }
+
+                min_price * min_amount?
             }
             Some(v) => v,
         };
 
-        let min_amount_from_cost = min_cost / price;
+        let min_amount_from_cost = match self.is_derivative {
+            true => min_cost,
+            false => min_cost / price,
+        };
+
         let rounded_amount = self.amount_round(min_amount_from_cost, Round::Ceiling)?;
 
         Ok(match self.min_amount {
@@ -370,15 +378,15 @@ impl Exchange {
         &self,
         currency_pair: &CurrencyPair,
     ) -> Result<Arc<CurrencyPairMetadata>> {
-        let maybe_currency_pair_metadata = self.symbols.get(currency_pair);
-        match maybe_currency_pair_metadata {
-            Some(suitable_currency_pair_metadata) => Ok(suitable_currency_pair_metadata.clone()),
-            None => bail!(
-                "Unsupported currency pair on {} {:?}",
-                self.exchange_account_id,
-                currency_pair
-            ),
-        }
+        self.symbols
+            .get(currency_pair)
+            .with_context(|| {
+                format!(
+                    "Unsupported currency pair on {} {:?}",
+                    self.exchange_account_id, currency_pair
+                )
+            })
+            .map(|pair| pair.value().clone())
     }
 }
 

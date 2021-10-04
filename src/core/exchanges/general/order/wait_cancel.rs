@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
 use log::{error, info, trace, warn};
@@ -156,7 +156,7 @@ impl Exchange {
                 }
                 _ = sleep(Duration::from_secs(10)) => {
                     if self.features.allowed_cancel_event_source_type != AllowedEventSourceType::All {
-                        bail!("Order was expected to cancel explicity via Rest or Web Socket but got timeout instead")
+                        bail!("Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead")
                     }
 
                     warn!("Cancel response TimedOut - re-cancelling order {} {:?} {}",
@@ -325,29 +325,26 @@ impl Exchange {
             match order_info {
                 Err(error) => {
                     if error.error_type == ExchangeErrorType::OrderNotFound {
-                        let new_error = match exchange_error {
-                            Some(gotten_error) => gotten_error,
-                            None => ExchangeError::new(
-                                ExchangeErrorType::Unknown,
-                                "There are no any response from an exchange, so probably this order was not canceling".to_owned(),
-                                None)
-                        };
+                        let new_error = exchange_error.unwrap_or_else(|| ExchangeError::new(
+                            ExchangeErrorType::Unknown,
+                            "There are no any response from an exchange, so probably this order was not canceling".to_owned(),
+                            None)
+                        );
 
-                        match order.exchange_order_id() {
-                            Some(exchange_order_id) => {
-                                self.handle_cancel_order_failed(
-                                    &exchange_order_id,
-                                    new_error,
-                                    EventSourceType::RestFallback,
-                                )?;
-                            }
-                            None => bail!(
+                        let exchange_order_id = order.exchange_order_id().with_context(|| {
+                            format!(
                                 "There are no exchange_order_id in order {} {:?} on {}",
                                 order.client_order_id(),
                                 order.exchange_order_id(),
                                 self.exchange_account_id,
-                            ),
-                        }
+                            )
+                        })?;
+
+                        self.handle_cancel_order_failed(
+                            &exchange_order_id,
+                            new_error,
+                            EventSourceType::RestFallback,
+                        )?;
 
                         break;
                     }

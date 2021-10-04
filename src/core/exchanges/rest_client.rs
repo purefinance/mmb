@@ -1,5 +1,5 @@
 use super::common::*;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error, Request, Response, Uri};
 use hyper_tls::HttpsConnector;
@@ -74,17 +74,14 @@ fn create_client() -> Client<HttpsConnector<HttpConnector>> {
 // Inner Hyper types. Needed just for unified response handling in handle_response()
 type ResponseType = std::result::Result<Response<Body>, Error>;
 async fn handle_response(response: ResponseType, rest_action: &str) -> Result<RestRequestOutcome> {
-    match response {
-        Ok(response) => Ok(RestRequestOutcome {
-            status: response.status(),
-            content: std::str::from_utf8(
-                hyper::body::to_bytes(response.into_body()).await?.as_ref(),
-            )
+    let response = response.with_context(|| format!("Unable to send {} request", rest_action))?;
+
+    Ok(RestRequestOutcome {
+        status: response.status(),
+        content: std::str::from_utf8(hyper::body::to_bytes(response.into_body()).await?.as_ref())
             .context("Unable to parse content string")?
             .to_owned(),
-        }),
-        Err(error) => bail!("Unable to send {} request: {}", rest_action, error),
-    }
+    })
 }
 
 pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Result<Uri> {

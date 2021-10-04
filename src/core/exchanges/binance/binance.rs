@@ -13,7 +13,9 @@ use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
 use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::general::features::{RestFillsFeatures, RestFillsType};
+use crate::core::exchanges::general::features::{
+    OrderFeatures, RestFillsFeatures, RestFillsType, WebSocketOptions,
+};
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
@@ -171,14 +173,16 @@ impl Binance {
         &self,
         currency_pair: &SpecificCurrencyPair,
     ) -> Result<CurrencyPair> {
-        match self.specific_to_unified.read().get(&currency_pair) {
-            None => bail!(
-                "Not found currency pair '{:?}' in {}",
-                currency_pair,
-                self.id
-            ),
-            Some(v) => Ok(v.clone()),
-        }
+        self.specific_to_unified
+            .read()
+            .get(currency_pair)
+            .with_context(|| {
+                format!(
+                    "Not found currency pair '{:?}' in {}",
+                    currency_pair, self.id
+                )
+            })
+            .map(Clone::clone)
     }
 
     pub(super) fn specific_order_info_to_unified(&self, specific: &BinanceOrderInfo) -> OrderInfo {
@@ -358,9 +362,7 @@ impl Binance {
     fn get_fill_type(raw_type: &str) -> Result<OrderFillType> {
         match raw_type {
             "CALCULATED" => Ok(OrderFillType::Liquidation),
-            "FILL" => Ok(OrderFillType::UserTrade),
-            "TRADE" => Ok(OrderFillType::UserTrade),
-            "PARTIAL_FILL" => Ok(OrderFillType::UserTrade),
+            "FILL" | "TRADE" | "PARTIAL_FILL" => Ok(OrderFillType::UserTrade),
             _ => bail!("Unable to map trade type"),
         }
     }
@@ -387,6 +389,8 @@ impl ExchangeClientBuilder for BinanceBuilder {
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::new(RestFillsType::None),
+                OrderFeatures::default(),
+                WebSocketOptions::default(),
                 false,
                 false,
                 AllowedEventSourceType::All,

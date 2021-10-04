@@ -1,11 +1,10 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
 use log::{error, info, warn};
 use tokio::sync::oneshot;
 
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
-use crate::core::nothing_to_do;
 use crate::core::orders::event::OrderEventType;
 use crate::core::{
     exchanges::common::ExchangeAccountId,
@@ -21,6 +20,7 @@ use crate::core::{
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
+use crate::core::{nothing_to_do, OPERATION_CANCELED_MSG};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CreateOrderResult {
@@ -177,7 +177,7 @@ impl Exchange {
             return Ok(created_order);
         }
 
-        bail!("Task was cancelled")
+        bail!(OPERATION_CANCELED_MSG)
     }
 
     fn handle_create_order_failed(
@@ -201,30 +201,22 @@ impl Exchange {
             bail!("{}", error_msg);
         }
 
-        match self.orders.cache_by_client_id.get(client_order_id) {
-            None => {
-                let error_msg = format!(
+        let order_ref = self.orders.cache_by_client_id.get(client_order_id).with_context(|| {
+            let error_msg = format!(
                 "CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}",
                 args_to_log
             );
-                error!("{}", error_msg);
 
-                bail!("{}", error_msg);
-            }
-            Some(order_ref) => {
-                let args_to_log = (
-                    exchange_account_id,
-                    client_order_id,
-                    &order_ref.exchange_order_id(),
-                );
-                self.react_on_status_when_failed(
-                    &order_ref,
-                    args_to_log,
-                    source_type,
-                    exchange_error,
-                )
-            }
-        }
+            error!("{}", error_msg);
+            error_msg
+        })?;
+
+        let args_to_log = (
+            exchange_account_id,
+            client_order_id,
+            &order_ref.exchange_order_id(),
+        );
+        self.react_on_status_when_failed(&order_ref, args_to_log, source_type, exchange_error)
     }
 
     fn react_on_status_when_failed(

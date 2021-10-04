@@ -9,8 +9,8 @@ use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
-use super::exchanges::common::OPERATION_CANCELED_MSG;
 use super::lifecycle::application_manager::ApplicationManager;
+use crate::core::OPERATION_CANCELED_MSG;
 
 static APPLICATION_MANAGER: OnceCell<Mutex<Option<Arc<ApplicationManager>>>> = OnceCell::new();
 
@@ -155,7 +155,7 @@ async fn handle_action_outcome(
         },
         Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
             Some(error_msg) => {
-                if error_msg.to_string() == OPERATION_CANCELED_MSG {
+                if error_msg == OPERATION_CANCELED_MSG {
                     let log_level = if is_critical {
                         Level::Error
                     } else {
@@ -312,7 +312,7 @@ mod test {
         let test_to_future = test_value.clone();
         let action = async move {
             tokio::time::sleep(Duration::from_millis(200)).await;
-            (*test_to_future.lock()) = true;
+            *test_to_future.lock() = true;
 
             Ok(())
         };
@@ -404,7 +404,7 @@ mod test {
             let test_to_future = test_value.clone();
             let action = async move {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                (*test_to_future.lock()) = true;
+                *test_to_future.lock() = true;
 
                 Ok(())
             };

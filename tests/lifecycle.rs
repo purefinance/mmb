@@ -75,7 +75,8 @@ async fn launch_engine() -> Result<()> {
         include_str!("lifecycle.cred.toml"),
     )?;
     let init_settings = InitSettings::Directly(settings);
-    let engine = launch_trading_engine(&config, init_settings, |_| Box::new(TestStrategy)).await?;
+    let engine =
+        launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy)).await?;
 
     let context = engine.context();
 
