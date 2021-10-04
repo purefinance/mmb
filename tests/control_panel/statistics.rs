@@ -87,7 +87,7 @@ async fn orders_cancelled() {
     let exchange_account_id = exchange_settings.exchange_account_id.clone();
 
     let init_settings = InitSettings::Directly(settings.clone());
-    let engine = launch_trading_engine(&config, init_settings, |_| Box::new(TestStrategy))
+    let engine = launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy))
         .await
         .expect("in test");
 
