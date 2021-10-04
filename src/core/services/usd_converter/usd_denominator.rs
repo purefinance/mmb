@@ -127,10 +127,6 @@ impl UsdDenominator {
     }
 
     pub fn get_price_in_usd(&self, currency_code: &CurrencyCode) -> Option<Price> {
-        let currency_code = UsdDenominator::currency_code_exceptions()
-            .get(currency_code)
-            .map(|currency_id| CurrencyCode::from(currency_id.as_str()))
-            .unwrap_or(currency_code.clone());
         self.market_prices_by_currency_code
             .lock()
             .get(&currency_code)?
