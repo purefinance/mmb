@@ -1,4 +1,6 @@
+use crate::core::infrastructure::WithExpect;
 use std::str::FromStr;
+
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
@@ -502,10 +504,13 @@ impl Binance {
         let test = data["t"].clone();
         let trade_id = TradeId::from(test);
 
-        let mut trade_id_from_lasts = self.last_trade_ids.get_mut(currency_pair).expect(&format!(
-            "There are no last_trade_id for given currency_pair {}",
-            currency_pair
-        ));
+        let mut trade_id_from_lasts =
+            self.last_trade_ids.get_mut(currency_pair).with_expect(|| {
+                format!(
+                    "There are no last_trade_id for given currency_pair {}",
+                    currency_pair
+                )
+            });
 
         if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
         {
