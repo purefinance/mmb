@@ -179,6 +179,10 @@ impl CurrencyId {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
+
+    pub fn from_currency_code(value: &CurrencyCode) -> Self {
+        CurrencyId::from(value.as_str())
+    }
 }
 
 impl From<&str> for CurrencyId {
@@ -202,6 +206,10 @@ impl CurrencyCode {
     #[inline]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+
+    pub fn from_currency_id(value: &CurrencyId) -> Self {
+        CurrencyCode::from(value.as_str())
     }
 }
 
