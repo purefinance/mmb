@@ -35,13 +35,11 @@ impl UsdDenominator {
         tickers
             .into_iter()
             .map(|x| {
-                (
-                    exceptions
-                        .get(&CurrencyId::from_currency_code(&x.currency_code))
-                        .unwrap_or(&x.currency_code)
-                        .clone(),
-                    x,
-                )
+                let currency_code = exceptions
+                    .get(&CurrencyId::from(x.currency_code.as_str()))
+                    .unwrap_or(&x.currency_code)
+                    .clone();
+                (currency_code, x)
             })
             .collect()
     }
@@ -113,7 +111,7 @@ impl UsdDenominator {
     }
 
     fn currency_code_exceptions() -> HashMap<CurrencyCode, CurrencyId> {
-        hashmap![CurrencyCode::from("IOTA") => CurrencyId::from("MIOTA")]
+        hashmap!["IOTA".into() => "MIOTA".into()]
     }
 
     pub fn get_all_prices_in_usd(&self) -> HashMap<CurrencyCode, Price> {
@@ -131,7 +129,7 @@ impl UsdDenominator {
     pub fn get_price_in_usd(&self, currency_code: &CurrencyCode) -> Option<Price> {
         let currency_code = UsdDenominator::currency_code_exceptions()
             .get(currency_code)
-            .map(|currency_id| CurrencyCode::from_currency_id(currency_id))
+            .map(|currency_id| CurrencyCode::from(currency_id.as_str()))
             .unwrap_or(currency_code.clone());
         self.market_prices_by_currency_code
             .lock()
