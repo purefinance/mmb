@@ -226,7 +226,7 @@ impl PriceSourceService {
         ));
     }
 
-    /// Convert amount from 'from_currency_code' currency position to 'to' currency by current price
+    /// Convert amount from 'from' currency position to 'to' currency by current price
     /// Return converted amount or None if can't calculate price for converting and Err if something bad was happened
     pub async fn convert_amount(
         &self,
