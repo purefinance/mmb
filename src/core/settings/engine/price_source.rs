@@ -3,7 +3,7 @@ use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccount
 pub struct CurrencyPriceSourceSettings {
     pub start_currency_code: CurrencyCode,
     pub end_currency_code: CurrencyCode,
-    /// List of pairs ExchangeName and CurrencyPairs for translation currency with StartCurrencyCode to currency with EndCurrencyCode
+    /// List of pairs ExchangeId and CurrencyPairs for translation currency with StartCurrencyCode to currency with EndCurrencyCode
     pub exchange_id_currency_pair_settings: Vec<ExchangeIdCurrencyPairSettings>,
 }
 

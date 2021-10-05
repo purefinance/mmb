@@ -5,22 +5,28 @@ use crate::core::exchanges::{
 };
 
 #[derive(Clone, Debug)]
+pub enum RebaseDirection {
+    ToQuote,
+    ToBase,
+}
+
+#[derive(Clone, Debug)]
 pub struct RebasePriceStep {
     pub exchange_id: ExchangeId,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
-    pub from_base_to_quote_currency: bool,
+    pub direction: RebaseDirection,
 }
 
 impl RebasePriceStep {
     pub fn new(
         exchange_id: ExchangeId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        from_base_to_quote_currency: bool,
+        direction: RebaseDirection,
     ) -> Self {
         Self {
             exchange_id,
             currency_pair_metadata,
-            from_base_to_quote_currency,
+            direction,
         }
     }
 }

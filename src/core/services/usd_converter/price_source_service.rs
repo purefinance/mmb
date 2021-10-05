@@ -16,7 +16,7 @@ use crate::core::{
     lifecycle::{application_manager::ApplicationManager, cancellation_token::CancellationToken},
     misc::price_by_order_side::PriceByOrderSide,
     order_book::{event::OrderBookEvent, local_snapshot_service::LocalSnapshotsService},
-    services::usd_converter::prices_calculator,
+    services::usd_converter::{prices_calculator, rebase_price_step::RebaseDirection},
     settings::engine::price_source::CurrencyPriceSourceSettings,
     DateTime,
 };
@@ -25,7 +25,7 @@ use anyhow::{bail, Context, Result};
 use futures::FutureExt;
 use itertools::Itertools;
 use rust_decimal::Decimal;
-use tokio::sync::broadcast;
+use tokio::sync::{mpsc, oneshot};
 
 use super::{
     convert_currency_direction::ConvertCurrencyDirection, price_source_chain::PriceSourceChain,
@@ -37,10 +37,10 @@ pub struct PriceSourceService {
     currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     price_sources_saver: PriceSourcesSaver,
     price_sources_loader: PriceSourcesLoader,
-    tx_core: broadcast::Sender<ExchangeEvent>,
-    rx_core: broadcast::Receiver<ExchangeEvent>,
-    tx_main: broadcast::Sender<PriceSourceServiceEvent>,
-    rx_main: broadcast::Receiver<PriceSourceServiceEvent>,
+    tx_core: mpsc::Sender<ExchangeEvent>,
+    rx_core: mpsc::Receiver<ExchangeEvent>,
+    tx_main: mpsc::Sender<PriceSourceServiceEvent>,
+    rx_main: mpsc::Receiver<PriceSourceServiceEvent>,
     all_trade_places: HashSet<TradePlace>,
     price_source_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
     local_snapshot_service: LocalSnapshotsService,
@@ -55,14 +55,14 @@ impl PriceSourceService {
         price_sources_saver: PriceSourcesSaver,
         price_sources_loader: PriceSourcesLoader,
         application_manager: Arc<ApplicationManager>,
-    ) -> Self {
-        let (tx_core, rx_core) = broadcast::channel(20_000);
-        let (tx_main, rx_main) = broadcast::channel(20_000);
+    ) -> Arc<Self> {
+        let (tx_core, rx_core) = mpsc::channel(20_000);
+        let (tx_main, rx_main) = mpsc::channel(20_000);
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             price_source_settings,
             currency_pair_to_metadata_converter.clone(),
         );
-        Self {
+        Arc::new(Self {
             currency_pair_to_metadata_converter,
             price_sources_saver,
             price_sources_loader,
@@ -86,7 +86,7 @@ impl PriceSourceService {
             local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
             price_cache: HashMap::new(),
             application_manager,
-        }
+        })
     }
 
     pub fn prepare_price_source_chains(
@@ -155,9 +155,9 @@ impl PriceSourceService {
 
                     rebase_price_steps.push(step.clone());
 
-                    current_currency_code = match step.from_base_to_quote_currency {
-                        true => step.currency_pair_metadata.quote_currency_code.clone(),
-                        false => step.currency_pair_metadata.base_currency_code.clone(),
+                    current_currency_code = match step.direction {
+                        RebaseDirection::ToQuote => step.currency_pair_metadata.quote_currency_code.clone(),
+                        RebaseDirection::ToBase => step.currency_pair_metadata.base_currency_code.clone(),
                     };
 
                     if current_currency_code == setting.end_currency_code {
@@ -218,11 +218,14 @@ impl PriceSourceService {
         let list = currency_pair_metadata_by_currency_code
             .entry(currency_code.clone())
             .or_default();
-        let is_base = currency_code == &currency_pair_metadata.base_currency_code();
+        let direction = match currency_code == &currency_pair_metadata.base_currency_code() {
+            true => RebaseDirection::ToQuote,
+            false => RebaseDirection::ToBase,
+        };
         list.push(RebasePriceStep::new(
             exchange_id,
             currency_pair_metadata,
-            is_base,
+            direction,
         ));
     }
 
@@ -237,14 +240,14 @@ impl PriceSourceService {
     ) -> Result<Option<Amount>> {
         let convert_currency_direction = ConvertCurrencyDirection::new(from.clone(), to.clone());
 
-        let (tx_result, mut rx_result) = broadcast::channel(20_000);
+        let (tx_result, rx_result) = oneshot::channel();
         // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
         let _ = self.tx_main.send(PriceSourceServiceEvent::ConvertAmountNow(
             ConvertAmountNow::new(convert_currency_direction, src_amount, tx_result),
         ));
         tokio::select! {
             // REVIEW: корректно ли так из tokio::Result конвертировать в anyhow::Result?
-            result = rx_result.recv() => Ok(result.context("something went wrong while receiving the result on rx_result")?),
+            result = rx_result => Ok(result.context("something went wrong while receiving the result on rx_result")?),
             _ = cancellation_token.when_cancelled() => Ok(None),
         }
     }
@@ -355,7 +358,7 @@ impl PriceSourceService {
                     let event = core_event_res.context("Error during receiving event on rx_core")?;
                     match event {
                         ExchangeEvent::OrderBookEvent(event) => PriceSourceServiceEvent::OrderBookEvent(event),
-                        _ => bail!("Unsupported event {:?} on rx_core", event),
+                        _ => continue,
                     }
                 }
                 _ = cancellation_token.when_cancelled() => bail!("main_loop has been stopped by CancellationToken"),
@@ -394,24 +397,23 @@ impl PriceSourceService {
     }
 }
 
-#[derive(Clone)]
 enum PriceSourceServiceEvent {
     OrderBookEvent(OrderBookEvent),
     ConvertAmountNow(ConvertAmountNow),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct ConvertAmountNow {
     pub convert_currency_direction: ConvertCurrencyDirection,
     pub src_amount: Amount,
-    pub task_finished_sender: broadcast::Sender<Option<Decimal>>,
+    pub task_finished_sender: oneshot::Sender<Option<Decimal>>,
 }
 
 impl ConvertAmountNow {
     pub fn new(
         convert_currency_direction: ConvertCurrencyDirection,
         src_amount: Amount,
-        task_finished_sender: broadcast::Sender<Option<Decimal>>,
+        task_finished_sender: oneshot::Sender<Option<Decimal>>,
     ) -> Self {
         Self {
             convert_currency_direction,
