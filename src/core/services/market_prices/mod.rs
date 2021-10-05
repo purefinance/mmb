@@ -1,1 +1,1 @@
-pub(crate) mod market_symbol_price;
+pub mod market_currency_code_price;
