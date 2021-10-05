@@ -274,7 +274,7 @@ impl CurrencyPairMetadata {
             return amount_in_amount_currency_code * currency_pair_price;
         }
 
-        std::panic!("Currency code outside currency pair is not supported yet");
+        panic!("Currency code outside currency pair is not supported yet");
     }
 
     pub fn convert_amount_from_balance_currency_code(
@@ -294,7 +294,7 @@ impl CurrencyPairMetadata {
             return amount * currency_pair_price;
         }
 
-        std::panic!(
+        panic!(
             "Currency code {} outside currency pair {} is not supported",
             to_currency_code,
             self.currency_pair()
@@ -318,7 +318,7 @@ impl CurrencyPairMetadata {
         if from_currency_code == &self.quote_currency_code {
             return amount_in_from_currency_code / currency_pair_price;
         }
-        std::panic!(
+        panic!(
             "We don't currently support currency code {} outside currency pair {}",
             from_currency_code,
             self.currency_pair()
@@ -367,7 +367,7 @@ impl CurrencyPairMetadata {
         match self.amount_precision {
             Precision::ByTick { tick } => return tick,
             Precision::ByMantissa { precision: _ } => {
-                std::panic!("get_amount_tick cannot be called with Precision::ByMantissa variant")
+                panic!("get_amount_tick cannot be called with Precision::ByMantissa variant")
             }
         }
     }
