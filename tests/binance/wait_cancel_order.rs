@@ -1,9 +1,11 @@
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::AllowedEventSourceType;
 use mmb_lib::core::exchanges::general::commission::Commission;
+use mmb_lib::core::exchanges::general::exchange_creation::get_symbols;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
+use mmb_lib::core::settings::CurrencyPairSetting;
 
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::OrderProxy;
@@ -42,6 +44,16 @@ async fn cancellation_waited_successfully() {
         CancellationToken::default(),
     );
 
+    binance_builder.exchange.build_metadata().await;
+    let currency_settings = CurrencyPairSetting {
+        base: "phb".into(),
+        quote: "btc".into(),
+        currency_pair: None,
+    };
+    let currency_pairs = vec![currency_settings];
+    binance_builder
+        .exchange
+        .set_symbols(get_symbols(&binance_builder.exchange, &currency_pairs[..]));
     let created_order = order_proxy
         .create_order(binance_builder.exchange.clone())
         .await;
@@ -110,8 +122,8 @@ async fn cancellation_waited_failed_fallback() {
                 Ok(_) => assert!(false),
                 Err(error) => {
                     assert_eq!(
-                        "Order was expected to cancel explicity via Rest or Web Socket but got timeout instead",
-                        &error.to_string()[..85]
+                        "Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead",
+                        &error.to_string()[..86]
                     );
                 }
             }
