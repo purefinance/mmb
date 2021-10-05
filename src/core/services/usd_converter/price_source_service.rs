@@ -15,7 +15,7 @@ use crate::core::{
     infrastructure::spawn_future,
     lifecycle::{application_manager::ApplicationManager, cancellation_token::CancellationToken},
     misc::price_by_order_side::PriceByOrderSide,
-    order_book::{event::OrderBookEvent, local_snapshot_service::LocalSnapshotsService},
+    order_book::local_snapshot_service::LocalSnapshotsService,
     services::usd_converter::{prices_calculator, rebase_price_step::RebaseDirection},
     settings::engine::price_source::CurrencyPriceSourceSettings,
     DateTime,
@@ -38,8 +38,8 @@ pub struct PriceSourceService {
     price_sources_saver: PriceSourcesSaver,
     price_sources_loader: PriceSourcesLoader,
     rx_core: broadcast::Receiver<ExchangeEvent>,
-    tx_main: mpsc::Sender<PriceSourceServiceEvent>,
-    rx_main: mpsc::Receiver<PriceSourceServiceEvent>,
+    tx_main: mpsc::Sender<ConvertAmountNow>,
+    rx_main: mpsc::Receiver<ConvertAmountNow>,
     all_trade_places: HashSet<TradePlace>,
     price_source_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
     local_snapshot_service: LocalSnapshotsService,
@@ -240,8 +240,10 @@ impl PriceSourceService {
 
         let (tx_result, rx_result) = oneshot::channel();
         // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
-        let _ = self.tx_main.send(PriceSourceServiceEvent::ConvertAmountNow(
-            ConvertAmountNow::new(convert_currency_direction, src_amount, tx_result),
+        let _ = self.tx_main.send(ConvertAmountNow::new(
+            convert_currency_direction,
+            src_amount,
+            tx_result,
         ));
         tokio::select! {
             // REVIEW: корректно ли так из tokio::Result конвертировать в anyhow::Result?
@@ -304,19 +306,18 @@ impl PriceSourceService {
     }
 
     fn try_update_cache(&mut self, trade_place: TradePlace, new_value: PriceByOrderSide) -> bool {
-        let value = self
-            .price_cache
-            .entry(trade_place)
-            .or_insert(new_value.clone());
-        // REVIEW: сомневаюсь что поведение такое же как в C# реализации
-        // перезаписывает ли эта `_priceCache.Add(ens, newValue)` строка результат в oldValue?
-        match value == &new_value {
-            true => false,
-            false => {
-                *value = new_value;
-                true
+        if let Some(old_value) = self.price_cache.get_mut(&trade_place) {
+            match old_value == &new_value {
+                true => return false,
+                false => {
+                    *old_value = new_value;
+                    return true;
+                }
             }
-        }
+        };
+
+        self.price_cache.insert(trade_place, new_value);
+        return true;
     }
 
     fn update_cache_and_save(&mut self, trade_place: TradePlace) {
@@ -350,21 +351,10 @@ impl PriceSourceService {
 
     async fn run_loop(&mut self, cancellation_token: CancellationToken) -> Result<()> {
         loop {
-            let event = tokio::select! {
-                main_event_res = self.rx_main.recv() => main_event_res.context("Error during receiving event on rx_main")?,
-                core_event_res = self.rx_core.recv() => {
-                    let event = core_event_res.context("Error during receiving event on rx_core")?;
-                    match event {
-                        ExchangeEvent::OrderBookEvent(event) => PriceSourceServiceEvent::OrderBookEvent(event),
-                        _ => continue,
-                    }
-                }
-                _ = cancellation_token.when_cancelled() => bail!("main_loop has been stopped by CancellationToken"),
-            };
-
-            match event {
-                PriceSourceServiceEvent::ConvertAmountNow(convert_amount_now) => {
-                    let chain = self
+            tokio::select! {
+                main_event_res = self.rx_main.recv() => {
+                   let convert_amount_now = main_event_res.context("Error during receiving event on rx_main")?;
+                   let chain = self
                         .price_source_chains
                         .get(&convert_amount_now.convert_currency_direction)
                         .context(format!(
@@ -379,25 +369,27 @@ impl PriceSourceService {
                     );
                     // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
                     let _ = convert_amount_now.task_finished_sender.send(result);
-                }
-                PriceSourceServiceEvent::OrderBookEvent(order_book_event) => {
-                    let trade_place = self.get_trade_place(
-                        &order_book_event.exchange_account_id,
-                        &order_book_event.currency_pair,
-                    );
-                    if self.all_trade_places.contains(&trade_place) {
-                        let _ = self.local_snapshot_service.update(order_book_event);
-                        self.update_cache_and_save(trade_place);
+                },
+                core_event_res = self.rx_core.recv() => {
+                    let event = core_event_res.context("Error during receiving event on rx_core")?;
+                    match event {
+                        ExchangeEvent::OrderBookEvent(order_book_event) => {
+                            let trade_place = self.get_trade_place(
+                                &order_book_event.exchange_account_id,
+                                &order_book_event.currency_pair,
+                            );
+                            if self.all_trade_places.contains(&trade_place) {
+                                let _ = self.local_snapshot_service.update(order_book_event);
+                                self.update_cache_and_save(trade_place);
+                            }
+                        },
+                        _ => continue,
                     }
                 }
-            }
+                _ = cancellation_token.when_cancelled() => bail!("main_loop has been stopped by CancellationToken"),
+            };
         }
     }
-}
-
-enum PriceSourceServiceEvent {
-    OrderBookEvent(OrderBookEvent),
-    ConvertAmountNow(ConvertAmountNow),
 }
 
 #[derive(Debug)]

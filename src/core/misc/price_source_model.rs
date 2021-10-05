@@ -4,8 +4,7 @@ use crate::core::{
 };
 
 pub(crate) struct PriceSourceModel {
-    /// this is the date of the last save in the DB
-    pub save_date: DateTime,
+    pub init_time: DateTime,
     pub exchange_id: ExchangeId,
     pub currency_pair: CurrencyPair,
     pub bid: Option<Price>,
@@ -14,14 +13,14 @@ pub(crate) struct PriceSourceModel {
 
 impl PriceSourceModel {
     pub fn new(
-        save_date: DateTime,
+        init_time: DateTime,
         exchange_id: ExchangeId,
         currency_pair: CurrencyPair,
         bid: Option<Price>,
         ask: Option<Price>,
     ) -> Self {
         Self {
-            save_date,
+            init_time,
             exchange_id,
             currency_pair,
             bid,
