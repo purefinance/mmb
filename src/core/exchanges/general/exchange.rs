@@ -15,7 +15,8 @@ use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
-use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::common::TradePlace;
+use crate::core::exchanges::events::{ExchangeEvent, Trade};
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
@@ -25,6 +26,7 @@ use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{OrderHeader, OrderSide};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
+use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::common::ExchangeAccountId,
@@ -120,6 +122,8 @@ pub struct Exchange {
     pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
+    pub(crate) last_trades_update_time: DashMap<TradePlace, DateTime>,
+    pub(crate) last_trades: DashMap<TradePlace, Trade>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -161,6 +165,8 @@ impl Exchange {
             orders_finish_events: DashMap::new(),
             orders_created_events: DashMap::new(),
             leverage_by_currency_pair: DashMap::new(),
+            last_trades_update_time: DashMap::new(),
+            last_trades: DashMap::new(),
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -174,6 +180,13 @@ impl Exchange {
         self.connectivity_manager
             .set_callback_msg_received(Box::new(move |data| match exchange_weak.upgrade() {
                 Some(exchange) => exchange.on_websocket_message(data),
+                None => info!("Unable to upgrade weak reference to Exchange instance"),
+            }));
+
+        let exchange_weak = Arc::downgrade(&self);
+        self.connectivity_manager
+            .set_callback_connecting(Box::new(move || match exchange_weak.upgrade() {
+                Some(exchange) => exchange.on_connecting(),
                 None => info!("Unable to upgrade weak reference to Exchange instance"),
             }));
     }
@@ -232,6 +245,34 @@ impl Exchange {
                     None => info!("Unable to upgrade weak reference to Exchange instance",),
                 }
             }));
+
+        let exchange_weak = Arc::downgrade(&self);
+        self.exchange_client.set_handle_trade_callback(Box::new(
+            move |currency_pair, trade_id, price, quantity, order_side, transaction_time| {
+                match exchange_weak.upgrade() {
+                    Some(exchange) => {
+                        let handle_outcome = exchange.handle_trade(
+                            currency_pair,
+                            trade_id,
+                            price,
+                            quantity,
+                            order_side,
+                            transaction_time,
+                        );
+
+                        if let Err(error) = handle_outcome {
+                            let error_message = format!("Error in handle_trade: {:?}", error);
+                            error!("{}", error_message);
+                            exchange
+                                .application_manager
+                                .clone()
+                                .spawn_graceful_shutdown(error_message);
+                        };
+                    }
+                    None => info!("Unable to upgrade weak reference to Exchange instance",),
+                }
+            },
+        ));
     }
 
     fn on_websocket_message(&self, msg: &str) {
@@ -248,6 +289,24 @@ impl Exchange {
         }
 
         let callback_outcome = self.exchange_client.on_websocket_message(msg);
+        if let Err(error) = callback_outcome {
+            warn!(
+                "Error occurred while websocket message processing: {:?}",
+                error
+            );
+        }
+    }
+
+    fn on_connecting(&self) {
+        if self
+            .application_manager
+            .stop_token()
+            .is_cancellation_requested()
+        {
+            return;
+        }
+
+        let callback_outcome = self.exchange_client.on_connecting();
         if let Err(error) = callback_outcome {
             warn!(
                 "Error occurred while websocket message processing: {:?}",

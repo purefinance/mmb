@@ -8,10 +8,11 @@ use tokio::sync::broadcast;
 
 use super::{
     common::CurrencyCode,
-    common::CurrencyId,
+    common::{Amount, CurrencyId, Price},
     common::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
+    events::TradeId,
     general::currency_pair_metadata::BeforeAfter,
     general::handlers::handle_order_filled::FillEventData,
     general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
@@ -65,6 +66,7 @@ pub trait Support: Send + Sync {
     fn clarify_error_type(&self, error: &mut ExchangeError);
 
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
+    fn on_connecting(&self) -> Result<()>;
 
     fn set_order_created_callback(
         &self,
@@ -79,6 +81,13 @@ pub trait Support: Send + Sync {
     fn set_handle_order_filled_callback(
         &self,
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
+    );
+
+    fn set_handle_trade_callback(
+        &self,
+        callback: Box<
+            dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
+        >,
     );
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>);
@@ -117,6 +126,8 @@ pub trait Support: Send + Sync {
         response: &RestRequestOutcome,
         last_date_time: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<Vec<OrderTrade>>;
+
+    fn get_settings(&self) -> &ExchangeSettings;
 }
 
 pub struct ExchangeClientBuilderResult {

@@ -17,6 +17,7 @@ async fn request_metadata() {
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
             OrderFeatures::default(),
+            OrderTradeOption::default(),
             WebSocketOptions::default(),
             false,
             true,

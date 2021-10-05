@@ -1,4 +1,8 @@
+use core::panic;
+use std::fmt::{Display, Formatter};
+
 use rust_decimal::Decimal;
+use serde_json::Value;
 use tokio::sync::broadcast;
 
 use crate::core::exchanges::common::{
@@ -76,8 +80,47 @@ pub enum TickDirection {
 }
 
 #[derive(Debug, Clone)]
+pub enum TradeId {
+    Number(u64),
+    String(Box<str>),
+}
+
+impl TradeId {
+    pub fn get_number(&self) -> u64 {
+        match self {
+            TradeId::Number(number) => *number,
+            TradeId::String(_) => {
+                panic!("Unable to get number from string trade id")
+            }
+        }
+    }
+}
+
+impl From<Value> for TradeId {
+    fn from(value: Value) -> Self {
+        match value.as_u64() {
+            Some(value) => TradeId::Number(value),
+            None => TradeId::String(value.to_string().into_boxed_str()),
+        }
+    }
+}
+
+impl Display for TradeId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TradeId::Number(number) => {
+                write!(f, "{}", number)
+            }
+            TradeId::String(string) => {
+                write!(f, "{}", string)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Trade {
-    pub trade_id: String,
+    pub trade_id: TradeId,
     pub price: Price,
     pub quantity: Amount,
     pub side: OrderSide,
@@ -90,6 +133,7 @@ pub struct TradesEvent {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
     pub trades: Vec<Trade>,
+    pub receipt_time: DateTime,
 }
 
 #[derive(Debug, Clone)]
