@@ -16,7 +16,7 @@ use crate::core::{
     lifecycle::{application_manager::ApplicationManager, cancellation_token::CancellationToken},
     misc::price_by_order_side::PriceByOrderSide,
     order_book::{event::OrderBookEvent, local_snapshot_service::LocalSnapshotsService},
-    services::usd_converter::prices_calculator::prices_calculator,
+    services::usd_converter::prices_calculator,
     settings::engine::price_source::CurrencyPriceSourceSettings,
     DateTime,
 };
@@ -41,9 +41,9 @@ pub struct PriceSourceService {
     rx_core: broadcast::Receiver<ExchangeEvent>,
     tx_main: broadcast::Sender<PriceSourceServiceEvent>,
     rx_main: broadcast::Receiver<PriceSourceServiceEvent>,
+    all_trade_places: HashSet<TradePlace>,
     price_source_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
     local_snapshot_service: LocalSnapshotsService,
-    all_trade_places: HashSet<TradePlace>,
     price_cache: HashMap<TradePlace, PriceByOrderSide>,
     application_manager: Arc<ApplicationManager>,
 }
@@ -70,20 +70,20 @@ impl PriceSourceService {
             rx_core,
             tx_main,
             rx_main,
+            all_trade_places: PriceSourceService::map_to_used_trade_places(&price_source_chains),
             price_source_chains: price_source_chains
-                .iter()
+                .into_iter()
                 .map(|x| {
                     (
                         ConvertCurrencyDirection::new(
                             x.start_currency_code.clone(),
                             x.end_currency_code.clone(),
                         ),
-                        x.clone(),
+                        x,
                     )
                 })
                 .collect(),
             local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
-            all_trade_places: PriceSourceService::get_used_trade_places(price_source_chains),
             price_cache: HashMap::new(),
             application_manager,
         }
@@ -94,7 +94,7 @@ impl PriceSourceService {
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Vec<PriceSourceChain> {
         if price_source_settings.is_empty() {
-            std::panic!("price_source_settings shouldn't be empty");
+            panic!("price_source_settings shouldn't be empty");
         }
 
         price_source_settings
@@ -109,7 +109,7 @@ impl PriceSourceService {
                 }
 
                 let mut currency_pair_metadata_by_currency_code = HashMap::new();
-                for pair in &setting.exchange_id_currency_code_pair_settings {
+                for pair in &setting.exchange_id_currency_pair_settings {
                     let metadata = currency_pair_to_metadata_converter
                         .get_currency_pair_metadata(&pair.exchange_account_id, &pair.currency_pair);
                     PriceSourceService::add_currency_pair_metadata_to_hashmap(
@@ -129,7 +129,7 @@ impl PriceSourceService {
                 let mut rebase_price_steps = Vec::new();
                 let mut current_currency_code = setting.start_currency_code.clone();
 
-                for _ in 0..setting.exchange_id_currency_code_pair_settings.len() {
+                for _ in 0..setting.exchange_id_currency_pair_settings.len() {
                     let list = currency_pair_metadata_by_currency_code
                         .get(&current_currency_code)
                         .expect(
@@ -144,7 +144,7 @@ impl PriceSourceService {
                         );
 
                     if list.len() > 1 {
-                        std::panic!("{}", PriceSourceService::format_panic_message(
+                        panic!("{}", PriceSourceService::format_panic_message(
                             setting,
                             format! { "There are more than 1 symbol in the list for currency {}",
                             current_currency_code}
@@ -193,7 +193,9 @@ impl PriceSourceService {
         }
     }
 
-    fn get_used_trade_places(price_source_chains: Vec<PriceSourceChain>) -> HashSet<TradePlace> {
+    fn map_to_used_trade_places(
+        price_source_chains: &Vec<PriceSourceChain>,
+    ) -> HashSet<TradePlace> {
         price_source_chains
             .iter()
             .flat_map(|price_source_chain| {
@@ -224,17 +226,16 @@ impl PriceSourceService {
         ));
     }
 
-    /// Convert amount from 'from_currency_code' currency position to 'to_currency_code' currency by current price
-    /// Return converted amount or null if can't calculate price for converting
+    /// Convert amount from 'from_currency_code' currency position to 'to' currency by current price
+    /// Return converted amount or None if can't calculate price for converting and Err if something bad was happened
     pub async fn convert_amount(
         &self,
-        from_currency_code: &CurrencyCode,
-        to_currency_code: &CurrencyCode,
+        from: &CurrencyCode,
+        to: &CurrencyCode,
         src_amount: Amount,
         cancellation_token: CancellationToken,
     ) -> Result<Option<Amount>> {
-        let convert_currency_direction =
-            ConvertCurrencyDirection::new(from_currency_code.clone(), to_currency_code.clone());
+        let convert_currency_direction = ConvertCurrencyDirection::new(from.clone(), to.clone());
 
         let (tx_result, mut rx_result) = broadcast::channel(20_000);
         // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
@@ -243,15 +244,15 @@ impl PriceSourceService {
         ));
         tokio::select! {
             // REVIEW: корректно ли так из tokio::Result конвертировать в anyhow::Result?
-            result = rx_result.recv() => Ok(result?),
+            result = rx_result.recv() => Ok(result.context("something went wrong while receiving the result on rx_result")?),
             _ = cancellation_token.when_cancelled() => Ok(None),
         }
     }
 
     pub async fn convert_amount_in_past(
         &self,
-        from_currency_code: &CurrencyCode,
-        to_currency_code: &CurrencyCode,
+        from: &CurrencyCode,
+        to: &CurrencyCode,
         src_amount: Amount,
         time_in_past: DateTime,
         cancellation_token: CancellationToken,
@@ -268,8 +269,7 @@ impl PriceSourceService {
                 .as_str(),
             );
 
-        let convert_currency_direction =
-            ConvertCurrencyDirection::new(from_currency_code.clone(), to_currency_code.clone());
+        let convert_currency_direction = ConvertCurrencyDirection::new(from.clone(), to.clone());
 
         let prices_source_chain = self
             .price_source_chains
@@ -330,7 +330,7 @@ impl PriceSourceService {
                 .as_str(),
             );
 
-        let price_by_order_side = snapshot.calculate_price();
+        let price_by_order_side = snapshot.get_top_prices();
         if self.try_update_cache(trade_place.clone(), price_by_order_side.clone()) {
             self.price_sources_saver
                 .save(trade_place, price_by_order_side);

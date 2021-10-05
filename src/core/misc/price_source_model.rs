@@ -4,6 +4,7 @@ use crate::core::{
 };
 
 pub(crate) struct PriceSourceModel {
+    /// this is the date of the last save in the DB
     pub save_date: DateTime,
     pub exchange_id: ExchangeId,
     pub currency_pair: CurrencyPair,
