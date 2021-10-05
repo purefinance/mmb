@@ -25,7 +25,7 @@ use anyhow::{bail, Context, Result};
 use futures::FutureExt;
 use itertools::Itertools;
 use rust_decimal::Decimal;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 use super::{
     convert_currency_direction::ConvertCurrencyDirection, price_source_chain::PriceSourceChain,
@@ -37,8 +37,7 @@ pub struct PriceSourceService {
     currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     price_sources_saver: PriceSourcesSaver,
     price_sources_loader: PriceSourcesLoader,
-    tx_core: mpsc::Sender<ExchangeEvent>,
-    rx_core: mpsc::Receiver<ExchangeEvent>,
+    rx_core: broadcast::Receiver<ExchangeEvent>,
     tx_main: mpsc::Sender<PriceSourceServiceEvent>,
     rx_main: mpsc::Receiver<PriceSourceServiceEvent>,
     all_trade_places: HashSet<TradePlace>,
@@ -55,8 +54,8 @@ impl PriceSourceService {
         price_sources_saver: PriceSourcesSaver,
         price_sources_loader: PriceSourcesLoader,
         application_manager: Arc<ApplicationManager>,
+        rx_core: broadcast::Receiver<ExchangeEvent>,
     ) -> Arc<Self> {
-        let (tx_core, rx_core) = mpsc::channel(20_000);
         let (tx_main, rx_main) = mpsc::channel(20_000);
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             price_source_settings,
@@ -66,7 +65,6 @@ impl PriceSourceService {
             currency_pair_to_metadata_converter,
             price_sources_saver,
             price_sources_loader,
-            tx_core,
             rx_core,
             tx_main,
             rx_main,
