@@ -19,7 +19,7 @@ pub struct UsdDenominator {
     market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
     application_manager: Arc<ApplicationManager>,
     market_prices_by_currency_code: Mutex<HashMap<CurrencyCode, MarketCurrencyCodePrice>>,
-    pub price_update_callback: fn(),
+    pub price_update_callback: Box<dyn Fn() + Sync + Send>,
 }
 
 impl UsdDenominator {
@@ -56,7 +56,7 @@ impl UsdDenominator {
             market_prices_by_currency_code: Mutex::new(UsdDenominator::create_prices_dictionary(
                 market_prices,
             )),
-            price_update_callback: || (),
+            price_update_callback: Box::new(|| ()),
         });
 
         if auto_refresh_data {
