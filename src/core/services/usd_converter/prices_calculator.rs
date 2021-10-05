@@ -6,7 +6,9 @@ use crate::core::{
     exchanges::common::{Amount, Price, TradePlace},
     misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
-    services::usd_converter::price_source_chain::PriceSourceChain,
+    services::usd_converter::{
+        price_source_chain::PriceSourceChain, rebase_price_step::RebaseDirection,
+    },
     DateTime,
 };
 
@@ -35,9 +37,9 @@ fn calculate_amount_for_chain(
         );
         let calculated_price = (calculate_price)(&trade_place)?;
 
-        match step.from_base_to_quote_currency {
-            true => rebase_price *= calculated_price,
-            false => rebase_price /= calculated_price,
+        match step.direction {
+            RebaseDirection::ToQuote => rebase_price *= calculated_price,
+            RebaseDirection::ToBase => rebase_price /= calculated_price,
         }
     }
     Some(rebase_price * src_amount)
