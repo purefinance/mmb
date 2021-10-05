@@ -20,6 +20,7 @@ async fn get_order_info() {
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
             OrderFeatures::default(),
+            OrderTradeOption::default(),
             WebSocketOptions::default(),
             false,
             true,

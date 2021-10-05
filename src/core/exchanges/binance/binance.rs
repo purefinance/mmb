@@ -12,9 +12,10 @@ use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::common::{Amount, Price};
+use crate::core::exchanges::events::{ExchangeEvent, TradeId};
 use crate::core::exchanges::general::features::{
-    OrderFeatures, RestFillsFeatures, RestFillsType, WebSocketOptions,
+    OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
@@ -32,6 +33,7 @@ use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventDa
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::settings::ExchangeSettings;
+use crate::core::DateTime;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 
@@ -43,18 +45,23 @@ pub struct Binance {
     pub order_cancelled_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
+    pub handle_trade_callback: Mutex<
+        Box<dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>,
+    >,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     // Currencies used for trading according to user settings
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
+    pub(super) last_trade_ids: DashMap<CurrencyPair, TradeId>,
 
     pub(super) application_manager: Arc<ApplicationManager>,
 
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
 
     pub(super) subscribe_to_market_data: bool,
+    pub(super) is_reducing_market_data: bool,
 
     pub(super) rest_client: RestClient,
 }
@@ -65,17 +72,25 @@ impl Binance {
         settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
+        is_reducing_market_data: bool,
     ) -> Self {
+        let is_reducing_market_data = settings
+            .is_reducing_market_data
+            .unwrap_or(is_reducing_market_data);
+
         Self {
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
             handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
+            handle_trade_callback: Mutex::new(Box::new(|_, _, _, _, _, _| {})),
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
             traded_specific_currencies: Default::default(),
+            last_trade_ids: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
+            is_reducing_market_data,
             settings,
             events_channel,
             application_manager,
@@ -203,7 +218,7 @@ impl Binance {
         )
     }
 
-    pub(super) fn handle_trade(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
+    pub(super) fn handle_order_fill(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
         let original_client_order_id = json_response["C"]
             .as_str()
             .ok_or(anyhow!("Unable to parse original client order id"))?;
@@ -385,11 +400,13 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 exchange_settings,
                 events_channel.clone(),
                 application_manager,
+                false,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::new(RestFillsType::None),
                 OrderFeatures::default(),
+                OrderTradeOption::default(),
                 WebSocketOptions::default(),
                 false,
                 false,
@@ -441,6 +458,7 @@ mod tests {
             settings,
             tx,
             ApplicationManager::new(CancellationToken::default()),
+            false,
         );
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.generate_signature(params).expect("in test");

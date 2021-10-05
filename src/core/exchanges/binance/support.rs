@@ -1,11 +1,13 @@
+use crate::core::infrastructure::WithExpect;
 use std::str::FromStr;
+
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use awc::http::Uri;
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::{error, info};
@@ -15,7 +17,7 @@ use serde_json::Value;
 
 use super::binance::Binance;
 use crate::core::exchanges::common::SortedOrderData;
-use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::events::{ExchangeEvent, TradeId};
 use crate::core::exchanges::general::order::get_order_trades::OrderTrade;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
@@ -27,6 +29,7 @@ use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::*;
+use crate::core::settings::ExchangeSettings;
 use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
@@ -149,9 +152,15 @@ impl Support for Binance {
                 let currency_pair = self.currency_pair_from_web_socket(&stream[..byte_index])?;
                 let data = &data["data"];
 
+                if stream.ends_with("@trade") {
+                    self.handle_trade(&currency_pair, data)?;
+                    return Ok(());
+                }
+
                 // TODO handle public stream
                 if stream.ends_with("depth20") {
                     self.process_snapshot_update(&currency_pair, data)?;
+                    return Ok(());
                 }
             }
 
@@ -163,12 +172,25 @@ impl Support for Binance {
             .as_str()
             .ok_or(anyhow!("Unable to parse event_type"))?;
         if event_type == "executionReport" {
-            self.handle_trade(msg, data)?;
+            self.handle_order_fill(msg, data)?;
         } else if false {
             // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
         } else {
             self.log_unknown_message(self.id.clone(), msg);
         }
+
+        Ok(())
+    }
+
+    fn on_connecting(&self) -> Result<()> {
+        self.unified_to_specific
+            .read()
+            .iter()
+            .for_each(|(currency_pair, _)| {
+                let _ = self
+                    .last_trade_ids
+                    .insert(currency_pair.clone(), TradeId::Number(0));
+            });
 
         Ok(())
     }
@@ -192,6 +214,15 @@ impl Support for Binance {
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
     ) {
         *self.handle_order_filled_callback.lock() = callback;
+    }
+
+    fn set_handle_trade_callback(
+        &self,
+        callback: Box<
+            dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
+        >,
+    ) {
+        *self.handle_trade_callback.lock() = callback;
     }
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
@@ -440,6 +471,10 @@ impl Support for Binance {
             })
             .collect()
     }
+
+    fn get_settings(&self) -> &ExchangeSettings {
+        &self.settings
+    }
 }
 
 trait GetOrErr {
@@ -465,6 +500,60 @@ impl GetOrErr for Value {
 }
 
 impl Binance {
+    pub(crate) fn handle_trade(&self, currency_pair: &CurrencyPair, data: &Value) -> Result<()> {
+        let test = data["t"].clone();
+        let trade_id = TradeId::from(test);
+
+        let mut trade_id_from_lasts =
+            self.last_trade_ids.get_mut(currency_pair).with_expect(|| {
+                format!(
+                    "There are no last_trade_id for given currency_pair {}",
+                    currency_pair
+                )
+            });
+
+        if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
+        {
+            info!(
+                "Current last_trade_id for currency_pair {} is {} >= trade_id {}",
+                currency_pair, *trade_id_from_lasts, trade_id
+            );
+
+            return Ok(());
+        }
+
+        *trade_id_from_lasts = trade_id.clone();
+
+        let price: Decimal = data["p"]
+            .as_str()
+            .context("Unable to get string from 'p' field json data")?
+            .parse()?;
+
+        let quantity: Decimal = data["q"]
+            .as_str()
+            .context("Unable to get string from 'q' field json data")?
+            .parse()?;
+        let order_side = if data["m"] == true {
+            OrderSide::Sell
+        } else {
+            OrderSide::Buy
+        };
+        let datetime = data["T"]
+            .as_i64()
+            .context("Unable to get i64 from 'T' field json data")?;
+
+        (&self.handle_trade_callback).lock()(
+            currency_pair,
+            trade_id,
+            price,
+            quantity,
+            order_side,
+            Utc.timestamp_millis(datetime),
+        );
+
+        Ok(())
+    }
+
     pub fn process_snapshot_update(
         &self,
         currency_pair: &CurrencyPair,
@@ -485,6 +574,7 @@ impl Binance {
         let order_book_data = OrderBookData::new(asks, bids);
         self.handle_order_book_snapshot(currency_pair, &last_update_id, order_book_data, None)
     }
+
     fn handle_order_book_snapshot(
         &self,
         currency_pair: &CurrencyPair,
