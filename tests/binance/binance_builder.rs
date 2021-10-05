@@ -89,6 +89,7 @@ impl BinanceBuilder {
         exchange.clone().connect().await;
         exchange.build_metadata().await;
 
+        dbg!(&settings.currency_pairs);
         if let Some(currency_pairs) = &settings.currency_pairs {
             exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]));
         }
