@@ -18,7 +18,7 @@ use crate::core::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::lifecycle::shutdown::ShutdownService;
-use crate::core::settings::settings::CoreSettings;
+use crate::core::settings::CoreSettings;
 use crate::core::{
     infrastructure::unset_application_manager, lifecycle::application_manager::ApplicationManager,
     lifecycle::cancellation_token::CancellationToken,

@@ -8,14 +8,14 @@ use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
-use crate::core::settings::settings::{CurrencyPairSetting, ExchangeSettings};
+use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
 use crate::core::{
     exchanges::{
         general::exchange::Exchange,
         timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory,
         timeouts::timeout_manager::TimeoutManager,
     },
-    settings::settings::CoreSettings,
+    settings::CoreSettings,
 };
 
 pub fn create_timeout_manager(

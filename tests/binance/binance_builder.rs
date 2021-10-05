@@ -9,7 +9,7 @@ use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
 use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
-use mmb_lib::core::settings::settings::ExchangeSettings;
+use mmb_lib::core::settings::ExchangeSettings;
 
 use anyhow::Result;
 use tokio::sync::broadcast;

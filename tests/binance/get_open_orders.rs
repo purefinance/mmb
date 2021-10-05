@@ -4,7 +4,7 @@ use mmb_lib::core::exchanges::general::commission::Commission;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
-use mmb_lib::core::settings::settings::{CurrencyPairSetting, ExchangeSettings};
+use mmb_lib::core::settings::{CurrencyPairSetting, ExchangeSettings};
 
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::OrderProxy;

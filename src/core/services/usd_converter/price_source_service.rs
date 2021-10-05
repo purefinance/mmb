@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Arguments,
     sync::Arc,
 };
 
@@ -12,12 +13,12 @@ use crate::core::{
             currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
         },
     },
-    infrastructure::spawn_future,
+    infrastructure::{spawn_future, WithExpect},
     lifecycle::{application_manager::ApplicationManager, cancellation_token::CancellationToken},
     misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
     services::usd_converter::{prices_calculator, rebase_price_step::RebaseDirection},
-    settings::engine::price_source::CurrencyPriceSourceSettings,
+    settings::CurrencyPriceSourceSettings,
     DateTime,
 };
 
@@ -130,21 +131,20 @@ impl PriceSourceService {
                 for _ in 0..setting.exchange_id_currency_pair_settings.len() {
                     let list = currency_pair_metadata_by_currency_code
                         .get(&current_currency_code)
-                        .expect(
+                        .with_expect(||
                             PriceSourceService::format_panic_message(
                                 setting,
-                                format!(
+                                format_args!(
                                     "Can't find currency pair for currency {}",
                                     current_currency_code
                                 ),
-                            )
-                            .as_str(),
+                            ),
                         );
 
                     if list.len() > 1 {
                         panic!("{}", PriceSourceService::format_panic_message(
                             setting,
-                            format! { "There are more than 1 symbol in the list for currency {}",
+                            format_args! { "There are more than 1 symbol in the list for currency {}",
                             current_currency_code}
                         ));
                     }
@@ -164,15 +164,14 @@ impl PriceSourceService {
                     let step_metadata = step.currency_pair_metadata.clone();
                     currency_pair_metadata_by_currency_code
                         .get_mut(&current_currency_code)
-                        .expect(
+                        .with_expect(||
                             PriceSourceService::format_panic_message(
                                 setting,
-                                format!(
+                                format_args!(
                                     "Can't find currency pair for currency {}",
                                     current_currency_code
                                 ),
-                            )
-                            .as_str(),
+                            ),
                         )
                         .retain(|x| x.currency_pair_metadata != step_metadata);
                 }
@@ -185,7 +184,7 @@ impl PriceSourceService {
             .collect_vec()
     }
 
-    fn format_panic_message(setting: &CurrencyPriceSourceSettings, reason: String) -> String {
+    fn format_panic_message(setting: &CurrencyPriceSourceSettings, reason: Arguments) -> String {
         format! {"Can't build correct chain of currency pairs of price sources for {}/{} {}",
             setting.start_currency_code, setting.end_currency_code, reason
         }
@@ -264,26 +263,24 @@ impl PriceSourceService {
             .price_sources_loader
             .load(time_in_past, cancellation_token.clone())
             .await
-            .expect(
+            .with_expect(|| {
                 format!(
                     "Failed to get price_sources for {} from database",
                     time_in_past
                 )
-                .as_str(),
-            );
+            });
 
         let convert_currency_direction = ConvertCurrencyDirection::new(from.clone(), to.clone());
 
         let prices_source_chain = self
             .price_source_chains
             .get(&convert_currency_direction)
-            .expect(
+            .with_expect(|| {
                 format!(
                     "Failed to get price_source_chain for {:?} from {:?}",
                     convert_currency_direction, self.price_source_chains
                 )
-                .as_str(),
-            );
+            });
         prices_calculator::convert_amount_in_past(
             src_amount,
             price_sources,
@@ -324,13 +321,12 @@ impl PriceSourceService {
         let snapshot = self
             .local_snapshot_service
             .get_snapshot(&trade_place)
-            .expect(
+            .with_expect(|| {
                 format!(
                     "Can't get snapshot for {:?} (this shouldn't happen)",
                     trade_place
                 )
-                .as_str(),
-            );
+            });
 
         let price_by_order_side = snapshot.get_top_prices();
         if self.try_update_cache(trade_place.clone(), price_by_order_side.clone()) {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use mmb_lib::core::settings::settings::BaseStrategySettings;
+use mmb_lib::core::settings::BaseStrategySettings;
 use mmb_lib::core::{
     config::CONFIG_PATH,
     config::CREDENTIALS_PATH,
