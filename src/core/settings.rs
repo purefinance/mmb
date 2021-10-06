@@ -78,6 +78,14 @@ impl ExchangeSettings {
     }
 }
 
+pub struct HostsSettings {
+    // TODO change String to URI
+    pub web_socket_host: String,
+    // Some exchanges have two websockets, for public and private data
+    pub web_socket2_host: String,
+    pub rest_host: String,
+}
+
 impl Default for ExchangeSettings {
     fn default() -> Self {
         ExchangeSettings {

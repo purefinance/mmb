@@ -32,13 +32,14 @@ use crate::core::exchanges::{
 use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
-use crate::core::settings::ExchangeSettings;
+use crate::core::settings::{ExchangeSettings, HostsSettings};
 use crate::core::DateTime;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 
 pub struct Binance {
     pub settings: ExchangeSettings,
+    pub hosts_settings: HostsSettings,
     pub id: ExchangeAccountId,
     pub order_created_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
@@ -78,6 +79,20 @@ impl Binance {
             .is_reducing_market_data
             .unwrap_or(is_reducing_market_data);
 
+        let hosts_settings = if settings.is_margin_trading {
+            HostsSettings {
+                web_socket_host: "wss://fstream.binance.com".to_string(),
+                web_socket2_host: "wss://fstream3.binance.com".to_string(),
+                rest_host: "https://fapi.binance.com".to_string(),
+            }
+        } else {
+            HostsSettings {
+                web_socket_host: "wss://stream.binance.com:9443".to_string(),
+                web_socket2_host: "wss://stream.binance.com:9443".to_string(),
+                rest_host: "https://api.binance.com".to_string(),
+            }
+        };
+
         Self {
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
@@ -92,6 +107,7 @@ impl Binance {
             subscribe_to_market_data: settings.subscribe_to_market_data,
             is_reducing_market_data,
             settings,
+            hosts_settings,
             events_channel,
             application_manager,
             rest_client: RestClient::new(),
@@ -104,7 +120,7 @@ impl Binance {
             false => "/api/v3/userDataStream",
         };
 
-        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
+        let full_url = rest_client::build_uri(&self.hosts_settings.rest_host, url_path, &vec![])?;
         let http_params = rest_client::HttpParams::new();
         self.rest_client
             .post(full_url, &self.settings.api_key, &http_params)
@@ -416,6 +432,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         }
     }
 
+    // FIXME delete
     fn extend_settings(&self, settings: &mut ExchangeSettings) {
         if settings.is_margin_trading {
             settings.web_socket_host = "wss://fstream.binance.com".to_string();
@@ -425,6 +442,29 @@ impl ExchangeClientBuilder for BinanceBuilder {
             settings.web_socket_host = "wss://stream.binance.com:9443".to_string();
             settings.web_socket2_host = "wss://stream.binance.com:9443".to_string();
             settings.rest_host = "https://api.binance.com".to_string();
+        }
+    }
+
+    fn get_hosts_settings(&self, settings: &ExchangeSettings) -> HostsSettings {
+        let web_socket_host;
+        let web_socket2_host;
+        let rest_host;
+
+        // FIXME Probably just static data
+        if settings.is_margin_trading {
+            web_socket_host = "wss://fstream.binance.com".to_string();
+            web_socket2_host = "wss://fstream3.binance.com".to_string();
+            rest_host = "https://fapi.binance.com".to_string();
+        } else {
+            web_socket_host = "wss://stream.binance.com:9443".to_string();
+            web_socket2_host = "wss://stream.binance.com:9443".to_string();
+            rest_host = "https://api.binance.com".to_string();
+        }
+
+        HostsSettings {
+            web_socket_host,
+            web_socket2_host,
+            rest_host,
         }
     }
 
@@ -455,7 +495,7 @@ mod tests {
         let (tx, _) = broadcast::channel(10);
         let binance = Binance::new(
             exchange_account_id,
-            settings,
+            settings.clone(),
             tx,
             ApplicationManager::new(CancellationToken::default()),
             false,

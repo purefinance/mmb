@@ -241,11 +241,11 @@ impl Support for Binance {
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri> {
         let (host, path) = match role {
             WebSocketRole::Main => (
-                &self.settings.web_socket_host,
+                &self.hosts_settings.web_socket_host,
                 self.build_ws_main_path(&self.settings.websocket_channels[..]),
             ),
             WebSocketRole::Secondary => (
-                &self.settings.web_socket2_host,
+                &self.hosts_settings.web_socket2_host,
                 self.build_ws_secondary_path().await?,
             ),
         };

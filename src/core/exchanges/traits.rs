@@ -18,7 +18,6 @@ use super::{
     general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
-use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::ExchangeFeatures;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::orders::fill::EventSourceType;
@@ -29,6 +28,7 @@ use crate::core::settings::ExchangeSettings;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide, DateTime,
 };
+use crate::core::{exchanges::events::ExchangeEvent, settings::HostsSettings};
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use awc::http::Uri;
 
@@ -143,7 +143,9 @@ pub trait ExchangeClientBuilder {
         application_manager: Arc<ApplicationManager>,
     ) -> ExchangeClientBuilderResult;
 
+    // FIXME Probably delete
     fn extend_settings(&self, settings: &mut ExchangeSettings);
+    fn get_hosts_settings(&self, settings: &ExchangeSettings) -> HostsSettings;
 
     fn get_timeout_argments(&self) -> RequestTimeoutArguments;
 }
