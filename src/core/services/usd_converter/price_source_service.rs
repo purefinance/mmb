@@ -25,6 +25,7 @@ use crate::core::{
 use anyhow::{bail, Context, Result};
 use futures::FutureExt;
 use itertools::Itertools;
+use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
@@ -57,9 +58,7 @@ impl PriceSourceEventLoop {
             let mut this = Self {
                 currency_pair_to_metadata_converter,
                 price_sources_saver,
-                all_trade_places: PriceSourceEventLoop::map_to_used_trade_places(
-                    price_source_chains,
-                ),
+                all_trade_places: Self::map_to_used_trade_places(price_source_chains),
                 local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
                 price_cache: HashMap::new(),
                 rx_core,
@@ -83,7 +82,7 @@ impl PriceSourceEventLoop {
                         &self.local_snapshot_service,
                         &convert_amount_now.chain,
                     );
-                    let _ = convert_amount_now.task_finished_sender.send(result);
+                   convert_amount_now.task_finished_sender.send(result).expect("PriceSourceEventLoop::run_loop(): Unable to send trades event. Probably receiver is already dropped");
                 },
                 core_event_res = self.rx_core.recv() => {
                     let event = core_event_res.context("Error during receiving event on rx_core")?;
@@ -160,6 +159,7 @@ impl PriceSourceEventLoop {
 pub struct PriceSourceService {
     price_sources_loader: PriceSourcesLoader,
     tx_main: mpsc::Sender<ConvertAmountNow>,
+    rx_main: Mutex<Option<mpsc::Receiver<ConvertAmountNow>>>,
     price_source_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
 }
 
@@ -168,15 +168,17 @@ impl PriceSourceService {
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
         price_source_settings: &Vec<CurrencyPriceSourceSettings>,
         price_sources_loader: PriceSourcesLoader,
-        tx_main: mpsc::Sender<ConvertAmountNow>,
     ) -> Arc<Self> {
-        let price_source_chains = PriceSourceService::prepare_price_source_chains(
+        let price_source_chains = Self::prepare_price_source_chains(
             price_source_settings,
             currency_pair_to_metadata_converter.clone(),
         );
+        let (tx_main, rx_main) = mpsc::channel(20_000);
+
         Arc::new(Self {
             price_sources_loader,
             tx_main,
+            rx_main: Mutex::new(Some(rx_main)),
             price_source_chains: price_source_chains
                 .into_iter()
                 .map(|x| {
@@ -196,7 +198,6 @@ impl PriceSourceService {
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
         price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
-        rx_main: mpsc::Receiver<ConvertAmountNow>,
         cancellation_token: CancellationToken,
     ) {
         PriceSourceEventLoop::run(
@@ -204,7 +205,10 @@ impl PriceSourceService {
             self.price_source_chains.values().cloned().collect_vec(),
             price_sources_saver,
             rx_core,
-            rx_main,
+            self.rx_main
+                .lock()
+                .take()
+                .expect("Failed to run PriceSourceEventLoop rx_main is none"),
             cancellation_token,
         )
         .await;
@@ -233,13 +237,13 @@ impl PriceSourceService {
                 for pair in &setting.exchange_id_currency_pair_settings {
                     let metadata = currency_pair_to_metadata_converter
                         .get_currency_pair_metadata(&pair.exchange_account_id, &pair.currency_pair);
-                    PriceSourceService::add_currency_pair_metadata_to_hashmap(
+                    Self::add_currency_pair_metadata_to_hashmap(
                         &metadata.quote_currency_code(),
                         pair.exchange_account_id.exchange_id.clone(),
                         metadata.clone(),
                         &mut currency_pair_metadata_by_currency_code,
                     );
-                    PriceSourceService::add_currency_pair_metadata_to_hashmap(
+                    Self::add_currency_pair_metadata_to_hashmap(
                         &metadata.base_currency_code(),
                         pair.exchange_account_id.exchange_id.clone(),
                         metadata.clone(),
@@ -254,7 +258,7 @@ impl PriceSourceService {
                     let list = currency_pair_metadata_by_currency_code
                         .get(&current_currency_code)
                         .with_expect(||
-                            PriceSourceService::format_panic_message(
+                            Self::format_panic_message(
                                 setting,
                                 format_args!(
                                     "Can't find currency pair for currency {}",
@@ -264,7 +268,7 @@ impl PriceSourceService {
                         );
 
                     if list.len() > 1 {
-                        panic!("{}", PriceSourceService::format_panic_message(
+                        panic!("{}", Self::format_panic_message(
                             setting,
                             format_args! { "There are more than 1 symbol in the list for currency {}",
                             current_currency_code}
@@ -287,7 +291,7 @@ impl PriceSourceService {
                     currency_pair_metadata_by_currency_code
                         .get_mut(&current_currency_code)
                         .with_expect(||
-                            PriceSourceService::format_panic_message(
+                            Self::format_panic_message(
                                 setting,
                                 format_args!(
                                     "Can't find currency pair for currency {}",
@@ -355,9 +359,13 @@ impl PriceSourceService {
             ))?;
 
         let (tx_result, rx_result) = oneshot::channel();
-        let _ = self
+        self
             .tx_main
-            .send(ConvertAmountNow::new(chain.clone(), src_amount, tx_result));
+            .send(ConvertAmountNow::new(chain.clone(), src_amount, tx_result))
+            .await
+            .expect(
+                "PriceSourceService::convert_amount(): Unable to send trades event. Probably receiver is already dropped"
+            );
         tokio::select! {
             result = rx_result => Ok(result.context("While receiving the result on rx_result in PriceSourceService::convert_amount()")?),
             _ = cancellation_token.when_cancelled() => Ok(None),
@@ -396,7 +404,7 @@ impl PriceSourceService {
             });
         prices_calculator::convert_amount_in_past(
             src_amount,
-            price_sources,
+            &price_sources,
             time_in_past,
             prices_source_chain,
         )

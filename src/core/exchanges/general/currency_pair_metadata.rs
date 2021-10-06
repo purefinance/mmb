@@ -44,7 +44,7 @@ pub enum Precision {
     ByMantissa { precision: i8 },
 }
 
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, Eq)]
 pub struct CurrencyPairMetadata {
     pub is_active: bool,
     pub is_derivative: bool,
@@ -378,8 +378,6 @@ impl PartialEq for CurrencyPairMetadata {
         self.currency_pair() == other.currency_pair()
     }
 }
-
-impl Eq for CurrencyPairMetadata {}
 
 impl Exchange {
     pub fn get_currency_pair_metadata(

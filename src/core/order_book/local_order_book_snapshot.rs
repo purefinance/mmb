@@ -143,7 +143,7 @@ impl LocalOrderBookSnapshot {
             }
         };
 
-        let top_bid = match prices.top_ask {
+        let top_bid = match prices.top_bid {
             Some(top_bid) => top_bid,
             None => {
                 log::warn!(
