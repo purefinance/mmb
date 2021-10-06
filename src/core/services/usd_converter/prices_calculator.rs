@@ -59,7 +59,7 @@ pub(crate) fn convert_amount_now(
 
 pub fn convert_amount_in_past(
     src_amount: Amount,
-    price_cache: HashMap<TradePlace, PriceByOrderSide>,
+    price_cache: &HashMap<TradePlace, PriceByOrderSide>,
     time_in_past: DateTime,
     prices_source_chain: &PriceSourceChain,
 ) -> Option<Amount> {
@@ -83,16 +83,19 @@ pub fn convert_amount_in_past(
 mod test {
     use std::sync::Arc;
 
+    use chrono::Utc;
+
     use crate::{
         core::{
             exchanges::{
-                common::{CurrencyCode, CurrencyPair},
+                common::{CurrencyCode, CurrencyPair, SortedOrderData},
                 general::{
                     currency_pair_metadata::{CurrencyPairMetadata, Precision},
                     currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
                     test_helper::get_test_exchange_with_currency_pair_metadata,
                 },
             },
+            order_book::order_book_data::OrderBookData,
             services::usd_converter::{
                 price_source_chain::PriceSourceChain,
                 price_source_service::{test::PriceSourceServiceTestBase, PriceSourceService},
@@ -157,33 +160,73 @@ mod test {
     }
 
     #[test]
-    fn calculate_amount_now_using_one_step_with_price() {}
+    fn calculate_amount_now_using_one_step_with_price() {
+        let (currency_pair, price_source_chain) = getenerate_one_step_setup();
+        let mut asks = SortedOrderData::new();
+        asks.insert(dec!(10), dec!(1.2));
+        asks.insert(dec!(12), dec!(4.3));
+        let mut bids = SortedOrderData::new();
+        bids.insert(dec!(1), dec!(6));
+        bids.insert(dec!(2), dec!(9));
 
-    // [Test]
-    //     public void Calculate_AmountNow_UsingOneStep_WithPrice()
-    //     {
-    //         GenerateOneStepSetup(out var currencyCodePair, out var priceSourceChain);
-    //         var asks = new Dictionary<decimal, decimal>
-    //         {
-    //             {10m, 1.2m},
-    //             {12m, 4.3m},
-    //         };
-    //         var bids = new Dictionary<decimal, decimal>
-    //         {
-    //             {1m, 6m},
-    //             {2m, 9m},
-    //         };
-    //         var snapshot = new L2OrderBookData(asks, bids).ToLocalOrderBookSnapshot();
-    //         var ens = new ExchangeNameSymbol(ExchangeName, currencyCodePair);
-    //         var snapshotService = Mock<ILocalSnapshotService>();
-    //         snapshotService.Setup(x => x.TryGetSnapshot(ens, out snapshot)).Returns(true);
+        let snapshot = OrderBookData::new(asks, bids).to_local_order_book_snapshot();
+        let trade_place =
+            TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
 
-    //         // act
-    //         const decimal sourceAmount = 10m;
-    //         var priceSourceCalculator = new PricesCalculator();
-    //         var priceNow = priceSourceCalculator.ConvertAmountNow(sourceAmount, snapshotService.Object, priceSourceChain);
+        let snapshot_service = LocalSnapshotsService::new(hashmap![trade_place => snapshot]);
 
-    //         // assert
-    //         priceNow.Should().BeApproximately(1 / ((10 + 2) / 2m) * sourceAmount, 1e-6m);
-    //     }
+        let src_amount = dec!(10);
+        let price_now = convert_amount_now(src_amount, &snapshot_service, &price_source_chain)
+            .expect("in test");
+
+        assert_eq!(dec!(1) / (dec!(12) / dec!(2)) * src_amount, price_now);
+    }
+
+    #[test]
+    fn calculate_amount_now_using_one_step_without_price() {
+        let (currency_pair, price_source_chain) = getenerate_one_step_setup();
+        let asks = SortedOrderData::new();
+        let bids = SortedOrderData::new();
+
+        let snapshot = OrderBookData::new(asks, bids).to_local_order_book_snapshot();
+        let trade_place =
+            TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
+
+        let snapshot_service = LocalSnapshotsService::new(hashmap![trade_place => snapshot]);
+
+        let src_amount = dec!(10);
+        let price_now = convert_amount_now(src_amount, &snapshot_service, &price_source_chain);
+
+        assert!(price_now.is_none());
+    }
+
+    #[test]
+    fn calculate_amount_in_past_using_one_step_with_price() {
+        let (currency_pair, price_source_chain) = getenerate_one_step_setup();
+        let time_in_past = Utc::now();
+        let trade_place =
+            TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
+        let price_cache = hashmap![
+            trade_place => PriceByOrderSide::new(Some(dec!(10)), Some(dec!(2))
+        )];
+
+        let src_amount = dec!(10);
+        let price_now =
+            convert_amount_in_past(src_amount, &price_cache, time_in_past, &price_source_chain)
+                .expect("in test");
+
+        assert_eq!(dec!(1) / (dec!(12) / dec!(2)) * src_amount, price_now);
+    }
+
+    #[test]
+    fn calculate_amount_in_past_using_one_step_without_price() {
+        let (_, price_source_chain) = getenerate_one_step_setup();
+        let time_in_past = Utc::now();
+        let price_cache = HashMap::new();
+        let src_amount = dec!(10);
+        let price_now =
+            convert_amount_in_past(src_amount, &price_cache, time_in_past, &price_source_chain);
+
+        assert!(price_now.is_none());
+    }
 }
