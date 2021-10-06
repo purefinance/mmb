@@ -34,49 +34,54 @@ use super::{
     rebase_price_step::RebasePriceStep,
 };
 
-pub struct PriceSourceServiceEventLoop {
+pub struct PriceSourceEventLoop {
+    currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+    price_sources_saver: PriceSourcesSaver,
+    all_trade_places: HashSet<TradePlace>,
+    local_snapshot_service: LocalSnapshotsService,
+    price_cache: HashMap<TradePlace, PriceByOrderSide>,
     rx_core: broadcast::Receiver<ExchangeEvent>,
     rx_main: mpsc::Receiver<ConvertAmountNow>,
 }
 
-impl PriceSourceServiceEventLoop {
+impl PriceSourceEventLoop {
     pub async fn run(
+        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        price_source_chains: Vec<PriceSourceChain>,
+        price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
         rx_main: mpsc::Receiver<ConvertAmountNow>,
-        price_source_service: Arc<PriceSourceService>,
         cancellation_token: CancellationToken,
     ) {
         let run_action = async move {
-            let mut this = Self { rx_core, rx_main };
-            this.run_loop(price_source_service, cancellation_token)
-                .await
+            let mut this = Self {
+                currency_pair_to_metadata_converter,
+                price_sources_saver,
+                all_trade_places: PriceSourceEventLoop::map_to_used_trade_places(
+                    price_source_chains,
+                ),
+                local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
+                price_cache: HashMap::new(),
+                rx_core,
+                rx_main,
+            };
+            this.run_loop(cancellation_token).await
         };
         spawn_future("PriceSourceService", true, run_action.boxed())
             .await
             .expect("Failed to spawn PriceSourceService::run_loop() future");
     }
 
-    async fn run_loop(
-        &mut self,
-        service: Arc<PriceSourceService>,
-        cancellation_token: CancellationToken,
-    ) -> Result<()> {
+    async fn run_loop(&mut self, cancellation_token: CancellationToken) -> Result<()> {
         loop {
             tokio::select! {
                 main_event_res = self.rx_main.recv() => {
                    let convert_amount_now = main_event_res.context("Error during receiving event on rx_main")?;
-                   let chain = service
-                        .price_source_chains
-                        .get(&convert_amount_now.convert_currency_direction)
-                        .context(format!(
-                            "failed to get price_sources_chain from {:?} with {:?}",
-                            service.price_source_chains, convert_amount_now,
-                        ))?;
 
                     let result = prices_calculator::convert_amount_now(
                         convert_amount_now.src_amount,
-                        &service.local_snapshot_service,
-                        chain,
+                        &self.local_snapshot_service,
+                        &convert_amount_now.chain,
                     );
                     // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
                     let _ = convert_amount_now.task_finished_sender.send(result);
@@ -89,10 +94,9 @@ impl PriceSourceServiceEventLoop {
                                 order_book_event.exchange_account_id.exchange_id.clone(),
                                 order_book_event.currency_pair.clone(),
                             );
-                            if service.all_trade_places.contains(&trade_place) {
-                                // REVIEW: здесь нужен mut для service
-                                // let _ = service.local_snapshot_service.update(order_book_event);
-                                // service.update_cache_and_save(trade_place);
+                            if self.all_trade_places.contains(&trade_place) {
+                                let _ = self.local_snapshot_service.update(order_book_event);
+                                self.update_cache_and_save(trade_place);
                             }
                         },
                         _ => continue,
@@ -102,24 +106,68 @@ impl PriceSourceServiceEventLoop {
             };
         }
     }
+
+    fn try_update_cache(&mut self, trade_place: TradePlace, new_value: PriceByOrderSide) -> bool {
+        if let Some(old_value) = self.price_cache.get_mut(&trade_place) {
+            match old_value == &new_value {
+                true => return false,
+                false => {
+                    *old_value = new_value;
+                    return true;
+                }
+            }
+        };
+
+        self.price_cache.insert(trade_place, new_value);
+        return true;
+    }
+
+    fn update_cache_and_save(&mut self, trade_place: TradePlace) {
+        let snapshot = self
+            .local_snapshot_service
+            .get_snapshot(&trade_place)
+            .with_expect(|| {
+                format!(
+                    "Can't get snapshot for {:?} (this shouldn't happen)",
+                    trade_place
+                )
+            });
+
+        let price_by_order_side = snapshot.get_top_prices();
+        if self.try_update_cache(trade_place.clone(), price_by_order_side.clone()) {
+            self.price_sources_saver
+                .save(trade_place, price_by_order_side);
+        }
+    }
+
+    fn map_to_used_trade_places(price_source_chains: Vec<PriceSourceChain>) -> HashSet<TradePlace> {
+        price_source_chains
+            .into_iter()
+            .flat_map(|price_source_chain| {
+                price_source_chain
+                    .rebase_price_steps
+                    .into_iter()
+                    .map(|step| {
+                        TradePlace::new(
+                            step.exchange_id,
+                            step.currency_pair_metadata.currency_pair(),
+                        )
+                    })
+            })
+            .collect()
+    }
 }
 
 pub struct PriceSourceService {
-    currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
-    price_sources_saver: PriceSourcesSaver,
     price_sources_loader: PriceSourcesLoader,
     tx_main: mpsc::Sender<ConvertAmountNow>,
-    all_trade_places: HashSet<TradePlace>,
     price_source_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
-    local_snapshot_service: LocalSnapshotsService,
-    price_cache: HashMap<TradePlace, PriceByOrderSide>,
 }
 
 impl PriceSourceService {
     pub fn new(
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
         price_source_settings: &Vec<CurrencyPriceSourceSettings>,
-        price_sources_saver: PriceSourcesSaver,
         price_sources_loader: PriceSourcesLoader,
         tx_main: mpsc::Sender<ConvertAmountNow>,
     ) -> Arc<Self> {
@@ -128,11 +176,8 @@ impl PriceSourceService {
             currency_pair_to_metadata_converter.clone(),
         );
         Arc::new(Self {
-            currency_pair_to_metadata_converter,
-            price_sources_saver,
             price_sources_loader,
             tx_main,
-            all_trade_places: PriceSourceService::map_to_used_trade_places(&price_source_chains),
             price_source_chains: price_source_chains
                 .into_iter()
                 .map(|x| {
@@ -145,18 +190,25 @@ impl PriceSourceService {
                     )
                 })
                 .collect(),
-            local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
-            price_cache: HashMap::new(),
         })
     }
-
     pub async fn start(
         self: Arc<Self>,
+        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
         rx_main: mpsc::Receiver<ConvertAmountNow>,
         cancellation_token: CancellationToken,
     ) {
-        PriceSourceServiceEventLoop::run(rx_core, rx_main, self, cancellation_token).await;
+        PriceSourceEventLoop::run(
+            currency_pair_to_metadata_converter,
+            self.price_source_chains.values().cloned().collect_vec(),
+            price_sources_saver,
+            rx_core,
+            rx_main,
+            cancellation_token,
+        )
+        .await;
     }
 
     pub fn prepare_price_source_chains(
@@ -264,22 +316,6 @@ impl PriceSourceService {
         }
     }
 
-    fn map_to_used_trade_places(
-        price_source_chains: &Vec<PriceSourceChain>,
-    ) -> HashSet<TradePlace> {
-        price_source_chains
-            .iter()
-            .flat_map(|price_source_chain| {
-                price_source_chain.rebase_price_steps.iter().map(|step| {
-                    TradePlace::new(
-                        step.exchange_id.clone(),
-                        step.currency_pair_metadata.currency_pair(),
-                    )
-                })
-            })
-            .collect()
-    }
-
     fn add_currency_pair_metadata_to_hashmap(
         currency_code: &CurrencyCode,
         exchange_id: ExchangeId,
@@ -311,13 +347,19 @@ impl PriceSourceService {
     ) -> Result<Option<Amount>> {
         let convert_currency_direction = ConvertCurrencyDirection::new(from.clone(), to.clone());
 
+        let chain = self
+            .price_source_chains
+            .get(&convert_currency_direction)
+            .context(format!(
+                "failed to get price_sources_chain from {:?} with {:?}",
+                self.price_source_chains, convert_currency_direction,
+            ))?;
+
         let (tx_result, rx_result) = oneshot::channel();
         // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
-        let _ = self.tx_main.send(ConvertAmountNow::new(
-            convert_currency_direction,
-            src_amount,
-            tx_result,
-        ));
+        let _ = self
+            .tx_main
+            .send(ConvertAmountNow::new(chain.clone(), src_amount, tx_result));
         tokio::select! {
             // REVIEW: корректно ли так из tokio::Result конвертировать в anyhow::Result?
             result = rx_result => Ok(result.context("PriceSourceService::convert_amount() while receiving the result on rx_result")?),
@@ -362,56 +404,23 @@ impl PriceSourceService {
             prices_source_chain,
         )
     }
-
-    fn try_update_cache(&mut self, trade_place: TradePlace, new_value: PriceByOrderSide) -> bool {
-        if let Some(old_value) = self.price_cache.get_mut(&trade_place) {
-            match old_value == &new_value {
-                true => return false,
-                false => {
-                    *old_value = new_value;
-                    return true;
-                }
-            }
-        };
-
-        self.price_cache.insert(trade_place, new_value);
-        return true;
-    }
-
-    fn update_cache_and_save(&mut self, trade_place: TradePlace) {
-        let snapshot = self
-            .local_snapshot_service
-            .get_snapshot(&trade_place)
-            .with_expect(|| {
-                format!(
-                    "Can't get snapshot for {:?} (this shouldn't happen)",
-                    trade_place
-                )
-            });
-
-        let price_by_order_side = snapshot.get_top_prices();
-        if self.try_update_cache(trade_place.clone(), price_by_order_side.clone()) {
-            self.price_sources_saver
-                .save(trade_place, price_by_order_side);
-        }
-    }
 }
 
 #[derive(Debug)]
 pub struct ConvertAmountNow {
-    pub convert_currency_direction: ConvertCurrencyDirection,
+    pub chain: PriceSourceChain,
     pub src_amount: Amount,
     pub task_finished_sender: oneshot::Sender<Option<Decimal>>,
 }
 
 impl ConvertAmountNow {
     pub fn new(
-        convert_currency_direction: ConvertCurrencyDirection,
+        chain: PriceSourceChain,
         src_amount: Amount,
         task_finished_sender: oneshot::Sender<Option<Decimal>>,
     ) -> Self {
         Self {
-            convert_currency_direction,
+            chain,
             src_amount,
             task_finished_sender,
         }
