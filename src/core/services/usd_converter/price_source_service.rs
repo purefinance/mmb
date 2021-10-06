@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    fmt::Arguments,
+    fmt,
     sync::Arc,
 };
 
@@ -184,7 +184,10 @@ impl PriceSourceService {
             .collect_vec()
     }
 
-    fn format_panic_message(setting: &CurrencyPriceSourceSettings, reason: Arguments) -> String {
+    fn format_panic_message(
+        setting: &CurrencyPriceSourceSettings,
+        reason: fmt::Arguments,
+    ) -> String {
         format! {"Can't build correct chain of currency pairs of price sources for {}/{} {}",
             setting.start_currency_code, setting.end_currency_code, reason
         }
@@ -246,7 +249,7 @@ impl PriceSourceService {
         ));
         tokio::select! {
             // REVIEW: корректно ли так из tokio::Result конвертировать в anyhow::Result?
-            result = rx_result => Ok(result.context("something went wrong while receiving the result on rx_result")?),
+            result = rx_result => Ok(result.context("PriceSourceService::convert_amount() while receiving the result on rx_result")?),
             _ = cancellation_token.when_cancelled() => Ok(None),
         }
     }
@@ -286,19 +289,6 @@ impl PriceSourceService {
             price_sources,
             time_in_past,
             prices_source_chain,
-        )
-    }
-
-    fn get_trade_place(
-        &self,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
-    ) -> TradePlace {
-        TradePlace::new(
-            exchange_account_id.exchange_id.clone(),
-            self.currency_pair_to_metadata_converter
-                .get_currency_pair_metadata(exchange_account_id, currency_pair)
-                .currency_pair(),
         )
     }
 
@@ -370,9 +360,9 @@ impl PriceSourceService {
                     let event = core_event_res.context("Error during receiving event on rx_core")?;
                     match event {
                         ExchangeEvent::OrderBookEvent(order_book_event) => {
-                            let trade_place = self.get_trade_place(
-                                &order_book_event.exchange_account_id,
-                                &order_book_event.currency_pair,
+                            let trade_place = TradePlace::new(
+                                order_book_event.exchange_account_id.exchange_id.clone(),
+                                order_book_event.currency_pair.clone(),
                             );
                             if self.all_trade_places.contains(&trade_place) {
                                 let _ = self.local_snapshot_service.update(order_book_event);
