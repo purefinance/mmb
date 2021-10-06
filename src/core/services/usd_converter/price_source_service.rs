@@ -6,7 +6,7 @@ use std::{
 
 use crate::core::{
     exchanges::{
-        common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, TradePlace},
+        common::{Amount, CurrencyCode, ExchangeAccountId, ExchangeId, TradePlace},
         events::ExchangeEvent,
         general::{
             currency_pair_metadata::CurrencyPairMetadata,
@@ -395,6 +395,22 @@ impl ConvertAmountNow {
             convert_currency_direction,
             src_amount,
             task_finished_sender,
+        }
+    }
+}
+
+pub mod test {
+    use super::*;
+
+    pub(crate) struct PriceSourceServiceTestBase {}
+
+    impl PriceSourceServiceTestBase {
+        pub fn get_exchange_account_id() -> ExchangeAccountId {
+            ExchangeAccountId::new(PriceSourceServiceTestBase::get_exchange_id(), 0)
+        }
+
+        pub fn get_exchange_id() -> ExchangeId {
+            ExchangeId::new("Binance".into())
         }
     }
 }
