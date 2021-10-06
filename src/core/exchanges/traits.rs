@@ -143,9 +143,5 @@ pub trait ExchangeClientBuilder {
         application_manager: Arc<ApplicationManager>,
     ) -> ExchangeClientBuilderResult;
 
-    //// FIXME Probably delete
-    //fn extend_settings(&self, settings: &mut ExchangeSettings);
-    //fn get_hosts_settings(&self, settings: &ExchangeSettings) -> HostsSettings;
-
     fn get_timeout_argments(&self) -> RequestTimeoutArguments;
 }
