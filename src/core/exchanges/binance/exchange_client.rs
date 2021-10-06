@@ -16,7 +16,7 @@ impl ExchangeClient for Binance {
     async fn request_metadata(&self) -> Result<RestRequestOutcome> {
         // In currenct versions works only with Spot market
         let url_path = "/api/v3/exchangeInfo";
-        let full_url = rest_client::build_uri(&self.hosts_settings.rest_host, url_path, &vec![])?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
 
         self.rest_client.get(full_url, &self.settings.api_key).await
     }
@@ -57,7 +57,7 @@ impl ExchangeClient for Binance {
             false => "/api/v3/order",
         };
 
-        let full_url = rest_client::build_uri(&self.hosts_settings.rest_host, url_path, &vec![])?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
 
         self.rest_client
             .post(full_url, &self.settings.api_key, &http_params)
@@ -84,8 +84,7 @@ impl ExchangeClient for Binance {
         ];
         self.add_authentification_headers(&mut http_params)?;
 
-        let full_url =
-            rest_client::build_uri(&self.hosts_settings.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
 
         let outcome = self
             .rest_client
@@ -98,7 +97,7 @@ impl ExchangeClient for Binance {
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
         let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
 
-        let host = &self.hosts_settings.rest_host;
+        let host = &self.hosts.rest_host;
         let path_to_delete = "/api/v3/openOrders";
 
         let mut http_params = vec![(
@@ -158,8 +157,7 @@ impl ExchangeClient for Binance {
         ];
         self.add_authentification_headers(&mut http_params)?;
 
-        let full_url =
-            rest_client::build_uri(&self.hosts_settings.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
 
         self.rest_client.get(full_url, &self.settings.api_key).await
     }
@@ -185,8 +183,7 @@ impl ExchangeClient for Binance {
             false => "/api/v3/myTrades",
         };
 
-        let full_url =
-            rest_client::build_uri(&self.hosts_settings.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
         self.rest_client.get(full_url, &self.settings.api_key).await
     }
 }

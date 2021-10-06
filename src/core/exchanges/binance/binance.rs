@@ -39,7 +39,7 @@ use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 
 pub struct Binance {
     pub settings: ExchangeSettings,
-    pub hosts_settings: Hosts,
+    pub hosts: Hosts,
     pub id: ExchangeAccountId,
     pub order_created_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
@@ -79,7 +79,7 @@ impl Binance {
             .is_reducing_market_data
             .unwrap_or(is_reducing_market_data);
 
-        let hosts_settings = if settings.is_margin_trading {
+        let hosts = if settings.is_margin_trading {
             Hosts {
                 web_socket_host: "wss://fstream.binance.com".to_string(),
                 web_socket2_host: "wss://fstream3.binance.com".to_string(),
@@ -107,7 +107,7 @@ impl Binance {
             subscribe_to_market_data: settings.subscribe_to_market_data,
             is_reducing_market_data,
             settings,
-            hosts_settings,
+            hosts,
             events_channel,
             application_manager,
             rest_client: RestClient::new(),
@@ -120,7 +120,7 @@ impl Binance {
             false => "/api/v3/userDataStream",
         };
 
-        let full_url = rest_client::build_uri(&self.hosts_settings.rest_host, url_path, &vec![])?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
         let http_params = rest_client::HttpParams::new();
         self.rest_client
             .post(full_url, &self.settings.api_key, &http_params)
