@@ -669,7 +669,8 @@ impl Binance {
             false => "/api/v3/openOrders",
         };
 
-        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
+        let full_url =
+            rest_client::build_uri(&self.hosts_settings.rest_host, url_path, &http_params)?;
 
         let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
 

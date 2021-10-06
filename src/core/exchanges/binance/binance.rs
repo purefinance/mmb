@@ -432,41 +432,41 @@ impl ExchangeClientBuilder for BinanceBuilder {
         }
     }
 
-    // FIXME delete
-    fn extend_settings(&self, settings: &mut ExchangeSettings) {
-        if settings.is_margin_trading {
-            settings.web_socket_host = "wss://fstream.binance.com".to_string();
-            settings.web_socket2_host = "wss://fstream3.binance.com".to_string();
-            settings.rest_host = "https://fapi.binance.com".to_string();
-        } else {
-            settings.web_socket_host = "wss://stream.binance.com:9443".to_string();
-            settings.web_socket2_host = "wss://stream.binance.com:9443".to_string();
-            settings.rest_host = "https://api.binance.com".to_string();
-        }
-    }
+    //// FIXME delete
+    //fn extend_settings(&self, settings: &mut ExchangeSettings) {
+    //    if settings.is_margin_trading {
+    //        settings.web_socket_host = "wss://fstream.binance.com".to_string();
+    //        settings.web_socket2_host = "wss://fstream3.binance.com".to_string();
+    //        settings.rest_host = "https://fapi.binance.com".to_string();
+    //    } else {
+    //        settings.web_socket_host = "wss://stream.binance.com:9443".to_string();
+    //        settings.web_socket2_host = "wss://stream.binance.com:9443".to_string();
+    //        settings.rest_host = "https://api.binance.com".to_string();
+    //    }
+    //}
 
-    fn get_hosts_settings(&self, settings: &ExchangeSettings) -> HostsSettings {
-        let web_socket_host;
-        let web_socket2_host;
-        let rest_host;
+    //fn get_hosts_settings(&self, settings: &ExchangeSettings) -> HostsSettings {
+    //    let web_socket_host;
+    //    let web_socket2_host;
+    //    let rest_host;
 
-        // FIXME Probably just static data
-        if settings.is_margin_trading {
-            web_socket_host = "wss://fstream.binance.com".to_string();
-            web_socket2_host = "wss://fstream3.binance.com".to_string();
-            rest_host = "https://fapi.binance.com".to_string();
-        } else {
-            web_socket_host = "wss://stream.binance.com:9443".to_string();
-            web_socket2_host = "wss://stream.binance.com:9443".to_string();
-            rest_host = "https://api.binance.com".to_string();
-        }
+    //    // FIXME Probably just static data
+    //    if settings.is_margin_trading {
+    //        web_socket_host = "wss://fstream.binance.com".to_string();
+    //        web_socket2_host = "wss://fstream3.binance.com".to_string();
+    //        rest_host = "https://fapi.binance.com".to_string();
+    //    } else {
+    //        web_socket_host = "wss://stream.binance.com:9443".to_string();
+    //        web_socket2_host = "wss://stream.binance.com:9443".to_string();
+    //        rest_host = "https://api.binance.com".to_string();
+    //    }
 
-        HostsSettings {
-            web_socket_host,
-            web_socket2_host,
-            rest_host,
-        }
-    }
+    //    HostsSettings {
+    //        web_socket_host,
+    //        web_socket2_host,
+    //        rest_host,
+    //    }
+    //}
 
     fn get_timeout_argments(&self) -> RequestTimeoutArguments {
         RequestTimeoutArguments::from_requests_per_minute(1200)

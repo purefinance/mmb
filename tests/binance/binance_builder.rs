@@ -64,7 +64,7 @@ impl BinanceBuilder {
         let application_manager = ApplicationManager::new(cancellation_token.clone());
         let (tx, rx) = broadcast::channel(10);
 
-        BinanceBuilder.extend_settings(&mut settings);
+        //BinanceBuilder.extend_settings(&mut settings);
         settings.websocket_channels = vec!["depth".into(), "trade".into()];
 
         let binance = Box::new(Binance::new(

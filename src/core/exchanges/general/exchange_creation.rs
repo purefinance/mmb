@@ -53,9 +53,6 @@ pub async fn create_exchange(
     let exchange_client_builder =
         &build_settings.supported_exchange_clients[&user_settings.exchange_account_id.exchange_id];
 
-    let mut user_settings = user_settings.clone();
-    // FIXME delete
-    exchange_client_builder.extend_settings(&mut user_settings);
     let exchange_client = exchange_client_builder.create_exchange_client(
         user_settings.clone(),
         events_channel.clone(),
