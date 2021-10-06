@@ -42,11 +42,6 @@ pub struct ExchangeSettings {
     pub secret_key: String,
     pub is_margin_trading: bool,
     pub request_trades: bool,
-    // TODO change String to URI
-    pub web_socket_host: String,
-    // Some exchanges have two websockets, for public and private data
-    pub web_socket2_host: String,
-    pub rest_host: String,
     pub is_reducing_market_data: Option<bool>,
     pub subscribe_to_market_data: bool,
     pub websocket_channels: Vec<String>,
@@ -67,15 +62,19 @@ impl ExchangeSettings {
             secret_key,
             is_margin_trading,
             request_trades: false,
-            web_socket_host: "".into(),
-            web_socket2_host: "".into(),
-            rest_host: "".into(),
             websocket_channels: vec![],
             currency_pairs: None,
             subscribe_to_market_data: true,
             is_reducing_market_data: None,
         }
     }
+}
+
+pub struct Hosts {
+    pub web_socket_host: String,
+    // Some exchanges have two websockets, for public and private data
+    pub web_socket2_host: String,
+    pub rest_host: String,
 }
 
 impl Default for ExchangeSettings {
@@ -86,9 +85,6 @@ impl Default for ExchangeSettings {
             secret_key: "".to_string(),
             is_margin_trading: false,
             request_trades: false,
-            web_socket_host: "".to_string(),
-            web_socket2_host: "".to_string(),
-            rest_host: "".to_string(),
             websocket_channels: vec![],
             currency_pairs: None,
             subscribe_to_market_data: true,

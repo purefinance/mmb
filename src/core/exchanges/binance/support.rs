@@ -241,11 +241,11 @@ impl Support for Binance {
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri> {
         let (host, path) = match role {
             WebSocketRole::Main => (
-                &self.settings.web_socket_host,
+                &self.hosts.web_socket_host,
                 self.build_ws_main_path(&self.settings.websocket_channels[..]),
             ),
             WebSocketRole::Secondary => (
-                &self.settings.web_socket2_host,
+                &self.hosts.web_socket2_host,
                 self.build_ws_secondary_path().await?,
             ),
         };
@@ -669,7 +669,7 @@ impl Binance {
             false => "/api/v3/openOrders",
         };
 
-        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
 
         let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
 
