@@ -83,7 +83,6 @@ impl PriceSourceEventLoop {
                         &self.local_snapshot_service,
                         &convert_amount_now.chain,
                     );
-                    // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
                     let _ = convert_amount_now.task_finished_sender.send(result);
                 },
                 core_event_res = self.rx_core.recv() => {
@@ -356,13 +355,11 @@ impl PriceSourceService {
             ))?;
 
         let (tx_result, rx_result) = oneshot::channel();
-        // REVIEW: нужно ли тут смотреть на результат и останвливаться в случае ошибки?
         let _ = self
             .tx_main
             .send(ConvertAmountNow::new(chain.clone(), src_amount, tx_result));
         tokio::select! {
-            // REVIEW: корректно ли так из tokio::Result конвертировать в anyhow::Result?
-            result = rx_result => Ok(result.context("PriceSourceService::convert_amount() while receiving the result on rx_result")?),
+            result = rx_result => Ok(result.context("While receiving the result on rx_result in PriceSourceService::convert_amount()")?),
             _ = cancellation_token.when_cancelled() => Ok(None),
         }
     }
