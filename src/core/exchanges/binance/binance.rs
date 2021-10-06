@@ -459,7 +459,7 @@ mod tests {
         let (tx, _) = broadcast::channel(10);
         let binance = Binance::new(
             exchange_account_id,
-            settings.clone(),
+            settings,
             tx,
             ApplicationManager::new(CancellationToken::default()),
             false,
