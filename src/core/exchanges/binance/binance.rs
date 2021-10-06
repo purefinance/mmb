@@ -32,14 +32,14 @@ use crate::core::exchanges::{
 use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
-use crate::core::settings::{ExchangeSettings, HostsSettings};
+use crate::core::settings::{ExchangeSettings, Hosts};
 use crate::core::DateTime;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 
 pub struct Binance {
     pub settings: ExchangeSettings,
-    pub hosts_settings: HostsSettings,
+    pub hosts_settings: Hosts,
     pub id: ExchangeAccountId,
     pub order_created_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
@@ -80,13 +80,13 @@ impl Binance {
             .unwrap_or(is_reducing_market_data);
 
         let hosts_settings = if settings.is_margin_trading {
-            HostsSettings {
+            Hosts {
                 web_socket_host: "wss://fstream.binance.com".to_string(),
                 web_socket2_host: "wss://fstream3.binance.com".to_string(),
                 rest_host: "https://fapi.binance.com".to_string(),
             }
         } else {
-            HostsSettings {
+            Hosts {
                 web_socket_host: "wss://stream.binance.com:9443".to_string(),
                 web_socket2_host: "wss://stream.binance.com:9443".to_string(),
                 rest_host: "https://api.binance.com".to_string(),
