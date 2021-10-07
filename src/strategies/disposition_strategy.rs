@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 
 use crate::core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
@@ -37,6 +38,7 @@ pub trait DispositionStrategy: Send + Sync + 'static {
 pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,
     currency_pair: CurrencyPair,
+    spread: Decimal,
     _engine_context: Arc<EngineContext>,
 }
 
@@ -44,11 +46,13 @@ impl ExampleStrategy {
     pub fn new(
         target_eai: ExchangeAccountId,
         currency_pair: CurrencyPair,
+        spread: Decimal,
         engine_ctx: Arc<EngineContext>,
     ) -> Self {
         ExampleStrategy {
             target_eai,
             currency_pair,
+            spread,
             _engine_context: engine_ctx,
         }
     }
@@ -74,7 +78,17 @@ impl ExampleStrategy {
         explanation: Explanation,
     ) -> Option<TradingContextBySide> {
         let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
-        let price = snapshot.get_top(side)?.0;
+        let ask_min_price = snapshot.get_top_ask()?.0;
+        let bid_max_price = snapshot.get_top_bid()?.0;
+
+        let order_book_middle = (bid_max_price + ask_min_price) * dec!(0.5);
+        let current_spread = ask_min_price - bid_max_price;
+
+        let price = if current_spread < self.spread {
+            order_book_middle + (current_spread * dec!(0.5))
+        } else {
+            snapshot.get_top(side)?.0
+        };
 
         Some(TradingContextBySide {
             max_amount,
