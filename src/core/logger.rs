@@ -1,8 +1,13 @@
 use chrono::Utc;
 use log::LevelFilter;
+use std::env;
 use std::sync::Once;
 
 pub fn init_logger() {
+    if let Ok(_) = env::var("MMB_NO_LOGS") {
+        return;
+    }
+
     static INIT_LOGGER: Once = Once::new();
 
     INIT_LOGGER.call_once(|| {
