@@ -81,10 +81,10 @@ impl ExampleStrategy {
         let ask_min_price = snapshot.get_top_ask()?.0;
         let bid_max_price = snapshot.get_top_bid()?.0;
 
-        let order_book_middle = (bid_max_price + ask_min_price) * dec!(0.5);
         let current_spread = ask_min_price - bid_max_price;
 
         let price = if current_spread < self.spread {
+            let order_book_middle = (bid_max_price + ask_min_price) * dec!(0.5);
             order_book_middle + (current_spread * dec!(0.5))
         } else {
             snapshot.get_top(side)?.0
