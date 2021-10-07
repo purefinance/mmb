@@ -178,7 +178,9 @@ impl PriceSourceService {
         Arc::new(Self {
             price_sources_loader,
             tx_main,
-            convert_currency_notification_receiver: Mutex::new(Some(convert_currency_notification_receiver)),
+            convert_currency_notification_receiver: Mutex::new(Some(
+                convert_currency_notification_receiver,
+            )),
             price_source_chains: price_source_chains
                 .into_iter()
                 .map(|x| {
@@ -208,7 +210,9 @@ impl PriceSourceService {
             self.convert_currency_notification_receiver
                 .lock()
                 .take()
-                .expect("Failed to run PriceSourceEventLoop convert_currency_notification_receiver is none"),
+                .expect(
+                "Failed to run PriceSourceEventLoop convert_currency_notification_receiver is none",
+            ),
             cancellation_token,
         )
         .await;
@@ -548,32 +552,11 @@ pub mod test {
 
         assert_eq!(actual.first().expect("in test"), &expected);
     }
-            
+
     #[rstest]
-    #[case(
-        CurrencyCode::new("EOS".into()), 
-        CurrencyCode::new("BTC".into()), 
-        CurrencyCode::new("BTC".into()), 
-        CurrencyCode::new("USDT".into()), 
-        RebaseDirection::ToQuote, 
-        RebaseDirection::ToQuote, 
-    )] // eos_sell_btc_sell_usdt
-    #[case(
-        CurrencyCode::new("EOS".into()), 
-        CurrencyCode::new("BTC".into()), 
-        CurrencyCode::new("USDT".into()), 
-        CurrencyCode::new("BTC".into()), 
-        RebaseDirection::ToQuote, 
-        RebaseDirection::ToBase,
-    )] // eos_sell_btc_buy_usdt
-    #[case(
-        CurrencyCode::new("BTC".into()), 
-        CurrencyCode::new("EOS".into()), 
-        CurrencyCode::new("USDT".into()), 
-        CurrencyCode::new("BTC".into()), 
-        RebaseDirection::ToBase, 
-        RebaseDirection::ToBase,
-    )] // eos_buy_btc_buy_usdt
+    #[case(CurrencyCode::new("EOS".into()), CurrencyCode::new("BTC".into()), CurrencyCode::new("BTC".into()), CurrencyCode::new("USDT".into()), RebaseDirection::ToQuote, RebaseDirection::ToQuote)] // eos_sell_btc_sell_usdt
+    #[case(CurrencyCode::new("EOS".into()), CurrencyCode::new("BTC".into()), CurrencyCode::new("USDT".into()), CurrencyCode::new("BTC".into()), RebaseDirection::ToQuote, RebaseDirection::ToBase)] // eos_sell_btc_buy_usdt
+    #[case(CurrencyCode::new("BTC".into()), CurrencyCode::new("EOS".into()), CurrencyCode::new("USDT".into()), CurrencyCode::new("BTC".into()), RebaseDirection::ToBase, RebaseDirection::ToBase)] // eos_buy_btc_buy_usdt
     pub fn when_two_currency_pairs(
         #[case] first_currency: CurrencyCode,
         #[case] second_currency: CurrencyCode,
@@ -599,7 +582,6 @@ pub mod test {
                 },
             ],
         )];
-
 
         let currency_pair_metadata_1 = Arc::new(CurrencyPairMetadata::new(
             false,
@@ -729,7 +711,6 @@ pub mod test {
             Precision::ByTick { tick: dec!(0) },
         ));
 
-
         let currency_pair_metadata_3 = Arc::new(CurrencyPairMetadata::new(
             false,
             false,
@@ -779,7 +760,7 @@ pub mod test {
 
         assert_eq!(actual.first().expect("in test"), &expected);
     }
-    
+
     #[test]
     #[should_panic(expected = "failed to get currency pair")]
     fn throw_exception_when_more_cirrencies_then_needed() {
@@ -819,12 +800,13 @@ pub mod test {
                 false, btc.as_str(), usdt.as_str()).0
         ]));
 
-        let _ =
-            PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
+        let _ = PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
     }
 
     #[test]
-    #[should_panic(expected = "Can't build correct chain of currency pairs of price sources for karma/usdt")]
+    #[should_panic(
+        expected = "Can't build correct chain of currency pairs of price sources for karma/usdt"
+    )]
     fn throw_exception_when_less_currencies_then_needed() {
         let eos = CurrencyCode::new("EOS".into());
         let btc = CurrencyCode::new("BTC".into());
@@ -855,7 +837,6 @@ pub mod test {
                 false, btc.as_str(), usdt.as_str()).0
         ]));
 
-        let _ =
-            PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
+        let _ = PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
     }
 }
