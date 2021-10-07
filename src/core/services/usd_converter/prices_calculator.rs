@@ -94,7 +94,6 @@ mod test {
                     test_helper::get_test_exchange_by_currency_codes,
                 },
             },
-            logger::init_logger,
             order_book::order_book_data::OrderBookData,
             services::usd_converter::{
                 price_source_chain::PriceSourceChain,

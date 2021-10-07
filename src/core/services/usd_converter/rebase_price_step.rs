@@ -4,13 +4,13 @@ use crate::core::exchanges::{
     common::ExchangeId, general::currency_pair_metadata::CurrencyPairMetadata,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RebaseDirection {
     ToQuote,
     ToBase,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RebasePriceStep {
     pub exchange_id: ExchangeId,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,

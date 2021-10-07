@@ -42,7 +42,7 @@ pub struct PriceSourceEventLoop {
     local_snapshot_service: LocalSnapshotsService,
     price_cache: HashMap<TradePlace, PriceByOrderSide>,
     rx_core: broadcast::Receiver<ExchangeEvent>,
-    rx_event_loop: mpsc::Receiver<ConvertAmount>,
+    convert_currency_notification_receiver: mpsc::Receiver<ConvertAmount>,
 }
 
 impl PriceSourceEventLoop {
@@ -51,7 +51,7 @@ impl PriceSourceEventLoop {
         price_source_chains: Vec<PriceSourceChain>,
         price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
-        rx_event_loop: mpsc::Receiver<ConvertAmount>,
+        convert_currency_notification_receiver: mpsc::Receiver<ConvertAmount>,
         cancellation_token: CancellationToken,
     ) {
         let run_action = async move {
@@ -62,7 +62,7 @@ impl PriceSourceEventLoop {
                 local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
                 price_cache: HashMap::new(),
                 rx_core,
-                rx_event_loop,
+                convert_currency_notification_receiver,
             };
             this.run_loop(cancellation_token).await
         };
@@ -74,8 +74,8 @@ impl PriceSourceEventLoop {
     async fn run_loop(&mut self, cancellation_token: CancellationToken) -> Result<()> {
         loop {
             tokio::select! {
-                main_event_res = self.rx_event_loop.recv() => {
-                   let convert_amount = main_event_res.context("Error during receiving event on rx_event_loop")?;
+                main_event_res = self.convert_currency_notification_receiver.recv() => {
+                   let convert_amount = main_event_res.context("Error during receiving event on convert_currency_notification_receiver")?;
 
                     let result = prices_calculator::convert_amount(
                         convert_amount.src_amount,
@@ -159,7 +159,7 @@ impl PriceSourceEventLoop {
 pub struct PriceSourceService {
     price_sources_loader: PriceSourcesLoader,
     tx_main: mpsc::Sender<ConvertAmount>,
-    rx_event_loop: Mutex<Option<mpsc::Receiver<ConvertAmount>>>,
+    convert_currency_notification_receiver: Mutex<Option<mpsc::Receiver<ConvertAmount>>>,
     price_source_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
 }
 
@@ -173,12 +173,12 @@ impl PriceSourceService {
             price_source_settings,
             currency_pair_to_metadata_converter.clone(),
         );
-        let (tx_main, rx_event_loop) = mpsc::channel(20_000);
+        let (tx_main, convert_currency_notification_receiver) = mpsc::channel(20_000);
 
         Arc::new(Self {
             price_sources_loader,
             tx_main,
-            rx_event_loop: Mutex::new(Some(rx_event_loop)),
+            convert_currency_notification_receiver: Mutex::new(Some(convert_currency_notification_receiver)),
             price_source_chains: price_source_chains
                 .into_iter()
                 .map(|x| {
@@ -205,10 +205,10 @@ impl PriceSourceService {
             self.price_source_chains.values().cloned().collect_vec(),
             price_sources_saver,
             rx_core,
-            self.rx_event_loop
+            self.convert_currency_notification_receiver
                 .lock()
                 .take()
-                .expect("Failed to run PriceSourceEventLoop rx_event_loop is none"),
+                .expect("Failed to run PriceSourceEventLoop convert_currency_notification_receiver is none"),
             cancellation_token,
         )
         .await;
@@ -433,6 +433,26 @@ impl ConvertAmount {
 }
 
 pub mod test {
+    use rstest::rstest;
+    use rust_decimal_macros::dec;
+
+    use crate::{
+        core::{
+            exchanges::{
+                common::CurrencyPair,
+                general::{
+                    currency_pair_metadata::Precision,
+                    test_helper::{
+                        get_test_exchange_by_currency_codes,
+                        get_test_exchange_with_currency_pair_metadata,
+                    },
+                },
+            },
+            settings::ExchangeIdCurrencyPairSettings,
+        },
+        hashmap,
+    };
+
     use super::*;
 
     pub(crate) struct PriceSourceServiceTestBase {}
@@ -446,8 +466,396 @@ pub mod test {
             ExchangeAccountId::new(PriceSourceServiceTestBase::get_exchange_id(), 1)
         }
 
+        pub fn get_exchange_account_id_3() -> ExchangeAccountId {
+            ExchangeAccountId::new(PriceSourceServiceTestBase::get_exchange_id(), 2)
+        }
+
         pub fn get_exchange_id() -> ExchangeId {
             ExchangeId::new("Binance".into())
         }
+    }
+
+    #[test]
+    fn when_start_currency_code_equal_end_currency_code() {
+        let usdt = CurrencyCode::new("USDT".into());
+        let price_source_settings = vec![CurrencyPriceSourceSettings::new(
+            usdt.clone(),
+            usdt.clone(),
+            Vec::new(),
+        )];
+
+        let actual = PriceSourceService::prepare_price_source_chains(
+            &price_source_settings,
+            Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
+                PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
+                    false, usdt.as_str(), usdt.as_str()
+                ).0
+            ])),
+        );
+        let expected = PriceSourceChain::new(usdt.clone(), usdt, Vec::new());
+
+        assert_eq!(actual.first().expect("in test"), &expected);
+    }
+
+    #[test]
+    fn when_one_currency_pair() {
+        let base_currency_code = CurrencyCode::new("USDT".into());
+        let quote_currency_code = CurrencyCode::new("BTC".into());
+        let currency_pair = CurrencyPair::from_codes(&base_currency_code, &quote_currency_code);
+
+        let price_source_settings = vec![CurrencyPriceSourceSettings::new(
+            quote_currency_code.clone(),
+            base_currency_code.clone(),
+            vec![ExchangeIdCurrencyPairSettings {
+                exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                currency_pair,
+            }],
+        )];
+
+        let currency_pair_metadata = Arc::new(CurrencyPairMetadata::new(
+            false,
+            false,
+            base_currency_code.as_str().into(),
+            base_currency_code.clone(),
+            quote_currency_code.as_str().into(),
+            quote_currency_code.clone(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            base_currency_code.clone(),
+            None,
+            Precision::ByTick { tick: dec!(0.1) },
+            Precision::ByTick { tick: dec!(0) },
+        ));
+
+        let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
+            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata.clone()).0
+        ]));
+
+        let actual =
+            PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
+        let expected = PriceSourceChain::new(
+            quote_currency_code,
+            base_currency_code,
+            vec![RebasePriceStep::new(
+                PriceSourceServiceTestBase::get_exchange_id(),
+                currency_pair_metadata,
+                RebaseDirection::ToBase,
+            )],
+        );
+
+        assert_eq!(actual.first().expect("in test"), &expected);
+    }
+            
+    #[rstest]
+    #[case(
+        CurrencyCode::new("EOS".into()), 
+        CurrencyCode::new("BTC".into()), 
+        CurrencyCode::new("BTC".into()), 
+        CurrencyCode::new("USDT".into()), 
+        RebaseDirection::ToQuote, 
+        RebaseDirection::ToQuote
+    )] // eos_sell_btc_sell_usdt
+    #[case(
+        CurrencyCode::new("EOS".into()), 
+        CurrencyCode::new("BTC".into()), 
+        CurrencyCode::new("USDT".into()), 
+        CurrencyCode::new("BTC".into()), 
+        RebaseDirection::ToQuote, 
+        RebaseDirection::ToBase
+    )] // eos_sell_btc_buy_usdt
+    #[case(
+        CurrencyCode::new("BTC".into()), 
+        CurrencyCode::new("EOS".into()), 
+        CurrencyCode::new("USDT".into()), 
+        CurrencyCode::new("BTC".into()), 
+        RebaseDirection::ToBase, 
+        RebaseDirection::ToBase
+    )] // eos_buy_btc_buy_usdt
+    pub fn when_two_currency_pairs(
+        #[case] first_currency: CurrencyCode,
+        #[case] second_currency: CurrencyCode,
+        #[case] third_currency: CurrencyCode,
+        #[case] fourth_currency: CurrencyCode,
+        #[case] first_pair_direction: RebaseDirection,
+        #[case] second_pair_direction: RebaseDirection,
+    ) {
+        let currency_pair_1 = CurrencyPair::from_codes(&first_currency, &second_currency);
+        let currency_pair_2 = CurrencyPair::from_codes(&third_currency, &fourth_currency);
+
+        let price_source_settings = vec![CurrencyPriceSourceSettings::new(
+            "EOS".into(),
+            "USDT".into(),
+            vec![
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    currency_pair: currency_pair_1,
+                },
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    currency_pair: currency_pair_2,
+                },
+            ],
+        )];
+
+
+        let currency_pair_metadata_1 = Arc::new(CurrencyPairMetadata::new(
+            false,
+            false,
+            first_currency.as_str().into(),
+            first_currency.clone(),
+            second_currency.as_str().into(),
+            second_currency.clone(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            first_currency.clone(),
+            None,
+            Precision::ByTick { tick: dec!(0.1) },
+            Precision::ByTick { tick: dec!(0) },
+        ));
+
+        let currency_pair_metadata_2 = Arc::new(CurrencyPairMetadata::new(
+            false,
+            false,
+            third_currency.as_str().into(),
+            third_currency.clone(),
+            fourth_currency.as_str().into(),
+            fourth_currency.clone(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            third_currency.clone(),
+            None,
+            Precision::ByTick { tick: dec!(0.1) },
+            Precision::ByTick { tick: dec!(0) },
+        ));
+
+        let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
+            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_1.clone()).0,
+            PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_2.clone()).0
+        ]));
+
+        let actual =
+            PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
+        let expected = PriceSourceChain::new(
+            "EOS".into(),
+            "USDT".into(),
+            vec![
+                RebasePriceStep::new(
+                    PriceSourceServiceTestBase::get_exchange_id(),
+                    currency_pair_metadata_1,
+                    first_pair_direction,
+                ),
+                RebasePriceStep::new(
+                    PriceSourceServiceTestBase::get_exchange_id(),
+                    currency_pair_metadata_2,
+                    second_pair_direction,
+                ),
+            ],
+        );
+
+        assert_eq!(actual.first().expect("in test"), &expected);
+    }
+
+    #[test]
+    fn when_three_currency_pairs_karma_sell_eos_buy_btc_sell_usdt() {
+        let eos = CurrencyCode::new("EOS".into());
+        let btc = CurrencyCode::new("BTC".into());
+        let usdt = CurrencyCode::new("USDT".into());
+        let karma = CurrencyCode::new("KARMA".into());
+        let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
+        let currency_pair_2 = CurrencyPair::from_codes(&karma, &eos);
+        let currency_pair_3 = CurrencyPair::from_codes(&btc, &usdt);
+
+        let price_source_settings = vec![CurrencyPriceSourceSettings::new(
+            karma.clone(),
+            usdt.clone(),
+            vec![
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    currency_pair: currency_pair_1,
+                },
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    currency_pair: currency_pair_2,
+                },
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_3(),
+                    currency_pair: currency_pair_3,
+                },
+            ],
+        )];
+
+        let currency_pair_metadata_1 = Arc::new(CurrencyPairMetadata::new(
+            false,
+            false,
+            btc.as_str().into(),
+            btc.clone(),
+            eos.as_str().into(),
+            eos.clone(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            btc.clone(),
+            None,
+            Precision::ByTick { tick: dec!(0.1) },
+            Precision::ByTick { tick: dec!(0) },
+        ));
+
+        let currency_pair_metadata_2 = Arc::new(CurrencyPairMetadata::new(
+            false,
+            false,
+            btc.as_str().into(),
+            btc.clone(),
+            usdt.as_str().into(),
+            usdt.clone(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            btc.clone(),
+            None,
+            Precision::ByTick { tick: dec!(0.1) },
+            Precision::ByTick { tick: dec!(0) },
+        ));
+
+
+        let currency_pair_metadata_3 = Arc::new(CurrencyPairMetadata::new(
+            false,
+            false,
+            karma.as_str().into(),
+            karma.clone(),
+            eos.as_str().into(),
+            eos.clone(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            karma.clone(),
+            None,
+            Precision::ByTick { tick: dec!(0.1) },
+            Precision::ByTick { tick: dec!(0) },
+        ));
+        let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
+            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_1.clone()).0,
+            PriceSourceServiceTestBase::get_exchange_account_id_3() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_2.clone()).0,
+            PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_3.clone()).0
+        ]));
+
+        let actual =
+            PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
+        let expected = PriceSourceChain::new(
+            karma,
+            usdt,
+            vec![
+                RebasePriceStep::new(
+                    PriceSourceServiceTestBase::get_exchange_id(),
+                    currency_pair_metadata_3,
+                    RebaseDirection::ToQuote,
+                ),
+                RebasePriceStep::new(
+                    PriceSourceServiceTestBase::get_exchange_id(),
+                    currency_pair_metadata_1,
+                    RebaseDirection::ToBase,
+                ),
+                RebasePriceStep::new(
+                    PriceSourceServiceTestBase::get_exchange_id(),
+                    currency_pair_metadata_2,
+                    RebaseDirection::ToQuote,
+                ),
+            ],
+        );
+
+        assert_eq!(actual.first().expect("in test"), &expected);
+    }
+    
+    #[test]
+    #[should_panic(expected = "failed to get currency pair")]
+    fn throw_exception_when_more_cirrencies_then_needed() {
+        let eos = CurrencyCode::new("EOS".into());
+        let btc = CurrencyCode::new("BTC".into());
+        let usdt = CurrencyCode::new("USDT".into());
+        let karma = CurrencyCode::new("KARMA".into());
+        let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
+        let currency_pair_2 = CurrencyPair::from_codes(&karma, &eos);
+        let currency_pair_3 = CurrencyPair::from_codes(&btc, &usdt);
+
+        let price_source_settings = vec![CurrencyPriceSourceSettings::new(
+            eos.clone(),
+            usdt.clone(),
+            vec![
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    currency_pair: currency_pair_1,
+                },
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    currency_pair: currency_pair_2,
+                },
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_3(),
+                    currency_pair: currency_pair_3,
+                },
+            ],
+        )];
+
+        let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
+            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
+                false, btc.as_str(), eos.as_str()).0,
+            PriceSourceServiceTestBase::get_exchange_account_id_3() => get_test_exchange_by_currency_codes(
+                false, btc.as_str(), usdt.as_str()).0,
+            PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_by_currency_codes(
+                false, btc.as_str(), usdt.as_str()).0
+        ]));
+
+        let _ =
+            PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
+    }
+
+    #[test]
+    #[should_panic(expected = "Can't build correct chain of currency pairs of price sources for karma/usdt")]
+    fn throw_exception_when_less_currencies_then_needed() {
+        let eos = CurrencyCode::new("EOS".into());
+        let btc = CurrencyCode::new("BTC".into());
+        let usdt = CurrencyCode::new("USDT".into());
+        let karma = CurrencyCode::new("KARMA".into());
+        let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
+        let currency_pair_2 = CurrencyPair::from_codes(&btc, &usdt);
+
+        let price_source_settings = vec![CurrencyPriceSourceSettings::new(
+            karma.clone(),
+            usdt.clone(),
+            vec![
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    currency_pair: currency_pair_1,
+                },
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    currency_pair: currency_pair_2,
+                },
+            ],
+        )];
+
+        let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
+            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
+                false, btc.as_str(), eos.as_str()).0,
+            PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_by_currency_codes(
+                false, btc.as_str(), usdt.as_str()).0
+        ]));
+
+        let _ =
+            PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
     }
 }
