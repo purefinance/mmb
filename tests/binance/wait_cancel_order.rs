@@ -4,16 +4,31 @@ use mmb_lib::core::exchanges::general::commission::Commission;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::logger::init_logger;
+use mmb_lib::core::settings::{CurrencyPairSetting, ExchangeSettings};
 
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::OrderProxy;
+use crate::get_binance_credentials_or_exit;
 
 #[actix_rt::test]
 async fn cancellation_waited_successfully() {
     init_logger();
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
-    let binance_builder = match BinanceBuilder::try_new(
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
+    let mut settings =
+        ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
+
+    // Currency pair in settings are matter here because of need to check
+    // CurrencyPairMetadata in check_order_fills() inside wait_cancel_order()
+    settings.currency_pairs = Some(vec![CurrencyPairSetting {
+        base: "phb".into(),
+        quote: "btc".into(),
+        currency_pair: None,
+    }]);
+
+    let binance_builder = match BinanceBuilder::try_new_with_settings(
+        settings.clone(),
         exchange_account_id.clone(),
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -110,8 +125,8 @@ async fn cancellation_waited_failed_fallback() {
                 Ok(_) => assert!(false),
                 Err(error) => {
                     assert_eq!(
-                        "Order was expected to cancel explicity via Rest or Web Socket but got timeout instead",
-                        &error.to_string()[..85]
+                        "Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead",
+                        &error.to_string()[..86]
                     );
                 }
             }

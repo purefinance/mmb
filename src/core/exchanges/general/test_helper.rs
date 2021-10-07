@@ -102,10 +102,6 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
     let application_manager = ApplicationManager::new(CancellationToken::new());
     let (tx, rx) = broadcast::channel(10);
 
-    BinanceBuilder.extend_settings(&mut settings);
-    settings.web_socket_host = "host".into();
-    settings.web_socket2_host = "host2".into();
-
     let binance = Box::new(Binance::new(
         "Binance0".parse().expect("in test"),
         settings.clone(),

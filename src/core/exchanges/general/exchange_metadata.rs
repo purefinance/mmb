@@ -1,5 +1,3 @@
-use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
-use crate::core::exchanges::general::exchange::Exchange;
 use anyhow::{Context, Result};
 use dashmap::DashMap;
 use itertools::Itertools;
@@ -7,7 +5,9 @@ use log::warn;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 
-use super::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
+
+use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
 
 impl Exchange {
     pub async fn build_metadata(&self) {

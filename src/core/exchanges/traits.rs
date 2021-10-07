@@ -143,7 +143,5 @@ pub trait ExchangeClientBuilder {
         application_manager: Arc<ApplicationManager>,
     ) -> ExchangeClientBuilderResult;
 
-    fn extend_settings(&self, settings: &mut ExchangeSettings);
-
     fn get_timeout_argments(&self) -> RequestTimeoutArguments;
 }
