@@ -6,7 +6,7 @@ use std::{
 
 use crate::core::{
     exchanges::{
-        common::{Amount, CurrencyCode, ExchangeAccountId, ExchangeId, TradePlace},
+        common::{Amount, CurrencyCode, ExchangeId, TradePlace},
         events::ExchangeEvent,
         general::{
             currency_pair_metadata::CurrencyPairMetadata,
@@ -436,6 +436,7 @@ impl ConvertAmount {
     }
 }
 
+#[cfg(test)]
 pub mod test {
     use rstest::rstest;
     use rust_decimal_macros::dec;
@@ -443,7 +444,7 @@ pub mod test {
     use crate::{
         core::{
             exchanges::{
-                common::CurrencyPair,
+                common::{CurrencyPair, ExchangeAccountId},
                 general::{
                     currency_pair_metadata::Precision,
                     test_helper::{
