@@ -14,10 +14,10 @@ use crate::core::{
 
 pub(crate) fn calculate(
     src_amount: Amount,
-    prices_source_chain: &PriceSourceChain,
+    price_source_chain: &PriceSourceChain,
     prices: &HashMap<TradePlace, Price>,
 ) -> Price {
-    calculate_amount_for_chain(src_amount, prices_source_chain, |trade_place| {
+    calculate_amount_for_chain(src_amount, price_source_chain, |trade_place| {
         prices.get(trade_place).cloned()
     })
     .expect("Invalid price cache")
@@ -25,12 +25,12 @@ pub(crate) fn calculate(
 
 fn calculate_amount_for_chain(
     src_amount: Amount,
-    prices_source_chain: &PriceSourceChain,
+    price_source_chain: &PriceSourceChain,
     calculate_price: impl Fn(&TradePlace) -> Option<Price>,
 ) -> Option<Amount> {
     let mut rebase_price = dec!(1);
 
-    for step in &prices_source_chain.rebase_price_steps {
+    for step in &price_source_chain.rebase_price_steps {
         let trade_place = TradePlace::new(
             step.exchange_id.clone(),
             step.currency_pair_metadata.currency_pair(),
@@ -45,12 +45,12 @@ fn calculate_amount_for_chain(
     Some(rebase_price * src_amount)
 }
 
-pub(crate) fn convert_amount_now(
+pub(crate) fn convert_amount(
     src_amount: Amount,
     local_snapshot_service: &LocalSnapshotsService,
-    prices_source_chain: &PriceSourceChain,
+    price_source_chain: &PriceSourceChain,
 ) -> Option<Amount> {
-    calculate_amount_for_chain(src_amount, prices_source_chain, |trade_place| {
+    calculate_amount_for_chain(src_amount, price_source_chain, |trade_place| {
         local_snapshot_service
             .get_snapshot(trade_place)?
             .calculate_middle_price(trade_place)
@@ -61,9 +61,9 @@ pub fn convert_amount_in_past(
     src_amount: Amount,
     price_cache: &HashMap<TradePlace, PriceByOrderSide>,
     time_in_past: DateTime,
-    prices_source_chain: &PriceSourceChain,
+    price_source_chain: &PriceSourceChain,
 ) -> Option<Amount> {
-    calculate_amount_for_chain(src_amount, prices_source_chain, |trade_place| {
+    calculate_amount_for_chain(src_amount, price_source_chain, |trade_place| {
         let prices = match price_cache.get(trade_place) {
             Some(prices) => prices,
             None => {
@@ -90,11 +90,11 @@ mod test {
             exchanges::{
                 common::{CurrencyCode, CurrencyPair, SortedOrderData},
                 general::{
-                    currency_pair_metadata::{CurrencyPairMetadata, Precision},
                     currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
-                    test_helper::get_test_exchange_with_currency_pair_metadata,
+                    test_helper::get_test_exchange_by_currency_codes,
                 },
             },
+            logger::init_logger,
             order_book::order_book_data::OrderBookData,
             services::usd_converter::{
                 price_source_chain::PriceSourceChain,
@@ -112,24 +112,6 @@ mod test {
         let quote_currency_code = CurrencyCode::new("BTC".into());
         let currency_pair = CurrencyPair::from_codes(&base_currency_code, &quote_currency_code);
 
-        let currency_pair_metadata = Arc::new(CurrencyPairMetadata::new(
-            false,
-            false,
-            base_currency_code.as_str().into(),
-            base_currency_code.clone(),
-            quote_currency_code.as_str().into(),
-            quote_currency_code.clone(),
-            None,
-            None,
-            None,
-            None,
-            None,
-            base_currency_code.clone(),
-            None,
-            Precision::ByTick { tick: dec!(0.1) },
-            Precision::ByTick { tick: dec!(0) },
-        ));
-
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
             quote_currency_code.clone(),
             base_currency_code.clone(),
@@ -142,8 +124,8 @@ mod test {
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             &price_source_settings,
             Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
-                        PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(
-                            currency_pair_metadata.clone()
+                        PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
+                            false, base_currency_code.as_str(), quote_currency_code.as_str()
                         ).0
             ])),
         );
@@ -176,8 +158,8 @@ mod test {
         let snapshot_service = LocalSnapshotsService::new(hashmap![trade_place => snapshot]);
 
         let src_amount = dec!(10);
-        let price_now = convert_amount_now(src_amount, &snapshot_service, &price_source_chain)
-            .expect("in test");
+        let price_now =
+            convert_amount(src_amount, &snapshot_service, &price_source_chain).expect("in test");
 
         assert_eq!(dec!(1) / (dec!(12) / dec!(2)) * src_amount, price_now);
     }
@@ -195,7 +177,7 @@ mod test {
         let snapshot_service = LocalSnapshotsService::new(hashmap![trade_place => snapshot]);
 
         let src_amount = dec!(10);
-        let price_now = convert_amount_now(src_amount, &snapshot_service, &price_source_chain);
+        let price_now = convert_amount(src_amount, &snapshot_service, &price_source_chain);
 
         assert!(price_now.is_none());
     }
@@ -207,8 +189,8 @@ mod test {
         let trade_place =
             TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
         let price_cache = hashmap![
-            trade_place => PriceByOrderSide::new(Some(dec!(10)), Some(dec!(2))
-        )];
+            trade_place => PriceByOrderSide::new(Some(dec!(10)), Some(dec!(2)))
+        ];
 
         let src_amount = dec!(10);
         let price_now =
@@ -228,5 +210,129 @@ mod test {
             convert_amount_in_past(src_amount, &price_cache, time_in_past, &price_source_chain);
 
         assert!(price_now.is_none());
+    }
+
+    #[test]
+    fn calculate_amount_with_current_cached_prices_using_one_step_with_price() {
+        let (currency_pair, price_source_chain) = getenerate_one_step_setup();
+        let cached_price = dec!(6);
+        let trade_place =
+            TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
+        let price_cache = hashmap![trade_place => cached_price];
+
+        let src_amount = dec!(10);
+        let price_now = calculate(src_amount, &price_source_chain, &price_cache);
+
+        assert_eq!(dec!(1) / cached_price * src_amount, price_now);
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid price cache")]
+    fn calculate_amount_with_current_cached_prices_using_one_step_without_price() {
+        let (_, price_source_chain) = getenerate_one_step_setup();
+        let price_cache = HashMap::new();
+
+        let src_amount = dec!(10);
+        let _ = calculate(src_amount, &price_source_chain, &price_cache);
+    }
+
+    struct TwoStepSetup {
+        currency_pair_1: CurrencyPair,
+        currency_pair_2: CurrencyPair,
+        price_source_chain: PriceSourceChain,
+    }
+
+    fn getenerate_two_step_setup() -> TwoStepSetup {
+        let base_currency_code_1 = CurrencyCode::new("USDT".into());
+        let quote_currency_code_1 = CurrencyCode::new("BTC".into());
+        let currency_pair_1 =
+            CurrencyPair::from_codes(&base_currency_code_1, &quote_currency_code_1);
+
+        let base_currency_code_2 = CurrencyCode::new("BTC".into());
+        let quote_currency_code_2 = CurrencyCode::new("EOS".into());
+        let currency_pair_2 =
+            CurrencyPair::from_codes(&base_currency_code_2, &quote_currency_code_2);
+
+        let price_source_settings = vec![CurrencyPriceSourceSettings::new(
+            quote_currency_code_2.clone(),
+            base_currency_code_1.clone(),
+            vec![
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    currency_pair: currency_pair_1.clone(),
+                },
+                ExchangeIdCurrencyPairSettings {
+                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    currency_pair: currency_pair_2.clone(),
+                },
+            ],
+        )];
+
+        let price_source_chains = PriceSourceService::prepare_price_source_chains(
+            &price_source_settings,
+            Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
+                PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
+                    false, base_currency_code_1.as_str(), quote_currency_code_1.as_str()
+                ).0,
+                PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_by_currency_codes(
+                    false, base_currency_code_2.as_str(), quote_currency_code_2.as_str()
+                ).0
+            ])),
+        );
+        let price_source_chain = price_source_chains
+            .into_iter()
+            .find(|chain| {
+                chain.start_currency_code == quote_currency_code_2
+                    && chain.end_currency_code == base_currency_code_1
+            })
+            .expect("in test");
+
+        TwoStepSetup {
+            currency_pair_1,
+            currency_pair_2,
+            price_source_chain,
+        }
+    }
+
+    #[test]
+    fn calculate_amount_with_current_cached_prices_using_two_step_with_price() {
+        let setup = getenerate_two_step_setup();
+        let trade_place_1 = TradePlace::new(
+            PriceSourceServiceTestBase::get_exchange_id(),
+            setup.currency_pair_1,
+        );
+        let trade_place_2 = TradePlace::new(
+            PriceSourceServiceTestBase::get_exchange_id(),
+            setup.currency_pair_2,
+        );
+        let cached_price_1 = dec!(6);
+        let cached_price_2 = dec!(7);
+        let price_cache = hashmap![
+            trade_place_1 => cached_price_1,
+            trade_place_2 => cached_price_2
+        ];
+
+        let src_amount = dec!(10);
+        let price_now = calculate(src_amount, &setup.price_source_chain, &price_cache);
+
+        assert_eq!(
+            dec!(1) / cached_price_1 / cached_price_2 * src_amount,
+            price_now
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid price cache")]
+    fn calculate_amount_with_current_cached_prices_using_two_step_without_one_price() {
+        let setup = getenerate_two_step_setup();
+        let trade_place_1 = TradePlace::new(
+            PriceSourceServiceTestBase::get_exchange_id(),
+            setup.currency_pair_1,
+        );
+        let cached_price_1 = dec!(6);
+        let price_cache = hashmap![trade_place_1 => cached_price_1];
+
+        let src_amount = dec!(10);
+        let _ = calculate(src_amount, &setup.price_source_chain, &price_cache);
     }
 }

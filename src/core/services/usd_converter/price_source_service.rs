@@ -42,7 +42,7 @@ pub struct PriceSourceEventLoop {
     local_snapshot_service: LocalSnapshotsService,
     price_cache: HashMap<TradePlace, PriceByOrderSide>,
     rx_core: broadcast::Receiver<ExchangeEvent>,
-    rx_main: mpsc::Receiver<ConvertAmountNow>,
+    rx_event_loop: mpsc::Receiver<ConvertAmount>,
 }
 
 impl PriceSourceEventLoop {
@@ -51,7 +51,7 @@ impl PriceSourceEventLoop {
         price_source_chains: Vec<PriceSourceChain>,
         price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
-        rx_main: mpsc::Receiver<ConvertAmountNow>,
+        rx_event_loop: mpsc::Receiver<ConvertAmount>,
         cancellation_token: CancellationToken,
     ) {
         let run_action = async move {
@@ -62,7 +62,7 @@ impl PriceSourceEventLoop {
                 local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
                 price_cache: HashMap::new(),
                 rx_core,
-                rx_main,
+                rx_event_loop,
             };
             this.run_loop(cancellation_token).await
         };
@@ -74,15 +74,15 @@ impl PriceSourceEventLoop {
     async fn run_loop(&mut self, cancellation_token: CancellationToken) -> Result<()> {
         loop {
             tokio::select! {
-                main_event_res = self.rx_main.recv() => {
-                   let convert_amount_now = main_event_res.context("Error during receiving event on rx_main")?;
+                main_event_res = self.rx_event_loop.recv() => {
+                   let convert_amount = main_event_res.context("Error during receiving event on rx_event_loop")?;
 
-                    let result = prices_calculator::convert_amount_now(
-                        convert_amount_now.src_amount,
+                    let result = prices_calculator::convert_amount(
+                        convert_amount.src_amount,
                         &self.local_snapshot_service,
-                        &convert_amount_now.chain,
+                        &convert_amount.chain,
                     );
-                   convert_amount_now.task_finished_sender.send(result).expect("PriceSourceEventLoop::run_loop(): Unable to send trades event. Probably receiver is already dropped");
+                    convert_amount.task_finished_sender.send(result).expect("PriceSourceEventLoop::run_loop(): Unable to send trades event. Probably receiver is already dropped");
                 },
                 core_event_res = self.rx_core.recv() => {
                     let event = core_event_res.context("Error during receiving event on rx_core")?;
@@ -158,8 +158,8 @@ impl PriceSourceEventLoop {
 
 pub struct PriceSourceService {
     price_sources_loader: PriceSourcesLoader,
-    tx_main: mpsc::Sender<ConvertAmountNow>,
-    rx_main: Mutex<Option<mpsc::Receiver<ConvertAmountNow>>>,
+    tx_main: mpsc::Sender<ConvertAmount>,
+    rx_event_loop: Mutex<Option<mpsc::Receiver<ConvertAmount>>>,
     price_source_chains: HashMap<ConvertCurrencyDirection, PriceSourceChain>,
 }
 
@@ -173,12 +173,12 @@ impl PriceSourceService {
             price_source_settings,
             currency_pair_to_metadata_converter.clone(),
         );
-        let (tx_main, rx_main) = mpsc::channel(20_000);
+        let (tx_main, rx_event_loop) = mpsc::channel(20_000);
 
         Arc::new(Self {
             price_sources_loader,
             tx_main,
-            rx_main: Mutex::new(Some(rx_main)),
+            rx_event_loop: Mutex::new(Some(rx_event_loop)),
             price_source_chains: price_source_chains
                 .into_iter()
                 .map(|x| {
@@ -205,10 +205,10 @@ impl PriceSourceService {
             self.price_source_chains.values().cloned().collect_vec(),
             price_sources_saver,
             rx_core,
-            self.rx_main
+            self.rx_event_loop
                 .lock()
                 .take()
-                .expect("Failed to run PriceSourceEventLoop rx_main is none"),
+                .expect("Failed to run PriceSourceEventLoop rx_event_loop is none"),
             cancellation_token,
         )
         .await;
@@ -275,7 +275,7 @@ impl PriceSourceService {
                         ));
                     }
 
-                    let step = list.first().expect("list is empty");
+                    let step = list.first().expect("List is empty");
 
                     rebase_price_steps.push(step.clone());
 
@@ -354,14 +354,14 @@ impl PriceSourceService {
             .price_source_chains
             .get(&convert_currency_direction)
             .context(format!(
-                "failed to get price_sources_chain from {:?} with {:?}",
+                "Failed to get price_sources_chain from {:?} with {:?}",
                 self.price_source_chains, convert_currency_direction,
             ))?;
 
         let (tx_result, rx_result) = oneshot::channel();
         self
             .tx_main
-            .send(ConvertAmountNow::new(chain.clone(), src_amount, tx_result))
+            .send(ConvertAmount::new(chain.clone(), src_amount, tx_result))
             .await
             .expect(
                 "PriceSourceService::convert_amount(): Unable to send trades event. Probably receiver is already dropped"
@@ -412,13 +412,13 @@ impl PriceSourceService {
 }
 
 #[derive(Debug)]
-pub struct ConvertAmountNow {
+pub struct ConvertAmount {
     pub chain: PriceSourceChain,
     pub src_amount: Amount,
     pub task_finished_sender: oneshot::Sender<Option<Decimal>>,
 }
 
-impl ConvertAmountNow {
+impl ConvertAmount {
     pub fn new(
         chain: PriceSourceChain,
         src_amount: Amount,
@@ -440,6 +440,10 @@ pub mod test {
     impl PriceSourceServiceTestBase {
         pub fn get_exchange_account_id() -> ExchangeAccountId {
             ExchangeAccountId::new(PriceSourceServiceTestBase::get_exchange_id(), 0)
+        }
+
+        pub fn get_exchange_account_id_2() -> ExchangeAccountId {
+            ExchangeAccountId::new(PriceSourceServiceTestBase::get_exchange_id(), 1)
         }
 
         pub fn get_exchange_id() -> ExchangeId {
