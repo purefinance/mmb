@@ -556,7 +556,7 @@ pub mod test {
         CurrencyCode::new("BTC".into()), 
         CurrencyCode::new("USDT".into()), 
         RebaseDirection::ToQuote, 
-        RebaseDirection::ToQuote
+        RebaseDirection::ToQuote, 
     )] // eos_sell_btc_sell_usdt
     #[case(
         CurrencyCode::new("EOS".into()), 
@@ -564,7 +564,7 @@ pub mod test {
         CurrencyCode::new("USDT".into()), 
         CurrencyCode::new("BTC".into()), 
         RebaseDirection::ToQuote, 
-        RebaseDirection::ToBase
+        RebaseDirection::ToBase,
     )] // eos_sell_btc_buy_usdt
     #[case(
         CurrencyCode::new("BTC".into()), 
@@ -572,7 +572,7 @@ pub mod test {
         CurrencyCode::new("USDT".into()), 
         CurrencyCode::new("BTC".into()), 
         RebaseDirection::ToBase, 
-        RebaseDirection::ToBase
+        RebaseDirection::ToBase,
     )] // eos_buy_btc_buy_usdt
     pub fn when_two_currency_pairs(
         #[case] first_currency: CurrencyCode,
