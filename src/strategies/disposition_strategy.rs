@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use rust_decimal_macros::dec;
 
 use crate::core::disposition_execution::{
@@ -85,7 +85,16 @@ impl ExampleStrategy {
 
         let price = if current_spread < self.spread {
             let order_book_middle = (bid_max_price + ask_min_price) * dec!(0.5);
-            order_book_middle + (current_spread * dec!(0.5))
+            match side {
+                OrderSide::Sell => {
+                    let price = order_book_middle + (current_spread * dec!(0.5));
+                    price.round_dp_with_strategy(0, RoundingStrategy::ToPositiveInfinity)
+                }
+                OrderSide::Buy => {
+                    let price = order_book_middle - (current_spread * dec!(0.5));
+                    price.round_dp_with_strategy(0, RoundingStrategy::ToNegativeInfinity)
+                }
+            }
         } else {
             snapshot.get_top(side)?.0
         };
