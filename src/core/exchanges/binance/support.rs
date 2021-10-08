@@ -1,10 +1,13 @@
+use crate::core::infrastructure::WithExpect;
 use std::str::FromStr;
+
 use std::sync::Arc;
+use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use awc::http::Uri;
-use chrono::Utc;
+use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::{error, info};
@@ -14,7 +17,8 @@ use serde_json::Value;
 
 use super::binance::Binance;
 use crate::core::exchanges::common::SortedOrderData;
-use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::events::{ExchangeEvent, TradeId};
+use crate::core::exchanges::general::order::get_order_trades::OrderTrade;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
@@ -23,7 +27,10 @@ use crate::core::exchanges::{
 };
 use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
+use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::*;
+use crate::core::settings::ExchangeSettings;
+use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::general::currency_pair_metadata::Precision,
@@ -145,9 +152,15 @@ impl Support for Binance {
                 let currency_pair = self.currency_pair_from_web_socket(&stream[..byte_index])?;
                 let data = &data["data"];
 
+                if stream.ends_with("@trade") {
+                    self.handle_trade(&currency_pair, data)?;
+                    return Ok(());
+                }
+
                 // TODO handle public stream
                 if stream.ends_with("depth20") {
                     self.process_snapshot_update(&currency_pair, data)?;
+                    return Ok(());
                 }
             }
 
@@ -159,12 +172,25 @@ impl Support for Binance {
             .as_str()
             .ok_or(anyhow!("Unable to parse event_type"))?;
         if event_type == "executionReport" {
-            self.handle_trade(msg, data)?;
+            self.handle_order_fill(msg, data)?;
         } else if false {
             // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
         } else {
             self.log_unknown_message(self.id.clone(), msg);
         }
+
+        Ok(())
+    }
+
+    fn on_connecting(&self) -> Result<()> {
+        self.unified_to_specific
+            .read()
+            .iter()
+            .for_each(|(currency_pair, _)| {
+                let _ = self
+                    .last_trade_ids
+                    .insert(currency_pair.clone(), TradeId::Number(0));
+            });
 
         Ok(())
     }
@@ -190,6 +216,15 @@ impl Support for Binance {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
+    fn set_handle_trade_callback(
+        &self,
+        callback: Box<
+            dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
+        >,
+    ) {
+        *self.handle_trade_callback.lock() = callback;
+    }
+
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
         *self.traded_specific_currencies.lock() = currencies;
     }
@@ -206,11 +241,11 @@ impl Support for Binance {
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri> {
         let (host, path) = match role {
             WebSocketRole::Main => (
-                &self.settings.web_socket_host,
+                &self.hosts.web_socket_host,
                 self.build_ws_main_path(&self.settings.websocket_channels[..]),
             ),
             WebSocketRole::Secondary => (
-                &self.settings.web_socket2_host,
+                &self.hosts.web_socket2_host,
                 self.build_ws_secondary_path().await?,
             ),
         };
@@ -316,7 +351,7 @@ impl Support for Binance {
             let filters = symbol
                 .get("filters")
                 .and_then(|filters| filters.as_array())
-                .ok_or(anyhow!("Unable to get filters as array from Binance"))?;
+                .context("Unable to get filters as array from Binance")?;
             for filter in filters {
                 let filter_name = filter.get_as_str("filterType")?;
                 match filter_name.as_str() {
@@ -337,22 +372,20 @@ impl Support for Binance {
                 }
             }
 
-            let price_precision = if let Some(tick) = price_tick {
-                Precision::ByTick { tick }
-            } else {
-                bail!(
+            let price_precision = match price_tick {
+                Some(tick) => Precision::ByTick { tick },
+                None => bail!(
                     "Unable to get price precision from Binance for {:?}",
                     specific_currency_pair
-                );
+                ),
             };
 
-            let amount_precision = if let Some(tick) = amount_tick {
-                Precision::ByTick { tick }
-            } else {
-                bail!(
+            let amount_precision = match amount_tick {
+                Some(tick) => Precision::ByTick { tick },
+                None => bail!(
                     "Unable to get amount precision from Binance for {:?}",
                     specific_currency_pair
-                );
+                ),
             };
 
             let currency_pair_metadata = CurrencyPairMetadata::new(
@@ -364,10 +397,10 @@ impl Support for Binance {
                 quote_currency_code,
                 min_price,
                 max_price,
-                amount_currency_code.as_str().into(),
                 min_amount,
                 max_amount,
                 min_cost,
+                amount_currency_code.as_str().into(),
                 Some(balance_currency_code.as_str().into()),
                 price_precision,
                 amount_precision,
@@ -377,6 +410,70 @@ impl Support for Binance {
         }
 
         Ok(result)
+    }
+
+    fn parse_get_my_trades(
+        &self,
+        response: &RestRequestOutcome,
+        _last_date_time: Option<DateTime>,
+    ) -> Result<Vec<OrderTrade>> {
+        #[derive(Serialize, Deserialize, Debug)]
+        #[serde(rename_all = "camelCase")]
+        struct BinanceMyTrade {
+            id: u64,
+            order_id: u64,
+            price: Price,
+            #[serde(alias = "qty")]
+            amount: Amount,
+            commission: Amount,
+            #[serde(alias = "commissionAsset")]
+            commission_currency_code: CurrencyId,
+            time: u64,
+            is_maker: bool,
+        }
+
+        impl BinanceMyTrade {
+            pub(super) fn to_unified_order_trade(
+                &self,
+                commission_currency_code: Option<CurrencyCode>,
+            ) -> Result<OrderTrade> {
+                let datetime: DateTime = (UNIX_EPOCH + Duration::from_millis(self.time)).into();
+                let order_role = if self.is_maker {
+                    OrderRole::Maker
+                } else {
+                    OrderRole::Taker
+                };
+
+                let fee_currency_code = commission_currency_code.context("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting")?;
+                Ok(OrderTrade::new(
+                    ExchangeOrderId::from(self.order_id.to_string().as_ref()),
+                    self.id.to_string(),
+                    datetime,
+                    self.price,
+                    self.amount,
+                    order_role,
+                    fee_currency_code,
+                    None,
+                    Some(self.commission),
+                    OrderFillType::UserTrade,
+                ))
+            }
+        }
+
+        let my_trades: Vec<BinanceMyTrade> = serde_json::from_str(&response.content)?;
+
+        my_trades
+            .into_iter()
+            .map(|my_trade| {
+                my_trade.to_unified_order_trade(
+                    self.get_currency_code(&my_trade.commission_currency_code),
+                )
+            })
+            .collect()
+    }
+
+    fn get_settings(&self) -> &ExchangeSettings {
+        &self.settings
     }
 }
 
@@ -389,9 +486,9 @@ impl GetOrErr for Value {
     fn get_as_str(&self, key: &str) -> Result<String> {
         Ok(self
             .get(key)
-            .ok_or(anyhow!("Unable to get {} from Binance", key))?
+            .with_context(|| format!("Unable to get {} from Binance", key))?
             .as_str()
-            .ok_or(anyhow!("Unable to get {} as string from Binance", key))?
+            .with_context(|| format!("Unable to get {} as string from Binance", key))?
             .to_string())
     }
 
@@ -403,6 +500,60 @@ impl GetOrErr for Value {
 }
 
 impl Binance {
+    pub(crate) fn handle_trade(&self, currency_pair: &CurrencyPair, data: &Value) -> Result<()> {
+        let test = data["t"].clone();
+        let trade_id = TradeId::from(test);
+
+        let mut trade_id_from_lasts =
+            self.last_trade_ids.get_mut(currency_pair).with_expect(|| {
+                format!(
+                    "There are no last_trade_id for given currency_pair {}",
+                    currency_pair
+                )
+            });
+
+        if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
+        {
+            info!(
+                "Current last_trade_id for currency_pair {} is {} >= trade_id {}",
+                currency_pair, *trade_id_from_lasts, trade_id
+            );
+
+            return Ok(());
+        }
+
+        *trade_id_from_lasts = trade_id.clone();
+
+        let price: Decimal = data["p"]
+            .as_str()
+            .context("Unable to get string from 'p' field json data")?
+            .parse()?;
+
+        let quantity: Decimal = data["q"]
+            .as_str()
+            .context("Unable to get string from 'q' field json data")?
+            .parse()?;
+        let order_side = if data["m"] == true {
+            OrderSide::Sell
+        } else {
+            OrderSide::Buy
+        };
+        let datetime = data["T"]
+            .as_i64()
+            .context("Unable to get i64 from 'T' field json data")?;
+
+        (&self.handle_trade_callback).lock()(
+            currency_pair,
+            trade_id,
+            price,
+            quantity,
+            order_side,
+            Utc.timestamp_millis(datetime),
+        );
+
+        Ok(())
+    }
+
     pub fn process_snapshot_update(
         &self,
         currency_pair: &CurrencyPair,
@@ -423,6 +574,7 @@ impl Binance {
         let order_book_data = OrderBookData::new(asks, bids);
         self.handle_order_book_snapshot(currency_pair, &last_update_id, order_book_data, None)
     }
+
     fn handle_order_book_snapshot(
         &self,
         currency_pair: &CurrencyPair,
@@ -517,7 +669,7 @@ impl Binance {
             false => "/api/v3/openOrders",
         };
 
-        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
 
         let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
 

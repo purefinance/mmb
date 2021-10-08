@@ -64,7 +64,6 @@ impl BinanceBuilder {
         let application_manager = ApplicationManager::new(cancellation_token.clone());
         let (tx, rx) = broadcast::channel(10);
 
-        BinanceBuilder.extend_settings(&mut settings);
         settings.websocket_channels = vec!["depth".into(), "trade".into()];
 
         let binance = Box::new(Binance::new(
@@ -72,6 +71,7 @@ impl BinanceBuilder {
             settings.clone(),
             tx.clone(),
             application_manager.clone(),
+            false,
         ));
 
         let timeout_manager = get_timeout_manager(&exchange_account_id);
@@ -79,6 +79,7 @@ impl BinanceBuilder {
             exchange_account_id.clone(),
             binance,
             features,
+            BinanceBuilder.get_timeout_argments(),
             tx.clone(),
             application_manager,
             timeout_manager,
@@ -91,6 +92,7 @@ impl BinanceBuilder {
             exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]));
         }
 
+        // TODO Remove that workaround when RAII order clearing will be implemented
         if need_to_clean_up {
             exchange
                 .clone()

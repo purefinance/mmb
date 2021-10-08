@@ -18,8 +18,8 @@ pub enum EventType {
 pub struct OrderBookEvent {
     id: u128,
     pub creation_time: DateTime,
-    exchange_account_id: ExchangeAccountId,
-    currency_pair: CurrencyPair,
+    pub exchange_account_id: ExchangeAccountId,
+    pub currency_pair: CurrencyPair,
 
     event_id: String,
 

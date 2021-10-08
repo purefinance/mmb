@@ -1,16 +1,18 @@
 use anyhow::{bail, Result};
+use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
 use log::{error, info, trace, Level};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
+use std::fmt::Display;
 use std::panic;
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
-use super::exchanges::common::OPERATION_CANCELED_MSG;
 use super::lifecycle::application_manager::ApplicationManager;
+use crate::core::OPERATION_CANCELED_MSG;
 
 static APPLICATION_MANAGER: OnceCell<Mutex<Option<Arc<ApplicationManager>>>> = OnceCell::new();
 
@@ -155,7 +157,7 @@ async fn handle_action_outcome(
         },
         Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
             Some(error_msg) => {
-                if error_msg.to_string() == OPERATION_CANCELED_MSG {
+                if error_msg == OPERATION_CANCELED_MSG {
                     let log_level = if is_critical {
                         Level::Error
                     } else {
@@ -205,6 +207,29 @@ fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
         None => error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
             log_template),
     }
+}
+
+/// This function spawn a future after waiting for some `delay`
+/// and will repeat the `callback` endlessly with some `period`
+pub fn spawn_by_timer(
+    callback: impl Fn() -> BoxFuture<'static, ()> + Send + Sync + 'static,
+    name: &str,
+    delay: Duration,
+    period: Duration,
+    is_critical: bool,
+) -> JoinHandle<FutureOutcome> {
+    spawn_future(
+        name,
+        is_critical,
+        async move {
+            tokio::time::sleep(delay).await;
+            loop {
+                (callback)().await;
+                tokio::time::sleep(period).await;
+            }
+        }
+        .boxed(),
+    )
 }
 
 #[cfg(test)]
@@ -312,7 +337,7 @@ mod test {
         let test_to_future = test_value.clone();
         let action = async move {
             tokio::time::sleep(Duration::from_millis(200)).await;
-            (*test_to_future.lock()) = true;
+            *test_to_future.lock() = true;
 
             Ok(())
         };
@@ -404,7 +429,7 @@ mod test {
             let test_to_future = test_value.clone();
             let action = async move {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                (*test_to_future.lock()) = true;
+                *test_to_future.lock() = true;
 
                 Ok(())
             };
@@ -422,5 +447,52 @@ mod test {
             // Assert
             assert_eq!(*test_value.lock(), false);
         }
+
+        #[tokio::test]
+        async fn repetable_action() {
+            let counter = Arc::new(Mutex::new(0u64));
+            let duration = 200;
+            let repeats_count = 5;
+            let future_outcome = {
+                async fn future(counter: Arc<Mutex<u64>>) {
+                    *counter.lock() += 1;
+                }
+
+                let counter = counter.clone();
+                spawn_by_timer(
+                    move || (future)(counter.clone()).boxed(),
+                    "spawn_repeatable".into(),
+                    Duration::ZERO,
+                    Duration::from_millis(duration),
+                    true,
+                )
+            };
+
+            tokio::time::sleep(Duration::from_millis(repeats_count * duration)).await;
+            assert_eq!(*counter.lock(), repeats_count);
+
+            future_outcome.abort();
+            tokio::time::sleep(Duration::from_millis(repeats_count / 2)).await;
+            assert_eq!(*counter.lock(), repeats_count);
+        }
+    }
+}
+
+pub trait WithExpect<T> {
+    /// Unwrap the value or panic with additional context that is evaluated lazily
+    /// only for None variant
+    fn with_expect<C, F>(self, f: F) -> T
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C;
+}
+
+impl<T> WithExpect<T> for Option<T> {
+    fn with_expect<C, F>(self, f: F) -> T
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C,
+    {
+        self.unwrap_or_else(|| panic!("{}", f()))
     }
 }

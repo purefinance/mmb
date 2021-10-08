@@ -1,13 +1,13 @@
-use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
-use crate::core::exchanges::general::exchange::Exchange;
-use anyhow::{bail, Result};
+use anyhow::{Context, Result};
 use dashmap::DashMap;
 use itertools::Itertools;
 use log::warn;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 
-use super::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::common::{CurrencyCode, CurrencyId};
+
+use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
 
 impl Exchange {
     pub async fn build_metadata(&self) {
@@ -57,16 +57,13 @@ impl Exchange {
     }
 
     async fn build_metadata_core(&self) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
-        let response = self.exchange_client.request_metadata().await?;
+        let response = &self.exchange_client.request_metadata().await?;
 
-        if let Some(error) = self.get_rest_error(&response) {
-            bail!(
-                "Rest error appeared during request request_metadata: {}",
-                error.message
-            );
+        if let Some(error) = self.get_rest_error(response) {
+            Err(error).context("Rest error appeared during request request_metadata")?;
         }
 
-        match self.exchange_client.parse_metadata(&response) {
+        match self.exchange_client.parse_metadata(response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
                 self.handle_parse_error(error, response, "".into(), None)?;

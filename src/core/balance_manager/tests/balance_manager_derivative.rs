@@ -101,10 +101,10 @@ impl BalanceManagerDerivative {
             quote_currency_code.clone(),
             None,
             None,
+            None,
+            None,
+            None,
             amount_currency_code.clone(),
-            None,
-            None,
-            None,
             Some(balance_currency_code),
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(0.001) },
@@ -280,7 +280,7 @@ mod tests {
         is_reversed: bool,
     ) -> BalanceManagerDerivative {
         if currency_codes.len() != amounts.len() {
-            std::panic!("Failed to create test object: currency_codes.len() = {} should be equal amounts.len() = {}",
+            panic!("Failed to create test object: currency_codes.len() = {} should be equal amounts.len() = {}",
             currency_codes.len(), amounts.len());
         }
         let test_object = BalanceManagerDerivative::new(is_reversed);

@@ -63,10 +63,10 @@ impl BalanceManagerOrdinal {
             quote_currency_code,
             None,
             None,
+            None,
+            None,
+            None,
             base_currency_code.clone(),
-            None,
-            None,
-            None,
             Some(base_currency_code),
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(0.001) },
@@ -154,7 +154,6 @@ mod tests {
     use std::time::Duration;
 
     use chrono::Utc;
-    use mockall_double::double;
     use parking_lot::Mutex;
     use rstest::rstest;
     use rust_decimal::Decimal;
@@ -169,8 +168,6 @@ mod tests {
     use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
     use crate::core::logger::init_logger;
     use crate::core::misc::reserve_parameters::ReserveParameters;
-    #[double]
-    use crate::core::misc::time_manager::time_manager;
     use crate::core::orders::order::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
     };
@@ -208,7 +205,7 @@ mod tests {
         amounts: Vec<Amount>,
     ) -> BalanceManagerOrdinal {
         if currency_codes.len() != amounts.len() {
-            std::panic!("Failed to create test object: currency_codes.len() = {} should be equal amounts.len() = {}",
+            panic!("Failed to create test object: currency_codes.len() = {} should be equal amounts.len() = {}",
             currency_codes.len(), amounts.len());
         }
         let test_object = BalanceManagerOrdinal::new();
@@ -1361,10 +1358,10 @@ mod tests {
             BalanceManagerBase::btc(),
             None,
             None,
-            BalanceManagerBase::eth(),
+            None,
+            None,
             Some(dec!(1)),
-            None,
-            None,
+            BalanceManagerBase::eth(),
             Some(BalanceManagerBase::btc()),
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(1) },
@@ -5096,7 +5093,7 @@ mod tests {
 
         assert!(test_object
             .balance_manager()
-            .get_last_position_change_before_period(&trade_place, time_manager::now())
+            .get_last_position_change_before_period(&trade_place, test_object.now)
             .is_none());
 
         let price = dec!(0.2);
@@ -5108,7 +5105,7 @@ mod tests {
             price,
             dec!(5),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let mut buy_1 = test_object
@@ -5118,7 +5115,7 @@ mod tests {
             price,
             dec!(1),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let mut buy_2 = test_object
@@ -5128,7 +5125,7 @@ mod tests {
             price,
             dec!(2),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let mut buy_4 = test_object
@@ -5138,7 +5135,7 @@ mod tests {
             price,
             dec!(4),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let mut buy_0 = test_object
@@ -5148,7 +5145,7 @@ mod tests {
             price,
             dec!(0),
             dec!(2.5),
-            time_manager::now(),
+            test_object.now,
         ));
 
         let order_fill_id_1 = order_was_filled(&mut test_object, &mut sell_5);
@@ -5157,9 +5154,9 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .get_last_position_change_before_period(&trade_place, time_manager::now())
+                .get_last_position_change_before_period(&trade_place, test_object.now)
                 .expect("in test"),
-            PositionChange::new(order_fill_id_1.clone(), time_manager::now(), dec!(1))
+            PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
         );
         test_object.timer_add_second();
         let _order_fill_id_2 = order_was_filled(&mut test_object, &mut buy_4);

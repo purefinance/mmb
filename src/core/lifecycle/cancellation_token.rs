@@ -5,8 +5,8 @@ use anyhow::{bail, Result};
 use parking_lot::Mutex;
 use tokio::sync::Notify;
 
-use crate::core::exchanges::common::OPERATION_CANCELED_MSG;
 use crate::core::nothing_to_do;
+use crate::core::OPERATION_CANCELED_MSG;
 
 #[derive(Default)]
 struct CancellationState {

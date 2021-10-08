@@ -8,12 +8,14 @@ use tokio::sync::broadcast;
 
 use super::{
     common::CurrencyCode,
-    common::CurrencyId,
+    common::{Amount, CurrencyId, Price},
     common::{
         CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
     },
-    general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata},
+    events::TradeId,
+    general::currency_pair_metadata::BeforeAfter,
     general::handlers::handle_order_filled::FillEventData,
+    general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::events::ExchangeEvent;
@@ -24,7 +26,9 @@ use crate::core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
 };
 use crate::core::settings::ExchangeSettings;
-use crate::core::{connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide};
+use crate::core::{
+    connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide, DateTime,
+};
 use crate::core::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use awc::http::Uri;
 
@@ -47,6 +51,12 @@ pub trait ExchangeClient: Support {
     ) -> Result<RestRequestOutcome>;
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
+
+    async fn request_my_trades(
+        &self,
+        currency_pair_metadata: &CurrencyPairMetadata,
+        last_date_time: Option<DateTime>,
+    ) -> Result<RestRequestOutcome>;
 }
 
 #[async_trait]
@@ -56,6 +66,7 @@ pub trait Support: Send + Sync {
     fn clarify_error_type(&self, error: &mut ExchangeError);
 
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
+    fn on_connecting(&self) -> Result<()>;
 
     fn set_order_created_callback(
         &self,
@@ -70,6 +81,13 @@ pub trait Support: Send + Sync {
     fn set_handle_order_filled_callback(
         &self,
         callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
+    );
+
+    fn set_handle_trade_callback(
+        &self,
+        callback: Box<
+            dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
+        >,
     );
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>);
@@ -102,6 +120,14 @@ pub trait Support: Send + Sync {
     ) -> CurrencyCode {
         currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
     }
+
+    fn parse_get_my_trades(
+        &self,
+        response: &RestRequestOutcome,
+        last_date_time: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<Vec<OrderTrade>>;
+
+    fn get_settings(&self) -> &ExchangeSettings;
 }
 
 pub struct ExchangeClientBuilderResult {
@@ -116,8 +142,6 @@ pub trait ExchangeClientBuilder {
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
     ) -> ExchangeClientBuilderResult;
-
-    fn extend_settings(&self, settings: &mut ExchangeSettings);
 
     fn get_timeout_argments(&self) -> RequestTimeoutArguments;
 }

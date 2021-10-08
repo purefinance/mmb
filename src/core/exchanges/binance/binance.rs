@@ -12,7 +12,11 @@ use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::BinanceOrderInfo;
-use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::common::{Amount, Price};
+use crate::core::exchanges::events::{ExchangeEvent, TradeId};
+use crate::core::exchanges::general::features::{
+    OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
+};
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
@@ -28,30 +32,37 @@ use crate::core::exchanges::{
 use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
-use crate::core::settings::ExchangeSettings;
+use crate::core::settings::{ExchangeSettings, Hosts};
+use crate::core::DateTime;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
 
 pub struct Binance {
     pub settings: ExchangeSettings,
+    pub hosts: Hosts,
     pub id: ExchangeAccountId,
     pub order_created_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub order_cancelled_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
+    pub handle_trade_callback: Mutex<
+        Box<dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>,
+    >,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     // Currencies used for trading according to user settings
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
+    pub(super) last_trade_ids: DashMap<CurrencyPair, TradeId>,
 
     pub(super) application_manager: Arc<ApplicationManager>,
 
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
 
     pub(super) subscribe_to_market_data: bool,
+    pub(super) is_reducing_market_data: bool,
 
     pub(super) rest_client: RestClient,
 }
@@ -62,18 +73,41 @@ impl Binance {
         settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
+        is_reducing_market_data: bool,
     ) -> Self {
+        let is_reducing_market_data = settings
+            .is_reducing_market_data
+            .unwrap_or(is_reducing_market_data);
+
+        let hosts = if settings.is_margin_trading {
+            Hosts {
+                web_socket_host: "wss://fstream.binance.com".to_string(),
+                web_socket2_host: "wss://fstream3.binance.com".to_string(),
+                rest_host: "https://fapi.binance.com".to_string(),
+            }
+        } else {
+            Hosts {
+                web_socket_host: "wss://stream.binance.com:9443".to_string(),
+                web_socket2_host: "wss://stream.binance.com:9443".to_string(),
+                rest_host: "https://api.binance.com".to_string(),
+            }
+        };
+
         Self {
             id,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
             handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
+            handle_trade_callback: Mutex::new(Box::new(|_, _, _, _, _, _| {})),
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
             traded_specific_currencies: Default::default(),
+            last_trade_ids: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
+            is_reducing_market_data,
             settings,
+            hosts,
             events_channel,
             application_manager,
             rest_client: RestClient::new(),
@@ -86,7 +120,7 @@ impl Binance {
             false => "/api/v3/userDataStream",
         };
 
-        let full_url = rest_client::build_uri(&self.settings.rest_host, url_path, &vec![])?;
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
         let http_params = rest_client::HttpParams::new();
         self.rest_client
             .post(full_url, &self.settings.api_key, &http_params)
@@ -170,14 +204,16 @@ impl Binance {
         &self,
         currency_pair: &SpecificCurrencyPair,
     ) -> Result<CurrencyPair> {
-        match self.specific_to_unified.read().get(&currency_pair) {
-            None => bail!(
-                "Not found currency pair '{:?}' in {}",
-                currency_pair,
-                self.id
-            ),
-            Some(v) => Ok(v.clone()),
-        }
+        self.specific_to_unified
+            .read()
+            .get(currency_pair)
+            .with_context(|| {
+                format!(
+                    "Not found currency pair '{:?}' in {}",
+                    currency_pair, self.id
+                )
+            })
+            .map(Clone::clone)
     }
 
     pub(super) fn specific_order_info_to_unified(&self, specific: &BinanceOrderInfo) -> OrderInfo {
@@ -198,7 +234,7 @@ impl Binance {
         )
     }
 
-    pub(super) fn handle_trade(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
+    pub(super) fn handle_order_fill(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
         let original_client_order_id = json_response["C"]
             .as_str()
             .ok_or(anyhow!("Unable to parse original client order id"))?;
@@ -283,7 +319,7 @@ impl Binance {
         Ok(())
     }
 
-    fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
+    pub(crate) fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
         self.supported_currencies
             .get(currency_id)
             .map(|some| some.value().clone())
@@ -333,7 +369,7 @@ impl Binance {
 
         let event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id,
+            trade_id: Some(trade_id),
             client_order_id: Some(client_order_id),
             exchange_order_id,
             fill_price: last_filled_price.parse()?,
@@ -357,9 +393,7 @@ impl Binance {
     fn get_fill_type(raw_type: &str) -> Result<OrderFillType> {
         match raw_type {
             "CALCULATED" => Ok(OrderFillType::Liquidation),
-            "FILL" => Ok(OrderFillType::UserTrade),
-            "TRADE" => Ok(OrderFillType::UserTrade),
-            "PARTIAL_FILL" => Ok(OrderFillType::UserTrade),
+            "FILL" | "TRADE" | "PARTIAL_FILL" => Ok(OrderFillType::UserTrade),
             _ => bail!("Unable to map trade type"),
         }
     }
@@ -382,26 +416,19 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 exchange_settings,
                 events_channel.clone(),
                 application_manager,
+                false,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::new(RestFillsType::None),
+                OrderFeatures::default(),
+                OrderTradeOption::default(),
+                WebSocketOptions::default(),
                 false,
                 false,
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
             ),
-        }
-    }
-
-    fn extend_settings(&self, settings: &mut ExchangeSettings) {
-        if settings.is_margin_trading {
-            settings.web_socket_host = "wss://fstream.binance.com".to_string();
-            settings.web_socket2_host = "wss://fstream3.binance.com".to_string();
-            settings.rest_host = "https://fapi.binance.com".to_string();
-        } else {
-            settings.web_socket_host = "wss://stream.binance.com:9443".to_string();
-            settings.web_socket2_host = "wss://stream.binance.com:9443".to_string();
-            settings.rest_host = "https://api.binance.com".to_string();
         }
     }
 
@@ -435,6 +462,7 @@ mod tests {
             settings,
             tx,
             ApplicationManager::new(CancellationToken::default()),
+            false,
         );
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
         let result = binance.generate_signature(params).expect("in test");

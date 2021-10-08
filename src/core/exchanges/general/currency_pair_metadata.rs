@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -44,7 +44,7 @@ pub enum Precision {
     ByMantissa { precision: i8 },
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Hash, Eq)]
 pub struct CurrencyPairMetadata {
     pub is_active: bool,
     pub is_derivative: bool,
@@ -83,10 +83,10 @@ impl CurrencyPairMetadata {
         quote_currency_code: CurrencyCode,
         min_price: Option<Price>,
         max_price: Option<Price>,
-        amount_currency_code: CurrencyCode,
         min_amount: Option<Amount>,
         max_amount: Option<Amount>,
         min_cost: Option<Price>,
+        amount_currency_code: CurrencyCode,
         balance_currency_code: Option<CurrencyCode>,
         price_precision: Precision,
         amount_precision: Precision,
@@ -274,7 +274,7 @@ impl CurrencyPairMetadata {
             return amount_in_amount_currency_code * currency_pair_price;
         }
 
-        std::panic!("Currency code outside currency pair is not supported yet");
+        panic!("Currency code outside currency pair is not supported yet");
     }
 
     pub fn convert_amount_from_balance_currency_code(
@@ -294,7 +294,7 @@ impl CurrencyPairMetadata {
             return amount * currency_pair_price;
         }
 
-        std::panic!(
+        panic!(
             "Currency code {} outside currency pair {} is not supported",
             to_currency_code,
             self.currency_pair()
@@ -318,7 +318,7 @@ impl CurrencyPairMetadata {
         if from_currency_code == &self.quote_currency_code {
             return amount_in_from_currency_code / currency_pair_price;
         }
-        std::panic!(
+        panic!(
             "We don't currently support currency code {} outside currency pair {}",
             from_currency_code,
             self.currency_pair()
@@ -329,24 +329,32 @@ impl CurrencyPairMetadata {
         let min_cost = match self.min_cost {
             None => {
                 let min_price = match self.min_price {
-                    None => match self.min_amount {
-                        None => bail!("Can't calculate min amount: no data at all"),
-                        Some(min_amount) => return Ok(min_amount),
-                    },
+                    None => {
+                        return self
+                            .min_amount
+                            .context("Can't calculate min amount: no data at all")
+                    }
                     Some(v) => v,
                 };
 
-                let min_amount = match self.min_amount {
-                    None => bail!("Can't calculate min amount: missing min_amount and min_cost"),
-                    Some(v) => v,
-                };
+                let min_amount = self
+                    .min_amount
+                    .context("Can't calculate min amount: missing min_amount and min_cost");
 
-                min_price * min_amount
+                if self.is_derivative {
+                    return min_amount;
+                }
+
+                min_price * min_amount?
             }
             Some(v) => v,
         };
 
-        let min_amount_from_cost = min_cost / price;
+        let min_amount_from_cost = match self.is_derivative {
+            true => min_cost,
+            false => min_cost / price,
+        };
+
         let rounded_amount = self.amount_round(min_amount_from_cost, Round::Ceiling)?;
 
         Ok(match self.min_amount {
@@ -359,9 +367,15 @@ impl CurrencyPairMetadata {
         match self.amount_precision {
             Precision::ByTick { tick } => return tick,
             Precision::ByMantissa { precision: _ } => {
-                std::panic!("get_amount_tick cannot be called with Precision::ByMantissa variant")
+                panic!("get_amount_tick cannot be called with Precision::ByMantissa variant")
             }
         }
+    }
+}
+
+impl PartialEq for CurrencyPairMetadata {
+    fn eq(&self, other: &Self) -> bool {
+        self.currency_pair() == other.currency_pair()
     }
 }
 
@@ -370,15 +384,15 @@ impl Exchange {
         &self,
         currency_pair: &CurrencyPair,
     ) -> Result<Arc<CurrencyPairMetadata>> {
-        let maybe_currency_pair_metadata = self.symbols.get(currency_pair);
-        match maybe_currency_pair_metadata {
-            Some(suitable_currency_pair_metadata) => Ok(suitable_currency_pair_metadata.clone()),
-            None => bail!(
-                "Unsupported currency pair on {} {:?}",
-                self.exchange_account_id,
-                currency_pair
-            ),
-        }
+        self.symbols
+            .get(currency_pair)
+            .with_context(|| {
+                format!(
+                    "Unsupported currency pair on {} {:?}",
+                    self.exchange_account_id, currency_pair
+                )
+            })
+            .map(|pair| pair.value().clone())
     }
 }
 
@@ -404,10 +418,10 @@ mod test {
             quote_currency.into(),
             None,
             None,
+            None,
+            None,
+            None,
             base_currency.into(),
-            None,
-            None,
-            None,
             Some(balance_currency_code.clone()),
             Precision::ByTick { tick: price_tick },
             Precision::ByTick { tick: dec!(0) },
@@ -539,10 +553,10 @@ mod test {
             quote_code.clone(),
             None,
             None,
+            None,
+            None,
+            None,
             base_code.clone(),
-            None,
-            None,
-            None,
             Some(balance_currency_code.clone()),
             Precision::ByTick { tick: price_tick },
             Precision::ByTick { tick: dec!(0) },

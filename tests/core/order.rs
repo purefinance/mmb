@@ -111,7 +111,7 @@ impl OrderProxy {
 
         with_timeout(
             self.timeout,
-            exchange.create_order(&to_create, self.cancellation_token.clone()),
+            exchange.create_order(&to_create, None, self.cancellation_token.clone()),
         )
         .await
     }

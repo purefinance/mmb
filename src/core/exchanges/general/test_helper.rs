@@ -11,6 +11,7 @@ use super::{
 };
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::events::ExchangeEvent;
+use crate::core::exchanges::general::features::*;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
@@ -49,10 +50,10 @@ pub(crate) fn get_test_exchange_by_currency_codes_and_amount_code(
         quote_currency_code.into(),
         None,
         None,
+        None,
+        None,
+        None,
         amount_currency_code.into(),
-        None,
-        None,
-        None,
         None,
         Precision::ByTick { tick: price_tick },
         Precision::ByTick { tick: dec!(0) },
@@ -91,7 +92,7 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
     currency_pair_metadata: Arc<CurrencyPairMetadata>,
     exchange_account_id: &ExchangeAccountId,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
-    let mut settings = settings::ExchangeSettings::new_short(
+    let settings = settings::ExchangeSettings::new_short(
         exchange_account_id.clone(),
         "test_api_key".into(),
         "test_secret_key".into(),
@@ -101,15 +102,12 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
     let application_manager = ApplicationManager::new(CancellationToken::new());
     let (tx, rx) = broadcast::channel(10);
 
-    BinanceBuilder.extend_settings(&mut settings);
-    settings.web_socket_host = "host".into();
-    settings.web_socket2_host = "host2".into();
-
     let binance = Box::new(Binance::new(
         "Binance0".parse().expect("in test"),
         settings.clone(),
         tx.clone(),
         application_manager.clone(),
+        false,
     ));
     let referral_reward = dec!(40);
     let commission = Commission::new(
@@ -122,11 +120,16 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
+            OrderFeatures::default(),
+            OrderTradeOption::default(),
+            WebSocketOptions::default(),
             false,
             true,
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
+        BinanceBuilder.get_timeout_argments(),
         tx,
         application_manager,
         TimeoutManager::new(HashMap::new()),

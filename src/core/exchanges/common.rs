@@ -1,22 +1,20 @@
 use anyhow::Result;
-use serde::de::{self, Deserializer};
-use serde::ser::Serializer;
-use std::fmt::{self, Display, Formatter};
-use std::str::FromStr;
-use std::{collections::BTreeMap, time::Duration};
-
 use awc::http::StatusCode;
 use itertools::Itertools;
 use regex::Regex;
 use rust_decimal::*;
+use serde::de::{self, Deserializer};
+use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
+use std::fmt::{self, Display, Formatter};
+use std::str::FromStr;
+use std::{collections::BTreeMap, time::Duration};
+use thiserror::Error;
 
 pub type Price = Decimal;
 pub type Amount = Decimal;
 pub type SortedOrderData = BTreeMap<Price, Amount>;
-
-pub static OPERATION_CANCELED_MSG: &str = "Operation cancelled";
 
 type String4 = SmallString<[u8; 4]>;
 type String12 = SmallString<[u8; 12]>;
@@ -292,7 +290,8 @@ impl Serialize for TradePlaceAccount {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Error)]
+#[error("Type: {error_type:?} Message: {message} Code {code:?}")]
 pub struct ExchangeError {
     pub error_type: ExchangeErrorType,
     pub message: String,
@@ -305,6 +304,14 @@ impl ExchangeError {
             error_type,
             message,
             code,
+        }
+    }
+
+    pub(crate) fn unknown_error(message: &str) -> Self {
+        Self {
+            error_type: ExchangeErrorType::Unknown,
+            message: message.to_owned(),
+            code: None,
         }
     }
 

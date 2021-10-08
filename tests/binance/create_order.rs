@@ -21,6 +21,10 @@ async fn create_successfully() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
+            OrderFeatures::default(),
+            OrderTradeOption::default(),
+            WebSocketOptions::default(),
             false,
             true,
             AllowedEventSourceType::default(),
@@ -84,6 +88,10 @@ async fn should_fail() {
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
+            RestFillsFeatures::default(),
+            OrderFeatures::default(),
+            OrderTradeOption::default(),
+            WebSocketOptions::default(),
             false,
             true,
             AllowedEventSourceType::default(),

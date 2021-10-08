@@ -1,7 +1,5 @@
-use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use crate::core::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId};
 use serde::{Deserialize, Serialize};
-
-use super::exchanges::common::Amount;
 
 pub trait BaseStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId;
@@ -41,11 +39,8 @@ pub struct ExchangeSettings {
     pub api_key: String,
     pub secret_key: String,
     pub is_margin_trading: bool,
-    // TODO change String to URI
-    pub web_socket_host: String,
-    // Some exchanges have two websockets, for public and private data
-    pub web_socket2_host: String,
-    pub rest_host: String,
+    pub request_trades: bool,
+    pub is_reducing_market_data: Option<bool>,
     pub subscribe_to_market_data: bool,
     pub websocket_channels: Vec<String>,
     pub currency_pairs: Option<Vec<CurrencyPairSetting>>,
@@ -64,14 +59,20 @@ impl ExchangeSettings {
             api_key,
             secret_key,
             is_margin_trading,
-            web_socket_host: "".into(),
-            web_socket2_host: "".into(),
-            rest_host: "".into(),
+            request_trades: false,
             websocket_channels: vec![],
             currency_pairs: None,
             subscribe_to_market_data: true,
+            is_reducing_market_data: None,
         }
     }
+}
+
+pub struct Hosts {
+    pub web_socket_host: String,
+    // Some exchanges have two websockets, for public and private data
+    pub web_socket2_host: String,
+    pub rest_host: String,
 }
 
 impl Default for ExchangeSettings {
@@ -81,12 +82,37 @@ impl Default for ExchangeSettings {
             api_key: "".to_string(),
             secret_key: "".to_string(),
             is_margin_trading: false,
-            web_socket_host: "".to_string(),
-            web_socket2_host: "".to_string(),
-            rest_host: "".to_string(),
+            request_trades: false,
             websocket_channels: vec![],
             currency_pairs: None,
             subscribe_to_market_data: true,
+            is_reducing_market_data: None,
         }
     }
+}
+
+pub struct CurrencyPriceSourceSettings {
+    pub start_currency_code: CurrencyCode,
+    pub end_currency_code: CurrencyCode,
+    /// List of pairs ExchangeId and CurrencyPairs for translation currency with StartCurrencyCode to currency with EndCurrencyCode
+    pub exchange_id_currency_pair_settings: Vec<ExchangeIdCurrencyPairSettings>,
+}
+
+impl CurrencyPriceSourceSettings {
+    pub fn new(
+        start_currency_code: CurrencyCode,
+        end_currency_code: CurrencyCode,
+        exchange_id_currency_pair_settings: Vec<ExchangeIdCurrencyPairSettings>,
+    ) -> Self {
+        Self {
+            start_currency_code,
+            end_currency_code,
+            exchange_id_currency_pair_settings,
+        }
+    }
+}
+
+pub struct ExchangeIdCurrencyPairSettings {
+    pub exchange_account_id: ExchangeAccountId,
+    pub currency_pair: CurrencyPair,
 }

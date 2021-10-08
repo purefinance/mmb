@@ -169,14 +169,14 @@ impl BalanceManagerBase {
     pub fn currency_pair_metadata(&self) -> Arc<CurrencyPairMetadata> {
         match &self.currency_pair_metadata {
             Some(res) => res.clone(),
-            None => std::panic!("should be non None here"),
+            None => panic!("should be non None here"),
         }
     }
 
     pub fn balance_manager(&self) -> MutexGuard<BalanceManager> {
         match self.balance_manager.as_ref() {
             Some(res) => res.lock(),
-            None => std::panic!("should be non None here"),
+            None => panic!("should be non None here"),
         }
     }
 

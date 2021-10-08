@@ -75,10 +75,9 @@ impl BalancePositionByFillAmount {
                             now,
                             opened_position_portion,
                         )),
-                        None => std::panic!(
+                        None => panic!(
                             "failed to get PositionChange from position_changes {:?} with key {:?}",
-                            self.position_changes,
-                            key
+                            self.position_changes, key
                         ),
                     }
                     log::info!(

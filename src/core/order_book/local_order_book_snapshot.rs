@@ -1,4 +1,7 @@
+use rust_decimal_macros::dec;
+
 use crate::core::exchanges::common::*;
+use crate::core::misc::price_by_order_side::PriceByOrderSide;
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::order::*;
 use crate::core::DateTime;
@@ -22,7 +25,7 @@ impl DataToExcludeOrder {
 
 /// Snapshot of certain ask and bids collection
 /// Identified by ExchangeId
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LocalOrderBookSnapshot {
     pub asks: SortedOrderData,
     pub bids: SortedOrderData,
@@ -118,13 +121,48 @@ impl LocalOrderBookSnapshot {
             }
         }
     }
+
+    pub fn get_top_prices(&self) -> PriceByOrderSide {
+        let top_bid = self.get_top_bid().map(|(price, _)| price);
+        let top_ask = self.get_top_ask().map(|(price, _)| price);
+
+        PriceByOrderSide::new(top_bid, top_ask)
+    }
+
+    pub fn calculate_middle_price(&self, trade_place: &TradePlace) -> Option<Price> {
+        let prices = self.get_top_prices();
+        let top_ask = match prices.top_ask {
+            Some(top_ask) => top_ask,
+            None => {
+                log::warn!(
+                "Can't get top ask price in {:?} in LocalOrderBookSnapshot::calculate_middle_price() {:?}",
+                trade_place,
+                self
+            );
+                return None;
+            }
+        };
+
+        let top_bid = match prices.top_bid {
+            Some(top_bid) => top_bid,
+            None => {
+                log::warn!(
+                "Can't get top bid price in {:?} in LocalOrderBookSnapshot::calculate_middle_price() {:?}",
+                trade_place,
+                self
+            );
+                return None;
+            }
+        };
+
+        Some((top_ask + top_bid) * dec!(0.5))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::Utc;
-    use rust_decimal_macros::*;
 
     #[test]
     fn get_top_ask() {

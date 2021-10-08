@@ -11,6 +11,7 @@ use crate::core::exchanges::common::{
 };
 use crate::core::explanation::{Explanation, WithExplanation};
 use crate::core::lifecycle::cancellation_token::CancellationToken;
+use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
 use crate::core::DateTime;
@@ -36,13 +37,19 @@ pub trait DispositionStrategy: Send + Sync + 'static {
 pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,
     currency_pair: CurrencyPair,
+    _engine_context: Arc<EngineContext>,
 }
 
 impl ExampleStrategy {
-    pub fn new(target_eai: ExchangeAccountId, currency_pair: CurrencyPair) -> Self {
+    pub fn new(
+        target_eai: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        engine_ctx: Arc<EngineContext>,
+    ) -> Self {
         ExampleStrategy {
             target_eai,
             currency_pair,
+            _engine_context: engine_ctx,
         }
     }
 
@@ -66,7 +73,7 @@ impl ExampleStrategy {
         local_snapshots_service: &LocalSnapshotsService,
         explanation: Explanation,
     ) -> Option<TradingContextBySide> {
-        let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
+        let snapshot = local_snapshots_service.get_snapshot(&self.trade_place())?;
         let price = snapshot.get_top(side)?.0;
 
         Some(TradingContextBySide {

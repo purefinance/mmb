@@ -1,5 +1,6 @@
 use chrono::Utc;
 
+pub(crate) mod balance_changes;
 pub mod balance_manager;
 mod balances;
 pub mod connectivity;
@@ -30,3 +31,5 @@ pub type DateTime = chrono::DateTime<Utc>;
 /// Just for marking explicitly: no action to do here and it is not forgotten execution branch
 #[inline(always)]
 pub fn nothing_to_do() {}
+
+pub static OPERATION_CANCELED_MSG: &str = "Operation cancelled";
