@@ -150,7 +150,7 @@ impl BalanceChangePeriodSelector {
             .map(|x| {
                 if let Some(position_change) = &position_change {
                     if x.client_order_fill_id == position_change.client_order_fill_id {
-                        return x.clone_portion(position_change.portion);
+                        return x.with_portion(position_change.portion);
                     }
                 }
                 x.clone()
