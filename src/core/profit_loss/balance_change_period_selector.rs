@@ -17,7 +17,7 @@ use crate::core::{
 use super::balance_change::ProfitLossBalanceChange;
 
 pub(crate) struct BalanceChangePeriodSelector {
-    pub period: Duration,
+    period: Duration,
     balance_manager: Option<BalanceManager>,
     balance_changes_queues_by_trade_place:
         HashMap<TradePlaceAccount, VecDeque<ProfitLossBalanceChange>>,
@@ -46,7 +46,7 @@ impl BalanceChangePeriodSelector {
         );
 
         self.balance_changes_queues_by_trade_place
-            .entry(trade_place)
+            .entry(trade_place.clone())
             .or_default()
             .push_back(balance_change.clone());
 
@@ -133,6 +133,7 @@ impl BalanceChangePeriodSelector {
         self.get_items_core(trade_place, None)
     }
 
+    // QA: is it OK that we take self mut
     fn get_items_core(
         &mut self,
         trade_place: &TradePlaceAccount,
@@ -158,7 +159,6 @@ impl BalanceChangePeriodSelector {
             })
             .collect_vec();
 
-        // QA: maybe need to keep logging here
         return items_with_portion_applied;
     }
 }

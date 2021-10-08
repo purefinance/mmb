@@ -12,7 +12,7 @@ use crate::core::{
 pub struct ProfitLossBalanceChange {
     pub(crate) id: Uuid,
     pub client_order_fill_id: ClientOrderFillId,
-    pub change_date: DateTime, // QA: is it correct name?
+    pub change_date: DateTime,
     pub service_name: String,
     pub service_configuration_key: String,
     pub exchange_account_id: ExchangeAccountId,
