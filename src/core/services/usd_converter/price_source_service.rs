@@ -652,7 +652,7 @@ pub mod test {
         let eos = "EOS".into();
         let btc = "BTC".into();
         let usdt = "USDT".into();
-        let karma = CurrencyCode::new("KARMA".into());
+        let karma = "KARMA".into();
         let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
         let currency_pair_2 = CurrencyPair::from_codes(&karma, &eos);
         let currency_pair_3 = CurrencyPair::from_codes(&btc, &usdt);
@@ -768,7 +768,7 @@ pub mod test {
         let eos = "EOS".into();
         let btc = "BTC".into();
         let usdt = "USDT".into();
-        let karma = CurrencyCode::new("KARMA".into());
+        let karma = "KARMA".into();
         let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
         let currency_pair_2 = CurrencyPair::from_codes(&karma, &eos);
         let currency_pair_3 = CurrencyPair::from_codes(&btc, &usdt);
@@ -812,7 +812,7 @@ pub mod test {
         let eos = "EOS".into();
         let btc = "BTC".into();
         let usdt = "USDT".into();
-        let karma = CurrencyCode::new("KARMA".into());
+        let karma: CurrencyCode = "KARMA".into();
         let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
         let currency_pair_2 = CurrencyPair::from_codes(&btc, &usdt);
 
