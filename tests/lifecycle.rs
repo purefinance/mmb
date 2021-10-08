@@ -40,10 +40,6 @@ impl BaseStrategySettings for TestStrategySettings {
     fn max_amount(&self) -> Amount {
         dec!(1)
     }
-
-    fn spread(&self) -> Decimal {
-        dec!(1)
-    }
 }
 
 #[actix_rt::test]
