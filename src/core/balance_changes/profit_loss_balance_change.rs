@@ -27,7 +27,6 @@ pub(crate) struct ProfitLossBalanceChange {
     pub id: ProfitLossBalanceChangeId,
     pub client_order_fill_id: ClientOrderFillId,
     pub change_date: DateTime,
-
     pub service_name: String,
     pub service_configuration_key: String,
     pub exchange_id: ExchangeId,
