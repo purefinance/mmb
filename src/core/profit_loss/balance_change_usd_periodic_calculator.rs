@@ -1,90 +1,88 @@
-// use chrono::Duration;
+use std::sync::Arc;
 
-// use crate::core::balance_manager::balance_manager::BalanceManager;
+use chrono::Duration;
+use futures::future::join_all;
+use itertools::Itertools;
+use parking_lot::Mutex;
 
-// use super::{
-//     balance_change::ProfitLossBalanceChange,
-//     balance_change_period_selector::BalanceChangePeriodSelector,
-// };
+use crate::core::{
+    balance_changes::{
+        profit_balance_changes_calculator, profit_loss_balance_change::ProfitLossBalanceChange,
+    },
+    balance_manager::balance_manager::BalanceManager,
+    exchanges::common::{Amount, TradePlaceAccount},
+    lifecycle::cancellation_token::CancellationToken,
+    services::usd_converter::usd_converter::UsdConverter,
+};
 
-// pub(crate) struct BalanceChangeUsdPeriodicCalculator {
-//     balance_change_period_selector: BalanceChangePeriodSelector,
-//     profit_balance_changes_calculator: ,
-// }
+use super::balance_change_period_selector::BalanceChangePeriodSelector;
 
-// impl BalanceChangeUsdPeriodicCalculator {
-//     pub fn new(period: Duration, balance_manager: Option<BalanceManager>) -> Self {
-//         Self {
-//             balance_change_period_selector: BalanceChangePeriodSelector::new(
-//                 period,
-//                 balance_manager,
-//             ),
-//             profit_balance_changes_calculator: ,
-//         }
-//     }
-// }
-//     {
+pub(crate) struct BalanceChangeUsdPeriodicCalculator {
+    balance_change_period_selector: Arc<Mutex<BalanceChangePeriodSelector>>,
+}
 
-//         public BalanceChangeUsdPeriodicCalculator(
-//             TimeSpan period,
-//             IDateTimeService dateTimeService,
-//             IBalanceManager? balanceManager)
-//         {
-//             Period = period;
-//             _dateTimeService = dateTimeService;
+impl BalanceChangeUsdPeriodicCalculator {
+    pub fn new(period: Duration, balance_manager: Option<BalanceManager>) -> Self {
+        Self {
+            balance_change_period_selector: BalanceChangePeriodSelector::new(
+                period,
+                balance_manager,
+            ),
+        }
+    }
 
-//             _balanceChangePeriodSelector = new BalanceChangePeriodSelector(period, dateTimeService, balanceManager);
-//             _profitBalanceChangesCalculator = new ProfitBalanceChangesCalculator();
-//         }
+    pub fn add_balance_change(&mut self, balance_change: &ProfitLossBalanceChange) {
+        self.balance_change_period_selector
+            .lock()
+            .add(balance_change);
+    }
 
-//         public void AddBalanceChange(ProfitLossBalanceChange balanceChange)
-//         {
-//             _balanceChangePeriodSelector.Add(balanceChange);
-//         }
+    // TODO: fix when DatabaseManager will be added
+    pub async fn load_data(
+        &mut self,
+        // database_manager: DatabaseManager,
+        cancellation_token: CancellationToken,
+    ) {
+        //             await using var session = databaseManager.Sql;
 
-//         public async Task LoadData(IDatabaseManager databaseManager, CancellationToken cancellationToken)
-//         {
-//             await using var session = databaseManager.Sql;
+        //             var fromDate = _dateTimeService.UtcNow - Period;
+        //             var balanceChanges = await session.Set<ProfitLossBalanceChange>()
+        //                 .Where(x => x.DateTime >= fromDate)
+        //                 .OrderBy(x => x.DateTime)
+        //                 .ToListAsync(cancellationToken);
 
-//             var fromDate = _dateTimeService.UtcNow - Period;
-//             var balanceChanges = await session.Set<ProfitLossBalanceChange>()
-//                 .Where(x => x.DateTime >= fromDate)
-//                 .OrderBy(x => x.DateTime)
-//                 .ToListAsync(cancellationToken);
+        //             foreach (var balanceChange in balanceChanges)
+        //             {
+        //                 _balanceChangePeriodSelector.Add(balanceChange);
+        //             }
+    }
 
-//             foreach (var balanceChange in balanceChanges)
-//             {
-//                 _balanceChangePeriodSelector.Add(balanceChange);
-//             }
-//         }
+    pub fn calculate_raw_usd_change(&self, trade_place: &TradePlaceAccount) -> Amount {
+        let items = self
+            .balance_change_period_selector
+            .lock()
+            .get_items_by_trade_place(trade_place);
+        profit_balance_changes_calculator::calculate_raw(&items)
+    }
 
-//         public decimal CalculateRawUsdChange(TradePlace tradePlace)
-//         {
-//             var items = _balanceChangePeriodSelector.GetItems(tradePlace);
-//             return _profitBalanceChangesCalculator.CalculateRaw(items);
-//         }
+    pub async fn calculate_over_market_usd_change(
+        &self,
+        usd_converter: &UsdConverter,
+        cancellation_token: CancellationToken,
+    ) -> Amount {
+        let items = self.balance_change_period_selector.lock().get_items();
 
-//         public async Task<decimal> CalculateOverMarketUsdChange(
-//             IUsdConverter usdConverter,
-//             CancellationToken cancellationToken)
-//         {
-//             var items = _balanceChangePeriodSelector.GetItems();
+        let actions = items
+            .iter()
+            .map(|x| {
+                profit_balance_changes_calculator::calculate_over_market(
+                    x,
+                    usd_converter,
+                    cancellation_token.clone(),
+                )
+            })
+            .collect_vec();
 
-//             var overMarketByTradePlace = await Task.WhenAll(items.Select(x => _profitBalanceChangesCalculator.CalculateOverMarket(x, usdConverter, cancellationToken)));
-//             var overMarket = overMarketByTradePlace.SumF();
-//             return overMarket;
-//         }
-
-//         // for web
-//         public async Task<(decimal raw, decimal overMarket)> CalculateUsdChange(
-//             IUsdConverter usdConverter,
-//             CancellationToken cancellationToken)
-//         {
-//             var items = _balanceChangePeriodSelector.GetItems();
-//             var raw = items.SumF(x => _profitBalanceChangesCalculator.CalculateRaw(x));
-//             var overMarketByTradePlace = await Task.WhenAll(items.Select(x => _profitBalanceChangesCalculator.CalculateOverMarket(x, usdConverter, cancellationToken)));
-//             var overMarket = overMarketByTradePlace.SumF();
-//             return (raw, overMarket);
-//         }
-//     }
-// }
+        join_all(actions).await.iter().sum()
+    }
+}

@@ -8,13 +8,12 @@ use itertools::Itertools;
 use parking_lot::Mutex;
 
 use crate::core::{
+    balance_changes::profit_loss_balance_change::ProfitLossBalanceChange,
     balance_manager::{balance_manager::BalanceManager, position_change::PositionChange},
     exchanges::common::TradePlaceAccount,
     misc::time_manager::time_manager,
     DateTime,
 };
-
-use super::balance_change::ProfitLossBalanceChange;
 
 pub(crate) struct BalanceChangePeriodSelector {
     period: Duration,
@@ -33,7 +32,7 @@ impl BalanceChangePeriodSelector {
     }
 
     pub fn add(&mut self, balance_change: &ProfitLossBalanceChange) {
-        log::trace!(
+        log::info!(
             "Balance changes enqueue: {} {} {}",
             balance_change.change_date,
             balance_change.currency_code,
@@ -133,7 +132,6 @@ impl BalanceChangePeriodSelector {
         self.get_items_core(trade_place, None)
     }
 
-    // QA: is it OK that we take self mut
     fn get_items_core(
         &mut self,
         trade_place: &TradePlaceAccount,
@@ -147,7 +145,7 @@ impl BalanceChangePeriodSelector {
                 .expect("failed to get balance changes queue by trade_palce"),
         );
 
-        let items_with_portion_applied = balance_changes_queue
+        balance_changes_queue
             .iter()
             .map(|x| {
                 if let Some(position_change) = &position_change {
@@ -157,8 +155,6 @@ impl BalanceChangePeriodSelector {
                 }
                 x.clone()
             })
-            .collect_vec();
-
-        return items_with_portion_applied;
+            .collect_vec()
     }
 }
