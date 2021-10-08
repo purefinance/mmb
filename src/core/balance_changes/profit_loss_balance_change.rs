@@ -68,7 +68,7 @@ impl ProfitLossBalanceChange {
     }
 
     pub fn clone_portion(&self, portion: Decimal) -> ProfitLossBalanceChange {
-        let item = self.clone();
+        let mut item = self.clone();
         item.balance_change *= portion;
         item.usd_balance_change *= portion;
         item
