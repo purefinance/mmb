@@ -1,5 +1,4 @@
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 use super::exchanges::common::Amount;
@@ -8,7 +7,6 @@ pub trait BaseStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId;
     fn currency_pair(&self) -> CurrencyPair;
     fn max_amount(&self) -> Amount;
-    fn spread(&self) -> Decimal;
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]

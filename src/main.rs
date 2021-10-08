@@ -30,10 +30,6 @@ impl BaseStrategySettings for ExampleStrategySettings {
     fn max_amount(&self) -> Amount {
         dec!(1)
     }
-
-    fn spread(&self) -> Decimal {
-        self.spread
-    }
 }
 
 #[allow(dead_code)]
@@ -50,7 +46,7 @@ async fn main() -> Result<()> {
         Box::new(ExampleStrategy::new(
             settings.strategy.exchange_account_id().clone(),
             settings.strategy.currency_pair().clone(),
-            settings.strategy.spread().clone(),
+            settings.strategy.spread,
             ctx,
         ))
     })

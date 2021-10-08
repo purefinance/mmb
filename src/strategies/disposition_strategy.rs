@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use rust_decimal::{Decimal, RoundingStrategy};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 use crate::core::disposition_execution::{
@@ -10,6 +10,7 @@ use crate::core::disposition_execution::{
 use crate::core::exchanges::common::{
     CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
+use crate::core::exchanges::general::currency_pair_metadata::Round;
 use crate::core::explanation::{Explanation, WithExplanation};
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::EngineContext;
@@ -39,7 +40,7 @@ pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,
     currency_pair: CurrencyPair,
     spread: Decimal,
-    _engine_context: Arc<EngineContext>,
+    engine_context: Arc<EngineContext>,
 }
 
 impl ExampleStrategy {
@@ -53,7 +54,7 @@ impl ExampleStrategy {
             target_eai,
             currency_pair,
             spread,
-            _engine_context: engine_ctx,
+            engine_context: engine_ctx,
         }
     }
 
@@ -85,14 +86,26 @@ impl ExampleStrategy {
 
         let price = if current_spread < self.spread {
             let order_book_middle = (bid_max_price + ask_min_price) * dec!(0.5);
+            let currency_pair_metadata = self
+                .engine_context
+                .exchanges
+                .get(&self.target_eai)?
+                .symbols
+                .get(&self.currency_pair)?
+                .clone();
+
             match side {
                 OrderSide::Sell => {
                     let price = order_book_middle + (current_spread * dec!(0.5));
-                    price.round_dp_with_strategy(0, RoundingStrategy::ToPositiveInfinity)
+                    currency_pair_metadata
+                        .price_round(price, Round::Ceiling)
+                        .ok()?
                 }
                 OrderSide::Buy => {
                     let price = order_book_middle - (current_spread * dec!(0.5));
-                    price.round_dp_with_strategy(0, RoundingStrategy::ToNegativeInfinity)
+                    currency_pair_metadata
+                        .price_round(price, Round::Floor)
+                        .ok()?
                 }
             }
         } else {
