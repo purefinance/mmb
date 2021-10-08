@@ -1,5 +1,9 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
+use lazy_static::lazy_static;
 use rust_decimal::Decimal;
 
 use crate::core::{
@@ -9,15 +13,23 @@ use crate::core::{
     DateTime,
 };
 
-// REVIEW не уверен что именно так нужно было с ID сделать, мб здесь просто Uuid пойдет?
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct ProfitLossBalanceChangeId(u64);
 
+lazy_static! {
+    static ref PROFIT_LOSS_BALANCE_CHANGE_ID: AtomicU64 = {
+        AtomicU64::new(
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("Failed to get system time since UNIX_EPOCH")
+                .as_secs(),
+        )
+    };
+}
+
 impl ProfitLossBalanceChangeId {
     pub fn generate() -> Self {
-        static RESERVATION_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
-
-        let new_id = RESERVATION_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+        let new_id = PROFIT_LOSS_BALANCE_CHANGE_ID.fetch_add(1, Ordering::AcqRel);
         Self(new_id)
     }
 }
@@ -66,7 +78,7 @@ impl ProfitLossBalanceChange {
         }
     }
 
-    pub fn clone_portion(&self, portion: Decimal) -> ProfitLossBalanceChange {
+    pub fn with_portion(&self, portion: Decimal) -> ProfitLossBalanceChange {
         let mut item = self.clone();
         item.balance_change *= portion;
         item.usd_balance_change *= portion;
