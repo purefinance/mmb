@@ -41,7 +41,7 @@ impl BalanceChangeUsdPeriodicCalculator {
     pub async fn load_data(
         &mut self,
         // database_manager: DatabaseManager,
-        cancellation_token: CancellationToken,
+        _cancellation_token: CancellationToken,
     ) {
         //             await using var session = databaseManager.Sql;
 
