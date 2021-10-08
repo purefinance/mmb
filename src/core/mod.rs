@@ -9,7 +9,6 @@ pub mod infrastructure;
 pub mod logger;
 pub mod misc;
 pub mod orders;
-pub mod profit_loss;
 pub mod service_configuration;
 pub mod statistic_service;
 pub mod utils;
