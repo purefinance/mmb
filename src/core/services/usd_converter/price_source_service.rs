@@ -481,8 +481,8 @@ pub mod test {
     }
 
     #[test]
-    fn when_start_currency_code_equal_end_currency_code() {
-        let usdt = CurrencyCode::new("USDT".into());
+    fn when_start_equal_end() {
+        let usdt: CurrencyCode = "USDT".into();
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
             usdt.clone(),
             usdt.clone(),
@@ -504,13 +504,13 @@ pub mod test {
 
     #[test]
     fn when_one_currency_pair() {
-        let base_currency_code = CurrencyCode::new("USDT".into());
-        let quote_currency_code = CurrencyCode::new("BTC".into());
-        let currency_pair = CurrencyPair::from_codes(&base_currency_code, &quote_currency_code);
+        let base = "USDT".into();
+        let quote = "BTC".into();
+        let currency_pair = CurrencyPair::from_codes(&base, &quote);
 
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
-            quote_currency_code.clone(),
-            base_currency_code.clone(),
+            quote.clone(),
+            base.clone(),
             vec![ExchangeIdCurrencyPairSettings {
                 exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
                 currency_pair,
@@ -520,16 +520,16 @@ pub mod test {
         let currency_pair_metadata = Arc::new(CurrencyPairMetadata::new(
             false,
             false,
-            base_currency_code.as_str().into(),
-            base_currency_code.clone(),
-            quote_currency_code.as_str().into(),
-            quote_currency_code.clone(),
+            base.as_str().into(),
+            base.clone(),
+            quote.as_str().into(),
+            quote.clone(),
             None,
             None,
             None,
             None,
             None,
-            base_currency_code.clone(),
+            base.clone(),
             None,
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(0) },
@@ -542,8 +542,8 @@ pub mod test {
         let actual =
             PriceSourceService::prepare_price_source_chains(&price_source_settings, converter);
         let expected = PriceSourceChain::new(
-            quote_currency_code,
-            base_currency_code,
+            quote,
+            base,
             vec![RebasePriceStep::new(
                 PriceSourceServiceTestBase::get_exchange_id(),
                 currency_pair_metadata,
@@ -555,9 +555,9 @@ pub mod test {
     }
 
     #[rstest]
-    #[case(CurrencyCode::new("EOS".into()), CurrencyCode::new("BTC".into()), CurrencyCode::new("BTC".into()), CurrencyCode::new("USDT".into()), RebaseDirection::ToQuote, RebaseDirection::ToQuote)] // eos_sell_btc_sell_usdt
-    #[case(CurrencyCode::new("EOS".into()), CurrencyCode::new("BTC".into()), CurrencyCode::new("USDT".into()), CurrencyCode::new("BTC".into()), RebaseDirection::ToQuote, RebaseDirection::ToBase)] // eos_sell_btc_buy_usdt
-    #[case(CurrencyCode::new("BTC".into()), CurrencyCode::new("EOS".into()), CurrencyCode::new("USDT".into()), CurrencyCode::new("BTC".into()), RebaseDirection::ToBase, RebaseDirection::ToBase)] // eos_buy_btc_buy_usdt
+    #[case("EOS".into(), "BTC".into(), "BTC".into(), "USDT".into(), RebaseDirection::ToQuote, RebaseDirection::ToQuote)] // eos_sell_btc_sell_usdt
+    #[case("EOS".into(), "BTC".into(), "USDT".into(), "BTC".into(), RebaseDirection::ToQuote, RebaseDirection::ToBase)] // eos_sell_btc_buy_usdt
+    #[case("BTC".into(), "EOS".into(), "USDT".into(), "BTC".into(), RebaseDirection::ToBase, RebaseDirection::ToBase)] // eos_buy_btc_buy_usdt
     pub fn when_two_currency_pairs(
         #[case] first_currency: CurrencyCode,
         #[case] second_currency: CurrencyCode,
@@ -649,9 +649,9 @@ pub mod test {
 
     #[test]
     fn when_three_currency_pairs_karma_sell_eos_buy_btc_sell_usdt() {
-        let eos = CurrencyCode::new("EOS".into());
-        let btc = CurrencyCode::new("BTC".into());
-        let usdt = CurrencyCode::new("USDT".into());
+        let eos = "EOS".into();
+        let btc = "BTC".into();
+        let usdt = "USDT".into();
         let karma = CurrencyCode::new("KARMA".into());
         let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
         let currency_pair_2 = CurrencyPair::from_codes(&karma, &eos);
@@ -765,9 +765,9 @@ pub mod test {
     #[test]
     #[should_panic(expected = "failed to get currency pair")]
     fn throw_exception_when_more_cirrencies_then_needed() {
-        let eos = CurrencyCode::new("EOS".into());
-        let btc = CurrencyCode::new("BTC".into());
-        let usdt = CurrencyCode::new("USDT".into());
+        let eos = "EOS".into();
+        let btc = "BTC".into();
+        let usdt = "USDT".into();
         let karma = CurrencyCode::new("KARMA".into());
         let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
         let currency_pair_2 = CurrencyPair::from_codes(&karma, &eos);
@@ -809,9 +809,9 @@ pub mod test {
         expected = "Can't build correct chain of currency pairs of price sources for karma/usdt"
     )]
     fn throw_exception_when_less_currencies_then_needed() {
-        let eos = CurrencyCode::new("EOS".into());
-        let btc = CurrencyCode::new("BTC".into());
-        let usdt = CurrencyCode::new("USDT".into());
+        let eos = "EOS".into();
+        let btc = "BTC".into();
+        let usdt = "USDT".into();
         let karma = CurrencyCode::new("KARMA".into());
         let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
         let currency_pair_2 = CurrencyPair::from_codes(&btc, &usdt);
