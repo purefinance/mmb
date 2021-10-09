@@ -39,9 +39,8 @@ impl LocalOrderBookSnapshot {
     }
 
     /// Update inner asks and bids
-    pub fn apply_update(&mut self, order_book_data: OrderBookData, update_time: DateTime) {
-        Self::apply_update_by_side(order_book_data.asks, &mut self.asks);
-        Self::apply_update_by_side(order_book_data.bids, &mut self.bids);
+    pub fn apply_update(&mut self, update: OrderBookData, update_time: DateTime) {
+        OrderBookData::apply_update(&mut self.asks, &mut self.bids, update);
         self.last_update_time = update_time;
     }
 
@@ -106,16 +105,6 @@ impl LocalOrderBookSnapshot {
         match side {
             OrderSide::Buy => &mut self.bids,
             OrderSide::Sell => &mut self.asks,
-        }
-    }
-
-    fn apply_update_by_side(updates: SortedOrderData, current_value: &mut SortedOrderData) {
-        for (key, value) in updates.iter() {
-            if value.is_zero() {
-                let _ = current_value.remove(key);
-            } else {
-                let _ = current_value.insert(*key, *value);
-            }
         }
     }
 }
