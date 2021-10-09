@@ -85,16 +85,16 @@ mod test {
 
     use chrono::Utc;
 
+    use crate::order_book_data;
     use crate::{
         core::{
             exchanges::{
-                common::{CurrencyPair, SortedOrderData},
+                common::CurrencyPair,
                 general::{
                     currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
                     test_helper::get_test_exchange_by_currency_codes,
                 },
             },
-            order_book::order_book_data::OrderBookData,
             services::usd_converter::{
                 price_source_chain::PriceSourceChain,
                 price_source_service::{test::PriceSourceServiceTestBase, PriceSourceService},
@@ -143,14 +143,16 @@ mod test {
     #[test]
     fn calculate_amount_now_using_one_step_with_price() {
         let (currency_pair, price_source_chain) = generate_one_step_setup();
-        let mut asks = SortedOrderData::new();
-        asks.insert(dec!(10), dec!(1.2));
-        asks.insert(dec!(12), dec!(4.3));
-        let mut bids = SortedOrderData::new();
-        bids.insert(dec!(1), dec!(6));
-        bids.insert(dec!(2), dec!(9));
 
-        let snapshot = OrderBookData::new(asks, bids).to_local_order_book_snapshot();
+        let snapshot = order_book_data![
+            dec!(10) => dec!(1.2),
+            dec!(12) => dec!(4.3),
+            ;
+            dec!(1) => dec!(6),
+            dec!(2) => dec!(9),
+        ]
+        .to_local_order_book_snapshot();
+
         let trade_place =
             TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
 
@@ -166,10 +168,8 @@ mod test {
     #[test]
     fn calculate_amount_now_using_one_step_without_price() {
         let (currency_pair, price_source_chain) = generate_one_step_setup();
-        let asks = SortedOrderData::new();
-        let bids = SortedOrderData::new();
+        let snapshot = order_book_data!().to_local_order_book_snapshot();
 
-        let snapshot = OrderBookData::new(asks, bids).to_local_order_book_snapshot();
         let trade_place =
             TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
 
