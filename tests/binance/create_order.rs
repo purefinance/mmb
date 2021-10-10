@@ -18,7 +18,7 @@ async fn create_successfully() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let mut binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -41,7 +41,7 @@ async fn create_successfully() {
     };
 
     let order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromCreateSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
@@ -79,7 +79,7 @@ async fn should_fail() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -102,7 +102,7 @@ async fn should_fail() {
     };
 
     let mut order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromShouldFailTest".to_owned()),
         CancellationToken::default(),
     );

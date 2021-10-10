@@ -34,7 +34,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes(&"eth".into(), &"btc".into())
+        CurrencyPair::from_codes("eth".into(), "btc".into())
     }
 
     fn max_amount(&self) -> Amount {

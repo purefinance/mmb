@@ -40,8 +40,7 @@ impl BinanceBuilder {
             ));
         }
 
-        let settings =
-            ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
+        let settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
         BinanceBuilder::try_new_with_settings(
             settings,
             exchange_account_id,
@@ -67,19 +66,19 @@ impl BinanceBuilder {
         settings.websocket_channels = vec!["depth".into(), "trade".into()];
 
         let binance = Box::new(Binance::new(
-            exchange_account_id.clone(),
+            exchange_account_id,
             settings.clone(),
             tx.clone(),
             application_manager.clone(),
             false,
         ));
 
-        let timeout_manager = get_timeout_manager(&exchange_account_id);
+        let timeout_manager = get_timeout_manager(exchange_account_id);
         let exchange = Exchange::new(
-            exchange_account_id.clone(),
+            exchange_account_id,
             binance,
             features,
-            BinanceBuilder.get_timeout_argments(),
+            BinanceBuilder.get_timeout_arguments(),
             tx.clone(),
             application_manager,
             timeout_manager,

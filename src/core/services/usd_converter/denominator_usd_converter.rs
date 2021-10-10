@@ -15,7 +15,7 @@ impl DenominatorUsdConverter {
 
     pub(super) async fn calculate_using_denominator(
         &self,
-        from_currency_code: &CurrencyCode,
+        from_currency_code: CurrencyCode,
         src_amount: Amount,
     ) -> Option<Amount> {
         self.usd_denominator

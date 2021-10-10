@@ -5,7 +5,7 @@ use futures::FutureExt;
 use log::{error, info, trace, Level};
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use std::fmt::Display;
+use std::fmt::{Debug, Display};
 use std::panic;
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
@@ -155,7 +155,7 @@ async fn handle_action_outcome(
                 return FutureOutcome::new(action_name, future_id, CompletionReason::Error);
             }
         },
-        Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
+        Err(panic) => match panic.as_ref().downcast_ref::<String>() {
             Some(error_msg) => {
                 if error_msg == OPERATION_CANCELED_MSG {
                     let log_level = if is_critical {
@@ -494,5 +494,21 @@ impl<T> WithExpect<T> for Option<T> {
         F: FnOnce() -> C,
     {
         self.unwrap_or_else(|| panic!("{}", f()))
+    }
+}
+
+impl<T, E> WithExpect<T> for std::result::Result<T, E>
+where
+    E: Debug,
+{
+    fn with_expect<C, F>(self, f: F) -> T
+    where
+        C: Display + Send + Sync + 'static,
+        F: FnOnce() -> C,
+    {
+        match self {
+            Ok(v) => v,
+            Err(e) => panic!("{}: {:?}", f(), e),
+        }
     }
 }

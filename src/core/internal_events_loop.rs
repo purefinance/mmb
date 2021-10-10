@@ -93,7 +93,7 @@ fn update_order_book_top_for_exchange(
             .map(|exchange| {
                 exchange
                     .order_book_top
-                    .insert(trade_place_account.currency_pair.clone(), order_book_top)
+                    .insert(trade_place_account.currency_pair, order_book_top)
             });
     }
 }

@@ -347,8 +347,8 @@ impl PriceSourceService {
     /// Return converted amount or None if can't calculate price for converting and Err if something bad was happened
     pub async fn convert_amount(
         &self,
-        from: &CurrencyCode,
-        to: &CurrencyCode,
+        from: CurrencyCode,
+        to: CurrencyCode,
         src_amount: Amount,
         cancellation_token: CancellationToken,
     ) -> Result<Option<Amount>> {

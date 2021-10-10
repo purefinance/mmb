@@ -186,12 +186,12 @@ mod test {
         fn order_canceled() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
-            let exchange_order_id = ExchangeOrderId::new("test".into());
+            let exchange_order_id = &ExchangeOrderId::new("test".into());
             let error =
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
@@ -199,8 +199,8 @@ mod test {
             let header = OrderHeader::new(
                 client_order_id.clone(),
                 Utc::now(),
-                exchange.exchange_account_id.clone(),
-                currency_pair.clone(),
+                exchange.exchange_account_id,
+                currency_pair,
                 OrderType::Limit,
                 OrderSide::Buy,
                 order_amount,
@@ -231,7 +231,7 @@ mod test {
 
             // Act
             let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
-                &exchange_order_id,
+                exchange_order_id,
                 error,
                 EventSourceType::WebSocket,
             );
@@ -254,7 +254,7 @@ mod test {
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
@@ -262,8 +262,8 @@ mod test {
             let header = OrderHeader::new(
                 client_order_id.clone(),
                 Utc::now(),
-                exchange.exchange_account_id.clone(),
-                currency_pair.clone(),
+                exchange.exchange_account_id,
+                currency_pair,
                 OrderType::Limit,
                 OrderSide::Buy,
                 order_amount,
@@ -321,7 +321,7 @@ mod test {
             let exchange_order_id = ExchangeOrderId::new("test".into());
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
@@ -329,8 +329,8 @@ mod test {
             let header = OrderHeader::new(
                 client_order_id.clone(),
                 Utc::now(),
-                exchange.exchange_account_id.clone(),
-                currency_pair.clone(),
+                exchange.exchange_account_id,
+                currency_pair,
                 OrderType::Limit,
                 OrderSide::Buy,
                 order_amount,
@@ -403,7 +403,7 @@ mod test {
             let exchange_order_id = ExchangeOrderId::new("test".into());
 
             let client_order_id = ClientOrderId::unique_id();
-            let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+            let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
             let order_role = OrderRole::Maker;
@@ -411,8 +411,8 @@ mod test {
             let header = OrderHeader::new(
                 client_order_id.clone(),
                 Utc::now(),
-                exchange.exchange_account_id.clone(),
-                currency_pair.clone(),
+                exchange.exchange_account_id,
+                currency_pair,
                 OrderType::Limit,
                 OrderSide::Buy,
                 order_amount,
@@ -492,7 +492,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("test".into());
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_amount = dec!(12);
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
@@ -500,8 +500,8 @@ mod test {
         let header = OrderHeader::new(
             client_order_id.clone(),
             Utc::now(),
-            exchange.exchange_account_id.clone(),
-            currency_pair.clone(),
+            exchange.exchange_account_id,
+            currency_pair,
             OrderType::Limit,
             OrderSide::Buy,
             order_amount,
@@ -573,7 +573,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("test".into());
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_amount = dec!(12);
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
@@ -581,8 +581,8 @@ mod test {
         let header = OrderHeader::new(
             client_order_id.clone(),
             Utc::now(),
-            exchange.exchange_account_id.clone(),
-            currency_pair.clone(),
+            exchange.exchange_account_id,
+            currency_pair,
             OrderType::Limit,
             OrderSide::Buy,
             order_amount,

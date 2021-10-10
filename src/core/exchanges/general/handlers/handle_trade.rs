@@ -16,7 +16,7 @@ use crate::core::{
 impl Exchange {
     pub fn handle_trade(
         &self,
-        currency_pair: &CurrencyPair,
+        currency_pair: CurrencyPair,
         trade_id: TradeId,
         price: Price,
         quantity: Amount,
@@ -32,19 +32,16 @@ impl Exchange {
             tick_direction: TickDirection::None,
         }];
         let mut trades_event = TradesEvent {
-            exchange_account_id: self.exchange_account_id.clone(),
-            currency_pair: currency_pair.clone(),
+            exchange_account_id: self.exchange_account_id,
+            currency_pair,
             trades,
             receipt_time: timeout_manager::now(),
         };
 
-        let trade_place = TradePlace::new(
-            self.exchange_account_id.exchange_id.clone(),
-            currency_pair.clone(),
-        );
+        let trade_place = TradePlace::new(self.exchange_account_id.exchange_id, currency_pair);
 
         self.last_trades_update_time
-            .insert(trade_place.clone(), trades_event.receipt_time);
+            .insert(trade_place, trades_event.receipt_time);
 
         if self.exchange_client.get_settings().subscribe_to_market_data {
             return Ok(());

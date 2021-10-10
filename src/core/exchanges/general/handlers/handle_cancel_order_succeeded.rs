@@ -22,7 +22,7 @@ impl Exchange {
         source_type: EventSourceType,
     ) -> Result<()> {
         let args_to_log = (
-            self.exchange_account_id.clone(),
+            self.exchange_account_id,
             exchange_order_id.clone(),
             self.features.allowed_cancel_event_source_type,
             source_type,
@@ -217,7 +217,7 @@ mod test {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
         let order_role = OrderRole::Maker;
@@ -226,8 +226,8 @@ mod test {
         let order_ref = test_helper::create_order_ref(
             &client_order_id,
             Some(order_role),
-            &exchange.exchange_account_id.clone(),
-            &currency_pair.clone(),
+            exchange.exchange_account_id,
+            currency_pair,
             fill_price,
             order_amount,
             order_side,
@@ -256,7 +256,7 @@ mod test {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
         let order_role = OrderRole::Maker;
@@ -265,8 +265,8 @@ mod test {
         let order_ref = test_helper::create_order_ref(
             &client_order_id,
             Some(order_role),
-            &exchange.exchange_account_id.clone(),
-            &currency_pair.clone(),
+            exchange.exchange_account_id,
+            currency_pair,
             fill_price,
             order_amount,
             order_side,
@@ -297,7 +297,7 @@ mod test {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
         let order_role = OrderRole::Maker;
@@ -306,8 +306,8 @@ mod test {
         let order_ref = test_helper::create_order_ref(
             &client_order_id,
             Some(order_role),
-            &exchange.exchange_account_id.clone(),
-            &currency_pair.clone(),
+            exchange.exchange_account_id,
+            currency_pair,
             fill_price,
             order_amount,
             order_side,
@@ -341,7 +341,7 @@ mod test {
         let (exchange, mut event_receiver) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
-        let currency_pair = CurrencyPair::from_codes(&"PHB".into(), &"BTC".into());
+        let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
         let order_role = OrderRole::Maker;
@@ -350,8 +350,8 @@ mod test {
         let order_ref = test_helper::create_order_ref(
             &client_order_id,
             Some(order_role),
-            &exchange.exchange_account_id.clone(),
-            &currency_pair.clone(),
+            exchange.exchange_account_id,
+            currency_pair,
             fill_price,
             order_amount,
             order_side,

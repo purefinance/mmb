@@ -93,66 +93,66 @@ impl StatisticServiceState {
         }
     }
 
-    pub(crate) fn register_created_order(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn register_created_order(&self, trade_place_account: TradePlaceAccount) {
         self.trade_place_stats
             .write()
-            .entry(trade_place_account.clone())
+            .entry(trade_place_account)
             .or_default()
             .register_created_order();
     }
 
-    pub(crate) fn register_canceled_order(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn register_canceled_order(&self, trade_place_account: TradePlaceAccount) {
         self.trade_place_stats
             .write()
-            .entry(trade_place_account.clone())
+            .entry(trade_place_account)
             .or_default()
             .register_canceled_order();
     }
 
-    pub(crate) fn register_partially_filled_order(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn register_partially_filled_order(&self, trade_place_account: TradePlaceAccount) {
         self.trade_place_stats
             .write()
-            .entry(trade_place_account.clone())
+            .entry(trade_place_account)
             .or_default()
             .increment_partially_filled_orders();
     }
 
-    fn decrement_partially_filled_orders(&self, trade_place_account: &TradePlaceAccount) {
+    fn decrement_partially_filled_orders(&self, trade_place_account: TradePlaceAccount) {
         self.trade_place_stats
             .write()
-            .entry(trade_place_account.clone())
+            .entry(trade_place_account)
             .or_default()
             .decrement_partially_filled_orders();
     }
 
-    pub(crate) fn register_completely_filled_order(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn register_completely_filled_order(&self, trade_place_account: TradePlaceAccount) {
         self.trade_place_stats
             .write()
-            .entry(trade_place_account.clone())
+            .entry(trade_place_account)
             .or_default()
             .increment_completely_filled_orders();
     }
 
     pub(crate) fn register_filled_amount(
         &self,
-        trade_place_account: &TradePlaceAccount,
+        trade_place_account: TradePlaceAccount,
         filled_amount: Amount,
     ) {
         self.trade_place_stats
             .write()
-            .entry(trade_place_account.clone())
+            .entry(trade_place_account)
             .or_default()
             .add_summary_filled_amount(filled_amount);
     }
 
     pub(crate) fn register_commission(
         &self,
-        trade_place_account: &TradePlaceAccount,
+        trade_place_account: TradePlaceAccount,
         commission: Price,
     ) {
         self.trade_place_stats
             .write()
-            .entry(trade_place_account.clone())
+            .entry(trade_place_account)
             .or_default()
             .add_summary_commission(commission);
     }
@@ -176,25 +176,25 @@ impl StatisticService {
         })
     }
 
-    pub(crate) fn register_created_order(&self, trade_place_account: &TradePlaceAccount) {
+    pub(crate) fn register_created_order(&self, trade_place_account: TradePlaceAccount) {
         self.statistic_service_state
             .register_created_order(trade_place_account);
     }
 
     pub(crate) fn register_canceled_order(
         &self,
-        trade_place_account: &TradePlaceAccount,
+        trade_place_account: TradePlaceAccount,
         client_order_id: &ClientOrderId,
     ) {
         self.statistic_service_state
             .register_canceled_order(trade_place_account);
 
-        self.remove_filled_order_if_exist(&trade_place_account, &client_order_id);
+        self.remove_filled_order_if_exist(trade_place_account, &client_order_id);
     }
 
     pub(crate) fn register_partially_filled_order(
         &self,
-        trade_place_account: &TradePlaceAccount,
+        trade_place_account: TradePlaceAccount,
         client_order_id: &ClientOrderId,
     ) {
         let mut partially_filled_orders = self.partially_filled_orders.lock();
@@ -208,7 +208,7 @@ impl StatisticService {
 
     pub(crate) fn register_completely_filled_order(
         &self,
-        trade_place_account: &TradePlaceAccount,
+        trade_place_account: TradePlaceAccount,
         client_order_id: &ClientOrderId,
         filled_amount: Amount,
         commission: Amount,
@@ -227,7 +227,7 @@ impl StatisticService {
 
     fn remove_filled_order_if_exist(
         &self,
-        trade_place_account: &TradePlaceAccount,
+        trade_place_account: TradePlaceAccount,
         client_order_id: &ClientOrderId,
     ) {
         let mut partially_filled_orders = self.partially_filled_orders.lock();
@@ -287,16 +287,16 @@ impl StatisticEventHandler {
                 );
                 match order_event.event_type {
                     OrderEventType::CreateOrderSucceeded => {
-                        self.stats.register_created_order(&trade_place_account);
+                        self.stats.register_created_order(trade_place_account);
                     }
                     OrderEventType::CancelOrderSucceeded => {
                         let client_order_id = order_event.order.client_order_id();
                         self.stats
-                            .register_canceled_order(&trade_place_account, &client_order_id);
+                            .register_canceled_order(trade_place_account, &client_order_id);
                     }
                     OrderEventType::OrderFilled { cloned_order } => {
                         self.stats.register_partially_filled_order(
-                            &trade_place_account,
+                            trade_place_account,
                             &cloned_order.header.client_order_id,
                         );
                     }
@@ -311,7 +311,7 @@ impl StatisticEventHandler {
                         let filled_amount = cloned_order.fills.filled_amount;
 
                         self.stats.register_completely_filled_order(
-                            &trade_place_account,
+                            trade_place_account,
                             &cloned_order.header.client_order_id,
                             filled_amount,
                             commission,

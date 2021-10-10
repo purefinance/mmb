@@ -63,7 +63,7 @@ impl ExampleStrategy {
     }
 
     fn trade_place_account(&self) -> TradePlaceAccount {
-        TradePlaceAccount::new(self.target_eai.clone(), self.currency_pair.clone())
+        TradePlaceAccount::new(self.target_eai, self.currency_pair)
     }
 
     fn trade_place(&self) -> TradePlace {

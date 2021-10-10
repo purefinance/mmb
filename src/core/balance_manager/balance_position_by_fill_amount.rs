@@ -27,22 +27,19 @@ impl BalancePositionByFillAmount {
 
     pub fn get(
         &self,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
     ) -> Option<Decimal> {
         self.position_by_fill_amount
-            .get(&TradePlaceAccount::new(
-                exchange_account_id.clone(),
-                currency_pair.clone(),
-            ))
+            .get(&TradePlaceAccount::new(exchange_account_id, currency_pair))
             .cloned()
     }
 
     pub(crate) fn set(
         &mut self,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
-        pervious_position: Option<Decimal>,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        previous_position: Option<Decimal>,
         new_position: Decimal,
         client_order_fill_id: Option<ClientOrderFillId>,
         now: DateTime,
@@ -51,24 +48,24 @@ impl BalancePositionByFillAmount {
 
         log::info!(
             "PositionChanges {:?} {} {:?}",
-            pervious_position,
+            previous_position,
             new_position,
             client_order_fill_id
         );
 
         //We don't come from RestoreFillAmountPosition
-        if let (Some(pervious_position), Some(client_order_fill_id)) =
-            (pervious_position, client_order_fill_id)
+        if let (Some(previous_position), Some(client_order_fill_id)) =
+            (previous_position, client_order_fill_id)
         {
             let position_change_contains_key = self.position_changes.contains_key(&key);
             log::info!("position_changes {}", position_change_contains_key);
 
             if position_change_contains_key {
-                if (pervious_position.is_sign_negative() && new_position.is_sign_positive())
-                    || (pervious_position.is_sign_positive() && new_position.is_sign_negative())
+                if (previous_position.is_sign_negative() && new_position.is_sign_positive())
+                    || (previous_position.is_sign_positive() && new_position.is_sign_negative())
                     || new_position.is_zero()
                 {
-                    let opened_position_portion = new_position / (new_position - pervious_position);
+                    let opened_position_portion = new_position / (new_position - previous_position);
                     match self.position_changes.get_mut(&key) {
                         Some(position_changes) => position_changes.push(PositionChange::new(
                             client_order_fill_id.clone(),
@@ -90,12 +87,12 @@ impl BalancePositionByFillAmount {
                     );
                 }
             } else {
-                if !pervious_position.is_zero() {
+                if !previous_position.is_zero() {
                     log::error!(
                         "_lostPositionOpenTime has no records but position is not zero {} {} {}",
                         key.exchange_account_id,
                         key.currency_pair,
-                        pervious_position
+                        previous_position
                     );
                 }
                 log::info!(
@@ -122,15 +119,15 @@ impl BalancePositionByFillAmount {
 
     pub fn add(
         &mut self,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
         value_to_add: Decimal,
         client_order_fill_id: Option<ClientOrderFillId>,
         now: DateTime,
     ) {
         let current_value = self
             .get(exchange_account_id, currency_pair)
-            .unwrap_or(dec!(0));
+            .unwrap_or_default();
         let new_value = current_value + value_to_add;
         self.set(
             exchange_account_id,
