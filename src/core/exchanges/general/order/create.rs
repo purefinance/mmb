@@ -31,14 +31,14 @@ pub struct CreateOrderResult {
 impl CreateOrderResult {
     pub fn successed(order_id: &ExchangeOrderId, source_type: EventSourceType) -> Self {
         CreateOrderResult {
-            outcome: RequestResult::Success(order_id.clone()),
+            outcome: Success(order_id.clone()),
             source_type,
         }
     }
 
     pub fn failed(error: ExchangeError, source_type: EventSourceType) -> Self {
         CreateOrderResult {
-            outcome: RequestResult::Error(error),
+            outcome: Error(error),
             source_type,
         }
     }
