@@ -470,7 +470,7 @@ impl Exchange {
         };
     }
 
-    pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> anyhow::Result<()> {
+    pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
         self.exchange_client
             .cancel_all_orders(currency_pair)
             .await?;
@@ -484,7 +484,7 @@ impl Exchange {
         response: &RestRequestOutcome,
         log_template: String,
         args_to_log: Option<Vec<String>>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let content = &response.content;
         let log_event_level = match serde_json::from_str::<Value>(content) {
             Ok(_) => Level::Error,
