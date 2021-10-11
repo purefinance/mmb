@@ -10,6 +10,7 @@ use super::{
     exchange::Exchange,
 };
 use crate::core::exchanges::binance::binance::BinanceBuilder;
+use crate::core::exchanges::common::CurrencyCode;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::*;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
@@ -194,4 +195,27 @@ pub(crate) fn try_add_snapshot_by_exchange_id(exchange: &Exchange, order_ref: &O
             .cache_by_exchange_id
             .insert(exchange_order_id.clone(), order_ref.clone());
     }
+}
+
+pub(crate) fn create_currency_pair_metadata_for_tests(
+    base: &CurrencyCode,
+    quote: &CurrencyCode,
+) -> Arc<CurrencyPairMetadata> {
+    Arc::new(CurrencyPairMetadata::new(
+        false,
+        false,
+        base.as_str().into(),
+        base.clone(),
+        quote.as_str().into(),
+        quote.clone(),
+        None,
+        None,
+        None,
+        None,
+        None,
+        base.clone(),
+        None,
+        Precision::ByTick { tick: dec!(0.1) },
+        Precision::ByTick { tick: dec!(0) },
+    ))
 }

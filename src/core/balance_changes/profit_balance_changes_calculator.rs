@@ -25,19 +25,21 @@ pub(crate) async fn calculate_over_market(
         .iter()
         .into_group_map_by(|x| &x.currency_code);
 
-    let usd_converter_actions = group_by_currency_code
-        .iter()
-        .map(|(currency_code, balance_changes)| {
-            let sum = balance_changes.iter().map(|x| x.balance_change).sum();
-            let cloned_cancellation_token = cancellation_token.clone();
-            async move {
-                usd_converter
-                    .convert_amount(currency_code, sum, cloned_cancellation_token)
-                    .await
-                    .with_expect(|| format!("Can't find usd_balance_change for {}", currency_code))
-            }
-        })
-        .collect_vec();
+    let usd_converter_actions =
+        group_by_currency_code
+            .iter()
+            .map(|(currency_code, balance_changes)| {
+                let sum = balance_changes.iter().map(|x| x.balance_change).sum();
+                let cloned_cancellation_token = cancellation_token.clone();
+                async move {
+                    usd_converter
+                        .convert_amount(currency_code, sum, cloned_cancellation_token)
+                        .await
+                        .with_expect(|| {
+                            format!("Can't find usd_balance_change for {}", currency_code)
+                        })
+                }
+            });
 
     join_all(usd_converter_actions).await.iter().sum()
 }

@@ -112,7 +112,7 @@ pub struct Exchange {
     pub(crate) timeout_manager: Arc<TimeoutManager>,
     pub(super) commission: Commission,
     pub(super) supported_symbols: Mutex<Vec<Arc<CurrencyPairMetadata>>>,
-    pub(super) symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
+    pub symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
     pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
