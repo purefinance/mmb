@@ -88,7 +88,7 @@ mod test {
     use crate::{
         core::{
             exchanges::{
-                common::{CurrencyCode, CurrencyPair, SortedOrderData},
+                common::{CurrencyPair, SortedOrderData},
                 general::{
                     currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
                     test_helper::get_test_exchange_by_currency_codes,

@@ -78,7 +78,7 @@ impl ExampleStrategy {
         local_snapshots_service: &LocalSnapshotsService,
         explanation: Explanation,
     ) -> Option<TradingContextBySide> {
-        let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
+        let snapshot = local_snapshots_service.get_snapshot(&self.trade_place())?;
         let ask_min_price = snapshot.get_top_ask()?.0;
         let bid_max_price = snapshot.get_top_bid()?.0;
 
