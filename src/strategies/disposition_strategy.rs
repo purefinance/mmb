@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 
 use crate::core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
@@ -9,6 +10,7 @@ use crate::core::disposition_execution::{
 use crate::core::exchanges::common::{
     CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
+use crate::core::exchanges::general::currency_pair_metadata::Round;
 use crate::core::explanation::{Explanation, WithExplanation};
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::EngineContext;
@@ -37,19 +39,22 @@ pub trait DispositionStrategy: Send + Sync + 'static {
 pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,
     currency_pair: CurrencyPair,
-    _engine_context: Arc<EngineContext>,
+    spread: Decimal,
+    engine_context: Arc<EngineContext>,
 }
 
 impl ExampleStrategy {
     pub fn new(
         target_eai: ExchangeAccountId,
         currency_pair: CurrencyPair,
+        spread: Decimal,
         engine_ctx: Arc<EngineContext>,
     ) -> Self {
         ExampleStrategy {
             target_eai,
             currency_pair,
-            _engine_context: engine_ctx,
+            spread,
+            engine_context: engine_ctx,
         }
     }
 
@@ -73,8 +78,39 @@ impl ExampleStrategy {
         local_snapshots_service: &LocalSnapshotsService,
         explanation: Explanation,
     ) -> Option<TradingContextBySide> {
-        let snapshot = local_snapshots_service.get_snapshot(&self.trade_place())?;
-        let price = snapshot.get_top(side)?.0;
+        let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
+        let ask_min_price = snapshot.get_top_ask()?.0;
+        let bid_max_price = snapshot.get_top_bid()?.0;
+
+        let current_spread = ask_min_price - bid_max_price;
+
+        let price = if current_spread < self.spread {
+            let order_book_middle = (bid_max_price + ask_min_price) * dec!(0.5);
+            let currency_pair_metadata = self
+                .engine_context
+                .exchanges
+                .get(&self.target_eai)?
+                .symbols
+                .get(&self.currency_pair)?
+                .clone();
+
+            match side {
+                OrderSide::Sell => {
+                    let price = order_book_middle + (current_spread * dec!(0.5));
+                    currency_pair_metadata
+                        .price_round(price, Round::Ceiling)
+                        .ok()?
+                }
+                OrderSide::Buy => {
+                    let price = order_book_middle - (current_spread * dec!(0.5));
+                    currency_pair_metadata
+                        .price_round(price, Round::Floor)
+                        .ok()?
+                }
+            }
+        } else {
+            snapshot.get_top(side)?.0
+        };
 
         Some(TradingContextBySide {
             max_amount,

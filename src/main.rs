@@ -7,11 +7,14 @@ use mmb_lib::core::{
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
 };
 use mmb_lib::strategies::disposition_strategy::ExampleStrategy;
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
-pub struct ExampleStrategySettings {}
+pub struct ExampleStrategySettings {
+    pub spread: Decimal,
+}
 
 impl BaseStrategySettings for ExampleStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
@@ -43,6 +46,7 @@ async fn main() -> Result<()> {
         Box::new(ExampleStrategy::new(
             settings.strategy.exchange_account_id().clone(),
             settings.strategy.currency_pair().clone(),
+            settings.strategy.spread,
             ctx,
         ))
     })
