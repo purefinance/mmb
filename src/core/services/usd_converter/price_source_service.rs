@@ -439,14 +439,18 @@ impl ConvertAmount {
 #[cfg(test)]
 pub mod test {
     use rstest::rstest;
+    use rust_decimal_macros::dec;
 
     use crate::{
         core::{
             exchanges::{
                 common::{CurrencyPair, ExchangeAccountId},
-                general::test_helper::{
-                    create_currency_pair_metadata_for_tests, get_test_exchange_by_currency_codes,
-                    get_test_exchange_with_currency_pair_metadata,
+                general::{
+                    currency_pair_metadata::Precision,
+                    test_helper::{
+                        get_test_exchange_by_currency_codes,
+                        get_test_exchange_with_currency_pair_metadata,
+                    },
                 },
             },
             settings::ExchangeIdCurrencyPairSettings,
@@ -474,6 +478,29 @@ pub mod test {
         pub fn get_exchange_id() -> ExchangeId {
             ExchangeId::new("Binance".into())
         }
+    }
+
+    fn currency_pair_metadata(
+        base: &CurrencyCode,
+        quote: &CurrencyCode,
+    ) -> Arc<CurrencyPairMetadata> {
+        Arc::new(CurrencyPairMetadata::new(
+            false,
+            false,
+            base.as_str().into(),
+            base.clone(),
+            quote.as_str().into(),
+            quote.clone(),
+            None,
+            None,
+            None,
+            None,
+            None,
+            base.clone(),
+            None,
+            Precision::ByTick { tick: dec!(0.1) },
+            Precision::ByTick { tick: dec!(0) },
+        ))
     }
 
     #[test]
@@ -536,7 +563,7 @@ pub mod test {
             }],
         )];
 
-        let currency_pair_metadata = create_currency_pair_metadata_for_tests(&base, &quote);
+        let currency_pair_metadata = currency_pair_metadata(&base, &quote);
 
         let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
             PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata.clone()).0
@@ -591,11 +618,9 @@ pub mod test {
             ],
         )];
 
-        let currency_pair_metadata_1 =
-            create_currency_pair_metadata_for_tests(&first_currency, &second_currency);
+        let currency_pair_metadata_1 = currency_pair_metadata(&first_currency, &second_currency);
 
-        let currency_pair_metadata_2 =
-            create_currency_pair_metadata_for_tests(&third_currency, &fourth_currency);
+        let currency_pair_metadata_2 = currency_pair_metadata(&third_currency, &fourth_currency);
 
         let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
             PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_1.clone()).0,
@@ -656,11 +681,11 @@ pub mod test {
             ],
         )];
 
-        let currency_pair_metadata_1 = create_currency_pair_metadata_for_tests(&btc, &eos);
+        let currency_pair_metadata_1 = currency_pair_metadata(&btc, &eos);
 
-        let currency_pair_metadata_2 = create_currency_pair_metadata_for_tests(&btc, &usdt);
+        let currency_pair_metadata_2 = currency_pair_metadata(&btc, &usdt);
 
-        let currency_pair_metadata_3 = create_currency_pair_metadata_for_tests(&karma, &eos);
+        let currency_pair_metadata_3 = currency_pair_metadata(&karma, &eos);
         let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
             PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_1.clone()).0,
             PriceSourceServiceTestBase::get_exchange_account_id_3() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_2.clone()).0,
