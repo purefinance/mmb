@@ -14,7 +14,7 @@ use chrono::Utc;
 ///
 /// Example:
 ///
-/// ```
+/// ```ignore
 /// use crate::order_book_data;
 /// use rust_decimal_macros::dec;
 ///
