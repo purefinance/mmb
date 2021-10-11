@@ -88,7 +88,7 @@ mod test {
     use crate::{
         core::{
             exchanges::{
-                common::{CurrencyCode, CurrencyPair, SortedOrderData},
+                common::{CurrencyPair, SortedOrderData},
                 general::{
                     currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
                     test_helper::get_test_exchange_by_currency_codes,
@@ -106,9 +106,9 @@ mod test {
 
     use super::*;
 
-    fn getenerate_one_step_setup() -> (CurrencyPair, PriceSourceChain) {
-        let base_currency_code = CurrencyCode::new("USDT".into());
-        let quote_currency_code = CurrencyCode::new("BTC".into());
+    fn generate_one_step_setup() -> (CurrencyPair, PriceSourceChain) {
+        let base_currency_code = "USDT".into();
+        let quote_currency_code = "BTC".into();
         let currency_pair = CurrencyPair::from_codes(&base_currency_code, &quote_currency_code);
 
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
@@ -142,7 +142,7 @@ mod test {
 
     #[test]
     fn calculate_amount_now_using_one_step_with_price() {
-        let (currency_pair, price_source_chain) = getenerate_one_step_setup();
+        let (currency_pair, price_source_chain) = generate_one_step_setup();
         let mut asks = SortedOrderData::new();
         asks.insert(dec!(10), dec!(1.2));
         asks.insert(dec!(12), dec!(4.3));
@@ -165,7 +165,7 @@ mod test {
 
     #[test]
     fn calculate_amount_now_using_one_step_without_price() {
-        let (currency_pair, price_source_chain) = getenerate_one_step_setup();
+        let (currency_pair, price_source_chain) = generate_one_step_setup();
         let asks = SortedOrderData::new();
         let bids = SortedOrderData::new();
 
@@ -183,7 +183,7 @@ mod test {
 
     #[test]
     fn calculate_amount_in_past_using_one_step_with_price() {
-        let (currency_pair, price_source_chain) = getenerate_one_step_setup();
+        let (currency_pair, price_source_chain) = generate_one_step_setup();
         let time_in_past = Utc::now();
         let trade_place =
             TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
@@ -201,7 +201,7 @@ mod test {
 
     #[test]
     fn calculate_amount_in_past_using_one_step_without_price() {
-        let (_, price_source_chain) = getenerate_one_step_setup();
+        let (_, price_source_chain) = generate_one_step_setup();
         let time_in_past = Utc::now();
         let price_cache = HashMap::new();
         let src_amount = dec!(10);
@@ -213,7 +213,7 @@ mod test {
 
     #[test]
     fn calculate_amount_with_current_cached_prices_using_one_step_with_price() {
-        let (currency_pair, price_source_chain) = getenerate_one_step_setup();
+        let (currency_pair, price_source_chain) = generate_one_step_setup();
         let cached_price = dec!(6);
         let trade_place =
             TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
@@ -228,7 +228,7 @@ mod test {
     #[test]
     #[should_panic(expected = "Invalid price cache")]
     fn calculate_amount_with_current_cached_prices_using_one_step_without_price() {
-        let (_, price_source_chain) = getenerate_one_step_setup();
+        let (_, price_source_chain) = generate_one_step_setup();
         let price_cache = HashMap::new();
 
         let src_amount = dec!(10);
@@ -242,13 +242,13 @@ mod test {
     }
 
     fn getenerate_two_step_setup() -> TwoStepSetup {
-        let base_currency_code_1 = CurrencyCode::new("USDT".into());
-        let quote_currency_code_1 = CurrencyCode::new("BTC".into());
+        let base_currency_code_1 = "USDT".into();
+        let quote_currency_code_1 = "BTC".into();
         let currency_pair_1 =
             CurrencyPair::from_codes(&base_currency_code_1, &quote_currency_code_1);
 
-        let base_currency_code_2 = CurrencyCode::new("BTC".into());
-        let quote_currency_code_2 = CurrencyCode::new("EOS".into());
+        let base_currency_code_2 = "BTC".into();
+        let quote_currency_code_2 = "EOS".into();
         let currency_pair_2 =
             CurrencyPair::from_codes(&base_currency_code_2, &quote_currency_code_2);
 
