@@ -368,7 +368,10 @@ impl PriceSourceService {
             .send(ConvertAmount::new(chain.clone(), src_amount, tx_result))
             .await
         {
-            let message = format!("PriceSourceService::convert_amount(): Unable to send: {:?}. Probably receiver is already dropped", error);
+            let message = format!(
+                "PriceSourceService::convert_amount(): Unable to send: {:?}. Channel is closed",
+                error
+            );
             if !cancellation_token.is_cancellation_requested() {
                 panic!("{} but cancellation hasn't been requested", message);
             }
