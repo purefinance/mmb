@@ -481,17 +481,15 @@ mod test {
 pub trait WithExpect<T> {
     /// Unwrap the value or panic with additional context that is evaluated lazily
     /// only for None variant
-    fn with_expect<C, F>(self, f: F) -> T
+    fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
     where
-        C: Display + Send + Sync + 'static,
-        F: FnOnce() -> C;
+        C: Display + Send + Sync + 'static;
 }
 
 impl<T> WithExpect<T> for Option<T> {
-    fn with_expect<C, F>(self, f: F) -> T
+    fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
     where
         C: Display + Send + Sync + 'static,
-        F: FnOnce() -> C,
     {
         self.unwrap_or_else(|| panic!("{}", f()))
     }
@@ -501,10 +499,9 @@ impl<T, E> WithExpect<T> for std::result::Result<T, E>
 where
     E: Debug,
 {
-    fn with_expect<C, F>(self, f: F) -> T
+    fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
     where
         C: Display + Send + Sync + 'static,
-        F: FnOnce() -> C,
     {
         match self {
             Ok(v) => v,

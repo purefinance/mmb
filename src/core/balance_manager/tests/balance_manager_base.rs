@@ -134,7 +134,7 @@ impl BalanceManagerBase {
                 .and_hms(0, 0, seconds.lock().clone())
         });
 
-        let exchange_id = BalanceManagerBase::exchange_id().as_str().into();
+        let exchange_id = Self::exchange_id().as_str().into();
         let exchange_account_id_1 = ExchangeAccountId::new(exchange_id, 0);
         let exchange_account_id_2 = ExchangeAccountId::new(exchange_id, 1);
 

@@ -589,7 +589,7 @@ impl BalanceManager {
         let currency_pair_metadata = self
             .balance_reservation_manager
             .currency_pair_to_metadata_converter
-            .get_currency_pair_metadata(&exchange_account_id, order_snapshot.header.currency_pair);
+            .get_currency_pair_metadata(exchange_account_id, order_snapshot.header.currency_pair);
         self.handle_order_fill(
             configuration_descriptor,
             exchange_account_id,

@@ -678,7 +678,7 @@ impl BalanceReservationManager {
     ) -> Decimal {
         let currency_pair_metadata = self
             .currency_pair_to_metadata_converter
-            .get_currency_pair_metadata(&exchange_account_id, currency_pair);
+            .get_currency_pair_metadata(exchange_account_id, currency_pair);
 
         let currency_code = currency_pair_metadata.get_trade_code(side, BeforeAfter::Before);
         let mut position_in_amount_currency = self
