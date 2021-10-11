@@ -363,13 +363,14 @@ impl PriceSourceService {
             ))?;
 
         let (tx_result, rx_result) = oneshot::channel();
-        self
+        if let Err(error) = self
             .tx_main
             .send(ConvertAmount::new(chain.clone(), src_amount, tx_result))
             .await
-            .expect(
-                "PriceSourceService::convert_amount(): Unable to send trades event. Probably receiver is already dropped"
-            );
+        {
+            log::warn!("PriceSourceService::convert_amount(): Unable to send: {:?}. Probably receiver is already dropped.", error);
+        }
+
         tokio::select! {
             result = rx_result => Ok(result.context("While receiving the result on rx_result in PriceSourceService::convert_amount()")?),
             _ = cancellation_token.when_cancelled() => Ok(None),
