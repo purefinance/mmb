@@ -526,7 +526,7 @@ impl BalanceReservationManager {
         let reserved_amount_in_amount_currency = self
             .reserved_amount_in_amount_currency
             .get_by_balance_request(request)
-            .unwrap_or_default();
+            .unwrap_or(dec!(0));
         explanation.add_reason(format!(
             "reserved_amount_in_amount_currency: {}",
             reserved_amount_in_amount_currency
@@ -539,7 +539,7 @@ impl BalanceReservationManager {
             reservation_with_fills_in_amount_currency
         ));
 
-        let total_amount_limit_in_amount_currency = position.limit.unwrap_or_default();
+        let total_amount_limit_in_amount_currency = position.limit.unwrap_or(dec!(0));
         explanation.add_reason(format!(
             "total_amount_limit_in_amount_currency: {}",
             total_amount_limit_in_amount_currency
@@ -684,7 +684,7 @@ impl BalanceReservationManager {
         let mut position_in_amount_currency = self
             .position_by_fill_amount_in_amount_currency
             .get(exchange_account_id, currency_pair)
-            .unwrap_or_default();
+            .unwrap_or(dec!(0));
 
         if currency_code == currency_pair_metadata.base_currency_code {
             //sell

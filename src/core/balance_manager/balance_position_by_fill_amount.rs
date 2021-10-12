@@ -127,7 +127,7 @@ impl BalancePositionByFillAmount {
     ) {
         let current_value = self
             .get(exchange_account_id, currency_pair)
-            .unwrap_or_default();
+            .unwrap_or(dec!(0));
         let new_value = current_value + value_to_add;
         self.set(
             exchange_account_id,

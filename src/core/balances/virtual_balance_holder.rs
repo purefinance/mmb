@@ -67,7 +67,8 @@ impl VirtualBalanceHolder {
         let current_diff_value = self
             .balance_diff
             .get_by_balance_request(balance_request)
-            .unwrap_or_default();
+            .unwrap_or(dec!(0));
+
         let new_value = current_diff_value + balance_to_add;
         self.balance_diff
             .set_by_balance_request(balance_request, new_value);
