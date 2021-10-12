@@ -36,7 +36,7 @@ impl WebSocketConnectivity {
     pub fn new(role: WebSocketRole) -> WebSocketConnectivity {
         WebSocketConnectivity {
             role,
-            state: WebSocketState::Disconnected,
+            state: Disconnected,
         }
     }
 }
@@ -235,7 +235,7 @@ impl ConnectivityManager {
         finished_sender: broadcast::Sender<()>,
         websocket_connectivity: &Mutex<WebSocketConnectivity>,
     ) {
-        websocket_connectivity.lock().deref_mut().state = WebSocketState::Disconnected;
+        websocket_connectivity.lock().deref_mut().state = Disconnected;
         let _ = finished_sender.send(());
     }
 

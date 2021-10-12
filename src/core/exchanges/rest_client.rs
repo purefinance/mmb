@@ -68,7 +68,7 @@ impl RestClient {
 
 fn create_client() -> Client<HttpsConnector<HttpConnector>> {
     let https = HttpsConnector::new();
-    Client::builder().build::<_, hyper::Body>(https)
+    Client::builder().build::<_, Body>(https)
 }
 
 // Inner Hyper types. Needed just for unified response handling in handle_response()

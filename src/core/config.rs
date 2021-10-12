@@ -1,6 +1,6 @@
 use std::{collections::HashMap, io::Write};
 use std::{fmt::Debug, fs::File};
-use toml::value::Value;
+use toml;
 
 use crate::{
     core::settings::{AppSettings, BaseStrategySettings},
@@ -39,14 +39,14 @@ pub fn parse_settings<'a, TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'a>,
 {
-    let mut settings: Value = toml::from_str(settings)?;
+    let mut settings: toml::Value = toml::from_str(settings)?;
 
     let exchanges = get_exchanges_mut(&mut settings).ok_or(anyhow!(
         "Unable to get core.exchanges array from gotten settings"
     ))?;
 
     if !exchanges.is_empty() {
-        let credentials: HashMap<&str, Value> = toml::from_str(credentials)?;
+        let credentials: HashMap<&str, toml::Value> = toml::from_str(credentials)?;
 
         // Extract creds according to exchange_account_id and add it to every ExchangeSettings
         for exchange in exchanges {
@@ -111,7 +111,7 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
         let _ = exchange_settings.remove(SECRET_KEY);
     }
 
-    let serialized_creds = Value::try_from(credentials_per_exchange)?;
+    let serialized_creds = toml::Value::try_from(credentials_per_exchange)?;
     let mut credentials_config = File::create(credentials_path)?;
     credentials_config.write_all(&serialized_creds.to_string().as_bytes())?;
 
@@ -122,7 +122,7 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
 }
 
 fn get_credentials_data(
-    exchange_settings: &toml::map::Map<String, Value>,
+    exchange_settings: &toml::map::Map<String, toml::Value>,
 ) -> Option<(String, String, String)> {
     let exchange_account_id = exchange_settings
         .get(EXCHANGE_ACCOUNT_ID)?
@@ -134,7 +134,7 @@ fn get_credentials_data(
     Some((exchange_account_id, api_key, secret_key))
 }
 
-fn get_exchanges_mut(serialized: &mut Value) -> Option<&mut Vec<Value>> {
+fn get_exchanges_mut(serialized: &mut toml::Value) -> Option<&mut Vec<toml::Value>> {
     serialized
         .as_table_mut()?
         .get_mut("core")?
