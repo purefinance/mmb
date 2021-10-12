@@ -16,7 +16,7 @@ use crate::core::{
 };
 
 pub(crate) struct BalanceChangePeriodSelector {
-    period: Duration,
+    pub(super) period: Duration,
     balance_manager: Option<BalanceManager>,
     balance_changes_queues_by_trade_place:
         HashMap<TradePlaceAccount, VecDeque<ProfitLossBalanceChange>>,

@@ -85,4 +85,8 @@ impl BalanceChangeUsdPeriodicCalculator {
 
         join_all(actions).await.iter().sum()
     }
+
+    pub fn period(&self) -> Duration {
+        self.balance_change_period_selector.lock().period
+    }
 }
