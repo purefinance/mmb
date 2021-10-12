@@ -154,7 +154,7 @@ impl VirtualBalanceHolder {
                 balance_request.currency_pair,
                 currency_pair_metadata
                     .balance_currency_code
-                    .expect("failed to create BalanceRequest: currency_pair_metadata.balance_currency_code is None")                    ,
+                    .expect("failed to create BalanceRequest: currency_pair_metadata.balance_currency_code is None"),
             );
             let balance_currency_code_balance_diff = self
                 .balance_diff
