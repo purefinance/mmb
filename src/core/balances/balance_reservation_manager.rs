@@ -1024,10 +1024,9 @@ impl BalanceReservationManager {
         };
 
         if approved_part.is_canceled {
-            std::panic!(
+            panic!(
                 "Approved part was already canceled for {} {}",
-                client_order_id,
-                reservation_id
+                client_order_id, reservation_id
             )
         }
 
@@ -1163,10 +1162,9 @@ impl BalanceReservationManager {
             || src_reservation.currency_pair_metadata != dst_reservation.currency_pair_metadata
             || src_reservation.order_side != dst_reservation.order_side
         {
-            std::panic!(
+            panic!(
                 "Reservations {:?} and {:?} are from different sources",
-                src_reservation,
-                dst_reservation
+                src_reservation, dst_reservation
             );
         }
 
@@ -1298,10 +1296,9 @@ impl BalanceReservationManager {
         if new_unreserved_amount < dec!(0)
             && !reservation.is_amount_within_symbol_margin_error(new_unreserved_amount)
         {
-            std::panic!(
+            panic!(
                 "Can't set {} amount to reservation {}",
-                new_unreserved_amount,
-                reservation_id
+                new_unreserved_amount, reservation_id
             )
         }
 
@@ -1312,7 +1309,7 @@ impl BalanceReservationManager {
                 if reservation.is_amount_within_symbol_margin_error(new_amount) {
                     let _ = reservation.approved_parts.remove(client_order_id);
                 } else if new_amount < dec!(0) {
-                    std::panic!(
+                    panic!(
                             "Attempt to transfer more amount ({}) than we have ({}) for approved part by ClientOrderId {}",
                             reservation_amount_diff,
                             reservation
@@ -1331,10 +1328,9 @@ impl BalanceReservationManager {
                 }
             } else {
                 if is_src_request {
-                    std::panic!(
+                    panic!(
                         "Can't find approved part {} for {}",
-                        client_order_id,
-                        reservation_id
+                        client_order_id, reservation_id
                     )
                 }
 

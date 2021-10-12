@@ -12,10 +12,10 @@ use rust_decimal_macros::dec;
 pub(crate) type ConfigurationKeyByServiceName =
     HashMap<String, ExchangeAccountIdByConfigurationKey>;
 pub(crate) type ExchangeAccountIdByConfigurationKey =
-    HashMap<String, CurrencyCodePairByExchangeAccountId>;
-pub(crate) type CurrencyCodePairByExchangeAccountId =
-    HashMap<ExchangeAccountId, CurrencyCodeByCurrencyCodePair>;
-pub(crate) type CurrencyCodeByCurrencyCodePair = HashMap<CurrencyPair, ValueByCurrencyCode>;
+    HashMap<String, CurrencyPairByExchangeAccountId>;
+pub(crate) type CurrencyPairByExchangeAccountId =
+    HashMap<ExchangeAccountId, CurrencyPairByCurrencyPair>;
+pub(crate) type CurrencyPairByCurrencyPair = HashMap<CurrencyPair, ValueByCurrencyCode>;
 pub(crate) type ValueByCurrencyCode = HashMap<CurrencyCode, Amount>;
 
 /// A tree that contain balance amounts distributed by
@@ -47,7 +47,7 @@ impl ServiceValueTree {
         &mut self,
         service_name: &String,
         configuration_key: &String,
-    ) -> Option<&mut CurrencyCodePairByExchangeAccountId> {
+    ) -> Option<&mut CurrencyPairByExchangeAccountId> {
         self.get_mut_by_service_name(service_name)?
             .get_mut(configuration_key)
     }
@@ -57,7 +57,7 @@ impl ServiceValueTree {
         service_name: &String,
         configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
-    ) -> Option<&mut CurrencyCodeByCurrencyCodePair> {
+    ) -> Option<&mut CurrencyPairByCurrencyPair> {
         self.get_mut_by_configuration_key(service_name, configuration_key)?
             .get_mut(exchange_account_id)
     }
@@ -120,7 +120,7 @@ impl ServiceValueTree {
         &mut self,
         service_name: &String,
         configuration_key: &String,
-        value: CurrencyCodePairByExchangeAccountId,
+        value: CurrencyPairByExchangeAccountId,
     ) {
         if let Some(sub_tree) = self.get_mut_by_service_name(service_name) {
             sub_tree.insert(configuration_key.clone(), value);
@@ -134,7 +134,7 @@ impl ServiceValueTree {
         service_name: &String,
         configuration_key: &String,
         exchange_account_id: &ExchangeAccountId,
-        value: CurrencyCodeByCurrencyCodePair,
+        value: CurrencyPairByCurrencyPair,
     ) {
         if let Some(sub_tree) = self.get_mut_by_configuration_key(service_name, configuration_key) {
             sub_tree.insert(exchange_account_id.clone(), value);

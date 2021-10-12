@@ -205,7 +205,7 @@ mod tests {
         amounts: Vec<Amount>,
     ) -> BalanceManagerOrdinal {
         if currency_codes.len() != amounts.len() {
-            std::panic!("Failed to create test object: currency_codes.len() = {} should be equal amounts.len() = {}",
+            panic!("Failed to create test object: currency_codes.len() = {} should be equal amounts.len() = {}",
             currency_codes.len(), amounts.len());
         }
         let test_object = BalanceManagerOrdinal::new();

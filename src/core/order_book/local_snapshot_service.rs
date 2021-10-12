@@ -13,8 +13,8 @@ impl LocalSnapshotsService {
         Self { local_snapshots }
     }
 
-    pub fn get_snapshot(&self, trade_place: TradePlace) -> Option<&LocalOrderBookSnapshot> {
-        self.local_snapshots.get(&trade_place)
+    pub fn get_snapshot(&self, trade_place: &TradePlace) -> Option<&LocalOrderBookSnapshot> {
+        self.local_snapshots.get(trade_place)
     }
 
     /// Create snapshot if it does not exist
@@ -103,12 +103,12 @@ mod tests {
             .expect("in test");
 
         let updated_asks = &snapshot_controller
-            .get_snapshot(trade_place_account.trade_place())
+            .get_snapshot(&trade_place_account.trade_place())
             .expect("in test")
             .asks;
 
         let updated_bids = &snapshot_controller
-            .get_snapshot(trade_place_account.trade_place())
+            .get_snapshot(&trade_place_account.trade_place())
             .expect("in test")
             .bids;
 
@@ -196,12 +196,12 @@ mod tests {
             .trade_place();
 
         let updated_asks = &snapshot_controller
-            .get_snapshot(trade_place.clone())
+            .get_snapshot(&trade_place)
             .expect("in test")
             .asks;
 
         let updated_bids = &snapshot_controller
-            .get_snapshot(trade_place.clone())
+            .get_snapshot(&trade_place)
             .expect("in test")
             .bids;
 
