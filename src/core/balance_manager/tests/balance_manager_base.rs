@@ -65,7 +65,7 @@ impl BalanceManagerBase {
     }
 
     pub fn currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes(BalanceManagerBase::eth(), BalanceManagerBase::btc())
+        CurrencyPair::from_codes(Self::eth(), Self::btc())
     }
 
     pub fn update_balance(
@@ -143,12 +143,10 @@ impl BalanceManagerBase {
             order_index: 1,
             exchange_account_id_1,
             exchange_account_id_2,
-            currency_pair: BalanceManagerBase::currency_pair(),
+            currency_pair: Self::currency_pair(),
             configuration_descriptor: Arc::from(ConfigurationDescriptor::new(
                 "LiquidityGenerator".into(),
-                exchange_account_id_1.to_string()
-                    + ";"
-                    + BalanceManagerBase::currency_pair().as_str(),
+                exchange_account_id_1.to_string() + ";" + Self::currency_pair().as_str(),
             )),
             seconds_offset_in_mock,
             currency_pair_metadata: None,
