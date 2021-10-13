@@ -145,8 +145,8 @@ impl From<&str> for ClientOrderId {
     }
 }
 
-impl fmt::Display for ClientOrderId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for ClientOrderId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
@@ -193,8 +193,8 @@ impl From<&str> for ClientOrderFillId {
     }
 }
 
-impl fmt::Display for ClientOrderFillId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for ClientOrderFillId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
@@ -228,8 +228,8 @@ impl From<&str> for ExchangeOrderId {
     }
 }
 
-impl fmt::Display for ExchangeOrderId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for ExchangeOrderId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
@@ -272,8 +272,8 @@ impl ReservationId {
     }
 }
 
-impl fmt::Display for ReservationId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for ReservationId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
