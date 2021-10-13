@@ -1,4 +1,5 @@
 use super::binance::Binance;
+use crate::core::exchanges::common::{ActivePosition, Price};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
@@ -185,5 +186,24 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
         self.rest_client.get(full_url, &self.settings.api_key).await
+    }
+
+    async fn request_get_position(&self) -> Result<RestRequestOutcome> {
+        let url_path = "/api/v2/positionRisk";
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
+
+        self.rest_client.get(full_url, &self.settings.api_key).await
+    }
+
+    async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
+        panic!("not supported request")
+    }
+
+    async fn request_close_position(
+        &self,
+        position: ActivePosition,
+        price: Option<Price>,
+    ) -> Result<RestRequestOutcome> {
+        todo!("add implementation")
     }
 }

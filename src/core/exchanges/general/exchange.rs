@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
+use futures::future::join_all;
 use futures::FutureExt;
 use itertools::Itertools;
 use log::{error, info, warn, Level};
@@ -15,11 +16,12 @@ use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
-use crate::core::exchanges::common::TradePlace;
-use crate::core::exchanges::events::{ExchangeEvent, Trade};
-use crate::core::exchanges::general::features::ExchangeFeatures;
+use crate::core::exchanges::common::{ActivePosition, ClosedPosition, TradePlace};
+use crate::core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, Trade};
+use crate::core::exchanges::general::features::{BalancePositionOption, ExchangeFeatures};
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
+use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::orders::event::OrderEventType;
@@ -586,5 +588,166 @@ impl Exchange {
     ) -> CurrencyCode {
         self.exchange_client
             .get_balance_reservation_currency_code(currency_pair_metadata, side)
+    }
+
+    pub async fn close_position(
+        &self,
+        position: &ActivePosition,
+        price: Option<Price>,
+    ) -> Result<ClosedPosition> {
+        let response = self
+            .exchange_client
+            .request_close_position(position.clone(), price) // TODO: fix reference
+            .await
+            .expect("request_close_position failed.");
+
+        log::info!(
+            "Close position response for {:?} {:?} {:?}",
+            position,
+            price,
+            response,
+        );
+
+        self.exchange_client.is_rest_error_code(&response)?;
+
+        self.exchange_client.parse_close_position(&response)
+    }
+
+    pub async fn close_position_loop(
+        &self,
+        position: &ActivePosition,
+        price: Option<Decimal>,
+        cancellation_token: CancellationToken,
+    ) -> ClosedPosition {
+        log::info!("Closing position {}", position.id);
+
+        loop {
+            self.timeout_manager
+                .reserve_when_available(
+                    &self.exchange_account_id,
+                    RequestType::GetActivePositions,
+                    None,
+                    cancellation_token.clone(),
+                )
+                .expect("Failed to reserve timeout_manager for close_position")
+                .await;
+
+            log::info!("Closing position request reserved {}", position.id);
+
+            if let Ok(closed_position) = self.close_position(position, price).await {
+                log::info!("Closed position {}", position.id);
+                return closed_position;
+            }
+        }
+    }
+
+    pub async fn close_active_positions(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Vec<ClosedPosition> {
+        log::info!(
+            "Closing active position for exchange {}",
+            self.exchange_account_id
+        );
+
+        let active_positions = self.get_active_positions(cancellation_token.clone()).await;
+
+        let get_closed_positions_futures = active_positions
+            .iter()
+            .filter_map(|active_position| {
+                if active_position.position_info.position.is_zero() {
+                    return None;
+                }
+                Some(self.close_position_loop(active_position, None, cancellation_token.clone()))
+            })
+            .collect_vec();
+
+        let closed_positions = join_all(get_closed_positions_futures).await;
+
+        log::info!(
+            "Closed active position for exchange {}",
+            self.exchange_account_id
+        );
+
+        closed_positions
+    }
+
+    // REVIEW: эта функция была virtual как правильно ее на Rust нужно переносить?
+    pub async fn get_active_positions(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Vec<ActivePosition> {
+        loop {
+            self.timeout_manager
+                .reserve_when_available(
+                    &self.exchange_account_id,
+                    RequestType::GetActivePositions,
+                    None,
+                    cancellation_token.clone(),
+                )
+                .expect("Failed to reserve timeout_manager for get_active_positions")
+                .await;
+
+            if let Ok(positions) = self.get_active_positions_by_features().await {
+                return positions;
+            }
+        }
+    }
+
+    // REVIEW: эта функция была virtual как правильно ее на Rust нужно переносить?
+    pub async fn get_active_positions_by_features(&self) -> Result<Vec<ActivePosition>> {
+        match self.features.balance_position_option {
+            BalancePositionOption::IndividualRequests => self.get_active_positions_core().await,
+            BalancePositionOption::SingleRequest => {
+                let result = self.get_balance_and_positions_core().await?;
+                Ok(result
+                    .positions
+                    .context("Positions is none.")?
+                    .into_iter()
+                    .map(|x| ActivePosition::new(x))
+                    .collect_vec())
+            }
+            BalancePositionOption::NonDerivative => {
+                // TODO Should be implemented manually closing positions for non-derivative exchanges
+                Ok(Vec::new())
+            }
+        }
+    }
+
+    // REVIEW: эта функция была virtual как правильно ее на Rust нужно переносить?
+    async fn get_active_positions_core(&self) -> Result<Vec<ActivePosition>> {
+        let response = self
+            .exchange_client
+            .request_get_position()
+            .await
+            .expect("request_close_position failed.");
+
+        log::info!(
+            "get_positions response on {:?} {:?}",
+            self.exchange_account_id,
+            response,
+        );
+
+        self.exchange_client.is_rest_error_code(&response)?;
+
+        self.exchange_client.parse_get_position(&response)
+    }
+
+    async fn get_balance_and_positions_core(&self) -> Result<ExchangeBalancesAndPositions> {
+        let response = self
+            .exchange_client
+            .request_get_balance_and_position()
+            .await
+            .expect("request_close_position failed.");
+
+        log::info!(
+            "get_balance_and_positions response on {:?} {:?}",
+            self.exchange_account_id,
+            response,
+        );
+
+        self.exchange_client.is_rest_error_code(&response)?;
+
+        self.exchange_client.parse_get_balance(&response)
     }
 }

@@ -16,8 +16,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::binance::Binance;
-use crate::core::exchanges::common::SortedOrderData;
-use crate::core::exchanges::events::{ExchangeEvent, TradeId};
+use crate::core::exchanges::common::{ClosedPosition, SortedOrderData};
+use crate::core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
 use crate::core::exchanges::general::order::get_order_trades::OrderTrade;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
@@ -474,6 +474,24 @@ impl Support for Binance {
 
     fn get_settings(&self) -> &ExchangeSettings {
         &self.settings
+    }
+
+    fn parse_get_position(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<Vec<crate::core::exchanges::common::ActivePosition>> {
+        todo!("add implementation")
+    }
+
+    fn parse_close_position(&self, response: &RestRequestOutcome) -> Result<ClosedPosition> {
+        todo!("add implementation")
+    }
+
+    fn parse_get_balance(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<ExchangeBalancesAndPositions> {
+        todo!("add implementation")
     }
 }
 
