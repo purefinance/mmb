@@ -1,16 +1,24 @@
 use anyhow::Result;
 use awc::http::StatusCode;
 use itertools::Itertools;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use rust_decimal::*;
+use rust_decimal_macros::dec;
 use serde::de::{self, Deserializer};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::BTreeMap, time::Duration};
 use thiserror::Error;
+
+use crate::core::misc::derivative_position_info::DerivativePositionInfo;
+use crate::core::misc::time_manager::time_manager;
+use crate::core::orders::order::OrderSide;
 
 pub type Price = Decimal;
 pub type Amount = Decimal;
@@ -354,6 +362,85 @@ impl RestRequestOutcome {
 }
 
 pub type RestRequestResult = std::result::Result<String, RestRequestError>;
+
+pub struct ClosedPosition {
+    pub order: ClosedPositionOrder,
+}
+
+pub struct ClosedPositionOrder {
+    exchange_account_id: ExchangeAccountId,
+    amount: Amount,
+}
+
+#[derive(Clone, Debug)]
+pub struct ActivePositionId(String16);
+
+static ACTIVE_POSITION_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| {
+    AtomicU64::new(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Failed to get system time since UNIX_EPOCH")
+            .as_secs(),
+    )
+});
+
+impl ActivePositionId {
+    pub fn unique_id() -> Self {
+        let new_id = ACTIVE_POSITION_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+        ActivePositionId(new_id.to_string().into())
+    }
+
+    pub fn new(client_order_id: String16) -> Self {
+        ActivePositionId(client_order_id)
+    }
+
+    /// Extracts a string slice containing the entire string.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Extracts a string slice containing the entire string.
+    pub fn as_mut_str(&mut self) -> &mut str {
+        self.0.as_mut_str()
+    }
+}
+
+impl From<&str> for ActivePositionId {
+    fn from(value: &str) -> Self {
+        ActivePositionId(String16::from_str(value))
+    }
+}
+
+impl fmt::Display for ActivePositionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ActivePosition {
+    pub id: ActivePositionId,
+    pub status: StatusCode,
+    pub base: Decimal, // REVIEW: what is this?
+    pub time_stamp: u128,
+    pub swap: Decimal, // REVIEW: what is this?
+    pub pl: Amount,
+    pub position_info: DerivativePositionInfo,
+}
+
+impl ActivePosition {
+    pub fn new(position_info: DerivativePositionInfo) -> Self {
+        Self {
+            id: ActivePositionId::unique_id(),
+            status: StatusCode::default(),
+            base: dec!(0),
+            time_stamp: 0,
+            swap: dec!(0),
+            pl: dec!(0),
+            position_info,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
