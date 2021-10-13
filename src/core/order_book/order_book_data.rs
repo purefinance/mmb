@@ -14,14 +14,12 @@ impl OrderBookData {
         Self { asks, bids }
     }
 
-    /// Transform to LocalOrderBookSnapshot
     pub fn to_local_order_book_snapshot(self) -> LocalOrderBookSnapshot {
         LocalOrderBookSnapshot::new(self.asks, self.bids, Utc::now())
     }
 
     /// Perform inner asks and bids update
     pub fn update(&mut self, updates: Vec<OrderBookData>) {
-        // If exists at least one update
         if updates.is_empty() {
             return;
         }
@@ -30,34 +28,27 @@ impl OrderBookData {
     }
 
     fn update_inner_data(&mut self, updates: Vec<OrderBookData>) {
-        for update in updates.iter() {
-            let mut zero_amount_asks = Vec::new();
-            for (key, amount) in update.asks.iter() {
-                self.asks.insert(*key, *amount);
+        for update in updates.into_iter() {
+            Self::apply_update(&mut self.asks, &mut self.bids, update);
+        }
+    }
 
-                // Collect all keys with no amout to remove it later
-                if amount.is_zero() {
-                    zero_amount_asks.push(key);
-                }
+    pub(crate) fn apply_update(
+        asks: &mut SortedOrderData,
+        bids: &mut SortedOrderData,
+        update: OrderBookData,
+    ) {
+        Self::update_by_side(asks, update.asks);
+        Self::update_by_side(bids, update.bids);
+    }
+
+    fn update_by_side(snapshot: &mut SortedOrderData, update: SortedOrderData) {
+        for (key, amount) in update.into_iter() {
+            if amount.is_zero() {
+                let _ = snapshot.remove(&key);
+            } else {
+                let _ = snapshot.insert(key, amount);
             }
-
-            let mut zero_amount_bids = Vec::new();
-            for (key, amount) in update.bids.iter() {
-                self.bids.insert(*key, *amount);
-
-                // Collect all keys with no amout to remove it later
-                if amount.is_zero() {
-                    zero_amount_bids.push(key);
-                }
-            }
-
-            zero_amount_asks.iter_mut().for_each(|key| {
-                let _ = self.asks.remove(&key);
-            });
-
-            zero_amount_bids.iter_mut().for_each(|key| {
-                let _ = self.asks.remove(&key);
-            });
         }
     }
 }
