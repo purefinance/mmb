@@ -7,6 +7,7 @@ use crate::core::{
     exchanges::{
         common::{Amount, TradePlaceAccount},
         exchange_blocker::{BlockReason, BlockType, ExchangeBlocker},
+        general::exchange::Exchange,
     },
     lifecycle::cancellation_token::CancellationToken,
     misc::position_helper,
@@ -21,8 +22,7 @@ pub(crate) struct ProfitLossStopper {
     usd_periodic_calculator: BalanceChangeUsdPeriodicCalculator,
     exchange_blocker: Arc<ExchangeBlocker>,
     balance_manager: Arc<Mutex<BalanceManager>>,
-    //TODO: fix me
-    // private readonly IBotApi _botApi;
+    exchange: Arc<Exchange>,
 }
 
 impl ProfitLossStopper {
@@ -32,8 +32,7 @@ impl ProfitLossStopper {
         usd_periodic_calculator: BalanceChangeUsdPeriodicCalculator,
         exchange_blocker: Arc<ExchangeBlocker>,
         balance_manager: Arc<Mutex<BalanceManager>>,
-        //TODO: fix me
-        //         private readonly IBotApi _botApi;
+        exchange: Arc<Exchange>,
     ) -> Self {
         Self {
             limit,
@@ -41,8 +40,7 @@ impl ProfitLossStopper {
             usd_periodic_calculator,
             exchange_blocker,
             balance_manager,
-            //TODO: fix me
-            //         private readonly IBotApi _botApi;
+            exchange,
         }
     }
 
@@ -53,12 +51,12 @@ impl ProfitLossStopper {
     ) {
         let over_market = self
             .usd_periodic_calculator
-            .calculate_over_market_usd_change(usd_converter, cancellation_token)
+            .calculate_over_market_usd_change(usd_converter, cancellation_token.clone())
             .await;
-        self.check(over_market).await;
+        self.check(over_market, cancellation_token).await;
     }
 
-    async fn check(&self, usd_change: Amount) {
+    async fn check(&self, usd_change: Amount, cancellation_token: CancellationToken) {
         let period = self.usd_periodic_calculator.period();
 
         log::info!(
@@ -74,6 +72,8 @@ impl ProfitLossStopper {
             position_helper::close_position_if_needed(
                 &self.target_trade_place,
                 self.balance_manager.clone(),
+                self.exchange.clone(),
+                cancellation_token,
             )
             .await; // REVIEW: await here is correct?
 

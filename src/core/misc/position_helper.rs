@@ -4,15 +4,18 @@ use futures::FutureExt;
 use parking_lot::Mutex;
 
 use crate::core::{
-    balance_manager::balance_manager::BalanceManager, exchanges::common::TradePlaceAccount,
-    infrastructure::spawn_future_timed, orders::order::OrderSide,
+    balance_manager::balance_manager::BalanceManager,
+    exchanges::{common::TradePlaceAccount, general::exchange::Exchange},
+    infrastructure::spawn_future_timed,
+    lifecycle::cancellation_token::CancellationToken,
+    orders::order::OrderSide,
 };
 
 pub async fn close_position_if_needed(
     trade_place: &TradePlaceAccount,
     balance_manager: Arc<Mutex<BalanceManager>>,
-    // TODO: fix when close_position will implemented
-    // IBotApi _botApi;
+    exchange: Arc<Exchange>,
+    cancellation_token: CancellationToken,
 ) {
     if balance_manager
         .lock()
@@ -25,9 +28,9 @@ pub async fn close_position_if_needed(
     {
         return;
     }
-    let action = async {
+    let action = async move {
         log::info!("Started closing active positions");
-        // await botApi.CloseActivePositions();
+        exchange.close_active_positions(cancellation_token).await;
         log::info!("Finished closing active positions");
         Ok(())
     };
