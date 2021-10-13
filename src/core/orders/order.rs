@@ -9,7 +9,7 @@ use std::vec::Vec;
 use chrono::Utc;
 use enum_map::Enum;
 use itertools::Itertools;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
@@ -107,16 +107,14 @@ pub enum OrderExecutionType {
 #[serde(transparent)]
 pub struct ClientOrderId(String16);
 
-lazy_static! {
-    static ref CLIENT_ORDER_ID_COUNTER: AtomicU64 = {
-        AtomicU64::new(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Failed to get system time since UNIX_EPOCH")
-                .as_secs(),
-        )
-    };
-}
+static CLIENT_ORDER_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| {
+    AtomicU64::new(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Failed to get system time since UNIX_EPOCH")
+            .as_secs(),
+    )
+});
 
 impl ClientOrderId {
     pub fn unique_id() -> Self {
@@ -155,16 +153,14 @@ impl Display for ClientOrderId {
 #[serde(transparent)]
 pub struct ClientOrderFillId(String16);
 
-lazy_static! {
-    static ref CLIENT_ORDER_FILL_ID_COUNTER: AtomicU64 = {
-        AtomicU64::new(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Failed to get system time since UNIX_EPOCH")
-                .as_secs(),
-        )
-    };
-}
+static CLIENT_ORDER_FILL_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| {
+    AtomicU64::new(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Failed to get system time since UNIX_EPOCH")
+            .as_secs(),
+    )
+});
 
 impl ClientOrderFillId {
     pub fn unique_id() -> Self {
