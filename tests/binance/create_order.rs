@@ -11,6 +11,7 @@ use mmb_lib::core::exchanges::events::ExchangeEvent;
 
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::OrderProxy;
+
 #[actix_rt::test]
 async fn create_successfully() {
     init_logger();
@@ -45,37 +46,31 @@ async fn create_successfully() {
         CancellationToken::default(),
     );
 
-    match order_proxy
+    let order_ref = order_proxy
         .create_order(binance_builder.exchange.clone())
         .await
-    {
-        Ok(order_ref) => {
-            let event = binance_builder
-                .rx
-                .recv()
-                .await
-                .expect("CreateOrderSucceeded event had to be occurred");
+        .expect("Create order failed with error");
 
-            let order_event = if let ExchangeEvent::OrderEvent(order_event) = event {
-                order_event
-            } else {
-                panic!("Should receive OrderEvent")
-            };
+    let event = binance_builder
+        .rx
+        .recv()
+        .await
+        .expect("CreateOrderSucceeded event had to be occurred");
 
-            if let OrderEventType::CreateOrderSucceeded = order_event.event_type {
-            } else {
-                panic!("Should receive CreateOrderSucceeded event type")
-            }
+    let order_event = if let ExchangeEvent::OrderEvent(order_event) = event {
+        order_event
+    } else {
+        panic!("Should receive OrderEvent")
+    };
 
-            order_proxy
-                .cancel_order_or_fail(&order_ref, binance_builder.exchange.clone())
-                .await;
-        }
-
-        Err(error) => {
-            assert!(false, "Create order failed with error {:?}.", error)
-        }
+    if let OrderEventType::CreateOrderSucceeded = order_event.event_type {
+    } else {
+        panic!("Should receive CreateOrderSucceeded event type")
     }
+
+    order_proxy
+        .cancel_order_or_fail(&order_ref, binance_builder.exchange.clone())
+        .await;
 }
 
 #[actix_rt::test]

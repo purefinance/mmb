@@ -57,24 +57,17 @@ async fn cancellation_waited_successfully() {
         CancellationToken::default(),
     );
 
-    let created_order = order_proxy
+    let order_ref = order_proxy
         .create_order(binance_builder.exchange.clone())
-        .await;
+        .await
+        .expect("Create order failed with error");
 
-    match created_order {
-        Ok(order_ref) => {
-            // If here are no error - order was cancelled successfully
-            binance_builder
-                .exchange
-                .wait_cancel_order(order_ref, None, true, CancellationToken::new())
-                .await
-                .expect("in test");
-        }
-
-        Err(error) => {
-            assert!(false, "Create order failed with error {:?}.", error)
-        }
-    }
+    // If here are no error - order was cancelled successfully
+    binance_builder
+        .exchange
+        .wait_cancel_order(order_ref, None, true, CancellationToken::new())
+        .await
+        .expect("in test");
 }
 
 #[actix_rt::test]
@@ -111,29 +104,22 @@ async fn cancellation_waited_failed_fallback() {
         CancellationToken::default(),
     );
 
-    let created_order = order_proxy
+    let order_ref = order_proxy
         .create_order(binance_builder.exchange.clone())
+        .await
+        .expect("Create order failed with error");
+
+    let must_be_error = binance_builder
+        .exchange
+        .wait_cancel_order(order_ref, None, true, CancellationToken::new())
         .await;
-
-    match created_order {
-        Ok(order_ref) => {
-            let must_be_error = binance_builder
-                .exchange
-                .wait_cancel_order(order_ref, None, true, CancellationToken::new())
-                .await;
-            match must_be_error {
-                Ok(_) => assert!(false),
-                Err(error) => {
-                    assert_eq!(
-                        "Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead",
-                        &error.to_string()[..86]
-                    );
-                }
-            }
-        }
-
+    match must_be_error {
+        Ok(_) => assert!(false),
         Err(error) => {
-            assert!(false, "Create order failed with error {:?}.", error)
+            assert_eq!(
+                "Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead",
+                &error.to_string()[..86]
+            );
         }
     }
 }
