@@ -57,6 +57,7 @@ impl Default for LocalSnapshotsService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::order_book_data;
     use chrono::Utc;
     use rust_decimal_macros::*;
 
@@ -82,19 +83,20 @@ mod tests {
         let local_snapshots = HashMap::new();
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
-        let mut asks = SortedOrderData::new();
-        asks.insert(dec!(1.0), dec!(2.1));
-        asks.insert(dec!(3.0), dec!(4.2));
-        let mut bids = SortedOrderData::new();
-        bids.insert(dec!(2.9), dec!(7.8));
-        bids.insert(dec!(3.4), dec!(1.2));
+        let order_book_data = order_book_data![
+            dec!(1.0) => dec!(2.1),
+            dec!(3.0) => dec!(4.2),
+            ;
+            dec!(2.9) => dec!(7.8),
+            dec!(3.4) => dec!(1.2),
+        ];
 
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
             CurrencyPair::from_codes(&"base".into(), &"quote".into()),
             event::EventType::Snapshot,
-            order_book_data::OrderBookData::new(asks, bids),
+            order_book_data,
         );
 
         // Perform update
@@ -125,19 +127,20 @@ mod tests {
         let local_snapshots = HashMap::new();
         let mut snapshot_service = LocalSnapshotsService::new(local_snapshots);
 
-        let mut asks = SortedOrderData::new();
-        asks.insert(dec!(1.0), dec!(2.1));
-        asks.insert(dec!(3.0), dec!(4.2));
-        let mut bids = SortedOrderData::new();
-        bids.insert(dec!(2.9), dec!(7.8));
-        bids.insert(dec!(3.4), dec!(1.2));
+        let order_book_data = order_book_data![
+            dec!(1.0) => dec!(2.1),
+            dec!(3.0) => dec!(4.2),
+            ;
+            dec!(2.9) => dec!(7.8),
+            dec!(3.4) => dec!(1.2),
+        ];
 
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
             CurrencyPair::from_codes(&"base".into(), &"quote".into()),
             event::EventType::Update,
-            order_book_data::OrderBookData::new(asks, bids),
+            order_book_data,
         );
 
         // Perform update
@@ -157,15 +160,14 @@ mod tests {
             test_currency_pair.clone(),
         );
 
-        let mut primary_asks = SortedOrderData::new();
-        primary_asks.insert(dec!(1.0), dec!(0.1));
-        primary_asks.insert(dec!(3.0), dec!(4.2));
-        let mut primary_bids = SortedOrderData::new();
-        primary_bids.insert(dec!(2.9), dec!(7.8));
-        primary_bids.insert(dec!(3.4), dec!(1.2));
-
-        let primary_order_book_snapshot =
-            LocalOrderBookSnapshot::new(primary_asks, primary_bids, Utc::now());
+        let primary_order_book_snapshot = order_book_data![
+            dec!(1.0) => dec!(0.1),
+            dec!(3.0) => dec!(4.2),
+            ;
+            dec!(2.9) => dec!(7.8),
+            dec!(3.4) => dec!(1.2),
+        ]
+        .to_local_order_book_snapshot();
 
         let mut local_snapshots = HashMap::new();
         local_snapshots.insert(
@@ -175,18 +177,19 @@ mod tests {
 
         let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
 
-        let mut asks = SortedOrderData::new();
-        asks.insert(dec!(1.0), dec!(2.1));
-        let mut bids = SortedOrderData::new();
-        bids.insert(dec!(2.9), dec!(7.8));
-        bids.insert(dec!(3.4), dec!(0));
+        let order_book_data = order_book_data![
+            dec!(1.0) => dec!(2.1),
+            ;
+            dec!(2.9) => dec!(7.8),
+            dec!(3.4) => dec!(0),
+        ];
 
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             test_exchange_id.into(),
             test_currency_pair,
             event::EventType::Update,
-            order_book_data::OrderBookData::new(asks, bids),
+            order_book_data,
         );
 
         // Perform update
