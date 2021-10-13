@@ -39,17 +39,12 @@ impl BalanceChangePeriodSelector {
             balance_change.balance_change
         );
 
-        let trade_place = TradePlaceAccount::new(
-            balance_change.exchange_account_id.clone(),
-            balance_change.currency_pair.clone(),
-        );
-
         self.balance_changes_queues_by_trade_place
-            .entry(trade_place.clone())
+            .entry(balance_change.trade_place.clone())
             .or_default()
             .push_back(balance_change.clone());
 
-        self.synchronize_period(balance_change.change_date, &trade_place);
+        self.synchronize_period(balance_change.change_date, &balance_change.trade_place);
     }
 
     fn synchronize_period(
@@ -59,16 +54,13 @@ impl BalanceChangePeriodSelector {
     ) -> Option<PositionChange> {
         let start_of_period = now - self.period;
 
-        let balance_changes_queue = match self
+        let balance_changes_queue = self
             .balance_changes_queues_by_trade_place
             .get_mut(trade_place)
-        {
-            Some(balance_changes_queue) => balance_changes_queue,
-            None => {
+            .or_else(|| {
                 log::error!("Can't find queue for trade place {:?}", trade_place);
                 return None;
-            }
-        };
+            })?;
 
         let position_change = match &self.balance_manager {
             Some(balance_manager) => {
@@ -80,10 +72,11 @@ impl BalanceChangePeriodSelector {
                     start_of_period,
                     position_change
                 );
+
                 position_change
             }
             None => {
-                // keep all items for web
+                // if balance_manager isn't set we don't need to filter position_changes for web_server
                 log::info!(
                     "Balance changes list {} position_change is None",
                     start_of_period,
@@ -93,15 +86,22 @@ impl BalanceChangePeriodSelector {
         };
 
         while let Some(last_change) = balance_changes_queue.front() {
-            if position_change.is_none() && last_change.change_date >= start_of_period
-                || position_change.is_some()
-                    && last_change.client_order_fill_id
+            match position_change {
+                Some(_) => {
+                    if last_change.client_order_fill_id
                         == position_change
                             .clone()
                             .expect("position_change can't be None here")
                             .client_order_fill_id
-            {
-                break;
+                    {
+                        break;
+                    }
+                }
+                None => {
+                    if last_change.change_date >= start_of_period {
+                        break;
+                    }
+                }
             }
 
             log::info!(
@@ -119,8 +119,8 @@ impl BalanceChangePeriodSelector {
         self.balance_changes_queues_by_trade_place
             .clone()
             .iter()
-            .map(|(current_trade_plase, balance_changes_queue)| {
-                self.get_items_core(&current_trade_plase, Some(&balance_changes_queue))
+            .map(|(current_trade_place, balance_changes_queue)| {
+                self.get_items_core(&current_trade_place, Some(&balance_changes_queue))
             })
             .collect_vec()
     }
@@ -142,7 +142,7 @@ impl BalanceChangePeriodSelector {
         let balance_changes_queue = balance_changes_queue.unwrap_or(
             self.balance_changes_queues_by_trade_place
                 .get(trade_place)
-                .expect("failed to get balance changes queue by trade_palce"),
+                .expect("failed to get balance changes queue by trade_place"),
         );
 
         balance_changes_queue

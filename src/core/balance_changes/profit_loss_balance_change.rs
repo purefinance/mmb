@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 
 use crate::core::{
     balance_manager::balance_request::BalanceRequest,
-    exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, Price},
+    exchanges::common::{Amount, CurrencyCode, ExchangeId, Price, TradePlaceAccount},
     orders::order::ClientOrderFillId,
     DateTime,
 };
@@ -42,8 +42,7 @@ pub(crate) struct ProfitLossBalanceChange {
     pub service_name: String,
     pub service_configuration_key: String,
     pub exchange_id: ExchangeId,
-    pub exchange_account_id: ExchangeAccountId,
-    pub currency_pair: CurrencyPair,
+    pub trade_place: TradePlaceAccount,
     pub currency_code: CurrencyCode,
     pub balance_change: Amount,
     pub usd_price: Price,
@@ -69,8 +68,7 @@ impl ProfitLossBalanceChange {
                 .service_configuration_key
                 .clone(),
             exchange_id,
-            exchange_account_id: request.exchange_account_id,
-            currency_pair: request.currency_pair,
+            trade_place: TradePlaceAccount::new(request.exchange_account_id, request.currency_pair),
             currency_code: request.currency_code,
             balance_change,
             usd_price: usd_balance_change / balance_change,
