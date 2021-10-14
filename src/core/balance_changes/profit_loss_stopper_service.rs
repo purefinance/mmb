@@ -33,7 +33,7 @@ impl ProfitLossStopperService {
         target_trade_place: TradePlaceAccount,
         stopper_settings: ProfitLossStopperSettings,
         exchange_blocker: Arc<ExchangeBlocker>,
-        balance_manager: Arc<Mutex<BalanceManager>>,
+        balance_manager: Option<Arc<Mutex<BalanceManager>>>,
         exchange: Arc<Exchange>,
     ) -> Self {
         let mut this = Self {
@@ -53,7 +53,7 @@ impl ProfitLossStopperService {
     fn create_stoppers(
         &mut self,
         stopper_settings: ProfitLossStopperSettings,
-        balance_manager: Arc<Mutex<BalanceManager>>,
+        balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     ) {
         for stopper_condition in stopper_settings.conditions {
             let period = match stopper_condition.period_kind {
@@ -61,7 +61,7 @@ impl ProfitLossStopperService {
                 TimePeriodKind::Day => Duration::days(stopper_condition.period_value),
             };
             let usd_periodic_calculator =
-                BalanceChangeUsdPeriodicCalculator::new(period, Some(balance_manager.clone()));
+                BalanceChangeUsdPeriodicCalculator::new(period, balance_manager.clone());
             let profit_loss_stopper = ProfitLossStopper::new(
                 stopper_condition.limit,
                 self.target_trade_place.clone(),
@@ -121,5 +121,49 @@ impl ProfitLossStopperService {
             .map(|x| x.check_for_limit(usd_converter, cancellation_token.clone()));
 
         join_all(futures).await;
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use rust_decimal_macros::dec;
+
+    use crate::core::{
+        exchanges::{
+            common::{CurrencyPair, ExchangeAccountId, TradePlaceAccount},
+            general::test_helper::get_test_exchange,
+        },
+        settings::StopperCondition,
+    };
+
+    use super::*;
+
+    fn exchange_account_id() -> ExchangeAccountId {
+        ExchangeAccountId::new("exchange_test_id".into(), 0)
+    }
+
+    fn trade_place() -> TradePlaceAccount {
+        TradePlaceAccount::new(
+            exchange_account_id(),
+            CurrencyPair::from_codes(&"BTC".into(), &"ETH".into()),
+        )
+    }
+
+    #[tokio::test]
+    pub async fn settings_loading_test_empty_settings_should_not_throw() {
+        let stopper_settings = ProfitLossStopperSettings {
+            conditions: vec![StopperCondition {
+                period_kind: TimePeriodKind::Day,
+                period_value: 1,
+                limit: dec!(50),
+            }],
+        };
+        ProfitLossStopperService::new(
+            trade_place(),
+            stopper_settings,
+            ExchangeBlocker::new(vec![exchange_account_id()]),
+            None,
+            get_test_exchange(false).0,
+        );
     }
 }

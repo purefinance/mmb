@@ -21,7 +21,7 @@ pub(crate) struct ProfitLossStopper {
     target_trade_place: TradePlaceAccount,
     usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,
     exchange_blocker: Arc<ExchangeBlocker>,
-    balance_manager: Arc<Mutex<BalanceManager>>,
+    balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     exchange: Arc<Exchange>,
 }
 
@@ -31,7 +31,7 @@ impl ProfitLossStopper {
         target_trade_place: TradePlaceAccount,
         usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,
         exchange_blocker: Arc<ExchangeBlocker>,
-        balance_manager: Arc<Mutex<BalanceManager>>,
+        balance_manager: Option<Arc<Mutex<BalanceManager>>>,
         exchange: Arc<Exchange>,
     ) -> Self {
         Self {
