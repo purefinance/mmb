@@ -10,6 +10,7 @@ pub(crate) fn get_current_milliseconds() -> u128 {
         .as_millis()
 }
 
+// Should be used for unique IDs based on current time
 pub(crate) fn get_atomic_current_secs() -> AtomicU64 {
     AtomicU64::new(
         SystemTime::now()
