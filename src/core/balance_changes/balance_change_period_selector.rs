@@ -17,13 +17,16 @@ use crate::core::{
 
 pub(crate) struct BalanceChangePeriodSelector {
     pub(super) period: Duration,
-    balance_manager: Option<BalanceManager>,
+    balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     balance_changes_queues_by_trade_place:
         HashMap<TradePlaceAccount, VecDeque<ProfitLossBalanceChange>>,
 }
 
 impl BalanceChangePeriodSelector {
-    pub fn new(period: Duration, balance_manager: Option<BalanceManager>) -> Arc<Mutex<Self>> {
+    pub fn new(
+        period: Duration,
+        balance_manager: Option<Arc<Mutex<BalanceManager>>>,
+    ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             period,
             balance_manager,
@@ -73,6 +76,7 @@ impl BalanceChangePeriodSelector {
         let position_change = match &self.balance_manager {
             Some(balance_manager) => {
                 let position_change = balance_manager
+                    .lock()
                     .get_last_position_change_before_period(trade_place, start_of_period);
 
                 log::info!(

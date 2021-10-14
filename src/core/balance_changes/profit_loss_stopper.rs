@@ -19,7 +19,7 @@ use super::balance_change_usd_periodic_calculator::BalanceChangeUsdPeriodicCalcu
 pub(crate) struct ProfitLossStopper {
     limit: Amount,
     target_trade_place: TradePlaceAccount,
-    usd_periodic_calculator: BalanceChangeUsdPeriodicCalculator,
+    usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,
     exchange_blocker: Arc<ExchangeBlocker>,
     balance_manager: Arc<Mutex<BalanceManager>>,
     exchange: Arc<Exchange>,
@@ -29,7 +29,7 @@ impl ProfitLossStopper {
     pub fn new(
         limit: Amount,
         target_trade_place: TradePlaceAccount,
-        usd_periodic_calculator: BalanceChangeUsdPeriodicCalculator,
+        usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,
         exchange_blocker: Arc<ExchangeBlocker>,
         balance_manager: Arc<Mutex<BalanceManager>>,
         exchange: Arc<Exchange>,
