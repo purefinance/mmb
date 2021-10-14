@@ -63,9 +63,9 @@ async fn create_successfully() {
         panic!("Should receive OrderEvent")
     };
 
-    if let OrderEventType::CreateOrderSucceeded = order_event.event_type {
-    } else {
-        panic!("Should receive CreateOrderSucceeded event type")
+    match order_event.event_type {
+        OrderEventType::CreateOrderSucceeded => {}
+        _ => panic!("Should receive CreateOrderSucceeded event type"),
     }
 
     order_proxy

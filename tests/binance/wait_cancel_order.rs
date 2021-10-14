@@ -109,17 +109,15 @@ async fn cancellation_waited_failed_fallback() {
         .await
         .expect("Create order failed with error");
 
-    let must_be_error = binance_builder
+    let error = binance_builder
         .exchange
         .wait_cancel_order(order_ref, None, true, CancellationToken::new())
-        .await;
-    match must_be_error {
-        Ok(_) => assert!(false),
-        Err(error) => {
-            assert_eq!(
-                "Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead",
-                &error.to_string()[..86]
-            );
-        }
-    }
+        .await
+        .err()
+        .expect("It should be Err variant here");
+
+    assert_eq!(
+        "Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead",
+        &error.to_string()[..86]
+    );
 }
