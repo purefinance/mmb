@@ -425,11 +425,11 @@ pub struct ActivePosition {
     pub time_stamp: u128,
     pub swap: Decimal, // REVIEW: what is this?
     pub pl: Amount,
-    pub position_info: DerivativePositionInfo,
+    pub info: DerivativePositionInfo,
 }
 
 impl ActivePosition {
-    pub fn new(position_info: DerivativePositionInfo) -> Self {
+    pub fn new(info: DerivativePositionInfo) -> Self {
         Self {
             id: ActivePositionId::unique_id(),
             status: StatusCode::default(),
@@ -437,7 +437,7 @@ impl ActivePosition {
             time_stamp: 0,
             swap: dec!(0),
             pl: dec!(0),
-            position_info,
+            info,
         }
     }
 }

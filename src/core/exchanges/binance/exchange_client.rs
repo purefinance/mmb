@@ -204,25 +204,22 @@ impl ExchangeClient for Binance {
         position: ActivePosition,
         price: Option<Price>,
     ) -> Result<RestRequestOutcome> {
-        let side = match position.position_info.side {
+        let side = match position.info.side {
             Some(side) => side.change_side().to_string(),
             None => "0".to_string(), // unknown side
         };
 
         let mut http_params = vec![
-            (
-                "leverage".to_string(),
-                position.position_info.leverage.to_string(),
-            ),
+            ("leverage".to_string(), position.info.leverage.to_string()),
             ("positionSide".to_string(), "BOTH".to_string()),
             (
                 "quantity".to_string(),
-                position.position_info.position.abs().to_string(),
+                position.info.position.abs().to_string(),
             ),
             ("side".to_string(), side),
             (
                 "symbol".to_string(),
-                position.position_info.currency_pair.to_string(),
+                position.info.currency_pair.to_string(),
             ),
         ];
 

@@ -655,7 +655,7 @@ impl Exchange {
         let get_closed_positions_futures = active_positions
             .iter()
             .filter_map(|active_position| {
-                if active_position.position_info.position.is_zero() {
+                if active_position.info.position.is_zero() {
                     return None;
                 }
                 Some(self.close_position_loop(active_position, None, cancellation_token.clone()))
