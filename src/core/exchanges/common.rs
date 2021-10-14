@@ -17,8 +17,7 @@ use std::{collections::BTreeMap, time::Duration};
 use thiserror::Error;
 
 use crate::core::misc::derivative_position_info::DerivativePositionInfo;
-use crate::core::misc::time_manager::time_manager;
-use crate::core::orders::order::OrderSide;
+use crate::core::orders::order::ExchangeOrderId;
 
 pub type Price = Decimal;
 pub type Amount = Decimal;
@@ -367,8 +366,19 @@ pub struct ClosedPosition {
     pub order: ClosedPositionOrder,
 }
 
+impl ClosedPosition {
+    pub fn new(exchange_order_id: ExchangeOrderId, amount: Amount) -> Self {
+        Self {
+            order: ClosedPositionOrder {
+                exchange_order_id,
+                amount,
+            },
+        }
+    }
+}
+
 pub struct ClosedPositionOrder {
-    exchange_account_id: ExchangeAccountId,
+    exchange_order_id: ExchangeOrderId,
     amount: Amount,
 }
 
