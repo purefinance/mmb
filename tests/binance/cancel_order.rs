@@ -44,19 +44,14 @@ async fn cancelled_successfully() {
         CancellationToken::default(),
     );
 
-    match order_proxy
+    let order_ref = order_proxy
         .create_order(binance_builder.exchange.clone())
         .await
-    {
-        Ok(order_ref) => {
-            order_proxy
-                .cancel_order_or_fail(&order_ref, binance_builder.exchange.clone())
-                .await;
-        }
-        Err(error) => {
-            assert!(false, "Create order failed with error {:?}.", error)
-        }
-    }
+        .expect("Create order failed with error:");
+
+    order_proxy
+        .cancel_order_or_fail(&order_ref, binance_builder.exchange.clone())
+        .await;
 }
 
 #[actix_rt::test]
@@ -107,30 +102,26 @@ async fn cancel_opened_orders_successfully() {
         .await
         .expect("in test");
 
-    match &binance_builder.exchange.get_open_orders(false).await {
-        Err(error) => {
-            log::info!("Opened orders not found for exchange account id: {}", error,);
-            assert!(false);
-        }
-        Ok(orders) => {
-            assert_ne!(orders.len(), 0);
-            binance_builder
-                .exchange
-                .clone()
-                .cancel_opened_orders(CancellationToken::default(), true)
-                .await;
-        }
-    }
+    let orders = &binance_builder
+        .exchange
+        .get_open_orders(false)
+        .await
+        .expect("Opened orders not found for exchange account id:");
 
-    match &binance_builder.exchange.get_open_orders(false).await {
-        Err(error) => {
-            log::info!("Opened orders not found for exchange account id: {}", error,);
-            assert!(false);
-        }
-        Ok(orders) => {
-            assert_eq!(orders.len(), 0);
-        }
-    }
+    assert_ne!(orders.len(), 0);
+    binance_builder
+        .exchange
+        .clone()
+        .cancel_opened_orders(CancellationToken::default(), true)
+        .await;
+
+    let orders = &binance_builder
+        .exchange
+        .get_open_orders(false)
+        .await
+        .expect("Opened orders not found for exchange account id");
+
+    assert_eq!(orders.len(), 0);
 }
 
 #[actix_rt::test]
