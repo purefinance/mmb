@@ -204,6 +204,43 @@ impl ExchangeClient for Binance {
         position: ActivePosition,
         price: Option<Price>,
     ) -> Result<RestRequestOutcome> {
-        todo!("add implementation")
+        let side = match position.position_info.side {
+            Some(side) => side.change_side().to_string(),
+            None => "0".to_string(), // unknown side
+        };
+
+        let mut http_params = vec![
+            (
+                "leverage".to_string(),
+                position.position_info.leverage.to_string(),
+            ),
+            ("positionSide".to_string(), "BOTH".to_string()),
+            (
+                "quantity".to_string(),
+                position.position_info.position.abs().to_string(),
+            ),
+            ("side".to_string(), side),
+            (
+                "symbol".to_string(),
+                position.position_info.currency_pair.to_string(),
+            ),
+        ];
+
+        match price {
+            Some(price) => {
+                http_params.push(("type".to_string(), "MARKET".to_string()));
+                http_params.push(("price".to_string(), price.to_string()));
+            }
+            None => http_params.push(("type".to_string(), "LIMIT".to_string())),
+        }
+
+        self.add_authentification_headers(&mut http_params)?;
+
+        let url_path = "/fapi/v1/order";
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+
+        self.rest_client
+            .post(full_url, &self.settings.api_key, &http_params)
+            .await
     }
 }
