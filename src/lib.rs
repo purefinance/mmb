@@ -10,7 +10,8 @@
     trivial_numeric_casts,
     unused_extern_crates,
     unused_import_braces,
-    unused_qualifications
+    unused_qualifications,
+    unused_must_use
 )]
 
 #[allow(dead_code)]
