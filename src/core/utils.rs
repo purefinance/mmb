@@ -10,7 +10,7 @@ pub(crate) fn get_current_milliseconds() -> u128 {
         .as_millis()
 }
 
-/// Function should be used for unique IDs initialization based on incrementing AtomicU64 counter.
+/// Function should be used for initialization of unique IDs based on incrementing AtomicU64 counter.
 /// Returned value initialized with current UNIX time.
 /// # Example:
 /// ```ignore
