@@ -1,4 +1,4 @@
-use crate::core::exchanges::common::ExchangeId;
+use crate::core::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
@@ -59,14 +59,18 @@ where
     Load(String, String),
 }
 
-pub async fn launch_trading_engine<'a, TStrategySettings>(
+async fn before_enging_context_init<'a, TStrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<TStrategySettings>,
-    build_strategy: impl Fn(
-        &AppSettings<TStrategySettings>,
-        Arc<EngineContext>,
-    ) -> Box<dyn DispositionStrategy + 'static>,
-) -> Result<TradingEngine>
+) -> Result<(
+    broadcast::Sender<ExchangeEvent>,
+    broadcast::Receiver<ExchangeEvent>,
+    AppSettings<TStrategySettings>,
+    Arc<ApplicationManager>,
+    DashMap<ExchangeAccountId, Arc<Exchange>>,
+    Arc<EngineContext>,
+    oneshot::Receiver<()>,
+)>
 where
     TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
@@ -112,6 +116,38 @@ where
         timeout_manager,
         application_manager.clone(),
     );
+
+    Ok((
+        events_sender,
+        events_receiver,
+        settings,
+        application_manager,
+        exchanges_map,
+        engine_context,
+        finish_graceful_shutdown_rx,
+    ))
+}
+
+pub async fn launch_trading_engine<'a, TStrategySettings>(
+    build_settings: &EngineBuildConfig,
+    init_user_settings: InitSettings<TStrategySettings>,
+    build_strategy: impl Fn(
+        &AppSettings<TStrategySettings>,
+        Arc<EngineContext>,
+    ) -> Box<dyn DispositionStrategy + 'static>,
+) -> Result<TradingEngine>
+where
+    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+{
+    let (
+        events_sender,
+        events_receiver,
+        settings,
+        application_manager,
+        exchanges_map,
+        engine_context,
+        finish_graceful_shutdown_rx,
+    ) = before_enging_context_init(build_settings, init_user_settings).await?;
 
     let internal_events_loop = InternalEventsLoop::new();
 
