@@ -1,3 +1,4 @@
+pub mod bot_api;
 pub mod commission;
 pub mod currency_pair_metadata;
 pub mod currency_pair_to_metadata_converter;

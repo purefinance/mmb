@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::{bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
-use futures::future::join_all;
 use futures::FutureExt;
 use itertools::Itertools;
 use log::{error, info, warn, Level};
@@ -639,37 +638,6 @@ impl Exchange {
                 return closed_position;
             }
         }
-    }
-
-    pub async fn close_active_positions(
-        &self,
-        cancellation_token: CancellationToken,
-    ) -> Vec<ClosedPosition> {
-        log::info!(
-            "Closing active position for exchange {}",
-            self.exchange_account_id
-        );
-
-        let active_positions = self.get_active_positions(cancellation_token.clone()).await;
-
-        let get_closed_positions_futures = active_positions
-            .iter()
-            .filter_map(|active_position| {
-                if active_position.info.position.is_zero() {
-                    return None;
-                }
-                Some(self.close_position_loop(active_position, None, cancellation_token.clone()))
-            })
-            .collect_vec();
-
-        let closed_positions = join_all(get_closed_positions_futures).await;
-
-        log::info!(
-            "Closed active position for exchange {}",
-            self.exchange_account_id
-        );
-
-        closed_positions
     }
 
     // REVIEW: эта функция была virtual как правильно ее на Rust нужно переносить?
