@@ -86,22 +86,13 @@ impl BalanceChangePeriodSelector {
         };
 
         while let Some(last_change) = balance_changes_queue.front() {
-            match position_change {
-                Some(_) => {
-                    if last_change.client_order_fill_id
-                        == position_change
-                            .clone()
-                            .expect("position_change can't be None here")
-                            .client_order_fill_id
-                    {
-                        break;
-                    }
-                }
-                None => {
-                    if last_change.change_date >= start_of_period {
-                        break;
-                    }
-                }
+            let should_skip_item = match position_change {
+                Some(ref change) => last_change.client_order_fill_id == change.client_order_fill_id,
+                None => last_change.change_date >= start_of_period,
+            };
+
+            if should_skip_item {
+                break;
             }
 
             log::info!(
