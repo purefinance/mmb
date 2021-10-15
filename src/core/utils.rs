@@ -10,7 +10,18 @@ pub(crate) fn get_current_milliseconds() -> u128 {
         .as_millis()
 }
 
-// Should be used for unique IDs based on current time
+/// Function should be used for unique IDs initialization based on incrementing AtomicU64 counter.
+/// Returned value initialized with current UNIX time.
+/// # Example:
+/// ```
+/// use once_cell::sync::Lazy;
+///
+/// static CLIENT_ORDER_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| get_atomic_current_secs());
+///
+
+/// let new_id = CLIENT_ORDER_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+/// ClientOrderId(new_id.to_string().into());
+/// ```
 pub(crate) fn get_atomic_current_secs() -> AtomicU64 {
     AtomicU64::new(
         SystemTime::now()
