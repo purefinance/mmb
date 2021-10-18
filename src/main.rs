@@ -1,5 +1,4 @@
 use futures::FutureExt;
-use std::panic;
 
 use anyhow::Result;
 use mmb_lib::core::settings::BaseStrategySettings;
@@ -45,39 +44,25 @@ async fn main() -> Result<()> {
         CREDENTIALS_PATH.to_owned(),
     );
 
-    let started_engine = async move {
-        let engine = launch_trading_engine(&engine_config, init_settings, |settings, ctx| {
-            Box::new(ExampleStrategy::new(
-                settings.strategy.exchange_account_id().clone(),
-                settings.strategy.currency_pair().clone(),
-                settings.strategy.spread,
-                ctx,
-            ))
-        })
-        .await
-        .unwrap();
+    let engine = launch_trading_engine(&engine_config, init_settings, |settings, ctx| {
+        Box::new(ExampleStrategy::new(
+            settings.strategy.exchange_account_id().clone(),
+            settings.strategy.currency_pair().clone(),
+            settings.strategy.spread,
+            ctx,
+        ))
+    })
+    .await?;
 
-        // let ctx = engine.context();
-        // let _ = tokio::spawn(async move {
-        //     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        //     ctx.application_manager
-        //         .clone()
-        //         .spawn_graceful_shutdown("test".to_owned());
-        // });
+    // let ctx = engine.context();
+    // let _ = tokio::spawn(async move {
+    //     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    //     ctx.application_manager
+    //         .clone()
+    //         .spawn_graceful_shutdown("test".to_owned());
+    // });
 
-        engine.run().await;
-    };
-
-    let action_outcome = panic::AssertUnwindSafe(started_engine).catch_unwind().await;
-
-    match action_outcome {
-        Err(_) => {
-            dbg!("panic");
-        }
-        Ok(_) => {
-            dbg!("No panic");
-        }
-    }
+    engine.run().await;
 
     Ok(())
 }

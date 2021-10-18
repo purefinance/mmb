@@ -23,7 +23,7 @@ use crate::core::{
 use crate::hashmap;
 use crate::rest_api::control_panel::ControlPanel;
 use crate::strategies::disposition_strategy::DispositionStrategy;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
@@ -31,6 +31,7 @@ use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::identity;
+use std::panic::AssertUnwindSafe;
 use std::sync::Arc;
 use tokio::sync::{broadcast, oneshot};
 
@@ -75,6 +76,7 @@ where
     TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     init_logger();
+    panic!("WOW");
 
     info!("*****************************");
     info!("TradingEngine starting");
@@ -139,6 +141,11 @@ pub async fn launch_trading_engine<'a, TStrategySettings>(
 where
     TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
+    let action =
+        async move { before_enging_context_init(build_settings, init_user_settings).await };
+
+    let action_outcome = AssertUnwindSafe(action).catch_unwind().await;
+
     let (
         events_sender,
         events_receiver,
@@ -147,7 +154,23 @@ where
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
-    ) = before_enging_context_init(build_settings, init_user_settings).await?;
+    ) = match action_outcome {
+        Ok(outcome) => outcome,
+        Err(panic) => {
+            match panic.as_ref().downcast_ref::<&str>().clone() {
+                Some(panic_message) => {
+                    error!(
+                        "Panic happend during EngineContext creation: {}",
+                        panic_message
+                    );
+                }
+                None => {
+                    error!("Panic happend during EngineContext creation without readable message")
+                }
+            }
+            bail!("Panic during EnginContext creation")
+        }
+    }?;
 
     let internal_events_loop = InternalEventsLoop::new();
 
