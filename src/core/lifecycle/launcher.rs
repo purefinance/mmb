@@ -130,6 +130,73 @@ where
     ))
 }
 
+fn run_services<'a, TStrategySettings>(
+    engine_context: &Arc<EngineContext>,
+    events_sender: broadcast::Sender<ExchangeEvent>,
+    events_receiver: broadcast::Receiver<ExchangeEvent>,
+    settings: AppSettings<TStrategySettings>,
+    application_manager: &Arc<ApplicationManager>,
+    exchanges_map: DashMap<ExchangeAccountId, Arc<Exchange>>,
+    build_strategy: impl Fn(
+        &AppSettings<TStrategySettings>,
+        Arc<EngineContext>,
+    ) -> Box<dyn DispositionStrategy + 'static>,
+    finish_graceful_shutdown_rx: oneshot::Receiver<()>,
+) -> Result<TradingEngine>
+where
+    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+{
+    let internal_events_loop = InternalEventsLoop::new();
+    engine_context
+        .shutdown_service
+        .register_service(internal_events_loop.clone());
+
+    let exchange_events = ExchangeEvents::new(events_sender.clone());
+    let statistic_service = StatisticService::new();
+    let statistic_event_handler =
+        create_statistic_event_handler(exchange_events, statistic_service.clone());
+    let control_panel = ControlPanel::new(
+        "127.0.0.1:8080",
+        toml::Value::try_from(settings.clone())?.to_string(),
+        application_manager.clone(),
+        statistic_service.clone(),
+    );
+    engine_context
+        .shutdown_service
+        .register_service(control_panel.clone());
+
+    {
+        let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();
+        let action = internal_events_loop.clone().start(
+            events_receiver,
+            local_exchanges_map,
+            engine_context.application_manager.stop_token(),
+        );
+        let _ = spawn_future("internal_events_loop start", true, action.boxed());
+    }
+
+    if let Err(error) = control_panel.clone().start() {
+        error!("Unable to start rest api: {}", error);
+    }
+
+    let disposition_strategy = build_strategy(&settings, engine_context.clone());
+    let disposition_executor_service = create_disposition_executor_service(
+        &settings.strategy,
+        &engine_context,
+        disposition_strategy,
+        &statistic_event_handler.stats,
+    );
+    engine_context
+        .shutdown_service
+        .register_service(disposition_executor_service);
+
+    info!("TradingEngine started");
+    Ok(TradingEngine::new(
+        engine_context.clone(),
+        finish_graceful_shutdown_rx,
+    ))
+}
+
 pub async fn launch_trading_engine<'a, TStrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<TStrategySettings>,
@@ -174,67 +241,17 @@ where
         }
     }?;
 
-    let _cloned_engine_context = engine_context.clone();
-
-    run_services();
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        panic!("test");
-
-        let internal_events_loop = InternalEventsLoop::new();
-        engine_context
-            .shutdown_service
-            .register_service(internal_events_loop.clone());
-
-        let exchange_events = ExchangeEvents::new(events_sender.clone());
-        let statistic_service = StatisticService::new();
-        let statistic_event_handler =
-            create_statistic_event_handler(exchange_events, statistic_service.clone());
-        let control_panel = ControlPanel::new(
-            "127.0.0.1:8080",
-            toml::Value::try_from(settings.clone())?.to_string(),
-            application_manager.clone(),
-            statistic_service.clone(),
-        );
-        engine_context
-            .shutdown_service
-            .register_service(control_panel.clone());
-
-        {
-            let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();
-            let action = internal_events_loop.clone().start(
-                events_receiver,
-                local_exchanges_map,
-                engine_context.application_manager.stop_token(),
-            );
-            let _ = spawn_future("internal_events_loop start", true, action.boxed());
-        }
-
-        if let Err(error) = control_panel.clone().start() {
-            error!("Unable to start rest api: {}", error);
-        }
-
-        let disposition_strategy = build_strategy(&settings, engine_context.clone());
-        let disposition_executor_service = create_disposition_executor_service(
-            &settings.strategy,
+        run_services(
             &engine_context,
-            disposition_strategy,
-            &statistic_event_handler.stats,
-        );
-        engine_context
-            .shutdown_service
-            .register_service(disposition_executor_service);
-
-        //engine_context.shutdown_service.register_services(&[
-        //    control_panel,
-        //    internal_events_loop,
-        //    disposition_executor_service,
-        //]);
-
-        info!("TradingEngine started");
-        Ok(TradingEngine::new(
-            engine_context,
+            events_sender,
+            events_receiver,
+            settings,
+            &application_manager,
+            exchanges_map,
+            build_strategy,
             finish_graceful_shutdown_rx,
-        ))
+        )
     }));
 
     match result {
@@ -258,10 +275,6 @@ where
             bail!("Panic during EnginContext creation")
         }
     }
-}
-
-fn run_services() -> () {
-    todo!()
 }
 
 fn create_disposition_executor_service(

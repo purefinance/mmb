@@ -1,5 +1,3 @@
-use futures::FutureExt;
-
 use anyhow::Result;
 use mmb_lib::core::settings::BaseStrategySettings;
 use mmb_lib::core::{
