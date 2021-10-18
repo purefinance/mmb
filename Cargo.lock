@@ -1149,7 +1149,6 @@ dependencies = [
  "hyper",
  "hyper-tls",
  "itertools",
- "lazy_static",
  "libc",
  "log",
  "mockall",
