@@ -3,16 +3,20 @@ use std::sync::Arc;
 use chrono::Duration;
 use futures::future::join_all;
 use itertools::Itertools;
+use mockall_double::double;
 use parking_lot::Mutex;
+
+#[double]
+use crate::core::balance_manager::balance_manager::BalanceManager;
+#[double]
+use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
 use crate::core::{
     balance_changes::{
         profit_balance_changes_calculator, profit_loss_balance_change::ProfitLossBalanceChange,
     },
-    balance_manager::balance_manager::BalanceManager,
     exchanges::common::{Amount, TradePlaceAccount},
     lifecycle::cancellation_token::CancellationToken,
-    services::usd_converter::usd_converter::UsdConverter,
 };
 
 use super::balance_change_period_selector::BalanceChangePeriodSelector;

@@ -640,7 +640,6 @@ impl Exchange {
         }
     }
 
-    // REVIEW: эта функция была virtual как правильно ее на Rust нужно переносить?
     pub async fn get_active_positions(
         &self,
         cancellation_token: CancellationToken,
@@ -662,7 +661,6 @@ impl Exchange {
         }
     }
 
-    // REVIEW: эта функция была virtual как правильно ее на Rust нужно переносить?
     pub async fn get_active_positions_by_features(&self) -> Result<Vec<ActivePosition>> {
         match self.features.balance_position_option {
             BalancePositionOption::IndividualRequests => self.get_active_positions_core().await,
@@ -682,7 +680,6 @@ impl Exchange {
         }
     }
 
-    // REVIEW: эта функция была virtual как правильно ее на Rust нужно переносить?
     async fn get_active_positions_core(&self) -> Result<Vec<ActivePosition>> {
         let response = self
             .exchange_client

@@ -23,6 +23,9 @@ use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep_until, Duration, Instant};
 
+#[cfg(test)]
+use mockall::automock;
+
 const EXPECTED_EAI_SHOULD_BE_CREATED: &str =
     "Should exists because locks created for all exchange accounts in constructor";
 
@@ -462,6 +465,7 @@ pub struct ExchangeBlocker {
     events_sender: Mutex<mpsc::Sender<ExchangeBlockerInternalEvent>>,
 }
 
+#[cfg_attr(test, automock)]
 impl ExchangeBlocker {
     pub fn new(exchange_account_ids: Vec<ExchangeAccountId>) -> Arc<Self> {
         let blockers = Arc::new(RwLock::new(HashMap::from_iter(

@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+#[cfg(test)]
+use mockall::automock;
+
 use crate::core::{
     exchanges::common::{Amount, CurrencyCode},
     lifecycle::cancellation_token::CancellationToken,
@@ -16,6 +19,7 @@ pub struct UsdConverter {
     denominator_usd_converter: DenominatorUsdConverter,
 }
 
+#[cfg_attr(test, automock)]
 impl UsdConverter {
     pub fn new(
         currencies: &Vec<CurrencyCode>,

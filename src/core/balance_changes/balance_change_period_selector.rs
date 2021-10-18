@@ -5,13 +5,17 @@ use std::{
 
 use chrono::Duration;
 use itertools::Itertools;
+use mockall_double::double;
 use parking_lot::Mutex;
+
+#[double]
+use crate::core::balance_manager::balance_manager::BalanceManager;
+#[double]
+use crate::core::misc::time_manager::time_manager;
 
 use crate::core::{
     balance_changes::profit_loss_balance_change::ProfitLossBalanceChange,
-    balance_manager::{balance_manager::BalanceManager, position_change::PositionChange},
-    exchanges::common::TradePlaceAccount,
-    misc::time_manager::time_manager,
+    balance_manager::position_change::PositionChange, exchanges::common::TradePlaceAccount,
     DateTime,
 };
 
@@ -73,7 +77,7 @@ impl BalanceChangePeriodSelector {
             }
         };
 
-        let position_change = match &self.balance_manager {
+        let position_change_before_period = match &self.balance_manager {
             Some(balance_manager) => {
                 let position_change = balance_manager
                     .lock()
@@ -97,12 +101,12 @@ impl BalanceChangePeriodSelector {
         };
 
         while let Some(last_change) = balance_changes_queue.front() {
-            if position_change.is_none() && last_change.change_date >= start_of_period
-                || position_change.is_some()
+            if position_change_before_period.is_none() && last_change.change_date >= start_of_period
+                || position_change_before_period.is_some()
                     && last_change.client_order_fill_id
-                        == position_change
+                        == position_change_before_period
                             .clone()
-                            .expect("position_change can't be None here")
+                            .expect("position_change_before_period can't be None here")
                             .client_order_fill_id
             {
                 break;
@@ -116,16 +120,14 @@ impl BalanceChangePeriodSelector {
             );
             let _ = balance_changes_queue.pop_front();
         }
-        position_change
+        position_change_before_period
     }
 
     pub fn get_items(&mut self) -> Vec<Vec<ProfitLossBalanceChange>> {
         self.balance_changes_queues_by_trade_place
             .clone()
-            .iter()
-            .map(|(current_trade_plase, balance_changes_queue)| {
-                self.get_items_core(&current_trade_plase, Some(&balance_changes_queue))
-            })
+            .keys()
+            .map(|current_trade_place| self.get_items_by_trade_place(current_trade_place))
             .collect_vec()
     }
 
@@ -133,21 +135,12 @@ impl BalanceChangePeriodSelector {
         &mut self,
         trade_place: &TradePlaceAccount,
     ) -> Vec<ProfitLossBalanceChange> {
-        self.get_items_core(trade_place, None)
-    }
-
-    fn get_items_core(
-        &mut self,
-        trade_place: &TradePlaceAccount,
-        balance_changes_queue: Option<&VecDeque<ProfitLossBalanceChange>>,
-    ) -> Vec<ProfitLossBalanceChange> {
         let position_change = self.synchronize_period(time_manager::now(), trade_place);
 
-        let balance_changes_queue = balance_changes_queue.unwrap_or(
-            self.balance_changes_queues_by_trade_place
-                .get(trade_place)
-                .expect("failed to get balance changes queue by trade_palce"),
-        );
+        let balance_changes_queue = self
+            .balance_changes_queues_by_trade_place
+            .get(trade_place)
+            .expect("failed to get balance changes queue by trade_place");
 
         balance_changes_queue
             .iter()

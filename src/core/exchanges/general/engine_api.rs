@@ -11,12 +11,12 @@ use crate::core::{
 
 use super::exchange::Exchange;
 
-pub struct BotApi {
+pub struct EngineApi {
     exchange: Arc<Exchange>,
 }
 
 #[cfg_attr(test, automock)]
-impl BotApi {
+impl EngineApi {
     pub async fn close_active_positions(
         &self,
         cancellation_token: CancellationToken,

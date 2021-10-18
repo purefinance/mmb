@@ -1,9 +1,11 @@
+use mockall_double::double;
+
+#[double]
+use crate::core::misc::time_manager::time_manager;
+
 use crate::core::{
     exchanges::common::TradePlace,
-    misc::{
-        price_by_order_side::PriceByOrderSide, price_source_model::PriceSourceModel,
-        time_manager::time_manager,
-    },
+    misc::{price_by_order_side::PriceByOrderSide, price_source_model::PriceSourceModel},
 };
 
 pub struct PriceSourcesSaver {

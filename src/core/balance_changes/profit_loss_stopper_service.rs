@@ -2,15 +2,22 @@ use std::sync::Arc;
 
 use chrono::Duration;
 use futures::future::join_all;
+
+use mockall_double::double;
 use parking_lot::Mutex;
 
+#[double]
+use crate::core::balance_manager::balance_manager::BalanceManager;
+#[double]
+use crate::core::exchanges::exchange_blocker::ExchangeBlocker;
+#[double]
+use crate::core::exchanges::general::engine_api::EngineApi;
+#[double]
+use crate::core::services::usd_converter::usd_converter::UsdConverter;
+
 use crate::core::{
-    balance_manager::balance_manager::BalanceManager,
-    exchanges::{
-        common::TradePlaceAccount, exchange_blocker::ExchangeBlocker, general::exchange::Exchange,
-    },
+    exchanges::common::TradePlaceAccount,
     lifecycle::cancellation_token::CancellationToken,
-    services::usd_converter::usd_converter::UsdConverter,
     settings::{ProfitLossStopperSettings, TimePeriodKind},
 };
 
@@ -22,8 +29,7 @@ use super::{
 pub(crate) struct ProfitLossStopperService {
     target_trade_place: TradePlaceAccount,
     exchange_blocker: Arc<ExchangeBlocker>,
-    exchange: Arc<Exchange>,
-
+    engine_api: Arc<EngineApi>,
     profit_loss_stoppers: Vec<ProfitLossStopper>,
     usd_periodic_calculators: Vec<Arc<BalanceChangeUsdPeriodicCalculator>>,
 }
@@ -34,12 +40,12 @@ impl ProfitLossStopperService {
         stopper_settings: ProfitLossStopperSettings,
         exchange_blocker: Arc<ExchangeBlocker>,
         balance_manager: Option<Arc<Mutex<BalanceManager>>>,
-        exchange: Arc<Exchange>,
+        engine_api: Arc<EngineApi>,
     ) -> Self {
         let mut this = Self {
             target_trade_place,
             exchange_blocker,
-            exchange,
+            engine_api,
             profit_loss_stoppers: Vec::new(),
             usd_periodic_calculators: Vec::new(),
         };
@@ -68,7 +74,7 @@ impl ProfitLossStopperService {
                 usd_periodic_calculator.clone(),
                 self.exchange_blocker.clone(),
                 balance_manager.clone(),
-                self.exchange.clone(),
+                self.engine_api.clone(),
             );
 
             self.usd_periodic_calculators.push(usd_periodic_calculator);
@@ -129,10 +135,7 @@ mod test {
     use rust_decimal_macros::dec;
 
     use crate::core::{
-        exchanges::{
-            common::{CurrencyPair, ExchangeAccountId, TradePlaceAccount},
-            general::test_helper::get_test_exchange,
-        },
+        exchanges::common::{CurrencyPair, ExchangeAccountId, TradePlaceAccount},
         settings::StopperCondition,
     };
 
@@ -158,12 +161,13 @@ mod test {
                 limit: dec!(50),
             }],
         };
+
         ProfitLossStopperService::new(
             trade_place(),
             stopper_settings,
-            ExchangeBlocker::new(vec![exchange_account_id()]),
+            Arc::new(ExchangeBlocker::default()),
             None,
-            get_test_exchange(false).0,
+            Arc::new(EngineApi::default()),
         );
     }
 }

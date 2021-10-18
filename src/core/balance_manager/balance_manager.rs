@@ -28,6 +28,9 @@ use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+#[cfg(test)]
+use mockall::automock;
+
 /// The entity for getting information about account balances for selected exchanges
 #[derive(Clone)]
 pub struct BalanceManager {
@@ -537,25 +540,6 @@ impl BalanceManager {
         &self.last_order_fills
     }
 
-    pub fn get_last_position_change_before_period(
-        &self,
-        trade_place: &TradePlaceAccount,
-        start_of_period: DateTime,
-    ) -> Option<PositionChange> {
-        self.balance_reservation_manager
-            .get_last_position_change_before_period(trade_place, start_of_period)
-    }
-
-    pub fn get_position(
-        &self,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
-        side: OrderSide,
-    ) -> Decimal {
-        self.balance_reservation_manager
-            .get_position(exchange_account_id, currency_pair, side)
-    }
-
     pub fn get_fill_amount_position_percent(
         &self,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
@@ -1044,4 +1028,26 @@ impl BalanceManager {
     //         action();
     //     }
     // }
+}
+
+#[cfg_attr(test, automock)]
+impl BalanceManager {
+    pub fn get_last_position_change_before_period(
+        &self,
+        trade_place: &TradePlaceAccount,
+        start_of_period: DateTime,
+    ) -> Option<PositionChange> {
+        self.balance_reservation_manager
+            .get_last_position_change_before_period(trade_place, start_of_period)
+    }
+
+    pub fn get_position(
+        &self,
+        exchange_account_id: &ExchangeAccountId,
+        currency_pair: &CurrencyPair,
+        side: OrderSide,
+    ) -> Decimal {
+        self.balance_reservation_manager
+            .get_position(exchange_account_id, currency_pair, side)
+    }
 }
