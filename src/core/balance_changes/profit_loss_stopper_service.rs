@@ -37,7 +37,7 @@ pub(crate) struct ProfitLossStopperService {
 impl ProfitLossStopperService {
     pub fn new(
         target_trade_place: TradePlaceAccount,
-        stopper_settings: ProfitLossStopperSettings,
+        stopper_settings: &ProfitLossStopperSettings,
         exchange_blocker: Arc<ExchangeBlocker>,
         balance_manager: Option<Arc<Mutex<BalanceManager>>>,
         engine_api: Arc<EngineApi>,
@@ -50,7 +50,7 @@ impl ProfitLossStopperService {
             usd_periodic_calculators: Vec::new(),
         };
 
-        Self::validate_settings(&stopper_settings);
+        Self::validate_settings(stopper_settings);
         this.create_stoppers(stopper_settings, balance_manager);
 
         this
@@ -58,10 +58,10 @@ impl ProfitLossStopperService {
 
     fn create_stoppers(
         &mut self,
-        stopper_settings: ProfitLossStopperSettings,
+        stopper_settings: &ProfitLossStopperSettings,
         balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     ) {
-        for stopper_condition in stopper_settings.conditions {
+        for stopper_condition in stopper_settings.conditions.iter() {
             let period = match stopper_condition.period_kind {
                 TimePeriodKind::Hour => Duration::hours(stopper_condition.period_value),
                 TimePeriodKind::Day => Duration::days(stopper_condition.period_value),
@@ -164,7 +164,7 @@ mod test {
 
         ProfitLossStopperService::new(
             trade_place(),
-            stopper_settings,
+            &stopper_settings,
             Arc::new(ExchangeBlocker::default()),
             None,
             Arc::new(EngineApi::default()),

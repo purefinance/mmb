@@ -596,7 +596,7 @@ impl Exchange {
     ) -> Result<ClosedPosition> {
         let response = self
             .exchange_client
-            .request_close_position(position.clone(), price) // TODO: fix reference
+            .request_close_position(position, price)
             .await
             .expect("request_close_position failed.");
 

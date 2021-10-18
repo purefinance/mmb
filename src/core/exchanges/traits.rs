@@ -65,7 +65,7 @@ pub trait ExchangeClient: Support {
 
     async fn request_close_position(
         &self,
-        position: ActivePosition,
+        position: &ActivePosition,
         price: Option<Price>,
     ) -> Result<RestRequestOutcome>;
 }

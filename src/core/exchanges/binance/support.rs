@@ -509,7 +509,7 @@ impl Support for Binance {
                 ActivePosition::new(DerivativePositionInfo::new(
                     currency_pair,
                     x.position_amount,
-                    Some(x.position_side), // TODO: grays check maybe an error
+                    Some(x.position_side),
                     dec!(0),
                     x.liquidation_price,
                     x.leverage,
