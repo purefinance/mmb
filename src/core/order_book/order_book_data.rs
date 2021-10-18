@@ -2,6 +2,48 @@ use crate::core::exchanges::common::*;
 use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use chrono::Utc;
 
+/// Macros allows to specify in much clearer way (then usual imperative code) a structure of
+/// order book with template:\
+/// order_book_data![\
+///   asks list\
+///   ;\
+///   bids list\
+/// ]
+///
+/// asks and bids can be absent
+///
+/// Example:
+///
+/// ```ignore
+/// use crate::order_book_data;
+/// use rust_decimal_macros::dec;
+///
+/// let order_book = order_book_data![
+///    dec!(1.0) => dec!(2.1),
+///    dec!(3.0) => dec!(4.2),
+///    ;
+///    dec!(2.9) => dec!(7.8),
+///    dec!(3.4) => dec!(1.2),
+///  ];
+/// ```
+#[macro_export]
+macro_rules! order_book_data {
+    ($( $key_a: expr => $val_a: expr ),*, ;
+     $( $key_b: expr => $val_b: expr ),*,) => {{
+        use rust_decimal::Decimal;
+        let mut asks = crate::core::exchanges::common::SortedOrderData::new();
+        asks.extend(vec![ $( ($key_a, $val_a), )* ] as Vec<(Decimal, Decimal)>);
+
+        let mut bids = crate::core::exchanges::common::SortedOrderData::new();
+        bids.extend(vec![ $( ($key_b, $val_b), )* ] as Vec<(Decimal, Decimal)>);
+
+        crate::core::order_book::order_book_data::OrderBookData::new(asks, bids)
+    }};
+    ($( $key_a: expr => $val_a: expr ),*, ;) => {{ order_book_data!($( $key_a => $val_a ),*, ;,) }};
+    (; $( $key_b: expr => $val_b: expr ),*,) => {{ order_book_data!(, ; $( $key_b => $val_b ),*,) }};
+    () => {{ order_book_data!(,;,) }};
+}
+
 /// Main asks and bids storage
 #[derive(Debug, Clone)]
 pub struct OrderBookData {
@@ -14,14 +56,12 @@ impl OrderBookData {
         Self { asks, bids }
     }
 
-    /// Transform to LocalOrderBookSnapshot
     pub fn to_local_order_book_snapshot(self) -> LocalOrderBookSnapshot {
         LocalOrderBookSnapshot::new(self.asks, self.bids, Utc::now())
     }
 
     /// Perform inner asks and bids update
     pub fn update(&mut self, updates: Vec<OrderBookData>) {
-        // If exists at least one update
         if updates.is_empty() {
             return;
         }
@@ -30,64 +70,52 @@ impl OrderBookData {
     }
 
     fn update_inner_data(&mut self, updates: Vec<OrderBookData>) {
-        for update in updates.iter() {
-            let mut zero_amount_asks = Vec::new();
-            for (key, amount) in update.asks.iter() {
-                self.asks.insert(*key, *amount);
+        for update in updates.into_iter() {
+            Self::apply_update(&mut self.asks, &mut self.bids, update);
+        }
+    }
 
-                // Collect all keys with no amout to remove it later
-                if amount.is_zero() {
-                    zero_amount_asks.push(key);
-                }
+    pub(crate) fn apply_update(
+        asks: &mut SortedOrderData,
+        bids: &mut SortedOrderData,
+        update: OrderBookData,
+    ) {
+        Self::update_by_side(asks, update.asks);
+        Self::update_by_side(bids, update.bids);
+    }
+
+    fn update_by_side(snapshot: &mut SortedOrderData, update: SortedOrderData) {
+        for (key, amount) in update.into_iter() {
+            if amount.is_zero() {
+                let _ = snapshot.remove(&key);
+            } else {
+                let _ = snapshot.insert(key, amount);
             }
-
-            let mut zero_amount_bids = Vec::new();
-            for (key, amount) in update.bids.iter() {
-                self.bids.insert(*key, *amount);
-
-                // Collect all keys with no amout to remove it later
-                if amount.is_zero() {
-                    zero_amount_bids.push(key);
-                }
-            }
-
-            zero_amount_asks.iter_mut().for_each(|key| {
-                let _ = self.asks.remove(&key);
-            });
-
-            zero_amount_bids.iter_mut().for_each(|key| {
-                let _ = self.asks.remove(&key);
-            });
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rust_decimal_macros::*;
 
     #[test]
     fn update_asks() {
-        // Prepare data for updates
-        let mut update_asks = SortedOrderData::new();
-        update_asks.insert(dec!(1.0), dec!(2.0));
-        update_asks.insert(dec!(3.0), dec!(4.0));
-
-        let update_bids = SortedOrderData::new();
-
         // Create updates
-        let update = OrderBookData::new(update_asks, update_bids);
+        let update = order_book_data![
+            dec!(1.0) => dec!(2.0),
+            dec!(3.0) => dec!(4.0),
+            ;
+        ];
 
         let updates = vec![update];
 
         // Prepare updated object
-        let mut primary_asks = SortedOrderData::new();
-        let primary_bids = SortedOrderData::new();
-        primary_asks.insert(dec!(1.0), dec!(1.0));
-        primary_asks.insert(dec!(3.0), dec!(1.0));
-
-        let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
+        let mut main_order_data = order_book_data![
+            dec!(1.0) => dec!(1.0),
+            dec!(3.0) => dec!(1.0),
+            ;
+        ];
 
         main_order_data.update(updates);
 
@@ -97,25 +125,21 @@ mod tests {
 
     #[test]
     fn bids_update() {
-        // Prepare data for updates
-        let update_asks = SortedOrderData::new();
-
-        let mut update_bids = SortedOrderData::new();
-        update_bids.insert(dec!(1.0), dec!(2.2));
-        update_bids.insert(dec!(3.0), dec!(4.0));
-
         // Create updates
-        let update = OrderBookData::new(update_asks, update_bids);
+        let update = order_book_data![
+            ;
+            dec!(1.0) => dec!(2.2),
+            dec!(3.0) => dec!(4.0),
+        ];
 
         let updates = vec![update];
 
         // Prepare updated object
-        let primary_asks = SortedOrderData::new();
-        let mut primary_bids = SortedOrderData::new();
-        primary_bids.insert(dec!(1.0), dec!(1.0));
-        primary_bids.insert(dec!(3.0), dec!(1.0));
-
-        let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
+        let mut main_order_data = order_book_data![
+            ;
+            dec!(1.0) => dec!(1.0),
+            dec!(3.0) => dec!(1.0),
+        ];
 
         main_order_data.update(updates);
 
@@ -129,12 +153,11 @@ mod tests {
         let updates = Vec::new();
 
         // Prepare updated object
-        let primary_asks = SortedOrderData::new();
-        let mut primary_bids = SortedOrderData::new();
-        primary_bids.insert(dec!(1.0), dec!(1.0));
-        primary_bids.insert(dec!(3.0), dec!(1.0));
-
-        let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
+        let mut main_order_data = order_book_data![
+            ;
+            dec!(1.0) => dec!(1.0),
+            dec!(3.0) => dec!(1.0),
+        ];
 
         main_order_data.update(updates);
 
@@ -144,32 +167,28 @@ mod tests {
 
     #[test]
     fn several_updates() {
-        // Prepare data for updates
-        let mut first_update_asks = SortedOrderData::new();
-        first_update_asks.insert(dec!(1.0), dec!(2.0));
-        first_update_asks.insert(dec!(3.0), dec!(4.0));
-        let first_update_bids = SortedOrderData::new();
-
-        let mut second_update_asks = SortedOrderData::new();
-        second_update_asks.insert(dec!(1.0), dec!(2.8));
-        second_update_asks.insert(dec!(6.0), dec!(0));
-        let second_update_bids = SortedOrderData::new();
-
         // Create updates
-        let first_update = OrderBookData::new(first_update_asks, first_update_bids);
-        let second_update = OrderBookData::new(second_update_asks, second_update_bids);
+        let first_update = order_book_data![
+            dec!(1.0) => dec!(2.0),
+            dec!(3.0) => dec!(4.0),
+            ;
+        ];
+        let second_update = order_book_data![
+            dec!(1.0) => dec!(2.8),
+            dec!(6.0) => dec!(0),
+            ;
+        ];
 
         let updates = vec![first_update, second_update];
 
         // Prepare updated object
-        let mut primary_asks = SortedOrderData::new();
-        let primary_bids = SortedOrderData::new();
-        primary_asks.insert(dec!(1.0), dec!(1.0));
-        primary_asks.insert(dec!(2.0), dec!(5.6));
-        primary_asks.insert(dec!(3.0), dec!(1.0));
-        primary_asks.insert(dec!(6.0), dec!(1.0));
-
-        let mut main_order_data = OrderBookData::new(primary_asks, primary_bids);
+        let mut main_order_data = order_book_data![
+            dec!(1.0) => dec!(1.0),
+            dec!(2.0) => dec!(5.6),
+            dec!(3.0) => dec!(1.0),
+            dec!(6.0) => dec!(1.0),
+            ;
+        ];
 
         main_order_data.update(updates);
 

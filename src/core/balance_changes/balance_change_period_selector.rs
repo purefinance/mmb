@@ -46,17 +46,12 @@ impl BalanceChangePeriodSelector {
             balance_change.balance_change
         );
 
-        let trade_place = TradePlaceAccount::new(
-            balance_change.exchange_account_id.clone(),
-            balance_change.currency_pair.clone(),
-        );
-
         self.balance_changes_queues_by_trade_place
-            .entry(trade_place.clone())
+            .entry(balance_change.trade_place.clone())
             .or_default()
             .push_back(balance_change.clone());
 
-        self.synchronize_period(balance_change.change_date, &trade_place);
+        self.synchronize_period(balance_change.change_date, &balance_change.trade_place);
     }
 
     fn synchronize_period(
@@ -66,16 +61,13 @@ impl BalanceChangePeriodSelector {
     ) -> Option<PositionChange> {
         let start_of_period = now - self.period;
 
-        let balance_changes_queue = match self
+        let balance_changes_queue = self
             .balance_changes_queues_by_trade_place
             .get_mut(trade_place)
-        {
-            Some(balance_changes_queue) => balance_changes_queue,
-            None => {
+            .or_else(|| {
                 log::error!("Can't find queue for trade place {:?}", trade_place);
                 return None;
-            }
-        };
+            })?;
 
         let position_change_before_period = match &self.balance_manager {
             Some(balance_manager) => {
@@ -88,10 +80,11 @@ impl BalanceChangePeriodSelector {
                     start_of_period,
                     position_change
                 );
+
                 position_change
             }
             None => {
-                // keep all items for web
+                // if balance_manager isn't set we don't need to filter position_changes for web_server
                 log::info!(
                     "Balance changes list {} position_change is None",
                     start_of_period,
@@ -101,14 +94,12 @@ impl BalanceChangePeriodSelector {
         };
 
         while let Some(last_change) = balance_changes_queue.front() {
-            if position_change_before_period.is_none() && last_change.change_date >= start_of_period
-                || position_change_before_period.is_some()
-                    && last_change.client_order_fill_id
-                        == position_change_before_period
-                            .clone()
-                            .expect("position_change_before_period can't be None here")
-                            .client_order_fill_id
-            {
+            let should_skip_item = match position_change {
+                Some(ref change) => last_change.client_order_fill_id == change.client_order_fill_id,
+                None => last_change.change_date >= start_of_period,
+            };
+
+            if should_skip_item {
                 break;
             }
 

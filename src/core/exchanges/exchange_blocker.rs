@@ -299,7 +299,7 @@ impl ExchangeBlockerEventsProcessor {
                 let event = event.clone();
 
                 let action = async move {
-                    Self::run_handlers(&event, ExchangeBlockerMoment::Blocked, &ctx).await;
+                    Self::run_handlers(&event, Blocked, &ctx).await;
 
                     let is_unblock_requested =
                         blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |statuses| {
