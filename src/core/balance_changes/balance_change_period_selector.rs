@@ -94,7 +94,7 @@ impl BalanceChangePeriodSelector {
         };
 
         while let Some(last_change) = balance_changes_queue.front() {
-            let should_skip_item = match position_change {
+            let should_skip_item = match position_change_before_period {
                 Some(ref change) => last_change.client_order_fill_id == change.client_order_fill_id,
                 None => last_change.change_date >= start_of_period,
             };

@@ -421,8 +421,8 @@ impl From<&str> for ActivePositionId {
     }
 }
 
-impl fmt::Display for ActivePositionId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for ActivePositionId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
