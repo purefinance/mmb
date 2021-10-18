@@ -500,13 +500,12 @@ impl Support for Binance {
             .map(|x| {
                 let currency_pair = self
                     .get_unified_currency_pair(&x.specific_currency_pair)
-                    .expect(
+                    .with_expect(|| {
                         format!(
                             "Failed to get_unified_currency_pair for {:?}",
                             x.specific_currency_pair
                         )
-                        .as_str(),
-                    ); // TODO: grays add with_expect
+                    });
                 ActivePosition::new(DerivativePositionInfo::new(
                     currency_pair,
                     x.position_amount,

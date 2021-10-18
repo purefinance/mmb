@@ -4,6 +4,7 @@ use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadat
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
 use crate::core::orders::order::*;
+use crate::core::utils::get_current_milliseconds;
 use crate::core::DateTime;
 use crate::core::{
     exchanges::common::{CurrencyPair, RestRequestOutcome},
@@ -189,8 +190,15 @@ impl ExchangeClient for Binance {
     }
 
     async fn request_get_position(&self) -> Result<RestRequestOutcome> {
-        let url_path = "/api/v2/positionRisk";
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
+        let mut http_params = vec![(
+            "timestamp".to_string(),
+            get_current_milliseconds().to_string(),
+        )];
+
+        self.add_authentification_headers(&mut http_params)?;
+
+        let url_path = "/fapi/v2/positionRisk";
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
 
         self.rest_client.get(full_url, &self.settings.api_key).await
     }

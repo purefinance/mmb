@@ -10,8 +10,10 @@ use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::general::engine_api::EngineApi;
 
 use crate::core::{
-    exchanges::common::TradePlaceAccount, infrastructure::spawn_future_timed,
-    lifecycle::cancellation_token::CancellationToken, orders::order::OrderSide,
+    exchanges::common::TradePlaceAccount,
+    infrastructure::{spawn_future_timed, WithExpect},
+    lifecycle::cancellation_token::CancellationToken,
+    orders::order::OrderSide,
 };
 
 pub async fn close_position_if_needed(
@@ -47,5 +49,5 @@ pub async fn close_position_if_needed(
     let action_name = "Close active positions";
     spawn_future_timed(action_name, true, Duration::from_secs(30), action.boxed())
         .await
-        .expect(format!("Failed to run '{}'", action_name).as_str()); // TODO: grays fix me
+        .with_expect(|| format!("Failed to run '{}'", action_name));
 }

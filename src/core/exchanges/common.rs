@@ -431,9 +431,7 @@ impl Display for ActivePositionId {
 pub struct ActivePosition {
     pub id: ActivePositionId,
     pub status: StatusCode,
-    pub base: Decimal, // REVIEW: what is this?
     pub time_stamp: u128,
-    pub swap: Decimal, // REVIEW: what is this?
     pub pl: Amount,
     pub info: DerivativePositionInfo,
 }
@@ -443,9 +441,7 @@ impl ActivePosition {
         Self {
             id: ActivePositionId::unique_id(),
             status: StatusCode::default(),
-            base: dec!(0),
             time_stamp: 0,
-            swap: dec!(0),
             pl: dec!(0),
             info,
         }
