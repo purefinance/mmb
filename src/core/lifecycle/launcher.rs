@@ -76,7 +76,6 @@ where
     TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     init_logger();
-    //panic!("WOW");
 
     info!("*****************************");
     info!("TradingEngine starting");
@@ -226,7 +225,7 @@ where
     ) = match action_outcome {
         Ok(outcome) => outcome,
         Err(panic) => {
-            match panic.as_ref().downcast_ref::<&str>().clone() {
+            match panic.as_ref().downcast_ref::<String>().clone() {
                 Some(panic_message) => {
                     error!(
                         "Panic happend during EngineContext creation: {}",
@@ -241,7 +240,7 @@ where
         }
     }?;
 
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
+    let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
             &engine_context,
             events_sender,
@@ -254,10 +253,10 @@ where
         )
     }));
 
-    match result {
+    match action_outcome {
         Ok(trading_engine) => trading_engine,
         Err(panic) => {
-            match panic.as_ref().downcast_ref::<&str>().clone() {
+            match panic.as_ref().downcast_ref::<String>().clone() {
                 Some(panic_message) => {
                     error!(
                         "Panic happend during TradingEngine creation: {}",
