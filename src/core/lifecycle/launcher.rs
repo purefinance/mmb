@@ -226,12 +226,14 @@ where
         match panic.as_ref().downcast_ref::<String>().clone() {
             Some(panic_message) => {
                 log::error!(
-                    "Panic happend during EngineContext creation: {}",
+                    "Panic happened during EngineContext initialization: {}",
                     panic_message
                 );
             }
             None => {
-                log::error!("Panic happend during EngineContext creation without readable message")
+                log::error!(
+                    "Panic happened during EngineContext initialization without readable message"
+                )
             }
         }
         bail!("Panic during EnginContext creation")
