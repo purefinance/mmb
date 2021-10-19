@@ -29,6 +29,7 @@ use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use log::info;
 use serde::{Deserialize, Serialize};
+use std::any::Any;
 use std::collections::HashMap;
 use std::convert::identity;
 use std::panic::{self, AssertUnwindSafe};
@@ -130,11 +131,10 @@ where
 }
 
 fn run_services<'a, TStrategySettings>(
-    engine_context: &Arc<EngineContext>,
+    engine_context: Arc<EngineContext>,
     events_sender: broadcast::Sender<ExchangeEvent>,
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     settings: AppSettings<TStrategySettings>,
-    application_manager: &Arc<ApplicationManager>,
     exchanges_map: DashMap<ExchangeAccountId, Arc<Exchange>>,
     build_strategy: impl Fn(
         &AppSettings<TStrategySettings>,
@@ -157,7 +157,7 @@ where
     let control_panel = ControlPanel::new(
         "127.0.0.1:8080",
         toml::Value::try_from(settings.clone())?.to_string(),
-        application_manager.clone(),
+        engine_context.application_manager.clone(),
         statistic_service.clone(),
     );
     engine_context
@@ -196,6 +196,17 @@ where
     ))
 }
 
+fn handle_panic(panic: Box<dyn Any + Send>, message_template: &str) {
+    match panic.as_ref().downcast_ref::<String>().clone() {
+        Some(panic_message) => {
+            log::error!("{}: {}", message_template, panic_message);
+        }
+        None => {
+            log::error!("{} without readable message", message_template)
+        }
+    }
+}
+
 pub async fn launch_trading_engine<'a, TStrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<TStrategySettings>,
@@ -223,29 +234,18 @@ where
         engine_context,
         finish_graceful_shutdown_rx,
     ) = action_outcome.unwrap_or_else(|panic| {
-        match panic.as_ref().downcast_ref::<String>().clone() {
-            Some(panic_message) => {
-                log::error!(
-                    "Panic happened during EngineContext initialization: {}",
-                    panic_message
-                );
-            }
-            None => {
-                log::error!(
-                    "Panic happened during EngineContext initialization without readable message"
-                )
-            }
-        }
-        bail!("Panic during EnginContext creation")
+        let message_template = "Panic happened during EngineContext initialization";
+        handle_panic(panic, message_template);
+
+        bail!(message_template)
     })?;
 
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
-            &engine_context,
+            engine_context,
             events_sender,
             events_receiver,
             settings,
-            &application_manager,
             exchanges_map,
             build_strategy,
             finish_graceful_shutdown_rx,
@@ -253,21 +253,12 @@ where
     }));
 
     action_outcome.unwrap_or_else(|panic| {
-        match panic.as_ref().downcast_ref::<String>().clone() {
-            Some(panic_message) => {
-                log::error!(
-                    "Panic happend during TradingEngine creation: {}",
-                    panic_message
-                );
-            }
-            None => {
-                log::error!("Panic happend during TradingEngine creation without readable message")
-            }
-        }
+        let message_template = "Panic happened during TradingEngine creation";
+        handle_panic(panic, message_template);
 
         application_manager
             .spawn_graceful_shutdown("Panic during TradeingEngine creation".to_owned());
-        bail!("Panic during EnginContext creation")
+        bail!(message_template)
     })
 }
 
