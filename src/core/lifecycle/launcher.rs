@@ -68,7 +68,6 @@ async fn before_enging_context_init<'a, TStrategySettings>(
     broadcast::Sender<ExchangeEvent>,
     broadcast::Receiver<ExchangeEvent>,
     AppSettings<TStrategySettings>,
-    Arc<ApplicationManager>,
     DashMap<ExchangeAccountId, Arc<Exchange>>,
     Arc<EngineContext>,
     oneshot::Receiver<()>,
@@ -123,7 +122,6 @@ where
         events_sender,
         events_receiver,
         settings,
-        application_manager,
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
@@ -229,7 +227,6 @@ where
         events_sender,
         events_receiver,
         settings,
-        application_manager,
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
@@ -242,7 +239,7 @@ where
 
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
-            engine_context,
+            engine_context.clone(),
             events_sender,
             events_receiver,
             settings,
@@ -256,7 +253,9 @@ where
         let message_template = "Panic happened during TradingEngine creation";
         handle_panic(panic, message_template);
 
-        application_manager
+        engine_context
+            .application_manager
+            .clone()
             .spawn_graceful_shutdown("Panic during TradeingEngine creation".to_owned());
         bail!(message_template)
     })
