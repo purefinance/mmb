@@ -35,7 +35,7 @@ impl BalanceChangeUsdPeriodicCalculator {
         })
     }
 
-    pub fn add_balance_change(self: Arc<Self>, balance_change: &ProfitLossBalanceChange) {
+    pub fn add_balance_change(&self, balance_change: &ProfitLossBalanceChange) {
         self.balance_change_period_selector
             .lock()
             .add(balance_change);
@@ -43,7 +43,7 @@ impl BalanceChangeUsdPeriodicCalculator {
 
     // TODO: fix when DatabaseManager will be added
     pub async fn load_data(
-        self: Arc<Self>,
+        &self,
         // database_manager: DatabaseManager,
         _cancellation_token: CancellationToken,
     ) {

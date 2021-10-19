@@ -72,7 +72,7 @@ struct BinancePosition {
     pub liquidation_price: Price,
     pub leverage: Decimal,
     #[serde(rename = "PositionSide")]
-    pub position_side: OrderSide,
+    pub position_side: Decimal,
 }
 
 #[async_trait]
@@ -506,14 +506,22 @@ impl Support for Binance {
                             x.specific_currency_pair
                         )
                     });
-                ActivePosition::new(DerivativePositionInfo::new(
+
+                let side = match x.position_side > dec!(0) {
+                    true => OrderSide::Buy,
+                    false => OrderSide::Sell,
+                };
+
+                let derivative_position_info = DerivativePositionInfo::new(
                     currency_pair,
                     x.position_amount,
-                    Some(x.position_side),
+                    Some(side),
                     dec!(0),
                     x.liquidation_price,
                     x.leverage,
-                ))
+                );
+
+                ActivePosition::new(derivative_position_info)
             })
             .collect_vec();
 

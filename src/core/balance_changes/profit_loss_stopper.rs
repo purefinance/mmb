@@ -23,6 +23,8 @@ use crate::core::{
 
 use super::balance_change_usd_periodic_calculator::BalanceChangeUsdPeriodicCalculator;
 
+static BLOCK_REASON: BlockReason = BlockReason::new("ProfitLossExceeded");
+
 pub(crate) struct ProfitLossStopper {
     limit: Amount,
     target_trade_place: TradePlaceAccount,
@@ -76,17 +78,16 @@ impl ProfitLossStopper {
         let target_exchange_account_id = self.target_trade_place.exchange_account_id.clone();
 
         if usd_change <= -self.limit {
-            position_helper::close_position_if_needed(
+            let _ = position_helper::close_position_if_needed(
                 &self.target_trade_place,
                 self.balance_manager.clone(),
                 self.engine_api.clone(),
                 cancellation_token,
-            )
-            .await; // REVIEW: await here is correct?
+            );
 
             if self
                 .exchange_blocker
-                .is_blocked_by_reason(&target_exchange_account_id, Self::block_reason())
+                .is_blocked_by_reason(&target_exchange_account_id, BLOCK_REASON)
             {
                 return;
             }
@@ -100,13 +101,13 @@ impl ProfitLossStopper {
 
             self.exchange_blocker.block(
                 &target_exchange_account_id,
-                Self::block_reason(),
+                BLOCK_REASON,
                 BlockType::Manual,
             );
         } else {
             if !self
                 .exchange_blocker
-                .is_blocked_by_reason(&target_exchange_account_id, Self::block_reason())
+                .is_blocked_by_reason(&target_exchange_account_id, BLOCK_REASON)
             {
                 return;
             }
@@ -119,12 +120,8 @@ impl ProfitLossStopper {
             );
 
             self.exchange_blocker
-                .unblock(&target_exchange_account_id, Self::block_reason());
+                .unblock(&target_exchange_account_id, BLOCK_REASON);
         }
-    }
-
-    pub fn block_reason() -> BlockReason {
-        BlockReason::new("ProfitLossExceeded")
     }
 }
 

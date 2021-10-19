@@ -97,7 +97,7 @@ impl ProfitLossStopperService {
         cancellation_token: CancellationToken,
     ) {
         let futures = self.usd_periodic_calculators.iter().map(|x| {
-            x.clone().load_data(
+            x.load_data(
                 // database_manager: DatabaseManager,
                 cancellation_token.clone(),
             )

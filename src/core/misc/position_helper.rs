@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Duration};
 use futures::FutureExt;
 use mockall_double::double;
 use parking_lot::Mutex;
+use tokio::task::JoinHandle;
 
 #[double]
 use crate::core::balance_manager::balance_manager::BalanceManager;
@@ -11,17 +12,17 @@ use crate::core::exchanges::general::engine_api::EngineApi;
 
 use crate::core::{
     exchanges::common::TradePlaceAccount,
-    infrastructure::{spawn_future_timed, WithExpect},
+    infrastructure::{spawn_future_timed, FutureOutcome},
     lifecycle::cancellation_token::CancellationToken,
     orders::order::OrderSide,
 };
 
-pub async fn close_position_if_needed(
+pub fn close_position_if_needed(
     trade_place: &TradePlaceAccount,
     balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     engine_api: Arc<EngineApi>,
     cancellation_token: CancellationToken,
-) {
+) -> Option<JoinHandle<FutureOutcome>> {
     match balance_manager {
         Some(balance_manager) => {
             if balance_manager
@@ -33,10 +34,10 @@ pub async fn close_position_if_needed(
                 )
                 .is_zero()
             {
-                return;
+                return None;
             }
         }
-        None => return,
+        None => return None,
     }
 
     let action = async move {
@@ -47,7 +48,10 @@ pub async fn close_position_if_needed(
     };
 
     let action_name = "Close active positions";
-    spawn_future_timed(action_name, true, Duration::from_secs(30), action.boxed())
-        .await
-        .with_expect(|| format!("Failed to run '{}'", action_name));
+    Some(spawn_future_timed(
+        action_name,
+        true,
+        Duration::from_secs(30),
+        action.boxed(),
+    ))
 }
