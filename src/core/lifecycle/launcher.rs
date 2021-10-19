@@ -27,7 +27,7 @@ use anyhow::{bail, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
-use log::{error, info};
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::identity;
@@ -175,7 +175,7 @@ where
     }
 
     if let Err(error) = control_panel.clone().start() {
-        error!("Unable to start rest api: {}", error);
+        log::error!("Unable to start rest api: {}", error);
     }
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
@@ -222,23 +222,20 @@ where
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
-    ) = match action_outcome {
-        Ok(outcome) => outcome,
-        Err(panic) => {
-            match panic.as_ref().downcast_ref::<String>().clone() {
-                Some(panic_message) => {
-                    error!(
-                        "Panic happend during EngineContext creation: {}",
-                        panic_message
-                    );
-                }
-                None => {
-                    error!("Panic happend during EngineContext creation without readable message")
-                }
+    ) = action_outcome.unwrap_or_else(|panic| {
+        match panic.as_ref().downcast_ref::<String>().clone() {
+            Some(panic_message) => {
+                log::error!(
+                    "Panic happend during EngineContext creation: {}",
+                    panic_message
+                );
             }
-            bail!("Panic during EnginContext creation")
+            None => {
+                log::error!("Panic happend during EngineContext creation without readable message")
+            }
         }
-    }?;
+        bail!("Panic during EnginContext creation")
+    })?;
 
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
@@ -253,27 +250,23 @@ where
         )
     }));
 
-    match action_outcome {
-        Ok(trading_engine) => trading_engine,
-        Err(panic) => {
-            match panic.as_ref().downcast_ref::<String>().clone() {
-                Some(panic_message) => {
-                    error!(
-                        "Panic happend during TradingEngine creation: {}",
-                        panic_message
-                    );
-                }
-                None => {
-                    error!("Panic happend during TradingEngine creation without readable message")
-                }
+    action_outcome.unwrap_or_else(|panic| {
+        match panic.as_ref().downcast_ref::<String>().clone() {
+            Some(panic_message) => {
+                log::error!(
+                    "Panic happend during TradingEngine creation: {}",
+                    panic_message
+                );
             }
-
-            application_manager
-                .run_graceful_shutdown("Panic during TradeingEngine creation")
-                .await;
-            bail!("Panic during EnginContext creation")
+            None => {
+                log::error!("Panic happend during TradingEngine creation without readable message")
+            }
         }
-    }
+
+        application_manager
+            .spawn_graceful_shutdown("Panic during TradeingEngine creation".to_owned());
+        bail!("Panic during EnginContext creation")
+    })
 }
 
 fn create_disposition_executor_service(
