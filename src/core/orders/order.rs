@@ -3,13 +3,12 @@ use std::fmt::{Display, Formatter};
 use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::vec::Vec;
 
 use chrono::Utc;
 use enum_map::Enum;
 use itertools::Itertools;
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
@@ -19,6 +18,7 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
+use crate::core::utils::get_atomic_current_secs;
 use crate::core::DateTime;
 
 type String16 = SmallString<[u8; 16]>;
@@ -107,16 +107,7 @@ pub enum OrderExecutionType {
 #[serde(transparent)]
 pub struct ClientOrderId(String16);
 
-lazy_static! {
-    static ref CLIENT_ORDER_ID_COUNTER: AtomicU64 = {
-        AtomicU64::new(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Failed to get system time since UNIX_EPOCH")
-                .as_secs(),
-        )
-    };
-}
+static CLIENT_ORDER_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| get_atomic_current_secs());
 
 impl ClientOrderId {
     pub fn unique_id() -> Self {
@@ -155,16 +146,7 @@ impl Display for ClientOrderId {
 #[serde(transparent)]
 pub struct ClientOrderFillId(String16);
 
-lazy_static! {
-    static ref CLIENT_ORDER_FILL_ID_COUNTER: AtomicU64 = {
-        AtomicU64::new(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Failed to get system time since UNIX_EPOCH")
-                .as_secs(),
-        )
-    };
-}
+static CLIENT_ORDER_FILL_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| get_atomic_current_secs());
 
 impl ClientOrderFillId {
     pub fn unique_id() -> Self {

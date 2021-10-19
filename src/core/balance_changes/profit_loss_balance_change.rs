@@ -1,31 +1,20 @@
-use std::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 
 use crate::core::{
     balance_manager::balance_request::BalanceRequest,
     exchanges::common::{Amount, CurrencyCode, ExchangeId, Price, TradePlaceAccount},
     orders::order::ClientOrderFillId,
+    utils::get_atomic_current_secs,
     DateTime,
 };
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct ProfitLossBalanceChangeId(u64);
 
-lazy_static! {
-    static ref PROFIT_LOSS_BALANCE_CHANGE_ID: AtomicU64 = {
-        AtomicU64::new(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("Failed to get system time since UNIX_EPOCH")
-                .as_secs(),
-        )
-    };
-}
+static PROFIT_LOSS_BALANCE_CHANGE_ID: Lazy<AtomicU64> = Lazy::new(|| get_atomic_current_secs());
 
 impl ProfitLossBalanceChangeId {
     pub fn generate() -> Self {
