@@ -23,7 +23,7 @@ use crate::core::{
 use crate::hashmap;
 use crate::rest_api::control_panel::ControlPanel;
 use crate::strategies::disposition_strategy::DispositionStrategy;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
@@ -215,16 +215,11 @@ pub(crate) fn unwrap_or_handle_panic<T>(
     message_template: &str,
     application_manager: Option<Arc<ApplicationManager>>,
 ) -> Result<T> {
-    let action_outcome = match action_outcome {
-        Ok(action_outcome) => action_outcome,
-        Err(panic) => {
-            handle_panic(application_manager, panic, message_template);
+    action_outcome.map_err(|panic| {
+        handle_panic(application_manager, panic, message_template);
 
-            bail!(message_template.to_owned())
-        }
-    };
-
-    Ok(action_outcome)
+        anyhow!(message_template.to_owned())
+    })
 }
 
 pub async fn launch_trading_engine<'a, StrategySettings>(
