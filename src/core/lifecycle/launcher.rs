@@ -53,27 +53,27 @@ impl EngineBuildConfig {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum InitSettings<TStrategySettings>
+pub enum InitSettings<StrategySettings>
 where
-    TStrategySettings: BaseStrategySettings + Clone,
+    StrategySettings: BaseStrategySettings + Clone,
 {
-    Directly(AppSettings<TStrategySettings>),
+    Directly(AppSettings<StrategySettings>),
     Load(String, String),
 }
 
-async fn before_enging_context_init<'a, TStrategySettings>(
+async fn before_enging_context_init<'a, StrategySettings>(
     build_settings: &EngineBuildConfig,
-    init_user_settings: InitSettings<TStrategySettings>,
+    init_user_settings: InitSettings<StrategySettings>,
 ) -> Result<(
     broadcast::Sender<ExchangeEvent>,
     broadcast::Receiver<ExchangeEvent>,
-    AppSettings<TStrategySettings>,
+    AppSettings<StrategySettings>,
     DashMap<ExchangeAccountId, Arc<Exchange>>,
     Arc<EngineContext>,
     oneshot::Receiver<()>,
 )>
 where
-    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     init_logger();
 
@@ -83,7 +83,7 @@ where
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
         InitSettings::Load(config_path, credentials_path) => {
-            load_settings::<TStrategySettings>(&config_path, &credentials_path)?
+            load_settings::<StrategySettings>(&config_path, &credentials_path)?
         }
     };
 
@@ -128,20 +128,20 @@ where
     ))
 }
 
-fn run_services<'a, TStrategySettings>(
+fn run_services<'a, StrategySettings>(
     engine_context: Arc<EngineContext>,
     events_sender: broadcast::Sender<ExchangeEvent>,
     events_receiver: broadcast::Receiver<ExchangeEvent>,
-    settings: AppSettings<TStrategySettings>,
+    settings: AppSettings<StrategySettings>,
     exchanges_map: DashMap<ExchangeAccountId, Arc<Exchange>>,
     build_strategy: impl Fn(
-        &AppSettings<TStrategySettings>,
+        &AppSettings<StrategySettings>,
         Arc<EngineContext>,
     ) -> Box<dyn DispositionStrategy + 'static>,
     finish_graceful_shutdown_rx: oneshot::Receiver<()>,
 ) -> Result<TradingEngine>
 where
-    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     let internal_events_loop = InternalEventsLoop::new();
     engine_context
@@ -194,27 +194,32 @@ where
     ))
 }
 
-fn handle_panic(panic: Box<dyn Any + Send>, message_template: &str) {
+pub(crate) fn handle_panic(
+    application_manager: Option<Arc<ApplicationManager>>,
+    panic: Box<dyn Any + Send>,
+    message_template: &str,
+) {
     match panic.as_ref().downcast_ref::<String>().clone() {
-        Some(panic_message) => {
-            log::error!("{}: {}", message_template, panic_message);
-        }
-        None => {
-            log::error!("{} without readable message", message_template)
-        }
+        Some(panic_message) => log::error!("{}: {}", message_template, panic_message),
+        None => log::error!("{} without readable message", message_template),
+    }
+
+    if let Some(application_manager) = application_manager {
+        application_manager
+            .spawn_graceful_shutdown("Panic during TradeingEngine creation".to_owned());
     }
 }
 
-pub async fn launch_trading_engine<'a, TStrategySettings>(
+pub async fn launch_trading_engine<'a, StrategySettings>(
     build_settings: &EngineBuildConfig,
-    init_user_settings: InitSettings<TStrategySettings>,
+    init_user_settings: InitSettings<StrategySettings>,
     build_strategy: impl Fn(
-        &AppSettings<TStrategySettings>,
+        &AppSettings<StrategySettings>,
         Arc<EngineContext>,
     ) -> Box<dyn DispositionStrategy + 'static>,
 ) -> Result<TradingEngine>
 where
-    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     let action_outcome = AssertUnwindSafe(before_enging_context_init(
         build_settings,
@@ -232,7 +237,7 @@ where
         finish_graceful_shutdown_rx,
     ) = action_outcome.unwrap_or_else(|panic| {
         let message_template = "Panic happened during EngineContext initialization";
-        handle_panic(panic, message_template);
+        handle_panic(None, panic, message_template);
 
         bail!(message_template)
     })?;
@@ -251,12 +256,12 @@ where
 
     action_outcome.unwrap_or_else(|panic| {
         let message_template = "Panic happened during TradingEngine creation";
-        handle_panic(panic, message_template);
+        handle_panic(
+            Some(engine_context.application_manager.clone()),
+            panic,
+            message_template,
+        );
 
-        engine_context
-            .application_manager
-            .clone()
-            .spawn_graceful_shutdown("Panic during TradeingEngine creation".to_owned());
         bail!(message_template)
     })
 }
