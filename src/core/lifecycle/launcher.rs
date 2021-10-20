@@ -1,4 +1,4 @@
-use crate::core::exchanges::common::ExchangeId;
+use crate::core::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
@@ -23,14 +23,16 @@ use crate::core::{
 use crate::hashmap;
 use crate::rest_api::control_panel::ControlPanel;
 use crate::strategies::disposition_strategy::DispositionStrategy;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
-use log::{error, info};
+use log::info;
 use serde::{Deserialize, Serialize};
+use std::any::Any;
 use std::collections::HashMap;
 use std::convert::identity;
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 use tokio::sync::{broadcast, oneshot};
 
@@ -51,24 +53,27 @@ impl EngineBuildConfig {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum InitSettings<TStrategySettings>
+pub enum InitSettings<StrategySettings>
 where
-    TStrategySettings: BaseStrategySettings + Clone,
+    StrategySettings: BaseStrategySettings + Clone,
 {
-    Directly(AppSettings<TStrategySettings>),
+    Directly(AppSettings<StrategySettings>),
     Load(String, String),
 }
 
-pub async fn launch_trading_engine<'a, TStrategySettings>(
+async fn before_enging_context_init<'a, StrategySettings>(
     build_settings: &EngineBuildConfig,
-    init_user_settings: InitSettings<TStrategySettings>,
-    build_strategy: impl Fn(
-        &AppSettings<TStrategySettings>,
-        Arc<EngineContext>,
-    ) -> Box<dyn DispositionStrategy + 'static>,
-) -> Result<TradingEngine>
+    init_user_settings: InitSettings<StrategySettings>,
+) -> Result<(
+    broadcast::Sender<ExchangeEvent>,
+    broadcast::Receiver<ExchangeEvent>,
+    AppSettings<StrategySettings>,
+    DashMap<ExchangeAccountId, Arc<Exchange>>,
+    Arc<EngineContext>,
+    oneshot::Receiver<()>,
+)>
 where
-    TStrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
     init_logger();
 
@@ -78,7 +83,7 @@ where
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
         InitSettings::Load(config_path, credentials_path) => {
-            load_settings::<TStrategySettings>(&config_path, &credentials_path)?
+            load_settings::<StrategySettings>(&config_path, &credentials_path)?
         }
     };
 
@@ -113,7 +118,35 @@ where
         application_manager.clone(),
     );
 
+    Ok((
+        events_sender,
+        events_receiver,
+        settings,
+        exchanges_map,
+        engine_context,
+        finish_graceful_shutdown_rx,
+    ))
+}
+
+fn run_services<'a, StrategySettings>(
+    engine_context: Arc<EngineContext>,
+    events_sender: broadcast::Sender<ExchangeEvent>,
+    events_receiver: broadcast::Receiver<ExchangeEvent>,
+    settings: AppSettings<StrategySettings>,
+    exchanges_map: DashMap<ExchangeAccountId, Arc<Exchange>>,
+    build_strategy: impl Fn(
+        &AppSettings<StrategySettings>,
+        Arc<EngineContext>,
+    ) -> Box<dyn DispositionStrategy + 'static>,
+    finish_graceful_shutdown_rx: oneshot::Receiver<()>,
+) -> Result<TradingEngine>
+where
+    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+{
     let internal_events_loop = InternalEventsLoop::new();
+    engine_context
+        .shutdown_service
+        .register_service(internal_events_loop.clone());
 
     let exchange_events = ExchangeEvents::new(events_sender.clone());
     let statistic_service = StatisticService::new();
@@ -122,9 +155,12 @@ where
     let control_panel = ControlPanel::new(
         "127.0.0.1:8080",
         toml::Value::try_from(settings.clone())?.to_string(),
-        application_manager,
+        engine_context.application_manager.clone(),
         statistic_service.clone(),
     );
+    engine_context
+        .shutdown_service
+        .register_service(control_panel.clone());
 
     {
         let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();
@@ -137,7 +173,7 @@ where
     }
 
     if let Err(error) = control_panel.clone().start() {
-        error!("Unable to start rest api: {}", error);
+        log::error!("Unable to start rest api: {}", error);
     }
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
@@ -147,18 +183,91 @@ where
         disposition_strategy,
         &statistic_event_handler.stats,
     );
-
-    engine_context.shutdown_service.register_services(&[
-        control_panel,
-        internal_events_loop,
-        disposition_executor_service,
-    ]);
+    engine_context
+        .shutdown_service
+        .register_service(disposition_executor_service);
 
     info!("TradingEngine started");
     Ok(TradingEngine::new(
-        engine_context,
+        engine_context.clone(),
         finish_graceful_shutdown_rx,
     ))
+}
+
+pub(crate) fn handle_panic(
+    application_manager: Option<Arc<ApplicationManager>>,
+    panic: Box<dyn Any + Send>,
+    message_template: &str,
+) {
+    match panic.as_ref().downcast_ref::<String>().clone() {
+        Some(panic_message) => log::error!("{}: {}", message_template, panic_message),
+        None => log::error!("{} without readable message", message_template),
+    }
+
+    if let Some(application_manager) = application_manager {
+        application_manager
+            .spawn_graceful_shutdown("Panic during TradeingEngine creation".to_owned());
+    }
+}
+
+pub(crate) fn unwrap_or_handle_panic<T>(
+    action_outcome: Result<T, Box<dyn Any + Send>>,
+    message_template: &str,
+    application_manager: Option<Arc<ApplicationManager>>,
+) -> Result<T> {
+    action_outcome.map_err(|panic| {
+        handle_panic(application_manager, panic, message_template);
+
+        anyhow!(message_template.to_owned())
+    })
+}
+
+pub async fn launch_trading_engine<'a, StrategySettings>(
+    build_settings: &EngineBuildConfig,
+    init_user_settings: InitSettings<StrategySettings>,
+    build_strategy: impl Fn(
+        &AppSettings<StrategySettings>,
+        Arc<EngineContext>,
+    ) -> Box<dyn DispositionStrategy + 'static>,
+) -> Result<TradingEngine>
+where
+    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+{
+    let action_outcome = AssertUnwindSafe(before_enging_context_init(
+        build_settings,
+        init_user_settings,
+    ))
+    .catch_unwind()
+    .await;
+
+    let message_template = "Panic happened during EngineContext initialization";
+    let (
+        events_sender,
+        events_receiver,
+        settings,
+        exchanges_map,
+        engine_context,
+        finish_graceful_shutdown_rx,
+    ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
+
+    let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
+        run_services(
+            engine_context.clone(),
+            events_sender,
+            events_receiver,
+            settings,
+            exchanges_map,
+            build_strategy,
+            finish_graceful_shutdown_rx,
+        )
+    }));
+
+    let message_template = "Panic happened during TradingEngine creation";
+    unwrap_or_handle_panic(
+        action_outcome,
+        message_template,
+        Some(engine_context.application_manager.clone()),
+    )?
 }
 
 fn create_disposition_executor_service(
