@@ -210,6 +210,23 @@ pub(crate) fn handle_panic(
     }
 }
 
+fn unwrap_or_handle_panic<T>(
+    action_outcome: Result<T, Box<dyn Any + Send>>,
+    message_template: &str,
+    application_manager: Option<Arc<ApplicationManager>>,
+) -> Result<T> {
+    let action_outcome = match action_outcome {
+        Ok(action_outcome) => action_outcome,
+        Err(panic) => {
+            handle_panic(application_manager, panic, message_template);
+
+            bail!(message_template.to_owned())
+        }
+    };
+
+    Ok(action_outcome)
+}
+
 pub async fn launch_trading_engine<'a, StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
@@ -228,6 +245,7 @@ where
     .catch_unwind()
     .await;
 
+    let message_template = "Panic happened during EngineContext initialization";
     let (
         events_sender,
         events_receiver,
@@ -235,12 +253,7 @@ where
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
-    ) = action_outcome.unwrap_or_else(|panic| {
-        let message_template = "Panic happened during EngineContext initialization";
-        handle_panic(None, panic, message_template);
-
-        bail!(message_template)
-    })?;
+    ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
 
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
@@ -254,16 +267,12 @@ where
         )
     }));
 
-    action_outcome.unwrap_or_else(|panic| {
-        let message_template = "Panic happened during TradingEngine creation";
-        handle_panic(
-            Some(engine_context.application_manager.clone()),
-            panic,
-            message_template,
-        );
-
-        bail!(message_template)
-    })
+    let message_template = "Panic happened during TradingEngine creation";
+    unwrap_or_handle_panic(
+        action_outcome,
+        message_template,
+        Some(engine_context.application_manager.clone()),
+    )?
 }
 
 fn create_disposition_executor_service(
