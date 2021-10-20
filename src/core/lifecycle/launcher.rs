@@ -34,6 +34,7 @@ use std::collections::HashMap;
 use std::convert::identity;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
+use tokio::signal;
 use tokio::sync::{broadcast, oneshot};
 
 pub struct EngineBuildConfig {
@@ -249,6 +250,19 @@ where
         engine_context,
         finish_graceful_shutdown_rx,
     ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
+
+    let cloned_application_manager = engine_context.application_manager.clone();
+
+    let action = async move {
+        signal::ctrl_c().await.expect("failed to listen for event");
+
+        log::info!("Ctrl-C signal was received so graceful_shutdown started");
+        cloned_application_manager.spawn_graceful_shutdown("Ctrl-C signal was received".to_owned());
+
+        Ok(())
+    };
+
+    let _ = spawn_future("Start Ctrl-C handler", true, action.boxed());
 
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
