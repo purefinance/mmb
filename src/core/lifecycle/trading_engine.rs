@@ -1,4 +1,3 @@
-use anyhow::bail;
 use futures::FutureExt;
 use std::panic;
 use std::panic::AssertUnwindSafe;
@@ -29,7 +28,7 @@ use crate::core::{
 };
 use parking_lot::Mutex;
 
-use super::launcher::handle_panic;
+use super::launcher::unwrap_or_handle_panic;
 
 pub trait Service: Send + Sync + 'static {
     fn name(&self) -> &str;
@@ -173,16 +172,14 @@ impl TradingEngine {
     }
 
     pub async fn run(self) {
-        let application_manager = self.context.application_manager.clone();
-
-        let _ = AssertUnwindSafe(self.finished_graceful_shutdown)
+        let action_outcome = AssertUnwindSafe(self.finished_graceful_shutdown)
             .catch_unwind()
-            .await
-            .or_else(|panic| {
-                let message_template = "Panic happened while TradingEngine was run";
-                handle_panic(Some(application_manager), panic, message_template);
+            .await;
 
-                bail!(message_template)
-            });
+        let _ = unwrap_or_handle_panic(
+            action_outcome,
+            "Panic happened while TradingEngine was run",
+            Some(self.context.application_manager.clone()),
+        );
     }
 }

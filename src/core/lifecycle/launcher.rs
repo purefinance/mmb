@@ -210,7 +210,7 @@ pub(crate) fn handle_panic(
     }
 }
 
-fn unwrap_or_handle_panic<T>(
+pub(crate) fn unwrap_or_handle_panic<T>(
     action_outcome: Result<T, Box<dyn Any + Send>>,
     message_template: &str,
     application_manager: Option<Arc<ApplicationManager>>,
