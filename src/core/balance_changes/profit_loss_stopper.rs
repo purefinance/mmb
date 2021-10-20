@@ -67,7 +67,7 @@ impl ProfitLossStopper {
         let period = self.usd_periodic_calculator.period();
 
         log::info!(
-            "ProfitLossStopper:check() {}: {} (limit {})",
+            "ProfitLossStopper::check() {}: {} (limit {})",
             period,
             usd_change,
             self.limit
@@ -143,6 +143,7 @@ mod test {
     use crate::core::{
         balance_changes::{
             balance_change_usd_periodic_calculator::BalanceChangeUsdPeriodicCalculator,
+            balance_changes_accumulator::BalanceChangeAccumulator,
             profit_loss_balance_change::{ProfitLossBalanceChange, ProfitLossBalanceChangeId},
         },
         balance_manager::position_change::PositionChange,
@@ -312,7 +313,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(2),
                 time_manager::now(),
@@ -327,7 +327,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(3),
                 time_manager::now(),
@@ -347,7 +346,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(1),
                 time_manager::now() - (max_period() + Duration::seconds(1)),
@@ -356,7 +354,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(2),
                 time_manager::now(),
@@ -392,7 +389,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(-8),
                 time_manager::now(),
@@ -406,7 +402,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(-3),
                 time_manager::now(),
@@ -452,7 +447,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(-8),
                 time_manager::now(),
@@ -466,7 +460,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(-3),
                 time_manager::now(),
@@ -480,7 +473,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(2),
                 time_manager::now(),
@@ -528,7 +520,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(-8),
                 time_manager::now(),
@@ -542,7 +533,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(-3),
                 time_manager::now(),
@@ -611,7 +601,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(-8),
                 time_manager::now(),
@@ -627,7 +616,6 @@ mod test {
 
         context
             .balance_change_usd_periodic_calculator
-            .clone()
             .add_balance_change(&create_balance_change(
                 dec!(-3),
                 time_manager::now(),

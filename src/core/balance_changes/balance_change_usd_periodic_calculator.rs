@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use chrono::Duration;
 use futures::future::join_all;
 use itertools::Itertools;
@@ -13,7 +14,8 @@ use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
 use crate::core::{
     balance_changes::{
-        profit_balance_changes_calculator, profit_loss_balance_change::ProfitLossBalanceChange,
+        balance_changes_accumulator::BalanceChangeAccumulator, profit_balance_changes_calculator,
+        profit_loss_balance_change::ProfitLossBalanceChange,
     },
     exchanges::common::{Amount, TradePlaceAccount},
     lifecycle::cancellation_token::CancellationToken,
@@ -33,32 +35,6 @@ impl BalanceChangeUsdPeriodicCalculator {
                 balance_manager,
             ),
         })
-    }
-
-    pub fn add_balance_change(self: Arc<Self>, balance_change: &ProfitLossBalanceChange) {
-        self.balance_change_period_selector
-            .lock()
-            .add(balance_change);
-    }
-
-    // TODO: fix when DatabaseManager will be added
-    pub async fn load_data(
-        self: Arc<Self>,
-        // database_manager: DatabaseManager,
-        _cancellation_token: CancellationToken,
-    ) {
-        //             await using var session = databaseManager.Sql;
-
-        //             var fromDate = _dateTimeService.UtcNow - Period;
-        //             var balanceChanges = await session.Set<ProfitLossBalanceChange>()
-        //                 .Where(x => x.DateTime >= fromDate)
-        //                 .OrderBy(x => x.DateTime)
-        //                 .ToListAsync(cancellationToken);
-
-        //             foreach (var balanceChange in balanceChanges)
-        //             {
-        //                 _balanceChangePeriodSelector.Add(balanceChange);
-        //             }
     }
 
     pub fn calculate_raw_usd_change(&self, trade_place: &TradePlaceAccount) -> Amount {
@@ -92,5 +68,34 @@ impl BalanceChangeUsdPeriodicCalculator {
 
     pub fn period(&self) -> Duration {
         self.balance_change_period_selector.lock().period
+    }
+}
+
+#[async_trait]
+impl BalanceChangeAccumulator for BalanceChangeUsdPeriodicCalculator {
+    // TODO: fix when DatabaseManager will be added
+    async fn load_data(
+        &self,
+        // database_manager: DatabaseManager,
+        _cancellation_token: CancellationToken,
+    ) {
+        //             await using var session = databaseManager.Sql;
+
+        //             var fromDate = _dateTimeService.UtcNow - Period;
+        //             var balanceChanges = await session.Set<ProfitLossBalanceChange>()
+        //                 .Where(x => x.DateTime >= fromDate)
+        //                 .OrderBy(x => x.DateTime)
+        //                 .ToListAsync(cancellationToken);
+
+        //             foreach (var balanceChange in balanceChanges)
+        //             {
+        //                 _balanceChangePeriodSelector.Add(balanceChange);
+        //             }
+    }
+
+    fn add_balance_change(&self, balance_change: &ProfitLossBalanceChange) {
+        self.balance_change_period_selector
+            .lock()
+            .add(balance_change);
     }
 }

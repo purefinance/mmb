@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use chrono::Duration;
 use futures::future::join_all;
-
 use mockall_double::double;
 use parking_lot::Mutex;
 
@@ -16,6 +16,7 @@ use crate::core::exchanges::general::engine_api::EngineApi;
 use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
 use crate::core::{
+    balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
     exchanges::common::TradePlaceAccount,
     lifecycle::cancellation_token::CancellationToken,
     settings::{ProfitLossStopperSettings, TimePeriodKind},
@@ -82,30 +83,6 @@ impl ProfitLossStopperService {
         }
     }
 
-    pub fn add_balance_change(&mut self, balance_change: &ProfitLossBalanceChange) {
-        for usd_periodic_calculator in self.usd_periodic_calculators.iter() {
-            usd_periodic_calculator
-                .clone()
-                .add_balance_change(balance_change);
-        }
-    }
-
-    // TODO: Fix me when DatabaseManager will be implemented
-    pub async fn load_data(
-        &self,
-        // database_manager: DatabaseManager,
-        cancellation_token: CancellationToken,
-    ) {
-        let futures = self.usd_periodic_calculators.iter().map(|x| {
-            x.clone().load_data(
-                // database_manager: DatabaseManager,
-                cancellation_token.clone(),
-            )
-        });
-
-        join_all(futures).await;
-    }
-
     pub fn get_periodic_calculators(&self) -> &Vec<Arc<BalanceChangeUsdPeriodicCalculator>> {
         &self.usd_periodic_calculators
     }
@@ -127,6 +104,31 @@ impl ProfitLossStopperService {
             .map(|x| x.check_for_limit(usd_converter, cancellation_token.clone()));
 
         join_all(futures).await;
+    }
+}
+
+#[async_trait]
+impl BalanceChangeAccumulator for ProfitLossStopperService {
+    // TODO: Fix me when DatabaseManager will be implemented
+    async fn load_data(
+        &self,
+        // database_manager: DatabaseManager,
+        cancellation_token: CancellationToken,
+    ) {
+        let futures = self.usd_periodic_calculators.iter().map(|x| {
+            x.load_data(
+                // database_manager: DatabaseManager,
+                cancellation_token.clone(),
+            )
+        });
+
+        join_all(futures).await;
+    }
+
+    fn add_balance_change(&self, balance_change: &ProfitLossBalanceChange) {
+        for usd_periodic_calculator in self.usd_periodic_calculators.iter() {
+            usd_periodic_calculator.add_balance_change(balance_change);
+        }
     }
 }
 

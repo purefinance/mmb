@@ -1,0 +1,58 @@
+use mockall_double::double;
+
+#[double]
+use crate::core::services::usd_converter::usd_converter::UsdConverter;
+
+use crate::core::{
+    exchanges::common::{Amount, CurrencyCode, ExchangeId, Price},
+    infrastructure::WithExpect,
+    lifecycle::cancellation_token::CancellationToken,
+    misc::service_value_tree::ServiceValueTree,
+};
+
+pub(crate) struct BalanceChangesCalculatorResult {
+    balance_changes: ServiceValueTree,
+    // private readonly string _currencyCodeWithPrice;
+    currency_code: CurrencyCode, // REVIEW: correct?
+    price: Price,
+    pub exchange_id: ExchangeId,
+}
+
+impl BalanceChangesCalculatorResult {
+    pub fn new(
+        balance_changes: ServiceValueTree,
+        currency_code: CurrencyCode, // REVIEW: correct?
+        price: Price,
+        exchange_id: ExchangeId,
+    ) -> Self {
+        Self {
+            balance_changes,
+            currency_code,
+            price,
+            exchange_id,
+        }
+    }
+
+    pub async fn calculate_usd_change(
+        &self,
+        currency_code: CurrencyCode,
+        balance_change: Amount,
+        usd_converter: &UsdConverter,
+        cancellation_token: CancellationToken,
+    ) -> Amount {
+        match self.currency_code.as_str().starts_with("USD") {
+            true => match self.currency_code.as_str().starts_with("USD") {
+                true => balance_change * self.price,
+                false => balance_change,
+            },
+            false => usd_converter
+                .convert_amount(&currency_code, balance_change, cancellation_token)
+                .await
+                .with_expect(|| format!("Failed to convert from {} to USD", currency_code)),
+        }
+    }
+
+    pub fn get_changes(&self) -> &ServiceValueTree {
+        &self.balance_changes
+    }
+}

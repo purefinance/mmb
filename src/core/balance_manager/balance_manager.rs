@@ -1015,7 +1015,7 @@ impl BalanceManager {
             limit,
         );
     }
-    // TODO: uncomment me when BalanceChangeServic will be implemented
+    // TODO: uncomment me when BalanceChangeService will be implemented
     // pub fn set_balance_changes_service(&mut self, service: BalanceChangesService) {
     //     self.balance_changes_service = Some(service);
     // }
