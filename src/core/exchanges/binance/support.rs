@@ -495,7 +495,10 @@ impl Support for Binance {
         let binance_positions: Vec<BinancePosition> = serde_json::from_str(&response.content)
             .expect("Unable to parse response content for get_active_positions_core request");
 
-        self.binance_positions_to_active_positions(binance_positions)
+        binance_positions
+            .into_iter()
+            .map(|x| self.binance_position_to_active_position(x))
+            .collect_vec()
     }
 
     fn parse_close_position(&self, response: &RestRequestOutcome) -> Result<ClosedPosition> {
@@ -716,39 +719,34 @@ impl Binance {
         orders
     }
 
-    fn binance_positions_to_active_positions(
+    fn binance_position_to_active_position(
         &self,
-        binance_positions: Vec<BinancePosition>,
-    ) -> Vec<ActivePosition> {
-        binance_positions
-            .into_iter()
-            .map(|x| {
-                let currency_pair = self
-                    .get_unified_currency_pair(&x.specific_currency_pair)
-                    .with_expect(|| {
-                        format!(
-                            "Failed to get_unified_currency_pair for {:?}",
-                            x.specific_currency_pair
-                        )
-                    });
+        binance_position: BinancePosition,
+    ) -> ActivePosition {
+        let currency_pair = self
+            .get_unified_currency_pair(&binance_position.specific_currency_pair)
+            .with_expect(|| {
+                format!(
+                    "Failed to get_unified_currency_pair for {:?}",
+                    binance_position.specific_currency_pair
+                )
+            });
 
-                let side = match x.position_side > dec!(0) {
-                    true => OrderSide::Buy,
-                    false => OrderSide::Sell,
-                };
+        let side = match binance_position.position_side > dec!(0) {
+            true => OrderSide::Buy,
+            false => OrderSide::Sell,
+        };
 
-                let derivative_position = DerivativePosition::new(
-                    currency_pair,
-                    x.position_amount,
-                    Some(side),
-                    dec!(0),
-                    x.liquidation_price,
-                    x.leverage,
-                );
+        let derivative_position = DerivativePosition::new(
+            currency_pair,
+            binance_position.position_amount,
+            Some(side),
+            dec!(0),
+            binance_position.liquidation_price,
+            binance_position.leverage,
+        );
 
-                ActivePosition::new(derivative_position)
-            })
-            .collect_vec()
+        ActivePosition::new(derivative_position)
     }
 }
 
