@@ -19,15 +19,10 @@ use crate::core::{
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 
-use chrono::TimeZone;
 use mockall_double::double;
 use parking_lot::{Mutex, MutexGuard};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-
-use once_cell::sync::Lazy;
-/// Needs for syncing mock objects https://docs.rs/mockall/0.10.2/mockall/#static-methods
-static MOCK_MUTEX: Lazy<Mutex<()>> = Lazy::new(Mutex::default);
 
 pub struct BalanceManagerBase {
     pub ten_digit_precision: Decimal,
@@ -120,16 +115,9 @@ impl BalanceManagerBase {
     }
 
     pub fn new() -> Self {
-        let mock_locker = MOCK_MUTEX.lock();
-
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
-        let mock_object = time_manager::now_context();
-        let seconds = seconds_offset_in_mock.clone();
-        mock_object.expect().returning(move || {
-            chrono::Utc
-                .ymd(2021, 9, 20)
-                .and_hms(0, 0, seconds.lock().clone())
-        });
+        let (mock_object, mock_locker) =
+            crate::core::misc::time_manager::tests::init_mock(seconds_offset_in_mock.clone());
 
         let exchange_account_id_1 =
             ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 0);

@@ -4,6 +4,8 @@ use futures::future::join_all;
 use itertools::Itertools;
 #[cfg(test)]
 use mockall::automock;
+#[cfg(test)]
+use parking_lot::{Mutex, MutexGuard};
 
 use crate::core::{
     exchanges::common::ClosedPosition, lifecycle::cancellation_token::CancellationToken,
@@ -55,3 +57,6 @@ impl EngineApi {
         closed_positions
     }
 }
+
+#[cfg(test)]
+crate::create_mock_initializer!(MockEngineApi, ENGINE_API_MOCK_LOCKER);
