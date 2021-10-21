@@ -1,3 +1,6 @@
+#[cfg(test)]
+use mockall::automock;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -11,6 +14,7 @@ pub struct CurrencyPairToMetadataConverter {
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 }
 
+#[cfg_attr(test, automock)]
 impl CurrencyPairToMetadataConverter {
     pub(crate) fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Self {
         Self { exchanges_by_id }
@@ -31,5 +35,9 @@ impl CurrencyPairToMetadataConverter {
         exchange
             .get_currency_pair_metadata(currency_pair)
             .expect("failed to get currency pair")
+    }
+
+    pub(crate) fn exchanges_by_id(&self) -> HashMap<ExchangeAccountId, Arc<Exchange>> {
+        self.exchanges_by_id.clone()
     }
 }
