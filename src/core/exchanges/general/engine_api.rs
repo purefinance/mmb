@@ -34,7 +34,7 @@ impl EngineApi {
         let get_closed_positions_futures = active_positions
             .iter()
             .filter_map(|active_position| {
-                if active_position.info.position.is_zero() {
+                if active_position.derivative.position.is_zero() {
                     return None;
                 }
                 Some(self.exchange.close_position_loop(

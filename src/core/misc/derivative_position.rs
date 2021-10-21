@@ -4,7 +4,7 @@ use crate::core::orders::order::OrderSide;
 use rust_decimal::Decimal;
 
 #[derive(Debug, Clone)]
-pub struct DerivativePositionInfo {
+pub struct DerivativePosition {
     pub currency_pair: CurrencyPair,
     pub position: Decimal,
     pub side: Option<OrderSide>,
@@ -13,7 +13,7 @@ pub struct DerivativePositionInfo {
     pub leverage: Decimal,
 }
 
-impl DerivativePositionInfo {
+impl DerivativePosition {
     pub fn new(
         currency_pair: CurrencyPair,
         position: Decimal,
@@ -21,8 +21,8 @@ impl DerivativePositionInfo {
         average_entry_price: Price,
         liquidation_price: Price,
         leverage: Decimal,
-    ) -> DerivativePositionInfo {
-        DerivativePositionInfo {
+    ) -> DerivativePosition {
+        DerivativePosition {
             currency_pair,
             position,
             side,

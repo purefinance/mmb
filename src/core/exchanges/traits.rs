@@ -140,14 +140,11 @@ pub trait Support: Send + Sync {
 
     fn get_settings(&self) -> &ExchangeSettings;
 
-    fn parse_get_position(&self, response: &RestRequestOutcome) -> Result<Vec<ActivePosition>>;
+    fn parse_get_position(&self, response: &RestRequestOutcome) -> Vec<ActivePosition>;
 
     fn parse_close_position(&self, response: &RestRequestOutcome) -> Result<ClosedPosition>;
 
-    fn parse_get_balance(
-        &self,
-        response: &RestRequestOutcome,
-    ) -> Result<ExchangeBalancesAndPositions>;
+    fn parse_get_balance(&self, response: &RestRequestOutcome) -> ExchangeBalancesAndPositions;
 }
 
 pub struct ExchangeClientBuilderResult {

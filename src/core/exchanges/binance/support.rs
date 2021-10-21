@@ -1,5 +1,5 @@
 use crate::core::infrastructure::WithExpect;
-use crate::core::misc::derivative_position_info::DerivativePositionInfo;
+use crate::core::misc::derivative_position::DerivativePosition;
 use std::str::FromStr;
 
 use std::sync::Arc;
@@ -491,41 +491,11 @@ impl Support for Binance {
         &self.settings
     }
 
-    fn parse_get_position(&self, response: &RestRequestOutcome) -> Result<Vec<ActivePosition>> {
+    fn parse_get_position(&self, response: &RestRequestOutcome) -> Vec<ActivePosition> {
         let binance_positions: Vec<BinancePosition> = serde_json::from_str(&response.content)
-            .context("Unable to parse response content for get_open_orders request")?;
+            .expect("Unable to parse response content for get_active_positions_core request");
 
-        let positions = binance_positions
-            .iter()
-            .map(|x| {
-                let currency_pair = self
-                    .get_unified_currency_pair(&x.specific_currency_pair)
-                    .with_expect(|| {
-                        format!(
-                            "Failed to get_unified_currency_pair for {:?}",
-                            x.specific_currency_pair
-                        )
-                    });
-
-                let side = match x.position_side > dec!(0) {
-                    true => OrderSide::Buy,
-                    false => OrderSide::Sell,
-                };
-
-                let derivative_position_info = DerivativePositionInfo::new(
-                    currency_pair,
-                    x.position_amount,
-                    Some(side),
-                    dec!(0),
-                    x.liquidation_price,
-                    x.leverage,
-                );
-
-                ActivePosition::new(derivative_position_info)
-            })
-            .collect_vec();
-
-        Ok(positions)
+        self.binance_positions_to_active_positions(binance_positions)
     }
 
     fn parse_close_position(&self, response: &RestRequestOutcome) -> Result<ClosedPosition> {
@@ -540,10 +510,7 @@ impl Support for Binance {
         Ok(closed_position)
     }
 
-    fn parse_get_balance(
-        &self,
-        _response: &RestRequestOutcome,
-    ) -> Result<ExchangeBalancesAndPositions> {
+    fn parse_get_balance(&self, _response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
         // this function is only used in Exchange::get_balance_and_positions_core()
         // which isn't supported for Binance(look at ExchangeClientrequest_get_balance_and_position() for Binance)
         todo!("add implementation")
@@ -747,6 +714,41 @@ impl Binance {
         let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
 
         orders
+    }
+
+    fn binance_positions_to_active_positions(
+        &self,
+        binance_positions: Vec<BinancePosition>,
+    ) -> Vec<ActivePosition> {
+        binance_positions
+            .into_iter()
+            .map(|x| {
+                let currency_pair = self
+                    .get_unified_currency_pair(&x.specific_currency_pair)
+                    .with_expect(|| {
+                        format!(
+                            "Failed to get_unified_currency_pair for {:?}",
+                            x.specific_currency_pair
+                        )
+                    });
+
+                let side = match x.position_side > dec!(0) {
+                    true => OrderSide::Buy,
+                    false => OrderSide::Sell,
+                };
+
+                let derivative_position = DerivativePosition::new(
+                    currency_pair,
+                    x.position_amount,
+                    Some(side),
+                    dec!(0),
+                    x.liquidation_price,
+                    x.leverage,
+                );
+
+                ActivePosition::new(derivative_position)
+            })
+            .collect_vec()
     }
 }
 

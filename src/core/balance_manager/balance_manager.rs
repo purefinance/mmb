@@ -11,7 +11,7 @@ use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, Curre
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
-use crate::core::misc::derivative_position_info::DerivativePositionInfo;
+use crate::core::misc::derivative_position::DerivativePosition;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 use crate::core::orders::fill::OrderFill;
@@ -189,7 +189,7 @@ impl BalanceManager {
     fn restore_fill_amount_position(
         &mut self,
         exchange_account_id: &ExchangeAccountId,
-        positions: &Option<Vec<DerivativePositionInfo>>,
+        positions: &Option<Vec<DerivativePosition>>,
     ) -> Result<()> {
         let positions = if let Some(positions) = positions {
             if positions.is_empty() {

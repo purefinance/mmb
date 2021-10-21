@@ -106,7 +106,7 @@ impl ProfitLossStopperService {
         join_all(futures).await;
     }
 
-    pub fn get_periodic_calculators(&self) -> &Vec<Arc<BalanceChangeUsdPeriodicCalculator>> {
+    pub fn get_periodic_calculators(&self) -> &[Arc<BalanceChangeUsdPeriodicCalculator>] {
         &self.usd_periodic_calculators
     }
 

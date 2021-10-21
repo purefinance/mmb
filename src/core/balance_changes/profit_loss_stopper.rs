@@ -69,7 +69,7 @@ impl ProfitLossStopper {
         let period = self.usd_periodic_calculator.period();
 
         log::info!(
-            "ProfitLossStopper:check() {}: {} (limit {})",
+            "ProfitLossStopper::check() {}: {} (limit {})",
             period,
             usd_change,
             self.limit

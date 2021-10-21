@@ -11,9 +11,7 @@ use crate::core::{
         events::ExchangeBalancesAndPositions,
         general::currency_pair_metadata::CurrencyPairMetadata,
     },
-    misc::{
-        derivative_position_info::DerivativePositionInfo, reserve_parameters::ReserveParameters,
-    },
+    misc::{derivative_position::DerivativePosition, reserve_parameters::ReserveParameters},
     orders::order::{
         ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
         OrderType, ReservationId,
@@ -103,17 +101,10 @@ impl BalanceManagerBase {
             })
             .collect();
 
-        let positions: Vec<DerivativePositionInfo> = positions_by_currency_pair
+        let positions: Vec<DerivativePosition> = positions_by_currency_pair
             .iter()
             .map(|x| {
-                DerivativePositionInfo::new(
-                    x.0.clone(),
-                    x.1.clone(),
-                    None,
-                    dec!(0),
-                    dec!(0),
-                    dec!(1),
-                )
+                DerivativePosition::new(x.0.clone(), x.1.clone(), None, dec!(0), dec!(0), dec!(1))
             })
             .collect();
 
