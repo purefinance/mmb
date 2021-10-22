@@ -6,6 +6,10 @@ use std::convert::TryInto;
 use std::sync::atomic::AtomicU64;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// Declare methods add_or_get and get_str for structs AppendTable8 and AppendTable16 according to its item bit count
+// This types keep items in static tables with fixed sizes
+// AppendTable8 (size = 256)
+// AppendTable16 (size = 65536)
 macro_rules! impl_append_table {
     ($bits: literal) => {
         paste! {

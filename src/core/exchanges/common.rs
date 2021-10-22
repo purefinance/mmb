@@ -121,6 +121,14 @@ impl Display for ExchangeAccountId {
     }
 }
 
+// Implement type with specified name based on AppendTable8 or AppendTable16 with methods:
+// from_raw - private constructor
+// as_str
+//
+// and implementations for traits:
+// fmt::Display
+// serde::Serialize
+// serde::Deserialize
 macro_rules! impl_table_type_raw {
     ($ty: ident, $bits:literal) => {
         paste! {
