@@ -63,41 +63,34 @@ impl Exchange {
             );
         }
 
-        let mut trade_items = Vec::new();
         if self.exchange_client.get_settings().request_trades {
-            let mut should_add_event = false;
+            let should_add_event = if let Some(last_trade) = self.last_trades.get_mut(&trade_place)
+            {
+                let trade_items = trades_event
+                    .trades
+                    .into_iter()
+                    .filter(
+                        |item| match self.features.trade_option.supports_trade_incremented_id {
+                            true => item.trade_id.get_number() > last_trade.trade_id.get_number(),
+                            false => item.transaction_time > last_trade.transaction_time,
+                        },
+                    )
+                    .collect_vec();
 
-            if let Some(last_trade) = self.last_trades.get_mut(&trade_place) {
-                // TODO use drain_filter here when it will be stabilized
-                trade_items = if self.features.trade_option.supports_trade_incremented_id {
-                    trades_event
-                        .trades
-                        .into_iter()
-                        .filter(|item| {
-                            item.trade_id.get_number() > last_trade.trade_id.get_number()
-                        })
-                        .collect_vec()
-                } else {
-                    trades_event
-                        .trades
-                        .into_iter()
-                        .filter(|item| item.transaction_time > last_trade.transaction_time)
-                        .collect_vec()
-                };
+                trades_event.trades = trade_items;
 
-                should_add_event = true;
+                true
+            } else {
+                false
             };
 
-            match trade_items.first() {
-                Some(trade) => {
-                    self.last_trades.insert(trade_place, trade.clone());
-                    trades_event.trades = trade_items;
-
-                    if !should_add_event {
-                        return Ok(());
-                    }
-                }
+            match trades_event.trades.first() {
+                Some(trade) => self.last_trades.insert(trade_place, trade.clone()),
                 None => return Ok(()),
+            };
+
+            if !should_add_event {
+                return Ok(());
             }
         }
 
