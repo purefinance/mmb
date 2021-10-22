@@ -60,7 +60,7 @@ impl EngineContext {
         let exchange_account_ids = app_settings
             .exchanges
             .iter()
-            .map(|x| x.exchange_account_id.clone())
+            .map(|x| x.exchange_account_id)
             .collect_vec();
 
         let engine_context = Arc::new(EngineContext {
@@ -93,7 +93,7 @@ impl EngineContext {
 
         self.exchanges.iter().for_each(|x| {
             self.exchange_blocker.block(
-                &x.exchange_account_id,
+                x.exchange_account_id,
                 block_reasons::GRACEFUL_SHUTDOWN,
                 BlockType::Manual,
             )

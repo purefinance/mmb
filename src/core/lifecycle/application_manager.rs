@@ -54,7 +54,7 @@ impl ApplicationManager {
                 Ok(()) => {
                     info!("{} completed successfully", future_name);
                 }
-                Err(panic) => match panic.as_ref().downcast_ref::<String>().clone() {
+                Err(panic) => match panic.as_ref().downcast_ref::<String>() {
                     Some(panic_message) => {
                         error!("{} panicked with error: {}", future_name, panic_message);
                     }

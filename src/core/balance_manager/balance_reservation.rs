@@ -84,7 +84,7 @@ impl BalanceReservation {
     ) -> Amount {
         self.currency_pair_metadata
             .convert_amount_from_amount_currency_code(
-                &self.reservation_currency_code,
+                self.reservation_currency_code,
                 amount_in_current_currency,
                 self.price,
             )

@@ -30,7 +30,7 @@ pub enum BeforeAfter {
 }
 
 /// Precision this is type that describes Decimal value rounding(now is using for rounding amount in orders)
-/// NOTE: Old ByFraction varian can be written as tick == 0.1^by_fraction_precision
+/// NOTE: Old ByFraction variant can be written as tick == 0.1^by_fraction_precision
 /// ```ignore
 /// Precision::ByTick { tick: dec!(0.001) } // for AmountPrecision = 3 equal pow(0.1, 3)
 /// ```
@@ -67,11 +67,11 @@ pub struct CurrencyPairMetadata {
 
 impl CurrencyPairMetadata {
     pub fn base_currency_code(&self) -> CurrencyCode {
-        self.base_currency_code.clone()
+        self.base_currency_code
     }
 
     pub fn quote_currency_code(&self) -> CurrencyCode {
-        self.quote_currency_code.clone()
+        self.quote_currency_code
     }
 
     pub fn new(
@@ -113,7 +113,7 @@ impl CurrencyPairMetadata {
 
     // Currency pair in unified for crate format
     pub fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes(&self.base_currency_code, &self.quote_currency_code)
+        CurrencyPair::from_codes(self.base_currency_code, self.quote_currency_code)
     }
 
     pub fn get_trade_code(&self, side: OrderSide, before_after: BeforeAfter) -> CurrencyCode {
@@ -121,10 +121,10 @@ impl CurrencyPairMetadata {
         use OrderSide::*;
 
         match (before_after, side) {
-            (Before, Buy) => self.quote_currency_code.clone(),
-            (Before, Sell) => self.base_currency_code.clone(),
-            (After, Buy) => self.base_currency_code.clone(),
-            (After, Sell) => self.quote_currency_code.clone(),
+            (Before, Buy) => self.quote_currency_code,
+            (Before, Sell) => self.base_currency_code,
+            (After, Buy) => self.base_currency_code,
+            (After, Sell) => self.quote_currency_code,
         }
     }
 
@@ -247,30 +247,28 @@ impl CurrencyPairMetadata {
     }
 
     pub fn get_commission_currency_code(&self, side: OrderSide) -> CurrencyCode {
-        match &self.balance_currency_code {
-            Some(balance_currency_code) => balance_currency_code.clone(),
-            None => match side {
-                OrderSide::Buy => self.base_currency_code.clone(),
-                OrderSide::Sell => self.quote_currency_code.clone(),
-            },
-        }
+        self.balance_currency_code
+            .unwrap_or_else(move || match side {
+                OrderSide::Buy => self.base_currency_code,
+                OrderSide::Sell => self.quote_currency_code,
+            })
     }
 
     pub fn convert_amount_from_amount_currency_code(
         &self,
-        to_currency_code: &CurrencyCode,
+        to_currency_code: CurrencyCode,
         amount_in_amount_currency_code: Amount,
         currency_pair_price: Price,
     ) -> Amount {
-        if to_currency_code == &self.amount_currency_code {
+        if to_currency_code == self.amount_currency_code {
             return amount_in_amount_currency_code;
         }
 
-        if to_currency_code == &self.base_currency_code {
+        if to_currency_code == self.base_currency_code {
             return amount_in_amount_currency_code / currency_pair_price;
         }
 
-        if to_currency_code == &self.quote_currency_code {
+        if to_currency_code == self.quote_currency_code {
             return amount_in_amount_currency_code * currency_pair_price;
         }
 
@@ -279,18 +277,18 @@ impl CurrencyPairMetadata {
 
     pub fn convert_amount_from_balance_currency_code(
         &self,
-        to_currency_code: &CurrencyCode,
+        to_currency_code: CurrencyCode,
         amount: Amount,
         currency_pair_price: Price,
     ) -> Amount {
-        if Some(to_currency_code) == self.balance_currency_code.as_ref() {
+        if Some(to_currency_code) == self.balance_currency_code {
             return amount;
         }
-        if to_currency_code == &self.base_currency_code {
+        if to_currency_code == self.base_currency_code {
             return amount / currency_pair_price;
         }
 
-        if to_currency_code == &self.quote_currency_code {
+        if to_currency_code == self.quote_currency_code {
             return amount * currency_pair_price;
         }
 
@@ -303,21 +301,22 @@ impl CurrencyPairMetadata {
 
     pub fn convert_amount_into_amount_currency_code(
         &self,
-        from_currency_code: &CurrencyCode,
+        from_currency_code: CurrencyCode,
         amount_in_from_currency_code: Decimal,
         currency_pair_price: Price,
     ) -> Decimal {
-        if from_currency_code == &self.amount_currency_code {
+        if from_currency_code == self.amount_currency_code {
             return amount_in_from_currency_code;
         }
 
-        if from_currency_code == &self.base_currency_code() {
+        if from_currency_code == self.base_currency_code() {
             return amount_in_from_currency_code * currency_pair_price;
         }
 
-        if from_currency_code == &self.quote_currency_code {
+        if from_currency_code == self.quote_currency_code {
             return amount_in_from_currency_code / currency_pair_price;
         }
+
         panic!(
             "We don't currently support currency code {} outside currency pair {}",
             from_currency_code,
@@ -382,10 +381,10 @@ impl PartialEq for CurrencyPairMetadata {
 impl Exchange {
     pub fn get_currency_pair_metadata(
         &self,
-        currency_pair: &CurrencyPair,
+        currency_pair: CurrencyPair,
     ) -> Result<Arc<CurrencyPairMetadata>> {
         self.symbols
-            .get(currency_pair)
+            .get(&currency_pair)
             .with_context(|| {
                 format!(
                     "Unsupported currency pair on {} {:?}",
@@ -422,7 +421,7 @@ mod test {
             None,
             None,
             base_currency.into(),
-            Some(balance_currency_code.clone()),
+            Some(balance_currency_code),
             Precision::ByTick { tick: price_tick },
             Precision::ByTick { tick: dec!(0) },
         );
@@ -548,27 +547,27 @@ mod test {
             false,
             is_derivative,
             base_currency.into(),
-            base_code.clone(),
+            base_code,
             quote_currency.into(),
-            quote_code.clone(),
+            quote_code,
             None,
             None,
             None,
             None,
             None,
-            base_code.clone(),
-            Some(balance_currency_code.clone()),
+            base_code,
+            Some(balance_currency_code),
             Precision::ByTick { tick: price_tick },
             Precision::ByTick { tick: dec!(0) },
         );
 
         assert_eq!(
             currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::After),
-            base_code.clone()
+            base_code
         );
         assert_eq!(
             currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::Before),
-            quote_code.clone()
+            quote_code
         );
         assert_eq!(
             currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::After),

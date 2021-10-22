@@ -118,7 +118,7 @@ impl LocalOrderBookSnapshot {
         PriceByOrderSide::new(top_bid, top_ask)
     }
 
-    pub fn calculate_middle_price(&self, trade_place: &TradePlace) -> Option<Price> {
+    pub fn calculate_middle_price(&self, trade_place: TradePlace) -> Option<Price> {
         let prices = self.get_top_prices();
         let top_ask = match prices.top_ask {
             Some(top_ask) => top_ask,

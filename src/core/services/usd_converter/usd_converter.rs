@@ -22,7 +22,7 @@ impl UsdConverter {
         price_source_service: PriceSourceService,
         usd_denominator: Arc<UsdDenominator>,
     ) -> Self {
-        let usd = CurrencyCode::from("USD");
+        let usd = "USD".into();
         let usdt = CurrencyCode::from("USDT");
         Self {
             price_source_service,
@@ -37,11 +37,11 @@ impl UsdConverter {
 
     pub async fn convert_amount(
         &self,
-        from_currency_code: &CurrencyCode,
+        from_currency_code: CurrencyCode,
         src_amount: Amount,
         cancellation_token: CancellationToken,
     ) -> Option<Amount> {
-        if from_currency_code == &self.usd_currency_code {
+        if from_currency_code == self.usd_currency_code {
             return Some(src_amount);
         }
 
@@ -49,7 +49,7 @@ impl UsdConverter {
             .price_source_service
             .convert_amount(
                 from_currency_code,
-                &self.usd_currency_code,
+                self.usd_currency_code,
                 src_amount,
                 cancellation_token,
             )

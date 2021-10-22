@@ -24,7 +24,7 @@ pub async fn should_connect_and_reconnect_normally() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -47,7 +47,7 @@ pub async fn should_connect_and_reconnect_normally() {
     };
 
     let exchange_weak = Arc::downgrade(&binance_builder.exchange);
-    let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+    let connectivity_manager = ConnectivityManager::new(exchange_account_id);
 
     let connected_count = Arc::new(Mutex::new(0));
     {

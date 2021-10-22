@@ -122,7 +122,7 @@ impl WebSocketActor {
 
     fn heartbeat(&self, ctx: &mut <Self as Actor>::Context) {
         let notifier = self.connectivity_manager_notifier.clone();
-        let exchange_account_id = self.exchange_account_id.clone();
+        let exchange_account_id = self.exchange_account_id;
         let role = self.role;
         ctx.run_interval(HEARTBEAT_INTERVAL, move |act, _ctx| {
             if Instant::now().duration_since(act.last_heartbeat_time) > HEARTBEAT_FAIL_TIMEOUT {
@@ -150,9 +150,7 @@ impl WebSocketActor {
     fn handle_websocket_message(&self, bytes: &Bytes) {
         match std::str::from_utf8(bytes) {
             Ok(text) => {
-                self.connectivity_manager_notifier
-                    .clone()
-                    .message_received(text);
+                self.connectivity_manager_notifier.message_received(text);
             }
             Err(error) => {
                 warn!("Unable to parse websocket message: {:?}", error)

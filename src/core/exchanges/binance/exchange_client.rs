@@ -14,7 +14,7 @@ use async_trait::async_trait;
 #[async_trait]
 impl ExchangeClient for Binance {
     async fn request_metadata(&self) -> Result<RestRequestOutcome> {
-        // In currenct versions works only with Spot market
+        // In current versions works only with Spot market
         let url_path = "/api/v3/exchangeInfo";
         let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
 
@@ -22,7 +22,7 @@ impl ExchangeClient for Binance {
     }
 
     async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
+        let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
 
         let mut http_params = vec![
             (
@@ -65,7 +65,7 @@ impl ExchangeClient for Binance {
     }
 
     async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(&order.header.currency_pair);
+        let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
 
         let url_path = match self.settings.is_margin_trading {
             true => "/fapi/v1/order",
@@ -95,7 +95,7 @@ impl ExchangeClient for Binance {
     }
 
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
-        let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
+        let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
 
         let host = &self.hosts.rest_host;
         let path_to_delete = "/api/v3/openOrders";
@@ -127,7 +127,7 @@ impl ExchangeClient for Binance {
         &self,
         currency_pair: CurrencyPair,
     ) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(&currency_pair);
+        let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
         let mut http_params = vec![(
             "symbol".to_owned(),
             specific_currency_pair.as_str().to_owned(),
@@ -138,7 +138,7 @@ impl ExchangeClient for Binance {
     }
 
     async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(&order.currency_pair());
+        let specific_currency_pair = self.get_specific_currency_pair(order.currency_pair());
 
         let url_path = match self.settings.is_margin_trading {
             true => "/fapi/v1/order",
@@ -167,10 +167,8 @@ impl ExchangeClient for Binance {
         currency_pair_metadata: &CurrencyPairMetadata,
         _last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(&CurrencyPair::from_codes(
-            &currency_pair_metadata.base_currency_code,
-            &currency_pair_metadata.quote_currency_code,
-        ));
+        let specific_currency_pair =
+            self.get_specific_currency_pair(currency_pair_metadata.currency_pair());
         let mut http_params = vec![(
             "symbol".to_owned(),
             specific_currency_pair.as_str().to_owned(),

@@ -146,7 +146,7 @@ impl DispositionExecutor {
             .exchanges
             .get(&exchange_account_id)
             .expect("Target exchange should exists")
-            .get_currency_pair_metadata(&currency_pair)
+            .get_currency_pair_metadata(currency_pair)
             .expect("Currency pair metadata should exists for target trading place");
 
         DispositionExecutor {
@@ -366,7 +366,7 @@ impl DispositionExecutor {
         if self
             .engine_ctx
             .exchange_blocker
-            .is_blocked(&self.exchange_account_id)
+            .is_blocked(self.exchange_account_id)
         {
             self.start_cancelling_all_orders(
                 "target exchange is locked",
@@ -672,7 +672,7 @@ impl DispositionExecutor {
         let new_order_header = OrderHeader::new(
             new_client_order_id.clone(),
             now,
-            self.exchange_account_id.clone(),
+            self.exchange_account_id,
             self.currency_pair_metadata.currency_pair(),
             OrderType::Limit,
             new_disposition.side(),

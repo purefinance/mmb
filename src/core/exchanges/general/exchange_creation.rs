@@ -28,12 +28,12 @@ pub fn create_timeout_manager(
         .map(|exchange_settings| {
             let timeout_arguments = build_settings.supported_exchange_clients
                 [&exchange_settings.exchange_account_id.exchange_id]
-                .get_timeout_argments();
+                .get_timeout_arguments();
 
-            let exchange_account_id = exchange_settings.exchange_account_id.clone();
+            let exchange_account_id = exchange_settings.exchange_account_id;
             let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
                 timeout_arguments,
-                exchange_account_id.clone(),
+                exchange_account_id,
             );
 
             (exchange_account_id, request_timeout_manager)
@@ -60,10 +60,10 @@ pub async fn create_exchange(
     );
 
     let exchange = Exchange::new(
-        user_settings.exchange_account_id.clone(),
+        user_settings.exchange_account_id,
         exchange_client.client,
         exchange_client.features,
-        exchange_client_builder.get_timeout_argments(),
+        exchange_client_builder.get_timeout_arguments(),
         events_channel,
         application_manager,
         timeout_manager.clone(),

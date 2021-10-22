@@ -1,12 +1,14 @@
+use crate::core::utils::{AppendTable16, AppendTable8};
 use anyhow::Result;
 use awc::http::StatusCode;
 use itertools::Itertools;
+use once_cell::sync::Lazy;
+use paste::paste;
 use regex::Regex;
 use rust_decimal::*;
-use serde::de::{self, Deserializer};
+use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
-use smallstr::SmallString;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 use std::{collections::BTreeMap, time::Duration};
@@ -16,16 +18,11 @@ pub type Price = Decimal;
 pub type Amount = Decimal;
 pub type SortedOrderData = BTreeMap<Price, Amount>;
 
-type String4 = SmallString<[u8; 4]>;
-type String12 = SmallString<[u8; 12]>;
-type String16 = SmallString<[u8; 16]>;
-type String15 = SmallString<[u8; 15]>;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExchangeIdParseError(String);
 
 // unique user ID on the exchange
-#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
 pub struct ExchangeAccountId {
     pub exchange_id: ExchangeId,
 
@@ -77,19 +74,34 @@ impl FromStr for ExchangeAccountId {
     }
 }
 
+struct ExchangeAccountIdVisitor;
+
+impl<'de> Visitor<'de> for ExchangeAccountIdVisitor {
+    type Value = ExchangeAccountId;
+
+    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+        write!(formatter, "string for ExchangeAccountId")
+    }
+
+    fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        v.parse().map_err(|_| {
+            de::Error::invalid_value(
+                de::Unexpected::Str(v),
+                &"ExchangeAccountId as a string with account number on the tail",
+            )
+        })
+    }
+}
+
 impl<'de> Deserialize<'de> for ExchangeAccountId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let deserialized = String::deserialize(deserializer)?;
-
-        FromStr::from_str(&deserialized).map_err(|_| {
-            de::Error::invalid_value(
-                de::Unexpected::Str(&deserialized),
-                &"ExchangeAccountId as a string with account number on the tail",
-            )
-        })
+        deserializer.deserialize_str(ExchangeAccountIdVisitor)
     }
 }
 
@@ -109,140 +121,141 @@ impl Display for ExchangeAccountId {
     }
 }
 
+// Implement type with specified name based on AppendTable8 or AppendTable16 with methods:
+// from_raw - private constructor
+// as_str
+//
+// and implementations for traits:
+// fmt::Display
+// serde::Serialize
+// serde::Deserialize
+macro_rules! impl_table_type_raw {
+    ($ty: ident, $bits:literal) => {
+        paste! {
+            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct $ty([<u $bits>]);
+        }
+
+        paste! {
+            static [<SHARED_ $ty:snake:upper>]: Lazy<[<AppendTable $bits>]> = Lazy::new(|| [<AppendTable $bits>]::new() );
+        }
+
+        impl $ty {
+            fn from_raw(value: &str) -> Self {
+                Self(paste! { [<SHARED_ $ty:snake:upper>] }.add_or_get(value))
+            }
+
+            /// Extracts a string slice containing the entire string.
+            pub fn as_str(&self) -> &str {
+                paste! { [<SHARED_ $ty:snake:upper>].get_str(self.0) }
+            }
+        }
+
+        impl Display for $ty {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                self.as_str().fmt(f)
+            }
+        }
+
+        paste! {
+            struct [<$ty Visitor>];
+        }
+
+        paste! {
+            impl<'de> Visitor<'de> for [<$ty Visitor>] {
+                type Value = $ty;
+
+                fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
+                    write!(formatter, "string for {}", stringify!($ty))
+                }
+
+                fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+                where
+                    E: de::Error,
+                {
+                    Ok(<$ty>::from_raw(v))
+                }
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $ty {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                paste! {
+                    deserializer.deserialize_str([<$ty Visitor>])
+                }
+            }
+        }
+
+        impl Serialize for $ty {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                serializer.serialize_str(self.as_str())
+            }
+        }
+    };
+}
+
+macro_rules! impl_table_type {
+    ($ty: ident, $bits:literal) => {
+        impl_table_type_raw!($ty, $bits);
+
+        impl $ty {
+            pub fn new(value: &str) -> Self {
+                Self(paste! { [<SHARED_ $ty:snake:upper>] }.add_or_get(value))
+            }
+        }
+
+        impl From<&str> for $ty {
+            #[inline]
+            fn from(value: &str) -> Self {
+                $ty::from_raw(value)
+            }
+        }
+    };
+}
+
 // unique ID of exchange
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct ExchangeId(String15);
+impl_table_type!(ExchangeId, 8);
 
-impl ExchangeId {
-    #[inline]
-    pub fn new(exchange_id: String15) -> Self {
-        ExchangeId(exchange_id)
-    }
+// Currency pair specific for exchange
+impl_table_type!(SpecificCurrencyPair, 16);
 
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
+// Currency in Exchange format, e.g. ETH, BTC
+impl_table_type!(CurrencyId, 16);
 
-impl From<&str> for ExchangeId {
-    #[inline]
-    fn from(value: &str) -> Self {
-        ExchangeId(String15::from_str(value))
-    }
-}
-
-impl Display for ExchangeId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.as_str().fmt(f)
-    }
-}
-
-/// Currency pair specific for exchange
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct SpecificCurrencyPair(String12);
-
-impl SpecificCurrencyPair {
-    #[inline]
-    pub fn new(currency_code: String12) -> Self {
-        SpecificCurrencyPair(currency_code)
-    }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl From<&str> for SpecificCurrencyPair {
-    fn from(value: &str) -> Self {
-        SpecificCurrencyPair(String12::from_str(value))
-    }
-}
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(transparent)]
-/// Currency in Exchange format, e.g. ETH, BTC
-pub struct CurrencyId(String4);
-
-impl CurrencyId {
-    #[inline]
-    pub fn new(currency_id: String4) -> Self {
-        CurrencyId(currency_id)
-    }
-
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl From<&str> for CurrencyId {
-    fn from(value: &str) -> Self {
-        CurrencyId(String4::from_str(value))
-    }
-}
-
-#[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
-#[serde(transparent)]
-/// Currency in unified format, e.g. eth, btc
-pub struct CurrencyCode(String4);
+// Currency in unified format, e.g. eth, btc
+impl_table_type_raw!(CurrencyCode, 16);
 
 impl CurrencyCode {
-    #[inline]
-    pub fn new(currency_code: String4) -> Self {
-        CurrencyCode(currency_code.to_lowercase().into())
-    }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
+    pub fn new(currency_code: &str) -> Self {
+        let currency_code = currency_code.to_lowercase();
+        Self(SHARED_CURRENCY_CODE.add_or_get(&currency_code))
     }
 }
 
 impl From<&str> for CurrencyCode {
     fn from(value: &str) -> Self {
-        CurrencyCode(String4::from_str(&value.to_lowercase()))
+        CurrencyCode::new(value)
     }
 }
 
-impl Display for CurrencyCode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-/// Unified format currency pair for this framework
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct CurrencyPair(String12);
+// Unified format currency pair for this framework
+impl_table_type_raw!(CurrencyPair, 16);
 
 impl CurrencyPair {
-    #[inline]
-    pub fn from_codes(base: &CurrencyCode, quote: &CurrencyCode) -> Self {
-        CurrencyPair([base.as_str(), quote.as_str()].join("/").into()) // convention from ccxt
-    }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl Display for CurrencyPair {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+    pub fn from_codes(base: CurrencyCode, quote: CurrencyCode) -> Self {
+        // convention into ccxt format
+        Self(SHARED_CURRENCY_PAIR.add_or_get(&[base.as_str(), quote.as_str()].join("/")))
     }
 }
 
 /// Exchange id and currency pair
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct TradePlace {
     pub exchange_id: ExchangeId,
     pub currency_pair: CurrencyPair,
@@ -258,7 +271,7 @@ impl TradePlace {
 }
 
 /// Exchange account id and currency pair
-#[derive(Debug, Clone, Eq, PartialEq, Deserialize, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Hash)]
 pub struct TradePlaceAccount {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
@@ -273,10 +286,7 @@ impl TradePlaceAccount {
     }
 
     pub fn trade_place(&self) -> TradePlace {
-        TradePlace::new(
-            self.exchange_account_id.exchange_id.clone(),
-            self.currency_pair.clone(),
-        )
+        TradePlace::new(self.exchange_account_id.exchange_id, self.currency_pair)
     }
 }
 
@@ -358,51 +368,120 @@ pub type RestRequestResult = std::result::Result<String, RestRequestError>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pretty_assertions::assert_eq;
 
-    #[test]
-    pub fn exchange_id_parse_correctly() {
-        let exchange_account_id = "Binance0".parse::<ExchangeAccountId>();
-        assert_eq!(
-            exchange_account_id,
-            Ok(ExchangeAccountId::new("Binance".into(), 0))
-        );
+    mod basic_exchange_id {
+        use super::*;
+        use pretty_assertions::assert_eq;
+
+        #[test]
+        pub fn just_create() {
+            let exchange_id: ExchangeId = ExchangeId::new("Binance");
+            let cloned = exchange_id.clone();
+
+            assert_eq!(cloned, exchange_id);
+            assert_eq!(exchange_id.as_str(), "Binance");
+        }
+
+        #[test]
+        pub fn same_2_id() {
+            let exchange_id1 = ExchangeId::new("Binance");
+            let exchange_id2 = ExchangeId::new("Binance");
+            assert_eq!(exchange_id2, exchange_id1);
+            assert_eq!(exchange_id1.as_str(), exchange_id2.as_str());
+        }
+
+        #[test]
+        pub fn different_2_id() {
+            let exchange_id1 = ExchangeId::new("Binance");
+            let exchange_id2 = ExchangeId::new("Bitmex");
+            assert_ne!(exchange_id2, exchange_id1);
+            assert_ne!(exchange_id1.as_str(), exchange_id2.as_str());
+        }
+
+        #[test]
+        pub fn deserialization() {
+            #[derive(Deserialize)]
+            struct TestValue {
+                id: ExchangeId,
+            }
+
+            let input = r#"{"id":"TestExchangeId"}"#;
+
+            let deserialized: TestValue = serde_json::from_str(input).expect("in test");
+
+            assert_eq!(deserialized.id.as_str(), "TestExchangeId");
+        }
+
+        #[test]
+        pub fn serialization() {
+            #[derive(Serialize)]
+            struct TestValue {
+                id: ExchangeId,
+            }
+
+            let value = TestValue {
+                id: ExchangeId::new("TestExchangeId"),
+            };
+
+            let serialized = serde_json::to_string(&value).expect("in test");
+
+            assert_eq!(serialized, r#"{"id":"TestExchangeId"}"#);
+        }
     }
 
-    #[test]
-    pub fn exchange_id_parse_failed_exchange_id() {
-        let exchange_account_id = "123".parse::<ExchangeAccountId>();
-        assert_eq!(
-            exchange_account_id,
-            Err(ExchangeIdParseError("Invalid format".into()))
-        )
+    mod parse_exchange_account_id {
+        use super::*;
+        use pretty_assertions::assert_eq;
+
+        #[test]
+        pub fn correct() {
+            let exchange_account_id = "Binance0".parse::<ExchangeAccountId>();
+            assert_eq!(
+                exchange_account_id,
+                Ok(ExchangeAccountId::new("Binance".into(), 0))
+            );
+        }
+
+        #[test]
+        pub fn failed_because_no_exchange_name() {
+            let exchange_account_id = "123".parse::<ExchangeAccountId>();
+            assert_eq!(
+                exchange_account_id,
+                Err(ExchangeIdParseError("Invalid format".into()))
+            )
+        }
+
+        #[test]
+        pub fn failed_because_missing_number() {
+            let exchange_account_id = "Binance".parse::<ExchangeAccountId>();
+            assert_eq!(
+                exchange_account_id,
+                Err(ExchangeIdParseError("Invalid format".into()))
+            )
+        }
+
+        #[test]
+        pub fn failed_because_invalid_number() {
+            let exchange_account_id = "binance256".parse::<ExchangeAccountId>();
+            assert_eq!(
+                exchange_account_id,
+                Err(ExchangeIdParseError(
+                    r"Can't parse exchange account number: number too large to fit in target type"
+                        .into()
+                ))
+            )
+        }
     }
 
-    #[test]
-    pub fn exchange_id_parse_failed_missing_number() {
-        let exchange_account_id = "Binance".parse::<ExchangeAccountId>();
-        assert_eq!(
-            exchange_account_id,
-            Err(ExchangeIdParseError("Invalid format".into()))
-        )
-    }
+    mod to_string_exchange_account_id {
+        use super::*;
+        use pretty_assertions::assert_eq;
 
-    #[test]
-    pub fn exchange_id_parse_failed_number_parsing() {
-        let exchange_account_id = "binance256".parse::<ExchangeAccountId>();
-        assert_eq!(
-            exchange_account_id,
-            Err(ExchangeIdParseError(
-                r"Can't parse exchange account number: number too large to fit in target type"
-                    .into()
-            ))
-        )
-    }
-
-    #[test]
-    pub fn exchange_id_to_string() {
-        let exchange_account_id = "Binance1".parse::<ExchangeAccountId>().expect("in test");
-        let result = exchange_account_id.to_string();
-        assert_eq!(result, "Binance1".to_string())
+        #[test]
+        pub fn simple() {
+            let exchange_account_id = "Binance1".parse::<ExchangeAccountId>().expect("in test");
+            let result = exchange_account_id.to_string();
+            assert_eq!(result, "Binance1".to_string())
+        }
     }
 }

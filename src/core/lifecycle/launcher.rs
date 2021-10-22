@@ -104,7 +104,7 @@ where
 
     let exchanges_map: DashMap<_, _> = exchanges
         .into_iter()
-        .map(|exchange| (exchange.exchange_account_id.clone(), exchange))
+        .map(|exchange| (exchange.exchange_account_id, exchange))
         .collect();
 
     let exchange_events = ExchangeEvents::new(events_sender.clone());

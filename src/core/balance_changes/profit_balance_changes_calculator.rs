@@ -23,12 +23,12 @@ pub(crate) async fn calculate_over_market(
 ) -> Amount {
     let group_by_currency_code = profit_loss_balance_changes
         .iter()
-        .into_group_map_by(|x| &x.currency_code);
+        .into_group_map_by(|x| x.currency_code);
 
     let usd_converter_actions =
         group_by_currency_code
             .iter()
-            .map(|(currency_code, balance_changes)| {
+            .map(|(&currency_code, balance_changes)| {
                 let sum = balance_changes.iter().map(|x| x.balance_change).sum();
                 let cloned_cancellation_token = cancellation_token.clone();
                 async move {
