@@ -23,6 +23,8 @@ use crate::core::{
 
 use super::balance_change_usd_periodic_calculator::BalanceChangeUsdPeriodicCalculator;
 
+static BLOCK_REASON: BlockReason = BlockReason::new("ProfitLossExceeded");
+
 pub(crate) struct ProfitLossStopper {
     limit: Amount,
     target_trade_place: TradePlaceAccount,
@@ -76,17 +78,16 @@ impl ProfitLossStopper {
         let target_exchange_account_id = self.target_trade_place.exchange_account_id.clone();
 
         if usd_change <= -self.limit {
-            position_helper::close_position_if_needed(
+            let _ = position_helper::close_position_if_needed(
                 &self.target_trade_place,
                 self.balance_manager.clone(),
                 self.engine_api.clone(),
                 cancellation_token,
-            )
-            .await; // REVIEW: await here is correct?
+            );
 
             if self
                 .exchange_blocker
-                .is_blocked_by_reason(&target_exchange_account_id, Self::block_reason())
+                .is_blocked_by_reason(&target_exchange_account_id, BLOCK_REASON)
             {
                 return;
             }
@@ -100,13 +101,13 @@ impl ProfitLossStopper {
 
             self.exchange_blocker.block(
                 &target_exchange_account_id,
-                Self::block_reason(),
+                BLOCK_REASON,
                 BlockType::Manual,
             );
         } else {
             if !self
                 .exchange_blocker
-                .is_blocked_by_reason(&target_exchange_account_id, Self::block_reason())
+                .is_blocked_by_reason(&target_exchange_account_id, BLOCK_REASON)
             {
                 return;
             }
@@ -119,12 +120,8 @@ impl ProfitLossStopper {
             );
 
             self.exchange_blocker
-                .unblock(&target_exchange_account_id, Self::block_reason());
+                .unblock(&target_exchange_account_id, BLOCK_REASON);
         }
-    }
-
-    pub fn block_reason() -> BlockReason {
-        BlockReason::new("ProfitLossExceeded")
     }
 }
 
@@ -134,8 +131,8 @@ mod test {
 
     use std::sync::Arc;
 
-    use chrono::{Duration, TimeZone};
-    use parking_lot::Mutex;
+    use chrono::Duration;
+    use parking_lot::{Mutex, MutexGuard};
     use rust_decimal_macros::dec;
 
     #[double]
@@ -194,8 +191,9 @@ mod test {
         pub usd_converter: UsdConverter,
         pub balance_manager: Arc<Mutex<BalanceManager>>,
 
-        time_manager_mock_object: time_manager::__now::Context,
+        time_manager_mock: time_manager::__now::Context,
         seconds_offset_in_mock: Arc<Mutex<u32>>,
+        mock_lockers: Vec<MutexGuard<'static, ()>>,
     }
 
     impl TestContext {
@@ -205,9 +203,9 @@ mod test {
             profit_loss_stopper: ProfitLossStopper,
             usd_converter: UsdConverter,
             balance_manager: Arc<Mutex<BalanceManager>>,
-
-            time_manager_mock_object: time_manager::__now::Context,
+            time_manager_mock: time_manager::__now::Context,
             seconds_offset_in_mock: Arc<Mutex<u32>>,
+            mock_lockers: Vec<MutexGuard<'static, ()>>,
         ) -> Self {
             Self {
                 exchange_blocker,
@@ -215,17 +213,19 @@ mod test {
                 profit_loss_stopper,
                 usd_converter,
                 balance_manager,
-                time_manager_mock_object,
+                time_manager_mock,
                 seconds_offset_in_mock,
+                mock_lockers,
             }
         }
     }
 
     fn init(max_period: Duration, get_last_position_change_calling_times: usize) -> TestContext {
-        let exchange_blocker = Arc::new(ExchangeBlocker::default());
+        let (exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         init_with_exchange_blocker(
             max_period,
-            exchange_blocker,
+            Arc::new(exchange_blocker),
+            exchange_blocker_locker,
             get_last_position_change_calling_times,
         )
     }
@@ -233,16 +233,14 @@ mod test {
     fn init_with_exchange_blocker(
         max_period: Duration,
         exchange_blocker: Arc<ExchangeBlocker>,
+        exchange_blocker_locker: MutexGuard<'static, ()>,
         get_last_position_change_calling_times: usize,
     ) -> TestContext {
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
-        let time_manager_mock_object = time_manager::now_context();
-        let seconds = seconds_offset_in_mock.clone();
-        time_manager_mock_object.expect().returning(move || {
-            chrono::Utc
-                .ymd(2021, 9, 20)
-                .and_hms(0, 0, seconds.lock().clone())
-        });
+        let mut mock_lockers = vec![exchange_blocker_locker];
+        let (time_manager_mock, time_manager_mock_locker) =
+            crate::core::misc::time_manager::tests::init_mock(seconds_offset_in_mock.clone());
+        mock_lockers.push(time_manager_mock_locker);
 
         let balance_manager = Arc::new(Mutex::new(BalanceManager::default()));
         balance_manager
@@ -260,7 +258,9 @@ mod test {
         let balance_change_usd_periodic_calculator =
             BalanceChangeUsdPeriodicCalculator::new(max_period, Some(balance_manager.clone()));
 
-        let exchange = Arc::new(EngineApi::default());
+        let (exchange, exchange_locker) = EngineApi::init_mock();
+        mock_lockers.push(exchange_locker);
+        let exchange = Arc::new(exchange);
 
         let profit_loss_stopper = ProfitLossStopper::new(
             LIMIT,
@@ -271,7 +271,8 @@ mod test {
             exchange,
         );
 
-        let mut usd_converter = UsdConverter::default();
+        let (mut usd_converter, usd_converter_locker) = UsdConverter::init_mock();
+        mock_lockers.push(usd_converter_locker);
         usd_converter
             .expect_convert_amount()
             .returning(|_, b, _| Some(dec!(0.5) * b));
@@ -282,8 +283,9 @@ mod test {
             profit_loss_stopper,
             usd_converter,
             balance_manager,
-            time_manager_mock_object,
+            time_manager_mock,
             seconds_offset_in_mock,
+            mock_lockers,
         )
     }
 
@@ -309,6 +311,7 @@ mod test {
 
     #[tokio::test]
     pub async fn add_change_should_calculate_usd_correctly() {
+        init_logger();
         let context = init(max_period(), 4);
 
         context
@@ -342,6 +345,7 @@ mod test {
 
     #[tokio::test]
     pub async fn add_change_should_ignore_old_data() {
+        init_logger();
         let context = init(max_period(), 3);
 
         context
@@ -369,7 +373,8 @@ mod test {
 
     #[tokio::test]
     pub async fn check_for_limit_should_stop_transaction() {
-        let mut exchange_blocker = ExchangeBlocker::default();
+        init_logger();
+        let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         exchange_blocker
             .expect_block()
             .returning(|_, _, _| ())
@@ -379,7 +384,12 @@ mod test {
             .expect_is_blocked_by_reason()
             .returning(|_, _| false);
 
-        let context = init_with_exchange_blocker(max_period(), Arc::new(exchange_blocker), 4);
+        let context = init_with_exchange_blocker(
+            max_period(),
+            Arc::new(exchange_blocker),
+            exchange_blocker_locker,
+            4,
+        );
 
         context
             .balance_manager
@@ -416,7 +426,8 @@ mod test {
 
     #[tokio::test]
     pub async fn check_for_limit_should_recover_after_positive_tarde() {
-        let mut exchange_blocker = ExchangeBlocker::default();
+        init_logger();
+        let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         exchange_blocker
             .expect_block()
             .returning(|_, _, _| ())
@@ -437,7 +448,12 @@ mod test {
             .returning(|_, _| true)
             .times(1);
 
-        let context = init_with_exchange_blocker(max_period(), Arc::new(exchange_blocker), 6);
+        let context = init_with_exchange_blocker(
+            max_period(),
+            Arc::new(exchange_blocker),
+            exchange_blocker_locker,
+            6,
+        );
 
         context
             .balance_manager
@@ -488,7 +504,7 @@ mod test {
     #[tokio::test]
     pub async fn check_for_limit_should_recover_after_first_change_expired() {
         init_logger();
-        let mut exchange_blocker = ExchangeBlocker::default();
+        let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         exchange_blocker
             .expect_block()
             .returning(|_, _, _| ())
@@ -509,8 +525,12 @@ mod test {
             .returning(|_, _| true)
             .times(1);
 
-        let context =
-            init_with_exchange_blocker(Duration::seconds(3), Arc::new(exchange_blocker), 4);
+        let context = init_with_exchange_blocker(
+            Duration::seconds(3),
+            Arc::new(exchange_blocker),
+            exchange_blocker_locker,
+            4,
+        );
 
         context
             .balance_manager
@@ -569,7 +589,7 @@ mod test {
     #[tokio::test]
     pub async fn check_for_limit_should_recover_after_time_period() {
         init_logger();
-        let mut exchange_blocker = ExchangeBlocker::default();
+        let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
         exchange_blocker
             .expect_block()
             .returning(|_, _, _| ())
@@ -590,8 +610,12 @@ mod test {
             .returning(|_, _| true)
             .times(1);
 
-        let context =
-            init_with_exchange_blocker(Duration::seconds(3), Arc::new(exchange_blocker), 4);
+        let context = init_with_exchange_blocker(
+            Duration::seconds(3),
+            Arc::new(exchange_blocker),
+            exchange_blocker_locker,
+            4,
+        );
 
         context
             .balance_manager

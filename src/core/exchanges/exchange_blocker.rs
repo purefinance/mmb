@@ -25,6 +25,8 @@ use tokio::time::{sleep_until, Duration, Instant};
 
 #[cfg(test)]
 use mockall::automock;
+#[cfg(test)]
+use parking_lot::MutexGuard;
 
 const EXPECTED_EAI_SHOULD_BE_CREATED: &str =
     "Should exists because locks created for all exchange accounts in constructor";
@@ -781,6 +783,9 @@ impl ExchangeBlocker {
         self.events_processor.stop_processing().await;
     }
 }
+
+#[cfg(test)]
+crate::create_mock_initializer!(MockExchangeBlocker, EXCHANGE_BLOCKER_MOCK_LOCKER);
 
 #[cfg(test)]
 mod tests {

@@ -695,7 +695,7 @@ impl Exchange {
 
         self.exchange_client.is_rest_error_code(&response)?;
 
-        self.exchange_client.parse_get_position(&response)
+        Ok(self.exchange_client.parse_get_position(&response))
     }
 
     async fn get_balance_and_positions_core(&self) -> Result<ExchangeBalancesAndPositions> {
@@ -713,6 +713,6 @@ impl Exchange {
 
         self.exchange_client.is_rest_error_code(&response)?;
 
-        self.exchange_client.parse_get_balance(&response)
+        Ok(self.exchange_client.parse_get_balance(&response))
     }
 }

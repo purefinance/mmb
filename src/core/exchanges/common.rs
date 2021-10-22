@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::BTreeMap, time::Duration};
 use thiserror::Error;
 
-use crate::core::misc::derivative_position_info::DerivativePositionInfo;
+use crate::core::misc::derivative_position::DerivativePosition;
 use crate::core::orders::order::ExchangeOrderId;
 
 pub type Price = Decimal;
@@ -363,23 +363,17 @@ impl RestRequestOutcome {
 pub type RestRequestResult = std::result::Result<String, RestRequestError>;
 
 pub struct ClosedPosition {
-    pub order: ClosedPositionOrder,
+    exchange_order_id: ExchangeOrderId,
+    amount: Amount,
 }
 
 impl ClosedPosition {
     pub fn new(exchange_order_id: ExchangeOrderId, amount: Amount) -> Self {
         Self {
-            order: ClosedPositionOrder {
-                exchange_order_id,
-                amount,
-            },
+            exchange_order_id,
+            amount,
         }
     }
-}
-
-pub struct ClosedPositionOrder {
-    exchange_order_id: ExchangeOrderId,
-    amount: Amount,
 }
 
 #[derive(Clone, Debug)]
@@ -433,17 +427,17 @@ pub struct ActivePosition {
     pub status: StatusCode,
     pub time_stamp: u128,
     pub pl: Amount,
-    pub info: DerivativePositionInfo,
+    pub derivative: DerivativePosition,
 }
 
 impl ActivePosition {
-    pub fn new(info: DerivativePositionInfo) -> Self {
+    pub fn new(derivative: DerivativePosition) -> Self {
         Self {
             id: ActivePositionId::unique_id(),
             status: StatusCode::default(),
             time_stamp: 0,
             pl: dec!(0),
-            info,
+            derivative,
         }
     }
 }

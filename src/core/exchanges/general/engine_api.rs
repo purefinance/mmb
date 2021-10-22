@@ -4,6 +4,8 @@ use futures::future::join_all;
 use itertools::Itertools;
 #[cfg(test)]
 use mockall::automock;
+#[cfg(test)]
+use parking_lot::{Mutex, MutexGuard};
 
 use crate::core::{
     exchanges::common::ClosedPosition, lifecycle::cancellation_token::CancellationToken,
@@ -34,7 +36,7 @@ impl EngineApi {
         let get_closed_positions_futures = active_positions
             .iter()
             .filter_map(|active_position| {
-                if active_position.info.position.is_zero() {
+                if active_position.derivative.position.is_zero() {
                     return None;
                 }
                 Some(self.exchange.close_position_loop(
@@ -55,3 +57,6 @@ impl EngineApi {
         closed_positions
     }
 }
+
+#[cfg(test)]
+crate::create_mock_initializer!(MockEngineApi, ENGINE_API_MOCK_LOCKER);
