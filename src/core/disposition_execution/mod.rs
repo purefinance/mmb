@@ -6,7 +6,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use derive_getters::Getters;
 use enum_map::{enum_map, EnumMap};
 use log::{error, info};
 use rust_decimal::Decimal;
@@ -289,7 +288,7 @@ impl PriceSlot {
     }
 }
 
-#[derive(Debug, Getters)]
+#[derive(Debug)]
 struct OrdersStateBySide {
     side: OrderSide,
     slots: Vec<PriceSlot>,
@@ -305,6 +304,13 @@ impl OrdersStateBySide {
                 side,
             )],
         }
+    }
+
+    pub fn side(&self) -> OrderSide {
+        self.side
+    }
+    pub fn slots(&self) -> &Vec<PriceSlot> {
+        &self.slots
     }
 
     pub fn calc_total_remaining_amount(&self) -> Decimal {

@@ -56,8 +56,8 @@ impl OrderBookData {
         Self { asks, bids }
     }
 
-    pub fn to_local_order_book_snapshot(self) -> LocalOrderBookSnapshot {
-        LocalOrderBookSnapshot::new(self.asks, self.bids, Utc::now())
+    pub fn to_local_order_book_snapshot(&self) -> LocalOrderBookSnapshot {
+        LocalOrderBookSnapshot::new(self.asks.clone(), self.bids.clone(), Utc::now())
     }
 
     /// Perform inner asks and bids update
@@ -70,7 +70,7 @@ impl OrderBookData {
     }
 
     fn update_inner_data(&mut self, updates: Vec<OrderBookData>) {
-        for update in updates.into_iter() {
+        for update in updates.iter() {
             Self::apply_update(&mut self.asks, &mut self.bids, update);
         }
     }
@@ -78,18 +78,18 @@ impl OrderBookData {
     pub(crate) fn apply_update(
         asks: &mut SortedOrderData,
         bids: &mut SortedOrderData,
-        update: OrderBookData,
+        update: &OrderBookData,
     ) {
-        Self::update_by_side(asks, update.asks);
-        Self::update_by_side(bids, update.bids);
+        Self::update_by_side(asks, &update.asks);
+        Self::update_by_side(bids, &update.bids);
     }
 
-    fn update_by_side(snapshot: &mut SortedOrderData, update: SortedOrderData) {
+    fn update_by_side(snapshot: &mut SortedOrderData, update: &SortedOrderData) {
         for (key, amount) in update.into_iter() {
             if amount.is_zero() {
                 let _ = snapshot.remove(&key);
             } else {
-                let _ = snapshot.insert(key, amount);
+                let _ = snapshot.insert(*key, *amount);
             }
         }
     }

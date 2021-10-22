@@ -1,8 +1,7 @@
-use derive_getters::Dissolve;
-
 use crate::core::exchanges::common::*;
 use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::DateTime;
+use std::sync::Arc;
 
 /// Possible variants of OrderBookEvent
 #[derive(Debug, Copy, Clone)]
@@ -14,7 +13,7 @@ pub enum EventType {
 }
 
 /// Event to update local snapshot
-#[derive(Debug, Dissolve, Clone)]
+#[derive(Debug, Clone)]
 pub struct OrderBookEvent {
     id: u128,
     pub creation_time: DateTime,
@@ -23,8 +22,8 @@ pub struct OrderBookEvent {
 
     event_id: String,
 
-    event_type: EventType,
-    data: OrderBookData,
+    pub event_type: EventType,
+    pub data: Arc<OrderBookData>,
 }
 
 impl OrderBookEvent {
@@ -34,7 +33,7 @@ impl OrderBookEvent {
         currency_pair: CurrencyPair,
         event_id: String,
         event_type: EventType,
-        data: OrderBookData,
+        data: Arc<OrderBookData>,
     ) -> OrderBookEvent {
         OrderBookEvent {
             id: 0,
@@ -47,8 +46,7 @@ impl OrderBookEvent {
         }
     }
 
-    /// Update inner OrderBookData
-    pub fn apply_data_update(&mut self, updates: Vec<OrderBookData>) {
-        self.data.update(updates);
+    pub fn trade_place_account(&self) -> TradePlaceAccount {
+        TradePlaceAccount::new(self.exchange_account_id, self.currency_pair)
     }
 }
