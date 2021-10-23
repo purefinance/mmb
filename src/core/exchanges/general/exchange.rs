@@ -84,6 +84,7 @@ pub(crate) struct OrderBookTop {
 pub struct Exchange {
     pub exchange_account_id: ExchangeAccountId,
     pub symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
+    /// Actualised orders data for active order and some late cached orders
     pub orders: Arc<OrdersPool>,
     pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
     pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
