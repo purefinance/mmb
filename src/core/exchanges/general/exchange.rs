@@ -83,10 +83,25 @@ pub(crate) struct OrderBookTop {
 
 pub struct Exchange {
     pub exchange_account_id: ExchangeAccountId,
-    pub(super) exchange_client: Box<dyn ExchangeClient>,
+    pub symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
     pub orders: Arc<OrdersPool>,
-    connectivity_manager: Arc<ConnectivityManager>,
-
+    pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
+    pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
+    pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
+    pub(super) exchange_client: Box<dyn ExchangeClient>,
+    pub(super) features: ExchangeFeatures,
+    pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
+    pub(super) application_manager: Arc<ApplicationManager>,
+    pub(super) commission: Commission,
+    pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
+    pub(super) wait_finish_order: DashMap<ClientOrderId, broadcast::Sender<OrderRef>>,
+    pub(super) polling_trades_counts: DashMap<ExchangeAccountId, u32>,
+    pub(super) polling_timeout_manager: PollingTimeoutManager,
+    pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
+    pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
+    pub(super) last_trades_update_time: DashMap<TradePlace, DateTime>,
+    pub(super) last_trades: DashMap<TradePlace, Trade>,
+    pub(super) timeout_manager: Arc<TimeoutManager>,
     // It allows to send and receive notification about event in websocket channel
     // Websocket event is main source detecting order creation result
     // Rest response using only for unsuccessful operations as error
@@ -105,23 +120,7 @@ pub struct Exchange {
             Option<oneshot::Receiver<CancelOrderResult>>,
         ),
     >,
-    pub(super) features: ExchangeFeatures,
-    pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
-    pub(super) application_manager: Arc<ApplicationManager>,
-    pub(crate) timeout_manager: Arc<TimeoutManager>,
-    pub(super) commission: Commission,
-    pub symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
-    pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
-    pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
-    pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
-    pub(super) wait_finish_order: DashMap<ClientOrderId, broadcast::Sender<OrderRef>>,
-    pub(super) polling_trades_counts: DashMap<ExchangeAccountId, u32>,
-    pub(super) polling_timeout_manager: PollingTimeoutManager,
-    pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
-    pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
-    pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
-    pub(crate) last_trades_update_time: DashMap<TradePlace, DateTime>,
-    pub(crate) last_trades: DashMap<TradePlace, Trade>,
+    connectivity_manager: Arc<ConnectivityManager>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;

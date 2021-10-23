@@ -3,9 +3,9 @@ use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
 use crate::core::exchanges::general::exchange_creation::create_timeout_manager;
+use crate::core::exchanges::internal_events_loop::InternalEventsLoop;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
-use crate::core::internal_events_loop::InternalEventsLoop;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
