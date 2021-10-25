@@ -31,7 +31,7 @@ pub trait DispositionStrategy: Send + Sync + 'static {
         &self,
         cloned_order: &Arc<OrderSnapshot>,
         price_slot: &PriceSlot,
-        target_eai: &ExchangeAccountId,
+        target_eai: ExchangeAccountId,
         cancellation_token: CancellationToken,
     ) -> Result<()>;
 }
@@ -63,7 +63,7 @@ impl ExampleStrategy {
     }
 
     fn trade_place_account(&self) -> TradePlaceAccount {
-        TradePlaceAccount::new(self.target_eai.clone(), self.currency_pair.clone())
+        TradePlaceAccount::new(self.target_eai, self.currency_pair)
     }
 
     fn trade_place(&self) -> TradePlace {
@@ -78,7 +78,7 @@ impl ExampleStrategy {
         local_snapshots_service: &LocalSnapshotsService,
         explanation: Explanation,
     ) -> Option<TradingContextBySide> {
-        let snapshot = local_snapshots_service.get_snapshot(&self.trade_place())?;
+        let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
         let ask_min_price = snapshot.get_top_ask()?.0;
         let bid_max_price = snapshot.get_top_bid()?.0;
 
@@ -162,7 +162,7 @@ impl DispositionStrategy for ExampleStrategy {
         &self,
         _cloned_order: &Arc<OrderSnapshot>,
         _price_slot: &PriceSlot,
-        _target_eai: &ExchangeAccountId,
+        _target_eai: ExchangeAccountId,
         _cancellation_token: CancellationToken,
     ) -> Result<()> {
         // TODO save order fill info in Database

@@ -47,7 +47,7 @@ impl Exchange {
     ) -> Result<RestRequestOutcome, Error> {
         self.timeout_manager
             .reserve_when_available(
-                &self.exchange_account_id,
+                self.exchange_account_id,
                 RequestType::GetOpenOrders,
                 None,
                 CancellationToken::default(),
@@ -69,7 +69,7 @@ impl Exchange {
             OpenOrdersType::AllCurrencyPair => {
                 self.timeout_manager
                     .reserve_when_available(
-                        &self.exchange_account_id,
+                        self.exchange_account_id,
                         RequestType::GetOpenOrders,
                         None,
                         CancellationToken::default(),
@@ -164,8 +164,8 @@ impl Exchange {
             let new_header = OrderHeader::new(
                 id_for_new_header,
                 chrono::Utc::now(),
-                self.exchange_account_id.clone(),
-                order.currency_pair.clone(),
+                self.exchange_account_id,
+                order.currency_pair,
                 OrderType::Unknown,
                 order.order_side,
                 order.amount,
@@ -189,7 +189,7 @@ impl Exchange {
                 header: new_header,
                 // to fill this property we need to send several requests to the exchange,
                 // as so as this one not required for our current tasks , we decide to refuse
-                // it for better performance and reliablity of graceful shutdown
+                // it for better performance and reliability of graceful shutdown
                 fills: Default::default(),
                 status_history: Default::default(),
                 internal_props: Default::default(),

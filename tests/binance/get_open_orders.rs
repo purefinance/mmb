@@ -18,7 +18,7 @@ async fn open_orders_exists() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -41,13 +41,13 @@ async fn open_orders_exists() {
     };
 
     let first_order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
     );
 
     let second_order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
     );
@@ -88,8 +88,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
-    let mut settings =
-        ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
+    let mut settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
 
     settings.currency_pairs = Some(vec![
         CurrencyPairSetting {
@@ -106,7 +105,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
 
     let binance_builder = match BinanceBuilder::try_new_with_settings(
         settings.clone(),
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::OneCurrencyPair,
@@ -129,7 +128,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
     };
 
     let first_order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
@@ -140,11 +139,11 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         .expect("in test");
 
     let mut second_order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
     );
-    second_order_proxy.currency_pair = CurrencyPair::from_codes(&"cnd".into(), &"btc".into());
+    second_order_proxy.currency_pair = CurrencyPair::from_codes("cnd".into(), "btc".into());
     second_order_proxy.amount = dec!(1000);
 
     second_order_proxy

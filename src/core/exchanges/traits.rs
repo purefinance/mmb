@@ -97,7 +97,7 @@ pub trait Support: Send + Sync {
     fn set_handle_trade_callback(
         &self,
         callback: Box<
-            dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
+            dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
         >,
     );
 
@@ -107,7 +107,7 @@ pub trait Support: Send + Sync {
 
     async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri>;
 
-    fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair;
+    fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair;
 
     fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode>;
 
@@ -160,5 +160,5 @@ pub trait ExchangeClientBuilder {
         application_manager: Arc<ApplicationManager>,
     ) -> ExchangeClientBuilderResult;
 
-    fn get_timeout_argments(&self) -> RequestTimeoutArguments;
+    fn get_timeout_arguments(&self) -> RequestTimeoutArguments;
 }

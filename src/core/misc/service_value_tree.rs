@@ -56,29 +56,29 @@ impl ServiceValueTree {
         &mut self,
         service_name: &String,
         configuration_key: &String,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
     ) -> Option<&mut CurrencyPairByCurrencyPair> {
         self.get_mut_by_configuration_key(service_name, configuration_key)?
-            .get_mut(exchange_account_id)
+            .get_mut(&exchange_account_id)
     }
 
     fn get_mut_by_currency_pair(
         &mut self,
         service_name: &String,
         configuration_key: &String,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
     ) -> Option<&mut ValueByCurrencyCode> {
         self.get_mut_by_exchange_account_id(service_name, configuration_key, exchange_account_id)?
-            .get_mut(currency_pair)
+            .get_mut(&currency_pair)
     }
 
     fn get_mut_by_currency_code(
         &mut self,
         service_name: &String,
         configuration_key: &String,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
         currency_code: &CurrencyCode,
     ) -> Option<&mut Amount> {
         self.get_mut_by_currency_pair(
@@ -133,16 +133,16 @@ impl ServiceValueTree {
         &mut self,
         service_name: &String,
         configuration_key: &String,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         value: CurrencyPairByCurrencyPair,
     ) {
         if let Some(sub_tree) = self.get_mut_by_configuration_key(service_name, configuration_key) {
-            sub_tree.insert(exchange_account_id.clone(), value);
+            sub_tree.insert(exchange_account_id, value);
         } else {
             self.set_by_configuration_key(
                 service_name,
                 configuration_key,
-                hashmap![exchange_account_id.clone() => value],
+                hashmap![exchange_account_id => value],
             );
         }
     }
@@ -151,8 +151,8 @@ impl ServiceValueTree {
         &mut self,
         service_name: &String,
         configuration_key: &String,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
         value: ValueByCurrencyCode,
     ) {
         if let Some(sub_tree) = self.get_mut_by_exchange_account_id(
@@ -160,13 +160,13 @@ impl ServiceValueTree {
             configuration_key,
             exchange_account_id,
         ) {
-            sub_tree.insert(currency_pair.clone(), value);
+            sub_tree.insert(currency_pair, value);
         } else {
             self.set_by_exchange_account_id(
                 service_name,
                 configuration_key,
                 exchange_account_id,
-                hashmap![currency_pair.clone() => value],
+                hashmap![currency_pair => value],
             );
         }
     }
@@ -175,9 +175,9 @@ impl ServiceValueTree {
         &mut self,
         service_name: &String,
         configuration_key: &String,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
-        currency_code: &CurrencyCode,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        currency_code: CurrencyCode,
         value: Amount,
     ) {
         if let Some(sub_tree) = self.get_mut_by_currency_pair(
@@ -186,14 +186,14 @@ impl ServiceValueTree {
             exchange_account_id,
             currency_pair,
         ) {
-            sub_tree.insert(currency_code.clone(), value);
+            sub_tree.insert(currency_code, value);
         } else {
             self.set_by_currency_pair(
                 service_name,
                 configuration_key,
                 exchange_account_id,
                 currency_pair,
-                hashmap![currency_code.clone() => value],
+                hashmap![currency_code => value],
             );
         }
     }
@@ -204,9 +204,9 @@ impl ServiceValueTree {
             &balance_request
                 .configuration_descriptor
                 .service_configuration_key,
-            &balance_request.exchange_account_id,
-            &balance_request.currency_pair,
-            &balance_request.currency_code,
+            balance_request.exchange_account_id,
+            balance_request.currency_pair,
+            balance_request.currency_code,
             value,
         );
     }
@@ -288,7 +288,7 @@ mod test {
             ("b_3", "q_3"),
             ("b_4", "q_4"),
         ]
-        .map(|x| CurrencyPair::from_codes(&x.0.into(), &x.1.into()))
+        .map(|x| CurrencyPair::from_codes(x.0.into(), x.1.into()))
         .to_vec()
     }
 
@@ -320,9 +320,9 @@ mod test {
         let mut balances = HashMap::new();
         for service_name in &get_service_names() {
             for service_configuration_key in &get_configuration_keys() {
-                for exchange_account_id in &get_exchange_account_ids() {
-                    for currency_pair in &get_currency_pairs() {
-                        for currency_code in &get_currency_codes() {
+                for exchange_account_id in get_exchange_account_ids() {
+                    for currency_pair in get_currency_pairs() {
+                        for currency_code in get_currency_codes() {
                             service_value_tree.set_by_currency_code(
                                 service_name,
                                 service_configuration_key,
@@ -337,9 +337,9 @@ mod test {
                                         service_name.clone(),
                                         service_configuration_key.clone(),
                                     )),
-                                    exchange_account_id.clone(),
-                                    currency_pair.clone(),
-                                    currency_code.clone(),
+                                    exchange_account_id,
+                                    currency_pair,
+                                    currency_code,
                                 ),
                                 dec!(1),
                             );
@@ -366,14 +366,13 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
         let new_service_configuration_key = "new_name".to_string();
         let new_exchange_account_id = ExchangeAccountId::new("new_acc".into(), 0);
-        let new_currency_pair =
-            CurrencyPair::from_codes(&"new_code_b".into(), &"new_code_q".into());
+        let new_currency_pair = CurrencyPair::from_codes("new_code_b".into(), "new_code_q".into());
         let new_currency_code = CurrencyCode::new("new_code".into());
         let new_value = dec!(1);
 
@@ -382,10 +381,8 @@ mod test {
             hashmap![
                 service_configuration_key.clone() =>
                 hashmap![
-                    exchange_account_id.clone() =>
-                    hashmap![
-                        currency_pair.clone() =>
-                        hashmap![currency_code.clone() => value]
+                    exchange_account_id =>
+                    hashmap![currency_pair => hashmap![currency_code => value]
                     ]
                 ]
             ],
@@ -395,29 +392,29 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
-            &currency_code,
-            &value,
+            exchange_account_id,
+            currency_pair,
+            currency_code,
+            value,
             Some("original trees are same"),
         );
 
         service_value_tree.set_by_currency_code(
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
-            &currency_code,
+            exchange_account_id,
+            currency_pair,
+            currency_code,
             new_value.clone(),
         );
         assert_tree_item_eq_with_message(
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
-            &currency_code,
-            &new_value,
+            exchange_account_id,
+            currency_pair,
+            currency_code,
+            new_value,
             Some("trees remain identical after changing 'value'"),
         );
 
@@ -425,18 +422,18 @@ mod test {
         service_value_tree.set_by_currency_pair(
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
+            exchange_account_id,
+            currency_pair,
             new_map.clone(),
         );
         assert_tree_item_eq_with_message(
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
-            &new_currency_code,
-            &new_value,
+            exchange_account_id,
+            currency_pair,
+            new_currency_code,
+            new_value,
             Some("trees remain identical after changing 'currency_code'"),
         );
 
@@ -444,21 +441,21 @@ mod test {
         service_value_tree.set_by_exchange_account_id(
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
+            exchange_account_id,
             new_map.clone(),
         );
         assert_tree_item_eq_with_message(
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &new_currency_pair,
-            &new_currency_code,
-            &new_value,
+            exchange_account_id,
+            new_currency_pair,
+            new_currency_code,
+            new_value,
             Some("trees remain identical after changing 'currency_pair'"),
         );
 
-        let new_map = hashmap![new_exchange_account_id.clone() => new_map.clone()];
+        let new_map = hashmap![new_exchange_account_id => new_map.clone()];
         service_value_tree.set_by_configuration_key(
             &service_name,
             &service_configuration_key,
@@ -468,10 +465,10 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &new_exchange_account_id,
-            &new_currency_pair,
-            &new_currency_code,
-            &new_value,
+            new_exchange_account_id,
+            new_currency_pair,
+            new_currency_code,
+            new_value,
             Some("trees remain identical after changing 'exchange_account_id'"),
         );
 
@@ -481,10 +478,10 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &new_service_configuration_key,
-            &new_exchange_account_id,
-            &new_currency_pair,
-            &new_currency_code,
-            &new_value,
+            new_exchange_account_id,
+            new_currency_pair,
+            new_currency_code,
+            new_value,
             Some("trees remain identical after changing 'service_configuration_key'"),
         );
     }
@@ -498,8 +495,8 @@ mod test {
         let new_service_configuration_key = "new_service_configuration_key".to_string();
         let new_exchange_account_id = ExchangeAccountId::new("new_exchange_account_id".into(), 0);
         let new_currency_pair = CurrencyPair::from_codes(
-            &"new_currency_pair_b_0".into(),
-            &"new_currency_pair_q_0".into(),
+            "new_currency_pair_b_0".into(),
+            "new_currency_pair_q_0".into(),
         );
         let new_currency_code = CurrencyCode::new("0".into());
         let new_value = dec!(0);
@@ -508,9 +505,9 @@ mod test {
         new_tree.set_by_currency_code(
             &new_service_name,
             &new_service_configuration_key,
-            &new_exchange_account_id,
-            &new_currency_pair,
-            &new_currency_code,
+            new_exchange_account_id,
+            new_currency_pair,
+            new_currency_code,
             new_value,
         );
 
@@ -520,7 +517,7 @@ mod test {
                     new_service_name.clone(),
                     new_service_configuration_key.clone(),
                 )),
-                new_exchange_account_id.clone(),
+                new_exchange_account_id,
                 new_currency_pair.clone(),
                 new_currency_code.clone(),
             ),
@@ -539,7 +536,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -548,7 +545,7 @@ mod test {
             hashmap![
                 service_configuration_key.clone() =>
                 hashmap![
-                    exchange_account_id.clone() =>
+                    exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
                         hashmap![currency_code.clone() => value]
@@ -561,10 +558,10 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
-            &currency_code,
-            &value,
+            exchange_account_id,
+            currency_pair,
+            currency_code,
+            value,
         );
     }
 
@@ -577,7 +574,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -586,7 +583,7 @@ mod test {
             hashmap![
                 service_configuration_key.clone() =>
                 hashmap![
-                    exchange_account_id.clone() =>
+                    exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
                         hashmap![currency_code.clone() => value]
@@ -599,10 +596,10 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
-            &currency_code,
-            &dec!(1),
+            exchange_account_id,
+            currency_pair,
+            currency_code,
+            dec!(1),
         );
     }
 
@@ -615,7 +612,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -624,7 +621,7 @@ mod test {
             hashmap![
                 service_configuration_key.clone() =>
                 hashmap![
-                    exchange_account_id.clone() =>
+                    exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
                         hashmap![currency_code.clone() => value]
@@ -637,10 +634,10 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
-            &CurrencyCode::new("1".into()),
-            &value,
+            exchange_account_id,
+            currency_pair,
+            CurrencyCode::new("1".into()),
+            value,
         );
     }
 
@@ -653,7 +650,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -662,7 +659,7 @@ mod test {
             hashmap![
                 service_configuration_key.clone() =>
                 hashmap![
-                    exchange_account_id.clone() =>
+                    exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
                         hashmap![currency_code.clone() => value]
@@ -675,10 +672,10 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &exchange_account_id,
-            &CurrencyPair::from_codes(&"new_b_0".into(), &"q_0".into()),
-            &currency_code,
-            &value,
+            exchange_account_id,
+            CurrencyPair::from_codes("new_b_0".into(), "q_0".into()),
+            currency_code,
+            value,
         );
     }
 
@@ -691,7 +688,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -700,7 +697,7 @@ mod test {
             hashmap![
                 service_configuration_key.clone() =>
                 hashmap![
-                    exchange_account_id.clone() =>
+                    exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
                         hashmap![currency_code.clone() => value]
@@ -713,10 +710,10 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &service_configuration_key,
-            &ExchangeAccountId::new("acc_0".into(), 1),
-            &currency_pair,
-            &currency_code,
-            &value,
+            ExchangeAccountId::new("acc_0".into(), 1),
+            currency_pair,
+            currency_code,
+            value,
         );
     }
 
@@ -729,7 +726,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -738,7 +735,7 @@ mod test {
             hashmap![
                 service_configuration_key.clone() =>
                 hashmap![
-                    exchange_account_id.clone() =>
+                    exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
                         hashmap![currency_code.clone() => value]
@@ -751,10 +748,10 @@ mod test {
             service_value_tree.get(),
             &service_name,
             &"new_name".to_string(),
-            &exchange_account_id,
-            &currency_pair,
-            &currency_code,
-            &value,
+            exchange_account_id,
+            currency_pair,
+            currency_code,
+            value,
         );
     }
 
@@ -767,7 +764,7 @@ mod test {
         let service_name = "name".to_string();
         let service_configuration_key = "name".to_string();
         let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
-        let currency_pair = CurrencyPair::from_codes(&"b_0".into(), &"q_0".into());
+        let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
@@ -776,7 +773,7 @@ mod test {
             hashmap![
                 service_configuration_key.clone() =>
                 hashmap![
-                    exchange_account_id.clone() =>
+                    exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
                         hashmap![currency_code.clone() => value]
@@ -789,10 +786,10 @@ mod test {
             service_value_tree.get(),
             &"new_name".to_string(),
             &service_configuration_key,
-            &exchange_account_id,
-            &currency_pair,
-            &currency_code,
-            &value,
+            exchange_account_id,
+            currency_pair,
+            currency_code,
+            value,
         );
     }
 
@@ -800,10 +797,10 @@ mod test {
         tree: &ConfigurationKeyByServiceName,
         service_name: &String,
         service_configuration_key: &String,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
-        currency_code: &CurrencyCode,
-        value: &Amount,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        currency_code: CurrencyCode,
+        value: Amount,
     ) {
         assert_tree_item_eq_with_message(
             tree,
@@ -821,10 +818,10 @@ mod test {
         tree: &ConfigurationKeyByServiceName,
         service_name: &String,
         service_configuration_key: &String,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
-        currency_code: &CurrencyCode,
-        value: &Amount,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
+        currency_code: CurrencyCode,
+        value: Amount,
         err_message: Option<&str>,
     ) {
         assert_eq!(
@@ -834,10 +831,9 @@ mod test {
                 hashmap![
                     service_configuration_key.clone() =>
                     hashmap![
-                        exchange_account_id.clone() =>
+                        exchange_account_id =>
                         hashmap![
-                            currency_pair.clone() =>
-                            hashmap![currency_code.clone() => value.clone()]
+                            currency_pair => hashmap![currency_code => value]
                         ]
                     ]
                 ]

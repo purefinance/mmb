@@ -131,7 +131,7 @@ impl Exchange {
 
             self.timeout_manager
                 .reserve_when_available(
-                    &self.exchange_account_id,
+                    self.exchange_account_id,
                     RequestType::CancelOrder,
                     pre_reservation_group_id,
                     order_is_finished_token.clone(),
@@ -141,7 +141,7 @@ impl Exchange {
 
             let cancel_order_future = self.start_cancel_order(&order, cancellation_token.clone());
 
-            // TODO select cance_order_task only if Exchange.AllowedCancelEventSourceType != AllowedEventSourceType.OnlyFallback
+            // TODO select cancel_order_task only if Exchange.AllowedCancelEventSourceType != AllowedEventSourceType.OnlyFallback
 
             tokio::select! {
                 cancel_order_outcome = cancel_order_future, if self.features.allowed_cancel_event_source_type != AllowedEventSourceType::FallbackOnly => {
@@ -204,7 +204,7 @@ impl Exchange {
             || (order_cancellation_event_source_type == Some(EventSourceType::WebSocket)
             || order_cancellation_event_source_type == Some(EventSourceType::Rest)
             && (order_last_cancellation_error == Some(ExchangeErrorType::OrderNotFound)
-            // If cancellation received not from a fallback but order not found / compltytd bit !order.is_completed, there is a chance fill notification was missed
+            // If cancellation received not from a fallback but order not found / completed bit !order.is_completed, there is a chance fill notification was missed
             || order_last_cancellation_error == Some(ExchangeErrorType::OrderCompleted)))
             && order.status() != OrderStatus::Completed
         {
@@ -297,7 +297,7 @@ impl Exchange {
 
             self.timeout_manager
                 .reserve_when_available(
-                    &self.exchange_account_id,
+                    self.exchange_account_id,
                     RequestType::CancelOrder,
                     pre_reservation_group_id,
                     cancellation_token.clone(),

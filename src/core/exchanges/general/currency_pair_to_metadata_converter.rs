@@ -18,10 +18,10 @@ impl CurrencyPairToMetadataConverter {
 
     pub(crate) fn get_currency_pair_metadata(
         &self,
-        exchange_account_id: &ExchangeAccountId,
-        currency_pair: &CurrencyPair,
+        exchange_account_id: ExchangeAccountId,
+        currency_pair: CurrencyPair,
     ) -> Arc<CurrencyPairMetadata> {
-        let exchange = self.exchanges_by_id.get(exchange_account_id).expect(
+        let exchange = self.exchanges_by_id.get(&exchange_account_id).expect(
             format!(
                 "get_currency_pair_metadata failed to get exchange by id: {}",
                 exchange_account_id

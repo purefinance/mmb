@@ -140,11 +140,11 @@ impl Exchange {
         timeout_manager: Arc<TimeoutManager>,
         commission: Commission,
     ) -> Arc<Self> {
-        let connectivity_manager = ConnectivityManager::new(exchange_account_id.clone());
+        let connectivity_manager = ConnectivityManager::new(exchange_account_id);
         let polling_timeout_manager = PollingTimeoutManager::new(timeout_arguments);
 
         let exchange = Arc::new(Self {
-            exchange_account_id: exchange_account_id.clone(),
+            exchange_account_id,
             exchange_client,
             orders: OrdersPool::new(),
             connectivity_manager,
@@ -623,7 +623,7 @@ impl Exchange {
         loop {
             self.timeout_manager
                 .reserve_when_available(
-                    &self.exchange_account_id,
+                    self.exchange_account_id,
                     RequestType::GetActivePositions,
                     None,
                     cancellation_token.clone(),
@@ -647,7 +647,7 @@ impl Exchange {
         loop {
             self.timeout_manager
                 .reserve_when_available(
-                    &self.exchange_account_id,
+                    self.exchange_account_id,
                     RequestType::GetActivePositions,
                     None,
                     cancellation_token.clone(),

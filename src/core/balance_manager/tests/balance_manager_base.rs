@@ -19,6 +19,8 @@ use crate::core::{
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 
+use chrono::TimeZone;
+use itertools::Itertools;
 use mockall_double::double;
 use parking_lot::{Mutex, MutexGuard};
 use rust_decimal::Decimal;
@@ -40,8 +42,8 @@ pub struct BalanceManagerBase {
 }
 
 impl BalanceManagerBase {
-    pub fn exchange_name() -> String {
-        "local_exchange_account_id".into()
+    pub fn exchange_id() -> String {
+        "local_exchange_id".into()
     }
     // Quote currency
     pub fn btc() -> CurrencyCode {
@@ -57,12 +59,12 @@ impl BalanceManagerBase {
     }
 
     pub fn currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes(&BalanceManagerBase::eth(), &BalanceManagerBase::btc())
+        CurrencyPair::from_codes(Self::eth(), Self::btc())
     }
 
     pub fn update_balance(
         mut balance_manager: MutexGuard<BalanceManager>,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         balances_by_currency_code: HashMap<CurrencyCode, Amount>,
     ) {
         balance_manager
@@ -84,31 +86,31 @@ impl BalanceManagerBase {
 
     pub fn update_balance_with_positions(
         mut balance_manager: MutexGuard<BalanceManager>,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         balances_by_currency_code: HashMap<CurrencyCode, Amount>,
         positions_by_currency_pair: HashMap<CurrencyPair, Decimal>,
     ) {
-        let balances: Vec<ExchangeBalance> = balances_by_currency_code
-            .iter()
+        let balances = balances_by_currency_code
+            .into_iter()
             .map(|x| ExchangeBalance {
-                currency_code: x.0.clone(),
-                balance: x.1.clone(),
+                currency_code: x.0,
+                balance: x.1,
             })
-            .collect();
+            .collect_vec();
 
-        let positions: Vec<DerivativePosition> = positions_by_currency_pair
-            .iter()
-            .map(|x| {
-                DerivativePosition::new(x.0.clone(), x.1.clone(), None, dec!(0), dec!(0), dec!(1))
-            })
-            .collect();
+        let positions = Some(
+            positions_by_currency_pair
+                .into_iter()
+                .map(|x| DerivativePosition::new(x.0, x.1, None, dec!(0), dec!(0), dec!(1)))
+                .collect_vec(),
+        );
 
         balance_manager
             .update_exchange_balance(
                 exchange_account_id,
                 &ExchangeBalancesAndPositions {
                     balances,
-                    positions: Some(positions),
+                    positions,
                 },
             )
             .expect("failed to update exchange balance");
@@ -118,21 +120,19 @@ impl BalanceManagerBase {
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
         let (mock_object, mock_locker) = time::tests::init_mock(seconds_offset_in_mock.clone());
 
-        let exchange_account_id_1 =
-            ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 0);
-        let exchange_account_id_2 =
-            ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 1);
+        let exchange_id = Self::exchange_id().as_str().into();
+        let exchange_account_id_1 = ExchangeAccountId::new(exchange_id, 0);
+        let exchange_account_id_2 = ExchangeAccountId::new(exchange_id, 1);
+
         Self {
             ten_digit_precision: dec!(0.0000000001),
             order_index: 1,
-            exchange_account_id_1: exchange_account_id_1.clone(),
-            exchange_account_id_2: exchange_account_id_2.clone(),
-            currency_pair: BalanceManagerBase::currency_pair().clone(),
+            exchange_account_id_1,
+            exchange_account_id_2,
+            currency_pair: Self::currency_pair(),
             configuration_descriptor: Arc::from(ConfigurationDescriptor::new(
                 "LiquidityGenerator".into(),
-                exchange_account_id_1.to_string()
-                    + ";"
-                    + BalanceManagerBase::currency_pair().as_str(),
+                exchange_account_id_1.to_string() + ";" + Self::currency_pair().as_str(),
             )),
             seconds_offset_in_mock,
             currency_pair_metadata: None,
@@ -152,7 +152,7 @@ impl BalanceManagerBase {
     }
 
     pub fn balance_manager(&self) -> MutexGuard<BalanceManager> {
-        match self.balance_manager.as_ref() {
+        match &self.balance_manager {
             Some(res) => res.lock(),
             None => panic!("should be non None here"),
         }
@@ -169,8 +169,8 @@ impl BalanceManagerBase {
     pub fn create_balance_request(&self, currency_code: CurrencyCode) -> BalanceRequest {
         BalanceRequest::new(
             self.configuration_descriptor.clone(),
-            self.exchange_account_id_1.clone(),
-            self.currency_pair.clone(),
+            self.exchange_account_id_1,
+            self.currency_pair,
             currency_code,
         )
     }
@@ -183,7 +183,7 @@ impl BalanceManagerBase {
     ) -> ReserveParameters {
         ReserveParameters::new(
             self.configuration_descriptor.clone(),
-            self.exchange_account_id_1.clone(),
+            self.exchange_account_id_1,
             self.currency_pair_metadata(),
             order_side,
             price,
@@ -194,8 +194,8 @@ impl BalanceManagerBase {
     pub fn get_balance_by_trade_side(&self, side: OrderSide, price: Price) -> Option<Amount> {
         self.balance_manager().get_balance_by_side(
             self.configuration_descriptor.clone(),
-            &self.exchange_account_id_1,
-            self.currency_pair_metadata().clone(),
+            self.exchange_account_id_1,
+            self.currency_pair_metadata(),
             side,
             price,
         )
@@ -208,9 +208,9 @@ impl BalanceManagerBase {
     ) -> Option<Amount> {
         self.balance_manager().get_balance_by_currency_code(
             self.configuration_descriptor.clone(),
-            &self.exchange_account_id_1,
-            self.currency_pair_metadata().clone(),
-            &currency_code,
+            self.exchange_account_id_1,
+            self.currency_pair_metadata(),
+            currency_code,
             price,
         )
     }
@@ -223,9 +223,9 @@ impl BalanceManagerBase {
     ) -> Option<Amount> {
         balance_manager.get_balance_by_currency_code(
             self.configuration_descriptor.clone(),
-            &self.exchange_account_id_1,
-            self.currency_pair_metadata().clone(),
-            &currency_code,
+            self.exchange_account_id_1,
+            self.currency_pair_metadata(),
+            currency_code,
             price,
         )
     }
@@ -248,8 +248,8 @@ impl BalanceManagerBase {
             header: OrderHeader::new(
                 ClientOrderId::new(format!("order{}", self.order_index).into()),
                 time_manager::now(),
-                self.exchange_account_id_1.clone(),
-                self.currency_pair_metadata().currency_pair().clone(),
+                self.exchange_account_id_1,
+                self.currency_pair_metadata().currency_pair(),
                 OrderType::Limit,
                 order_side,
                 amount,

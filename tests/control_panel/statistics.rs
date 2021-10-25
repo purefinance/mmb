@@ -38,7 +38,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes(&"phb".into(), &"btc".into())
+        CurrencyPair::from_codes("phb".into(), "btc".into())
     }
 
     fn max_amount(&self) -> Amount {
@@ -67,7 +67,7 @@ async fn orders_cancelled() {
             &self,
             _cloned_order: &Arc<OrderSnapshot>,
             _price_slot: &PriceSlot,
-            _target_eai: &ExchangeAccountId,
+            _target_eai: ExchangeAccountId,
             _cancellation_token: CancellationToken,
         ) -> anyhow::Result<()> {
             Ok(())
@@ -84,7 +84,7 @@ async fn orders_cancelled() {
     let mut exchange_settings = &mut settings.core.exchanges[0];
     exchange_settings.api_key = api_key.clone();
     exchange_settings.secret_key = secret_key;
-    let exchange_account_id = exchange_settings.exchange_account_id.clone();
+    let exchange_account_id = exchange_settings.exchange_account_id;
 
     let init_settings = InitSettings::Directly(settings.clone());
     let engine = launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy))
@@ -97,22 +97,23 @@ async fn orders_cancelled() {
         .get(&exchange_account_id)
         .expect("in test");
 
-    let currency_pairs = settings
+    let currency_pair_setting = settings
         .core
         .exchanges
         .first()
-        .and_then(|exchange_settings| exchange_settings.currency_pairs.clone())
+        .and_then(|exchange_settings| exchange_settings.currency_pairs.as_ref())
+        .and_then(|x| x.first())
         .expect("in test");
-    let currency_pair_setting = currency_pairs.first().expect("in test");
+
     let test_currency_pair =
-        CurrencyPair::from_codes(&currency_pair_setting.base, &currency_pair_setting.quote);
+        CurrencyPair::from_codes(currency_pair_setting.base, currency_pair_setting.quote);
     let _ = exchange
-        .cancel_all_orders(test_currency_pair.clone())
+        .cancel_all_orders(test_currency_pair)
         .await
         .expect("in test");
 
     let order = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromOrdersCancelledTest".to_owned()),
         CancellationToken::default(),
     );

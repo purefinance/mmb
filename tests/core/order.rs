@@ -23,7 +23,7 @@ use std::sync::Arc;
 ///
 /// ```no_run
 /// let mut order_proxy = OrderProxy::new(
-///     exchange_account_id.clone(),
+///     exchange_account_id,
 ///     Some("FromExample".to_owned()),
 ///     CancellationToken::default(),
 /// );
@@ -75,7 +75,7 @@ impl OrderProxy {
     }
 
     pub fn default_currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes(&"phb".into(), &"btc".into())
+        CurrencyPair::from_codes("phb".into(), "btc".into())
     }
 
     pub fn default_amount() -> Decimal {
@@ -90,8 +90,8 @@ impl OrderProxy {
         OrderHeader::new(
             self.client_order_id.clone(),
             self.init_time,
-            self.exchange_account_id.clone(),
-            self.currency_pair.clone(),
+            self.exchange_account_id,
+            self.currency_pair,
             self.order_type,
             self.side,
             self.amount,

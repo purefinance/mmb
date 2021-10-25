@@ -89,8 +89,8 @@ impl PriceSourceEventLoop {
                     match event {
                         ExchangeEvent::OrderBookEvent(order_book_event) => {
                             let trade_place = TradePlace::new(
-                                order_book_event.exchange_account_id.exchange_id.clone(),
-                                order_book_event.currency_pair.clone(),
+                                order_book_event.exchange_account_id.exchange_id,
+                                order_book_event.currency_pair,
                             );
                             if self.all_trade_places.contains(&trade_place) {
                                 let _ = self.local_snapshot_service.update(order_book_event);
@@ -123,7 +123,7 @@ impl PriceSourceEventLoop {
     fn update_cache_and_save(&mut self, trade_place: TradePlace) {
         let snapshot = self
             .local_snapshot_service
-            .get_snapshot(&trade_place)
+            .get_snapshot(trade_place)
             .with_expect(|| {
                 format!(
                     "Can't get snapshot for {:?} (this shouldn't happen)",
@@ -132,7 +132,7 @@ impl PriceSourceEventLoop {
             });
 
         let price_by_order_side = snapshot.get_top_prices();
-        if self.try_update_cache(trade_place.clone(), price_by_order_side.clone()) {
+        if self.try_update_cache(trade_place, price_by_order_side.clone()) {
             self.price_sources_saver
                 .save(trade_place, price_by_order_side);
         }
@@ -185,10 +185,7 @@ impl PriceSourceService {
                 .into_iter()
                 .map(|x| {
                     (
-                        ConvertCurrencyDirection::new(
-                            x.start_currency_code.clone(),
-                            x.end_currency_code.clone(),
-                        ),
+                        ConvertCurrencyDirection::new(x.start_currency_code, x.end_currency_code),
                         x,
                     )
                 })
@@ -231,8 +228,8 @@ impl PriceSourceService {
             .map(|setting| {
                 if setting.start_currency_code == setting.end_currency_code {
                     return PriceSourceChain::new(
-                        setting.start_currency_code.clone(),
-                        setting.end_currency_code.clone(),
+                        setting.start_currency_code,
+                        setting.end_currency_code,
                         Vec::<RebasePriceStep>::new(),
                     );
                 }
@@ -240,23 +237,23 @@ impl PriceSourceService {
                 let mut currency_pair_metadata_by_currency_code = HashMap::new();
                 for pair in &setting.exchange_id_currency_pair_settings {
                     let metadata = currency_pair_to_metadata_converter
-                        .get_currency_pair_metadata(&pair.exchange_account_id, &pair.currency_pair);
+                        .get_currency_pair_metadata(pair.exchange_account_id, pair.currency_pair);
                     Self::add_currency_pair_metadata_to_hashmap(
-                        &metadata.quote_currency_code(),
-                        pair.exchange_account_id.exchange_id.clone(),
+                        metadata.quote_currency_code(),
+                        pair.exchange_account_id.exchange_id,
                         metadata.clone(),
                         &mut currency_pair_metadata_by_currency_code,
                     );
                     Self::add_currency_pair_metadata_to_hashmap(
-                        &metadata.base_currency_code(),
-                        pair.exchange_account_id.exchange_id.clone(),
+                        metadata.base_currency_code(),
+                        pair.exchange_account_id.exchange_id,
                         metadata.clone(),
                         &mut currency_pair_metadata_by_currency_code,
                     );
                 }
 
                 let mut rebase_price_steps = Vec::new();
-                let mut current_currency_code = setting.start_currency_code.clone();
+                let mut current_currency_code = setting.start_currency_code;
 
                 for _ in 0..setting.exchange_id_currency_pair_settings.len() {
                     let list = currency_pair_metadata_by_currency_code
@@ -284,8 +281,8 @@ impl PriceSourceService {
                     rebase_price_steps.push(step.clone());
 
                     current_currency_code = match step.direction {
-                        RebaseDirection::ToQuote => step.currency_pair_metadata.quote_currency_code.clone(),
-                        RebaseDirection::ToBase => step.currency_pair_metadata.base_currency_code.clone(),
+                        RebaseDirection::ToQuote => step.currency_pair_metadata.quote_currency_code,
+                        RebaseDirection::ToBase => step.currency_pair_metadata.base_currency_code,
                     };
 
                     if current_currency_code == setting.end_currency_code {
@@ -306,8 +303,8 @@ impl PriceSourceService {
                         .retain(|x| x.currency_pair_metadata != step_metadata);
                 }
                 PriceSourceChain::new(
-                    setting.start_currency_code.clone(),
-                    setting.end_currency_code.clone(),
+                    setting.start_currency_code,
+                    setting.end_currency_code,
                     rebase_price_steps,
                 )
             })
@@ -324,15 +321,15 @@ impl PriceSourceService {
     }
 
     fn add_currency_pair_metadata_to_hashmap(
-        currency_code: &CurrencyCode,
+        currency_code: CurrencyCode,
         exchange_id: ExchangeId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_pair_metadata_by_currency_code: &mut HashMap<CurrencyCode, Vec<RebasePriceStep>>,
     ) {
         let list = currency_pair_metadata_by_currency_code
-            .entry(currency_code.clone())
+            .entry(currency_code)
             .or_default();
-        let direction = match currency_code == &currency_pair_metadata.base_currency_code() {
+        let direction = match currency_code == currency_pair_metadata.base_currency_code() {
             true => RebaseDirection::ToQuote,
             false => RebaseDirection::ToBase,
         };
@@ -347,12 +344,12 @@ impl PriceSourceService {
     /// Return converted amount or None if can't calculate price for converting and Err if something bad was happened
     pub async fn convert_amount(
         &self,
-        from: &CurrencyCode,
-        to: &CurrencyCode,
+        from: CurrencyCode,
+        to: CurrencyCode,
         src_amount: Amount,
         cancellation_token: CancellationToken,
     ) -> Result<Option<Amount>> {
-        let convert_currency_direction = ConvertCurrencyDirection::new(from.clone(), to.clone());
+        let convert_currency_direction = ConvertCurrencyDirection::new(from, to);
 
         let chain = self
             .price_source_chains
@@ -386,8 +383,8 @@ impl PriceSourceService {
 
     pub async fn convert_amount_in_past(
         &self,
-        from: &CurrencyCode,
-        to: &CurrencyCode,
+        from: CurrencyCode,
+        to: CurrencyCode,
         src_amount: Amount,
         time_in_past: DateTime,
         cancellation_token: CancellationToken,
@@ -403,7 +400,7 @@ impl PriceSourceService {
                 )
             });
 
-        let convert_currency_direction = ConvertCurrencyDirection::new(from.clone(), to.clone());
+        let convert_currency_direction = ConvertCurrencyDirection::new(from, to);
 
         let prices_source_chain = self
             .price_source_chains
@@ -471,40 +468,40 @@ pub mod test {
     pub(crate) struct PriceSourceServiceTestBase {}
 
     impl PriceSourceServiceTestBase {
-        pub fn get_exchange_account_id() -> ExchangeAccountId {
-            ExchangeAccountId::new(PriceSourceServiceTestBase::get_exchange_id(), 0)
-        }
-
-        pub fn get_exchange_account_id_2() -> ExchangeAccountId {
-            ExchangeAccountId::new(PriceSourceServiceTestBase::get_exchange_id(), 1)
-        }
-
-        pub fn get_exchange_account_id_3() -> ExchangeAccountId {
-            ExchangeAccountId::new(PriceSourceServiceTestBase::get_exchange_id(), 2)
-        }
-
-        pub fn get_exchange_id() -> ExchangeId {
+        pub fn exchange_id() -> ExchangeId {
             ExchangeId::new("Binance".into())
+        }
+
+        pub fn exchange_account_id() -> ExchangeAccountId {
+            ExchangeAccountId::new(PriceSourceServiceTestBase::exchange_id(), 0)
+        }
+
+        pub fn exchange_account_id_2() -> ExchangeAccountId {
+            ExchangeAccountId::new(PriceSourceServiceTestBase::exchange_id(), 1)
+        }
+
+        pub fn exchange_account_id_3() -> ExchangeAccountId {
+            ExchangeAccountId::new(PriceSourceServiceTestBase::exchange_id(), 2)
         }
     }
 
     fn currency_pair_metadata(
-        base: &CurrencyCode,
-        quote: &CurrencyCode,
+        base: CurrencyCode,
+        quote: CurrencyCode,
     ) -> Arc<CurrencyPairMetadata> {
         Arc::new(CurrencyPairMetadata::new(
             false,
             false,
             base.as_str().into(),
-            base.clone(),
+            base,
             quote.as_str().into(),
-            quote.clone(),
+            quote,
             None,
             None,
             None,
             None,
             None,
-            base.clone(),
+            base,
             None,
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(0) },
@@ -513,12 +510,8 @@ pub mod test {
 
     #[test]
     fn when_start_equal_end() {
-        let usdt: CurrencyCode = "USDT".into();
-        let price_source_settings = vec![CurrencyPriceSourceSettings::new(
-            usdt.clone(),
-            usdt.clone(),
-            Vec::new(),
-        )];
+        let usdt = "USDT".into();
+        let price_source_settings = vec![CurrencyPriceSourceSettings::new(usdt, usdt, Vec::new())];
 
         // Act
         let actual = PriceSourceService::prepare_price_source_chains(
@@ -527,20 +520,20 @@ pub mod test {
         );
 
         // Assert
-        let expected = PriceSourceChain::new(usdt.clone(), usdt, Vec::new());
+        let expected = PriceSourceChain::new(usdt, usdt, Vec::new());
 
         assert_eq!(actual.first().expect("in test"), &expected);
     }
 
     #[test]
     fn when_start_equal_end_and_currency_pair() {
-        let usdt: CurrencyCode = "USDT".into();
+        let usdt = "USDT".into();
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
-            usdt.clone(),
-            usdt.clone(),
+            usdt,
+            usdt,
             vec![ExchangeIdCurrencyPairSettings {
-                exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
-                currency_pair: CurrencyPair::from_codes(&usdt, &usdt),
+                exchange_account_id: PriceSourceServiceTestBase::exchange_account_id(),
+                currency_pair: CurrencyPair::from_codes(usdt, usdt),
             }],
         )];
 
@@ -551,7 +544,7 @@ pub mod test {
         );
 
         // Assert
-        let expected = PriceSourceChain::new(usdt.clone(), usdt, Vec::new());
+        let expected = PriceSourceChain::new(usdt, usdt, Vec::new());
 
         assert_eq!(actual.first().expect("in test"), &expected);
     }
@@ -560,21 +553,21 @@ pub mod test {
     fn when_one_currency_pair() {
         let base = "USDT".into();
         let quote = "BTC".into();
-        let currency_pair = CurrencyPair::from_codes(&base, &quote);
+        let currency_pair = CurrencyPair::from_codes(base, quote);
 
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
-            quote.clone(),
-            base.clone(),
+            quote,
+            base,
             vec![ExchangeIdCurrencyPairSettings {
-                exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                exchange_account_id: PriceSourceServiceTestBase::exchange_account_id(),
                 currency_pair,
             }],
         )];
 
-        let currency_pair_metadata = currency_pair_metadata(&base, &quote);
+        let currency_pair_metadata = currency_pair_metadata(base, quote);
 
         let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
-            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata.clone()).0
+            PriceSourceServiceTestBase::exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata.clone()).0
         ]));
 
         // Act
@@ -586,7 +579,7 @@ pub mod test {
             quote,
             base,
             vec![RebasePriceStep::new(
-                PriceSourceServiceTestBase::get_exchange_id(),
+                PriceSourceServiceTestBase::exchange_id(),
                 currency_pair_metadata,
                 RebaseDirection::ToBase,
             )],
@@ -608,31 +601,31 @@ pub mod test {
         #[case] first_pair_direction: RebaseDirection,
         #[case] second_pair_direction: RebaseDirection,
     ) {
-        let currency_pair_1 = CurrencyPair::from_codes(&first_currency, &second_currency);
-        let currency_pair_2 = CurrencyPair::from_codes(&third_currency, &fourth_currency);
+        let currency_pair_1 = CurrencyPair::from_codes(first_currency, second_currency);
+        let currency_pair_2 = CurrencyPair::from_codes(third_currency, fourth_currency);
 
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
             "EOS".into(),
             "USDT".into(),
             vec![
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id(),
                     currency_pair: currency_pair_1,
                 },
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id_2(),
                     currency_pair: currency_pair_2,
                 },
             ],
         )];
 
-        let currency_pair_metadata_1 = currency_pair_metadata(&first_currency, &second_currency);
+        let currency_pair_metadata_1 = currency_pair_metadata(first_currency, second_currency);
 
-        let currency_pair_metadata_2 = currency_pair_metadata(&third_currency, &fourth_currency);
+        let currency_pair_metadata_2 = currency_pair_metadata(third_currency, fourth_currency);
 
         let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
-            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_1.clone()).0,
-            PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_2.clone()).0
+            PriceSourceServiceTestBase::exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_1.clone()).0,
+            PriceSourceServiceTestBase::exchange_account_id_2() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_2.clone()).0
         ]));
 
         // Act
@@ -645,12 +638,12 @@ pub mod test {
             "USDT".into(),
             vec![
                 RebasePriceStep::new(
-                    PriceSourceServiceTestBase::get_exchange_id(),
+                    PriceSourceServiceTestBase::exchange_id(),
                     currency_pair_metadata_1,
                     first_pair_direction,
                 ),
                 RebasePriceStep::new(
-                    PriceSourceServiceTestBase::get_exchange_id(),
+                    PriceSourceServiceTestBase::exchange_id(),
                     currency_pair_metadata_2,
                     second_pair_direction,
                 ),
@@ -666,38 +659,37 @@ pub mod test {
         let btc = "BTC".into();
         let usdt = "USDT".into();
         let karma = "KARMA".into();
-        let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
-        let currency_pair_2 = CurrencyPair::from_codes(&karma, &eos);
-        let currency_pair_3 = CurrencyPair::from_codes(&btc, &usdt);
+        let currency_pair_1 = CurrencyPair::from_codes(btc, eos);
+        let currency_pair_2 = CurrencyPair::from_codes(karma, eos);
+        let currency_pair_3 = CurrencyPair::from_codes(btc, usdt);
 
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
-            karma.clone(),
-            usdt.clone(),
+            karma,
+            usdt,
             vec![
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id(),
                     currency_pair: currency_pair_1,
                 },
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id_2(),
                     currency_pair: currency_pair_2,
                 },
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_3(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id_3(),
                     currency_pair: currency_pair_3,
                 },
             ],
         )];
 
-        let currency_pair_metadata_1 = currency_pair_metadata(&btc, &eos);
+        let currency_pair_metadata_1 = currency_pair_metadata(btc, eos);
+        let currency_pair_metadata_2 = currency_pair_metadata(btc, usdt);
+        let currency_pair_metadata_3 = currency_pair_metadata(karma, eos);
 
-        let currency_pair_metadata_2 = currency_pair_metadata(&btc, &usdt);
-
-        let currency_pair_metadata_3 = currency_pair_metadata(&karma, &eos);
         let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
-            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_1.clone()).0,
-            PriceSourceServiceTestBase::get_exchange_account_id_3() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_2.clone()).0,
-            PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_3.clone()).0
+            PriceSourceServiceTestBase::exchange_account_id() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_1.clone()).0,
+            PriceSourceServiceTestBase::exchange_account_id_3() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_2.clone()).0,
+            PriceSourceServiceTestBase::exchange_account_id_2() => get_test_exchange_with_currency_pair_metadata(currency_pair_metadata_3.clone()).0
         ]));
 
         // Act
@@ -710,17 +702,17 @@ pub mod test {
             usdt,
             vec![
                 RebasePriceStep::new(
-                    PriceSourceServiceTestBase::get_exchange_id(),
+                    PriceSourceServiceTestBase::exchange_id(),
                     currency_pair_metadata_3,
                     RebaseDirection::ToQuote,
                 ),
                 RebasePriceStep::new(
-                    PriceSourceServiceTestBase::get_exchange_id(),
+                    PriceSourceServiceTestBase::exchange_id(),
                     currency_pair_metadata_1,
                     RebaseDirection::ToBase,
                 ),
                 RebasePriceStep::new(
-                    PriceSourceServiceTestBase::get_exchange_id(),
+                    PriceSourceServiceTestBase::exchange_id(),
                     currency_pair_metadata_2,
                     RebaseDirection::ToQuote,
                 ),
@@ -737,35 +729,35 @@ pub mod test {
         let btc = "BTC".into();
         let usdt = "USDT".into();
         let karma = "KARMA".into();
-        let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
-        let currency_pair_2 = CurrencyPair::from_codes(&karma, &eos);
-        let currency_pair_3 = CurrencyPair::from_codes(&btc, &usdt);
+        let currency_pair_1 = CurrencyPair::from_codes(btc, eos);
+        let currency_pair_2 = CurrencyPair::from_codes(karma, eos);
+        let currency_pair_3 = CurrencyPair::from_codes(btc, usdt);
 
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
-            eos.clone(),
-            usdt.clone(),
+            eos,
+            usdt,
             vec![
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id(),
                     currency_pair: currency_pair_1,
                 },
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id_2(),
                     currency_pair: currency_pair_2,
                 },
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_3(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id_3(),
                     currency_pair: currency_pair_3,
                 },
             ],
         )];
 
         let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
-            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
+            PriceSourceServiceTestBase::exchange_account_id() => get_test_exchange_by_currency_codes(
                 false, btc.as_str(), eos.as_str()).0,
-            PriceSourceServiceTestBase::get_exchange_account_id_3() => get_test_exchange_by_currency_codes(
+            PriceSourceServiceTestBase::exchange_account_id_3() => get_test_exchange_by_currency_codes(
                 false, btc.as_str(), usdt.as_str()).0,
-            PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_by_currency_codes(
+            PriceSourceServiceTestBase::exchange_account_id_2() => get_test_exchange_by_currency_codes(
                 false, btc.as_str(), usdt.as_str()).0
         ]));
 
@@ -780,29 +772,29 @@ pub mod test {
         let eos = "EOS".into();
         let btc = "BTC".into();
         let usdt = "USDT".into();
-        let karma: CurrencyCode = "KARMA".into();
-        let currency_pair_1 = CurrencyPair::from_codes(&btc, &eos);
-        let currency_pair_2 = CurrencyPair::from_codes(&btc, &usdt);
+        let karma = "KARMA".into();
+        let currency_pair_1 = CurrencyPair::from_codes(btc, eos);
+        let currency_pair_2 = CurrencyPair::from_codes(btc, usdt);
 
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
-            karma.clone(),
-            usdt.clone(),
+            karma,
+            usdt,
             vec![
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id(),
                     currency_pair: currency_pair_1,
                 },
                 ExchangeIdCurrencyPairSettings {
-                    exchange_account_id: PriceSourceServiceTestBase::get_exchange_account_id_2(),
+                    exchange_account_id: PriceSourceServiceTestBase::exchange_account_id_2(),
                     currency_pair: currency_pair_2,
                 },
             ],
         )];
 
         let converter = Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
-            PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
+            PriceSourceServiceTestBase::exchange_account_id() => get_test_exchange_by_currency_codes(
                 false, btc.as_str(), eos.as_str()).0,
-            PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_by_currency_codes(
+            PriceSourceServiceTestBase::exchange_account_id_2() => get_test_exchange_by_currency_codes(
                 false, btc.as_str(), usdt.as_str()).0
         ]));
 

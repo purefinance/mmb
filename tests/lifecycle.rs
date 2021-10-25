@@ -34,7 +34,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes(&"eth".into(), &"btc".into())
+        CurrencyPair::from_codes("eth".into(), "btc".into())
     }
 
     fn max_amount(&self) -> Amount {
@@ -61,7 +61,7 @@ async fn launch_engine() -> Result<()> {
             &self,
             _cloned_order: &Arc<OrderSnapshot>,
             _price_slot: &PriceSlot,
-            _target_eai: &ExchangeAccountId,
+            _target_eai: ExchangeAccountId,
             _cancellation_token: CancellationToken,
         ) -> anyhow::Result<()> {
             Ok(())

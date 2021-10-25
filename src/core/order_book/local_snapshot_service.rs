@@ -13,8 +13,8 @@ impl LocalSnapshotsService {
         Self { local_snapshots }
     }
 
-    pub fn get_snapshot(&self, trade_place: &TradePlace) -> Option<&LocalOrderBookSnapshot> {
-        self.local_snapshots.get(trade_place)
+    pub fn get_snapshot(&self, trade_place: TradePlace) -> Option<&LocalOrderBookSnapshot> {
+        self.local_snapshots.get(&trade_place)
     }
 
     /// Create snapshot if it does not exist
@@ -24,17 +24,13 @@ impl LocalSnapshotsService {
         let (_, creation_time, exchange_account_id, currency_pair, _, event_type, event_data) =
             order_book_event.dissolve();
 
-        let trade_place = TradePlace::new(
-            exchange_account_id.exchange_id.clone(),
-            currency_pair.clone(),
-        );
+        let trade_place = TradePlace::new(exchange_account_id.exchange_id, currency_pair);
 
         match event_type {
             event::EventType::Snapshot => {
-                let _ = self.local_snapshots.insert(
-                    trade_place.clone(),
-                    event_data.to_local_order_book_snapshot(),
-                );
+                let _ = self
+                    .local_snapshots
+                    .insert(trade_place, event_data.to_local_order_book_snapshot());
 
                 Some(TradePlaceAccount::new(exchange_account_id, currency_pair))
             }
@@ -94,7 +90,7 @@ mod tests {
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
-            CurrencyPair::from_codes(&"base".into(), &"quote".into()),
+            CurrencyPair::from_codes("base".into(), "quote".into()),
             event::EventType::Snapshot,
             order_book_data,
         );
@@ -105,12 +101,12 @@ mod tests {
             .expect("in test");
 
         let updated_asks = &snapshot_controller
-            .get_snapshot(&trade_place_account.trade_place())
+            .get_snapshot(trade_place_account.trade_place())
             .expect("in test")
             .asks;
 
         let updated_bids = &snapshot_controller
-            .get_snapshot(&trade_place_account.trade_place())
+            .get_snapshot(trade_place_account.trade_place())
             .expect("in test")
             .bids;
 
@@ -138,7 +134,7 @@ mod tests {
         // Construct update
         let order_book_event = create_order_book_event_for_tests(
             "does_not_matter".into(),
-            CurrencyPair::from_codes(&"base".into(), &"quote".into()),
+            CurrencyPair::from_codes("base".into(), "quote".into()),
             event::EventType::Update,
             order_book_data,
         );
@@ -153,11 +149,11 @@ mod tests {
     #[test]
     fn successful_update() {
         let test_exchange_id = "exchange_id";
-        let test_currency_pair = CurrencyPair::from_codes(&"base".into(), &"quote".into());
+        let test_currency_pair = CurrencyPair::from_codes("base".into(), "quote".into());
         // Construct main object
         let trade_place_account = TradePlaceAccount::new(
             ExchangeAccountId::new(test_exchange_id.into(), 0),
-            test_currency_pair.clone(),
+            test_currency_pair,
         );
 
         let primary_order_book_snapshot = order_book_data![
@@ -199,12 +195,12 @@ mod tests {
             .trade_place();
 
         let updated_asks = &snapshot_controller
-            .get_snapshot(&trade_place)
+            .get_snapshot(trade_place)
             .expect("in test")
             .asks;
 
         let updated_bids = &snapshot_controller
-            .get_snapshot(&trade_place)
+            .get_snapshot(trade_place)
             .expect("in test")
             .bids;
 

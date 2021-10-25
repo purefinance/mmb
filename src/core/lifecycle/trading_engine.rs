@@ -1,3 +1,6 @@
+use futures::FutureExt;
+use std::panic;
+use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -24,6 +27,8 @@ use crate::core::{
     lifecycle::cancellation_token::CancellationToken,
 };
 use parking_lot::Mutex;
+
+use super::launcher::unwrap_or_handle_panic;
 
 pub trait Service: Send + Sync + 'static {
     fn name(&self) -> &str;
@@ -55,7 +60,7 @@ impl EngineContext {
         let exchange_account_ids = app_settings
             .exchanges
             .iter()
-            .map(|x| x.exchange_account_id.clone())
+            .map(|x| x.exchange_account_id)
             .collect_vec();
 
         let engine_context = Arc::new(EngineContext {
@@ -88,7 +93,7 @@ impl EngineContext {
 
         self.exchanges.iter().for_each(|x| {
             self.exchange_blocker.block(
-                &x.exchange_account_id,
+                x.exchange_account_id,
                 block_reasons::GRACEFUL_SHUTDOWN,
                 BlockType::Manual,
             )
@@ -167,6 +172,14 @@ impl TradingEngine {
     }
 
     pub async fn run(self) {
-        let _ = self.finished_graceful_shutdown.await;
+        let action_outcome = AssertUnwindSafe(self.finished_graceful_shutdown)
+            .catch_unwind()
+            .await;
+
+        let _ = unwrap_or_handle_panic(
+            action_outcome,
+            "Panic happened while TradingEngine was run",
+            Some(self.context.application_manager.clone()),
+        );
     }
 }

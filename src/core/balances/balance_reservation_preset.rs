@@ -2,7 +2,6 @@ use rust_decimal::Decimal;
 
 use crate::core::exchanges::common::{Amount, CurrencyCode};
 
-#[derive(Default)]
 pub(crate) struct BalanceReservationPreset {
     pub(crate) reservation_currency_code: CurrencyCode,
     pub(crate) amount_in_reservation_currency_code: Amount,

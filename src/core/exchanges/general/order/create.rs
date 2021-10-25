@@ -156,7 +156,7 @@ impl Exchange {
             match &created_order.outcome {
                 Success(exchange_order_id) => {
                     self.handle_create_order_succeeded(
-                        &self.exchange_account_id,
+                        self.exchange_account_id,
                         &order_to_create.header.client_order_id,
                         &exchange_order_id,
                         &created_order.source_type,
@@ -165,7 +165,7 @@ impl Exchange {
                 Error(exchange_error) => {
                     if exchange_error.error_type != ExchangeErrorType::ParsingError {
                         self.handle_create_order_failed(
-                            &self.exchange_account_id,
+                            self.exchange_account_id,
                             &order_to_create.header.client_order_id,
                             &exchange_error,
                             &created_order.source_type,
@@ -182,7 +182,7 @@ impl Exchange {
 
     fn handle_create_order_failed(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         client_order_id: &ClientOrderId,
         exchange_error: &ExchangeError,
         source_type: &EventSourceType,
@@ -222,7 +222,7 @@ impl Exchange {
     fn react_on_status_when_failed(
         &self,
         order_ref: &OrderRef,
-        args_to_log: (&ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
+        args_to_log: (ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
         _source_type: &EventSourceType,
         exchange_error: &ExchangeError,
     ) -> Result<()> {
@@ -269,7 +269,7 @@ impl Exchange {
 
     fn log_error_and_propagate(
         template: &str,
-        args_to_log: (&ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
+        args_to_log: (ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
     ) -> Result<()> {
         let error_msg = format!(
             "CreateOrderFailed was received for a {} order {:?}",
@@ -282,7 +282,7 @@ impl Exchange {
 
     pub(crate) fn handle_create_order_succeeded(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         client_order_id: &ClientOrderId,
         exchange_order_id: &ExchangeOrderId,
         source_type: &EventSourceType,
@@ -329,7 +329,7 @@ impl Exchange {
     fn react_on_status_when_succeed(
         &self,
         order_ref: &OrderRef,
-        args_to_log: (&ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
+        args_to_log: (ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
         source_type: &EventSourceType,
     ) -> Result<()> {
         let status = order_ref.status();
@@ -445,7 +445,7 @@ impl Exchange {
 
 fn log_warn(
     template: &str,
-    args_to_log: (&ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
+    args_to_log: (ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
 ) -> Result<()> {
     warn!(
         "CreateOrderSucceeded was received for a {} order {:?}",

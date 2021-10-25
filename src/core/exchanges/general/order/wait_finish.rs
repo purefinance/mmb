@@ -84,7 +84,7 @@ impl Exchange {
         if !has_websocket_notification {
             let _ = self
                 .polling_trades_counts
-                .entry(self.exchange_account_id.clone())
+                .entry(self.exchange_account_id)
                 .and_modify(|value| *value += 1)
                 .or_insert(1);
         }
@@ -121,7 +121,7 @@ impl Exchange {
             poll_order_fill_future.await?;
             let _ = self
                 .polling_trades_counts
-                .entry(self.exchange_account_id.clone())
+                .entry(self.exchange_account_id)
                 .and_modify(|value| *value -= 1)
                 .or_insert(0);
         } else {
@@ -249,7 +249,7 @@ impl Exchange {
             return Ok(false);
         }
 
-        let exchange_account_id = &self.exchange_account_id;
+        let exchange_account_id = self.exchange_account_id;
         let client_order_id = &order.client_order_id();
         info!(
             "check_maker_only_order_status for exchange_account_id: {} and client order_id: {}",
@@ -389,7 +389,7 @@ impl Exchange {
     ) -> Result<RequestResult<()>> {
         self.timeout_manager
             .reserve_when_available(
-                &self.exchange_account_id,
+                self.exchange_account_id,
                 request_type,
                 pre_reservation_group_id,
                 cancellation_token,
@@ -436,7 +436,7 @@ impl Exchange {
                         let commission_currency_code = order_info
                             .commission_currency_code
                             .clone()
-                            .map(|currency_code| CurrencyCode::new(currency_code.into()));
+                            .map(|currency_code| CurrencyCode::new(&currency_code));
 
                         let event_data = FillEventData {
                             source_type: EventSourceType::RestFallback,
@@ -493,7 +493,7 @@ impl Exchange {
             is_diff: true,
             total_filled_amount: None,
             order_role: Some(order_trade.order_role),
-            commission_currency_code: Some(order_trade.fee_currency_code.clone()),
+            commission_currency_code: Some(order_trade.fee_currency_code),
             commission_rate: order_trade.fee_rate,
             commission_amount: order_trade.fee_amount,
             fill_type: OrderFillType::UserTrade,

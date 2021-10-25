@@ -14,7 +14,7 @@ use crate::core::order::OrderProxy;
 async fn get_order_info() {
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -37,7 +37,7 @@ async fn get_order_info() {
     };
 
     let mut order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromGetOrderInfoTest".to_owned()),
         CancellationToken::default(),
     );

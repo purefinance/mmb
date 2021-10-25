@@ -79,8 +79,8 @@ impl Exchange {
             .iter()
             .flat_map(|s| {
                 vec![
-                    (s.base_currency_code.clone(), s.base_currency_id.clone()),
-                    (s.quote_currency_code.clone(), s.quote_currency_id.clone()),
+                    (s.base_currency_code, s.base_currency_id),
+                    (s.quote_currency_code, s.quote_currency_id),
                 ]
             })
             .collect()
@@ -89,7 +89,7 @@ impl Exchange {
     pub fn set_symbols(&self, symbols: Vec<Arc<CurrencyPairMetadata>>) {
         let mut currencies = symbols
             .iter()
-            .flat_map(|x| vec![x.base_currency_code.clone(), x.quote_currency_code.clone()])
+            .flat_map(|x| vec![x.base_currency_code, x.quote_currency_code])
             .collect_vec();
         currencies.dedup();
         *self.currencies.lock() = currencies;
@@ -99,7 +99,7 @@ impl Exchange {
             self.symbols.insert(symbol.currency_pair(), symbol.clone());
             current_specific_currencies.push(
                 self.exchange_client
-                    .get_specific_currency_pair(&symbol.currency_pair()),
+                    .get_specific_currency_pair(symbol.currency_pair()),
             );
         });
         self.exchange_client

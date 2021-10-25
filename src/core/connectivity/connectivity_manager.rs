@@ -144,14 +144,11 @@ impl ConnectivityManager {
 
         self.callback_connecting.lock().as_mut()();
 
-        let main_websocket_connection_opened = self
-            .clone()
-            .open_websocket_connection(WebSocketRole::Main)
-            .await;
+        let main_websocket_connection_opened =
+            self.open_websocket_connection(WebSocketRole::Main).await;
 
         let secondary_websocket_connection_opened = if is_enabled_secondary_websocket {
-            self.clone()
-                .open_websocket_connection(WebSocketRole::Secondary)
+            self.open_websocket_connection(WebSocketRole::Secondary)
                 .await
         } else {
             true
@@ -279,7 +276,7 @@ impl ConnectivityManager {
         while !cancel_websocket_connecting.is_cancellation_requested() {
             trace!(
                 "Getting WebSocket parameters for {}",
-                self.exchange_account_id.clone()
+                self.exchange_account_id
             );
             match self.try_get_websocket_params(role).await {
                 Ok(params) => {
@@ -290,7 +287,7 @@ impl ConnectivityManager {
                     let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(self));
 
                     let websocket_actor = WebSocketActor::open_connection(
-                        self.exchange_account_id.clone(),
+                        self.exchange_account_id,
                         role,
                         params.clone(),
                         notifier,
@@ -384,7 +381,7 @@ impl ConnectivityManagerNotifier {
         }
     }
 
-    pub fn notify_websocket_connection_closed(&self, exchange_account_id: &ExchangeAccountId) {
+    pub fn notify_websocket_connection_closed(&self, exchange_account_id: ExchangeAccountId) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
             match connectivity_manager.upgrade() {
                 Some(connectivity_manager) => {

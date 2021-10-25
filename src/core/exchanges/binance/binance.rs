@@ -47,7 +47,7 @@ pub struct Binance {
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
     pub handle_trade_callback: Mutex<
-        Box<dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>,
+        Box<dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>,
     >,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
@@ -408,7 +408,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         events_channel: broadcast::Sender<ExchangeEvent>,
         application_manager: Arc<ApplicationManager>,
     ) -> ExchangeClientBuilderResult {
-        let exchange_account_id = exchange_settings.exchange_account_id.clone();
+        let exchange_account_id = exchange_settings.exchange_account_id;
 
         ExchangeClientBuilderResult {
             client: Box::new(Binance::new(
@@ -432,7 +432,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         }
     }
 
-    fn get_timeout_argments(&self) -> RequestTimeoutArguments {
+    fn get_timeout_arguments(&self) -> RequestTimeoutArguments {
         RequestTimeoutArguments::from_requests_per_minute(1200)
     }
 }
@@ -450,7 +450,7 @@ mod tests {
         let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
 
         let settings = ExchangeSettings::new_short(
-            exchange_account_id.clone(),
+            exchange_account_id,
             "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".into(),
             "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".into(),
             false,
