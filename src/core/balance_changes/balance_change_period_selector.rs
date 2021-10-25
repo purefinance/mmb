@@ -115,15 +115,10 @@ impl BalanceChangePeriodSelector {
     }
 
     pub fn get_items(&mut self) -> Vec<Vec<ProfitLossBalanceChange>> {
-        let trade_places = self
-            .balance_changes_queues_by_trade_place
+        self.balance_changes_queues_by_trade_place
+            .clone()
             .keys()
-            .cloned()
-            .collect_vec();
-
-        trade_places
-            .into_iter()
-            .map(|current_trade_place| self.get_items_by_trade_place(&current_trade_place))
+            .map(|current_trade_place| self.get_items_by_trade_place(current_trade_place))
             .collect_vec()
     }
 
@@ -136,7 +131,7 @@ impl BalanceChangePeriodSelector {
         let balance_changes_queue = self
             .balance_changes_queues_by_trade_place
             .get(trade_place)
-            .expect("failed to get balance changes queue by trade_place");
+            .expect("Failed to get balance changes queue by trade_place");
 
         balance_changes_queue
             .iter()

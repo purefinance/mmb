@@ -42,7 +42,7 @@ pub struct BalanceManager {
 impl BalanceManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),

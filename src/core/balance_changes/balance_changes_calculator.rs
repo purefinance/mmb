@@ -1,11 +1,13 @@
+use mockall_double::double;
+
 use std::sync::Arc;
+
+#[double]
+use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 
 use crate::core::{
     balance_manager::balance_request::BalanceRequest,
-    exchanges::general::{
-        currency_pair_metadata::CurrencyPairMetadata,
-        currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
-    },
+    exchanges::general::currency_pair_metadata::CurrencyPairMetadata,
     misc::service_value_tree::ServiceValueTree,
     orders::{fill::OrderFill, order::OrderSide, pool::OrderRef},
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
@@ -14,10 +16,10 @@ use crate::core::{
 use super::balance_change_calculator_result::BalanceChangesCalculatorResult;
 
 pub(crate) struct BalanceChangesCalculator {
-    currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+    currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
 }
 impl BalanceChangesCalculator {
-    pub fn new(currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter) -> Self {
+    pub fn new(currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>) -> Self {
         Self {
             currency_pair_to_metadata_converter,
         }

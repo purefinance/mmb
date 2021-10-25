@@ -5,12 +5,14 @@ use mockall_double::double;
 use tokio::sync::mpsc;
 
 #[double]
+use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+#[double]
 use crate::core::misc::time_manager::time_manager;
 #[double]
 use crate::core::services::usd_converter::usd_converter::UsdConverter;
+
 use crate::core::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
-    exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
     infrastructure::spawn_by_timer,
     lifecycle::cancellation_token::CancellationToken,
     orders::{fill::OrderFill, pool::OrderRef},
@@ -38,7 +40,7 @@ pub(crate) struct BalanceChangesService {
 
 impl BalanceChangesService {
     pub fn new(
-        currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
         profit_loss_stopper_service: Arc<ProfitLossStopperService>,
         usd_converter: UsdConverter,
         //             IDatabaseManager databaseManager,

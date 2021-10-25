@@ -84,16 +84,17 @@ mod test {
     use std::sync::Arc;
 
     use chrono::Utc;
+    use mockall_double::double;
+    use parking_lot::MutexGuard;
+
+    #[double]
+    use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 
     use crate::order_book_data;
     use crate::{
         core::{
             exchanges::{
-                common::CurrencyPair,
-                general::{
-                    currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
-                    test_helper::get_test_exchange_by_currency_codes,
-                },
+                common::CurrencyPair, general::test_helper::get_test_exchange_by_currency_codes,
             },
             services::usd_converter::{
                 price_source_chain::PriceSourceChain,
@@ -106,7 +107,7 @@ mod test {
 
     use super::*;
 
-    fn generate_one_step_setup() -> (CurrencyPair, PriceSourceChain) {
+    fn generate_one_step_setup() -> (CurrencyPair, PriceSourceChain, MutexGuard<'static, ()>) {
         let base_currency_code = "USDT".into();
         let quote_currency_code = "BTC".into();
         let currency_pair = CurrencyPair::from_codes(&base_currency_code, &quote_currency_code);
@@ -120,13 +121,26 @@ mod test {
             }],
         )];
 
+        let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
+        converter.expect_get_currency_pair_metadata().returning(
+            move |exchange_account_id, currency_pair| {
+                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                    get_test_exchange_by_currency_codes(false, "USDT", "BTC")
+                } else {
+                    panic!(
+                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        exchange_account_id
+                    )
+                }
+                .0
+                .get_currency_pair_metadata(currency_pair)
+                .expect("failed to get currency pair")
+            },
+        );
+
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             &price_source_settings,
-            Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
-                        PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
-                            false, base_currency_code.as_str(), quote_currency_code.as_str()
-                        ).0
-            ])),
+            Arc::new(converter),
         );
 
         let price_source_chain = price_source_chains
@@ -137,12 +151,12 @@ mod test {
             })
             .expect("in test");
 
-        (currency_pair, price_source_chain)
+        (currency_pair, price_source_chain, locker)
     }
 
     #[test]
     fn calculate_amount_now_using_one_step_with_price() {
-        let (currency_pair, price_source_chain) = generate_one_step_setup();
+        let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
 
         let snapshot = order_book_data![
             dec!(10) => dec!(1.2),
@@ -167,7 +181,7 @@ mod test {
 
     #[test]
     fn calculate_amount_now_using_one_step_without_price() {
-        let (currency_pair, price_source_chain) = generate_one_step_setup();
+        let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let snapshot = order_book_data!().to_local_order_book_snapshot();
 
         let trade_place =
@@ -183,7 +197,7 @@ mod test {
 
     #[test]
     fn calculate_amount_in_past_using_one_step_with_price() {
-        let (currency_pair, price_source_chain) = generate_one_step_setup();
+        let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let time_in_past = Utc::now();
         let trade_place =
             TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
@@ -201,7 +215,7 @@ mod test {
 
     #[test]
     fn calculate_amount_in_past_using_one_step_without_price() {
-        let (_, price_source_chain) = generate_one_step_setup();
+        let (_, price_source_chain, _locker) = generate_one_step_setup();
         let time_in_past = Utc::now();
         let price_cache = HashMap::new();
         let src_amount = dec!(10);
@@ -213,7 +227,7 @@ mod test {
 
     #[test]
     fn calculate_amount_with_current_cached_prices_using_one_step_with_price() {
-        let (currency_pair, price_source_chain) = generate_one_step_setup();
+        let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let cached_price = dec!(6);
         let trade_place =
             TradePlace::new(PriceSourceServiceTestBase::get_exchange_id(), currency_pair);
@@ -228,7 +242,7 @@ mod test {
     #[test]
     #[should_panic(expected = "Invalid price cache")]
     fn calculate_amount_with_current_cached_prices_using_one_step_without_price() {
-        let (_, price_source_chain) = generate_one_step_setup();
+        let (_, price_source_chain, _locker) = generate_one_step_setup();
         let price_cache = HashMap::new();
 
         let src_amount = dec!(10);
@@ -241,7 +255,7 @@ mod test {
         price_source_chain: PriceSourceChain,
     }
 
-    fn getenerate_two_step_setup() -> TwoStepSetup {
+    fn generate_two_step_setup() -> (TwoStepSetup, MutexGuard<'static, ()>) {
         let base_currency_code_1 = "USDT".into();
         let quote_currency_code_1 = "BTC".into();
         let currency_pair_1 =
@@ -267,16 +281,30 @@ mod test {
             ],
         )];
 
+        let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
+        converter.expect_get_currency_pair_metadata().returning(
+            move |exchange_account_id, currency_pair| {
+                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                    get_test_exchange_by_currency_codes(false, "USDT", "BTC")
+                } else if exchange_account_id
+                    == &PriceSourceServiceTestBase::get_exchange_account_id_2()
+                {
+                    get_test_exchange_by_currency_codes(false, "BTC", "EOS")
+                } else {
+                    panic!(
+                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        exchange_account_id
+                    )
+                }
+                .0
+                .get_currency_pair_metadata(currency_pair)
+                .expect("failed to get currency pair")
+            },
+        );
+
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             &price_source_settings,
-            Arc::new(CurrencyPairToMetadataConverter::new(hashmap![
-                PriceSourceServiceTestBase::get_exchange_account_id() => get_test_exchange_by_currency_codes(
-                    false, base_currency_code_1.as_str(), quote_currency_code_1.as_str()
-                ).0,
-                PriceSourceServiceTestBase::get_exchange_account_id_2() => get_test_exchange_by_currency_codes(
-                    false, base_currency_code_2.as_str(), quote_currency_code_2.as_str()
-                ).0
-            ])),
+            Arc::new(converter),
         );
         let price_source_chain = price_source_chains
             .into_iter()
@@ -286,16 +314,19 @@ mod test {
             })
             .expect("in test");
 
-        TwoStepSetup {
-            currency_pair_1,
-            currency_pair_2,
-            price_source_chain,
-        }
+        (
+            TwoStepSetup {
+                currency_pair_1,
+                currency_pair_2,
+                price_source_chain,
+            },
+            locker,
+        )
     }
 
     #[test]
     fn calculate_amount_with_current_cached_prices_using_two_step_with_price() {
-        let setup = getenerate_two_step_setup();
+        let (setup, _locker) = generate_two_step_setup();
         let trade_place_1 = TradePlace::new(
             PriceSourceServiceTestBase::get_exchange_id(),
             setup.currency_pair_1,
@@ -323,7 +354,7 @@ mod test {
     #[test]
     #[should_panic(expected = "Invalid price cache")]
     fn calculate_amount_with_current_cached_prices_using_two_step_without_one_price() {
-        let setup = getenerate_two_step_setup();
+        let (setup, _locker) = generate_two_step_setup();
         let trade_place_1 = TradePlace::new(
             PriceSourceServiceTestBase::get_exchange_id(),
             setup.currency_pair_1,

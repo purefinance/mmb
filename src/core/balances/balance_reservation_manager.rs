@@ -49,7 +49,7 @@ pub(super) struct CanReserveResult {
 pub(crate) struct BalanceReservationManager {
     pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
-    pub currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+    pub currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     reserved_amount_in_amount_currency: ServiceValueTree,
     amount_limits_in_amount_currency: ServiceValueTree,
 
@@ -65,7 +65,7 @@ pub(crate) struct BalanceReservationManager {
 impl BalanceReservationManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Self {
         Self {
             exchanges_by_id: exchanges_by_id.clone(),
