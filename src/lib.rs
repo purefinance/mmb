@@ -40,7 +40,7 @@ macro_rules! hashmap {
 ///     }
 /// }
 ///
-/// crate::impl_mock_initializer!(MockExample, EXAMPLE_MOCK_LOCKER);
+/// crate::impl_mock_initializer!(MockExample);
 ///
 /// #[cfg(test)]
 /// mod test {
@@ -63,16 +63,17 @@ macro_rules! hashmap {
 ///
 #[macro_export]
 macro_rules! impl_mock_initializer {
-    ($type: ident, $mutex_name: ident) => {
-        /// Needs for syncing mock objects https://docs.rs/mockall/0.10.2/mockall/#static-methods
-        #[cfg(test)]
-        static $mutex_name: once_cell::sync::Lazy<Mutex<()>> =
-            once_cell::sync::Lazy::new(Mutex::default);
+    ($type: ident) => {
+        paste::paste! {
+            /// Needs for syncing mock objects https://docs.rs/mockall/0.10.2/mockall/#static-methods
+            #[cfg(test)]
+            static [<$type:snake:upper _LOCKER>]: once_cell::sync::Lazy<Mutex<()>> = once_cell::sync::Lazy::new(Mutex::default);
+        }
 
         #[cfg(test)]
         impl $type {
             pub fn init_mock() -> ($type, MutexGuard<'static, ()>) {
-                let locker = $mutex_name.lock();
+                let locker = paste::paste! { [<$type:snake:upper _LOCKER>] }.lock();
                 ($type::default(), locker)
             }
         }

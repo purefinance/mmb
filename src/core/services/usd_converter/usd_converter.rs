@@ -83,4 +83,4 @@ impl UsdConverter {
     }
 }
 
-crate::impl_mock_initializer!(MockUsdConverter, USD_CONVERTER_MOCK_LOCKER);
+crate::impl_mock_initializer!(MockUsdConverter);

@@ -58,4 +58,4 @@ impl EngineApi {
     }
 }
 
-crate::impl_mock_initializer!(MockEngineApi, ENGINE_API_MOCK_LOCKER);
+crate::impl_mock_initializer!(MockEngineApi);

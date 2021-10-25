@@ -784,7 +784,7 @@ impl ExchangeBlocker {
     }
 }
 
-crate::impl_mock_initializer!(MockExchangeBlocker, EXCHANGE_BLOCKER_MOCK_LOCKER);
+crate::impl_mock_initializer!(MockExchangeBlocker);
 
 #[cfg(test)]
 mod tests {
