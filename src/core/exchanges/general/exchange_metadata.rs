@@ -6,6 +6,7 @@ use rust_decimal_macros::dec;
 use std::sync::Arc;
 
 use crate::core::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId};
+use crate::core::infrastructure::WithExpect;
 use crate::core::settings::CurrencyPairSetting;
 
 use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
@@ -17,28 +18,23 @@ impl Exchange {
         let supported_currencies = get_supported_currencies(exchange_symbols);
         self.setup_supported_currencies(supported_currencies);
 
-        let currency_pairs = exchange_symbols
-            .iter()
-            .map(|x| x.currency_pair())
-            .collect_vec();
-
-        for currency_pair in currency_pairs {
+        for metadata in exchange_symbols {
             self.leverage_by_currency_pair
-                .insert(currency_pair, dec!(1));
+                .insert(metadata.currency_pair(), dec!(1));
         }
 
-        if let Some(currency_pairs) = currency_pair_settings {
-            self.setup_symbols(get_symbols(
-                currency_pairs,
-                exchange_symbols,
-                self.exchange_account_id,
-            ));
-        } else {
-            panic!(
+        let currency_pairs = currency_pair_settings.with_expect(|| {
+            format!(
                 "Settings `currency_pairs` should be specified for exchange {}",
                 self.exchange_account_id
-            );
-        }
+            )
+        });
+
+        self.setup_symbols(get_symbols(
+            &currency_pairs,
+            exchange_symbols,
+            self.exchange_account_id,
+        ));
     }
 
     async fn request_metadata_with_retries(&self) -> Vec<Arc<CurrencyPairMetadata>> {
