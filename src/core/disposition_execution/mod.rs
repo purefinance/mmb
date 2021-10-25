@@ -309,7 +309,7 @@ impl OrdersStateBySide {
     pub fn side(&self) -> OrderSide {
         self.side
     }
-    pub fn slots(&self) -> &Vec<PriceSlot> {
+    pub fn slots(&self) -> &[PriceSlot] {
         &self.slots
     }
 
