@@ -2,7 +2,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 #[double]
-use crate::core::misc::time_manager::time_manager;
+use crate::core::misc::time::time_manager;
 use crate::core::{
     balance_manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
     exchanges::{common::Price, events::ExchangeBalance},
@@ -11,7 +11,7 @@ use crate::core::{
         events::ExchangeBalancesAndPositions,
         general::currency_pair_metadata::CurrencyPairMetadata,
     },
-    misc::{derivative_position::DerivativePosition, reserve_parameters::ReserveParameters},
+    misc::{derivative_position::DerivativePosition, reserve_parameters::ReserveParameters, time},
     orders::order::{
         ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
         OrderType, ReservationId,
@@ -116,8 +116,7 @@ impl BalanceManagerBase {
 
     pub fn new() -> Self {
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
-        let (mock_object, mock_locker) =
-            crate::core::misc::time_manager::tests::init_mock(seconds_offset_in_mock.clone());
+        let (mock_object, mock_locker) = time::tests::init_mock(seconds_offset_in_mock.clone());
 
         let exchange_account_id_1 =
             ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 0);

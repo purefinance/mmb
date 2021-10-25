@@ -1,7 +1,7 @@
 use mockall_double::double;
 
 #[double]
-use crate::core::misc::time_manager::time_manager;
+use crate::core::misc::time::time_manager;
 
 use crate::core::{
     exchanges::common::TradePlace,

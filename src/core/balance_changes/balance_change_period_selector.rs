@@ -11,7 +11,7 @@ use parking_lot::Mutex;
 #[double]
 use crate::core::balance_manager::balance_manager::BalanceManager;
 #[double]
-use crate::core::misc::time_manager::time_manager;
+use crate::core::misc::time::time_manager;
 
 use crate::core::{
     balance_changes::profit_loss_balance_change::ProfitLossBalanceChange,
