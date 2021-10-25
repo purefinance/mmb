@@ -163,7 +163,7 @@ mod test {
     }
 
     fn currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes(&btc(), &"ETH".into())
+        CurrencyPair::from_codes(btc(), "ETH".into())
     }
 
     fn trade_place() -> TradePlaceAccount {

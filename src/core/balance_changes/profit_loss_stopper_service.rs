@@ -148,7 +148,7 @@ mod test {
     fn trade_place() -> TradePlaceAccount {
         TradePlaceAccount::new(
             exchange_account_id(),
-            CurrencyPair::from_codes(&"BTC".into(), &"ETH".into()),
+            CurrencyPair::from_codes("BTC".into(), "ETH".into()),
         )
     }
 

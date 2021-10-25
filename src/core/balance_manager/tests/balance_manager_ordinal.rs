@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .balance_was_received(&test_object.balance_manager_base.exchange_account_id_1),
+                .balance_was_received(test_object.balance_manager_base.exchange_account_id_1),
             false
         );
     }
@@ -325,7 +325,7 @@ mod tests {
 
         assert!(test_object
             .balance_manager()
-            .balance_was_received(&test_object.balance_manager_base.exchange_account_id_1));
+            .balance_was_received(test_object.balance_manager_base.exchange_account_id_1));
     }
 
     #[test]
@@ -5033,7 +5033,7 @@ mod tests {
         init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
-        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id_1;
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         let trade_place = TradePlaceAccount::new(
             exchange_account_id,
