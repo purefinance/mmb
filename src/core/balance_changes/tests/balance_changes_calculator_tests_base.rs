@@ -4,7 +4,7 @@ pub mod tests {
     use std::{collections::HashMap, sync::Arc};
 
     use mockall_double::double;
-    use parking_lot::{Mutex, MutexGuard};
+    use parking_lot::{Mutex, MutexGuard, RwLock};
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
     use uuid::Uuid;
@@ -158,7 +158,7 @@ pub mod tests {
             (currency_pair_to_metadata_converter, cp_to_metadata_locker)
         }
 
-        pub(super) fn set_leverage(&mut self, leverage: Decimal) {
+        pub fn set_leverage(&mut self, leverage: Decimal) {
             self.exchange_1
                 .leverage_by_currency_pair
                 .insert(Self::currency_pair(), leverage);
@@ -230,7 +230,7 @@ pub mod tests {
             this
         }
 
-        pub(super) fn create_order_with_commission_amount(
+        pub fn create_order_with_commission_amount(
             exchange_account_id: ExchangeAccountId,
             currency_pair: CurrencyPair,
             trade_side: OrderSide,
@@ -239,7 +239,7 @@ pub mod tests {
             filled_amount: Amount,
             commission_currency_code: CurrencyCode,
             commission_amount: Amount,
-        ) -> OrderSnapshot // TODO: grays maybe ORderRef
+        ) -> OrderRef // TODO: grays maybe ORderRef
         {
             let mut order = OrderSnapshot::with_params(
                 ClientOrderId::unique_id(),
@@ -276,10 +276,10 @@ pub mod tests {
                     None,
                 ));
             }
-            order
+            OrderRef::new(Arc::new(RwLock::new(order)))
         }
 
-        pub(super) async fn calculate_balance_changes(&mut self, orders: Vec<&OrderRef>) {
+        pub async fn calculate_balance_changes(&mut self, orders: Vec<&OrderRef>) {
             for order in orders {
                 for fill in order.get_fills().0 {
                     let balance_changes = self.balance_changes_calculator.get_balance_changes(
@@ -312,7 +312,7 @@ pub mod tests {
             }
         }
 
-        pub(super) fn get_actual_balance_change(
+        pub fn get_actual_balance_change(
             &self,
             exchange_account_id: ExchangeAccountId,
             currency_pair: CurrencyPair,
@@ -335,11 +335,11 @@ pub mod tests {
                 .sum()
         }
 
-        pub(super) fn calculate_raw_profit(&self) -> Decimal {
+        pub fn calculate_raw_profit(&self) -> Decimal {
             profit_balance_changes_calculator::calculate_raw(&self.profit_loss_balance_changes)
         }
 
-        pub(super) async fn calculate_over_market_profit(&self) -> Decimal {
+        pub async fn calculate_over_market_profit(&self) -> Decimal {
             profit_balance_changes_calculator::calculate_over_market(
                 &self.profit_loss_balance_changes,
                 &self.usd_converter,

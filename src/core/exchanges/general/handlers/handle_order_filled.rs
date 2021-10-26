@@ -2806,7 +2806,7 @@ mod test {
                 &commission_currency_code,
                 &currency_pair_metadata,
             )
-            .context("Unable to get commision_amount")?;
+            .context("Unable to get commisison_amount")?;
 
             let right_value = event_data_commission_amount;
             assert_eq!(commission_amount, right_value);
@@ -2836,7 +2836,7 @@ mod test {
                 &commission_currency_code,
                 &currency_pair_metadata,
             )
-            .context("Unable to get commision_amount")?;
+            .context("Unable to get commission_amount")?;
 
             let right_value = dec!(0.1) / dec!(100) * dec!(5) / dec!(0.8);
             assert_eq!(commission_amount, right_value);
