@@ -68,7 +68,6 @@ impl<T> RequestResult<T> {
 
 enum CheckContent {
     Empty,
-    Err(ExchangeError),
     Usable,
 }
 
@@ -401,7 +400,6 @@ impl Exchange {
 
                     ExchangeError::new(Unknown, "Empty response".to_owned(), None)
                 }
-                CheckContent::Err(error) => error,
                 CheckContent::Usable => match self.exchange_client.is_rest_error_code(response) {
                     Ok(_) => return None,
                     Err(mut error) => match error.error_type {
@@ -440,34 +438,11 @@ impl Exchange {
     }
 
     fn check_content(content: &str) -> CheckContent {
-        // TODO is that OK to deserialize it each time here?
-        return match serde_json::from_str::<Value>(&content) {
-            Ok(data) => {
-                match data {
-                    Value::Null => return CheckContent::Empty,
-                    Value::Array(array) => {
-                        if array.is_empty() {
-                            return CheckContent::Empty;
-                        }
-                    }
-                    Value::Object(val) => {
-                        if val.is_empty() {
-                            return CheckContent::Empty;
-                        }
-                    }
-                    Value::Bool(_) | Value::Number(_) | Value::String(_) => {
-                        return CheckContent::Usable
-                    }
-                };
-
-                CheckContent::Usable
-            }
-            Err(_) => CheckContent::Err(ExchangeError::new(
-                ExchangeErrorType::Unknown,
-                "Unable to parse response".to_owned(),
-                None,
-            )),
-        };
+        if content.is_empty() {
+            CheckContent::Empty
+        } else {
+            CheckContent::Usable
+        }
     }
 
     pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
