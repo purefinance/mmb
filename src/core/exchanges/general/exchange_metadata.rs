@@ -23,7 +23,7 @@ impl Exchange {
                 .insert(metadata.currency_pair(), dec!(1));
         }
 
-        let currency_pairs = currency_pair_settings.with_expect(|| {
+        let currency_pairs = currency_pair_settings.as_ref().with_expect(|| {
             format!(
                 "Settings `currency_pairs` should be specified for exchange {}",
                 self.exchange_account_id
