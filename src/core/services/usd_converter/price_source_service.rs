@@ -123,13 +123,7 @@ impl PriceSourceEventLoop {
     fn update_cache_and_save(&mut self, trade_place: TradePlace) {
         let snapshot = self
             .local_snapshot_service
-            .get_snapshot(trade_place)
-            .with_expect(|| {
-                format!(
-                    "Can't get snapshot for {:?} (this shouldn't happen)",
-                    trade_place
-                )
-            });
+            .get_snapshot_expected(trade_place);
 
         let price_by_order_side = snapshot.get_top_prices();
         if self.try_update_cache(trade_place, price_by_order_side.clone()) {

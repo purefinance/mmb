@@ -75,9 +75,8 @@ fn update_order_book_top_for_exchange(
 ) {
     let trade_place_account = local_snapshots_service.update(order_book_event);
     if let Some(trade_place_account) = &trade_place_account {
-        let snapshot = local_snapshots_service
-            .get_snapshot(trade_place_account.trade_place())
-            .expect("snapshot should exists because we just added one");
+        let snapshot =
+            local_snapshots_service.get_snapshot_expected(trade_place_account.trade_place());
 
         let order_book_top = OrderBookTop {
             ask: snapshot
