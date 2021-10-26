@@ -1169,14 +1169,7 @@ impl BalanceReservationManager {
 
         let amount_to_move = src_reservation
             .currency_pair_metadata
-            .round_to_remove_amount_precision_error(amount)
-            .expect(
-                format!(
-                    "failed to round to remove amount precision error from {:?} for {}",
-                    src_reservation.currency_pair_metadata, amount
-                )
-                .as_str(),
-            );
+            .round_to_remove_amount_precision_error_expected(amount);
         if amount_to_move.is_zero() {
             log::warn!(
                 "Can't transfer zero amount from {} to {}",
@@ -1541,14 +1534,7 @@ impl BalanceReservationManager {
         //Spot trading might need a more precise solution
         let rounded_balance = reserve_parameters
             .currency_pair_metadata
-            .round_to_remove_amount_precision_error(new_balance)
-            .expect(
-                format!(
-                    "failed to round to remove amount precision error from {:?} for {}",
-                    reserve_parameters.currency_pair_metadata, new_balance
-                )
-                .as_str(),
-            );
+            .round_to_remove_amount_precision_error_expected(new_balance);
         CanReserveResult {
             can_reserve: rounded_balance >= dec!(0),
             preset,

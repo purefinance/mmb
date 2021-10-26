@@ -22,7 +22,6 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 use crate::core::DateTime;
 use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
 
-use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use parking_lot::Mutex;
@@ -917,14 +916,9 @@ impl BalanceManager {
                         price_quote_to_base,
                     );
                 Some(
-                    currency_pair_metadata
-                        .round_to_remove_amount_precision_error(balance_in_amount_currency_code)
-                        .with_expect(|| {
-                            format!(
-                                "failed to round to remove amount precision error from {:?} for {}",
-                                currency_pair_metadata, balance_in_amount_currency_code
-                            )
-                        }),
+                    currency_pair_metadata.round_to_remove_amount_precision_error_expected(
+                        balance_in_amount_currency_code,
+                    ),
                 )
             }
             None => {
