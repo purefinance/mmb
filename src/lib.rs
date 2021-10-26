@@ -40,8 +40,7 @@ macro_rules! hashmap {
 ///     }
 /// }
 ///
-/// #[cfg(test)]
-/// crate::impl_mock_initializer!(MockExample);
+/// mmb_lib::impl_mock_initializer!(MockExample);
 ///
 /// #[cfg(test)]
 /// mod test {
