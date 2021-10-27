@@ -450,21 +450,18 @@ pub mod test {
     use rstest::rstest;
     use rust_decimal_macros::dec;
 
-    use crate::{
-        core::{
-            exchanges::{
-                common::{CurrencyPair, ExchangeAccountId},
-                general::{
-                    currency_pair_metadata::Precision,
-                    test_helper::{
-                        get_test_exchange_by_currency_codes,
-                        get_test_exchange_with_currency_pair_metadata,
-                    },
+    use crate::core::{
+        exchanges::{
+            common::{CurrencyPair, ExchangeAccountId},
+            general::{
+                currency_pair_metadata::Precision,
+                test_helper::{
+                    get_test_exchange_by_currency_codes,
+                    get_test_exchange_with_currency_pair_metadata,
                 },
             },
-            settings::ExchangeIdCurrencyPairSettings,
         },
-        hashmap,
+        settings::ExchangeIdCurrencyPairSettings,
     };
 
     use super::*;

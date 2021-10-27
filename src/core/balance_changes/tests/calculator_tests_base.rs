@@ -35,10 +35,10 @@ pub mod tests {
             },
             lifecycle::cancellation_token::CancellationToken,
             orders::{
-                fill::{EventSourceType, OrderFill, OrderFillType},
+                fill::{OrderFill, OrderFillType},
                 order::{
-                    ClientOrderFillId, ClientOrderId, OrderExecutionType, OrderFillRole,
-                    OrderHeader, OrderRole, OrderSide, OrderSnapshot, OrderType, ReservationId,
+                    ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
+                    OrderType,
                 },
                 pool::OrderRef,
             },
@@ -57,7 +57,7 @@ pub mod tests {
         balance_changes: Vec<BalanceChangesCalculatorResult>,
         balance_changes_calculator: BalanceChangesCalculator,
         profit_loss_balance_changes: Vec<ProfitLossBalanceChange>,
-        usd_converter: UsdConverter,
+        pub usd_converter: UsdConverter,
 
         time_manager_mock: time_manager::__now::Context,
         seconds_offset: Arc<Mutex<u32>>,
@@ -124,12 +124,20 @@ pub mod tests {
 
         fn init_currency_pair_to_metadata_converter(
             exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+            is_derivative: bool,
         ) -> (CurrencyPairToMetadataConverter, MutexGuard<'static, ()>) {
             let (mut currency_pair_to_metadata_converter, cp_to_metadata_locker) =
                 CurrencyPairToMetadataConverter::init_mock();
+
+            let amount = if is_derivative {
+                Self::quote()
+            } else {
+                Self::base()
+            };
+
             let metadata = Arc::new(CurrencyPairMetadata::new(
                 false,
-                false,
+                is_derivative,
                 Self::base().as_str().into(),
                 Self::base(),
                 Self::quote().as_str().into(),
@@ -139,8 +147,8 @@ pub mod tests {
                 None,
                 None,
                 None,
-                Self::base().into(),
-                None,
+                amount,
+                Some(Self::base()),
                 Precision::ByTick { tick: dec!(0.1) },
                 Precision::ByTick { tick: dec!(0) },
             ));
@@ -167,7 +175,20 @@ pub mod tests {
                 .insert(Self::currency_pair(), leverage);
         }
 
-        pub fn new() -> Self {
+        pub fn new(is_derivative: bool) -> Self {
+            let (usd_converter, usd_converter_locker) = Self::init_usd_converter(hashmap![
+                Self::base() => dec!(1000),
+                Self::quote() => dec!(1)
+            ]);
+
+            Self::new_with_usd_converter(is_derivative, usd_converter, usd_converter_locker)
+        }
+
+        pub fn new_with_usd_converter(
+            is_derivative: bool,
+            usd_converter: UsdConverter,
+            usd_converter_locker: MutexGuard<'static, ()>,
+        ) -> Self {
             let exchange_1 = get_test_exchange_by_currency_codes(
                 false,
                 &Self::base().as_str(),
@@ -189,14 +210,13 @@ pub mod tests {
             let mut mock_lockers = Vec::new();
 
             let (currency_pair_to_metadata_converter, cp_to_metadata_locker) =
-                Self::init_currency_pair_to_metadata_converter(exchanges_by_id.clone());
+                Self::init_currency_pair_to_metadata_converter(
+                    exchanges_by_id.clone(),
+                    is_derivative,
+                );
             let currency_pair_to_metadata_converter = Arc::new(currency_pair_to_metadata_converter);
             mock_lockers.push(cp_to_metadata_locker);
 
-            let (usd_converter, usd_converter_locker) = Self::init_usd_converter(hashmap![
-                Self::base() => dec!(1000),
-                Self::quote() => dec!(1)
-            ]);
             mock_lockers.push(usd_converter_locker);
 
             let seconds_offset = Arc::new(Mutex::new(0u32));
@@ -298,6 +318,7 @@ pub mod tests {
                                 CancellationToken::default(),
                             )
                             .await;
+
                         let profit_loss_balance_change = ProfitLossBalanceChange::new(
                             request,
                             order.exchange_account_id().exchange_id,
@@ -306,6 +327,8 @@ pub mod tests {
                             balance_change,
                             usd_change,
                         );
+                        self.profit_loss_balance_changes
+                            .push(profit_loss_balance_change);
                     }
                     self.balance_changes.push(balance_changes);
                 }
@@ -346,6 +369,36 @@ pub mod tests {
                 CancellationToken::default(),
             )
             .await
+        }
+
+        pub fn create_symbol(
+            base: CurrencyCode,
+            quote: CurrencyCode,
+            is_derivative: bool,
+        ) -> Arc<CurrencyPairMetadata> {
+            let amount = if is_derivative {
+                quote.clone()
+            } else {
+                base.clone()
+            };
+
+            Arc::new(CurrencyPairMetadata::new(
+                false,
+                is_derivative,
+                base.as_str().into(),
+                base.clone(),
+                quote.as_str().into(),
+                quote,
+                None,
+                None,
+                None,
+                None,
+                None,
+                amount.into(),
+                Some(base),
+                Precision::ByTick { tick: dec!(0.01) },
+                Precision::ByTick { tick: dec!(0) },
+            ))
         }
     }
 }

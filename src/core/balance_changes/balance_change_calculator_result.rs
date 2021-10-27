@@ -40,10 +40,10 @@ impl BalanceChangesCalculatorResult {
         usd_converter: &UsdConverter,
         cancellation_token: CancellationToken,
     ) -> Amount {
-        match self.currency_code.as_str().starts_with("USD") {
-            true => match self.currency_code.as_str().starts_with("USD") {
-                true => balance_change * self.price,
-                false => balance_change,
+        match self.currency_code.as_str().starts_with("usd") {
+            true => match currency_code.as_str().starts_with("usd") {
+                false => balance_change * self.price,
+                true => balance_change,
             },
             false => usd_converter
                 .convert_amount(&currency_code, balance_change, cancellation_token)
