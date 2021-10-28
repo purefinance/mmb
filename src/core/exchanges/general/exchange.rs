@@ -596,7 +596,7 @@ impl Exchange {
         loop {
             self.timeout_manager
                 .reserve_when_available(
-                    &self.exchange_account_id,
+                    self.exchange_account_id,
                     RequestType::GetActivePositions,
                     None,
                     cancellation_token.clone(),
@@ -620,7 +620,7 @@ impl Exchange {
         loop {
             self.timeout_manager
                 .reserve_when_available(
-                    &self.exchange_account_id,
+                    self.exchange_account_id,
                     RequestType::GetActivePositions,
                     None,
                     cancellation_token.clone(),

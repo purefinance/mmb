@@ -784,8 +784,7 @@ impl ExchangeBlocker {
     }
 }
 
-#[cfg(test)]
-crate::create_mock_initializer!(MockExchangeBlocker, EXCHANGE_BLOCKER_MOCK_LOCKER);
+crate::impl_mock_initializer!(MockExchangeBlocker);
 
 #[cfg(test)]
 mod tests {
@@ -998,9 +997,9 @@ mod tests {
         expected_is_blocked_by_reason2: bool,
         expected_is_exchange_blocked: bool,
     ) {
-        let is_blocked1 = exchange_blocker.is_blocked_by_reason(&exchange_account_id(), reason1);
+        let is_blocked1 = exchange_blocker.is_blocked_by_reason(exchange_account_id(), reason1);
         assert_eq!(is_blocked1, expected_is_blocked_by_reason1);
-        let is_blocked2 = exchange_blocker.is_blocked_by_reason(&exchange_account_id(), reason2);
+        let is_blocked2 = exchange_blocker.is_blocked_by_reason(exchange_account_id(), reason2);
         assert_eq!(is_blocked2, expected_is_blocked_by_reason2);
         let is_exchange_blocked = exchange_blocker.is_blocked(exchange_account_id());
         assert_eq!(is_exchange_blocked, expected_is_exchange_blocked);
@@ -1426,11 +1425,11 @@ mod tests {
         expected_is_blocked_by_reason2: bool,
     ) {
         assert_eq!(
-            exchange_blocker.is_blocked_except_reason(&exchange_account_id(), reason1),
+            exchange_blocker.is_blocked_except_reason(exchange_account_id(), reason1),
             expected_is_blocked_by_reason1
         );
         assert_eq!(
-            exchange_blocker.is_blocked_except_reason(&exchange_account_id(), reason2),
+            exchange_blocker.is_blocked_except_reason(exchange_account_id(), reason2),
             expected_is_blocked_by_reason2
         );
     }
@@ -1446,7 +1445,7 @@ mod tests {
             println!(
                 "reason{} is blocked: {}",
                 i,
-                exchange_blocker.is_blocked_by_reason(&exchange_account_id(), reason),
+                exchange_blocker.is_blocked_by_reason(exchange_account_id(), reason),
             )
         }
     }

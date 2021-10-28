@@ -237,9 +237,9 @@ impl VirtualBalanceHolder {
         &self.balance_diff
     }
 
-    pub fn has_real_balance_on_exchange(&self, exchange_account_id: &ExchangeAccountId) -> bool {
+    pub fn has_real_balance_on_exchange(&self, exchange_account_id: ExchangeAccountId) -> bool {
         self.balance_by_exchange_id
-            .get(exchange_account_id)
+            .get(&exchange_account_id)
             .map(|x| x.len() > 0)
             .unwrap_or(false)
     }

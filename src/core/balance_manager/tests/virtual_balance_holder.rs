@@ -181,7 +181,7 @@ mod tests {
 
         assert_eq!(
             test_obj.virtual_balance_holder.get_exchange_balance(
-                &test_obj.exchange_account_id,
+                test_obj.exchange_account_id,
                 test_obj.currency_pair_metadata,
                 btc,
                 None

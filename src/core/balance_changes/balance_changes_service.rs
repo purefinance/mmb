@@ -7,7 +7,7 @@ use tokio::sync::mpsc;
 #[double]
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 #[double]
-use crate::core::misc::time_manager::time_manager;
+use crate::core::misc::time::time_manager;
 #[double]
 use crate::core::services::usd_converter::usd_converter::UsdConverter;
 

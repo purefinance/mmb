@@ -28,8 +28,8 @@ pub fn close_position_if_needed(
             if balance_manager
                 .lock()
                 .get_position(
-                    &trade_place.exchange_account_id,
-                    &trade_place.currency_pair,
+                    trade_place.exchange_account_id,
+                    trade_place.currency_pair,
                     OrderSide::Buy,
                 )
                 .is_zero()

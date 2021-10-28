@@ -1,5 +1,6 @@
 #[cfg(test)]
 use mockall::automock;
+
 /// If you'll use this mod in some tests, mocks object should be created.
 /// Automock doesn't support default implementation.
 /// NOTE: you need to avoid using mock objects in a parallel way https://docs.rs/mockall/0.10.2/mockall/#static-methods

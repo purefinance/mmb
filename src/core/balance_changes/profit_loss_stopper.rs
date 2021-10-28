@@ -75,7 +75,7 @@ impl ProfitLossStopper {
             self.limit
         );
 
-        let target_exchange_account_id = self.target_trade_place.exchange_account_id.clone();
+        let target_exchange_account_id = self.target_trade_place.exchange_account_id;
 
         if usd_change <= -self.limit {
             let _ = position_helper::close_position_if_needed(
@@ -136,7 +136,7 @@ mod test {
     use rust_decimal_macros::dec;
 
     #[double]
-    use crate::core::misc::time_manager::time_manager;
+    use crate::core::misc::time::time_manager;
     use crate::core::{
         balance_changes::{
             balance_change_usd_periodic_calculator::BalanceChangeUsdPeriodicCalculator,
@@ -148,6 +148,7 @@ mod test {
             Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, TradePlaceAccount,
         },
         logger::init_logger,
+        misc::time,
         orders::order::ClientOrderFillId,
         DateTime,
     };
@@ -163,7 +164,7 @@ mod test {
     }
 
     fn currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes(&btc(), &"ETH".into())
+        CurrencyPair::from_codes(btc(), "ETH".into())
     }
 
     fn trade_place() -> TradePlaceAccount {
@@ -239,7 +240,7 @@ mod test {
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
         let mut mock_lockers = vec![exchange_blocker_locker];
         let (time_manager_mock, time_manager_mock_locker) =
-            crate::core::misc::time_manager::tests::init_mock(seconds_offset_in_mock.clone());
+            time::tests::init_mock(seconds_offset_in_mock.clone());
         mock_lockers.push(time_manager_mock_locker);
 
         let balance_manager = Arc::new(Mutex::new(BalanceManager::default()));

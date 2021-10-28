@@ -47,7 +47,7 @@ impl Exchange {
     ) -> Result<RestRequestOutcome, Error> {
         self.timeout_manager
             .reserve_when_available(
-                &self.exchange_account_id,
+                self.exchange_account_id,
                 RequestType::GetOpenOrders,
                 None,
                 CancellationToken::default(),
@@ -69,7 +69,7 @@ impl Exchange {
             OpenOrdersType::AllCurrencyPair => {
                 self.timeout_manager
                     .reserve_when_available(
-                        &self.exchange_account_id,
+                        self.exchange_account_id,
                         RequestType::GetOpenOrders,
                         None,
                         CancellationToken::default(),

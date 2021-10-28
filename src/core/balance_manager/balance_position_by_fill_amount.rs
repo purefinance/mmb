@@ -44,7 +44,7 @@ impl BalancePositionByFillAmount {
         client_order_fill_id: Option<ClientOrderFillId>,
         now: DateTime,
     ) {
-        let key = TradePlaceAccount::new(exchange_account_id.clone(), currency_pair.clone());
+        let key = TradePlaceAccount::new(exchange_account_id, currency_pair.clone());
 
         log::info!(
             "PositionChanges {:?} {} {:?}",

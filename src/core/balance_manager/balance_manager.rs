@@ -236,7 +236,7 @@ impl BalanceManager {
                     )?;
             }
             self.exchange_id_with_restored_positions
-                .insert(exchange_account_id.clone());
+                .insert(exchange_account_id);
         } else {
             let fill_positions =
                 self.get_balances()
@@ -286,7 +286,7 @@ impl BalanceManager {
             if !currency_pairs_with_diffs.is_empty() {
                 let diff_times_by_currency_pair: &mut HashMap<_, _> =
                     position_differs_times_in_row_by_exchange_id
-                        .entry(exchange_account_id.clone())
+                        .entry(exchange_account_id)
                         .or_default();
 
                 for currency_pair in currency_pairs_with_diffs {
@@ -976,18 +976,18 @@ impl BalanceManager {
 
     pub fn get_balance_reservation_currency_code(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
     ) -> CurrencyCode {
         self.balance_reservation_manager
             .exchanges_by_id
-            .get(exchange_account_id)
+            .get(&exchange_account_id)
             .expect("failed to get exchange")
             .get_balance_reservation_currency_code(currency_pair_metadata, side)
     }
 
-    pub fn balance_was_received(&self, exchange_account_id: &ExchangeAccountId) -> bool {
+    pub fn balance_was_received(&self, exchange_account_id: ExchangeAccountId) -> bool {
         self.balance_reservation_manager
             .virtual_balance_holder
             .has_real_balance_on_exchange(exchange_account_id)

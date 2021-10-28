@@ -128,7 +128,7 @@ async fn cancel_opened_orders_successfully() {
 async fn nothing_to_cancel() {
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -151,7 +151,7 @@ async fn nothing_to_cancel() {
     };
 
     let order = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromNothingToCancelTest".to_owned()),
         CancellationToken::default(),
     );
