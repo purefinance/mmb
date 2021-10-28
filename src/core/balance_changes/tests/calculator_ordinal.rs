@@ -17,7 +17,7 @@ mod tests {
          * Amount currency code: Base
          * Commission currency code: Quote
          */
-        let mut test_obj = TestBase::new(false);
+        let mut test_obj = TestBase::new(false, false);
 
         let price_base_quote = dec!(0.5);
         let amount_in_base = dec!(5);
@@ -67,7 +67,7 @@ mod tests {
          * Amount currency code: Base
          * Commission currency code: Quote
          */
-        let mut test_obj = TestBase::new(false);
+        let mut test_obj = TestBase::new(false, false);
 
         let price_base_quote = dec!(1.232);
         let amount_in_base = dec!(14);
@@ -132,7 +132,7 @@ mod tests {
          * TradeSide:                 Sell
          */
 
-        let mut test_obj = TestBase::new(false);
+        let mut test_obj = TestBase::new(false, false);
 
         // same for both directions
         let price_base_quote = dec!(0.7);
@@ -213,7 +213,7 @@ mod tests {
          * TradeSide:                 Sell
          */
 
-        let mut test_obj = TestBase::new(false);
+        let mut test_obj = TestBase::new(false, false);
 
         // same for both directions
         let price_base_quote = dec!(1.2);
@@ -289,7 +289,7 @@ mod tests {
          * TradeSide:                 Sell
          */
 
-        let mut test_obj = TestBase::new(false);
+        let mut test_obj = TestBase::new(false, false);
 
         // Direction 1 description
         let trade_side_1 = OrderSide::Buy;

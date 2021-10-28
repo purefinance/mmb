@@ -105,6 +105,10 @@ pub mod tests {
             "key".into()
         }
 
+        pub fn amount_multiplier() -> Decimal {
+            dec!(0.001)
+        }
+
         pub fn init_usd_converter(
             prices: HashMap<CurrencyCode, Price>,
         ) -> (UsdConverter, MutexGuard<'static, ()>) {
@@ -125,17 +129,19 @@ pub mod tests {
         fn init_currency_pair_to_metadata_converter(
             exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
             is_derivative: bool,
+            is_reversed: bool,
         ) -> (CurrencyPairToMetadataConverter, MutexGuard<'static, ()>) {
             let (mut currency_pair_to_metadata_converter, cp_to_metadata_locker) =
                 CurrencyPairToMetadataConverter::init_mock();
 
-            let amount = if is_derivative {
-                Self::quote()
-            } else {
-                Self::base()
+            let (amount_currency_code, balance_currency_code) = match (is_derivative, is_reversed) {
+                (true, true) => (Self::base(), Some(Self::quote())),
+                (true, false) => (Self::quote(), Some(Self::base())),
+                (false, true) => todo!("This combo doesn't use anywhere now"),
+                (false, false) => (Self::base(), None),
             };
 
-            let metadata = Arc::new(CurrencyPairMetadata::new(
+            let mut metadata = CurrencyPairMetadata::new(
                 false,
                 is_derivative,
                 Self::base().as_str().into(),
@@ -147,17 +153,19 @@ pub mod tests {
                 None,
                 None,
                 None,
-                amount,
-                Some(Self::base()),
+                amount_currency_code,
+                balance_currency_code,
                 Precision::ByTick { tick: dec!(0.1) },
                 Precision::ByTick { tick: dec!(0) },
-            ));
+            );
+            if is_reversed {
+                metadata.amount_multiplier = Self::amount_multiplier();
+            }
+            let metadata = Arc::new(metadata);
+
             currency_pair_to_metadata_converter
                 .expect_get_currency_pair_metadata()
                 .returning(move |_, _| metadata.clone());
-
-            // TODO: grays maybe need to delete
-            //     CurrencyPairToSymbolConverter.Setup(x => x.GetSymbolByCurrencyCodePair(It.IsAny<string>(), CurrencyPair)).Returns(symbol);
 
             currency_pair_to_metadata_converter
                 .expect_exchanges_by_id()
@@ -175,17 +183,23 @@ pub mod tests {
                 .insert(Self::currency_pair(), leverage);
         }
 
-        pub fn new(is_derivative: bool) -> Self {
+        pub fn new(is_derivative: bool, is_reversed: bool) -> Self {
             let (usd_converter, usd_converter_locker) = Self::init_usd_converter(hashmap![
                 Self::base() => dec!(1000),
                 Self::quote() => dec!(1)
             ]);
 
-            Self::new_with_usd_converter(is_derivative, usd_converter, usd_converter_locker)
+            Self::new_with_usd_converter(
+                is_derivative,
+                is_reversed,
+                usd_converter,
+                usd_converter_locker,
+            )
         }
 
         pub fn new_with_usd_converter(
             is_derivative: bool,
+            is_reversed: bool,
             usd_converter: UsdConverter,
             usd_converter_locker: MutexGuard<'static, ()>,
         ) -> Self {
@@ -213,6 +227,7 @@ pub mod tests {
                 Self::init_currency_pair_to_metadata_converter(
                     exchanges_by_id.clone(),
                     is_derivative,
+                    is_reversed,
                 );
             let currency_pair_to_metadata_converter = Arc::new(currency_pair_to_metadata_converter);
             mock_lockers.push(cp_to_metadata_locker);

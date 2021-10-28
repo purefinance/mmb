@@ -11,7 +11,7 @@ pub mod tests {
 
     #[tokio::test]
     pub async fn simple_buy() {
-        let mut test_obj = TestBase::new(true);
+        let mut test_obj = TestBase::new(true, false);
 
         let price_base_quote = dec!(0.133);
         let amount_in_quote = dec!(103);
@@ -55,7 +55,7 @@ pub mod tests {
 
     #[tokio::test]
     pub async fn simple_sell() {
-        let mut test_obj = TestBase::new(true);
+        let mut test_obj = TestBase::new(true, false);
 
         let price_base_quote = dec!(0.843);
         let amount_in_quote = dec!(12);
@@ -115,7 +115,7 @@ pub mod tests {
          * TradeSide:                 Sell
          */
 
-        let mut test_obj = TestBase::new(true);
+        let mut test_obj = TestBase::new(true, false);
 
         // Direction 1 description
         let trade_side_1 = OrderSide::Buy;
