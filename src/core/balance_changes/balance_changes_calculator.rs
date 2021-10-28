@@ -34,6 +34,7 @@ impl BalanceChangesCalculator {
         let metadata = self
             .currency_pair_to_metadata_converter
             .get_currency_pair_metadata(order.exchange_account_id(), order.currency_pair());
+
         self.get_balance_changes_calculator_results(
             configuration_descriptor,
             order,
@@ -73,7 +74,6 @@ impl BalanceChangesCalculator {
                 ),
             }
         } else {
-            // REVIEW: тут может быть none это не ошибка в C# есть доп проверка в `else if`
             let balance_currency_code = metadata
                 .balance_currency_code
                 .expect("Balance currency code isn't set");
@@ -119,7 +119,6 @@ impl BalanceChangesCalculator {
             }
         };
 
-        //  продолдить с 124 строки
         let base_currency_code_request = BalanceRequest::new(
             configuration_descriptor.clone(),
             order.exchange_account_id(),

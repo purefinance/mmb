@@ -69,7 +69,7 @@ impl BalanceChangesService {
             move || Self::callback(cloned_this.clone()).boxed(),
             "BalanceChangesService",
             Duration::ZERO,
-            Duration::from_secs(5), // 2 hours
+            Duration::from_secs(5),
             true,
         );
 
@@ -82,7 +82,6 @@ impl BalanceChangesService {
             .tx_event
             .send(BalanceChangeServiceEvent::OnTimer)
             .await;
-        // .context("BalanceChangesService::callback(): Unable to send BalanceChangeServiceEvent::OnTimer. Probably receiver is already dropped");
     }
 
     pub async fn run(&mut self, cancellation_token: CancellationToken) {

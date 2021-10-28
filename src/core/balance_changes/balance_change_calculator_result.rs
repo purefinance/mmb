@@ -12,8 +12,7 @@ use crate::core::{
 
 pub(crate) struct BalanceChangesCalculatorResult {
     balance_changes: ServiceValueTree,
-    // private readonly string _currencyCodeWithPrice;
-    currency_code: CurrencyCode, // REVIEW: correct?
+    currency_code: CurrencyCode,
     price: Price,
     pub exchange_id: ExchangeId,
 }
@@ -21,7 +20,7 @@ pub(crate) struct BalanceChangesCalculatorResult {
 impl BalanceChangesCalculatorResult {
     pub fn new(
         balance_changes: ServiceValueTree,
-        currency_code: CurrencyCode, // REVIEW: correct?
+        currency_code: CurrencyCode,
         price: Price,
         exchange_id: ExchangeId,
     ) -> Self {
