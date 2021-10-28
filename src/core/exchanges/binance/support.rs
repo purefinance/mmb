@@ -614,27 +614,27 @@ impl Binance {
         &self,
         currency_pair: CurrencyPair,
         event_id: &str,
-        order_book_data: OrderBookData,
+        mut order_book_data: OrderBookData,
         order_book_update: Option<Vec<OrderBookData>>,
     ) -> Result<()> {
         if !self.subscribe_to_market_data {
             return Ok(());
         }
 
-        let mut order_book_event = OrderBookEvent::new(
+        //Some exchanges like Binance don't give us Snapshot in Web Socket, so we have to request Snapshot using Rest
+        //and then update it with orderBookUpdates that we received while Rest request was being executed
+        if let Some(updates) = order_book_update {
+            order_book_data.update(updates)
+        }
+
+        let order_book_event = OrderBookEvent::new(
             Utc::now(),
             self.id,
             currency_pair,
             event_id.to_string(),
             EventType::Snapshot,
-            order_book_data,
+            Arc::new(order_book_data),
         );
-
-        //Some exchanges like Binance don't give us Snapshot in Web Socket, so we have to request Snapshot using Rest
-        //and then update it with orderBookUpdates that we received while Rest request was being executed
-        if let Some(updates) = order_book_update {
-            order_book_event.apply_data_update(updates)
-        }
 
         let event = ExchangeEvent::OrderBookEvent(order_book_event);
 

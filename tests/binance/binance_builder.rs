@@ -3,7 +3,6 @@ use std::sync::Arc;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 use mmb_lib::core::exchanges::general::exchange::*;
-use mmb_lib::core::exchanges::general::exchange_creation::get_symbols;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
@@ -83,13 +82,9 @@ impl BinanceBuilder {
             application_manager,
             timeout_manager,
             commission,
-        ); // TODO: change to mmb_lib::core::exchanges::general::exchange_creation::create_exchange::create_exchange() when it will be ready
+        );
         exchange.clone().connect().await;
-        exchange.build_metadata().await;
-
-        if let Some(currency_pairs) = &settings.currency_pairs {
-            exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]));
-        }
+        exchange.build_metadata(&settings.currency_pairs).await;
 
         // TODO Remove that workaround when RAII order clearing will be implemented
         if need_to_clean_up {
