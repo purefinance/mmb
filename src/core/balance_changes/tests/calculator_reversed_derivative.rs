@@ -123,38 +123,9 @@ mod tests {
         let first_price = dec!(10_000);
         let second_price = dec!(2_000);
 
-        let prices_1 = hashmap![
-            TestBase::base() => dec!(1000),
-            TestBase::quote() => dec!(1)
-        ];
-        let prices_2 = hashmap![
+        let (usd_converter, usd_converter_locker) = init_usd_converter(hashmap![
             TestBase::base() => second_price
-        ];
-
-        let (mut usd_converter, usd_converter_locker) = UsdConverter::init_mock();
-        usd_converter
-            .expect_convert_amount()
-            .returning(move |from, amount, _| {
-                if from == TestBase::quote() {
-                    return Some(amount);
-                }
-
-                let price = prices_1.get(&from).expect("in test").clone();
-                Some(amount * price)
-            })
-            .times(1);
-
-        usd_converter
-            .expect_convert_amount()
-            .returning(move |from, amount, _| {
-                if from == TestBase::quote() {
-                    return Some(amount);
-                }
-
-                let price = prices_2.get(&from).expect("in test").clone();
-                Some(amount * price)
-            })
-            .times(1);
+        ]);
 
         let mut test_obj =
             TestBase::new_with_usd_converter(true, true, usd_converter, usd_converter_locker);
