@@ -67,9 +67,9 @@ pub(crate) fn get_test_exchange_by_currency_codes(
     quote_currency_code: &str,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let amount_currency_code = if is_derivative {
-        quote_currency_code.clone()
+        quote_currency_code
     } else {
-        base_currency_code.clone()
+        base_currency_code
     };
     get_test_exchange_by_currency_codes_and_amount_code(
         is_derivative,
@@ -85,15 +85,15 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata(
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
     get_test_exchange_with_currency_pair_metadata_and_id(
         currency_pair_metadata,
-        &exchange_account_id,
+        exchange_account_id,
     )
 }
 pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
     currency_pair_metadata: Arc<CurrencyPairMetadata>,
-    exchange_account_id: &ExchangeAccountId,
+    exchange_account_id: ExchangeAccountId,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let settings = settings::ExchangeSettings::new_short(
-        exchange_account_id.clone(),
+        exchange_account_id,
         "test_api_key".into(),
         "test_secret_key".into(),
         false,
@@ -116,7 +116,7 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
     );
 
     let exchange = Exchange::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         binance,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -129,7 +129,7 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
-        BinanceBuilder.get_timeout_argments(),
+        BinanceBuilder.get_timeout_arguments(),
         tx,
         application_manager,
         TimeoutManager::new(HashMap::new()),
@@ -158,8 +158,8 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
 pub(crate) fn create_order_ref(
     client_order_id: &ClientOrderId,
     role: Option<OrderRole>,
-    exchange_account_id: &ExchangeAccountId,
-    currency_pair: &CurrencyPair,
+    exchange_account_id: ExchangeAccountId,
+    currency_pair: CurrencyPair,
     price: Price,
     amount: Amount,
     side: OrderSide,
@@ -168,8 +168,8 @@ pub(crate) fn create_order_ref(
         client_order_id.clone(),
         OrderType::Liquidation,
         role,
-        exchange_account_id.clone(),
-        currency_pair.clone(),
+        exchange_account_id,
+        currency_pair,
         price,
         amount,
         side,

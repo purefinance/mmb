@@ -168,13 +168,13 @@ impl Support for Binance {
                 let data = &data["data"];
 
                 if stream.ends_with("@trade") {
-                    self.handle_trade(&currency_pair, data)?;
+                    self.handle_trade(currency_pair, data)?;
                     return Ok(());
                 }
 
                 // TODO handle public stream
                 if stream.ends_with("depth20") {
-                    self.process_snapshot_update(&currency_pair, data)?;
+                    self.process_snapshot_update(currency_pair, data)?;
                     return Ok(());
                 }
             }
@@ -191,7 +191,7 @@ impl Support for Binance {
         } else if false {
             // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
         } else {
-            self.log_unknown_message(self.id.clone(), msg);
+            self.log_unknown_message(self.id, msg);
         }
 
         Ok(())
@@ -234,7 +234,7 @@ impl Support for Binance {
     fn set_handle_trade_callback(
         &self,
         callback: Box<
-            dyn FnMut(&CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
+            dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
         >,
     ) {
         *self.handle_trade_callback.lock() = callback;
@@ -270,8 +270,8 @@ impl Support for Binance {
             .with_context(|| format!("Unable parse websocket {:?} uri", role))
     }
 
-    fn get_specific_currency_pair(&self, currency_pair: &CurrencyPair) -> SpecificCurrencyPair {
-        self.unified_to_specific.read()[currency_pair].clone()
+    fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair {
+        self.unified_to_specific.read()[&currency_pair]
     }
 
     fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode> {
@@ -325,7 +325,7 @@ impl Support for Binance {
         for symbol in symbols {
             let is_active = symbol["status"] == "TRADING";
 
-            // TODO There is no work with dereivatives in current version
+            // TODO There is no work with derivatives in current version
             let is_derivative = false;
             let base_currency_id = &symbol
                 .get_as_str("baseAsset")
@@ -333,27 +333,23 @@ impl Support for Binance {
             let quote_currency_id = &symbol
                 .get_as_str("quoteAsset")
                 .context("Unable to get quote currency id from Binance")?;
-            let base_currency_code = CurrencyCode::from(base_currency_id.as_str());
-            let quote_currency_code = CurrencyCode::from(quote_currency_id.as_str());
+            let base = base_currency_id.as_str().into();
+            let quote = quote_currency_id.as_str().into();
 
-            let specific_currency_pair =
-                SpecificCurrencyPair::from(symbol.get_as_str("symbol")?.as_str());
-            let unified_currency_pair =
-                CurrencyPair::from_codes(&base_currency_code, &quote_currency_code);
-            self.unified_to_specific.write().insert(
-                unified_currency_pair.clone(),
-                specific_currency_pair.clone(),
-            );
+            let specific_currency_pair = symbol.get_as_str("symbol")?.as_str().into();
+            let unified_currency_pair = CurrencyPair::from_codes(base, quote);
+            self.unified_to_specific
+                .write()
+                .insert(unified_currency_pair, specific_currency_pair);
 
-            self.specific_to_unified.write().insert(
-                specific_currency_pair.clone(),
-                unified_currency_pair.clone(),
-            );
+            self.specific_to_unified
+                .write()
+                .insert(specific_currency_pair, unified_currency_pair);
 
-            let amount_currency_code = quote_currency_code.clone();
+            let amount_currency_code = quote;
 
             // TODO There are no balance_currency_code for spot, why does it set here this way?
-            let balance_currency_code = base_currency_code.clone();
+            let balance_currency_code = base;
 
             let mut min_amount = None;
             let mut max_amount = None;
@@ -407,16 +403,16 @@ impl Support for Binance {
                 is_active,
                 is_derivative,
                 base_currency_id.as_str().into(),
-                base_currency_code,
+                base,
                 quote_currency_id.as_str().into(),
-                quote_currency_code,
+                quote,
                 min_price,
                 max_price,
                 min_amount,
                 max_amount,
                 min_cost,
-                amount_currency_code.as_str().into(),
-                Some(balance_currency_code.as_str().into()),
+                amount_currency_code,
+                Some(balance_currency_code),
                 price_precision,
                 amount_precision,
             );
@@ -543,12 +539,12 @@ impl GetOrErr for Value {
 }
 
 impl Binance {
-    pub(crate) fn handle_trade(&self, currency_pair: &CurrencyPair, data: &Value) -> Result<()> {
+    pub(crate) fn handle_trade(&self, currency_pair: CurrencyPair, data: &Value) -> Result<()> {
         let test = data["t"].clone();
         let trade_id = TradeId::from(test);
 
         let mut trade_id_from_lasts =
-            self.last_trade_ids.get_mut(currency_pair).with_expect(|| {
+            self.last_trade_ids.get_mut(&currency_pair).with_expect(|| {
                 format!(
                     "There are no last_trade_id for given currency_pair {}",
                     currency_pair
@@ -597,11 +593,7 @@ impl Binance {
         Ok(())
     }
 
-    pub fn process_snapshot_update(
-        &self,
-        currency_pair: &CurrencyPair,
-        data: &Value,
-    ) -> Result<()> {
+    pub fn process_snapshot_update(&self, currency_pair: CurrencyPair, data: &Value) -> Result<()> {
         let last_update_id = data["lastUpdateId"].to_string();
         let last_update_id = last_update_id.trim_matches('"');
         let raw_asks = data["asks"]
@@ -620,29 +612,29 @@ impl Binance {
 
     fn handle_order_book_snapshot(
         &self,
-        currency_pair: &CurrencyPair,
+        currency_pair: CurrencyPair,
         event_id: &str,
-        order_book_data: OrderBookData,
+        mut order_book_data: OrderBookData,
         order_book_update: Option<Vec<OrderBookData>>,
     ) -> Result<()> {
         if !self.subscribe_to_market_data {
             return Ok(());
         }
 
-        let mut order_book_event = OrderBookEvent::new(
-            Utc::now(),
-            self.id.clone(),
-            currency_pair.clone(),
-            event_id.to_string(),
-            EventType::Snapshot,
-            order_book_data,
-        );
-
         //Some exchanges like Binance don't give us Snapshot in Web Socket, so we have to request Snapshot using Rest
         //and then update it with orderBookUpdates that we received while Rest request was being executed
         if let Some(updates) = order_book_update {
-            order_book_event.apply_data_update(updates)
+            order_book_data.update(updates)
         }
+
+        let order_book_event = OrderBookEvent::new(
+            Utc::now(),
+            self.id,
+            currency_pair,
+            event_id.to_string(),
+            EventType::Snapshot,
+            Arc::new(order_book_data),
+        );
 
         let event = ExchangeEvent::OrderBookEvent(order_book_event);
 

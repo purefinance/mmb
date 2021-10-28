@@ -46,7 +46,7 @@ impl BalanceChangesCalculatorResult {
                 true => balance_change,
             },
             false => usd_converter
-                .convert_amount(&currency_code, balance_change, cancellation_token)
+                .convert_amount(currency_code, balance_change, cancellation_token)
                 .await
                 .with_expect(|| format!("Failed to convert from {} to USD", currency_code)),
         }

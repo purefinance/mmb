@@ -43,16 +43,16 @@ impl VirtualBalanceHolderTests {
     }
 
     fn new_core(tmp_exchange: Arc<Exchange>) -> Self {
-        let exchange_account_id = tmp_exchange.exchange_account_id.clone();
+        let exchange_account_id = tmp_exchange.exchange_account_id;
         let mut exchanges_by_id = HashMap::new();
-        exchanges_by_id.insert(exchange_account_id.clone(), tmp_exchange.clone());
+        exchanges_by_id.insert(exchange_account_id, tmp_exchange.clone());
 
         Self {
             virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),
-            exchange_account_id: exchange_account_id.clone(),
+            exchange_account_id,
             exchange: tmp_exchange.clone(),
             currency_pair_metadata: tmp_exchange
-                .get_currency_pair_metadata(&VirtualBalanceHolderTests::currency_pair())
+                .get_currency_pair_metadata(VirtualBalanceHolderTests::currency_pair())
                 .expect("in test"),
             configuration_descriptor: Arc::from(ConfigurationDescriptor::new(
                 "service".into(),
@@ -71,15 +71,15 @@ impl VirtualBalanceHolderTests {
 
     fn currency_pair() -> CurrencyPair {
         CurrencyPair::from_codes(
-            &VirtualBalanceHolderTests::eth(),
-            &VirtualBalanceHolderTests::btc(),
+            VirtualBalanceHolderTests::eth(),
+            VirtualBalanceHolderTests::btc(),
         )
     }
 
     fn create_balance_request(&self, currency_code: CurrencyCode) -> BalanceRequest {
         BalanceRequest::new(
             self.configuration_descriptor.clone(),
-            self.exchange_account_id.clone(),
+            self.exchange_account_id,
             VirtualBalanceHolderTests::currency_pair(),
             currency_code,
         )
@@ -95,6 +95,7 @@ mod tests {
 
     use crate::core::balance_manager::balance_request::BalanceRequest;
     use crate::core::logger::init_logger;
+    use crate::hashmap;
 
     use super::VirtualBalanceHolderTests;
 
@@ -123,12 +124,12 @@ mod tests {
         init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
-        let exchange_account_id = test_obj.exchange_account_id.clone();
+        let exchange_account_id = test_obj.exchange_account_id;
         let mut balances_by_currency_code = HashMap::new();
         balances_by_currency_code.insert(VirtualBalanceHolderTests::btc(), dec!(0));
         test_obj
             .virtual_balance_holder
-            .update_balances(&exchange_account_id, &balances_by_currency_code);
+            .update_balances(exchange_account_id, &balances_by_currency_code);
 
         let balance_request = test_obj.create_balance_request(VirtualBalanceHolderTests::btc());
         add_balance_and_check(&mut test_obj, &balance_request, dec!(0), Some(dec!(0)));
@@ -141,13 +142,13 @@ mod tests {
         init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
-        let exchange_account_id = test_obj.exchange_account_id.clone();
+        let exchange_account_id = test_obj.exchange_account_id;
         let mut balances_by_currency_code = HashMap::new();
         balances_by_currency_code.insert(VirtualBalanceHolderTests::btc(), dec!(0));
         balances_by_currency_code.insert(VirtualBalanceHolderTests::eth(), dec!(0));
         test_obj
             .virtual_balance_holder
-            .update_balances(&exchange_account_id, &balances_by_currency_code);
+            .update_balances(exchange_account_id, &balances_by_currency_code);
 
         let balance_request = test_obj.create_balance_request(VirtualBalanceHolderTests::btc());
         add_balance_and_check(&mut test_obj, &balance_request, dec!(10), Some(dec!(10)));
@@ -161,14 +162,15 @@ mod tests {
         init_logger();
         let mut test_obj = VirtualBalanceHolderTests::new();
 
-        let exchange_account_id = test_obj.exchange_account_id.clone();
-        let mut balances_by_currency_code = HashMap::new();
-        balances_by_currency_code.insert(VirtualBalanceHolderTests::btc(), dec!(50));
+        let exchange_account_id = test_obj.exchange_account_id;
+        let btc = VirtualBalanceHolderTests::btc();
+
+        let balances_by_currency_code = hashmap![btc => dec!(50)];
         test_obj
             .virtual_balance_holder
-            .update_balances(&exchange_account_id, &balances_by_currency_code);
+            .update_balances(exchange_account_id, &balances_by_currency_code);
 
-        let balance_request = test_obj.create_balance_request(VirtualBalanceHolderTests::btc());
+        let balance_request = test_obj.create_balance_request(btc);
         add_balance_and_check(&mut test_obj, &balance_request, dec!(-40), Some(dec!(10)));
 
         let balance_diffs = test_obj.virtual_balance_holder.get_virtual_balance_diffs();
@@ -181,7 +183,7 @@ mod tests {
             test_obj.virtual_balance_holder.get_exchange_balance(
                 &test_obj.exchange_account_id,
                 test_obj.currency_pair_metadata,
-                &VirtualBalanceHolderTests::btc(),
+                btc,
                 None
             ),
             Some(dec!(50))
@@ -195,12 +197,12 @@ mod tests {
         let mut test_obj =
             VirtualBalanceHolderTests::new_with_amount(VirtualBalanceHolderTests::btc().as_str());
 
-        let exchange_account_id = test_obj.exchange_account_id.clone();
+        let exchange_account_id = test_obj.exchange_account_id;
         let mut balances_by_currency_code = HashMap::new();
         balances_by_currency_code.insert(VirtualBalanceHolderTests::eth(), dec!(50));
         test_obj
             .virtual_balance_holder
-            .update_balances(&exchange_account_id, &balances_by_currency_code);
+            .update_balances(exchange_account_id, &balances_by_currency_code);
 
         let balance_request_btc = test_obj.create_balance_request(VirtualBalanceHolderTests::btc());
         let balance_request_eth = test_obj.create_balance_request(VirtualBalanceHolderTests::eth());

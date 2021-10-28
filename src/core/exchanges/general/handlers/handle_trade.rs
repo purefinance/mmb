@@ -16,7 +16,7 @@ use crate::core::{
 impl Exchange {
     pub fn handle_trade(
         &self,
-        currency_pair: &CurrencyPair,
+        currency_pair: CurrencyPair,
         trade_id: TradeId,
         price: Price,
         quantity: Amount,
@@ -32,19 +32,16 @@ impl Exchange {
             tick_direction: TickDirection::None,
         }];
         let mut trades_event = TradesEvent {
-            exchange_account_id: self.exchange_account_id.clone(),
-            currency_pair: currency_pair.clone(),
+            exchange_account_id: self.exchange_account_id,
+            currency_pair,
             trades,
             receipt_time: timeout_manager::now(),
         };
 
-        let trade_place = TradePlace::new(
-            self.exchange_account_id.exchange_id.clone(),
-            currency_pair.clone(),
-        );
+        let trade_place = TradePlace::new(self.exchange_account_id.exchange_id, currency_pair);
 
         self.last_trades_update_time
-            .insert(trade_place.clone(), trades_event.receipt_time);
+            .insert(trade_place, trades_event.receipt_time);
 
         if self.exchange_client.get_settings().subscribe_to_market_data {
             return Ok(());
@@ -63,41 +60,34 @@ impl Exchange {
             );
         }
 
-        let mut trade_items = Vec::new();
         if self.exchange_client.get_settings().request_trades {
-            let mut should_add_event = false;
+            let should_add_event = if let Some(last_trade) = self.last_trades.get_mut(&trade_place)
+            {
+                let trade_items = trades_event
+                    .trades
+                    .into_iter()
+                    .filter(
+                        |item| match self.features.trade_option.supports_trade_incremented_id {
+                            true => item.trade_id.get_number() > last_trade.trade_id.get_number(),
+                            false => item.transaction_time > last_trade.transaction_time,
+                        },
+                    )
+                    .collect_vec();
 
-            if let Some(last_trade) = self.last_trades.get_mut(&trade_place) {
-                // TODO use drain_filter here when it will be stabilized
-                trade_items = if self.features.trade_option.supports_trade_incremented_id {
-                    trades_event
-                        .trades
-                        .into_iter()
-                        .filter(|item| {
-                            item.trade_id.get_number() > last_trade.trade_id.get_number()
-                        })
-                        .collect_vec()
-                } else {
-                    trades_event
-                        .trades
-                        .into_iter()
-                        .filter(|item| item.transaction_time > last_trade.transaction_time)
-                        .collect_vec()
-                };
+                trades_event.trades = trade_items;
 
-                should_add_event = true;
+                true
+            } else {
+                false
             };
 
-            match trade_items.first() {
-                Some(trade) => {
-                    self.last_trades.insert(trade_place, trade.clone());
-                    trades_event.trades = trade_items;
-
-                    if !should_add_event {
-                        return Ok(());
-                    }
-                }
+            match trades_event.trades.first() {
+                Some(trade) => self.last_trades.insert(trade_place, trade.clone()),
                 None => return Ok(()),
+            };
+
+            if !should_add_event {
+                return Ok(());
             }
         }
 

@@ -63,7 +63,7 @@ impl ExampleStrategy {
     }
 
     fn trade_place_account(&self) -> TradePlaceAccount {
-        TradePlaceAccount::new(self.target_eai.clone(), self.currency_pair.clone())
+        TradePlaceAccount::new(self.target_eai, self.currency_pair)
     }
 
     fn trade_place(&self) -> TradePlace {
@@ -78,7 +78,7 @@ impl ExampleStrategy {
         local_snapshots_service: &LocalSnapshotsService,
         explanation: Explanation,
     ) -> Option<TradingContextBySide> {
-        let snapshot = local_snapshots_service.get_snapshot(&self.trade_place())?;
+        let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
         let ask_min_price = snapshot.get_top_ask()?.0;
         let bid_max_price = snapshot.get_top_bid()?.0;
 

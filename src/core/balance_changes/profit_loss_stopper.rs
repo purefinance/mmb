@@ -87,7 +87,7 @@ impl ProfitLossStopper {
 
             if self
                 .exchange_blocker
-                .is_blocked_by_reason(&target_exchange_account_id, BLOCK_REASON)
+                .is_blocked_by_reason(target_exchange_account_id, BLOCK_REASON)
             {
                 return;
             }
@@ -100,14 +100,14 @@ impl ProfitLossStopper {
             );
 
             self.exchange_blocker.block(
-                &target_exchange_account_id,
+                target_exchange_account_id,
                 BLOCK_REASON,
                 BlockType::Manual,
             );
         } else {
             if !self
                 .exchange_blocker
-                .is_blocked_by_reason(&target_exchange_account_id, BLOCK_REASON)
+                .is_blocked_by_reason(target_exchange_account_id, BLOCK_REASON)
             {
                 return;
             }
@@ -120,7 +120,7 @@ impl ProfitLossStopper {
             );
 
             self.exchange_blocker
-                .unblock(&target_exchange_account_id, BLOCK_REASON);
+                .unblock(target_exchange_account_id, BLOCK_REASON);
         }
     }
 }

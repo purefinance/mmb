@@ -1,14 +1,12 @@
 use std::sync::Arc;
 
-use itertools::Itertools;
-use log::error;
 use tokio::sync::broadcast;
 
-use super::{commission::Commission, currency_pair_metadata::CurrencyPairMetadata};
+use super::commission::Commission;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::lifecycle::application_manager::ApplicationManager;
 use crate::core::lifecycle::launcher::EngineBuildConfig;
-use crate::core::settings::{CurrencyPairSetting, ExchangeSettings};
+use crate::core::settings::ExchangeSettings;
 use crate::core::{
     exchanges::{
         general::exchange::Exchange,
@@ -28,12 +26,12 @@ pub fn create_timeout_manager(
         .map(|exchange_settings| {
             let timeout_arguments = build_settings.supported_exchange_clients
                 [&exchange_settings.exchange_account_id.exchange_id]
-                .get_timeout_argments();
+                .get_timeout_arguments();
 
-            let exchange_account_id = exchange_settings.exchange_account_id.clone();
+            let exchange_account_id = exchange_settings.exchange_account_id;
             let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
                 timeout_arguments,
-                exchange_account_id.clone(),
+                exchange_account_id,
             );
 
             (exchange_account_id, request_timeout_manager)
@@ -60,70 +58,19 @@ pub async fn create_exchange(
     );
 
     let exchange = Exchange::new(
-        user_settings.exchange_account_id.clone(),
+        user_settings.exchange_account_id,
         exchange_client.client,
         exchange_client.features,
-        exchange_client_builder.get_timeout_argments(),
+        exchange_client_builder.get_timeout_arguments(),
         events_channel,
         application_manager,
         timeout_manager.clone(),
         Commission::default(),
     );
 
-    exchange.build_metadata().await;
-
-    if let Some(currency_pairs) = &user_settings.currency_pairs {
-        exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]))
-    }
+    exchange.build_metadata(&user_settings.currency_pairs).await;
 
     exchange.clone().connect().await;
 
     exchange
-}
-
-pub fn get_symbols(
-    exchange: &Arc<Exchange>,
-    currency_pairs: &[CurrencyPairSetting],
-) -> Vec<Arc<CurrencyPairMetadata>> {
-    let mut symbols = Vec::new();
-
-    let supported_symbols_guard = exchange.supported_symbols.lock();
-    for currency_pair_setting in currency_pairs {
-        let mut filtered_symbols = supported_symbols_guard
-            .iter()
-            .filter(|x| {
-                if let Some(currency_pair) = &currency_pair_setting.currency_pair {
-                    return currency_pair.as_str() == x.currency_pair().as_str();
-                }
-
-                return x.base_currency_code == currency_pair_setting.base
-                    && x.quote_currency_code == currency_pair_setting.quote;
-            })
-            .take(2)
-            .collect_vec();
-
-        let symbol = match filtered_symbols.len() {
-            0 => {
-                error!(
-                    "Unsupported symbol {:?} on exchange {}",
-                    currency_pair_setting, exchange.exchange_account_id
-                );
-                continue;
-            }
-            1 => filtered_symbols
-                .pop()
-                .expect("we checked already that 1 symbol found"),
-            _ => {
-                error!(
-                    "Found more then 1 symbol for currency pair {:?}. Found symbols: {:?}",
-                    currency_pair_setting, filtered_symbols
-                );
-                continue;
-            }
-        };
-
-        symbols.push(symbol.clone());
-    }
-
-    symbols
 }

@@ -16,8 +16,7 @@ async fn cancellation_waited_successfully() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
-    let mut settings =
-        ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
+    let mut settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
 
     // Currency pair in settings are matter here because of need to check
     // CurrencyPairMetadata in check_order_fills() inside wait_cancel_order()
@@ -29,7 +28,7 @@ async fn cancellation_waited_successfully() {
 
     let binance_builder = match BinanceBuilder::try_new_with_settings(
         settings.clone(),
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -52,7 +51,7 @@ async fn cancellation_waited_successfully() {
     };
 
     let order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromCancellationWaitedSuccessfullyTest".to_owned()),
         CancellationToken::default(),
     );
@@ -76,7 +75,7 @@ async fn cancellation_waited_failed_fallback() {
 
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
@@ -99,7 +98,7 @@ async fn cancellation_waited_failed_fallback() {
     };
 
     let order_proxy = OrderProxy::new(
-        exchange_account_id.clone(),
+        exchange_account_id,
         Some("FromCancellationWaitedFailedFallbackTest".to_owned()),
         CancellationToken::default(),
     );

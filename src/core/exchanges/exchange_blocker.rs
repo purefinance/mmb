@@ -108,7 +108,7 @@ struct ProgressState {
     status: ProgressStatus,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 struct BlockerId {
     exchange_account_id: ExchangeAccountId,
     reason: BlockReason,
@@ -159,14 +159,14 @@ struct ExchangeBlockerInternalEvent {
 impl ExchangeBlockerInternalEvent {
     fn with_type(&self, event_type: ExchangeBlockerEventType) -> ExchangeBlockerInternalEvent {
         ExchangeBlockerInternalEvent {
-            blocker_id: self.blocker_id.clone(),
+            blocker_id: self.blocker_id,
             event_type,
         }
     }
 
     fn pub_event(&self, moment: ExchangeBlockerMoment) -> Arc<ExchangeBlockerEvent> {
         Arc::new(ExchangeBlockerEvent {
-            exchange_account_id: self.blocker_id.exchange_account_id.clone(),
+            exchange_account_id: self.blocker_id.exchange_account_id,
             reason: self.blocker_id.reason,
             moment,
         })
@@ -472,8 +472,8 @@ impl ExchangeBlocker {
     pub fn new(exchange_account_ids: Vec<ExchangeAccountId>) -> Arc<Self> {
         let blockers = Arc::new(RwLock::new(HashMap::from_iter(
             exchange_account_ids
-                .iter()
-                .map(|x| (x.clone(), HashMap::new()))
+                .into_iter()
+                .map(|x| (x, HashMap::new()))
                 .into_iter(),
         )));
 
@@ -487,23 +487,23 @@ impl ExchangeBlocker {
         })
     }
 
-    pub fn is_blocked(&self, exchange_account_id: &ExchangeAccountId) -> bool {
+    pub fn is_blocked(&self, exchange_account_id: ExchangeAccountId) -> bool {
         !self
             .blockers
             .read()
-            .get(exchange_account_id)
+            .get(&exchange_account_id)
             .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
             .is_empty()
     }
 
     pub fn is_blocked_by_reason(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         reason: BlockReason,
     ) -> bool {
         self.blockers
             .read()
-            .get(exchange_account_id)
+            .get(&exchange_account_id)
             .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
             .get(&reason)
             .is_some()
@@ -511,12 +511,12 @@ impl ExchangeBlocker {
 
     pub fn is_blocked_except_reason(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         reason: BlockReason,
     ) -> bool {
         let read_blockers_guard = self.blockers.read();
         let blockers = read_blockers_guard
-            .get(exchange_account_id)
+            .get(&exchange_account_id)
             .expect(EXPECTED_EAI_SHOULD_BE_CREATED);
         let is_blocker_exists = blockers.get(&reason).is_some();
         let blockers_count = blockers.len();
@@ -526,7 +526,7 @@ impl ExchangeBlocker {
 
     pub fn block(
         self: &Arc<Self>,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         reason: BlockReason,
         block_type: BlockType,
     ) {
@@ -545,8 +545,8 @@ impl ExchangeBlocker {
         {
             Entry::Occupied(entry) => self.timeout_reset_if_exists(entry.get(), block_type),
             Entry::Vacant(vacant_entry) => {
-                let blocker_id = BlockerId::new(exchange_account_id.clone(), reason);
-                let blocker = self.create_blocker(block_type, blocker_id.clone());
+                let blocker_id = BlockerId::new(exchange_account_id, reason);
+                let blocker = self.create_blocker(block_type, blocker_id);
                 vacant_entry.insert(blocker);
                 let event = ExchangeBlockerInternalEvent {
                     blocker_id,
@@ -599,7 +599,7 @@ impl ExchangeBlocker {
 
                 *timeout = Timeout::in_progress(
                     expected_end_time,
-                    self.set_unblock_by_timer(blocker.id.clone(), expected_end_time),
+                    self.set_unblock_by_timer(blocker.id, expected_end_time),
                 );
             }
             BlockType::Manual => match &mut *blocker.timeout.lock() {
@@ -612,18 +612,18 @@ impl ExchangeBlocker {
     fn create_blocker(self: &Arc<Self>, block_type: BlockType, blocker_id: BlockerId) -> Blocker {
         let timeout = match block_type {
             BlockType::Manual => Timeout::ReadyUnblock,
-            BlockType::Timed(duration) => self.timeout_init(&blocker_id, duration),
+            BlockType::Timed(duration) => self.timeout_init(blocker_id, duration),
         };
         Blocker::new(blocker_id, timeout)
     }
 
-    fn timeout_init(self: &Arc<Self>, blocker_id: &BlockerId, duration: Duration) -> Timeout {
+    fn timeout_init(self: &Arc<Self>, blocker_id: BlockerId, duration: Duration) -> Timeout {
         let instant = Instant::now();
         let expected_end_time = instant + duration;
 
         Timeout::in_progress(
             expected_end_time,
-            self.set_unblock_by_timer(blocker_id.clone(), expected_end_time),
+            self.set_unblock_by_timer(blocker_id, expected_end_time),
         )
     }
 
@@ -641,12 +641,12 @@ impl ExchangeBlocker {
                     "Can't upgrade exchange blocker reference in unblock timer of ExchangeBlocker for blocker '{}'", &blocker_id
                 ),
                 Some(self_rc) => {
-                    let exchange_account_id = &blocker_id.exchange_account_id;
+                    let exchange_account_id = blocker_id.exchange_account_id;
                     let reason = blocker_id.reason;
                     match self_rc
                         .blockers
                         .read()
-                        .get(exchange_account_id)
+                        .get(&exchange_account_id)
                         .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
                         .get(&reason)
                     {
@@ -664,10 +664,10 @@ impl ExchangeBlocker {
         spawn_future("Run ExchangeBlocker handlers", true, action.boxed())
     }
 
-    pub fn unblock(&self, exchange_account_id: &ExchangeAccountId, reason: BlockReason) {
+    pub fn unblock(&self, exchange_account_id: ExchangeAccountId, reason: BlockReason) {
         trace!("Unblock started {} {}", exchange_account_id, reason);
 
-        let blocker_id = BlockerId::new(exchange_account_id.clone(), reason);
+        let blocker_id = BlockerId::new(exchange_account_id, reason);
 
         {
             let read_guard = self.blockers.read();
@@ -726,7 +726,7 @@ impl ExchangeBlocker {
             }
 
             // we can reblock some reasons while waiting others
-            if !self.is_blocked(&exchange_account_id) {
+            if !self.is_blocked(exchange_account_id) {
                 break;
             }
         }
@@ -829,14 +829,14 @@ mod tests {
 
         let reason = "test_reason".into();
 
-        exchange_blocker.block(&exchange_account_id(), reason, Manual);
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
+        exchange_blocker.block(exchange_account_id(), reason, Manual);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
-        exchange_blocker.unblock(&exchange_account_id(), reason);
+        exchange_blocker.unblock(exchange_account_id(), reason);
         exchange_blocker
             .wait_unblock(exchange_account_id(), cancellation_token)
             .await;
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), false);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
     }
 
     #[tokio::test]
@@ -847,8 +847,8 @@ mod tests {
 
         let reason = "test_reason".into();
 
-        exchange_blocker.block(&exchange_account_id(), reason, Manual);
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
+        exchange_blocker.block(exchange_account_id(), reason, Manual);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
         let _ = spawn_future(
             "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
@@ -873,11 +873,11 @@ mod tests {
         tokio::task::yield_now().await;
         assert_eq!(*signal.lock(), false);
 
-        exchange_blocker.unblock(&exchange_account_id(), reason);
+        exchange_blocker.unblock(exchange_account_id(), reason);
         exchange_blocker
             .wait_unblock(exchange_account_id(), cancellation_token)
             .await;
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), false);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
 
         tokio::task::yield_now().await;
         assert_eq!(*signal.lock(), true);
@@ -894,8 +894,8 @@ mod tests {
         let timer = Instant::now();
 
         let action = async move {
-            exchange_blocker.block(&exchange_account_id(), reason, Timed(duration));
-            assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
+            exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
             exchange_blocker
                 .wait_unblock(exchange_account_id(), cancellation_token)
                 .await;
@@ -930,13 +930,13 @@ mod tests {
         let timer = Instant::now();
 
         let action = async move {
-            exchange_blocker.block(&exchange_account_id(), reason, Timed(duration));
-            assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
+            exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
             sleep(duration_sleep).await;
 
-            exchange_blocker.block(&exchange_account_id(), reason, Timed(duration));
-            assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
+            exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
             exchange_blocker
                 .wait_unblock(exchange_account_id(), cancellation_token)
@@ -969,21 +969,21 @@ mod tests {
         let reason1 = "reason1".into();
         let reason2 = "reason2".into();
 
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), false);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
 
-        exchange_blocker.block(&exchange_account_id(), reason1, Manual);
+        exchange_blocker.block(exchange_account_id(), reason1, Manual);
         assert_blocking_state(exchange_blocker, reason1, reason2, true, false, true);
 
-        exchange_blocker.block(&exchange_account_id(), reason2, Manual);
+        exchange_blocker.block(exchange_account_id(), reason2, Manual);
         assert_blocking_state(exchange_blocker, reason1, reason2, true, true, true);
 
-        exchange_blocker.unblock(&exchange_account_id(), reason1);
+        exchange_blocker.unblock(exchange_account_id(), reason1);
         exchange_blocker
             .wait_unblock_with_reason(exchange_account_id(), reason1, cancellation_token.clone())
             .await;
         assert_blocking_state(exchange_blocker, reason1, reason2, false, true, true);
 
-        exchange_blocker.unblock(&exchange_account_id(), reason2);
+        exchange_blocker.unblock(exchange_account_id(), reason2);
         exchange_blocker
             .wait_unblock(exchange_account_id(), cancellation_token)
             .await;
@@ -1002,7 +1002,7 @@ mod tests {
         assert_eq!(is_blocked1, expected_is_blocked_by_reason1);
         let is_blocked2 = exchange_blocker.is_blocked_by_reason(&exchange_account_id(), reason2);
         assert_eq!(is_blocked2, expected_is_blocked_by_reason2);
-        let is_exchange_blocked = exchange_blocker.is_blocked(&exchange_account_id());
+        let is_exchange_blocked = exchange_blocker.is_blocked(exchange_account_id());
         assert_eq!(is_exchange_blocked, expected_is_exchange_blocked);
     }
 
@@ -1029,13 +1029,13 @@ mod tests {
 
         let reason = "reason".into();
 
-        exchange_blocker.block(&exchange_account_id(), reason, Manual);
-        exchange_blocker.unblock(&exchange_account_id(), reason);
+        exchange_blocker.block(exchange_account_id(), reason, Manual);
+        exchange_blocker.unblock(exchange_account_id(), reason);
         exchange_blocker
             .wait_unblock(exchange_account_id(), cancellation_token)
             .await;
 
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), false);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
         assert_eq!(*times_count.lock(), 1);
     }
 
@@ -1065,13 +1065,13 @@ mod tests {
 
         let reason = "reason".into();
 
-        exchange_blocker.block(&exchange_account_id(), reason, Manual);
-        exchange_blocker.unblock(&exchange_account_id(), reason);
+        exchange_blocker.block(exchange_account_id(), reason, Manual);
+        exchange_blocker.unblock(exchange_account_id(), reason);
         exchange_blocker
             .wait_unblock(exchange_account_id(), cancellation_token)
             .await;
 
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), false);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
         assert_eq!(*times_count.lock(), 2);
     }
 
@@ -1109,11 +1109,11 @@ mod tests {
         exchange_blocker.stop_blocker().await;
 
         let reason = "reason".into();
-        exchange_blocker.block(&exchange_account_id(), reason, Manual);
-        exchange_blocker.unblock(&exchange_account_id(), reason);
+        exchange_blocker.block(exchange_account_id(), reason, Manual);
+        exchange_blocker.unblock(exchange_account_id(), reason);
         sleep(Duration::from_millis(1)).await;
 
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), true);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
         // should ignore all events
         assert_eq!(*times_count.lock(), 0);
@@ -1124,15 +1124,11 @@ mod tests {
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
-            exchange_blocker.block(&exchange_account_id(), reason, Manual);
+            exchange_blocker.block(exchange_account_id(), reason, Manual);
             tokio::task::yield_now().await;
-            exchange_blocker.unblock(&exchange_account_id(), reason);
+            exchange_blocker.unblock(exchange_account_id(), reason);
             exchange_blocker
-                .wait_unblock_with_reason(
-                    exchange_account_id().clone(),
-                    reason,
-                    CancellationToken::new(),
-                )
+                .wait_unblock_with_reason(exchange_account_id(), reason, CancellationToken::new())
                 .await;
         }
 
@@ -1187,9 +1183,9 @@ mod tests {
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
-            exchange_blocker.block(&exchange_account_id(), reason, Manual);
+            exchange_blocker.block(exchange_account_id(), reason, Manual);
             tokio::task::yield_now().await;
-            exchange_blocker.unblock(&exchange_account_id(), reason);
+            exchange_blocker.unblock(exchange_account_id(), reason);
         }
 
         let mut rng = rand::thread_rng();
@@ -1239,9 +1235,9 @@ mod tests {
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
-            exchange_blocker.block(&exchange_account_id(), reason, Manual);
+            exchange_blocker.block(exchange_account_id(), reason, Manual);
             tokio::task::yield_now().await;
-            exchange_blocker.unblock(&exchange_account_id(), reason);
+            exchange_blocker.unblock(exchange_account_id(), reason);
         }
 
         let exchange_blocker = &exchange_blocker();
@@ -1330,26 +1326,26 @@ mod tests {
         // no blocked
         assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, false);
 
-        exchange_blocker.block(&exchange_account_id(), reason2, Manual);
+        exchange_blocker.block(exchange_account_id(), reason2, Manual);
         // blocked with reason2
         assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, false);
 
-        exchange_blocker.block(&exchange_account_id(), reason2, Manual);
+        exchange_blocker.block(exchange_account_id(), reason2, Manual);
         // blocked with reason2 again
         assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, false);
 
-        exchange_blocker.block(&exchange_account_id(), reason1, Manual);
+        exchange_blocker.block(exchange_account_id(), reason1, Manual);
         // blocked with reason1 & reason2
         assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, true);
 
-        exchange_blocker.unblock(&exchange_account_id(), reason2);
+        exchange_blocker.unblock(exchange_account_id(), reason2);
         exchange_blocker
             .wait_unblock_with_reason(exchange_account_id(), reason2, cancellation_token.clone())
             .await;
         // blocked with reason 1
         assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, true);
 
-        exchange_blocker.unblock(&exchange_account_id(), reason1);
+        exchange_blocker.unblock(exchange_account_id(), reason1);
         exchange_blocker
             .wait_unblock_with_reason(exchange_account_id(), reason1, cancellation_token)
             .await;
@@ -1363,7 +1359,7 @@ mod tests {
         let exchange_blocker = &exchange_blocker();
 
         // no blocked
-        assert_eq!(exchange_blocker.is_blocked(&exchange_account_id()), false);
+        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
 
         exchange_blocker
             .wait_unblock(exchange_account_id(), cancellation_token)
@@ -1378,8 +1374,8 @@ mod tests {
         let reason1 = "reason1".into();
         let reason2 = "reason2".into();
 
-        exchange_blocker.block(&exchange_account_id(), reason1, Manual);
-        exchange_blocker.block(&exchange_account_id(), reason2, Manual);
+        exchange_blocker.block(exchange_account_id(), reason1, Manual);
+        exchange_blocker.block(exchange_account_id(), reason2, Manual);
 
         let _ = spawn_future(
             "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
@@ -1402,20 +1398,20 @@ mod tests {
         assert_eq!(*wait_completed.lock(), false);
 
         // reblock reason1
-        exchange_blocker.unblock(&exchange_account_id(), reason1);
+        exchange_blocker.unblock(exchange_account_id(), reason1);
         exchange_blocker
             .wait_unblock_with_reason(exchange_account_id(), reason1, CancellationToken::new())
             .await;
-        exchange_blocker.block(&exchange_account_id(), reason1, Manual);
+        exchange_blocker.block(exchange_account_id(), reason1, Manual);
 
-        exchange_blocker.unblock(&exchange_account_id(), reason2);
+        exchange_blocker.unblock(exchange_account_id(), reason2);
 
         exchange_blocker
             .wait_unblock_with_reason(exchange_account_id(), reason2, CancellationToken::new())
             .await;
         assert_eq!(*wait_completed.lock(), false);
 
-        exchange_blocker.unblock(&exchange_account_id(), reason1);
+        exchange_blocker.unblock(exchange_account_id(), reason1);
         exchange_blocker
             .wait_unblock(exchange_account_id(), CancellationToken::new())
             .await;

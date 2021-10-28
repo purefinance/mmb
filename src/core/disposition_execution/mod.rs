@@ -6,7 +6,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
-use derive_getters::Getters;
 use enum_map::{enum_map, EnumMap};
 use log::{error, info};
 use rust_decimal::Decimal;
@@ -73,11 +72,11 @@ impl TradeDisposition {
     }
 
     pub fn exchange_account_id(&self) -> ExchangeAccountId {
-        self.direction.exchange_account_id.clone()
+        self.direction.exchange_account_id
     }
 
     pub fn currency_pair(&self) -> CurrencyPair {
-        self.direction.currency_pair.clone()
+        self.direction.currency_pair
     }
 
     pub fn side(&self) -> OrderSide {
@@ -87,17 +86,14 @@ impl TradeDisposition {
     pub fn trade_place(&self) -> TradePlace {
         let direction = &self.direction;
         TradePlace::new(
-            self.direction.exchange_account_id.exchange_id.clone(),
-            direction.currency_pair.clone(),
+            self.direction.exchange_account_id.exchange_id,
+            direction.currency_pair,
         )
     }
 
     pub fn trade_place_account(&self) -> TradePlaceAccount {
         let direction = &self.direction;
-        TradePlaceAccount::new(
-            self.direction.exchange_account_id.clone(),
-            direction.currency_pair.clone(),
-        )
+        TradePlaceAccount::new(self.direction.exchange_account_id, direction.currency_pair)
     }
 
     pub fn price(&self) -> Price {
@@ -292,7 +288,7 @@ impl PriceSlot {
     }
 }
 
-#[derive(Debug, Getters)]
+#[derive(Debug)]
 struct OrdersStateBySide {
     side: OrderSide,
     slots: Vec<PriceSlot>,
@@ -308,6 +304,13 @@ impl OrdersStateBySide {
                 side,
             )],
         }
+    }
+
+    pub fn side(&self) -> OrderSide {
+        self.side
+    }
+    pub fn slots(&self) -> &[PriceSlot] {
+        &self.slots
     }
 
     pub fn calc_total_remaining_amount(&self) -> Decimal {

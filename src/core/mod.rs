@@ -15,9 +15,7 @@ pub mod utils;
 
 pub mod config;
 pub mod disposition_execution;
-pub(crate) mod events;
 pub mod explanation;
-pub(crate) mod internal_events_loop;
 pub mod lifecycle;
 pub mod math;
 pub mod order_book;

@@ -20,26 +20,24 @@ pub(crate) struct VirtualBalanceHolder {
 
 impl VirtualBalanceHolder {
     pub fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Self {
-        let mut res = Self {
-            balance_by_exchange_id: HashMap::new(),
+        let balance_by_exchange_id = exchanges_by_id
+            .keys()
+            .map(|x| (*x, HashMap::new()))
+            .collect();
+
+        Self {
+            balance_by_exchange_id,
             balance_diff: ServiceValueTree::new(),
-        };
-        for keys in exchanges_by_id.keys() {
-            res.balance_by_exchange_id
-                .insert(keys.clone(), HashMap::new());
         }
-        res
     }
 
     pub fn update_balances(
         &mut self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         balances_by_currency_code: &HashMap<CurrencyCode, Amount>,
     ) {
-        self.balance_by_exchange_id.insert(
-            exchange_account_id.clone(),
-            balances_by_currency_code.clone(),
-        );
+        self.balance_by_exchange_id
+            .insert(exchange_account_id, balances_by_currency_code.clone());
 
         log::info!(
             "VirtualBalanceHolder::update_balances {} {:?}",
@@ -48,21 +46,19 @@ impl VirtualBalanceHolder {
         );
 
         let all_diffs = self.balance_diff.get_as_balances();
-
         for currency_code in balances_by_currency_code.keys() {
-            let balance_requests_to_clear = all_diffs.iter().filter(|(x, _)| {
-                &x.exchange_account_id == exchange_account_id
-                    && x.currency_code == currency_code.clone()
-            });
-
-            for (balance_request, _) in balance_requests_to_clear {
-                self.balance_diff
-                    .set_by_balance_request(balance_request, dec!(0));
-                log::info!(
-                    "VirtualBalanceHolder::update_balances Reset {} {}",
-                    balance_request.exchange_account_id,
-                    balance_request.currency_code
-                );
+            for (balance_request, _) in &all_diffs {
+                if balance_request.exchange_account_id == exchange_account_id
+                    && balance_request.currency_code == *currency_code
+                {
+                    self.balance_diff
+                        .set_by_balance_request(balance_request, dec!(0));
+                    log::info!(
+                        "VirtualBalanceHolder::update_balances Reset {} {}",
+                        balance_request.exchange_account_id,
+                        balance_request.currency_code
+                    );
+                }
             }
         }
     }
@@ -72,6 +68,7 @@ impl VirtualBalanceHolder {
             .balance_diff
             .get_by_balance_request(balance_request)
             .unwrap_or(dec!(0));
+
         let new_value = current_diff_value + balance_to_add;
         self.balance_diff
             .set_by_balance_request(balance_request, new_value);
@@ -97,7 +94,7 @@ impl VirtualBalanceHolder {
         if !currency_pair_metadata.is_derivative {
             let diff_in_request_currency = currency_pair_metadata
                 .convert_amount_from_amount_currency_code(
-                    &request.currency_code,
+                    request.currency_code,
                     diff_in_amount_currency,
                     price,
                 );
@@ -105,17 +102,15 @@ impl VirtualBalanceHolder {
         } else {
             let balance_currency_code_request = BalanceRequest::new(
                 request.configuration_descriptor.clone(),
-                request.exchange_account_id.clone(),
-                request.currency_pair.clone(),
+                request.exchange_account_id,
+                request.currency_pair,
                 currency_pair_metadata
                     .balance_currency_code
-                    .as_ref()
-                    .expect("currency_pair_metadata.balance_currency_code should be non None")
-                    .clone(),
+                    .expect("currency_pair_metadata.balance_currency_code should be non None"),
             );
             let diff_in_balance_currency_code = currency_pair_metadata
                 .convert_amount_from_amount_currency_code(
-                    &balance_currency_code_request.currency_code,
+                    balance_currency_code_request.currency_code,
                     diff_in_amount_currency,
                     price,
                 );
@@ -134,9 +129,9 @@ impl VirtualBalanceHolder {
         explanation: &mut Option<Explanation>,
     ) -> Option<Amount> {
         let exchange_balance = self.get_exchange_balance(
-            &balance_request.exchange_account_id,
+            balance_request.exchange_account_id,
             currency_pair_metadata.clone(),
-            &balance_request.currency_code,
+            balance_request.currency_code,
             price,
         )?;
 
@@ -155,13 +150,11 @@ impl VirtualBalanceHolder {
             let price = price?;
             let balance_currency_code_request = BalanceRequest::new(
                 balance_request.configuration_descriptor.clone(),
-                balance_request.exchange_account_id.clone(),
-                balance_request.currency_pair.clone(),
+                balance_request.exchange_account_id,
+                balance_request.currency_pair,
                 currency_pair_metadata
                     .balance_currency_code
-                    .as_ref()
-                    .expect("failed to create BalanceRequest: currency_pair_metadata.balance_currency_code is None")
-                    .clone(),
+                    .expect("failed to create BalanceRequest: currency_pair_metadata.balance_currency_code is None"),
             );
             let balance_currency_code_balance_diff = self
                 .balance_diff
@@ -177,7 +170,7 @@ impl VirtualBalanceHolder {
 
             let cur_balance_diff = currency_pair_metadata
                 .convert_amount_from_balance_currency_code(
-                    &balance_request.currency_code,
+                    balance_request.currency_code,
                     balance_currency_code_balance_diff,
                     price,
                 );
@@ -196,13 +189,13 @@ impl VirtualBalanceHolder {
 
     pub fn get_exchange_balance(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        currency_code: &CurrencyCode,
+        currency_code: CurrencyCode,
         price: Option<Price>,
     ) -> Option<Amount> {
         if !currency_pair_metadata.is_derivative
-            || currency_pair_metadata.balance_currency_code == Some(currency_code.clone())
+            || currency_pair_metadata.balance_currency_code == Some(currency_code)
         {
             return self.get_raw_exchange_balance(exchange_account_id, currency_code);
         }
@@ -211,16 +204,14 @@ impl VirtualBalanceHolder {
 
         let balance_currency_code_balance = self.get_raw_exchange_balance(
             exchange_account_id,
-            &currency_pair_metadata
+            currency_pair_metadata
                 .balance_currency_code
-                .as_ref()
-                .expect("failed to get exchange balance: balance_currency_code should be non None")
-                .clone(),
+                .expect("failed to get exchange balance: balance_currency_code should be non None"),
         )?;
 
         Some(
             currency_pair_metadata.convert_amount_from_balance_currency_code(
-                &currency_code,
+                currency_code,
                 balance_currency_code_balance,
                 price,
             ),
@@ -229,12 +220,12 @@ impl VirtualBalanceHolder {
 
     fn get_raw_exchange_balance(
         &self,
-        exchange_account_id: &ExchangeAccountId,
-        currency_code: &CurrencyCode,
+        exchange_account_id: ExchangeAccountId,
+        currency_code: CurrencyCode,
     ) -> Option<Amount> {
         self.balance_by_exchange_id
-            .get(exchange_account_id)?
-            .get(currency_code)
+            .get(&exchange_account_id)?
+            .get(&currency_code)
             .cloned()
     }
 

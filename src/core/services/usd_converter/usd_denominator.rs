@@ -26,17 +26,16 @@ impl UsdDenominator {
     fn create_prices_dictionary(
         tickers: Vec<MarketCurrencyCodePrice>,
     ) -> HashMap<CurrencyCode, MarketCurrencyCodePrice> {
-        let exceptions: HashMap<CurrencyId, CurrencyCode> =
-            UsdDenominator::currency_code_exceptions()
-                .iter()
-                .map(|(k, v)| (v.clone(), k.clone()))
-                .collect();
+        let exceptions: HashMap<_, _> = UsdDenominator::currency_code_exceptions()
+            .into_iter()
+            .map(|(k, v)| (v, k))
+            .collect();
 
         tickers
             .into_iter()
             .map(|x| {
                 let currency_code = exceptions
-                    .get(&CurrencyId::from(x.currency_code.as_str()))
+                    .get(&x.currency_code.as_str().into())
                     .unwrap_or(&x.currency_code)
                     .clone();
                 (currency_code, x)
@@ -126,7 +125,7 @@ impl UsdDenominator {
             .collect()
     }
 
-    pub fn get_price_in_usd(&self, currency_code: &CurrencyCode) -> Option<Price> {
+    pub fn get_price_in_usd(&self, currency_code: CurrencyCode) -> Option<Price> {
         self.market_prices_by_currency_code
             .lock()
             .get(&currency_code)?
@@ -135,7 +134,7 @@ impl UsdDenominator {
 
     pub fn usd_to_currency(
         &self,
-        currency_code: &CurrencyCode,
+        currency_code: CurrencyCode,
         amount_in_usd: Amount,
     ) -> Option<Amount> {
         Some(amount_in_usd / self.get_price_in_usd(currency_code)?)
@@ -143,7 +142,7 @@ impl UsdDenominator {
 
     pub fn currency_to_usd(
         &self,
-        currency_code: &CurrencyCode,
+        currency_code: CurrencyCode,
         amount_in_base: Amount,
     ) -> Option<Amount> {
         Some(amount_in_base * self.get_price_in_usd(currency_code)?)

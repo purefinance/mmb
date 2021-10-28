@@ -7,7 +7,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 
 use super::balance_reservation::BalanceReservation;
 
-#[derive(Hash, Debug, PartialEq, Clone)]
+#[derive(Hash, Debug, PartialEq, Eq, Clone)]
 /// The entity for getting balance for account with ExchangeAccountId by CurrencyPair in CurrencyCode
 pub struct BalanceRequest {
     pub configuration_descriptor: Arc<ConfigurationDescriptor>,
@@ -34,11 +34,9 @@ impl BalanceRequest {
     pub fn from_reservation(reservation: &BalanceReservation) -> Self {
         BalanceRequest::new(
             reservation.configuration_descriptor.clone(),
-            reservation.exchange_account_id.clone(),
+            reservation.exchange_account_id,
             reservation.currency_pair_metadata.currency_pair(),
-            reservation.reservation_currency_code.clone(),
+            reservation.reservation_currency_code,
         )
     }
 }
-
-impl Eq for BalanceRequest {}

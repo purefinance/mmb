@@ -8,11 +8,11 @@ pub trait BaseStrategySettings {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
-pub struct AppSettings<TStrategySettings>
+pub struct AppSettings<StrategySettings>
 where
-    TStrategySettings: BaseStrategySettings + Clone,
+    StrategySettings: BaseStrategySettings + Clone,
 {
-    pub strategy: TStrategySettings,
+    pub strategy: StrategySettings,
     pub core: CoreSettings,
 }
 

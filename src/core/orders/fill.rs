@@ -119,8 +119,8 @@ impl OrderFill {
     pub fn role(&self) -> OrderFillRole {
         self.role
     }
-    pub fn commission_currency_code(&self) -> &CurrencyCode {
-        &self.commission_currency_code
+    pub fn commission_currency_code(&self) -> CurrencyCode {
+        self.commission_currency_code
     }
     pub fn commission_amount(&self) -> Decimal {
         self.commission_amount
@@ -128,8 +128,8 @@ impl OrderFill {
     pub fn referral_reward_amount(&self) -> Decimal {
         self.referral_reward_amount
     }
-    pub fn converted_commission_currency_code(&self) -> &CurrencyCode {
-        &self.converted_commission_currency_code
+    pub fn converted_commission_currency_code(&self) -> CurrencyCode {
+        self.converted_commission_currency_code
     }
     pub fn converted_commission_amount(&self) -> Decimal {
         self.converted_commission_amount

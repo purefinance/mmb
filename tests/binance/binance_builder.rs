@@ -3,7 +3,6 @@ use std::sync::Arc;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 use mmb_lib::core::exchanges::general::exchange::*;
-use mmb_lib::core::exchanges::general::exchange_creation::get_symbols;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
@@ -40,8 +39,7 @@ impl BinanceBuilder {
             ));
         }
 
-        let settings =
-            ExchangeSettings::new_short(exchange_account_id.clone(), api_key, secret_key, false);
+        let settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
         BinanceBuilder::try_new_with_settings(
             settings,
             exchange_account_id,
@@ -67,30 +65,26 @@ impl BinanceBuilder {
         settings.websocket_channels = vec!["depth".into(), "trade".into()];
 
         let binance = Box::new(Binance::new(
-            exchange_account_id.clone(),
+            exchange_account_id,
             settings.clone(),
             tx.clone(),
             application_manager.clone(),
             false,
         ));
 
-        let timeout_manager = get_timeout_manager(&exchange_account_id);
+        let timeout_manager = get_timeout_manager(exchange_account_id);
         let exchange = Exchange::new(
-            exchange_account_id.clone(),
+            exchange_account_id,
             binance,
             features,
-            BinanceBuilder.get_timeout_argments(),
+            BinanceBuilder.get_timeout_arguments(),
             tx.clone(),
             application_manager,
             timeout_manager,
             commission,
-        ); // TODO: change to mmb_lib::core::exchanges::general::exchange_creation::create_exchange::create_exchange() when it will be ready
+        );
         exchange.clone().connect().await;
-        exchange.build_metadata().await;
-
-        if let Some(currency_pairs) = &settings.currency_pairs {
-            exchange.set_symbols(get_symbols(&exchange, &currency_pairs[..]));
-        }
+        exchange.build_metadata(&settings.currency_pairs).await;
 
         // TODO Remove that workaround when RAII order clearing will be implemented
         if need_to_clean_up {

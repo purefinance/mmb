@@ -24,7 +24,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes(&"eos".into(), &"btc".into())
+        CurrencyPair::from_codes("eos".into(), "btc".into())
     }
 
     fn max_amount(&self) -> Amount {
@@ -44,8 +44,8 @@ async fn main() -> Result<()> {
 
     let engine = launch_trading_engine(&engine_config, init_settings, |settings, ctx| {
         Box::new(ExampleStrategy::new(
-            settings.strategy.exchange_account_id().clone(),
-            settings.strategy.currency_pair().clone(),
+            settings.strategy.exchange_account_id(),
+            settings.strategy.currency_pair(),
             settings.strategy.spread,
             ctx,
         ))

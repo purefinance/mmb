@@ -51,15 +51,15 @@ macro_rules! get_binance_credentials_or_exit {
     }};
 }
 
-pub(crate) fn get_timeout_manager(exchange_account_id: &ExchangeAccountId) -> Arc<TimeoutManager> {
+pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc<TimeoutManager> {
     let engine_build_config = EngineBuildConfig::standard();
     let timeout_arguments = engine_build_config.supported_exchange_clients
         [&ExchangeId::new("Binance".into())]
-        .get_timeout_argments();
+        .get_timeout_arguments();
     let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
         timeout_arguments,
-        exchange_account_id.clone(),
+        exchange_account_id,
     );
 
-    TimeoutManager::new(hashmap![exchange_account_id.clone() => request_timeout_manager])
+    TimeoutManager::new(hashmap![exchange_account_id => request_timeout_manager])
 }

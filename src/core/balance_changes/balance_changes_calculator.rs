@@ -33,7 +33,7 @@ impl BalanceChangesCalculator {
     ) -> BalanceChangesCalculatorResult {
         let metadata = self
             .currency_pair_to_metadata_converter
-            .get_currency_pair_metadata(&order.exchange_account_id(), &order.currency_pair());
+            .get_currency_pair_metadata(order.exchange_account_id(), order.currency_pair());
         self.get_balance_changes_calculator_results(
             configuration_descriptor,
             order,
@@ -58,7 +58,7 @@ impl BalanceChangesCalculator {
                 OrderSide::Sell => (
                     -filled_amount,
                     metadata.convert_amount_from_amount_currency_code(
-                        &metadata.quote_currency_code(),
+                        metadata.quote_currency_code(),
                         filled_amount,
                         price,
                     ) - commission_amount,
@@ -66,7 +66,7 @@ impl BalanceChangesCalculator {
                 OrderSide::Buy => (
                     filled_amount - commission_amount,
                     metadata.convert_amount_from_amount_currency_code(
-                        &metadata.quote_currency_code(),
+                        metadata.quote_currency_code(),
                         -filled_amount,
                         price,
                     ),
@@ -76,14 +76,13 @@ impl BalanceChangesCalculator {
             // REVIEW: тут может быть none это не ошибка в C# есть доп проверка в `else if`
             let balance_currency_code = metadata
                 .balance_currency_code
-                .as_ref()
                 .expect("Balance currency code isn't set");
 
-            if balance_currency_code == &metadata.base_currency_code {
+            if balance_currency_code == metadata.base_currency_code {
                 match order.side() {
                     OrderSide::Sell => (
                         metadata.convert_amount_from_amount_currency_code(
-                            &metadata.base_currency_code(),
+                            metadata.base_currency_code(),
                             -filled_amount,
                             price,
                         ) - commission_amount,
@@ -91,7 +90,7 @@ impl BalanceChangesCalculator {
                     ),
                     OrderSide::Buy => (
                         metadata.convert_amount_from_amount_currency_code(
-                            &metadata.base_currency_code(),
+                            metadata.base_currency_code(),
                             filled_amount,
                             price,
                         ) - commission_amount,
@@ -103,7 +102,7 @@ impl BalanceChangesCalculator {
                     OrderSide::Sell => (
                         -filled_amount,
                         metadata.convert_amount_from_amount_currency_code(
-                            &metadata.quote_currency_code(),
+                            metadata.quote_currency_code(),
                             filled_amount,
                             price,
                         ) - commission_amount,
@@ -111,7 +110,7 @@ impl BalanceChangesCalculator {
                     OrderSide::Buy => (
                         filled_amount,
                         metadata.convert_amount_from_amount_currency_code(
-                            &metadata.quote_currency_code(),
+                            metadata.quote_currency_code(),
                             -filled_amount,
                             price,
                         ) - commission_amount,

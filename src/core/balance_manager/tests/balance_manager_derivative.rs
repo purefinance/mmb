@@ -3,6 +3,7 @@ use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use std::{collections::HashMap, sync::Arc};
 
+use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
 use crate::core::{
     balance_manager::balance_manager::BalanceManager,
     exchanges::{
@@ -19,13 +20,11 @@ use crate::core::{
         order::{OrderFillRole, OrderSide},
     },
 };
+use crate::hashmap;
 use chrono::Utc;
-use uuid::Uuid;
-
-use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
-
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
+use uuid::Uuid;
 
 pub struct BalanceManagerDerivative {
     balance_manager_base: BalanceManagerBase,
@@ -96,15 +95,15 @@ impl BalanceManagerDerivative {
             false,
             true,
             base_currency_code.as_str().into(),
-            base_currency_code.clone(),
+            base_currency_code,
             quote_currency_code.as_str().into(),
-            quote_currency_code.clone(),
+            quote_currency_code,
             None,
             None,
             None,
             None,
             None,
-            amount_currency_code.clone(),
+            amount_currency_code,
             Some(balance_currency_code),
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(0.001) },
@@ -115,18 +114,20 @@ impl BalanceManagerDerivative {
         let currency_pair_metadata = Arc::from(currency_pair_metadata);
         let exchange_1 = get_test_exchange_with_currency_pair_metadata_and_id(
             currency_pair_metadata.clone(),
-            &ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 0),
+            ExchangeAccountId::new(BalanceManagerBase::exchange_id().as_str().into(), 0),
+        )
+        .0;
+        let exchange_2 = get_test_exchange_with_currency_pair_metadata_and_id(
+            currency_pair_metadata.clone(),
+            ExchangeAccountId::new(BalanceManagerBase::exchange_id().as_str().into(), 1),
         )
         .0;
 
-        let mut res = HashMap::new();
-        res.insert(exchange_1.exchange_account_id.clone(), exchange_1);
-        let exchange_2 = get_test_exchange_with_currency_pair_metadata_and_id(
-            currency_pair_metadata.clone(),
-            &ExchangeAccountId::new(BalanceManagerBase::exchange_name().as_str().into(), 1),
-        )
-        .0;
-        res.insert(exchange_2.exchange_account_id.clone(), exchange_2);
+        let res = hashmap![
+            exchange_1.exchange_account_id => exchange_1,
+            exchange_2.exchange_account_id => exchange_2
+        ];
+
         (currency_pair_metadata, res)
     }
 
@@ -141,6 +142,7 @@ impl BalanceManagerDerivative {
             exchanges_by_id,
         }
     }
+
     fn create_order_fill(
         price: Price,
         amount: Amount,
@@ -188,10 +190,7 @@ impl BalanceManagerDerivative {
         amount: Option<Amount>,
         is_reversed: bool,
     ) {
-        let price = match price {
-            Some(price) => price,
-            None => BalanceManagerDerivative::price(),
-        };
+        let price = price.unwrap_or(BalanceManagerDerivative::price());
 
         let amount = match amount {
             Some(amount) => amount,
@@ -207,10 +206,12 @@ impl BalanceManagerDerivative {
         let reserve_parameters = self
             .balance_manager_base
             .create_reserve_parameters(side, price, amount);
+
         let reservation_id = self
             .balance_manager()
             .try_reserve(&reserve_parameters, &mut None)
             .expect("in test");
+
         let mut order = self.balance_manager_base.create_order(side, reservation_id);
         order.add_fill(BalanceManagerDerivative::create_order_fill(
             price,
@@ -255,16 +256,12 @@ mod tests {
     ) -> BalanceManagerDerivative {
         let test_object = BalanceManagerDerivative::new(is_reversed);
 
-        let exchange_account_id = &test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
-        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
-        let btc_currency_code = BalanceManagerBase::btc();
-        let eth_currency_code = BalanceManagerBase::eth();
-        balance_map.insert(btc_currency_code, btc_amount);
-        balance_map.insert(eth_currency_code, eth_amount);
+        let balance_map: HashMap<CurrencyCode, Amount> = hashmap![
+            BalanceManagerBase::btc() => btc_amount,
+            BalanceManagerBase::eth() => eth_amount
+        ];
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
@@ -285,23 +282,13 @@ mod tests {
         }
         let test_object = BalanceManagerDerivative::new(is_reversed);
 
-        let exchange_account_id = &test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
-
-        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
-        for i in 0..currency_codes.len() {
-            balance_map.insert(
-                currency_codes.get(i).expect("in test").clone(),
-                amounts.get(i).expect("in test").clone(),
-            );
-        }
-
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            exchange_account_id,
-            balance_map,
+            test_object.balance_manager_base.exchange_account_id_1,
+            currency_codes
+                .into_iter()
+                .zip(amounts.into_iter())
+                .collect(),
         );
         test_object
     }
@@ -315,31 +302,18 @@ mod tests {
     ) -> BalanceManagerDerivative {
         let test_object = BalanceManagerDerivative::new(is_reversed);
 
-        let exchange_account_id_1 = &test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
-        let exchange_account_id_2 = &test_object
-            .balance_manager_base
-            .exchange_account_id_2
-            .clone();
-
-        let mut balance_first_map: HashMap<CurrencyCode, Amount> = HashMap::new();
-        balance_first_map.insert(cc_for_first, amount_for_first);
-        let mut balance_second_map: HashMap<CurrencyCode, Amount> = HashMap::new();
-        balance_second_map.insert(cc_for_second, amount_for_second);
-
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            exchange_account_id_1,
-            balance_first_map,
+            test_object.balance_manager_base.exchange_account_id_1,
+            hashmap![cc_for_first => amount_for_first],
         );
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            exchange_account_id_2,
-            balance_second_map,
+            test_object.balance_manager_base.exchange_account_id_2,
+            hashmap![cc_for_second => amount_for_second],
         );
+
         test_object
     }
 
@@ -375,10 +349,7 @@ mod tests {
     ) -> BalanceManagerDerivative {
         let test_object = BalanceManagerDerivative::new(is_reversed);
 
-        let exchange_account_id = &test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         if let Some(limit) = limit {
             let configuration_descriptor = test_object
@@ -391,8 +362,8 @@ mod tests {
                 .clone();
 
             test_object.balance_manager().set_target_amount_limit(
-                configuration_descriptor.clone(),
-                &exchange_account_id,
+                configuration_descriptor,
+                exchange_account_id,
                 currency_pair_metadata,
                 limit,
             );
@@ -409,8 +380,7 @@ mod tests {
             );
         }
 
-        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
-        balance_map.insert(currency_code, amount);
+        let balance_map = hashmap![currency_code => amount];
         if let Some(symbol_currency_pair_amount) = symbol_currency_pair_amount {
             let symbol_currency_pair = test_object
                 .balance_manager_base
@@ -563,16 +533,13 @@ mod tests {
             .balance_manager_base
             .configuration_descriptor
             .clone();
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object.balance_manager().set_target_amount_limit(
             configuration_descriptor.clone(),
-            &exchange_account_id,
+            exchange_account_id,
             currency_pair_metadata,
             limit,
         );
@@ -612,10 +579,7 @@ mod tests {
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
 
         if let Some(leverage) = leverage {
-            let exchange_account_id = test_object
-                .balance_manager_base
-                .exchange_account_id_1
-                .clone();
+            let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
             let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
             test_object
                 .exchanges_by_id
@@ -647,8 +611,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &test_object.balance_manager_base.exchange_account_id_1,
-                &test_object
+                test_object.balance_manager_base.exchange_account_id_1,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -664,10 +628,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), false);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -721,10 +682,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), true);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -761,16 +719,13 @@ mod tests {
             (dec!(100) / dec!(0.1) + dec!(0.00005) / dec!(0.1)) * dec!(0.95)
         );
 
+        let multiplier = BalanceManagerDerivative::reversed_amount_multiplier();
         assert_eq!(
             test_object
                 .balance_manager_base
                 .get_balance_by_currency_code(BalanceManagerBase::btc(), dec!(0.1))
                 .expect("in test"),
-            (dec!(100)
-                - dec!(1) * dec!(0.1) / dec!(5)
-                    * BalanceManagerDerivative::reversed_amount_multiplier()
-                + dec!(0.00005))
-                * dec!(0.95)
+            (dec!(100) - dec!(1) * dec!(0.1) / dec!(5) * multiplier + dec!(0.00005)) * dec!(0.95)
         );
     }
 
@@ -781,10 +736,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -838,10 +790,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -871,14 +820,13 @@ mod tests {
             .balance_manager()
             .order_was_filled(configuration_descriptor.clone(), &order);
 
+        let multiplier = BalanceManagerDerivative::reversed_amount_multiplier();
         assert_eq!(
             test_object
                 .balance_manager_base
                 .get_balance_by_currency_code(BalanceManagerBase::eth(), dec!(0.1))
                 .expect("in test"),
-            (dec!(100) / dec!(0.1)
-                - dec!(1) / dec!(5) * BalanceManagerDerivative::reversed_amount_multiplier()
-                + dec!(0.00005) / dec!(0.1))
+            (dec!(100) / dec!(0.1) - dec!(1) / dec!(5) * multiplier + dec!(0.00005) / dec!(0.1))
                 * dec!(0.95)
         );
 
@@ -898,10 +846,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -980,8 +925,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &exchange_account_id,
-                &test_object
+                exchange_account_id,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -1018,10 +963,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -1102,8 +1044,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &exchange_account_id,
-                &test_object
+                exchange_account_id,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -1140,10 +1082,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -1222,8 +1161,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &exchange_account_id,
-                &test_object
+                exchange_account_id,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -1260,10 +1199,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -1344,8 +1280,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &exchange_account_id,
-                &test_object
+                exchange_account_id,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -1382,10 +1318,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -1448,8 +1381,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &exchange_account_id,
-                &test_object
+                exchange_account_id,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -1549,10 +1482,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -1616,8 +1546,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &exchange_account_id,
-                &test_object
+                exchange_account_id,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -1717,10 +1647,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -1783,8 +1710,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &exchange_account_id,
-                &test_object
+                exchange_account_id,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -1886,10 +1813,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -1953,8 +1877,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &exchange_account_id,
-                &test_object
+                exchange_account_id,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -2061,10 +1985,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(10), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -2133,10 +2054,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(10), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         test_object
@@ -2485,8 +2403,8 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_position(
-                &test_object.balance_manager_base.exchange_account_id_1,
-                &test_object
+                test_object.balance_manager_base.exchange_account_id_1,
+                test_object
                     .balance_manager_base
                     .currency_pair_metadata()
                     .currency_pair(),
@@ -2574,10 +2492,7 @@ mod tests {
                 .get_balance_by_trade_side(OrderSide::Sell, price),
             Some((dec!(25) - dec!(2) / price) * dec!(0.95))
         );
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         assert_eq!(
             test_object
                 .balance_manager()
@@ -2587,19 +2502,16 @@ mod tests {
                         .balance_manager_base
                         .currency_pair_metadata()
                         .clone(),
-                    &BalanceManagerBase::eth(),
+                    BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
             dec!(25)
         );
 
-        let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
-        balance_map.insert(BalanceManagerBase::eth(), dec!(25));
-
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            &exchange_account_id,
-            balance_map.clone(),
+            exchange_account_id,
+            hashmap!(BalanceManagerBase::eth() => dec!(25)),
         );
 
         assert_eq!(
@@ -2617,7 +2529,7 @@ mod tests {
                         .balance_manager_base
                         .currency_pair_metadata()
                         .clone(),
-                    &BalanceManagerBase::eth(),
+                    BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
             dec!(25) - dec!(2) / price
@@ -2653,10 +2565,7 @@ mod tests {
                 .get_balance_by_trade_side(OrderSide::Sell, price),
             Some((dec!(25) - (dec!(2) - dec!(1)) / price) * dec!(0.95))
         );
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         assert_eq!(
             test_object
                 .balance_manager()
@@ -2666,7 +2575,7 @@ mod tests {
                         .balance_manager_base
                         .currency_pair_metadata()
                         .clone(),
-                    &BalanceManagerBase::eth(),
+                    BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
             dec!(25)
@@ -2678,7 +2587,7 @@ mod tests {
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::eth() => dec!(25)],
             hashmap![symbol_currency_pair => dec!(1)],
         );
@@ -2698,7 +2607,7 @@ mod tests {
                         .balance_manager_base
                         .currency_pair_metadata()
                         .clone(),
-                    &BalanceManagerBase::eth(),
+                    BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
             dec!(25) - (dec!(2) - dec!(1)) / price
@@ -2712,10 +2621,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         let price = BalanceManagerDerivative::price();
@@ -2738,9 +2644,9 @@ mod tests {
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager(),
-            &exchange_account_id,
-            hashmap![BalanceManagerBase::eth()=> original_balance],
-            hashmap![symbol_currency_pair=> position],
+            exchange_account_id,
+            hashmap![BalanceManagerBase::eth() => original_balance],
+            hashmap![symbol_currency_pair => position],
         );
 
         let mut buy_balance = original_balance * price;
@@ -2791,10 +2697,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         let price = BalanceManagerDerivative::price();
@@ -2814,7 +2717,7 @@ mod tests {
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::btc() => original_balance],
             hashmap![symbol_currency_pair=> position],
         );
@@ -2881,10 +2784,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         let price = BalanceManagerDerivative::price();
@@ -2907,7 +2807,7 @@ mod tests {
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::eth() => original_balance],
             hashmap![symbol_currency_pair => position],
         );
@@ -2960,10 +2860,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
 
         let price = BalanceManagerDerivative::price();
@@ -2983,7 +2880,7 @@ mod tests {
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::btc()=> original_balance],
             hashmap![symbol_currency_pair=> position],
         );
@@ -3052,10 +2949,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         let configuration_descriptor = test_object
             .balance_manager_base
@@ -3065,7 +2959,7 @@ mod tests {
         let amount_limit = dec!(2);
         test_object.balance_manager().set_target_amount_limit(
             configuration_descriptor.clone(),
-            &exchange_account_id,
+            exchange_account_id,
             currency_pair_metadata.clone(),
             amount_limit,
         );
@@ -3083,7 +2977,7 @@ mod tests {
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::eth()=> dec!(1000)],
         );
 
@@ -3144,10 +3038,7 @@ mod tests {
 
         assert_eq!(
             position_by_fill_amount
-                .get(
-                    &exchange_account_id,
-                    &currency_pair_metadata.currency_pair()
-                )
+                .get(exchange_account_id, currency_pair_metadata.currency_pair())
                 .expect("in test"),
             BalanceManagerDerivative::amount()
         );
@@ -3156,7 +3047,7 @@ mod tests {
                 .balance_manager()
                 .get_balance_by_side(
                     configuration_descriptor.clone(),
-                    &exchange_account_id,
+                    exchange_account_id,
                     currency_pair_metadata.clone(),
                     OrderSide::Buy,
                     price
@@ -3175,7 +3066,7 @@ mod tests {
                         .balance_manager()
                         .get_balance_by_side(
                             configuration_descriptor.clone(),
-                            &exchange_account_id,
+                            exchange_account_id,
                             currency_pair_metadata.clone(),
                             OrderSide::Sell,
                             price
@@ -3203,10 +3094,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         let configuration_descriptor = test_object
             .balance_manager_base
@@ -3220,7 +3108,7 @@ mod tests {
         let adjusted_amount_limit = amount_limit / price / amount_multiplier;
         test_object.balance_manager().set_target_amount_limit(
             configuration_descriptor.clone(),
-            &exchange_account_id,
+            exchange_account_id,
             currency_pair_metadata.clone(),
             adjusted_amount_limit,
         );
@@ -3237,7 +3125,7 @@ mod tests {
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::btc()=> dec!(1000)],
         );
 
@@ -3298,10 +3186,7 @@ mod tests {
 
         assert_eq!(
             position_by_fill_amount
-                .get(
-                    &exchange_account_id,
-                    &currency_pair_metadata.currency_pair()
-                )
+                .get(exchange_account_id, currency_pair_metadata.currency_pair())
                 .expect("in test"),
             amount
         );
@@ -3310,7 +3195,7 @@ mod tests {
                 .balance_manager()
                 .get_balance_by_side(
                     configuration_descriptor.clone(),
-                    &exchange_account_id,
+                    exchange_account_id,
                     currency_pair_metadata.clone(),
                     OrderSide::Buy,
                     price
@@ -3329,7 +3214,7 @@ mod tests {
                         .balance_manager()
                         .get_balance_by_side(
                             configuration_descriptor.clone(),
-                            &exchange_account_id,
+                            exchange_account_id,
                             currency_pair_metadata.clone(),
                             OrderSide::Sell,
                             price
@@ -3358,10 +3243,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         let configuration_descriptor = test_object
             .balance_manager_base
@@ -3371,7 +3253,7 @@ mod tests {
         let amount_limit = dec!(2);
         test_object.balance_manager().set_target_amount_limit(
             configuration_descriptor.clone(),
-            &exchange_account_id,
+            exchange_account_id,
             currency_pair_metadata.clone(),
             amount_limit,
         );
@@ -3389,7 +3271,7 @@ mod tests {
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::eth()=> dec!(1000)],
         );
 
@@ -3473,10 +3355,7 @@ mod tests {
 
         assert_eq!(
             position_by_fill_amount
-                .get(
-                    &exchange_account_id,
-                    &currency_pair_metadata.currency_pair()
-                )
+                .get(exchange_account_id, currency_pair_metadata.currency_pair())
                 .expect("in test"),
             -BalanceManagerDerivative::amount()
         );
@@ -3485,7 +3364,7 @@ mod tests {
                 .balance_manager()
                 .get_balance_by_side(
                     configuration_descriptor.clone(),
-                    &exchange_account_id,
+                    exchange_account_id,
                     currency_pair_metadata.clone(),
                     OrderSide::Buy,
                     price
@@ -3507,7 +3386,7 @@ mod tests {
                         .balance_manager()
                         .get_balance_by_side(
                             configuration_descriptor.clone(),
-                            &exchange_account_id,
+                            exchange_account_id,
                             currency_pair_metadata.clone(),
                             OrderSide::Sell,
                             price
@@ -3535,10 +3414,7 @@ mod tests {
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         let configuration_descriptor = test_object
             .balance_manager_base
@@ -3552,7 +3428,7 @@ mod tests {
         let adjusted_amount_limit = amount_limit / price / amount_multiplier;
         test_object.balance_manager().set_target_amount_limit(
             configuration_descriptor.clone(),
-            &exchange_account_id,
+            exchange_account_id,
             currency_pair_metadata.clone(),
             adjusted_amount_limit,
         );
@@ -3569,7 +3445,7 @@ mod tests {
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::btc() => dec!(1000)],
         );
 
@@ -3653,10 +3529,7 @@ mod tests {
 
         assert_eq!(
             position_by_fill_amount
-                .get(
-                    &exchange_account_id,
-                    &currency_pair_metadata.currency_pair()
-                )
+                .get(exchange_account_id, currency_pair_metadata.currency_pair())
                 .expect("in test"),
             -amount
         );
@@ -3665,7 +3538,7 @@ mod tests {
                 .balance_manager()
                 .get_balance_by_side(
                     configuration_descriptor.clone(),
-                    &exchange_account_id,
+                    exchange_account_id,
                     currency_pair_metadata.clone(),
                     OrderSide::Buy,
                     price
@@ -3685,7 +3558,7 @@ mod tests {
                         .balance_manager()
                         .get_balance_by_side(
                             configuration_descriptor.clone(),
-                            &exchange_account_id,
+                            exchange_account_id,
                             currency_pair_metadata.clone(),
                             OrderSide::Sell,
                             price
@@ -3716,10 +3589,7 @@ mod tests {
             Some(BalanceManagerDerivative::position()),
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -3780,10 +3650,7 @@ mod tests {
             Some(BalanceManagerDerivative::position()),
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -3853,10 +3720,7 @@ mod tests {
         );
 
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         test_object
             .exchanges_by_id
@@ -3921,10 +3785,7 @@ mod tests {
             Some(BalanceManagerDerivative::position()),
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4006,10 +3867,7 @@ mod tests {
             Some(dec!(610)),
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4046,10 +3904,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4068,7 +3923,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Buy,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4088,7 +3943,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Sell,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4115,10 +3970,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4137,7 +3989,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Buy,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4160,7 +4012,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Sell,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4190,10 +4042,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4212,7 +4061,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Buy,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4232,7 +4081,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Sell,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4259,10 +4108,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4281,7 +4127,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Buy,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4304,7 +4150,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Sell,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4334,10 +4180,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4356,7 +4199,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Buy,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4379,7 +4222,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Sell,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4412,10 +4255,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4434,7 +4274,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Buy,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4464,7 +4304,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Sell,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4496,10 +4336,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4518,7 +4355,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Buy,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4541,7 +4378,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Sell,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4573,10 +4410,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         test_object
             .exchanges_by_id
@@ -4595,7 +4429,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Buy,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4619,7 +4453,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 OrderSide::Sell,
-                &test_object.balance_manager_base.exchange_account_id_1,
+                test_object.balance_manager_base.exchange_account_id_1,
                 test_object
                     .balance_manager_base
                     .currency_pair_metadata()
@@ -4657,10 +4491,7 @@ mod tests {
             None,
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let currency_pair_metadata = test_object.balance_manager_base.currency_pair_metadata();
         let configuration_descriptor = test_object
             .balance_manager_base
@@ -4678,7 +4509,7 @@ mod tests {
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::eth() => balance],
         );
 
@@ -4688,7 +4519,7 @@ mod tests {
                 .get_leveraged_balance_in_amount_currency_code(
                     configuration_descriptor,
                     OrderSide::Sell,
-                    &exchange_account_id,
+                    exchange_account_id,
                     currency_pair_metadata,
                     price,
                     &mut Some(Explanation::default())
@@ -4701,7 +4532,7 @@ mod tests {
     #[rstest]
     #[case(true)]
     #[case(false)]
-    pub fn uodate_exchange_balance_should_restore_position_on_all_exchanges(
+    pub fn update_exchange_balance_should_restore_position_on_all_exchanges(
         #[case] is_reversed: bool,
     ) {
         init_logger();
@@ -4715,10 +4546,7 @@ mod tests {
             Some(position),
         );
 
-        let exchange_account_id_1 = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id_1 = test_object.balance_manager_base.exchange_account_id_1;
         let exchange_account_id_2 = test_object
             .balance_manager_base
             .exchange_account_id_2
@@ -4729,7 +4557,7 @@ mod tests {
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager(),
-            &exchange_account_id_2,
+            exchange_account_id_2,
             hashmap![BalanceManagerBase::eth() => dec!(0)],
             hashmap![symbol_currency_pair.clone() => position],
         );
@@ -4742,13 +4570,13 @@ mod tests {
 
         assert_eq!(
             positions
-                .get(&exchange_account_id_1, &symbol_currency_pair)
+                .get(exchange_account_id_1, symbol_currency_pair)
                 .expect("in test"),
             position
         );
         assert_eq!(
             positions
-                .get(&exchange_account_id_2, &symbol_currency_pair)
+                .get(exchange_account_id_2, symbol_currency_pair)
                 .expect("in test"),
             position
         );
@@ -4757,7 +4585,7 @@ mod tests {
     #[rstest]
     #[case(true)]
     #[case(false)]
-    pub fn uodate_exchange_balance_should_change_fill_position_only_on_first_update(
+    pub fn update_exchange_balance_should_change_fill_position_only_on_first_update(
         #[case] is_reversed: bool,
     ) {
         init_logger();
@@ -4771,10 +4599,7 @@ mod tests {
             Some(position),
         );
 
-        let exchange_account_id = test_object
-            .balance_manager_base
-            .exchange_account_id_1
-            .clone();
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let symbol_currency_pair = test_object
             .balance_manager_base
             .currency_pair_metadata()
@@ -4787,14 +4612,14 @@ mod tests {
             .expect("in test");
         assert_eq!(
             positions
-                .get(&exchange_account_id, &symbol_currency_pair)
+                .get(exchange_account_id, symbol_currency_pair)
                 .expect("in test"),
             position
         );
 
         BalanceManagerBase::update_balance_with_positions(
             test_object.balance_manager(),
-            &exchange_account_id,
+            exchange_account_id,
             hashmap![BalanceManagerBase::eth() => dec!(1)],
             hashmap![symbol_currency_pair.clone() => dec!(3)],
         );
@@ -4806,7 +4631,7 @@ mod tests {
             .expect("in test");
         assert_eq!(
             positions
-                .get(&exchange_account_id, &symbol_currency_pair)
+                .get(exchange_account_id, symbol_currency_pair)
                 .expect("in test"),
             position
         );

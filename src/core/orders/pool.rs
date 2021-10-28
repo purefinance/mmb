@@ -32,10 +32,7 @@ impl OrderRef {
 
     pub fn trade_place_account(&self) -> TradePlaceAccount {
         self.fn_ref(|x| {
-            TradePlaceAccount::new(
-                x.header.exchange_account_id.clone(),
-                x.header.currency_pair.clone(),
-            )
+            TradePlaceAccount::new(x.header.exchange_account_id, x.header.currency_pair)
         })
     }
 
@@ -64,19 +61,19 @@ impl OrderRef {
         self.fn_ref(|x| x.header.client_order_id.clone())
     }
     pub fn exchange_account_id(&self) -> ExchangeAccountId {
-        self.fn_ref(|x| x.header.exchange_account_id.clone())
+        self.fn_ref(|x| x.header.exchange_account_id)
     }
     pub fn reservation_id(&self) -> Option<ReservationId> {
-        self.fn_ref(|x| x.header.reservation_id.clone())
+        self.fn_ref(|x| x.header.reservation_id)
     }
     pub fn order_type(&self) -> OrderType {
         self.fn_ref(|x| x.header.order_type.clone())
     }
     pub fn currency_pair(&self) -> CurrencyPair {
-        self.fn_ref(|x| x.header.currency_pair.clone())
+        self.fn_ref(|x| x.header.currency_pair)
     }
     pub fn side(&self) -> OrderSide {
-        self.fn_ref(|x| x.header.side.clone())
+        self.fn_ref(|x| x.header.side)
     }
 
     pub fn deep_clone(&self) -> OrderSnapshot {
