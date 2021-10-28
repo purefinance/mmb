@@ -8,6 +8,7 @@ use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
 use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_lib::core::settings::CurrencyPairSetting;
 use mmb_lib::core::settings::ExchangeSettings;
 
 use anyhow::Result;
@@ -39,7 +40,16 @@ impl BinanceBuilder {
             ));
         }
 
-        let settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
+        let mut settings =
+            ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
+
+        // default currency pair for tests
+        settings.currency_pairs = Some(vec![CurrencyPairSetting {
+            base: "phb".into(),
+            quote: "btc".into(),
+            currency_pair: None,
+        }]);
+
         BinanceBuilder::try_new_with_settings(
             settings,
             exchange_account_id,
