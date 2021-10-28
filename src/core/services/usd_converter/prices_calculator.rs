@@ -124,7 +124,7 @@ mod test {
         let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
         converter.expect_get_currency_pair_metadata().returning(
             move |exchange_account_id, currency_pair| {
-                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, "USDT", "BTC")
                 } else {
                     panic!(
@@ -278,10 +278,9 @@ mod test {
         let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
         converter.expect_get_currency_pair_metadata().returning(
             move |exchange_account_id, currency_pair| {
-                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, "USDT", "BTC")
-                } else if exchange_account_id
-                    == &PriceSourceServiceTestBase::get_exchange_account_id_2()
+                } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
                 {
                     get_test_exchange_by_currency_codes(false, "BTC", "EOS")
                 } else {

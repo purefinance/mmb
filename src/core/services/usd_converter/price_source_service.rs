@@ -572,7 +572,7 @@ pub mod test {
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
         converter.expect_get_currency_pair_metadata().returning(
             move |exchange_account_id, currency_pair| {
-                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_with_currency_pair_metadata(
                         currency_pair_metadata_cloned.clone(),
                     )
@@ -639,20 +639,19 @@ pub mod test {
             ],
         )];
 
-        let currency_pair_metadata_1 = currency_pair_metadata(&first_currency, &second_currency);
-        let currency_pair_metadata_2 = currency_pair_metadata(&third_currency, &fourth_currency);
+        let currency_pair_metadata_1 = currency_pair_metadata(first_currency, second_currency);
+        let currency_pair_metadata_2 = currency_pair_metadata(third_currency, fourth_currency);
 
         let currency_pair_metadata_1_cloned = currency_pair_metadata_1.clone();
         let currency_pair_metadata_2_cloned = currency_pair_metadata_2.clone();
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
         converter.expect_get_currency_pair_metadata().returning(
             move |exchange_account_id, currency_pair| {
-                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_with_currency_pair_metadata(
                         currency_pair_metadata_1_cloned.clone(),
                     )
-                } else if exchange_account_id
-                    == &PriceSourceServiceTestBase::get_exchange_account_id_2()
+                } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
                 {
                     get_test_exchange_with_currency_pair_metadata(
                         currency_pair_metadata_2_cloned.clone(),
@@ -725,9 +724,9 @@ pub mod test {
             ],
         )];
 
-        let currency_pair_metadata_1 = currency_pair_metadata(&btc, &eos);
-        let currency_pair_metadata_2 = currency_pair_metadata(&btc, &usdt);
-        let currency_pair_metadata_3 = currency_pair_metadata(&karma, &eos);
+        let currency_pair_metadata_1 = currency_pair_metadata(btc, eos);
+        let currency_pair_metadata_2 = currency_pair_metadata(btc, usdt);
+        let currency_pair_metadata_3 = currency_pair_metadata(karma, eos);
 
         let currency_pair_metadata_1_cloned = currency_pair_metadata_1.clone();
         let currency_pair_metadata_2_cloned = currency_pair_metadata_2.clone();
@@ -735,18 +734,16 @@ pub mod test {
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
         converter.expect_get_currency_pair_metadata().returning(
             move |exchange_account_id, currency_pair| {
-                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_with_currency_pair_metadata(
                         currency_pair_metadata_1_cloned.clone(),
                     )
-                } else if exchange_account_id
-                    == &PriceSourceServiceTestBase::get_exchange_account_id_3()
+                } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_3()
                 {
                     get_test_exchange_with_currency_pair_metadata(
                         currency_pair_metadata_2_cloned.clone(),
                     )
-                } else if exchange_account_id
-                    == &PriceSourceServiceTestBase::get_exchange_account_id_2()
+                } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
                 {
                     get_test_exchange_with_currency_pair_metadata(
                         currency_pair_metadata_3_cloned.clone(),
@@ -828,14 +825,12 @@ pub mod test {
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
         converter.expect_get_currency_pair_metadata().returning(
             move |exchange_account_id, currency_pair| {
-                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), eos.as_str())
-                } else if exchange_account_id
-                    == &PriceSourceServiceTestBase::get_exchange_account_id_3()
+                } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_3()
                 {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), usdt.as_str())
-                } else if exchange_account_id
-                    == &PriceSourceServiceTestBase::get_exchange_account_id_2()
+                } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
                 {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), usdt.as_str())
                 } else {
@@ -886,10 +881,9 @@ pub mod test {
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
         converter.expect_get_currency_pair_metadata().returning(
             move |exchange_account_id, currency_pair| {
-                if exchange_account_id == &PriceSourceServiceTestBase::get_exchange_account_id() {
+                if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), eos.as_str())
-                } else if exchange_account_id
-                    == &PriceSourceServiceTestBase::get_exchange_account_id_2()
+                } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
                 {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), usdt.as_str())
                 } else {

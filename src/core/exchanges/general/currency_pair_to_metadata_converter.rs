@@ -45,7 +45,4 @@ impl CurrencyPairToMetadataConverter {
 }
 
 #[cfg(test)]
-crate::create_mock_initializer!(
-    MockCurrencyPairToMetadataConverter,
-    CP_TO_METADATA_LOCKER_MOCK_LOCKER
-);
+crate::impl_mock_initializer!(MockCurrencyPairToMetadataConverter);

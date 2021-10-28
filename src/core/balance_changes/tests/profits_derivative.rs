@@ -26,7 +26,7 @@ mod tests {
         usd_converter
             .expect_convert_amount()
             .returning(move |from, amount, _| {
-                if *from == TestBase::quote() {
+                if from == TestBase::quote() {
                     return Some(amount);
                 }
 

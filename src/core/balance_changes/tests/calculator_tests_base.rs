@@ -16,6 +16,7 @@ pub mod tests {
     #[double]
     use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
+    use crate::core::misc::time;
     use crate::{
         core::{
             balance_changes::{
@@ -90,11 +91,11 @@ pub mod tests {
         }
 
         pub fn currency_pair() -> CurrencyPair {
-            CurrencyPair::from_codes(&Self::base(), &Self::quote())
+            CurrencyPair::from_codes(Self::base(), Self::quote())
         }
 
         pub fn inverted_currency_pair() -> CurrencyPair {
-            CurrencyPair::from_codes(&Self::quote(), &Self::base())
+            CurrencyPair::from_codes(Self::quote(), Self::base())
         }
 
         fn service_name() -> String {
@@ -116,7 +117,7 @@ pub mod tests {
             usd_converter
                 .expect_convert_amount()
                 .returning(move |from, amount, _| {
-                    if *from == Self::quote() {
+                    if from == Self::quote() {
                         return Some(amount);
                     }
 
@@ -205,14 +206,14 @@ pub mod tests {
         ) -> Self {
             let exchange_1 = get_test_exchange_by_currency_codes(
                 false,
-                &Self::base().as_str(),
-                &Self::quote().as_str(),
+                Self::base().as_str(),
+                Self::quote().as_str(),
             )
             .0;
             let exchange_2 = get_test_exchange_by_currency_codes(
                 false,
-                &Self::base().as_str(),
-                &Self::quote().as_str(),
+                Self::base().as_str(),
+                Self::quote().as_str(),
             )
             .0;
 
@@ -236,7 +237,7 @@ pub mod tests {
 
             let seconds_offset = Arc::new(Mutex::new(0u32));
             let (time_manager_mock, time_manager_locker) =
-                crate::core::misc::time_manager::tests::init_mock(seconds_offset.clone());
+                time::tests::init_mock(seconds_offset.clone());
             mock_lockers.push(time_manager_locker);
 
             let mut this = Self {
