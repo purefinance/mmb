@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use dashmap::DashMap;
 use itertools::Itertools;
 use mockall_double::double;
 use rust_decimal::Decimal;
@@ -47,7 +48,7 @@ pub(super) struct CanReserveResult {
 
 #[derive(Clone)]
 pub(crate) struct BalanceReservationManager {
-    pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+    pub exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>,
 
     pub currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     reserved_amount_in_amount_currency: ServiceValueTree,
@@ -64,7 +65,7 @@ pub(crate) struct BalanceReservationManager {
 
 impl BalanceReservationManager {
     pub fn new(
-        exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+        exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Self {
         Self {

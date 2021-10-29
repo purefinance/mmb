@@ -28,6 +28,15 @@ macro_rules! hashmap {
     }}
 }
 
+#[macro_export]
+macro_rules! dashmap {
+    ($( $key: expr => $val: expr ),*) => {{
+         let map = dashmap::DashMap::new();
+         $( map.insert($key, $val); )*
+         map
+    }}
+}
+
 /// This macros is needed to create function that will initialize a mock object and a locker for $ type
 /// because mockall doesn't support multithreading.
 /// Example:

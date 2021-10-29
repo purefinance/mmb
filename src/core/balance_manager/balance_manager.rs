@@ -24,6 +24,7 @@ use crate::core::{balance_manager::balances::Balances, exchanges::common::Exchan
 
 use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
+use dashmap::DashMap;
 use itertools::Itertools;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
@@ -42,7 +43,7 @@ pub struct BalanceManager {
 
 impl BalanceManager {
     pub fn new(
-        exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+        exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {

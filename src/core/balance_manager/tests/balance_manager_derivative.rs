@@ -1,7 +1,12 @@
-#[cfg(test)]
+use chrono::Utc;
+use dashmap::DashMap;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
-use std::{collections::HashMap, sync::Arc};
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
+use uuid::Uuid;
+
+use std::sync::Arc;
 
 use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
 use crate::core::{
@@ -20,15 +25,11 @@ use crate::core::{
         order::{OrderFillRole, OrderSide},
     },
 };
-use crate::hashmap;
-use chrono::Utc;
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
-use uuid::Uuid;
+use crate::dashmap;
 
 pub struct BalanceManagerDerivative {
     balance_manager_base: BalanceManagerBase,
-    exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+    exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>,
 }
 
 impl BalanceManagerDerivative {
@@ -59,7 +60,7 @@ impl BalanceManagerDerivative {
     ) -> (
         Arc<CurrencyPairMetadata>,
         Arc<Mutex<BalanceManager>>,
-        HashMap<ExchangeAccountId, Arc<Exchange>>,
+        DashMap<ExchangeAccountId, Arc<Exchange>>,
     ) {
         let (currency_pair_metadata, exchanges_by_id) =
             BalanceManagerDerivative::create_balance_manager_ctor_parameters(is_reversed);
@@ -75,7 +76,7 @@ impl BalanceManagerDerivative {
         is_reversed: bool,
     ) -> (
         Arc<CurrencyPairMetadata>,
-        HashMap<ExchangeAccountId, Arc<Exchange>>,
+        DashMap<ExchangeAccountId, Arc<Exchange>>,
     ) {
         let base_currency_code = BalanceManagerBase::eth();
         let quote_currency_code = BalanceManagerBase::btc();
@@ -123,7 +124,7 @@ impl BalanceManagerDerivative {
         )
         .0;
 
-        let res = hashmap![
+        let res = dashmap![
             exchange_1.exchange_account_id => exchange_1,
             exchange_2.exchange_account_id => exchange_2
         ];
@@ -3581,7 +3582,7 @@ mod tests {
     pub fn can_reserve_no_limit_enough_and_not_enough() {
         init_logger();
         let is_reversed = false;
-        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+        let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::eth(),
             dec!(10),
             None,
@@ -3642,7 +3643,7 @@ mod tests {
     pub fn can_reserve_no_limit_enough_and_not_enough_reversed() {
         init_logger();
         let is_reversed = true;
-        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+        let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::btc(),
             dec!(2),
             None,
@@ -3711,7 +3712,7 @@ mod tests {
     pub fn can_reserve_limit_enough_and_not_enough() {
         init_logger();
         let is_reversed = false;
-        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+        let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::eth(),
             dec!(10),
             Some(dec!(2)),
@@ -3773,7 +3774,7 @@ mod tests {
     pub fn can_reserve_limit_enough_and_not_enough_reversed() {
         init_logger();
         let is_reversed = true;
-        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+        let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::btc(),
             dec!(2),
             Some(
@@ -3859,7 +3860,7 @@ mod tests {
         #[case] is_reversed: bool,
     ) {
         init_logger();
-        let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
+        let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::eth(),
             dec!(1000),
             Some(dec!(450)),

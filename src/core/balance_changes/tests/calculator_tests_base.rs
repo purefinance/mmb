@@ -3,6 +3,7 @@ pub mod tests {
 
     use std::{collections::HashMap, sync::Arc};
 
+    use dashmap::DashMap;
     use mockall_double::double;
     use parking_lot::{Mutex, MutexGuard, RwLock};
     use rust_decimal::Decimal;
@@ -17,43 +18,40 @@ pub mod tests {
     use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
     use crate::core::misc::time;
-    use crate::{
-        core::{
-            balance_changes::{
-                balance_change_calculator_result::BalanceChangesCalculatorResult,
-                balance_changes_calculator::BalanceChangesCalculator,
-                profit_balance_changes_calculator,
-                profit_loss_balance_change::ProfitLossBalanceChange,
-            },
-            balance_manager::balance_request::BalanceRequest,
-            exchanges::{
-                common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
-                general::{
-                    currency_pair_metadata::{CurrencyPairMetadata, Precision},
-                    exchange::Exchange,
-                    test_helper::get_test_exchange_by_currency_codes,
-                },
-            },
-            lifecycle::cancellation_token::CancellationToken,
-            orders::{
-                fill::{OrderFill, OrderFillType},
-                order::{
-                    ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
-                    OrderType,
-                },
-                pool::OrderRef,
-            },
-            service_configuration::configuration_descriptor::ConfigurationDescriptor,
+    use crate::core::{
+        balance_changes::{
+            balance_change_calculator_result::BalanceChangesCalculatorResult,
+            balance_changes_calculator::BalanceChangesCalculator,
+            profit_balance_changes_calculator, profit_loss_balance_change::ProfitLossBalanceChange,
         },
-        hashmap,
+        balance_manager::balance_request::BalanceRequest,
+        exchanges::{
+            common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
+            general::{
+                currency_pair_metadata::{CurrencyPairMetadata, Precision},
+                exchange::Exchange,
+                test_helper::get_test_exchange_by_currency_codes,
+            },
+        },
+        lifecycle::cancellation_token::CancellationToken,
+        orders::{
+            fill::{OrderFill, OrderFillType},
+            order::{
+                ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
+                OrderType,
+            },
+            pool::OrderRef,
+        },
+        service_configuration::configuration_descriptor::ConfigurationDescriptor,
     };
+    use crate::{dashmap, hashmap};
 
     pub struct BalanceChangesCalculatorTestsBase {
         configuration_descriptor: Arc<ConfigurationDescriptor>,
         pub currency_list: Vec<CurrencyCode>,
         pub exchange_1: Arc<Exchange>,
         pub exchange_2: Arc<Exchange>,
-        pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+        pub exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>,
         pub currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
         balance_changes: Vec<BalanceChangesCalculatorResult>,
         balance_changes_calculator: BalanceChangesCalculator,
@@ -128,7 +126,7 @@ pub mod tests {
         }
 
         fn init_currency_pair_to_metadata_converter(
-            exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
+            exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>,
             is_derivative: bool,
             is_reversed: bool,
         ) -> (CurrencyPairToMetadataConverter, MutexGuard<'static, ()>) {
@@ -217,7 +215,7 @@ pub mod tests {
             )
             .0;
 
-            let exchanges_by_id = hashmap![
+            let exchanges_by_id = dashmap![
                 Self::exchange_account_id_1() => exchange_1.clone(),
                 Self::exchange_account_id_2() => exchange_2.clone()
             ];

@@ -13,11 +13,13 @@ use log::info;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::Duration;
 
+use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::block_reasons;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents};
 use crate::core::exchanges::exchange_blocker::BlockType;
 use crate::core::exchanges::exchange_blocker::ExchangeBlocker;
+use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::lifecycle::shutdown::ShutdownService;
@@ -43,6 +45,7 @@ pub struct EngineContext {
     pub exchange_blocker: Arc<ExchangeBlocker>,
     pub application_manager: Arc<ApplicationManager>,
     pub timeout_manager: Arc<TimeoutManager>,
+    pub balance_manager: Arc<Mutex<BalanceManager>>,
     is_graceful_shutdown_started: AtomicBool,
     exchange_events: ExchangeEvents,
     finish_graceful_shutdown_sender: Mutex<Option<oneshot::Sender<()>>>,
@@ -63,6 +66,12 @@ impl EngineContext {
             .map(|x| x.exchange_account_id)
             .collect_vec();
 
+        let currency_pair_to_metadata_converter =
+            CurrencyPairToMetadataConverter::new(exchanges.clone());
+
+        let balance_manager =
+            BalanceManager::new(exchanges.clone(), currency_pair_to_metadata_converter);
+
         let engine_context = Arc::new(EngineContext {
             app_settings,
             exchanges,
@@ -70,6 +79,7 @@ impl EngineContext {
             exchange_blocker: ExchangeBlocker::new(exchange_account_ids),
             application_manager: application_manager.clone(),
             timeout_manager,
+            balance_manager,
             is_graceful_shutdown_started: Default::default(),
             exchange_events,
             finish_graceful_shutdown_sender: Mutex::new(Some(finish_graceful_shutdown_sender)),

@@ -73,10 +73,10 @@ impl ExampleStrategy {
     fn calc_trading_context_by_side(
         &mut self,
         side: OrderSide,
-        max_amount: Decimal,
+        mut max_amount: Decimal,
         _now: DateTime,
         local_snapshots_service: &LocalSnapshotsService,
-        explanation: Explanation,
+        mut explanation: Explanation,
     ) -> Option<TradingContextBySide> {
         let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
         let ask_min_price = snapshot.get_top_ask()?.0;
@@ -111,6 +111,19 @@ impl ExampleStrategy {
         } else {
             snapshot.get_top(side)?.0
         };
+
+        let position = self.engine_context.balance_manager.lock().get_position(
+            self.target_eai,
+            self.currency_pair,
+            side,
+        );
+        if position < dec!(0) {
+            max_amount -= position;
+            explanation.add_reason(format!(
+                "TotalAmount changed to {} because of position",
+                max_amount
+            ));
+        }
 
         Some(TradingContextBySide {
             max_amount,
