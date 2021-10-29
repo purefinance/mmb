@@ -45,7 +45,6 @@ anyhow = "1"
 thiserror = "1"
 rust_decimal = { version = "1" , features = ["maths"]}
 rust_decimal_macros = "1"
-derive-getters = "0.2"
 
 async-trait = "0.1"
 hmac = "0.11"

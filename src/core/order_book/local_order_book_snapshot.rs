@@ -42,7 +42,7 @@ impl LocalOrderBookSnapshot {
     }
 
     /// Update inner asks and bids
-    pub fn apply_update(&mut self, update: OrderBookData, update_time: DateTime) {
+    pub fn apply_update(&mut self, update: &OrderBookData, update_time: DateTime) {
         OrderBookData::apply_update(&mut self.asks, &mut self.bids, update);
         self.last_update_time = update_time;
     }
