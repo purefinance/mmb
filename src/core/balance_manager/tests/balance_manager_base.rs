@@ -2,7 +2,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 #[double]
-use crate::core::misc::time_manager::time_manager;
+use crate::core::misc::time::time_manager;
 use crate::core::{
     balance_manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
     exchanges::{common::Price, events::ExchangeBalance},
@@ -11,9 +11,7 @@ use crate::core::{
         events::ExchangeBalancesAndPositions,
         general::currency_pair_metadata::CurrencyPairMetadata,
     },
-    misc::{
-        derivative_position_info::DerivativePositionInfo, reserve_parameters::ReserveParameters,
-    },
+    misc::{derivative_position::DerivativePosition, reserve_parameters::ReserveParameters, time},
     orders::order::{
         ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
         OrderType, ReservationId,
@@ -21,16 +19,11 @@ use crate::core::{
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 
-use chrono::TimeZone;
 use itertools::Itertools;
 use mockall_double::double;
 use parking_lot::{Mutex, MutexGuard};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
-
-use once_cell::sync::Lazy;
-/// Needs for syncing mock objects https://docs.rs/mockall/0.10.2/mockall/#static-methods
-static MOCK_MUTEX: Lazy<Mutex<()>> = Lazy::new(Mutex::default);
 
 pub struct BalanceManagerBase {
     pub ten_digit_precision: Decimal,
@@ -107,7 +100,7 @@ impl BalanceManagerBase {
         let positions = Some(
             positions_by_currency_pair
                 .into_iter()
-                .map(|x| DerivativePositionInfo::new(x.0, x.1, None, dec!(0), dec!(0), dec!(1)))
+                .map(|x| DerivativePosition::new(x.0, x.1, None, dec!(0), dec!(0), dec!(1)))
                 .collect_vec(),
         );
 
@@ -123,16 +116,8 @@ impl BalanceManagerBase {
     }
 
     pub fn new() -> Self {
-        let mock_locker = MOCK_MUTEX.lock();
-
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
-        let mock_object = time_manager::now_context();
-        let seconds = seconds_offset_in_mock.clone();
-        mock_object.expect().returning(move || {
-            chrono::Utc
-                .ymd(2021, 9, 20)
-                .and_hms(0, 0, seconds.lock().clone())
-        });
+        let (mock_object, mock_locker) = time::tests::init_mock(seconds_offset_in_mock.clone());
 
         let exchange_id = Self::exchange_id().as_str().into();
         let exchange_account_id_1 = ExchangeAccountId::new(exchange_id, 0);

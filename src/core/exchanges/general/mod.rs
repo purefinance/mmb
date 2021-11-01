@@ -1,6 +1,7 @@
 pub mod commission;
 pub mod currency_pair_metadata;
 pub mod currency_pair_to_metadata_converter;
+pub mod engine_api;
 pub mod exchange;
 pub mod exchange_creation;
 pub mod exchange_metadata;

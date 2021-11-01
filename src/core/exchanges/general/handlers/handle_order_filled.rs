@@ -96,7 +96,7 @@ impl Exchange {
             None => {
                 if let Some(client_order_id) = &event_data.client_order_id {
                     self.handle_create_order_succeeded(
-                        &self.exchange_account_id,
+                        self.exchange_account_id,
                         client_order_id,
                         &event_data.exchange_order_id,
                         &event_data.source_type,
@@ -726,7 +726,7 @@ impl Exchange {
 
                     event_data.client_order_id = Some(order_ref.client_order_id());
                     self.handle_create_order_succeeded(
-                        &self.exchange_account_id,
+                        self.exchange_account_id,
                         &order_ref.client_order_id(),
                         &event_data.exchange_order_id,
                         &event_data.source_type,

@@ -129,7 +129,7 @@ impl VirtualBalanceHolder {
         explanation: &mut Option<Explanation>,
     ) -> Option<Amount> {
         let exchange_balance = self.get_exchange_balance(
-            &balance_request.exchange_account_id,
+            balance_request.exchange_account_id,
             currency_pair_metadata.clone(),
             balance_request.currency_code,
             price,
@@ -189,7 +189,7 @@ impl VirtualBalanceHolder {
 
     pub fn get_exchange_balance(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: CurrencyCode,
         price: Option<Price>,
@@ -220,11 +220,11 @@ impl VirtualBalanceHolder {
 
     fn get_raw_exchange_balance(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         currency_code: &CurrencyCode,
     ) -> Option<Amount> {
         self.balance_by_exchange_id
-            .get(exchange_account_id)?
+            .get(&exchange_account_id)?
             .get(currency_code)
             .cloned()
     }
@@ -237,9 +237,9 @@ impl VirtualBalanceHolder {
         &self.balance_diff
     }
 
-    pub fn has_real_balance_on_exchange(&self, exchange_account_id: &ExchangeAccountId) -> bool {
+    pub fn has_real_balance_on_exchange(&self, exchange_account_id: ExchangeAccountId) -> bool {
         self.balance_by_exchange_id
-            .get(exchange_account_id)
+            .get(&exchange_account_id)
             .map(|x| x.len() > 0)
             .unwrap_or(false)
     }

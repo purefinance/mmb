@@ -2497,7 +2497,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_exchange_balance(
-                    &exchange_account_id,
+                    exchange_account_id,
                     test_object
                         .balance_manager_base
                         .currency_pair_metadata()
@@ -2524,7 +2524,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_exchange_balance(
-                    &exchange_account_id,
+                    exchange_account_id,
                     test_object
                         .balance_manager_base
                         .currency_pair_metadata()
@@ -2570,7 +2570,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_exchange_balance(
-                    &exchange_account_id,
+                    exchange_account_id,
                     test_object
                         .balance_manager_base
                         .currency_pair_metadata()
@@ -2602,7 +2602,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_exchange_balance(
-                    &exchange_account_id,
+                    exchange_account_id,
                     test_object
                         .balance_manager_base
                         .currency_pair_metadata()

@@ -5,25 +5,32 @@ use std::{
 
 use chrono::Duration;
 use itertools::Itertools;
+use mockall_double::double;
 use parking_lot::Mutex;
+
+#[double]
+use crate::core::balance_manager::balance_manager::BalanceManager;
+#[double]
+use crate::core::misc::time::time_manager;
 
 use crate::core::{
     balance_changes::profit_loss_balance_change::ProfitLossBalanceChange,
-    balance_manager::{balance_manager::BalanceManager, position_change::PositionChange},
-    exchanges::common::TradePlaceAccount,
-    misc::time_manager::time_manager,
+    balance_manager::position_change::PositionChange, exchanges::common::TradePlaceAccount,
     DateTime,
 };
 
 pub(crate) struct BalanceChangePeriodSelector {
-    period: Duration,
-    balance_manager: Option<BalanceManager>,
+    pub(super) period: Duration,
+    balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     balance_changes_queues_by_trade_place:
         HashMap<TradePlaceAccount, VecDeque<ProfitLossBalanceChange>>,
 }
 
 impl BalanceChangePeriodSelector {
-    pub fn new(period: Duration, balance_manager: Option<BalanceManager>) -> Arc<Mutex<Self>> {
+    pub fn new(
+        period: Duration,
+        balance_manager: Option<Arc<Mutex<BalanceManager>>>,
+    ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             period,
             balance_manager,
@@ -62,9 +69,10 @@ impl BalanceChangePeriodSelector {
                 return None;
             })?;
 
-        let position_change = match &self.balance_manager {
+        let position_change_before_period = match &self.balance_manager {
             Some(balance_manager) => {
                 let position_change = balance_manager
+                    .lock()
                     .get_last_position_change_before_period(trade_place, start_of_period);
 
                 log::info!(
@@ -86,7 +94,7 @@ impl BalanceChangePeriodSelector {
         };
 
         while let Some(last_change) = balance_changes_queue.front() {
-            let should_skip_item = match position_change {
+            let should_skip_item = match position_change_before_period {
                 Some(ref change) => last_change.client_order_fill_id == change.client_order_fill_id,
                 None => last_change.change_date >= start_of_period,
             };
@@ -103,16 +111,19 @@ impl BalanceChangePeriodSelector {
             );
             let _ = balance_changes_queue.pop_front();
         }
-        position_change
+        position_change_before_period
     }
 
     pub fn get_items(&mut self) -> Vec<Vec<ProfitLossBalanceChange>> {
-        self.balance_changes_queues_by_trade_place
-            .clone()
-            .iter()
-            .map(|(current_trade_place, balance_changes_queue)| {
-                self.get_items_core(&current_trade_place, Some(&balance_changes_queue))
-            })
+        let trade_places = self
+            .balance_changes_queues_by_trade_place
+            .keys()
+            .cloned()
+            .collect_vec();
+
+        trade_places
+            .into_iter()
+            .map(|current_trade_place| self.get_items_by_trade_place(&current_trade_place))
             .collect_vec()
     }
 
@@ -120,21 +131,12 @@ impl BalanceChangePeriodSelector {
         &mut self,
         trade_place: &TradePlaceAccount,
     ) -> Vec<ProfitLossBalanceChange> {
-        self.get_items_core(trade_place, None)
-    }
-
-    fn get_items_core(
-        &mut self,
-        trade_place: &TradePlaceAccount,
-        balance_changes_queue: Option<&VecDeque<ProfitLossBalanceChange>>,
-    ) -> Vec<ProfitLossBalanceChange> {
         let position_change = self.synchronize_period(time_manager::now(), trade_place);
 
-        let balance_changes_queue = balance_changes_queue.unwrap_or(
-            self.balance_changes_queues_by_trade_place
-                .get(trade_place)
-                .expect("failed to get balance changes queue by trade_place"),
-        );
+        let balance_changes_queue = self
+            .balance_changes_queues_by_trade_place
+            .get(trade_place)
+            .expect("failed to get balance changes queue by trade_place");
 
         balance_changes_queue
             .iter()

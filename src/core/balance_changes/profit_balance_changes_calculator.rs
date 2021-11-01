@@ -1,10 +1,13 @@
 use futures::future::join_all;
 use itertools::Itertools;
+use mockall_double::double;
+
+#[double]
+use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
 use crate::core::{
     exchanges::common::Amount, infrastructure::WithExpect,
     lifecycle::cancellation_token::CancellationToken,
-    services::usd_converter::usd_converter::UsdConverter,
 };
 
 use super::profit_loss_balance_change::ProfitLossBalanceChange;
