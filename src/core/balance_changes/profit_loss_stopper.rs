@@ -297,7 +297,7 @@ mod test {
         ProfitLossBalanceChange {
             id: ProfitLossBalanceChangeId::generate(),
             client_order_fill_id,
-            change_date: change_date,
+            change_date,
             service_name: "test".to_string(),
             service_configuration_key: "test".to_string(),
             exchange_id: exchange_id(),
