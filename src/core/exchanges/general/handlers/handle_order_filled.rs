@@ -79,7 +79,7 @@ impl Exchange {
             return Ok(());
         }
 
-        if event_data.exchange_order_id.as_str().is_empty() {
+        if event_data.exchange_order_id.is_empty() {
             Self::log_fill_handling_error_and_propagate(
                 "Received HandleOrderFilled with an empty exchangeOrderId",
                 &args_to_log,
@@ -540,7 +540,7 @@ impl Exchange {
 
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
-            Some(ClientOrderFillId::unique_id()),
+            Some(ClientOrderFillId::generate()),
             Utc::now(),
             fill_type,
             trade_id.clone(),
@@ -751,7 +751,7 @@ impl Exchange {
             .clone()
             .expect("Impossible situation: order_side are checked above already");
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
 
         let order_instance = OrderSnapshot::with_params(
             client_order_id.clone(),
@@ -825,6 +825,8 @@ mod test {
         orders::pool::OrdersPool,
     };
 
+    static TEST_ID: u64 = 1;
+
     mod liquidation {
         use super::*;
 
@@ -834,7 +836,7 @@ mod test {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(String::new()),
                 client_order_id: None,
-                exchange_order_id: ExchangeOrderId::new("test".into()),
+                exchange_order_id: ExchangeOrderId::from(TEST_ID),
                 fill_price: dec!(0),
                 fill_amount: dec!(0),
                 is_diff: false,
@@ -867,7 +869,7 @@ mod test {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(String::new()),
                 client_order_id: None,
-                exchange_order_id: ExchangeOrderId::new("test".into()),
+                exchange_order_id: ExchangeOrderId::from(TEST_ID),
                 fill_price: dec!(0),
                 fill_amount: dec!(0),
                 is_diff: false,
@@ -899,8 +901,8 @@ mod test {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(String::new()),
-                client_order_id: Some(ClientOrderId::unique_id()),
-                exchange_order_id: ExchangeOrderId::new("test".into()),
+                client_order_id: Some(ClientOrderId::generate()),
+                exchange_order_id: ExchangeOrderId::from(TEST_ID),
                 fill_price: dec!(0),
                 fill_amount: dec!(0),
                 is_diff: false,
@@ -933,7 +935,7 @@ mod test {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(String::new()),
                 client_order_id: None,
-                exchange_order_id: ExchangeOrderId::new("test".into()),
+                exchange_order_id: ExchangeOrderId::from(TEST_ID),
                 fill_price: dec!(0),
                 fill_amount: dec!(0),
                 is_diff: false,
@@ -973,7 +975,7 @@ mod test {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(String::new()),
                 client_order_id: None,
-                exchange_order_id: ExchangeOrderId::new("test".into()),
+                exchange_order_id: ExchangeOrderId::from(TEST_ID),
                 fill_price,
                 fill_amount,
                 is_diff: false,
@@ -1019,7 +1021,7 @@ mod test {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(String::new()),
                 client_order_id: None,
-                exchange_order_id: ExchangeOrderId::new("".into()),
+                exchange_order_id: ExchangeOrderId::new(),
                 fill_price: dec!(0),
                 fill_amount: dec!(0),
                 is_diff: false,
@@ -1051,7 +1053,7 @@ mod test {
     fn ignore_if_trade_was_already_received() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("te".into(), "st".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
@@ -1063,7 +1065,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id: Some(trade_id.clone()),
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0),
             fill_amount,
             is_diff: false,
@@ -1128,7 +1130,7 @@ mod test {
     fn ignore_diff_fill_after_non_diff() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("te".into(), "st".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
@@ -1140,7 +1142,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id: Some(trade_id.clone()),
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0),
             fill_amount,
             is_diff: true,
@@ -1205,7 +1207,7 @@ mod test {
     fn ignore_filled_amount_not_less_event_fill() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("te".into(), "st".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
@@ -1217,7 +1219,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0),
             fill_amount,
             is_diff: false,
@@ -1282,7 +1284,7 @@ mod test {
     fn ignore_diff_fill_if_filled_amount_is_zero() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
@@ -1294,7 +1296,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.2),
             fill_amount,
             is_diff: true,
@@ -1359,7 +1361,7 @@ mod test {
     fn error_if_order_status_is_failed_to_create() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
@@ -1370,7 +1372,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.2),
             fill_amount,
             is_diff: true,
@@ -1417,7 +1419,7 @@ mod test {
     fn error_if_order_status_is_completed() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
@@ -1428,7 +1430,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.2),
             fill_amount,
             is_diff: true,
@@ -1475,7 +1477,7 @@ mod test {
     fn error_if_cancellation_event_was_raised() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
@@ -1487,7 +1489,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price,
             fill_amount,
             is_diff: true,
@@ -1541,11 +1543,11 @@ mod test {
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = Some("test_trade_id".to_owned());
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
-        let exchange_order_id: ExchangeOrderId = "some_order_id".into();
+        let exchange_order_id = ExchangeOrderId::from(1);
 
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
@@ -1655,11 +1657,11 @@ mod test {
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = Some("test_trade_id".to_owned());
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
-        let exchange_order_id: ExchangeOrderId = "some_order_id".into();
+        let exchange_order_id = ExchangeOrderId::from(1);
 
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
@@ -1769,11 +1771,11 @@ mod test {
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = Some("test_trade_id".to_owned());
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
-        let exchange_order_id: ExchangeOrderId = "some_order_id".into();
+        let exchange_order_id = ExchangeOrderId::from(1);
 
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
@@ -1888,11 +1890,11 @@ mod test {
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = Some("test_trade_id".to_owned());
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
-        let exchange_order_id: ExchangeOrderId = "some_order_id".into();
+        let exchange_order_id = ExchangeOrderId::from(1);
 
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
@@ -2005,11 +2007,11 @@ mod test {
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
         let trade_id = Some("test_trade_id".to_owned());
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
         let order_role = OrderRole::Maker;
-        let exchange_order_id: ExchangeOrderId = "some_order_id".into();
+        let exchange_order_id = ExchangeOrderId::from(1);
 
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
@@ -2106,7 +2108,7 @@ mod test {
     fn ignore_fill_if_total_filled_amount_is_incorrect() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
@@ -2117,7 +2119,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.8),
             fill_amount,
             is_diff: true,
@@ -2162,7 +2164,7 @@ mod test {
     fn take_roll_from_fill_if_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
@@ -2173,7 +2175,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.8),
             fill_amount,
             is_diff: true,
@@ -2222,7 +2224,7 @@ mod test {
     fn take_roll_from_order_if_not_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
@@ -2233,7 +2235,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.8),
             fill_amount,
             is_diff: true,
@@ -2284,7 +2286,7 @@ mod test {
     fn error_if_unable_to_get_role() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
@@ -2295,7 +2297,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.8),
             fill_amount,
             is_diff: true,
@@ -2342,7 +2344,7 @@ mod test {
     fn use_commission_currency_code_from_event_data() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
@@ -2354,7 +2356,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.8),
             fill_amount,
             is_diff: true,
@@ -2403,7 +2405,7 @@ mod test {
     fn commission_currency_code_from_base_currency_code() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
@@ -2415,7 +2417,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.8),
             fill_amount,
             is_diff: true,
@@ -2468,7 +2470,7 @@ mod test {
     fn commission_currency_code_from_quote_currency_code() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
@@ -2479,7 +2481,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.8),
             fill_amount,
             is_diff: true,
@@ -2540,7 +2542,7 @@ mod test {
     fn use_commission_amount_if_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
@@ -2552,7 +2554,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: dec!(0.8),
             fill_amount,
             is_diff: true,
@@ -2602,7 +2604,7 @@ mod test {
     fn use_commission_rate_if_specified() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_price = dec!(0.8);
@@ -2615,7 +2617,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: fill_price.clone(),
             fill_amount,
             is_diff: true,
@@ -2662,7 +2664,7 @@ mod test {
     fn calculate_commission_rate_if_not_specified() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Sell;
         let fill_price = dec!(0.8);
@@ -2674,7 +2676,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: fill_price.clone(),
             fill_amount,
             is_diff: true,
@@ -2721,7 +2723,7 @@ mod test {
     fn calculate_commission_amount() -> Result<()> {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_price = dec!(0.8);
@@ -2733,7 +2735,7 @@ mod test {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
-            exchange_order_id: ExchangeOrderId::new("".into()),
+            exchange_order_id: ExchangeOrderId::new(),
             fill_price: fill_price.clone(),
             fill_amount,
             is_diff: true,
@@ -2847,7 +2849,7 @@ mod test {
         fn expected_commission_amount_equal_commission_amount() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
-            let client_order_id = ClientOrderId::unique_id();
+            let client_order_id = ClientOrderId::generate();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_amount = dec!(12);
@@ -2908,7 +2910,7 @@ mod test {
         fn expected_commission_amount_not_equal_wrong_commission_amount() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
-            let client_order_id = ClientOrderId::unique_id();
+            let client_order_id = ClientOrderId::generate();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_amount = dec!(12);
@@ -2968,7 +2970,7 @@ mod test {
         fn check_referral_reward_amount() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
-            let client_order_id = ClientOrderId::unique_id();
+            let client_order_id = ClientOrderId::generate();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_role = OrderRole::Maker;
@@ -3031,7 +3033,7 @@ mod test {
         fn too_big_filled_amount() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
-            let client_order_id = ClientOrderId::unique_id();
+            let client_order_id = ClientOrderId::generate();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.8);
@@ -3063,7 +3065,7 @@ mod test {
         fn proper_filled_amount() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
-            let client_order_id = ClientOrderId::unique_id();
+            let client_order_id = ClientOrderId::generate();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.8);
@@ -3095,7 +3097,7 @@ mod test {
         #[test]
         fn order_completed_if_filled_completely() -> Result<()> {
             let (exchange, mut event_receiver) = get_test_exchange(false);
-            let client_order_id = ClientOrderId::unique_id();
+            let client_order_id = ClientOrderId::generate();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.2);
@@ -3131,7 +3133,7 @@ mod test {
         fn order_not_filled() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
-            let client_order_id = ClientOrderId::unique_id();
+            let client_order_id = ClientOrderId::generate();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let fill_price = dec!(0.2);
@@ -3291,13 +3293,13 @@ mod test {
     fn filled_amount_from_zero_to_completed() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let fill_price = dec!(0.8);
         let order_amount = dec!(12);
-        let exchange_order_id = ExchangeOrderId::new("some_echange_order_id".into());
-        let client_account_id = ClientOrderId::unique_id();
+        let exchange_order_id = ExchangeOrderId::from(2); // not TEST_ID
+        let client_account_id = ClientOrderId::generate();
 
         let order = OrderSnapshot::with_params(
             client_order_id.clone(),

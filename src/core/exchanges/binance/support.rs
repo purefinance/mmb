@@ -112,7 +112,7 @@ impl Support for Binance {
             serde_json::from_str(&response.content).context("Unable to parse response content")?;
         let id = response["orderId"].to_string();
         let id = id.trim_matches('"');
-        Ok(ExchangeOrderId::new(id.into()))
+        Ok(ExchangeOrderId::from(id))
     }
 
     fn clarify_error_type(&self, error: &mut ExchangeError) {
@@ -442,7 +442,7 @@ impl Support for Binance {
 
                 let fee_currency_code = commission_currency_code.context("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting")?;
                 Ok(OrderTrade::new(
-                    ExchangeOrderId::from(self.order_id.to_string().as_ref()),
+                    ExchangeOrderId::from(self.order_id),
                     self.id.to_string(),
                     datetime,
                     self.price,

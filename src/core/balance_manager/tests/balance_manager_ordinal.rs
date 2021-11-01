@@ -2218,7 +2218,7 @@ mod tests {
             reservation_id_1,
             reservation_id_2,
             dec!(2),
-            &Some(ClientOrderId::new("unknown_id".into())),
+            &Some(ClientOrderId::from(1)), // ID that can't be generated
         );
     }
 
@@ -2602,7 +2602,7 @@ mod tests {
         );
 
         let amount = dec!(5);
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
 
         let reserve_parameters = test_object
             .balance_manager_base
@@ -2678,7 +2678,7 @@ mod tests {
         let amount = dec!(5);
         let price = dec!(0.2);
         let approved_amount = amount / dec!(2);
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
 
         let reserve_parameters = test_object
             .balance_manager_base
@@ -5234,7 +5234,7 @@ mod tests {
         test_object: &mut BalanceManagerOrdinal,
         order: &mut OrderSnapshot,
     ) -> ClientOrderFillId {
-        let order_fill_id = ClientOrderFillId::unique_id();
+        let order_fill_id = ClientOrderFillId::generate();
         order
             .fills
             .fills

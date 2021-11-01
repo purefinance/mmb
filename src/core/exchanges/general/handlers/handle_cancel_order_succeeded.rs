@@ -33,7 +33,7 @@ impl Exchange {
             return Ok(());
         }
 
-        if exchange_order_id.as_str().is_empty() {
+        if exchange_order_id.is_empty() {
             Self::log_cancel_handling_error_and_propagate(
                 "Received HandleOrderFilled with an empty exchangeOrderId",
                 &args_to_log,
@@ -173,8 +173,8 @@ mod test {
     fn empty_exchange_order_id() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
-        let exchange_order_id = ExchangeOrderId::new("".into());
+        let client_order_id = ClientOrderId::generate();
+        let exchange_order_id = ExchangeOrderId::new();
         let filled_amount = dec!(1);
         let source_type = EventSourceType::Rest;
 
@@ -203,8 +203,8 @@ mod test {
     fn order_already_closed(#[case] status: OrderStatus, #[case] expected: bool) {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
-        let exchange_order_id = ExchangeOrderId::new("".into());
+        let client_order_id = ClientOrderId::generate();
+        let exchange_order_id = ExchangeOrderId::new();
 
         let already_closed =
             exchange.order_already_closed(status, &client_order_id, &exchange_order_id);
@@ -216,7 +216,7 @@ mod test {
     fn return_if_order_already_closed() -> Result<()> {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
@@ -236,7 +236,7 @@ mod test {
 
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let exchange_order_id = ExchangeOrderId::new("".into());
+        let exchange_order_id = ExchangeOrderId::new();
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
         let updating_result = exchange.try_update_local_order(
@@ -255,7 +255,7 @@ mod test {
     fn order_filled_amount_cancellation_updated() -> Result<()> {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
@@ -274,7 +274,7 @@ mod test {
 
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let exchange_order_id = ExchangeOrderId::new("".into());
+        let exchange_order_id = ExchangeOrderId::new();
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
         exchange.try_update_local_order(
@@ -296,7 +296,7 @@ mod test {
     fn order_status_updated() -> Result<()> {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
@@ -315,7 +315,7 @@ mod test {
 
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let exchange_order_id = ExchangeOrderId::new("".into());
+        let exchange_order_id = ExchangeOrderId::new();
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
         exchange.try_update_local_order(
@@ -340,7 +340,7 @@ mod test {
     fn canceled_not_from_wait_cancel_order() -> Result<()> {
         let (exchange, mut event_receiver) = test_helper::get_test_exchange(false);
 
-        let client_order_id = ClientOrderId::unique_id();
+        let client_order_id = ClientOrderId::generate();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_side = OrderSide::Buy;
         let order_amount = dec!(12);
@@ -359,7 +359,7 @@ mod test {
 
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let exchange_order_id = ExchangeOrderId::new("".into());
+        let exchange_order_id = ExchangeOrderId::new();
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
         exchange.try_update_local_order(

@@ -260,7 +260,7 @@ impl BalanceManagerBase {
     ) -> OrderSnapshot {
         let order_snapshot = OrderSnapshot {
             header: OrderHeader::new(
-                ClientOrderId::new(format!("order{}", self.order_index).into()),
+                ClientOrderId::from(self.order_index as u64),
                 time_manager::now(),
                 self.exchange_account_id_1,
                 self.currency_pair_metadata().currency_pair(),

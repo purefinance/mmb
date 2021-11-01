@@ -629,7 +629,7 @@ impl DispositionExecutor {
             );
         }
 
-        let new_client_order_id = ClientOrderId::unique_id();
+        let new_client_order_id = ClientOrderId::generate();
 
         let requests_group_id = self.engine_ctx.timeout_manager.try_reserve_group(
             &self.exchange_account_id,

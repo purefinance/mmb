@@ -191,7 +191,7 @@ impl Exchange {
 
         let args_to_log = (exchange_account_id, client_order_id);
 
-        if client_order_id.as_str().is_empty() {
+        if client_order_id.is_empty() {
             let error_msg = format!(
                 "Order was created but client_order_id is empty. Order: {:?}",
                 args_to_log
@@ -291,7 +291,7 @@ impl Exchange {
 
         let args_to_log = (exchange_account_id, client_order_id, exchange_order_id);
 
-        if client_order_id.as_str().is_empty() {
+        if client_order_id.is_empty() {
             let error_msg = format!(
                 "Order was created but client_order_id is empty. Order: {:?}",
                 args_to_log
@@ -301,7 +301,7 @@ impl Exchange {
             bail!("{}", error_msg);
         }
 
-        if exchange_order_id.as_str().is_empty() {
+        if exchange_order_id.is_empty() {
             let error_msg = format!(
                 "Order was created but exchange_order_id is empty. Order: {:?}",
                 args_to_log

@@ -57,7 +57,7 @@ impl OrderProxy {
         cancellation_token: CancellationToken,
     ) -> Self {
         Self {
-            client_order_id: ClientOrderId::unique_id(),
+            client_order_id: ClientOrderId::generate(),
             init_time: Utc::now(),
             exchange_account_id,
             currency_pair: OrderProxy::default_currency_pair(),
@@ -75,7 +75,7 @@ impl OrderProxy {
     }
 
     pub fn default_currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes("phb".into(), "btc".into())
+        CurrencyPair::from_codes("cnd".into(), "btc".into())
     }
 
     pub fn default_amount() -> Decimal {

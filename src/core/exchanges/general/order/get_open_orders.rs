@@ -136,7 +136,7 @@ impl Exchange {
 
     fn add_missing_open_orders(&self, open_orders: &Vec<OrderInfo>) {
         for order in open_orders {
-            if order.client_order_id.as_str().is_empty()
+            if order.client_order_id.is_empty()
                 && self
                     .orders
                     .cache_by_client_id
@@ -156,8 +156,8 @@ impl Exchange {
             }
 
             let id_for_new_header: ClientOrderId;
-            if order.client_order_id.as_str().is_empty() {
-                id_for_new_header = ClientOrderId::unique_id();
+            if order.client_order_id.is_empty() {
+                id_for_new_header = ClientOrderId::generate();
             } else {
                 id_for_new_header = order.client_order_id.clone();
             }
