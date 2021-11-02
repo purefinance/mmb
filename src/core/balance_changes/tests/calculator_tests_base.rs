@@ -127,7 +127,7 @@ pub mod tests {
             (usd_converter, usd_converter_locker)
         }
 
-        fn init_currency_pair_to_metadata_converter(
+        fn init_currency_pair_to_symbol_converter(
             exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
             is_derivative: bool,
             is_reversed: bool,
@@ -225,7 +225,7 @@ pub mod tests {
             let mut mock_lockers = Vec::new();
 
             let (currency_pair_to_symbol_converter, cp_to_symbol_locker) =
-                Self::init_currency_pair_to_metadata_converter(
+                Self::init_currency_pair_to_symbol_converter(
                     exchanges_by_id.clone(),
                     is_derivative,
                     is_reversed,
@@ -392,17 +392,13 @@ pub mod tests {
             quote: CurrencyCode,
             is_derivative: bool,
         ) -> Arc<CurrencyPairMetadata> {
-            let amount = if is_derivative {
-                quote.clone()
-            } else {
-                base.clone()
-            };
+            let amount = if is_derivative { quote } else { base };
 
             Arc::new(CurrencyPairMetadata::new(
                 false,
                 is_derivative,
                 base.as_str().into(),
-                base.clone(),
+                base,
                 quote.as_str().into(),
                 quote,
                 None,
