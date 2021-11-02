@@ -275,11 +275,13 @@ impl Exchange {
             }
         }
 
-        error!(
-            "`cancel_orders` was received for an orders which are not in the system {}: {}",
-            self.exchange_account_id,
-            not_found_orders.iter().join(", "),
-        );
+        if !not_found_orders.is_empty() {
+            error!(
+                "`cancel_orders` was received for an orders which are not in the system {}: {}",
+                self.exchange_account_id,
+                not_found_orders.iter().join(", "),
+            );
+        }
 
         join_all(futures).await;
     }
