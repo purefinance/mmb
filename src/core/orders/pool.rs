@@ -106,7 +106,7 @@ impl OrderRef {
 
     #[cfg(test)]
     pub fn new(snapshot: Arc<RwLock<OrderSnapshot>>) -> Self {
-        Self { 0: snapshot }
+        Self(snapshot)
     }
 }
 

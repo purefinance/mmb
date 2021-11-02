@@ -15,20 +15,46 @@ use crate::core::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
     lifecycle::cancellation_token::CancellationToken,
-    orders::{fill::OrderFill, pool::OrderRef},
+    orders::{fill::OrderFill, order::ClientOrderFillId, pool::OrderRef},
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
+    DateTime,
 };
 
 use super::{
+    balance_change_calculator_result::BalanceChangesCalculatorResult,
     balance_changes_calculator::BalanceChangesCalculator,
-    balance_changes_service_events::{BalanceChange, BalanceChangeServiceEvent},
     profit_loss_balance_change::ProfitLossBalanceChange,
     profit_loss_stopper_service::ProfitLossStopperService,
 };
 
-pub(crate) struct BalanceChangesService {
+enum BalanceChangeServiceEvent {
+    OnTimer,
+    BalanceChange(BalanceChange),
+}
+
+struct BalanceChange {
+    pub balance_changes: BalanceChangesCalculatorResult,
+    pub client_order_fill_id: ClientOrderFillId,
+    pub change_date: DateTime,
+}
+
+impl BalanceChange {
+    pub fn new(
+        balance_changes: BalanceChangesCalculatorResult,
+        client_order_fill_id: ClientOrderFillId,
+        change_date: DateTime,
+    ) -> Self {
+        Self {
+            balance_changes,
+            client_order_fill_id,
+            change_date,
+        }
+    }
+}
+
+pub struct BalanceChangesService {
     usd_converter: UsdConverter,
-    // TODO: fix mew when DatabaseManager/DataRecorder will be implemented
+    // TODO: fix me when DatabaseManager/DataRecorder will be implemented
     //         private readonly IDatabaseManager _databaseManager;
     //         private readonly IDataRecorder _dataRecorder;
     rx_event: mpsc::Receiver<BalanceChangeServiceEvent>,
@@ -66,7 +92,7 @@ impl BalanceChangesService {
 
         let cloned_this = this.clone();
         let _ = spawn_by_timer(
-            move || Self::callback(cloned_this.clone()).boxed(),
+            move || Self::timer_action(cloned_this.clone()).boxed(),
             "BalanceChangesService",
             Duration::ZERO,
             Duration::from_secs(5),
@@ -76,16 +102,14 @@ impl BalanceChangesService {
         this
     }
 
-    pub async fn callback(this: Arc<Self>) {
-        let _ = this
-            .clone()
-            .tx_event
-            .send(BalanceChangeServiceEvent::OnTimer)
-            .await;
+    pub async fn timer_action(this: Arc<Self>) {
+        let _ = this.tx_event.send(BalanceChangeServiceEvent::OnTimer).await.map_err(|_|
+            panic!("BalanceChangesService::timer_action: Unable to send event, probably receiver is dropped already")
+        );
     }
 
     pub async fn run(&mut self, cancellation_token: CancellationToken) {
-        // TODO: fix mew when DatabaseManager/DataRecorder will be implemented
+        // TODO: fix me when DatabaseManager/DataRecorder will be implemented
         //             if (_databaseManager != null)
         //             {
         //                 await Task.WhenAll(_balanceChangeAccumulators.Select(x => x.LoadData(_databaseManager, cancellationToken)));
@@ -122,7 +146,7 @@ impl BalanceChangesService {
             let usd_change = event
                 .balance_changes
                 .calculate_usd_change(
-                    request.currency_code.clone(),
+                    request.currency_code,
                     balance_change,
                     &self.usd_converter,
                     cancellation_token.clone(),
@@ -131,7 +155,7 @@ impl BalanceChangesService {
 
             let profit_loss_balance_change = ProfitLossBalanceChange::new(
                 request,
-                event.balance_changes.exchange_id.clone(),
+                event.balance_changes.exchange_id,
                 event.client_order_fill_id.clone(),
                 event.change_date,
                 balance_change,
@@ -167,6 +191,8 @@ impl BalanceChangesService {
             client_order_fill_id,
             time_manager::now(),
         ));
-        let _ = self.tx_event.send(balance_changes_event).await;
+        let _ = self.tx_event.send(balance_changes_event).await.map_err(|_|
+            panic!("BalanceChangesService::add_balance_change: Unable to send event, probably receiver is dropped already")
+        );
     }
 }

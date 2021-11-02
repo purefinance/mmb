@@ -27,7 +27,7 @@ use super::{
     profit_loss_balance_change::ProfitLossBalanceChange, profit_loss_stopper::ProfitLossStopper,
 };
 
-pub(crate) struct ProfitLossStopperService {
+pub struct ProfitLossStopperService {
     target_trade_place: TradePlaceAccount,
     exchange_blocker: Arc<ExchangeBlocker>,
     engine_api: Arc<EngineApi>,

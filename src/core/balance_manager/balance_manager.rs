@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::core::balance_changes::balance_changes_service::BalanceChangesService;
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
 use crate::core::balance_manager::position_change::PositionChange;
 use crate::core::balances::balance_reservation_manager::BalanceReservationManager;
@@ -38,6 +39,7 @@ pub struct BalanceManager {
     exchange_id_with_restored_positions: HashSet<ExchangeAccountId>,
     balance_reservation_manager: BalanceReservationManager,
     last_order_fills: HashMap<TradePlaceAccount, OrderFill>,
+    balance_changes_service: Option<Arc<BalanceChangesService>>,
 }
 
 impl BalanceManager {
@@ -52,6 +54,7 @@ impl BalanceManager {
                 currency_pair_to_metadata_converter,
             ),
             last_order_fills: HashMap::new(),
+            balance_changes_service: None,
         }))
     }
 
@@ -1006,10 +1009,9 @@ impl BalanceManager {
             limit,
         );
     }
-    // TODO: uncomment me when BalanceChangeService will be implemented
-    // pub fn set_balance_changes_service(&mut self, service: BalanceChangesService) {
-    //     self.balance_changes_service = Some(service);
-    // }
+    pub fn set_balance_changes_service(&mut self, service: Arc<BalanceChangesService>) {
+        self.balance_changes_service = Some(service);
+    }
 
     // TODO: should be implemented
     // public void ExecuteTransaction(Action action)

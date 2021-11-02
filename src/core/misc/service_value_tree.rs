@@ -234,8 +234,8 @@ impl ServiceValueTree {
                                                         service_configuration_key.clone(),
                                                     )),
                                                     exchange_account_id.clone(),
-                                                    currency_pair.clone(),
-                                                    currency_code.clone(),
+                                                    *currency_pair,
+                                                    *currency_code,
                                                 ),
                                                 value.clone(),
                                             )
@@ -418,7 +418,7 @@ mod test {
             Some("trees remain identical after changing 'value'"),
         );
 
-        let new_map = hashmap![new_currency_code.clone() => new_value.clone()];
+        let new_map = hashmap![new_currency_code => new_value.clone()];
         service_value_tree.set_by_currency_pair(
             &service_name,
             &service_configuration_key,
@@ -519,7 +519,7 @@ mod test {
                 )),
                 new_exchange_account_id,
                 new_currency_pair.clone(),
-                new_currency_code.clone(),
+                new_currency_code,
             ),
             new_value,
         );
@@ -548,7 +548,7 @@ mod test {
                     exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
-                        hashmap![currency_code.clone() => value]
+                        hashmap![currency_code => value]
                     ]
                 ]
             ],
@@ -586,7 +586,7 @@ mod test {
                     exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
-                        hashmap![currency_code.clone() => value]
+                        hashmap![currency_code => value]
                     ]
                 ]
             ],
@@ -624,7 +624,7 @@ mod test {
                     exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
-                        hashmap![currency_code.clone() => value]
+                        hashmap![currency_code => value]
                     ]
                 ]
             ],
@@ -662,7 +662,7 @@ mod test {
                     exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
-                        hashmap![currency_code.clone() => value]
+                        hashmap![currency_code => value]
                     ]
                 ]
             ],
@@ -700,7 +700,7 @@ mod test {
                     exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
-                        hashmap![currency_code.clone() => value]
+                        hashmap![currency_code => value]
                     ]
                 ]
             ],
@@ -738,7 +738,7 @@ mod test {
                     exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
-                        hashmap![currency_code.clone() => value]
+                        hashmap![currency_code => value]
                     ]
                 ]
             ],
@@ -776,7 +776,7 @@ mod test {
                     exchange_account_id =>
                     hashmap![
                         currency_pair.clone() =>
-                        hashmap![currency_code.clone() => value]
+                        hashmap![currency_code => value]
                     ]
                 ]
             ],

@@ -47,7 +47,7 @@ mod tests {
             (OrderSide::Sell, dec!(4_000), dec!(8_000), dec!(-100)), // sell, price rose
             (OrderSide::Sell, dec!(8_000), dec!(8_000), dec!(0)),  // sell, same price
         ];
-        for (side, trade_price, new_price, profit) in cases.into_iter() {
+        for (side, trade_price, new_price, profit) in cases {
             let (usd_converter, usd_converter_locker) = init_usd_converter(hashmap![
                 TestBase::base() => new_price
             ]);
