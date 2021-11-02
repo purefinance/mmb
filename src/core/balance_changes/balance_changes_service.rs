@@ -90,9 +90,20 @@ impl BalanceChangesService {
             ),
         });
 
-        let cloned_this = this.clone();
+        let tick_on_timer = {
+            let this = this.clone();
+            move || {
+                let this = this.clone();
+                async move {
+                 let _ = this.tx_event.send(BalanceChangeServiceEvent::OnTimer).await.map_err(|_|
+                 panic!("BalanceChangesService::timer_action: Unable to send event, probably receiver is dropped already")
+             );
+             }.boxed()
+            }
+        };
+
         let _ = spawn_by_timer(
-            move || Self::timer_action(cloned_this.clone()).boxed(),
+            tick_on_timer,
             "BalanceChangesService",
             Duration::ZERO,
             Duration::from_secs(5),
@@ -100,12 +111,6 @@ impl BalanceChangesService {
         );
 
         this
-    }
-
-    pub async fn timer_action(this: Arc<Self>) {
-        let _ = this.tx_event.send(BalanceChangeServiceEvent::OnTimer).await.map_err(|_|
-            panic!("BalanceChangesService::timer_action: Unable to send event, probably receiver is dropped already")
-        );
     }
 
     pub async fn run(&mut self, cancellation_token: CancellationToken) {
@@ -118,9 +123,9 @@ impl BalanceChangesService {
 
         loop {
             let new_event = tokio::select! {
-            event = self.rx_event.recv() => event,
-            _ = cancellation_token.when_cancelled() => return,
-        }.expect("BalanceChangesService::run() the event channel is closed but cancellation hasn't been requested");
+                event = self.rx_event.recv() => event,
+                _ = cancellation_token.when_cancelled() => return,
+            }.expect("BalanceChangesService::run() the event channel is closed but cancellation hasn't been requested");
 
             match new_event {
                 BalanceChangeServiceEvent::BalanceChange(event) => {

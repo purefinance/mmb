@@ -99,11 +99,11 @@ pub mod tests {
         }
 
         fn service_name() -> String {
-            "calculator_tests_base".into()
+            "calculator_tests_base_service_name".into()
         }
 
         fn service_configuration_key() -> String {
-            "key".into()
+            "calculator_tests_base_service_key".into()
         }
 
         pub fn amount_multiplier() -> Decimal {
