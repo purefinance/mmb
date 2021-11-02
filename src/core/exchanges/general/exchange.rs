@@ -542,7 +542,7 @@ impl Exchange {
                             self.exchange_account_id,
                             orders
                                 .iter()
-                                .map(|x| x.client_order_id.to_string())
+                                .map(|x| x.client_order_id.as_str())
                                 .collect_vec(),
                         );
                         ()

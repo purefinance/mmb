@@ -57,7 +57,7 @@ impl OrderProxy {
         cancellation_token: CancellationToken,
     ) -> Self {
         Self {
-            client_order_id: ClientOrderId::generate(),
+            client_order_id: ClientOrderId::unique_id(),
             init_time: Utc::now(),
             exchange_account_id,
             currency_pair: OrderProxy::default_currency_pair(),

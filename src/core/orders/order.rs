@@ -11,16 +11,16 @@ use itertools::Itertools;
 use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use smallstr::SmallString;
 use uuid::Uuid;
 
 use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price,
 };
-use crate::core::infrastructure::WithExpect;
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::utils::get_atomic_current_secs;
 use crate::core::DateTime;
-use crate::impl_id;
+use crate::{impl_str_id, impl_u64_id};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash, Enum)]
 pub enum OrderSide {
@@ -102,9 +102,9 @@ pub enum OrderExecutionType {
     MakerOnly = 1,
 }
 
-impl_id!(ClientOrderId);
-impl_id!(ClientOrderFillId);
-impl_id!(ExchangeOrderId);
+impl_str_id!(ClientOrderId);
+impl_str_id!(ClientOrderFillId);
+impl_str_id!(ExchangeOrderId);
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderStatus {
@@ -131,7 +131,7 @@ impl OrderStatus {
 }
 
 // Id for reserved amount
-impl_id!(ReservationId);
+impl_u64_id!(ReservationId);
 
 pub trait ReservationIdVecToStringExt {
     fn to_string(&self) -> String;
@@ -464,7 +464,7 @@ impl OrderSnapshot {
     pub fn price(&self) -> Price {
         let error_msg = format!(
             "Cannot get price from order {}",
-            self.header.client_order_id
+            self.header.client_order_id.as_str()
         );
         self.props.raw_price.expect(&error_msg)
     }

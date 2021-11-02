@@ -40,7 +40,7 @@ impl ExchangeClient for Binance {
             ("quantity".to_owned(), order.header.amount.to_string()),
             (
                 "newClientOrderId".to_owned(),
-                order.header.client_order_id.to_string(),
+                order.header.client_order_id.as_str().to_owned(),
             ),
         ];
 
@@ -77,7 +77,10 @@ impl ExchangeClient for Binance {
                 "symbol".to_owned(),
                 specific_currency_pair.as_str().to_owned(),
             ),
-            ("orderId".to_owned(), order.exchange_order_id.to_string()),
+            (
+                "orderId".to_owned(),
+                order.exchange_order_id.as_str().to_owned(),
+            ),
         ];
         self.add_authentification_headers(&mut http_params)?;
 
@@ -149,7 +152,7 @@ impl ExchangeClient for Binance {
             ),
             (
                 "origClientOrderId".to_owned(),
-                order.client_order_id().to_string(),
+                order.client_order_id().as_str().to_owned(),
             ),
         ];
         self.add_authentification_headers(&mut http_params)?;

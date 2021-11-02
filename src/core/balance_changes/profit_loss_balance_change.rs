@@ -4,20 +4,20 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
         balance_manager::balance_request::BalanceRequest,
         exchanges::common::{Amount, CurrencyCode, ExchangeId, Price, TradePlaceAccount},
-        infrastructure::WithExpect,
         orders::order::ClientOrderFillId,
         utils::get_atomic_current_secs,
         DateTime,
     },
-    impl_id,
+    impl_u64_id,
 };
 
-impl_id!(ProfitLossBalanceChangeId);
+impl_u64_id!(ProfitLossBalanceChangeId);
 
 #[derive(Clone)]
 pub(crate) struct ProfitLossBalanceChange {

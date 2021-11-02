@@ -157,13 +157,11 @@ mod test {
     use std::sync::Arc;
     use tokio::sync::broadcast::error::TryRecvError;
 
-    static TEST_ID: u64 = 1;
-
     #[test]
     fn no_such_order_in_local_pool() {
         // Arrange
         let (exchange, mut event_receiver) = get_test_exchange(false);
-        let exchange_order_id = ExchangeOrderId::from(TEST_ID);
+        let exchange_order_id = ExchangeOrderId::new("test".into());
         let error = ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
         // Act
@@ -188,11 +186,11 @@ mod test {
         fn order_canceled() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
-            let exchange_order_id = &ExchangeOrderId::from(TEST_ID);
+            let exchange_order_id = &ExchangeOrderId::new("test".into());
             let error =
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
-            let client_order_id = ClientOrderId::generate();
+            let client_order_id = ClientOrderId::unique_id();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
@@ -251,11 +249,11 @@ mod test {
         fn order_completed() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
-            let exchange_order_id = ExchangeOrderId::from(TEST_ID);
+            let exchange_order_id = ExchangeOrderId::new("test".into());
             let error =
                 ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
-            let client_order_id = ClientOrderId::generate();
+            let client_order_id = ClientOrderId::unique_id();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
@@ -320,9 +318,9 @@ mod test {
         fn error_type_not_found_no_event() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
-            let exchange_order_id = ExchangeOrderId::from(TEST_ID);
+            let exchange_order_id = ExchangeOrderId::new("test".into());
 
-            let client_order_id = ClientOrderId::generate();
+            let client_order_id = ClientOrderId::unique_id();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
@@ -402,9 +400,9 @@ mod test {
         fn error_type_not_found_event_from_handler() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
-            let exchange_order_id = ExchangeOrderId::from(TEST_ID);
+            let exchange_order_id = ExchangeOrderId::new("test".into());
 
-            let client_order_id = ClientOrderId::generate();
+            let client_order_id = ClientOrderId::unique_id();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_amount = dec!(12);
             let order_price = dec!(0.2);
@@ -491,9 +489,9 @@ mod test {
     fn order_completed() {
         // Arrange
         let (exchange, mut event_receiver) = get_test_exchange(false);
-        let exchange_order_id = ExchangeOrderId::from(TEST_ID);
+        let exchange_order_id = ExchangeOrderId::new("test".into());
 
-        let client_order_id = ClientOrderId::generate();
+        let client_order_id = ClientOrderId::unique_id();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_amount = dec!(12);
         let order_price = dec!(0.2);
@@ -572,9 +570,9 @@ mod test {
     fn failed_to_cancel() {
         // Arrange
         let (exchange, mut event_receiver) = get_test_exchange(false);
-        let exchange_order_id = ExchangeOrderId::from(TEST_ID);
+        let exchange_order_id = ExchangeOrderId::new("test".into());
 
-        let client_order_id = ClientOrderId::generate();
+        let client_order_id = ClientOrderId::unique_id();
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let order_amount = dec!(12);
         let order_price = dec!(0.2);
