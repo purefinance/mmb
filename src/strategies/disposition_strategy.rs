@@ -8,7 +8,7 @@ use crate::core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
 use crate::core::exchanges::common::{
-    CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
+    Amount, CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
 use crate::core::exchanges::general::currency_pair_metadata::Round;
 use crate::core::explanation::{Explanation, WithExplanation};
@@ -73,7 +73,7 @@ impl ExampleStrategy {
     fn calc_trading_context_by_side(
         &mut self,
         side: OrderSide,
-        mut max_amount: Decimal,
+        mut max_amount: Amount,
         _now: DateTime,
         local_snapshots_service: &LocalSnapshotsService,
         mut explanation: Explanation,
