@@ -5,6 +5,7 @@ use crate::core::exchanges::common::CurrencyPair;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::Exchange;
+use crate::core::infrastructure::WithExpect;
 
 #[derive(Clone)]
 pub struct CurrencyPairToMetadataConverter {
@@ -21,13 +22,15 @@ impl CurrencyPairToMetadataConverter {
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
     ) -> Arc<CurrencyPairMetadata> {
-        let exchange = self.exchanges_by_id.get(&exchange_account_id).expect(
-            format!(
-                "get_currency_pair_metadata failed to get exchange by id: {}",
-                exchange_account_id
-            )
-            .as_str(),
-        );
+        let exchange = self
+            .exchanges_by_id
+            .get(&exchange_account_id)
+            .with_expect(|| {
+                format!(
+                    "get_currency_pair_metadata failed to get exchange by id: {}",
+                    exchange_account_id
+                )
+            });
         exchange
             .get_currency_pair_metadata(currency_pair)
             .expect("failed to get currency pair")
