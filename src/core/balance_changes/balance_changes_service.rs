@@ -199,6 +199,7 @@ impl BalanceChangesService {
             .stop_token()
             .is_cancellation_requested()
         {
+            log::warn!("BalanceChangesService::add_balance_change() not available because cancellation was requested on the CancellationToken");
             return;
         }
 
