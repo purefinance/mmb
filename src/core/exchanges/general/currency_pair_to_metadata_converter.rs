@@ -1,9 +1,9 @@
-use dashmap::DashMap;
 #[cfg(test)]
 use mockall::automock;
 #[cfg(test)]
 use parking_lot::{Mutex, MutexGuard};
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::core::exchanges::common::CurrencyPair;
@@ -13,12 +13,12 @@ use crate::core::exchanges::general::exchange::Exchange;
 
 #[derive(Clone)]
 pub struct CurrencyPairToMetadataConverter {
-    exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>,
+    exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 }
 
 #[cfg_attr(test, automock)]
 impl CurrencyPairToMetadataConverter {
-    pub(crate) fn new(exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>) -> Arc<Self> {
+    pub(crate) fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Arc<Self> {
         Arc::new(Self { exchanges_by_id })
     }
 
@@ -39,7 +39,7 @@ impl CurrencyPairToMetadataConverter {
             .expect("failed to get currency pair")
     }
 
-    pub(crate) fn exchanges_by_id(&self) -> DashMap<ExchangeAccountId, Arc<Exchange>> {
+    pub(crate) fn exchanges_by_id(&self) -> HashMap<ExchangeAccountId, Arc<Exchange>> {
         self.exchanges_by_id.clone()
     }
 }

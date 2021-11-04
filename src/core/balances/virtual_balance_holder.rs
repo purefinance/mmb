@@ -8,7 +8,6 @@ use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 
-use dashmap::DashMap;
 use rust_decimal_macros::dec;
 
 type BalanceByExchangeId = HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>;
@@ -20,10 +19,10 @@ pub(crate) struct VirtualBalanceHolder {
 }
 
 impl VirtualBalanceHolder {
-    pub fn new(exchanges_by_id: DashMap<ExchangeAccountId, Arc<Exchange>>) -> Self {
-        let balance_by_exchange_id: BalanceByExchangeId = exchanges_by_id
-            .iter()
-            .map(|x| (*x.key(), HashMap::new()))
+    pub fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Self {
+        let balance_by_exchange_id = exchanges_by_id
+            .keys()
+            .map(|x| (*x, HashMap::new()))
             .collect();
 
         Self {

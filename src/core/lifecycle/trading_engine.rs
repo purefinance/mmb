@@ -1,4 +1,5 @@
 use futures::FutureExt;
+use std::collections::HashMap;
 use std::panic;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicBool;
@@ -66,11 +67,14 @@ impl EngineContext {
             .map(|x| x.exchange_account_id)
             .collect_vec();
 
+        let exchanges_hashmap: HashMap<ExchangeAccountId, Arc<Exchange>> =
+            exchanges.clone().into_iter().collect();
+
         let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges.clone());
+            CurrencyPairToMetadataConverter::new(exchanges_hashmap.clone());
 
         let balance_manager =
-            BalanceManager::new(exchanges.clone(), currency_pair_to_metadata_converter);
+            BalanceManager::new(exchanges_hashmap, currency_pair_to_metadata_converter);
 
         let engine_context = Arc::new(EngineContext {
             app_settings,

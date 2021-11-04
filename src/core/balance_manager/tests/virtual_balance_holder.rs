@@ -10,7 +10,7 @@ use crate::core::exchanges::{
     general::{exchange::Exchange, test_helper::get_test_exchange_by_currency_codes},
 };
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use crate::dashmap;
+use crate::hashmap;
 
 struct VirtualBalanceHolderTests {
     virtual_balance_holder: VirtualBalanceHolder,
@@ -44,7 +44,7 @@ impl VirtualBalanceHolderTests {
 
     fn new_core(tmp_exchange: Arc<Exchange>) -> Self {
         let exchange_account_id = tmp_exchange.exchange_account_id;
-        let exchanges_by_id = dashmap![ exchange_account_id => tmp_exchange.clone() ];
+        let exchanges_by_id = hashmap![ exchange_account_id => tmp_exchange.clone() ];
 
         Self {
             virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),

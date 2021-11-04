@@ -1,4 +1,3 @@
-use dashmap::DashMap;
 use mockall_double::double;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
@@ -6,6 +5,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
@@ -28,7 +28,8 @@ use crate::core::{
     },
     DateTime,
 };
-use crate::dashmap;
+use crate::hashmap;
+
 pub struct BalanceManagerOrdinal {
     pub balance_manager_base: BalanceManagerBase,
     pub now: DateTime,
@@ -48,7 +49,7 @@ impl BalanceManagerOrdinal {
 
     fn create_balance_manager_ctor_parameters() -> (
         Arc<CurrencyPairMetadata>,
-        DashMap<ExchangeAccountId, Arc<Exchange>>,
+        HashMap<ExchangeAccountId, Arc<Exchange>>,
     ) {
         let base = BalanceManagerBase::eth();
         let quote = BalanceManagerBase::btc();
@@ -81,7 +82,7 @@ impl BalanceManagerOrdinal {
         )
         .0;
 
-        let res = dashmap![
+        let res = hashmap![
             exchange_1.exchange_account_id => exchange_1,
             exchange_2.exchange_account_id => exchange_2
         ];
