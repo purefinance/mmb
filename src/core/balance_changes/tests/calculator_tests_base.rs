@@ -17,33 +17,36 @@ pub mod tests {
     use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
     use crate::core::misc::time;
-    use crate::core::{
-        balance_changes::{
-            balance_change_calculator_result::BalanceChangesCalculatorResult,
-            balance_changes_calculator::BalanceChangesCalculator,
-            profit_balance_changes_calculator, profit_loss_balance_change::ProfitLossBalanceChange,
-        },
-        balance_manager::balance_request::BalanceRequest,
-        exchanges::{
-            common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
-            general::{
-                currency_pair_metadata::{CurrencyPairMetadata, Precision},
-                exchange::Exchange,
-                test_helper::get_test_exchange_by_currency_codes,
+    use crate::{
+        core::{
+            balance_changes::{
+                balance_change_calculator_result::BalanceChangesCalculatorResult,
+                balance_changes_calculator::BalanceChangesCalculator,
+                profit_balance_changes_calculator,
+                profit_loss_balance_change::ProfitLossBalanceChange,
             },
-        },
-        lifecycle::cancellation_token::CancellationToken,
-        orders::{
-            fill::{OrderFill, OrderFillType},
-            order::{
-                ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
-                OrderType,
+            balance_manager::balance_request::BalanceRequest,
+            exchanges::{
+                common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
+                general::{
+                    currency_pair_metadata::{CurrencyPairMetadata, Precision},
+                    exchange::Exchange,
+                    test_helper::get_test_exchange_by_currency_codes,
+                },
             },
-            pool::OrderRef,
+            lifecycle::cancellation_token::CancellationToken,
+            orders::{
+                fill::{OrderFill, OrderFillType},
+                order::{
+                    ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
+                    OrderType,
+                },
+                pool::OrderRef,
+            },
+            service_configuration::configuration_descriptor::ConfigurationDescriptor,
         },
-        service_configuration::configuration_descriptor::ConfigurationDescriptor,
+        hashmap,
     };
-    use crate::hashmap;
 
     pub struct BalanceChangesCalculatorTestsBase {
         configuration_descriptor: Arc<ConfigurationDescriptor>,

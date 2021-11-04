@@ -11,11 +11,13 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
 use crate::core::exchanges::general::currency_pair_metadata::Round;
-use crate::core::explanation::{Explanation, WithExplanation};
+use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
+use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
+use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::core::DateTime;
 
 pub trait DispositionStrategy: Send + Sync + 'static {
@@ -41,6 +43,7 @@ pub struct ExampleStrategy {
     currency_pair: CurrencyPair,
     spread: Decimal,
     engine_context: Arc<EngineContext>,
+    configuration_descriptor: Arc<ConfigurationDescriptor>,
 }
 
 impl ExampleStrategy {
@@ -55,6 +58,10 @@ impl ExampleStrategy {
             currency_pair,
             spread,
             engine_context: engine_ctx,
+            configuration_descriptor: Arc::new(ConfigurationDescriptor::new(
+                "ExampleStrategy".into(),
+                format!("{};{}", target_eai, currency_pair.as_str()),
+            )),
         }
     }
 
@@ -112,18 +119,55 @@ impl ExampleStrategy {
             snapshot.get_top(side)?.0
         };
 
-        let position = self.engine_context.balance_manager.lock().get_position(
-            self.target_eai,
-            self.currency_pair,
-            side,
-        );
-        if position < dec!(0) {
-            max_amount -= position;
-            explanation.add_reason(format!(
-                "TotalAmount changed to {} because of position",
-                max_amount
-            ));
-        }
+        let engine_context = self.engine_context.clone();
+
+        let exchanges = engine_context
+            .exchanges
+            .get(&self.target_eai)
+            .with_expect(|| {
+                format!(
+                    "Failed to get exchange with ExchangeAccountId: {}",
+                    self.target_eai
+                )
+            });
+
+        let symbol = exchanges.symbols.get(&self.currency_pair).with_expect(|| {
+            format!(
+                "Failed to get symbols with CurrencyPair: {}",
+                self.currency_pair
+            )
+        });
+
+        explanation = {
+            let mut explanation = Some(explanation);
+
+            let target_balance = self
+                .engine_context
+                .balance_manager
+                .lock()
+                .get_leveraged_balance_in_amount_currency_code(
+                    self.configuration_descriptor.clone(),
+                    side,
+                    self.target_eai,
+                    symbol.clone(),
+                    price,
+                    &mut explanation,
+                )
+                .with_expect(|| format!("Failed to get balance for {}", self.target_eai));
+
+            if max_amount > target_balance {
+                max_amount = target_balance;
+                explanation.add_reason(format!(
+                    "max_amount changed to {} because target balance wasn't enough",
+                    max_amount
+                ));
+            }
+
+            // This expect can happened if get_leveraged_balance_in_amount_currency_code() sets the explanation to None
+            explanation.expect(
+                "ExampleStrategy::calc_trading_context_by_side(): Explanation should be non None here"
+            )
+        };
 
         Some(TradingContextBySide {
             max_amount,
@@ -138,7 +182,7 @@ impl ExampleStrategy {
                         max_amount,
                     ),
                 }),
-                explanation: explanation.clone(),
+                explanation,
             }],
         })
     }
