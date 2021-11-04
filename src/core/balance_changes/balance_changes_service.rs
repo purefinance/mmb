@@ -14,7 +14,7 @@ use crate::core::services::usd_converter::usd_converter::UsdConverter;
 use crate::core::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
-    lifecycle::cancellation_token::CancellationToken,
+    lifecycle::{application_manager::ApplicationManager, cancellation_token::CancellationToken},
     orders::{fill::OrderFill, order::ClientOrderFillId, pool::OrderRef},
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
     DateTime,
@@ -55,13 +55,14 @@ impl BalanceChange {
 pub struct BalanceChangesService {
     usd_converter: UsdConverter,
     // TODO: fix me when DatabaseManager/DataRecorder will be implemented
-    //         private readonly IDatabaseManager _databaseManager;
-    //         private readonly IDataRecorder _dataRecorder;
+    // private readonly IDatabaseManager _databaseManager;
+    // private readonly IDataRecorder _dataRecorder;
     rx_event: mpsc::Receiver<BalanceChangeServiceEvent>,
     tx_event: mpsc::Sender<BalanceChangeServiceEvent>,
     balance_changes_accumulators: Vec<Arc<dyn BalanceChangeAccumulator + Send + Sync>>,
     profit_loss_stopper_service: Arc<ProfitLossStopperService>,
     balance_changes_calculator: BalanceChangesCalculator,
+    application_manager: Arc<ApplicationManager>,
 }
 
 impl BalanceChangesService {
@@ -69,8 +70,9 @@ impl BalanceChangesService {
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
         profit_loss_stopper_service: Arc<ProfitLossStopperService>,
         usd_converter: UsdConverter,
-        //             IDatabaseManager databaseManager,
-        //             IDataRecorder dataRecorder,
+        application_manager: Arc<ApplicationManager>,
+        // IDatabaseManager databaseManager,
+        // IDataRecorder dataRecorder,
     ) -> Arc<Self> {
         let (tx_event, rx_event) = mpsc::channel(20_000);
         let balance_changes_accumulators =
@@ -79,8 +81,8 @@ impl BalanceChangesService {
 
         let this = Arc::new(Self {
             usd_converter,
-            //             _databaseManager = databaseManager;
-            //             _dataRecorder = dataRecorder;
+            // _databaseManager = databaseManager;
+            // _dataRecorder = dataRecorder;
             rx_event,
             tx_event,
             balance_changes_accumulators,
@@ -88,22 +90,29 @@ impl BalanceChangesService {
             balance_changes_calculator: BalanceChangesCalculator::new(
                 currency_pair_to_metadata_converter,
             ),
+            application_manager: application_manager.clone(),
         });
 
-        let tick_on_timer = {
+        let on_timer_tick = {
             let this = this.clone();
             move || {
                 let this = this.clone();
+                let application_manager = application_manager.clone();
                 async move {
-                 let _ = this.tx_event.send(BalanceChangeServiceEvent::OnTimer).await.map_err(|_|
-                 panic!("BalanceChangesService::timer_action: Unable to send event, probably receiver is dropped already")
-             );
-             }.boxed()
+                    if application_manager.stop_token().is_cancellation_requested() {
+                        return;
+                    }
+                    let _ = this.tx_event.send(BalanceChangeServiceEvent::OnTimer).await.map_err(|_|
+                        panic!(
+                            "BalanceChangesService::timer_action: Unable to send event, probably receiver is dropped already"
+                        )
+                    );
+                }.boxed()
             }
         };
 
         let _ = spawn_by_timer(
-            tick_on_timer,
+            on_timer_tick,
             "BalanceChangesService",
             Duration::ZERO,
             Duration::from_secs(5),
@@ -166,6 +175,10 @@ impl BalanceChangesService {
                 balance_change,
                 usd_change,
             );
+
+            // TODO: fix me when DataRecorder will be added
+            // _dataRecorder.Save(profitLossBalanceChange);
+
             for accumulator in self.balance_changes_accumulators.iter() {
                 accumulator.add_balance_change(&profit_loss_balance_change);
             }
@@ -181,6 +194,14 @@ impl BalanceChangesService {
         order: &OrderRef,
         order_fill: OrderFill,
     ) {
+        if self
+            .application_manager
+            .stop_token()
+            .is_cancellation_requested()
+        {
+            return;
+        }
+
         let client_order_fill_id = order_fill
             .client_order_fill_id()
             .clone()
@@ -196,6 +217,7 @@ impl BalanceChangesService {
             client_order_fill_id,
             time_manager::now(),
         ));
+
         let _ = self.tx_event.send(balance_changes_event).await.map_err(|_|
             panic!("BalanceChangesService::add_balance_change: Unable to send event, probably receiver is dropped already")
         );

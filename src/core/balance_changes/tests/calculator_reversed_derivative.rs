@@ -4,6 +4,8 @@ mod tests {
 
     use mockall_double::double;
     use parking_lot::MutexGuard;
+    use rstest::rstest;
+    use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
     #[double]
@@ -37,85 +39,89 @@ mod tests {
         (usd_converter, usd_converter_locker)
     }
 
+    #[rstest]
+    #[case(OrderSide::Buy, dec!(8_000), dec!(4_000), dec!(-50))] // buy, price dropped
+    #[case(OrderSide::Buy, dec!(4_000), dec!(8_000), dec!(100))] // buy, price rose
+    #[case(OrderSide::Buy, dec!(8_000), dec!(8_000), dec!(0))] // buy, same price
+    #[case(OrderSide::Sell, dec!(8_000), dec!(4_000), dec!(50))] // sell, price dropped
+    #[case(OrderSide::Sell, dec!(4_000), dec!(8_000), dec!(-100))] // sell, price rose
+    #[case(OrderSide::Sell, dec!(8_000), dec!(8_000), dec!(0))] // sell, same price
     #[tokio::test]
-    pub async fn simple_profit_by_side_and_price_no_commission() {
-        let cases = vec![
-            (OrderSide::Buy, dec!(8_000), dec!(4_000), dec!(-50)), // buy, price dropped
-            (OrderSide::Buy, dec!(4_000), dec!(8_000), dec!(100)), // buy, price rose
-            (OrderSide::Buy, dec!(8_000), dec!(8_000), dec!(0)),   // buy, same price
-            (OrderSide::Sell, dec!(8_000), dec!(4_000), dec!(50)), // sell, price dropped
-            (OrderSide::Sell, dec!(4_000), dec!(8_000), dec!(-100)), // sell, price rose
-            (OrderSide::Sell, dec!(8_000), dec!(8_000), dec!(0)),  // sell, same price
-        ];
-        for (side, trade_price, new_price, profit) in cases {
-            let (usd_converter, usd_converter_locker) = init_usd_converter(hashmap![
-                TestBase::base() => new_price
-            ]);
+    pub async fn simple_profit_by_side_and_price_no_commission(
+        #[case] side: OrderSide,
+        #[case] trade_price: Decimal,
+        #[case] new_price: Decimal,
+        #[case] profit: Decimal,
+    ) {
+        let (usd_converter, usd_converter_locker) = init_usd_converter(hashmap![
+            TestBase::base() => new_price
+        ]);
 
-            let mut test_obj =
-                TestBase::new_with_usd_converter(true, true, usd_converter, usd_converter_locker);
+        let mut test_obj =
+            TestBase::new_with_usd_converter(true, true, usd_converter, usd_converter_locker);
 
-            let amount = dec!(100) / trade_price / TestBase::amount_multiplier(); //equivalent of $100
+        let amount = dec!(100) / trade_price / TestBase::amount_multiplier(); //equivalent of $100
 
-            let order = TestBase::create_order_with_commission_amount(
-                TestBase::exchange_account_id_1(),
-                TestBase::currency_pair(),
-                side,
-                trade_price,
-                amount,
-                amount,
-                TestBase::quote(),
-                dec!(0),
-            );
+        let order = TestBase::create_order_with_commission_amount(
+            TestBase::exchange_account_id_1(),
+            TestBase::currency_pair(),
+            side,
+            trade_price,
+            amount,
+            amount,
+            TestBase::quote(),
+            dec!(0),
+        );
 
-            test_obj.calculate_balance_changes(vec![&order]).await;
+        test_obj.calculate_balance_changes(vec![&order]).await;
 
-            let raw_profit = test_obj.calculate_raw_profit();
-            assert!(raw_profit.is_zero());
+        let raw_profit = test_obj.calculate_raw_profit();
+        assert!(raw_profit.is_zero());
 
-            let usd_over_market = test_obj.calculate_over_market_profit().await;
-            assert_eq!(usd_over_market, profit);
-        }
+        let usd_over_market = test_obj.calculate_over_market_profit().await;
+        assert_eq!(usd_over_market, profit);
     }
 
+    #[rstest]
+    #[case(OrderSide::Buy, dec!(8_000), dec!(8_000), dec!(-10))] // no price change, minus commission
+    #[case(OrderSide::Sell, dec!(8_000), dec!(8_000), dec!(-10))] // no price change, minus commission
+    #[case(OrderSide::Buy, dec!(8_000), dec!(8_800), dec!(0))] // positive minus commission
+    #[case(OrderSide::Sell, dec!(8_000), dec!(7_200), dec!(0))] // positive minus commission
     #[tokio::test]
-    pub async fn simple_profit_by_side_and_price_with_commission() {
-        let cases = vec![
-            (OrderSide::Buy, dec!(8_000), dec!(8_000), dec!(-10)), // no price change, minus commission
-            (OrderSide::Sell, dec!(8_000), dec!(8_000), dec!(-10)), // no price change, minus commission
-            (OrderSide::Buy, dec!(8_000), dec!(8_800), dec!(0)),    // positive minus commission
-            (OrderSide::Sell, dec!(8_000), dec!(7_200), dec!(0)),   // positive minus commission
-        ];
-        for (side, trade_price, new_price, profit) in cases {
-            let (usd_converter, usd_converter_locker) = init_usd_converter(hashmap![
-                TestBase::base() => new_price
-            ]);
+    pub async fn simple_profit_by_side_and_price_with_commission(
+        #[case] side: OrderSide,
+        #[case] trade_price: Decimal,
+        #[case] new_price: Decimal,
+        #[case] profit: Decimal,
+    ) {
+        let (usd_converter, usd_converter_locker) = init_usd_converter(hashmap![
+            TestBase::base() => new_price
+        ]);
 
-            let mut test_obj =
-                TestBase::new_with_usd_converter(true, true, usd_converter, usd_converter_locker);
+        let mut test_obj =
+            TestBase::new_with_usd_converter(true, true, usd_converter, usd_converter_locker);
 
-            let commission_in_quote = dec!(10);
-            let amount = dec!(100) / trade_price / TestBase::amount_multiplier(); //equivalent of $100
+        let commission_in_quote = dec!(10);
+        let amount = dec!(100) / trade_price / TestBase::amount_multiplier(); //equivalent of $100
 
-            let order = TestBase::create_order_with_commission_amount(
-                TestBase::exchange_account_id_1(),
-                TestBase::currency_pair(),
-                side,
-                trade_price,
-                amount,
-                amount,
-                TestBase::quote(),
-                commission_in_quote,
-            );
+        let order = TestBase::create_order_with_commission_amount(
+            TestBase::exchange_account_id_1(),
+            TestBase::currency_pair(),
+            side,
+            trade_price,
+            amount,
+            amount,
+            TestBase::quote(),
+            commission_in_quote,
+        );
 
-            test_obj.calculate_balance_changes(vec![&order]).await;
+        test_obj.calculate_balance_changes(vec![&order]).await;
 
-            let raw_profit = test_obj.calculate_raw_profit();
-            assert_eq!(raw_profit, -commission_in_quote);
+        let raw_profit = test_obj.calculate_raw_profit();
+        assert_eq!(raw_profit, -commission_in_quote);
 
-            let usd_over_market = test_obj.calculate_over_market_profit().await;
-            assert_eq!(usd_over_market, profit);
-        }
+        let usd_over_market = test_obj.calculate_over_market_profit().await;
+        assert_eq!(usd_over_market, profit);
     }
 
     #[tokio::test]

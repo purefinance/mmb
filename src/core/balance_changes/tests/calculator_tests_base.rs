@@ -275,8 +275,7 @@ pub mod tests {
             filled_amount: Amount,
             commission_currency_code: CurrencyCode,
             commission_amount: Amount,
-        ) -> OrderRef // TODO: grays maybe ORderRef
-        {
+        ) -> OrderRef {
             let mut order = OrderSnapshot::with_params(
                 ClientOrderId::unique_id(),
                 OrderType::Limit,
