@@ -22,6 +22,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 use crate::core::DateTime;
 use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
 
+use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use parking_lot::Mutex;
@@ -113,7 +114,7 @@ impl BalanceManager {
     pub fn unreserve_rest(&mut self, reservation_id: ReservationId) -> Result<()> {
         let amount = self
             .balance_reservation_manager
-            .try_get_reservation(&reservation_id)
+            .get_balance_reservation(reservation_id)
             .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?
             .unreserved_amount;
         return self.unreserve(reservation_id, amount);
@@ -707,7 +708,7 @@ impl BalanceManager {
 
         if order_snapshot.status() == OrderStatus::Canceled {
             if let Some(reservation_id) = order_snapshot.header.reservation_id {
-                if self.try_get_reservation(&reservation_id).is_some() {
+                if self.get_balance_reservation(reservation_id).is_some() {
                     self.balance_reservation_manager
                         .cancel_approved_reservation(
                             reservation_id,
@@ -718,26 +719,37 @@ impl BalanceManager {
             }
         }
     }
-    pub fn try_get_reservation(
+
+    pub fn get_balance_reservation(
         &self,
-        reservation_id: &ReservationId,
+        reservation_id: ReservationId,
     ) -> Option<&BalanceReservation> {
         self.balance_reservation_manager
-            .balance_reservation_storage
-            .try_get(reservation_id)
+            .get_balance_reservation(reservation_id)
     }
 
-    pub fn get_reservation(&self, reservation_id: &ReservationId) -> &BalanceReservation {
-        self.try_get_reservation(reservation_id)
-            .expect("failed to get reservation for reservation_id: {}")
+    pub fn get_balance_reservation_expected(
+        &self,
+        reservation_id: ReservationId,
+    ) -> &BalanceReservation {
+        self.balance_reservation_manager
+            .get_balance_reservation_expected(reservation_id)
     }
 
-    pub fn get_mut_reservation(
+    pub fn get_mut_balance_reservation(
         &mut self,
         reservation_id: ReservationId,
     ) -> Option<&mut BalanceReservation> {
         self.balance_reservation_manager
-            .get_mut_reservation(&reservation_id)
+            .get_mut_balance_reservation(reservation_id)
+    }
+
+    pub fn get_mut_balance_reservation_expected(
+        &mut self,
+        reservation_id: ReservationId,
+    ) -> &mut BalanceReservation {
+        self.balance_reservation_manager
+            .get_mut_balance_reservation_expected(reservation_id)
     }
 
     pub fn unreserve_pair(
@@ -749,10 +761,10 @@ impl BalanceManager {
     ) {
         self.balance_reservation_manager
             .unreserve(reservation_id_1, amount_1, &None)
-            .expect(format!("failed to unreserve {} {}", reservation_id_1, amount_1).as_str());
+            .with_expect(|| format!("failed to unreserve {} {}", reservation_id_1, amount_1));
         self.balance_reservation_manager
             .unreserve(reservation_id_2, amount_2, &None)
-            .expect(format!("failed to unreserve {} {}", reservation_id_2, amount_2).as_str());
+            .with_expect(|| format!("failed to unreserve {} {}", reservation_id_2, amount_2));
         self.save_balances();
     }
 
