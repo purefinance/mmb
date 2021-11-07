@@ -27,7 +27,6 @@ use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{OrderHeader, OrderSide};
 use crate::core::orders::pool::OrdersPool;
 use crate::core::orders::{order::ExchangeOrderId, pool::OrderRef};
-use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::common::ExchangeAccountId,
@@ -39,6 +38,7 @@ use crate::core::{
     lifecycle::application_manager::ApplicationManager,
     lifecycle::cancellation_token::CancellationToken,
 };
+use crate::core::{nothing_to_do, DateTime};
 
 use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
@@ -534,9 +534,7 @@ impl Exchange {
             }
             Ok(orders) => {
                 tokio::select! {
-                    _ = self.cancel_orders(orders.clone(), cancellation_token.clone()) => {
-                        ()
-                    },
+                    _ = self.cancel_orders(orders.clone(), cancellation_token.clone()) => nothing_to_do(),
                     _ = cancellation_token.when_cancelled() => {
                         log::error!(
                             "Opened orders canceling for exchange account id {} was interrupted by CancellationToken for list of orders {:?}",
