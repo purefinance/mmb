@@ -80,26 +80,30 @@ impl ExampleStrategy {
     fn calc_trading_context_by_side(
         &mut self,
         side: OrderSide,
-        mut max_amount: Amount,
+        max_amount: Amount,
         _now: DateTime,
         local_snapshots_service: &LocalSnapshotsService,
         mut explanation: Explanation,
     ) -> Option<TradingContextBySide> {
+        // TODO: fix it issue 259
+        log::info!("amount: {} (delete this after fix issue 259)", amount);
+
         let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
         let ask_min_price = snapshot.get_top_ask()?.0;
         let bid_max_price = snapshot.get_top_bid()?.0;
 
         let current_spread = ask_min_price - bid_max_price;
 
+        let currency_pair_metadata = self
+            .engine_context
+            .exchanges
+            .get(&self.target_eai)?
+            .symbols
+            .get(&self.currency_pair)?
+            .clone();
+
         let price = if current_spread < self.spread {
             let order_book_middle = (bid_max_price + ask_min_price) * dec!(0.5);
-            let currency_pair_metadata = self
-                .engine_context
-                .exchanges
-                .get(&self.target_eai)?
-                .symbols
-                .get(&self.currency_pair)?
-                .clone();
 
             match side {
                 OrderSide::Sell => {
@@ -138,15 +142,11 @@ impl ExampleStrategy {
             )
         });
 
+        let amount;
         explanation = {
             let mut explanation = Some(explanation);
 
-            // TODO: fix it issue 259
-            log::info!(
-                "max_amount: {} (delete this after fix issue 259)",
-                max_amount
-            );
-            max_amount = self
+            amount = self
                 .engine_context
                 .balance_manager
                 .lock()
@@ -161,7 +161,7 @@ impl ExampleStrategy {
                 .with_expect(|| format!("Failed to get balance for {}", self.target_eai));
             explanation.add_reason(format!(
                 "max_amount changed to {} because target balance wasn't enough",
-                max_amount
+                amount
             ));
 
             // This expect can happened if get_leveraged_balance_in_amount_currency_code() sets the explanation to None
@@ -169,6 +169,10 @@ impl ExampleStrategy {
                 "ExampleStrategy::calc_trading_context_by_side(): Explanation should be non None here"
             )
         };
+
+        let amount = currency_pair_metadata
+            .amount_round(amount, Round::Ceiling)
+            .ok()?;
 
         Some(TradingContextBySide {
             max_amount,
@@ -180,7 +184,7 @@ impl ExampleStrategy {
                         self.trade_place_account(),
                         side,
                         price,
-                        max_amount,
+                        amount,
                     ),
                 }),
                 explanation,
