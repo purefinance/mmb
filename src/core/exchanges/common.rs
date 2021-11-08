@@ -11,7 +11,7 @@ use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
-use std::fmt::{self, Display, Formatter};
+use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -141,7 +141,7 @@ impl Display for ExchangeAccountId {
 macro_rules! impl_table_type_raw {
     ($ty: ident, $bits:literal) => {
         paste! {
-            #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+            #[derive(Copy, Clone, Eq, PartialEq, Hash)]
             pub struct $ty([<u $bits>]);
         }
 
@@ -162,7 +162,13 @@ macro_rules! impl_table_type_raw {
 
         impl Display for $ty {
             fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-                self.as_str().fmt(f)
+                Display::fmt(&self.as_str(), f)
+            }
+        }
+
+        impl Debug for $ty {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                Debug::fmt( self.as_str(), f)
             }
         }
 
