@@ -819,6 +819,27 @@ impl BalanceReservationManager {
         )
     }
 
+    fn add_reserved_amount_expected(
+        &mut self,
+        balance_request: &BalanceRequest,
+        reservation_id: ReservationId,
+        amount_diff_in_amount_currency: Amount,
+        update_balance: bool,
+    ) -> () {
+        self.add_reserved_amount(
+            balance_request,
+            reservation_id,
+            amount_diff_in_amount_currency,
+            update_balance,
+        )
+        .with_expect(|| {
+            format!(
+                "failed to add reserved amount {:?} {} {}",
+                balance_request, reservation_id, amount_diff_in_amount_currency
+            )
+        });
+    }
+
     pub fn get_state(&self) -> Balances {
         Balances::new(
             self.virtual_balance_holder
@@ -1349,13 +1370,12 @@ impl BalanceReservationManager {
 
         let balance_request = BalanceRequest::from_reservation(reservation);
 
-        self.add_reserved_amount(
+        self.add_reserved_amount_expected(
             &balance_request,
             reservation_id,
             reservation_amount_diff,
             false,
-        )
-        .expect("failed to add reserved amount");
+        );
         let reservation = self.get_mut_balance_reservation_expected(reservation_id);
 
         let cost_diff = if is_src_request {
@@ -1489,18 +1509,12 @@ impl BalanceReservationManager {
         );
         self.balance_reservation_storage
             .add(self.reservation_id, reservation);
-        self.add_reserved_amount(
+        self.add_reserved_amount_expected(
             &request,
             self.reservation_id,
             reserve_parameters.amount,
             true,
-        )
-        .with_expect(|| {
-            format!(
-                "failed to add reserved amount {:?} {} {}",
-                request, self.reservation_id, reserve_parameters.amount,
-            )
-        });
+        );
 
         log::info!("Reserved successfully");
         Some(self.reservation_id)
