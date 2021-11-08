@@ -135,10 +135,12 @@ impl VirtualBalanceHolder {
             price,
         )?;
 
-        explanation.add_reason(format!(
-            "get_virtual_balance exchange_balance = {}",
-            exchange_balance
-        ));
+        explanation.with_reason(|| {
+            format!(
+                "get_virtual_balance exchange_balance = {}",
+                exchange_balance
+            )
+        });
 
         let current_balance_diff = if !currency_pair_metadata.is_derivative {
             self.balance_diff
@@ -159,10 +161,12 @@ impl VirtualBalanceHolder {
                 .get_by_balance_request(&balance_currency_code_request)
                 .unwrap_or(dec!(0));
 
-            explanation.add_reason(format!(
-                "get_virtual_balance balance_currency_code_balance_diff = {}",
-                balance_currency_code_balance_diff
-            ));
+            explanation.with_reason(|| {
+                format!(
+                    "get_virtual_balance balance_currency_code_balance_diff = {}",
+                    balance_currency_code_balance_diff
+                )
+            });
 
             let cur_balance_diff = currency_pair_metadata
                 .convert_amount_from_balance_currency_code(
@@ -171,10 +175,12 @@ impl VirtualBalanceHolder {
                     price,
                 );
 
-            explanation.add_reason(format!(
-                "get_virtual_balance current_balance_diff = {}",
-                cur_balance_diff
-            ));
+            explanation.with_reason(|| {
+                format!(
+                    "get_virtual_balance current_balance_diff = {}",
+                    cur_balance_diff
+                )
+            });
 
             cur_balance_diff
         };
