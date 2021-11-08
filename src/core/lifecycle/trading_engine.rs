@@ -1,4 +1,5 @@
 use futures::FutureExt;
+use rust_decimal_macros::dec;
 use std::collections::HashMap;
 use std::panic;
 use std::panic::AssertUnwindSafe;
@@ -17,6 +18,8 @@ use tokio::time::Duration;
 use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::block_reasons;
 use crate::core::exchanges::common::ExchangeAccountId;
+use crate::core::exchanges::events::ExchangeBalance;
+use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents};
 use crate::core::exchanges::exchange_blocker::BlockType;
 use crate::core::exchanges::exchange_blocker::ExchangeBlocker;
@@ -75,6 +78,31 @@ impl EngineContext {
 
         let balance_manager =
             BalanceManager::new(exchanges_hashmap, currency_pair_to_metadata_converter);
+
+        // TODO: temporary hack, fix it with issue #257
+        balance_manager
+            .lock()
+            .update_exchange_balance(
+                *exchange_account_ids.first().unwrap(),
+                &ExchangeBalancesAndPositions {
+                    balances: vec![
+                        ExchangeBalance {
+                            currency_code: "btc".into(),
+                            balance: dec!(0.003466),
+                        },
+                        ExchangeBalance {
+                            currency_code: "phb".into(),
+                            balance: dec!(10.50948),
+                        },
+                        ExchangeBalance {
+                            currency_code: "usdt".into(),
+                            balance: dec!(13.4874),
+                        },
+                    ],
+                    positions: None,
+                },
+            )
+            .expect("failed to update exchange balance");
 
         let engine_context = Arc::new(EngineContext {
             app_settings,
