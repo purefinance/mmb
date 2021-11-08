@@ -493,7 +493,7 @@ impl Support for Binance {
 
     fn parse_get_balance(&self, _response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
         // this function is only used in Exchange::get_balance_and_positions_core()
-        // which isn't supported for Binance(look at ExchangeClientrequest_get_balance_and_position() for Binance)
+        // which isn't supported for Binance(look at ExchangeClient::request_get_balance_and_position() for Binance)
         todo!("add implementation")
     }
 }

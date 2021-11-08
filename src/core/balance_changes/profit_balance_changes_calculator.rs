@@ -31,12 +31,12 @@ pub(crate) async fn calculate_over_market(
     let usd_converter_actions =
         group_by_currency_code
             .iter()
-            .map(|(&currency_code, balance_changes)| {
+            .map(|(currency_code, balance_changes)| {
                 let sum = balance_changes.iter().map(|x| x.balance_change).sum();
                 let cloned_cancellation_token = cancellation_token.clone();
                 async move {
                     usd_converter
-                        .convert_amount(currency_code, sum, cloned_cancellation_token)
+                        .convert_amount(*currency_code, sum, cloned_cancellation_token)
                         .await
                         .with_expect(|| {
                             format!("Can't find usd_balance_change for {}", currency_code)

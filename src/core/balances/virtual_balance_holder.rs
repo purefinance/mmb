@@ -197,14 +197,14 @@ impl VirtualBalanceHolder {
         if !currency_pair_metadata.is_derivative
             || currency_pair_metadata.balance_currency_code == Some(currency_code)
         {
-            return self.get_raw_exchange_balance(exchange_account_id, &currency_code);
+            return self.get_raw_exchange_balance(exchange_account_id, currency_code);
         }
 
         let price = price?;
 
         let balance_currency_code_balance = self.get_raw_exchange_balance(
             exchange_account_id,
-            &currency_pair_metadata
+            currency_pair_metadata
                 .balance_currency_code
                 .expect("failed to get exchange balance: balance_currency_code should be non None"),
         )?;
@@ -221,11 +221,11 @@ impl VirtualBalanceHolder {
     fn get_raw_exchange_balance(
         &self,
         exchange_account_id: ExchangeAccountId,
-        currency_code: &CurrencyCode,
+        currency_code: CurrencyCode,
     ) -> Option<Amount> {
         self.balance_by_exchange_id
             .get(&exchange_account_id)?
-            .get(currency_code)
+            .get(&currency_code)
             .cloned()
     }
 
