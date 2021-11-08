@@ -326,6 +326,13 @@ impl ExchangeError {
         }
     }
 
+    pub(crate) fn parsing_error(message: &str) -> Self {
+        ExchangeError::new(
+            ExchangeErrorType::ParsingError,
+            format!("Unable to parse {}", message),
+            None,
+        )
+    }
     pub(crate) fn unknown_error(message: &str) -> Self {
         Self {
             error_type: ExchangeErrorType::Unknown,

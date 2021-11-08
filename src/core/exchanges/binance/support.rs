@@ -86,40 +86,22 @@ impl Support for Binance {
             return Ok(());
         }
 
-        match serde_json::from_str::<Value>(&response.content) {
-            Ok(data) => {
-                let message = data["msg"].as_str();
-                let code = data["code"].as_i64();
+        let data: Value = serde_json::from_str(&response.content)
+            .map_err(|err| ExchangeError::parsing_error(&format!("response.content: {:?}", err)))?;
 
-                match message {
-                    None => Err(ExchangeError::new(
-                        ExchangeErrorType::ParsingError,
-                        "Unable to parse msg field".into(),
-                        None,
-                    )),
-                    Some(message) => match code {
-                        None => Err(ExchangeError::new(
-                            ExchangeErrorType::ParsingError,
-                            "Unable to parse code field".into(),
-                            None,
-                        )),
-                        Some(code) => Err(ExchangeError::new(
-                            ExchangeErrorType::Unknown,
-                            message.to_string(),
-                            Some(code),
-                        )),
-                    },
-                }
-            }
-            Err(error) => {
-                let error_message = format!("Unable to parse response.content: {}", error);
-                Err(ExchangeError::new(
-                    ExchangeErrorType::ParsingError,
-                    error_message,
-                    None,
-                ))
-            }
-        }
+        let message = data["msg"]
+            .as_str()
+            .ok_or_else(|| ExchangeError::parsing_error("`msg` field"))?;
+
+        let code = data["code"]
+            .as_i64()
+            .ok_or_else(|| ExchangeError::parsing_error("`code` field"))?;
+
+        Err(ExchangeError::new(
+            ExchangeErrorType::Unknown,
+            message.to_string(),
+            Some(code),
+        ))
     }
 
     fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
