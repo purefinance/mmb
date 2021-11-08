@@ -141,7 +141,12 @@ impl ExampleStrategy {
         explanation = {
             let mut explanation = Some(explanation);
 
-            let target_balance = self
+            // TODO: fix it issue 259
+            log::info!(
+                "max_amount: {} (delete this after fix issue 259)",
+                max_amount
+            );
+            max_amount = self
                 .engine_context
                 .balance_manager
                 .lock()
@@ -154,14 +159,10 @@ impl ExampleStrategy {
                     &mut explanation,
                 )
                 .with_expect(|| format!("Failed to get balance for {}", self.target_eai));
-
-            if max_amount > target_balance {
-                max_amount = target_balance;
-                explanation.add_reason(format!(
-                    "max_amount changed to {} because target balance wasn't enough",
-                    max_amount
-                ));
-            }
+            explanation.add_reason(format!(
+                "max_amount changed to {} because target balance wasn't enough",
+                max_amount
+            ));
 
             // This expect can happened if get_leveraged_balance_in_amount_currency_code() sets the explanation to None
             explanation.expect(
