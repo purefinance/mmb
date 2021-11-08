@@ -51,17 +51,39 @@ impl ExampleStrategy {
         target_eai: ExchangeAccountId,
         currency_pair: CurrencyPair,
         spread: Decimal,
-        engine_ctx: Arc<EngineContext>,
+        engine_context: Arc<EngineContext>,
+        max_amount: Amount,
     ) -> Self {
+        let configuration_descriptor = Arc::new(ConfigurationDescriptor::new(
+            "ExampleStrategy".into(),
+            format!("{};{}", target_eai, currency_pair.as_str()),
+        ));
+
+        let symbol = engine_context
+            .exchanges
+            .get(&target_eai)
+            .with_expect(|| format!("failed to get exchange for {}", target_eai))
+            .symbols
+            .get(&currency_pair)
+            .with_expect(|| format!("failed to get symbol for {}", currency_pair))
+            .clone();
+
+        engine_context
+            .balance_manager
+            .lock()
+            .set_target_amount_limit(
+                configuration_descriptor.clone(),
+                target_eai,
+                symbol,
+                max_amount,
+            );
+
         ExampleStrategy {
             target_eai,
             currency_pair,
             spread,
-            engine_context: engine_ctx,
-            configuration_descriptor: Arc::new(ConfigurationDescriptor::new(
-                "ExampleStrategy".into(),
-                format!("{};{}", target_eai, currency_pair.as_str()),
-            )),
+            engine_context,
+            configuration_descriptor,
         }
     }
 
@@ -86,7 +108,7 @@ impl ExampleStrategy {
         mut explanation: Explanation,
     ) -> Option<TradingContextBySide> {
         // TODO: fix it issue 259
-        log::info!("amount: {} (delete this after fix issue 259)", amount);
+        log::info!("amount: {} (delete this after fix issue 259)", max_amount);
 
         let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
         let ask_min_price = snapshot.get_top_ask()?.0;

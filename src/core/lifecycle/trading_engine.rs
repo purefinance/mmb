@@ -1,6 +1,4 @@
 use futures::FutureExt;
-use rust_decimal_macros::dec;
-use std::collections::HashMap;
 use std::panic;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicBool;
@@ -18,12 +16,9 @@ use tokio::time::Duration;
 use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::block_reasons;
 use crate::core::exchanges::common::ExchangeAccountId;
-use crate::core::exchanges::events::ExchangeBalance;
-use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents};
 use crate::core::exchanges::exchange_blocker::BlockType;
 use crate::core::exchanges::exchange_blocker::ExchangeBlocker;
-use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::lifecycle::shutdown::ShutdownService;
@@ -63,46 +58,13 @@ impl EngineContext {
         finish_graceful_shutdown_sender: oneshot::Sender<()>,
         timeout_manager: Arc<TimeoutManager>,
         application_manager: Arc<ApplicationManager>,
+        balance_manager: Arc<Mutex<BalanceManager>>,
     ) -> Arc<Self> {
         let exchange_account_ids = app_settings
             .exchanges
             .iter()
             .map(|x| x.exchange_account_id)
             .collect_vec();
-
-        let exchanges_hashmap: HashMap<ExchangeAccountId, Arc<Exchange>> =
-            exchanges.clone().into_iter().collect();
-
-        let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_hashmap.clone());
-
-        let balance_manager =
-            BalanceManager::new(exchanges_hashmap, currency_pair_to_metadata_converter);
-
-        // TODO: temporary hack, fix it with issue #257
-        balance_manager
-            .lock()
-            .update_exchange_balance(
-                *exchange_account_ids.first().unwrap(),
-                &ExchangeBalancesAndPositions {
-                    balances: vec![
-                        ExchangeBalance {
-                            currency_code: "btc".into(),
-                            balance: dec!(0.003466),
-                        },
-                        ExchangeBalance {
-                            currency_code: "phb".into(),
-                            balance: dec!(10.50948),
-                        },
-                        ExchangeBalance {
-                            currency_code: "usdt".into(),
-                            balance: dec!(13.4874),
-                        },
-                    ],
-                    positions: None,
-                },
-            )
-            .expect("failed to update exchange balance");
 
         let engine_context = Arc::new(EngineContext {
             app_settings,

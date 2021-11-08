@@ -24,11 +24,11 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("eos".into(), "btc".into())
+        CurrencyPair::from_codes("btc".into(), "usdt".into())
     }
 
     fn max_amount(&self) -> Amount {
-        dec!(1)
+        dec!(0.0002)
     }
 }
 
@@ -48,6 +48,7 @@ async fn main() -> Result<()> {
             settings.strategy.currency_pair(),
             settings.strategy.spread,
             ctx,
+            settings.strategy.max_amount(),
         ))
     })
     .await?;
