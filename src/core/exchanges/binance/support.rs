@@ -346,7 +346,7 @@ impl Support for Binance {
                 .write()
                 .insert(specific_currency_pair, unified_currency_pair);
 
-            let amount_currency_code = quote;
+            let amount_currency_code = base;
 
             // TODO There are no balance_currency_code for spot, why does it set here this way?
             let balance_currency_code = base;
