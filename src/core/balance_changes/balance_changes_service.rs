@@ -100,6 +100,9 @@ impl BalanceChangesService {
                 let application_manager = application_manager.clone();
                 async move {
                     if application_manager.stop_token().is_cancellation_requested() {
+                        log::info!(
+                            "BalanceChangesService::on_timer_tick not available because cancellation was requested on the CancellationToken"
+                        );
                         return;
                     }
                     let _ = this.tx_event.send(BalanceChangeServiceEvent::OnTimer).await.map_err(|_|
@@ -199,7 +202,7 @@ impl BalanceChangesService {
             .stop_token()
             .is_cancellation_requested()
         {
-            log::warn!("BalanceChangesService::add_balance_change() not available because cancellation was requested on the CancellationToken");
+            log::error!("BalanceChangesService::add_balance_change() not available because cancellation was requested on the CancellationToken");
             return;
         }
 
