@@ -240,11 +240,16 @@ impl DispositionStrategy for ExampleStrategy {
 
     fn handle_order_fill(
         &self,
-        _cloned_order: &Arc<OrderSnapshot>,
+        cloned_order: &Arc<OrderSnapshot>,
         _price_slot: &PriceSlot,
         _target_eai: ExchangeAccountId,
         _cancellation_token: CancellationToken,
     ) -> Result<()> {
+        self.engine_context
+            .balance_manager
+            .lock()
+            .order_was_filled(self.configuration_descriptor.clone(), cloned_order);
+
         // TODO save order fill info in Database
         Ok(())
     }

@@ -12,12 +12,9 @@ use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::Service;
-use crate::core::nothing_to_do;
 use crate::core::order_book::event::OrderBookEvent;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
-use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::OrderType;
-use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
 pub(crate) struct InternalEventsLoop {
     work_finished_receiver: Mutex<Option<oneshot::Receiver<Result<()>>>>,
@@ -60,23 +57,6 @@ impl InternalEventsLoop {
                     )
                 }
                 ExchangeEvent::OrderEvent(order_event) => {
-                    match order_event.event_type {
-                        OrderEventType::OrderFilled { cloned_order } => {
-                            self.balance_manager.lock().order_was_filled(
-                                Arc::new(ConfigurationDescriptor::new(
-                                    cloned_order.header.strategy_name.clone(),
-                                    format!(
-                                        "{};{}",
-                                        cloned_order.header.exchange_account_id,
-                                        cloned_order.header.currency_pair.as_str()
-                                    ),
-                                )),
-                                &cloned_order,
-                            );
-                        }
-                        _ => nothing_to_do(),
-                    }
-
                     if let OrderType::Liquidation = order_event.order.order_type() {
                         // TODO react on order liquidation
                     }
