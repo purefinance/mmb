@@ -228,7 +228,19 @@ impl DispositionExecutor {
                         );
                         let price_slot = self.get_price_slot(order);
                         if let Some(price_slot) = price_slot {
-                            // TODO recalculate balances on order fill when BalanceManager will be implemented
+                            let configuration_descriptor = Arc::new(ConfigurationDescriptor::new(
+                                cloned_order.header.strategy_name.clone(),
+                                format!(
+                                    "{};{}",
+                                    self.exchange_account_id,
+                                    self.currency_pair_metadata.currency_pair().as_str()
+                                ),
+                            ));
+                            self.engine_ctx
+                                .balance_manager
+                                .lock()
+                                .order_was_filled(configuration_descriptor, cloned_order);
+
                             if cloned_order.status() == OrderStatus::Completed {
                                 return Ok(());
                             }

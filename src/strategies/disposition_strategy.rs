@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
@@ -165,9 +167,27 @@ impl ExampleStrategy {
         explanation = {
             let mut explanation = Some(explanation);
 
-            amount = self
+            // TODO: delete deep_clone
+            let orders = self
                 .engine_context
-                .balance_manager
+                .exchanges
+                .iter()
+                .flat_map(|x| {
+                    x.orders
+                        .not_finished
+                        .iter()
+                        .map(|y| y.value().deep_clone())
+                        .collect_vec()
+                })
+                .collect_vec();
+
+            let balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+                self.engine_context.balance_manager.clone(),
+                Some(orders),
+            )
+            .expect("ExampleStrategy::calc_trading_context_by_side: failed to clone and subtract not approved data for BalanceManager");
+
+            amount = balance_manager
                 .lock()
                 .get_leveraged_balance_in_amount_currency_code(
                     self.configuration_descriptor.clone(),
@@ -240,16 +260,11 @@ impl DispositionStrategy for ExampleStrategy {
 
     fn handle_order_fill(
         &self,
-        cloned_order: &Arc<OrderSnapshot>,
+        _cloned_order: &Arc<OrderSnapshot>,
         _price_slot: &PriceSlot,
         _target_eai: ExchangeAccountId,
         _cancellation_token: CancellationToken,
     ) -> Result<()> {
-        self.engine_context
-            .balance_manager
-            .lock()
-            .order_was_filled(self.configuration_descriptor.clone(), cloned_order);
-
         // TODO save order fill info in Database
         Ok(())
     }
