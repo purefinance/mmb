@@ -578,14 +578,21 @@ impl BalanceManager {
             .currency_pair_to_metadata_converter
             .get_currency_pair_metadata(exchange_account_id, order_snapshot.header.currency_pair);
         self.handle_order_fill(
-            configuration_descriptor,
+            configuration_descriptor.clone(),
             exchange_account_id,
             currency_pair_metadata,
             order_snapshot,
             order_fill,
         );
         self.save_balances();
-        // _balanceChangesService?.AddBalanceChange(configurationDescriptor, order, orderFill); // TODO: fix me when added
+
+        if let Some(balance_changes_service) = &self.balance_changes_service {
+            balance_changes_service.add_balance_change(
+                configuration_descriptor,
+                order_snapshot,
+                order_fill,
+            );
+        }
     }
 
     fn handle_order_fill(
@@ -995,6 +1002,7 @@ impl BalanceManager {
             .virtual_balance_holder
             .has_real_balance_on_exchange(exchange_account_id)
     }
+
     pub fn set_target_amount_limit(
         &mut self,
         configuration_descriptor: Arc<ConfigurationDescriptor>,

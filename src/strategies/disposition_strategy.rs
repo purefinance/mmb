@@ -107,9 +107,6 @@ impl ExampleStrategy {
         local_snapshots_service: &LocalSnapshotsService,
         mut explanation: Explanation,
     ) -> Option<TradingContextBySide> {
-        // TODO: fix it issue 259
-        log::info!("amount: {} (delete this after fix issue 259)", max_amount);
-
         let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
         let ask_min_price = snapshot.get_top_ask()?.0;
         let bid_max_price = snapshot.get_top_bid()?.0;
@@ -195,7 +192,6 @@ impl ExampleStrategy {
         let amount = currency_pair_metadata
             .amount_round(amount, Round::Ceiling)
             .ok()?;
-
         Some(TradingContextBySide {
             max_amount,
             estimating: vec![WithExplanation {

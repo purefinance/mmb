@@ -6,23 +6,30 @@ use log::warn;
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, oneshot};
 
+use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
+use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::Service;
+use crate::core::nothing_to_do;
 use crate::core::order_book::event::OrderBookEvent;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
+use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::OrderType;
+use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
 pub(crate) struct InternalEventsLoop {
     work_finished_receiver: Mutex<Option<oneshot::Receiver<Result<()>>>>,
+    pub balance_manager: Arc<Mutex<BalanceManager>>,
 }
 
 impl InternalEventsLoop {
-    pub(crate) fn new() -> Arc<Self> {
+    pub(crate) fn new(balance_manager: Arc<Mutex<BalanceManager>>) -> Arc<Self> {
         Arc::new(InternalEventsLoop {
             work_finished_receiver: Default::default(),
+            balance_manager,
         })
     }
 
@@ -54,6 +61,41 @@ impl InternalEventsLoop {
                     )
                 }
                 ExchangeEvent::OrderEvent(order_event) => {
+                    match order_event.event_type {
+                        OrderEventType::OrderCompleted { cloned_order } => {
+                            self.balance_manager
+                                .lock()
+                                .unreserve_by_client_order_id(
+                                    cloned_order
+                                        .header
+                                        .reservation_id
+                                        .expect("InternalEventsLoop: ReservationId is None"),
+                                    cloned_order.header.client_order_id.clone(),
+                                    cloned_order.filled_amount(),
+                                )
+                                .with_expect(|| {
+                                    format!(
+                                        "InternalEventsLoop: failed to unreserve order {:?}",
+                                        cloned_order
+                                    )
+                                });
+                        }
+                        OrderEventType::OrderFilled { cloned_order } => {
+                            self.balance_manager.lock().order_was_filled(
+                                Arc::new(ConfigurationDescriptor::new(
+                                    cloned_order.header.strategy_name.clone(),
+                                    format!(
+                                        "{};{}",
+                                        cloned_order.header.exchange_account_id,
+                                        cloned_order.header.currency_pair.as_str()
+                                    ),
+                                )),
+                                &cloned_order,
+                            );
+                        }
+                        _ => nothing_to_do(),
+                    }
+
                     if let OrderType::Liquidation = order_event.order.order_type() {
                         // TODO react on order liquidation
                     }

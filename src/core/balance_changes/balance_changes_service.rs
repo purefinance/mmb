@@ -15,7 +15,10 @@ use crate::core::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
     lifecycle::{application_manager::ApplicationManager, cancellation_token::CancellationToken},
-    orders::{fill::OrderFill, order::ClientOrderFillId, pool::OrderRef},
+    orders::{
+        fill::OrderFill,
+        order::{ClientOrderFillId, OrderSnapshot},
+    },
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
     DateTime,
 };
@@ -191,11 +194,11 @@ impl BalanceChangesService {
             .await;
     }
 
-    pub async fn add_balance_change(
+    pub fn add_balance_change(
         &self,
         configuration_descriptor: Arc<ConfigurationDescriptor>,
-        order: &OrderRef,
-        order_fill: OrderFill,
+        order: &OrderSnapshot,
+        order_fill: &OrderFill,
     ) {
         if self
             .application_manager
@@ -222,7 +225,7 @@ impl BalanceChangesService {
             time_manager::now(),
         ));
 
-        let _ = self.tx_event.send(balance_changes_event).await.map_err(|_|
+        let _ = self.tx_event.blocking_send(balance_changes_event).map_err(|_|
             panic!("BalanceChangesService::add_balance_change: Unable to send event, probably receiver is dropped already")
         );
     }

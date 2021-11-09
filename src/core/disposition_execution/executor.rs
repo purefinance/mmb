@@ -20,15 +20,18 @@ use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadat
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::explanation::{Explanation, WithExplanation};
+use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::{EngineContext, Service};
+use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{
     ClientOrderId, OrderCreating, OrderExecutionType, OrderHeader, OrderSide, OrderSnapshot,
-    OrderStatus, OrderType, ReservationId,
+    OrderStatus, OrderType,
 };
 use crate::core::orders::pool::OrderRef;
+use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::core::{
     disposition_execution::trade_limit::is_enough_amount_and_cost, infrastructure::spawn_future,
 };
@@ -647,14 +650,69 @@ impl DispositionExecutor {
             Some(v) => v,
         };
 
-        // TODO reserve balances
+        let configuration_descriptor = Arc::new(ConfigurationDescriptor::new(
+            new_estimating.strategy_name.clone(),
+            format!(
+                "{};{}",
+                self.exchange_account_id,
+                self.currency_pair_metadata.currency_pair().as_str()
+            ),
+        ));
+
+        let target_reserve_parameters = ReserveParameters::new(
+            configuration_descriptor,
+            self.exchange_account_id,
+            self.currency_pair_metadata.clone(),
+            new_disposition.side(),
+            new_disposition.price(),
+            new_order_amount,
+        );
+
+        let reservation_id = match self
+            .engine_ctx
+            .balance_manager
+            .lock()
+            .try_reserve(&target_reserve_parameters, &mut None)
+        {
+            Some(reservation_id) => reservation_id, // TODO: fix me
+            None => {
+                self.engine_ctx
+                    .timeout_manager
+                    .remove_group(self.exchange_account_id, requests_group_id)
+                    .with_expect(|| {
+                        format!(
+                            "failed to remove_group for {} {}",
+                            self.exchange_account_id, requests_group_id,
+                        )
+                    });
+
+                return log_trace(
+                    format!(
+                        "Finished try_create_order because can't reserve balance {}",
+                        new_order_amount
+                    ),
+                    explanation,
+                );
+            }
+        };
 
         if !self.engine_ctx.timeout_manager.try_reserve_group_instant(
             self.exchange_account_id,
             RequestType::CancelOrder,
             Some(requests_group_id),
         )? {
-            // TODO unreserve balances
+            self.engine_ctx
+                .balance_manager
+                .lock()
+                .unreserve_rest(
+                    reservation_id,
+                )
+                .with_expect(|| {
+                    format!(
+                        "DispositionExecutor::try_create_order() failed to unreserve_rest for: {:?}",
+                        reservation_id
+                    )
+                });
 
             let _ = self
                 .engine_ctx
@@ -678,8 +736,7 @@ impl DispositionExecutor {
             new_disposition.side(),
             new_order_amount,
             OrderExecutionType::MakerOnly,
-            // TODO fix after implementation balances reservation
-            Some(ReservationId::generate()),
+            Some(reservation_id),
             None,
             new_estimating.strategy_name.clone(),
         );
