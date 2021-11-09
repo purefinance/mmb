@@ -23,7 +23,7 @@ use crate::core::{
 
 use super::balance_change_period_selector::BalanceChangePeriodSelector;
 
-pub(crate) struct BalanceChangeUsdPeriodicCalculator {
+pub struct BalanceChangeUsdPeriodicCalculator {
     balance_change_period_selector: Arc<Mutex<BalanceChangePeriodSelector>>,
 }
 

@@ -54,7 +54,7 @@ pub mod tests {
         pub exchange_1: Arc<Exchange>,
         pub exchange_2: Arc<Exchange>,
         pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        pub currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        pub currency_pair_to_symbol_converter: Arc<CurrencyPairToMetadataConverter>,
         balance_changes: Vec<BalanceChangesCalculatorResult>,
         balance_changes_calculator: BalanceChangesCalculator,
         profit_loss_balance_changes: Vec<ProfitLossBalanceChange>,
@@ -99,11 +99,11 @@ pub mod tests {
         }
 
         fn service_name() -> String {
-            "name".into()
+            "calculator_tests_base_service_name".into()
         }
 
         fn service_configuration_key() -> String {
-            "key".into()
+            "calculator_tests_base_service_key".into()
         }
 
         pub fn amount_multiplier() -> Decimal {
@@ -127,12 +127,12 @@ pub mod tests {
             (usd_converter, usd_converter_locker)
         }
 
-        fn init_currency_pair_to_metadata_converter(
+        fn init_currency_pair_to_symbol_converter(
             exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
             is_derivative: bool,
             is_reversed: bool,
         ) -> (CurrencyPairToMetadataConverter, MutexGuard<'static, ()>) {
-            let (mut currency_pair_to_metadata_converter, cp_to_metadata_locker) =
+            let (mut currency_pair_to_symbol_converter, cp_to_symbol_locker) =
                 CurrencyPairToMetadataConverter::init_mock();
 
             let (amount_currency_code, balance_currency_code) = match (is_derivative, is_reversed) {
@@ -142,7 +142,7 @@ pub mod tests {
                 (false, false) => (Self::base(), None),
             };
 
-            let mut metadata = CurrencyPairMetadata::new(
+            let mut symbol = CurrencyPairMetadata::new(
                 false,
                 is_derivative,
                 Self::base().as_str().into(),
@@ -160,19 +160,19 @@ pub mod tests {
                 Precision::ByTick { tick: dec!(0) },
             );
             if is_reversed {
-                metadata.amount_multiplier = Self::amount_multiplier();
+                symbol.amount_multiplier = Self::amount_multiplier();
             }
-            let metadata = Arc::new(metadata);
+            let symbol = Arc::new(symbol);
 
-            currency_pair_to_metadata_converter
+            currency_pair_to_symbol_converter
                 .expect_get_currency_pair_metadata()
-                .returning(move |_, _| metadata.clone());
+                .returning(move |_, _| symbol.clone());
 
-            currency_pair_to_metadata_converter
+            currency_pair_to_symbol_converter
                 .expect_exchanges_by_id()
                 .returning(move || exchanges_by_id.clone());
 
-            (currency_pair_to_metadata_converter, cp_to_metadata_locker)
+            (currency_pair_to_symbol_converter, cp_to_symbol_locker)
         }
 
         pub fn set_leverage(&mut self, leverage: Decimal) {
@@ -224,14 +224,14 @@ pub mod tests {
 
             let mut mock_lockers = Vec::new();
 
-            let (currency_pair_to_metadata_converter, cp_to_metadata_locker) =
-                Self::init_currency_pair_to_metadata_converter(
+            let (currency_pair_to_symbol_converter, cp_to_symbol_locker) =
+                Self::init_currency_pair_to_symbol_converter(
                     exchanges_by_id.clone(),
                     is_derivative,
                     is_reversed,
                 );
-            let currency_pair_to_metadata_converter = Arc::new(currency_pair_to_metadata_converter);
-            mock_lockers.push(cp_to_metadata_locker);
+            let currency_pair_to_symbol_converter = Arc::new(currency_pair_to_symbol_converter);
+            mock_lockers.push(cp_to_symbol_locker);
 
             mock_lockers.push(usd_converter_locker);
 
@@ -249,10 +249,10 @@ pub mod tests {
                 exchange_1,
                 exchange_2,
                 exchanges_by_id,
-                currency_pair_to_metadata_converter: currency_pair_to_metadata_converter.clone(),
+                currency_pair_to_symbol_converter: currency_pair_to_symbol_converter.clone(),
                 balance_changes: Vec::new(),
                 balance_changes_calculator: BalanceChangesCalculator::new(
-                    currency_pair_to_metadata_converter,
+                    currency_pair_to_symbol_converter,
                 ),
                 profit_loss_balance_changes: Vec::new(),
                 usd_converter,
@@ -275,8 +275,7 @@ pub mod tests {
             filled_amount: Amount,
             commission_currency_code: CurrencyCode,
             commission_amount: Amount,
-        ) -> OrderRef // TODO: grays maybe ORderRef
-        {
+        ) -> OrderRef {
             let mut order = OrderSnapshot::with_params(
                 ClientOrderId::unique_id(),
                 OrderType::Limit,
@@ -301,7 +300,7 @@ pub mod tests {
                     filled_amount,
                     dec!(0),
                     OrderFillRole::Maker,
-                    commission_currency_code.clone(),
+                    commission_currency_code,
                     commission_amount,
                     dec!(0),
                     commission_currency_code,
@@ -328,7 +327,7 @@ pub mod tests {
                     {
                         let usd_change = balance_changes
                             .calculate_usd_change(
-                                request.currency_code.clone(),
+                                request.currency_code,
                                 balance_change,
                                 &self.usd_converter,
                                 CancellationToken::default(),
@@ -392,17 +391,13 @@ pub mod tests {
             quote: CurrencyCode,
             is_derivative: bool,
         ) -> Arc<CurrencyPairMetadata> {
-            let amount = if is_derivative {
-                quote.clone()
-            } else {
-                base.clone()
-            };
+            let amount = if is_derivative { quote } else { base };
 
             Arc::new(CurrencyPairMetadata::new(
                 false,
                 is_derivative,
                 base.as_str().into(),
-                base.clone(),
+                base,
                 quote.as_str().into(),
                 quote,
                 None,

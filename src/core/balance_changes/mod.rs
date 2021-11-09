@@ -4,7 +4,6 @@ pub(crate) mod balance_change_usd_periodic_calculator;
 pub(crate) mod balance_changes_accumulator;
 pub(crate) mod balance_changes_calculator;
 pub(crate) mod balance_changes_service;
-pub(crate) mod balance_changes_service_events;
 pub(crate) mod profit_balance_changes_calculator;
 pub(crate) mod profit_loss_balance_change;
 pub(crate) mod profit_loss_stopper;

@@ -45,7 +45,7 @@ impl BinanceBuilder {
 
         // default currency pair for tests
         settings.currency_pairs = Some(vec![CurrencyPairSetting {
-            base: "phb".into(),
+            base: "cnd".into(),
             quote: "btc".into(),
             currency_pair: None,
         }]);
