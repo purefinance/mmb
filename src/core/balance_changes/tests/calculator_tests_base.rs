@@ -275,7 +275,7 @@ pub mod tests {
             filled_amount: Amount,
             commission_currency_code: CurrencyCode,
             commission_amount: Amount,
-        ) -> OrderRef {
+        ) -> OrderSnapshot {
             let mut order = OrderSnapshot::with_params(
                 ClientOrderId::unique_id(),
                 OrderType::Limit,
@@ -311,12 +311,13 @@ pub mod tests {
                     None,
                 ));
             }
-            OrderRef::new(Arc::new(RwLock::new(order)))
+
+            order
         }
 
-        pub async fn calculate_balance_changes(&mut self, orders: Vec<&OrderRef>) {
+        pub async fn calculate_balance_changes(&mut self, orders: Vec<&OrderSnapshot>) {
             for order in orders {
-                for fill in order.get_fills().0 {
+                for fill in &order.fills.fills {
                     let balance_changes = self.balance_changes_calculator.get_balance_changes(
                         self.configuration_descriptor.clone(),
                         order,
@@ -336,7 +337,7 @@ pub mod tests {
 
                         let profit_loss_balance_change = ProfitLossBalanceChange::new(
                             request,
-                            order.exchange_account_id().exchange_id,
+                            order.header.exchange_account_id.exchange_id,
                             ClientOrderFillId::unique_id(),
                             time_manager::now(),
                             balance_change,
