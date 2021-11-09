@@ -133,7 +133,7 @@ where
                 balances: vec![
                     ExchangeBalance {
                         currency_code: "btc".into(),
-                        balance: dec!(0.003466),
+                        balance: dec!(0.002297),
                     },
                     ExchangeBalance {
                         currency_code: "phb".into(),
@@ -141,7 +141,7 @@ where
                     },
                     ExchangeBalance {
                         currency_code: "usdt".into(),
-                        balance: dec!(13.4874),
+                        balance: dec!(84.532943),
                     },
                 ],
                 positions: None,
@@ -185,7 +185,7 @@ fn run_services<'a, StrategySettings>(
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
-    let internal_events_loop = InternalEventsLoop::new();
+    let internal_events_loop = InternalEventsLoop::new(engine_context.balance_manager.clone());
     engine_context
         .shutdown_service
         .register_service(internal_events_loop.clone());

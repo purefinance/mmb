@@ -672,11 +672,11 @@ impl DispositionExecutor {
             .engine_ctx
             .balance_manager
             .lock()
-            .try_reserve(&target_reserve_parameters, &mut None)
+            .try_reserve(&target_reserve_parameters, &mut None) // TODO: fix me
         {
-            Some(reservation_id) => reservation_id, // TODO: fix me
+            Some(reservation_id) => reservation_id,
             None => {
-                self.engine_ctx
+        self.engine_ctx
                     .timeout_manager
                     .remove_group(self.exchange_account_id, requests_group_id)
                     .with_expect(|| {
@@ -867,9 +867,27 @@ impl DispositionExecutor {
         );
         Ok(())
     }
-    fn unreserve_order_amount(&self, _order: &OrderRef, _price_slot: &PriceSlot) {
-        // TODO needed implementation after BalanceManager
+
+    fn unreserve_order_amount(&self, order: &OrderRef, _price_slot: &PriceSlot) {
+        let (reservation_id, client_order_id, amount) = order.fn_mut(|x| {
+            (
+                x.header.reservation_id,
+                x.header.client_order_id.clone(),
+                x.header.amount,
+            )
+        });
+
+        self.engine_ctx
+            .balance_manager
+            .lock()
+            .unreserve_by_client_order_id(
+                reservation_id.expect("InternalEventsLoop: ReservationId is None"),
+                client_order_id,
+                amount,
+            )
+            .with_expect(|| format!("InternalEventsLoop: failed to unreserve order {:?}", order));
     }
+
     fn remove_request_group(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
         let request_group_id =
             price_slot.order.borrow().orders[&order.client_order_id()].request_group_id;

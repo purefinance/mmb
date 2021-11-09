@@ -10,7 +10,6 @@ use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
-use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::Service;
 use crate::core::nothing_to_do;
@@ -62,24 +61,6 @@ impl InternalEventsLoop {
                 }
                 ExchangeEvent::OrderEvent(order_event) => {
                     match order_event.event_type {
-                        OrderEventType::OrderCompleted { cloned_order } => {
-                            self.balance_manager
-                                .lock()
-                                .unreserve_by_client_order_id(
-                                    cloned_order
-                                        .header
-                                        .reservation_id
-                                        .expect("InternalEventsLoop: ReservationId is None"),
-                                    cloned_order.header.client_order_id.clone(),
-                                    cloned_order.filled_amount(),
-                                )
-                                .with_expect(|| {
-                                    format!(
-                                        "InternalEventsLoop: failed to unreserve order {:?}",
-                                        cloned_order
-                                    )
-                                });
-                        }
                         OrderEventType::OrderFilled { cloned_order } => {
                             self.balance_manager.lock().order_was_filled(
                                 Arc::new(ConfigurationDescriptor::new(
