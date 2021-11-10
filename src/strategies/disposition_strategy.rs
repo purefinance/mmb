@@ -31,7 +31,7 @@ pub trait DispositionStrategy: Send + Sync + 'static {
         &self,
         cloned_order: &Arc<OrderSnapshot>,
         price_slot: &PriceSlot,
-        target_eai: &ExchangeAccountId,
+        target_eai: ExchangeAccountId,
         cancellation_token: CancellationToken,
     ) -> Result<()>;
 }
@@ -162,7 +162,7 @@ impl DispositionStrategy for ExampleStrategy {
         &self,
         _cloned_order: &Arc<OrderSnapshot>,
         _price_slot: &PriceSlot,
-        _target_eai: &ExchangeAccountId,
+        _target_eai: ExchangeAccountId,
         _cancellation_token: CancellationToken,
     ) -> Result<()> {
         // TODO save order fill info in Database

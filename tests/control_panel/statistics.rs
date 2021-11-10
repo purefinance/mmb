@@ -67,7 +67,7 @@ async fn orders_cancelled() {
             &self,
             _cloned_order: &Arc<OrderSnapshot>,
             _price_slot: &PriceSlot,
-            _target_eai: &ExchangeAccountId,
+            _target_eai: ExchangeAccountId,
             _cancellation_token: CancellationToken,
         ) -> anyhow::Result<()> {
             Ok(())

@@ -61,7 +61,7 @@ async fn launch_engine() -> Result<()> {
             &self,
             _cloned_order: &Arc<OrderSnapshot>,
             _price_slot: &PriceSlot,
-            _target_eai: &ExchangeAccountId,
+            _target_eai: ExchangeAccountId,
             _cancellation_token: CancellationToken,
         ) -> anyhow::Result<()> {
             Ok(())

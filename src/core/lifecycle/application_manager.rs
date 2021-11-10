@@ -43,24 +43,18 @@ impl ApplicationManager {
             Err(_) => return None,
         };
 
-        let graceful_shutdown_handler =
-            start_graceful_shutdown_inner(engine_context_guard, &reason)?;
+        let handler = start_graceful_shutdown_inner(engine_context_guard, &reason)?;
+
         Some(tokio::spawn(async move {
-            let action_outcome = panic::AssertUnwindSafe(graceful_shutdown_handler)
-                .catch_unwind()
-                .await;
-            let future_name = "Graceful shutdown future";
+            static FUTURE_NAME: &str = "Graceful shutdown future";
+
+            let action_outcome = panic::AssertUnwindSafe(handler).catch_unwind().await;
+
             match action_outcome {
-                Ok(()) => {
-                    info!("{} completed successfully", future_name);
-                }
-                Err(panic) => match panic.as_ref().downcast_ref::<String>() {
-                    Some(panic_message) => {
-                        error!("{} panicked with error: {}", future_name, panic_message);
-                    }
-                    None => {
-                        error!("{} panicked without message", future_name);
-                    }
+                Ok(()) => info!("{} completed successfully", FUTURE_NAME),
+                Err(panic) => match panic.downcast_ref::<String>() {
+                    Some(message) => error!("{} panicked with error: {}", FUTURE_NAME, message),
+                    None => error!("{} panicked without message", FUTURE_NAME),
                 },
             }
         }))
@@ -81,13 +75,10 @@ pub fn start_graceful_shutdown_inner(
     engine_context_guard: MutexGuard<'_, Option<Weak<EngineContext>>>,
     reason: &str,
 ) -> Option<impl Future<Output = ()> + 'static> {
-    let engine_context = match &*engine_context_guard {
-        Some(ctx) => ctx,
-        None => {
-            error!("Tried to request graceful shutdown with reason '{}', but 'engine_context' is not specified", reason);
-            return None;
-        }
-    };
+    let engine_context = engine_context_guard.as_ref().or_else(|| {
+        error!("Tried to request graceful shutdown with reason '{}', but 'engine_context' is not specified", reason);
+        None
+    })?;
 
     info!("Requested graceful shutdown: {}", reason);
 

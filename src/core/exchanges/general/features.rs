@@ -102,6 +102,12 @@ pub struct OrderTradeOption {
     pub supports_my_trades_from_time: bool,
 }
 
+pub enum BalancePositionOption {
+    NonDerivative,
+    SingleRequest,
+    IndividualRequests,
+}
+
 pub struct ExchangeFeatures {
     pub open_orders_type: OpenOrdersType,
     pub rest_fills_features: RestFillsFeatures,
@@ -112,6 +118,7 @@ pub struct ExchangeFeatures {
     pub allows_to_get_order_info_by_client_order_id: bool,
     pub allowed_fill_event_source_type: AllowedEventSourceType,
     pub allowed_cancel_event_source_type: AllowedEventSourceType,
+    pub balance_position_option: BalancePositionOption,
 }
 
 impl ExchangeFeatures {
@@ -136,6 +143,7 @@ impl ExchangeFeatures {
             allows_to_get_order_info_by_client_order_id,
             allowed_fill_event_source_type,
             allowed_cancel_event_source_type,
+            balance_position_option: BalancePositionOption::NonDerivative,
         }
     }
 }

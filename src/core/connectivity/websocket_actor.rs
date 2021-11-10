@@ -132,7 +132,7 @@ impl WebSocketActor {
                     role,
                 );
 
-                notifier.notify_websocket_connection_closed(&exchange_account_id);
+                notifier.notify_websocket_connection_closed(exchange_account_id);
 
                 return;
             }
@@ -143,7 +143,7 @@ impl WebSocketActor {
 
     fn close_websocket(&self, ctx: &mut Context<Self>) {
         self.connectivity_manager_notifier
-            .notify_websocket_connection_closed(&self.exchange_account_id);
+            .notify_websocket_connection_closed(self.exchange_account_id);
         ctx.stop();
     }
 
@@ -179,7 +179,7 @@ impl Actor for WebSocketActor {
         );
 
         self.connectivity_manager_notifier
-            .notify_websocket_connection_closed(&self.exchange_account_id);
+            .notify_websocket_connection_closed(self.exchange_account_id);
     }
 }
 

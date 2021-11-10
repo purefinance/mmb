@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use chrono::Utc;
 use futures::future::join_all;
+use itertools::Itertools;
 use log::{error, info};
 use tokio::sync::oneshot;
 
@@ -256,27 +257,32 @@ impl Exchange {
         }
 
         let mut futures = Vec::new();
+        let mut not_found_orders = Vec::new();
+
         for order in orders {
             match self
                 .orders
                 .cache_by_exchange_id
                 .get(&order.exchange_order_id)
             {
-                None => {
-                    error!("cancel_orders was received for an order which is not in the system {} {:?}",
-                                self.exchange_account_id,
-                                order.exchange_order_id);
-                }
-                Some(order_ref) => {
-                    futures.push(self.wait_cancel_order(
-                        order_ref.clone(),
-                        None,
-                        true,
-                        cancellation_token.clone(),
-                    ));
-                }
+                None => not_found_orders.push(order.exchange_order_id.clone()),
+                Some(order_ref) => futures.push(self.wait_cancel_order(
+                    order_ref.clone(),
+                    None,
+                    true,
+                    cancellation_token.clone(),
+                )),
             }
         }
+
+        if !not_found_orders.is_empty() {
+            error!(
+                "`cancel_orders` was received for an orders which are not in the system {}: {}",
+                self.exchange_account_id,
+                not_found_orders.iter().join(", "),
+            );
+        }
+
         join_all(futures).await;
     }
 }

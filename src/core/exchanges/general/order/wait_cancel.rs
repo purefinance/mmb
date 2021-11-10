@@ -131,7 +131,7 @@ impl Exchange {
 
             self.timeout_manager
                 .reserve_when_available(
-                    &self.exchange_account_id,
+                    self.exchange_account_id,
                     RequestType::CancelOrder,
                     pre_reservation_group_id,
                     order_is_finished_token.clone(),
@@ -297,7 +297,7 @@ impl Exchange {
 
             self.timeout_manager
                 .reserve_when_available(
-                    &self.exchange_account_id,
+                    self.exchange_account_id,
                     RequestType::CancelOrder,
                     pre_reservation_group_id,
                     cancellation_token.clone(),
