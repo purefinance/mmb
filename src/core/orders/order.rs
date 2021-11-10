@@ -20,8 +20,7 @@ use crate::core::exchanges::common::{
 use crate::core::orders::fill::{EventSourceType, OrderFill};
 use crate::core::utils::get_atomic_current_secs;
 use crate::core::DateTime;
-
-type String16 = SmallString<[u8; 16]>;
+use crate::{impl_str_id, impl_u64_id};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash, Enum)]
 pub enum OrderSide {
@@ -103,118 +102,9 @@ pub enum OrderExecutionType {
     MakerOnly = 1,
 }
 
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
-#[serde(transparent)]
-pub struct ClientOrderId(String16);
-
-static CLIENT_ORDER_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| get_atomic_current_secs());
-
-impl ClientOrderId {
-    pub fn unique_id() -> Self {
-        let new_id = CLIENT_ORDER_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
-        ClientOrderId(new_id.to_string().into())
-    }
-
-    pub fn new(client_order_id: String16) -> Self {
-        ClientOrderId(client_order_id)
-    }
-
-    /// Extracts a string slice containing the entire string.
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-
-    /// Extracts a string slice containing the entire string.
-    pub fn as_mut_str(&mut self) -> &mut str {
-        self.0.as_mut_str()
-    }
-}
-
-impl From<&str> for ClientOrderId {
-    fn from(value: &str) -> Self {
-        ClientOrderId(String16::from_str(value))
-    }
-}
-
-impl Display for ClientOrderId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
-#[serde(transparent)]
-pub struct ClientOrderFillId(String16);
-
-static CLIENT_ORDER_FILL_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| get_atomic_current_secs());
-
-impl ClientOrderFillId {
-    pub fn unique_id() -> Self {
-        let new_id = CLIENT_ORDER_FILL_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
-        ClientOrderFillId(new_id.to_string().into())
-    }
-
-    pub fn new(client_order_id: String16) -> Self {
-        ClientOrderFillId(client_order_id)
-    }
-
-    /// Extracts a string slice containing the entire string.
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-
-    /// Extracts a string slice containing the entire string.
-    pub fn as_mut_str(&mut self) -> &mut str {
-        self.0.as_mut_str()
-    }
-}
-
-impl From<&str> for ClientOrderFillId {
-    fn from(value: &str) -> Self {
-        ClientOrderFillId(String16::from_str(value))
-    }
-}
-
-impl Display for ClientOrderFillId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize, Hash)]
-#[serde(transparent)]
-pub struct ExchangeOrderId(String16);
-
-impl ExchangeOrderId {
-    #[inline]
-    pub fn new(exchange_order_id: String16) -> Self {
-        ExchangeOrderId(exchange_order_id)
-    }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-
-    /// Extracts a string slice containing the entire string.
-    #[inline]
-    pub fn as_mut_str(&mut self) -> &mut str {
-        self.0.as_mut_str()
-    }
-}
-
-impl From<&str> for ExchangeOrderId {
-    #[inline]
-    fn from(value: &str) -> Self {
-        ExchangeOrderId(String16::from_str(value))
-    }
-}
-
-impl Display for ExchangeOrderId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
+impl_str_id!(ClientOrderId);
+impl_str_id!(ClientOrderFillId);
+impl_str_id!(ExchangeOrderId);
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderStatus {
@@ -240,25 +130,8 @@ impl OrderStatus {
     }
 }
 
-/// Id for reserved amount
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Serialize, Deserialize, Hash, Ord, PartialOrd)]
-#[serde(transparent)]
-pub struct ReservationId(u64);
-
-impl ReservationId {
-    pub fn generate() -> Self {
-        static RESERVATION_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
-
-        let new_id = RESERVATION_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
-        ReservationId(new_id)
-    }
-}
-
-impl Display for ReservationId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+// Id for reserved amount
+impl_u64_id!(ReservationId);
 
 pub trait ReservationIdVecToStringExt {
     fn to_string(&self) -> String;

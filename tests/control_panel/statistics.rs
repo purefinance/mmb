@@ -38,7 +38,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("phb".into(), "btc".into())
+        CurrencyPair::from_codes("cnd".into(), "btc".into())
     }
 
     fn max_amount(&self) -> Amount {
@@ -139,7 +139,7 @@ async fn orders_cancelled() {
     )
     .expect("in test");
 
-    let exchange_statistics = &statistics["trade_place_stats"]["Binance0|phb/btc"];
+    let exchange_statistics = &statistics["trade_place_stats"]["Binance0|cnd/btc"];
     let opened_orders_count = exchange_statistics["opened_orders_count"]
         .as_u64()
         .expect("in test");

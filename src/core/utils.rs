@@ -136,7 +136,7 @@ pub(crate) fn get_current_milliseconds() -> u128 {
 ///
 /// let new_id = CLIENT_ORDER_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
 /// ```
-pub(crate) fn get_atomic_current_secs() -> AtomicU64 {
+pub fn get_atomic_current_secs() -> AtomicU64 {
     AtomicU64::new(
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
