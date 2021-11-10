@@ -120,7 +120,7 @@ impl UsdDenominator {
             .filter_map(|(currency_code, market_currency_code_price)| {
                 market_currency_code_price
                     .price_usd
-                    .map(|price| (currency_code.clone(), price))
+                    .map(|price| (*currency_code, price))
             })
             .collect()
     }

@@ -141,3 +141,55 @@ macro_rules! hashmap {
          map
     }}
 }
+
+/// This macros is needed to create function that will initialize a mock object and a locker for $ type
+/// because mockall doesn't support multithreading.
+/// Example:
+/// ```
+/// struct Example {}
+/// #[cfg_attr(test, automock)]
+/// impl Example {
+///     fn foo(&self) -> String {
+///         "test".into()
+///     }
+/// }
+///
+/// mmb_lib::impl_mock_initializer!(MockExample);
+///
+/// #[cfg(test)]
+/// mod test {
+///     use mockall_double::double;
+///
+///     #[double]
+///     use super::Example;
+///
+///     #[test]
+///     fn test_example() {
+///         let (mut example_mock, _example_locker) = Example::init_mock();
+///         // here you can use example_mock while example_locker is alive
+///
+///         example_mock.expect_foo().returning(|| "hello".into());
+///
+///         assert_eq!(example_mock.foo(), "hello");
+///     }
+/// }
+/// ```
+///
+#[macro_export]
+macro_rules! impl_mock_initializer {
+    ($type: ident) => {
+        paste::paste! {
+            /// Needs for syncing mock objects https://docs.rs/mockall/0.10.2/mockall/#static-methods
+            #[cfg(test)]
+            static [<$type:snake:upper _LOCKER>]: once_cell::sync::Lazy<Mutex<()>> = once_cell::sync::Lazy::new(Mutex::default);
+        }
+
+        #[cfg(test)]
+        impl $type {
+            pub fn init_mock() -> ($type, MutexGuard<'static, ()>) {
+                let locker = paste::paste! { [<$type:snake:upper _LOCKER>] }.lock();
+                ($type::default(), locker)
+            }
+        }
+    };
+}

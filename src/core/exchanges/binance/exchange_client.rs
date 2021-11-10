@@ -1,4 +1,5 @@
 use super::binance::Binance;
+use crate::core::exchanges::common::{ActivePosition, Price};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
@@ -183,5 +184,64 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
         self.rest_client.get(full_url, &self.settings.api_key).await
+    }
+
+    async fn request_get_position(&self) -> Result<RestRequestOutcome> {
+        let mut http_params = Vec::new();
+        self.add_authentification_headers(&mut http_params)?;
+
+        let url_path = "/fapi/v2/positionRisk";
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+
+        self.rest_client.get(full_url, &self.settings.api_key).await
+    }
+
+    async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
+        panic!("not supported request")
+    }
+
+    async fn request_close_position(
+        &self,
+        position: &ActivePosition,
+        price: Option<Price>,
+    ) -> Result<RestRequestOutcome> {
+        let side = match position.derivative.side {
+            Some(side) => side.change_side().to_string(),
+            None => "0".to_string(), // unknown side
+        };
+
+        let mut http_params = vec![
+            (
+                "leverage".to_string(),
+                position.derivative.leverage.to_string(),
+            ),
+            ("positionSide".to_string(), "BOTH".to_string()),
+            (
+                "quantity".to_string(),
+                position.derivative.position.abs().to_string(),
+            ),
+            ("side".to_string(), side),
+            (
+                "symbol".to_string(),
+                position.derivative.currency_pair.to_string(),
+            ),
+        ];
+
+        match price {
+            Some(price) => {
+                http_params.push(("type".to_string(), "MARKET".to_string()));
+                http_params.push(("price".to_string(), price.to_string()));
+            }
+            None => http_params.push(("type".to_string(), "LIMIT".to_string())),
+        }
+
+        self.add_authentification_headers(&mut http_params)?;
+
+        let url_path = "/fapi/v1/order";
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+
+        self.rest_client
+            .post(full_url, &self.settings.api_key, &http_params)
+            .await
     }
 }

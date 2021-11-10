@@ -116,3 +116,18 @@ pub struct ExchangeIdCurrencyPairSettings {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
 }
+
+pub enum TimePeriodKind {
+    Hour,
+    Day,
+}
+
+pub struct StopperCondition {
+    pub period_kind: TimePeriodKind,
+    pub period_value: i64,
+    pub limit: Amount,
+}
+
+pub struct ProfitLossStopperSettings {
+    pub conditions: Vec<StopperCondition>,
+}

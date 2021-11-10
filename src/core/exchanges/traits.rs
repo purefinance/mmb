@@ -8,11 +8,12 @@ use tokio::sync::broadcast;
 
 use super::{
     common::CurrencyCode,
-    common::{Amount, CurrencyId, Price},
     common::{
-        CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome, SpecificCurrencyPair,
+        ActivePosition, CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome,
+        SpecificCurrencyPair,
     },
-    events::TradeId,
+    common::{Amount, ClosedPosition, CurrencyId, Price},
+    events::{ExchangeBalancesAndPositions, TradeId},
     general::currency_pair_metadata::BeforeAfter,
     general::handlers::handle_order_filled::FillEventData,
     general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
@@ -56,6 +57,16 @@ pub trait ExchangeClient: Support {
         &self,
         currency_pair_metadata: &CurrencyPairMetadata,
         last_date_time: Option<DateTime>,
+    ) -> Result<RestRequestOutcome>;
+
+    async fn request_get_position(&self) -> Result<RestRequestOutcome>;
+
+    async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome>;
+
+    async fn request_close_position(
+        &self,
+        position: &ActivePosition,
+        price: Option<Price>,
     ) -> Result<RestRequestOutcome>;
 }
 
@@ -128,6 +139,12 @@ pub trait Support: Send + Sync {
     ) -> Result<Vec<OrderTrade>>;
 
     fn get_settings(&self) -> &ExchangeSettings;
+
+    fn parse_get_position(&self, response: &RestRequestOutcome) -> Vec<ActivePosition>;
+
+    fn parse_close_position(&self, response: &RestRequestOutcome) -> Result<ClosedPosition>;
+
+    fn parse_get_balance(&self, response: &RestRequestOutcome) -> ExchangeBalancesAndPositions;
 }
 
 pub struct ExchangeClientBuilderResult {

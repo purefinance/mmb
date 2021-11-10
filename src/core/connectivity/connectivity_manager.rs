@@ -381,7 +381,7 @@ impl ConnectivityManagerNotifier {
         }
     }
 
-    pub fn notify_websocket_connection_closed(&self, exchange_account_id: &ExchangeAccountId) {
+    pub fn notify_websocket_connection_closed(&self, exchange_account_id: ExchangeAccountId) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
             match connectivity_manager.upgrade() {
                 Some(connectivity_manager) => {

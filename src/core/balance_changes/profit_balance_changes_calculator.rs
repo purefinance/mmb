@@ -1,10 +1,13 @@
 use futures::future::join_all;
 use itertools::Itertools;
+use mockall_double::double;
+
+#[double]
+use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
 use crate::core::{
     exchanges::common::Amount, infrastructure::WithExpect,
     lifecycle::cancellation_token::CancellationToken,
-    services::usd_converter::usd_converter::UsdConverter,
 };
 
 use super::profit_loss_balance_change::ProfitLossBalanceChange;
@@ -28,12 +31,12 @@ pub(crate) async fn calculate_over_market(
     let usd_converter_actions =
         group_by_currency_code
             .iter()
-            .map(|(&currency_code, balance_changes)| {
+            .map(|(currency_code, balance_changes)| {
                 let sum = balance_changes.iter().map(|x| x.balance_change).sum();
                 let cloned_cancellation_token = cancellation_token.clone();
                 async move {
                     usd_converter
-                        .convert_amount(currency_code, sum, cloned_cancellation_token)
+                        .convert_amount(*currency_code, sum, cloned_cancellation_token)
                         .await
                         .with_expect(|| {
                             format!("Can't find usd_balance_change for {}", currency_code)
