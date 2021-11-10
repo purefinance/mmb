@@ -12,6 +12,7 @@ use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, Curre
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
+use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::misc::derivative_position::DerivativePosition;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
@@ -713,6 +714,7 @@ impl BalanceManager {
             }
         }
     }
+
     pub fn try_get_reservation(
         &self,
         reservation_id: &ReservationId,
@@ -1017,8 +1019,30 @@ impl BalanceManager {
             limit,
         );
     }
+
     pub fn set_balance_changes_service(&mut self, service: Arc<BalanceChangesService>) {
         self.balance_changes_service = Some(service);
+    }
+
+    pub async fn get_balances_for_exchanges(&mut self, cancellation_token: CancellationToken) {
+        let exchanges = self
+            .balance_reservation_manager
+            .exchanges_by_id
+            .values()
+            .cloned()
+            .collect_vec();
+
+        for exchange in exchanges {
+            let balances_and_positions = exchange
+                .get_balance(cancellation_token.clone())
+                .await
+                .with_expect(|| {
+                    format!("failed to get balance for {}", exchange.exchange_account_id)
+                });
+
+            self.update_exchange_balance(exchange.exchange_account_id, &balances_and_positions)
+                .expect("failed to update exchange balance");
+        }
     }
 
     // TODO: should be implemented

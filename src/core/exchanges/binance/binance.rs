@@ -5,15 +5,18 @@ use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
+use itertools::Itertools;
 use log::error;
 use parking_lot::{Mutex, RwLock};
 use serde_json::Value;
 use sha2::Sha256;
 use tokio::sync::broadcast;
 
-use super::support::BinanceOrderInfo;
+use super::support::{BinanceBalances, BinanceOrderInfo};
 use crate::core::exchanges::common::{Amount, Price};
-use crate::core::exchanges::events::{ExchangeEvent, TradeId};
+use crate::core::exchanges::events::{
+    ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId,
+};
 use crate::core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
@@ -396,6 +399,29 @@ impl Binance {
             "FILL" | "TRADE" | "PARTIAL_FILL" => Ok(OrderFillType::UserTrade),
             _ => bail!("Unable to map trade type"),
         }
+    }
+
+    pub(super) fn get_spot_exchange_balances_and_positions(
+        raw_balances: Vec<BinanceBalances>,
+    ) -> ExchangeBalancesAndPositions {
+        let balances = raw_balances
+            .iter()
+            .map(|balance| ExchangeBalance {
+                currency_code: balance.asset.as_str().into(),
+                balance: balance.free,
+            })
+            .collect_vec();
+
+        ExchangeBalancesAndPositions {
+            balances,
+            positions: None,
+        }
+    }
+
+    pub(super) fn get_margin_exchange_balances_and_positions(
+        _raw_balances: Vec<BinanceBalances>,
+    ) -> ExchangeBalancesAndPositions {
+        todo!("implement it later")
     }
 }
 

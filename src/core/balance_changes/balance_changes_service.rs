@@ -225,8 +225,14 @@ impl BalanceChangesService {
             time_manager::now(),
         ));
 
-        let _ = self.tx_event.blocking_send(balance_changes_event).map_err(|_|
-            panic!("BalanceChangesService::add_balance_change: Unable to send event, probably receiver is dropped already")
-        );
+        let _ = self
+            .tx_event
+            .try_send(balance_changes_event)
+            .map_err(|error| {
+                panic!(
+                    "BalanceChangesService::add_balance_change: Unable to send event: {}",
+                    error.to_string()
+                )
+            });
     }
 }

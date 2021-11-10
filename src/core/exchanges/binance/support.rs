@@ -63,6 +63,18 @@ pub struct BinanceOrderInfo {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct BinanceAccountInfo {
+    pub balances: Vec<BinanceBalances>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct BinanceBalances {
+    pub asset: String,
+    pub free: Decimal,
+    pub locked: Decimal,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 struct BinancePosition {
     #[serde(rename = "symbol")]
     pub specific_currency_pair: SpecificCurrencyPair,
@@ -491,10 +503,15 @@ impl Support for Binance {
         Ok(closed_position)
     }
 
-    fn parse_get_balance(&self, _response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
-        // this function is only used in Exchange::get_balance_and_positions_core()
-        // which isn't supported for Binance(look at ExchangeClient::request_get_balance_and_position() for Binance)
-        todo!("add implementation")
+    fn parse_get_balance(&self, response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
+        let binance_account_info: BinanceAccountInfo = serde_json::from_str(&response.content)
+            .expect("Unable to parse response content for get_balance request");
+
+        if self.settings.is_margin_trading {
+            Binance::get_margin_exchange_balances_and_positions(binance_account_info.balances)
+        } else {
+            Binance::get_spot_exchange_balances_and_positions(binance_account_info.balances)
+        }
     }
 }
 

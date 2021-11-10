@@ -1,9 +1,6 @@
 use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::common::{ExchangeAccountId, ExchangeId};
-use crate::core::exchanges::events::{
-    ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, ExchangeEvents,
-    CHANNEL_MAX_EVENTS_COUNT,
-};
+use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
@@ -33,7 +30,6 @@ use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use log::info;
-use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
@@ -124,30 +120,10 @@ where
     let balance_manager =
         BalanceManager::new(exchanges_hashmap, currency_pair_to_metadata_converter);
 
-    // TODO: temporary hack, fix it with issue #257
     balance_manager
         .lock()
-        .update_exchange_balance(
-            settings.core.exchanges.first().unwrap().exchange_account_id,
-            &ExchangeBalancesAndPositions {
-                balances: vec![
-                    ExchangeBalance {
-                        currency_code: "btc".into(),
-                        balance: dec!(0.002297),
-                    },
-                    ExchangeBalance {
-                        currency_code: "phb".into(),
-                        balance: dec!(10.50948),
-                    },
-                    ExchangeBalance {
-                        currency_code: "usdt".into(),
-                        balance: dec!(84.532943),
-                    },
-                ],
-                positions: None,
-            },
-        )
-        .expect("failed to update exchange balance");
+        .get_balances_for_exchanges(application_manager.stop_token())
+        .await;
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
     let engine_context = EngineContext::new(

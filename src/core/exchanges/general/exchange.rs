@@ -16,13 +16,16 @@ use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
 use crate::core::exchanges::common::{ActivePosition, ClosedPosition, TradePlace};
-use crate::core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, Trade};
+use crate::core::exchanges::events::{
+    BalanceUpdateEvent, ExchangeBalancesAndPositions, ExchangeEvent, LiquidationPriceEvent, Trade,
+};
 use crate::core::exchanges::general::features::{BalancePositionOption, ExchangeFeatures};
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
+use crate::core::misc::time::time_manager;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{OrderHeader, OrderSide};
 use crate::core::orders::pool::OrdersPool;
@@ -669,6 +672,98 @@ impl Exchange {
         Ok(self.exchange_client.parse_get_position(&response))
     }
 
+    pub(super) async fn get_balance_core(&self) -> Result<ExchangeBalancesAndPositions> {
+        let response = self.exchange_client.request_get_balance().await?;
+
+        log::info!(
+            "get_balance_core response on {:?} {:?}",
+            self.exchange_account_id,
+            response,
+        );
+
+        self.exchange_client.is_rest_error_code(&response)?;
+
+        Ok(self.exchange_client.parse_get_balance(&response))
+    }
+
+    // TODO: fix me
+    async fn get_balance_and_positions(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Option<ExchangeBalancesAndPositions> {
+        match self.features.balance_position_option {
+            BalancePositionOption::NonDerivative => {
+                self.timeout_manager.reserve_when_available(
+                    self.exchange_account_id,
+                    RequestType::GetBalance,
+                    None,
+                    cancellation_token.clone(),
+                ).expect("Exchange::get_balance_and_positions: Failed to reserve for RequestType::GetBalance").await;
+                return self.get_balance_core().await.ok(); // TODO: maybe need log here?
+            }
+            BalancePositionOption::SingleRequest => todo!("implement it later"),
+            BalancePositionOption::IndividualRequests => todo!("implement it later"),
+        };
+
+        // if (Features.BalancePositionOption == BalancePositionOption.NonDerivative)
+        // {
+        //     await ReserveWhenAvailable(ExchangeRequestType.GetBalance);
+        //     return await GetBalanceCore();
+        // }
+
+        // ExchangeBalancesAndPositions balanceResult;
+        // if (Features.BalancePositionOption == BalancePositionOption.SingleRequest)
+        // {
+        //     await ReserveWhenAvailable(ExchangeRequestType.GetBalance);
+        //     var result = await GetBalanceAndPositionsCore();
+        //     if (!result.IsSuccess)
+        //     {
+        //         return null;
+        //     }
+
+        //     balanceResult = result.Data;
+        // }
+        // else
+        // {
+        //     await ReserveWhenAvailable(ExchangeRequestType.GetBalance);
+        //     var getBalanceResult = await GetBalanceCore();
+        //     if (getBalanceResult == null)
+        //     {
+        //         return null;
+        //     }
+
+        //     if (getBalanceResult.Positions != null)
+        //     {
+        //         throw new InvalidOperationException(
+        //             "Exchange supports SingleRequest (GetBalance) but Individual is used");
+        //     }
+
+        //     await ReserveWhenAvailable(ExchangeRequestType.GetActivePositions);
+        //     var positionsResult = await GetActivePositionsCore();
+        //     if (!positionsResult.IsSuccess)
+        //     {
+        //         return null;
+        //     }
+
+        //     var balances = getBalanceResult.Balances;
+        //     var positions = positionsResult.Data.Select(p => p.GetPositionInfo()).ToList();
+        //     balanceResult = new ExchangeBalancesAndPositions(balances, positions);
+        // }
+
+        // if (balanceResult.Positions != null)
+        // {
+        //     var supportedPositions = balanceResult.Positions
+        //         .Where(x => LeverageByCurrencyPair.ContainsKey(x.CurrencyPair));
+
+        //     foreach (var position in supportedPositions)
+        //     {
+        //         LeverageByCurrencyPair[position.CurrencyPair] = position.Leverage;
+        //     }
+        // }
+
+        // return balanceResult;
+    }
+
     async fn get_balance_and_positions_core(&self) -> Result<ExchangeBalancesAndPositions> {
         let response = self
             .exchange_client
@@ -677,7 +772,7 @@ impl Exchange {
             .expect("request_close_position failed.");
 
         log::info!(
-            "get_balance_and_positions response on {:?} {:?}",
+            "get_balance_and_positions_core response on {:?} {:?}",
             self.exchange_account_id,
             response,
         );
@@ -685,5 +780,124 @@ impl Exchange {
         self.exchange_client.is_rest_error_code(&response)?;
 
         Ok(self.exchange_client.parse_get_balance(&response))
+    }
+
+    pub async fn get_balance(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Option<ExchangeBalancesAndPositions> {
+        let mut retry_attempt = 1;
+        loop {
+            let result = self
+                .get_balance_and_positions(cancellation_token.clone())
+                .await
+                .map(|balance_and_positions| {
+                    let mut positions = balance_and_positions
+                        .positions
+                        .iter()
+                        .flat_map(|positions| {
+                            positions
+                                .iter()
+                                .filter(|x| self.symbols.contains_key(&x.currency_pair))
+                        })
+                        .cloned()
+                        .peekable();
+
+                    let positions = if positions.peek().is_some() {
+                        Some(positions.collect_vec())
+                    } else {
+                        None
+                    };
+
+                    // REVIEW: здесь была обработка пришедших CurrencyPairs(проверка, что они все поддерживаются, я же правильно понимаю
+                    // что для Rust это не актуально?)
+                    if balance_and_positions.balances.is_empty() {
+                        None
+                    } else {
+                        Some(ExchangeBalancesAndPositions {
+                            balances: balance_and_positions.balances,
+                            positions,
+                        })
+                    }
+                })?;
+
+            match result {
+                Some(balances_and_positions) => {
+                    self.events_channel
+                        .send(ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
+                            exchange_account_id: self.exchange_account_id,
+                            balances_and_positions: balances_and_positions.clone(),
+                        })).expect("Exchange::get_balance: Unable to send event. Probably receiver is already dropped");
+
+                    if let Some(positions) = &balances_and_positions.positions {
+                        for position_info in positions {
+                            self.handle_liquidation_price(
+                                position_info.currency_pair,
+                                position_info.liquidation_price,
+                                position_info.average_entry_price,
+                                position_info.side.expect("position_info.side is None"),
+                            )
+                        }
+                    }
+
+                    return Some(balances_and_positions);
+                }
+                None => {
+                    log::warn!(
+                        "Failed to get balance for {} on retry {}",
+                        self.exchange_account_id,
+                        retry_attempt,
+                    );
+                    if retry_attempt == 5 {
+                        log::warn!(
+                            "GetBalance for {} reached maximum retries - reconnecting",
+                            self.exchange_account_id
+                        );
+                        // REVIEW: what is this? (grays)
+                        // await Reconnect();
+                        return None;
+                    }
+
+                    retry_attempt += 1;
+                }
+            }
+        }
+    }
+
+    fn handle_liquidation_price(
+        &self,
+        currency_pair: CurrencyPair,
+        liquidation_price: Price,
+        entry_price: Price,
+        side: OrderSide,
+    ) {
+        if !self.symbols.contains_key(&currency_pair) {
+            log::warn!(
+                "Unknown currency pair {} in handle_liquidation_price for {}",
+                currency_pair,
+                self.exchange_account_id
+            );
+        }
+
+        let event = LiquidationPriceEvent::new(
+            time_manager::now(),
+            self.exchange_account_id,
+            currency_pair,
+            liquidation_price,
+            entry_price,
+            side,
+        );
+
+        self.events_channel
+            .send(ExchangeEvent::LiquidationPrice(event))
+            .expect(
+                "Exchange::handle_liquidation_price: Unable to send event. Probably receiver is already dropped",
+            );
+
+        // TODO: fix it when DataRecorder will be implemented
+        // if (exchange.IsRecordingMarketData)
+        // {
+        //     DataRecorder.Save(liquidationPrice);
+        // }
     }
 }
