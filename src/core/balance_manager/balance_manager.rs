@@ -1024,7 +1024,7 @@ impl BalanceManager {
         self.balance_changes_service = Some(service);
     }
 
-    pub async fn get_balances_for_exchanges(&mut self, cancellation_token: CancellationToken) {
+    pub async fn update_balances_for_exchanges(&mut self, cancellation_token: CancellationToken) {
         let exchanges = self
             .balance_reservation_manager
             .exchanges_by_id

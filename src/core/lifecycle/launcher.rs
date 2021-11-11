@@ -122,7 +122,7 @@ where
 
     balance_manager
         .lock()
-        .get_balances_for_exchanges(application_manager.stop_token())
+        .update_balances_for_exchanges(application_manager.stop_token())
         .await;
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();

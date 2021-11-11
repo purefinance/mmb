@@ -664,7 +664,7 @@ impl DispositionExecutor {
 
         let reservation_id;
         *explanation = {
-            let mut explanation = Some(explanation.clone()); // TODO: add issue to find more clear way for working with Explanations
+            let mut explanation = Some(explanation.clone());
 
             // This expect can happened if try_reserve() sets the explanation to None
             let explanation_err_msg =

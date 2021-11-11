@@ -779,8 +779,6 @@ impl Exchange {
                         return None;
                     }
 
-                    // REVIEW: здесь была обработка пришедших CurrencyPairs(проверка, что они все поддерживаются, я же правильно понимаю
-                    // что для Rust это не актуально?)
                     let positions = balance_and_positions
                         .positions
                         .iter()
@@ -808,10 +806,12 @@ impl Exchange {
                 Ok(balances_and_positions_opt) => {
                     if let Some(balances_and_positions) = balances_and_positions_opt {
                         self.events_channel
-                        .send(ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
-                            exchange_account_id: self.exchange_account_id,
-                            balances_and_positions: balances_and_positions.clone(),
-                        })).expect("Exchange::get_balance: Unable to send event. Probably receiver is already dropped");
+                        .send(
+                            ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
+                                exchange_account_id: self.exchange_account_id,
+                                balances_and_positions: balances_and_positions.clone(),
+                            }
+                        )).expect("Exchange::get_balance: Unable to send event. Probably receiver is already dropped");
 
                         if let Some(positions) = &balances_and_positions.positions {
                             for position_info in positions {
