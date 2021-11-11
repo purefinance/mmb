@@ -4,7 +4,7 @@ pub mod tests {
     use std::{collections::HashMap, sync::Arc};
 
     use mockall_double::double;
-    use parking_lot::{Mutex, MutexGuard, RwLock};
+    use parking_lot::{Mutex, MutexGuard};
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
     use uuid::Uuid;
@@ -41,7 +41,6 @@ pub mod tests {
                     ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
                     OrderType,
                 },
-                pool::OrderRef,
             },
             service_configuration::configuration_descriptor::ConfigurationDescriptor,
         },
