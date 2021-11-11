@@ -75,7 +75,7 @@ impl OrderProxy {
     }
 
     pub fn default_currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes("phb".into(), "btc".into())
+        CurrencyPair::from_codes("cnd".into(), "btc".into())
     }
 
     pub fn default_amount() -> Decimal {
