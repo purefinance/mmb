@@ -792,33 +792,33 @@ impl Exchange {
                 .get_balance_and_positions(cancellation_token.clone())
                 .await
                 .map(|balance_and_positions| {
-                    let mut positions = balance_and_positions
+                    if balance_and_positions.balances.is_empty() {
+                        return None;
+                    }
+
+                    // REVIEW: здесь была обработка пришедших CurrencyPairs(проверка, что они все поддерживаются, я же правильно понимаю
+                    // что для Rust это не актуально?)
+                    let positions = balance_and_positions
                         .positions
                         .iter()
-                        .flat_map(|positions| {
-                            positions
+                        .flat_map(|position| {
+                            position
                                 .iter()
                                 .filter(|x| self.symbols.contains_key(&x.currency_pair))
                         })
                         .cloned()
-                        .peekable();
+                        .collect_vec();
 
-                    let positions = if positions.peek().is_some() {
-                        Some(positions.collect_vec())
+                    let positions = if !positions.is_empty() {
+                        Some(positions)
                     } else {
                         None
                     };
 
-                    // REVIEW: здесь была обработка пришедших CurrencyPairs(проверка, что они все поддерживаются, я же правильно понимаю
-                    // что для Rust это не актуально?)
-                    if balance_and_positions.balances.is_empty() {
-                        None
-                    } else {
-                        Some(ExchangeBalancesAndPositions {
-                            balances: balance_and_positions.balances,
-                            positions,
-                        })
-                    }
+                    Some(ExchangeBalancesAndPositions {
+                        balances: balance_and_positions.balances,
+                        positions,
+                    })
                 })?;
 
             match result {
@@ -877,6 +877,7 @@ impl Exchange {
                 currency_pair,
                 self.exchange_account_id
             );
+            return;
         }
 
         let event = LiquidationPriceEvent::new(

@@ -31,7 +31,6 @@ use crate::core::orders::order::{
     OrderStatus, OrderType,
 };
 use crate::core::orders::pool::OrderRef;
-use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::core::{
     disposition_execution::trade_limit::is_enough_amount_and_cost, infrastructure::spawn_future,
 };
@@ -228,18 +227,10 @@ impl DispositionExecutor {
                         );
                         let price_slot = self.get_price_slot(order);
                         if let Some(price_slot) = price_slot {
-                            let configuration_descriptor = Arc::new(ConfigurationDescriptor::new(
-                                cloned_order.header.strategy_name.clone(),
-                                format!(
-                                    "{};{}",
-                                    self.exchange_account_id,
-                                    self.currency_pair_metadata.currency_pair().as_str()
-                                ),
-                            ));
-                            self.engine_ctx
-                                .balance_manager
-                                .lock()
-                                .order_was_filled(configuration_descriptor, cloned_order);
+                            self.engine_ctx.balance_manager.lock().order_was_filled(
+                                self.strategy.configuration_descriptor(),
+                                cloned_order,
+                            );
 
                             if cloned_order.status() == OrderStatus::Completed {
                                 return Ok(());
@@ -662,17 +653,8 @@ impl DispositionExecutor {
             Some(v) => v,
         };
 
-        let configuration_descriptor = Arc::new(ConfigurationDescriptor::new(
-            new_estimating.strategy_name.clone(),
-            format!(
-                "{};{}",
-                self.exchange_account_id,
-                self.currency_pair_metadata.currency_pair().as_str()
-            ),
-        ));
-
         let target_reserve_parameters = ReserveParameters::new(
-            configuration_descriptor,
+            self.strategy.configuration_descriptor(),
             self.exchange_account_id,
             self.currency_pair_metadata.clone(),
             new_disposition.side(),
@@ -680,32 +662,43 @@ impl DispositionExecutor {
             new_order_amount,
         );
 
-        let reservation_id = match self
-            .engine_ctx
-            .balance_manager
-            .lock()
-            .try_reserve(&target_reserve_parameters, &mut None) // TODO: fix me
-        {
-            Some(reservation_id) => reservation_id,
-            None => {
-        self.engine_ctx
-                    .timeout_manager
-                    .remove_group(self.exchange_account_id, requests_group_id)
-                    .with_expect(|| {
-                        format!(
-                            "failed to remove_group for {} {}",
-                            self.exchange_account_id, requests_group_id,
-                        )
-                    });
+        let reservation_id;
+        *explanation = {
+            let mut explanation = Some(explanation.clone()); // TODO: add issue to find more clear way for working with Explanations
 
-                return log_trace(
-                    format!(
-                        "Finished try_create_order because can't reserve balance {}",
-                        new_order_amount
-                    ),
-                    explanation,
-                );
-            }
+            // This expect can happened if try_reserve() sets the explanation to None
+            let explanation_err_msg =
+                "DispositionExecutor::try_create_order(): Explanation should be non None here";
+
+            reservation_id = match self
+                .engine_ctx
+                .balance_manager
+                .lock()
+                .try_reserve(&target_reserve_parameters, &mut explanation)
+            {
+                Some(reservation_id) => reservation_id,
+                None => {
+                    self.engine_ctx
+                        .timeout_manager
+                        .remove_group(self.exchange_account_id, requests_group_id)
+                        .with_expect(|| {
+                            format!(
+                                "failed to remove_group for {} {}",
+                                self.exchange_account_id, requests_group_id,
+                            )
+                        });
+
+                    return log_trace(
+                        format!(
+                            "Finished try_create_order because can't reserve balance {}",
+                            new_order_amount
+                        ),
+                        &mut explanation.expect(explanation_err_msg),
+                    );
+                }
+            };
+
+            explanation.expect(explanation_err_msg)
         };
 
         if !self.engine_ctx.timeout_manager.try_reserve_group_instant(

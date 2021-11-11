@@ -10,4 +10,5 @@ subscribe_to_market_data = true
 
 currency_pairs = [ { base = "cnd", quote = "btc"  },
                    { base = "eth", quote = "btc"  },
-                   { base = "eos", quote = "btc"  } ]
+                   { base = "eos", quote = "btc"  },
+                   { base = "btc", quote = "usdt"  } ]

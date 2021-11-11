@@ -390,9 +390,9 @@ impl BalanceReservationManager {
 
                 explanation.with_reason(|| {
                     format!(
-                    "free_amount_in_amount_currency_code with leverage and amount_multiplier = {}",
-                    free_amount_in_amount_currency_code
-                )
+                        "free_amount_in_amount_currency_code with leverage and amount_multiplier = {}",
+                        free_amount_in_amount_currency_code
+                    )
                 });
 
                 let mut free_amount_in_currency_code = currency_pair_metadata
@@ -543,6 +543,7 @@ impl BalanceReservationManager {
             .reserved_amount_in_amount_currency
             .get_by_balance_request(request)
             .unwrap_or(dec!(0));
+
         explanation.with_reason(|| {
             format!(
                 "reserved_amount_in_amount_currency: {}",

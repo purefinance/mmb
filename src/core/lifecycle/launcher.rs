@@ -161,7 +161,7 @@ fn run_services<'a, StrategySettings>(
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
-    let internal_events_loop = InternalEventsLoop::new(engine_context.balance_manager.clone());
+    let internal_events_loop = InternalEventsLoop::new();
     engine_context
         .shutdown_service
         .register_service(internal_events_loop.clone());

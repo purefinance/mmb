@@ -240,10 +240,10 @@ pub mod tests {
             mock_lockers.push(time_manager_locker);
 
             let mut this = Self {
-                configuration_descriptor: Arc::new(ConfigurationDescriptor::new(
+                configuration_descriptor: ConfigurationDescriptor::new(
                     Self::service_name(),
                     Self::service_configuration_key(),
-                )),
+                ),
                 currency_list: vec![Self::base(), Self::quote()],
                 exchange_1,
                 exchange_2,

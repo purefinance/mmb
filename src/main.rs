@@ -28,7 +28,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 
     fn max_amount(&self) -> Amount {
-        dec!(0.0002)
+        dec!(0.001)
     }
 }
 

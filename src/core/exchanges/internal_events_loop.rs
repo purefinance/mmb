@@ -6,7 +6,6 @@ use log::warn;
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, oneshot};
 
-use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
@@ -18,14 +17,12 @@ use crate::core::orders::order::OrderType;
 
 pub(crate) struct InternalEventsLoop {
     work_finished_receiver: Mutex<Option<oneshot::Receiver<Result<()>>>>,
-    pub balance_manager: Arc<Mutex<BalanceManager>>,
 }
 
 impl InternalEventsLoop {
-    pub(crate) fn new(balance_manager: Arc<Mutex<BalanceManager>>) -> Arc<Self> {
+    pub(crate) fn new() -> Arc<Self> {
         Arc::new(InternalEventsLoop {
             work_finished_receiver: Default::default(),
-            balance_manager,
         })
     }
 

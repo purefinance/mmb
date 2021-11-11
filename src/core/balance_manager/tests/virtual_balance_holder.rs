@@ -53,10 +53,10 @@ impl VirtualBalanceHolderTests {
             currency_pair_metadata: tmp_exchange
                 .get_currency_pair_metadata(VirtualBalanceHolderTests::currency_pair())
                 .expect("in test"),
-            configuration_descriptor: Arc::from(ConfigurationDescriptor::new(
+            configuration_descriptor: ConfigurationDescriptor::new(
                 "service".into(),
                 "config".into(),
-            )),
+            ),
         }
     }
 

@@ -38,6 +38,8 @@ pub trait DispositionStrategy: Send + Sync + 'static {
         target_eai: ExchangeAccountId,
         cancellation_token: CancellationToken,
     ) -> Result<()>;
+
+    fn configuration_descriptor(&self) -> Arc<ConfigurationDescriptor>;
 }
 
 pub struct ExampleStrategy {
@@ -56,10 +58,10 @@ impl ExampleStrategy {
         engine_context: Arc<EngineContext>,
         max_amount: Amount,
     ) -> Self {
-        let configuration_descriptor = Arc::new(ConfigurationDescriptor::new(
+        let configuration_descriptor = ConfigurationDescriptor::new(
             "ExampleStrategy".into(),
             format!("{};{}", target_eai, currency_pair.as_str()),
-        ));
+        );
 
         let symbol = engine_context
             .exchanges
@@ -115,7 +117,7 @@ impl ExampleStrategy {
 
         let current_spread = ask_min_price - bid_max_price;
 
-        let currency_pair_metadata = self
+        let symbol = self
             .engine_context
             .exchanges
             .get(&self.target_eai)?
@@ -129,15 +131,11 @@ impl ExampleStrategy {
             match side {
                 OrderSide::Sell => {
                     let price = order_book_middle + (current_spread * dec!(0.5));
-                    currency_pair_metadata
-                        .price_round(price, Round::Ceiling)
-                        .ok()?
+                    symbol.price_round(price, Round::Ceiling).ok()?
                 }
                 OrderSide::Buy => {
                     let price = order_book_middle - (current_spread * dec!(0.5));
-                    currency_pair_metadata
-                        .price_round(price, Round::Floor)
-                        .ok()?
+                    symbol.price_round(price, Round::Floor).ok()?
                 }
             }
         } else {
@@ -209,9 +207,7 @@ impl ExampleStrategy {
             )
         };
 
-        let amount = currency_pair_metadata
-            .amount_round(amount, Round::Ceiling)
-            .ok()?;
+        let amount = symbol.amount_round(amount, Round::Ceiling).ok()?;
         Some(TradingContextBySide {
             max_amount,
             estimating: vec![WithExplanation {
@@ -267,5 +263,9 @@ impl DispositionStrategy for ExampleStrategy {
     ) -> Result<()> {
         // TODO save order fill info in Database
         Ok(())
+    }
+
+    fn configuration_descriptor(&self) -> Arc<ConfigurationDescriptor> {
+        self.configuration_descriptor.clone()
     }
 }
