@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Error, Result};
+use anyhow::{anyhow, bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::FutureExt;
@@ -686,82 +686,65 @@ impl Exchange {
         Ok(self.exchange_client.parse_get_balance(&response))
     }
 
-    // TODO: fix me
     async fn get_balance_and_positions(
         &self,
         cancellation_token: CancellationToken,
-    ) -> Option<ExchangeBalancesAndPositions> {
-        match self.features.balance_position_option {
-            BalancePositionOption::NonDerivative => {
-                self.timeout_manager.reserve_when_available(
-                    self.exchange_account_id,
-                    RequestType::GetBalance,
-                    None,
-                    cancellation_token.clone(),
-                ).expect("Exchange::get_balance_and_positions: Failed to reserve for RequestType::GetBalance").await;
-                return self.get_balance_core().await.ok(); // TODO: maybe need log here?
+    ) -> Result<ExchangeBalancesAndPositions> {
+        self.timeout_manager
+            .reserve_when_available(
+                self.exchange_account_id,
+                RequestType::GetBalance,
+                None,
+                cancellation_token.clone(),
+            )?
+            .await;
+
+        let balance_result = match self.features.balance_position_option {
+            BalancePositionOption::NonDerivative => return self.get_balance_core().await,
+            BalancePositionOption::SingleRequest => self.get_balance_and_positions_core().await?,
+            BalancePositionOption::IndividualRequests => {
+                let balances_result = self.get_balance_core().await?;
+
+                if balances_result.positions.is_some() {
+                    bail!("Exchange supports SingleRequest but Individual is used")
+                }
+
+                self.timeout_manager
+                    .reserve_when_available(
+                        self.exchange_account_id,
+                        RequestType::GetActivePositions,
+                        None,
+                        cancellation_token.clone(),
+                    )?
+                    .await;
+
+                let position_result = self.get_active_positions_core().await?;
+
+                let balances = balances_result.balances;
+                let positions = position_result
+                    .iter()
+                    .map(|x| x.derivative.clone())
+                    .collect_vec();
+
+                ExchangeBalancesAndPositions {
+                    balances,
+                    positions: Some(positions),
+                }
             }
-            BalancePositionOption::SingleRequest => todo!("implement it later"),
-            BalancePositionOption::IndividualRequests => todo!("implement it later"),
         };
 
-        // if (Features.BalancePositionOption == BalancePositionOption.NonDerivative)
-        // {
-        //     await ReserveWhenAvailable(ExchangeRequestType.GetBalance);
-        //     return await GetBalanceCore();
-        // }
+        if let Some(positions) = &balance_result.positions {
+            for position in positions {
+                if let Some(mut leverage) = self
+                    .leverage_by_currency_pair
+                    .get_mut(&position.currency_pair)
+                {
+                    *leverage.value_mut() = position.leverage;
+                }
+            }
+        }
 
-        // ExchangeBalancesAndPositions balanceResult;
-        // if (Features.BalancePositionOption == BalancePositionOption.SingleRequest)
-        // {
-        //     await ReserveWhenAvailable(ExchangeRequestType.GetBalance);
-        //     var result = await GetBalanceAndPositionsCore();
-        //     if (!result.IsSuccess)
-        //     {
-        //         return null;
-        //     }
-
-        //     balanceResult = result.Data;
-        // }
-        // else
-        // {
-        //     await ReserveWhenAvailable(ExchangeRequestType.GetBalance);
-        //     var getBalanceResult = await GetBalanceCore();
-        //     if (getBalanceResult == null)
-        //     {
-        //         return null;
-        //     }
-
-        //     if (getBalanceResult.Positions != null)
-        //     {
-        //         throw new InvalidOperationException(
-        //             "Exchange supports SingleRequest (GetBalance) but Individual is used");
-        //     }
-
-        //     await ReserveWhenAvailable(ExchangeRequestType.GetActivePositions);
-        //     var positionsResult = await GetActivePositionsCore();
-        //     if (!positionsResult.IsSuccess)
-        //     {
-        //         return null;
-        //     }
-
-        //     var balances = getBalanceResult.Balances;
-        //     var positions = positionsResult.Data.Select(p => p.GetPositionInfo()).ToList();
-        //     balanceResult = new ExchangeBalancesAndPositions(balances, positions);
-        // }
-
-        // if (balanceResult.Positions != null)
-        // {
-        //     var supportedPositions = balanceResult.Positions
-        //         .Where(x => LeverageByCurrencyPair.ContainsKey(x.CurrencyPair));
-
-        //     foreach (var position in supportedPositions)
-        //     {
-        //         LeverageByCurrencyPair[position.CurrencyPair] = position.Leverage;
-        //     }
-        // }
-
-        // return balanceResult;
+        Ok(balance_result)
     }
 
     async fn get_balance_and_positions_core(&self) -> Result<ExchangeBalancesAndPositions> {
@@ -819,48 +802,52 @@ impl Exchange {
                         balances: balance_and_positions.balances,
                         positions,
                     })
-                })?;
+                });
 
-            match result {
-                Some(balances_and_positions) => {
-                    self.events_channel
+            let error_message = match result {
+                Ok(balances_and_positions_opt) => {
+                    if let Some(balances_and_positions) = balances_and_positions_opt {
+                        self.events_channel
                         .send(ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
                             exchange_account_id: self.exchange_account_id,
                             balances_and_positions: balances_and_positions.clone(),
                         })).expect("Exchange::get_balance: Unable to send event. Probably receiver is already dropped");
 
-                    if let Some(positions) = &balances_and_positions.positions {
-                        for position_info in positions {
-                            self.handle_liquidation_price(
-                                position_info.currency_pair,
-                                position_info.liquidation_price,
-                                position_info.average_entry_price,
-                                position_info.side.expect("position_info.side is None"),
-                            )
+                        if let Some(positions) = &balances_and_positions.positions {
+                            for position_info in positions {
+                                self.handle_liquidation_price(
+                                    position_info.currency_pair,
+                                    position_info.liquidation_price,
+                                    position_info.average_entry_price,
+                                    position_info.side.expect("position_info.side is None"),
+                                )
+                            }
                         }
-                    }
 
-                    return Some(balances_and_positions);
-                }
-                None => {
-                    log::warn!(
-                        "Failed to get balance for {} on retry {}",
-                        self.exchange_account_id,
-                        retry_attempt,
-                    );
-                    if retry_attempt == 5 {
-                        log::warn!(
-                            "GetBalance for {} reached maximum retries - reconnecting",
-                            self.exchange_account_id
-                        );
-                        // REVIEW: what is this? (grays)
-                        // await Reconnect();
-                        return None;
+                        return Some(balances_and_positions);
                     }
-
-                    retry_attempt += 1;
+                    anyhow!("Balances is empty")
                 }
+                Err(error) => error,
+            };
+
+            log::warn!(
+                "Failed to get balance for {} on retry {}: {:?}",
+                self.exchange_account_id,
+                retry_attempt,
+                error_message,
+            );
+            if retry_attempt == 5 {
+                log::warn!(
+                    "GetBalance for {} reached maximum retries - reconnecting",
+                    self.exchange_account_id
+                );
+                // REVIEW: what is this? (grays)
+                // await Reconnect();
+                return None;
             }
+
+            retry_attempt += 1;
         }
     }
 
