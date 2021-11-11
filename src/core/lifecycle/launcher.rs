@@ -64,7 +64,7 @@ where
     Load(String, String),
 }
 
-async fn before_enging_context_init<'a, StrategySettings>(
+async fn before_engine_context_init<'a, StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
 ) -> Result<(
@@ -251,7 +251,7 @@ pub async fn launch_trading_engine<'a, StrategySettings>(
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
-    let action_outcome = AssertUnwindSafe(before_enging_context_init(
+    let action_outcome = AssertUnwindSafe(before_engine_context_init(
         build_settings,
         init_user_settings,
     ))
