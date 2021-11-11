@@ -95,6 +95,7 @@ where
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
     let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
+
     let exchanges = create_exchanges(
         &settings.core,
         build_settings,
@@ -124,6 +125,12 @@ where
         .lock()
         .update_balances_for_exchanges(application_manager.stop_token())
         .await;
+
+    for exchange in &exchanges_map {
+        exchange
+            .value()
+            .setup_balance_manager(balance_manager.clone())
+    }
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
     let engine_context = EngineContext::new(

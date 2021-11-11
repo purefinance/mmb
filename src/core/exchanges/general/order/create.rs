@@ -376,7 +376,22 @@ impl Exchange {
                     .insert(exchange_order_id.clone(), order_ref.clone());
 
                 if order_ref.order_type() != OrderType::Liquidation {
-                    // TODO BalanceManager
+                    let header = order_ref.fn_ref(|x| x.header.clone());
+                    let client_order_id = header.client_order_id.clone();
+                    match header.reservation_id {
+                        None => warn!("Created order {} without reservation_id", client_order_id),
+                        Some(reservation_id) => {
+                            let bm_lock = self.balance_manager.lock();
+                            match bm_lock.as_ref().expect("BalanceManager should be initialized before receiving order events").upgrade() {
+                                None => warn!("BalanceManager ref can't be upgraded in handler create order succeeded event"),
+                                Some(balance_manager) => balance_manager.lock().approve_reservation(
+                                    reservation_id,
+                                    &client_order_id,
+                                    header.amount,
+                                )
+                            }
+                        }
+                    };
                 }
 
                 self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderSucceeded)?;
@@ -387,7 +402,7 @@ impl Exchange {
                 // TODO DataRecorder.Save(order); Do we really need it here?
                 // Cause it's already performed in handle_create_order_succeeded
 
-                info!("Order was created: {:?}", args_to_log);
+                log::info!("Order was created: {:?}", args_to_log);
 
                 Ok(())
             }

@@ -207,7 +207,8 @@ impl ExampleStrategy {
             )
         };
 
-        let amount = symbol.amount_round(amount, Round::Ceiling).ok()?;
+        let amount = symbol.amount_round(amount, Round::Floor).ok()?;
+
         Some(TradingContextBySide {
             max_amount,
             estimating: vec![WithExplanation {

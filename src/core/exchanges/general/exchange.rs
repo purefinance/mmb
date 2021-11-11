@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use anyhow::{anyhow, bail, Context, Error, Result};
 use awc::http::StatusCode;
@@ -43,6 +43,7 @@ use crate::core::{
 };
 use crate::core::{nothing_to_do, DateTime};
 
+use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
@@ -107,6 +108,7 @@ pub struct Exchange {
     pub(super) last_trades_update_time: DashMap<TradePlace, DateTime>,
     pub(super) last_trades: DashMap<TradePlace, Trade>,
     pub(super) timeout_manager: Arc<TimeoutManager>,
+    pub(super) balance_manager: Mutex<Option<Weak<Mutex<BalanceManager>>>>,
     // It allows to send and receive notification about event in websocket channel
     // Websocket event is main source detecting order creation result
     // Rest response using only for unsuccessful operations as error
@@ -168,6 +170,7 @@ impl Exchange {
             leverage_by_currency_pair: DashMap::new(),
             last_trades_update_time: DashMap::new(),
             last_trades: DashMap::new(),
+            balance_manager: Mutex::new(None),
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -321,6 +324,10 @@ impl Exchange {
             "Websocket message from {}: {}",
             self.exchange_account_id, msg
         );
+    }
+
+    pub fn setup_balance_manager(&self, balance_manager: Arc<Mutex<BalanceManager>>) {
+        *self.balance_manager.lock() = Some(Arc::downgrade(&balance_manager));
     }
 
     pub async fn connect(self: Arc<Self>) {
