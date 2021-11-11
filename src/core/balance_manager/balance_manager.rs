@@ -574,7 +574,7 @@ impl BalanceManager {
             .fills
             .fills
             .last()
-            .expect(format!("failed to get fills from order {:?}", order_snapshot).as_str());
+            .with_expect(|| format!("failed to get fills from order {:?}", order_snapshot));
 
         self.order_was_filled_with_fill(configuration_descriptor, order_snapshot, order_fill)
     }
@@ -776,13 +776,12 @@ impl BalanceManager {
     ) {
         self.balance_reservation_manager
             .approve_reservation(reservation_id, client_order_id, amount)
-            .expect(
+            .with_expect(|| {
                 format!(
                     "failed to approve reservation {} {} {} ",
                     reservation_id, client_order_id, amount,
                 )
-                .as_str(),
-            );
+            });
 
         self.save_balances();
     }
