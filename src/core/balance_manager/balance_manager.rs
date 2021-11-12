@@ -430,18 +430,10 @@ impl BalanceManager {
                 continue;
             }
 
-            if !balances_dict.contains_key(&reservation.exchange_account_id) {
-                continue;
-            }
-
-            let balances = balances_dict
-                .get_mut(&reservation.exchange_account_id)
-                .with_context(|| {
-                    format!(
-                        "failed to get balances from for {}",
-                        reservation.exchange_account_id,
-                    )
-                })?;
+            let balances = match balances_dict.get_mut(&reservation.exchange_account_id) {
+                Some(balances) => balances,
+                None => continue,
+            };
 
             let mut balance = balances
                 .get_mut(&reservation.reservation_currency_code)
@@ -452,7 +444,9 @@ impl BalanceManager {
                     )
                 })?;
 
-            balance += reservation.get_proportional_cost_amount(reservation.not_approved_amount)?;
+            balance += reservation.convert_in_reservation_currency(
+                reservation.get_proportional_cost_amount(reservation.not_approved_amount)?,
+            );
         }
         Ok(balances_dict)
     }
@@ -912,6 +906,12 @@ impl BalanceManager {
                         balance,
                         price_quote_to_base,
                     );
+                log::error!(
+                    "DEBUG: currency_code {} balance_in_amount_currency_code {} balance {}",
+                    currency_code,
+                    balance_in_amount_currency_code,
+                    balance
+                );
                 Some(
                     currency_pair_metadata
                         .round_to_remove_amount_precision_error(balance_in_amount_currency_code)
