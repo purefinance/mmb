@@ -128,7 +128,7 @@ impl BalanceManagerBase {
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
         let mock_object = time_manager::now_context();
         let seconds = seconds_offset_in_mock.clone();
-        mock_object.expect().returning(move || {
+        mock_object.expect("in test").returning(move || {
             chrono::Utc
                 .ymd(2021, 9, 20)
                 .and_hms(0, 0, seconds.lock().clone())
