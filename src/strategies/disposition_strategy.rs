@@ -63,25 +63,6 @@ impl ExampleStrategy {
             format!("{};{}", target_eai, currency_pair.as_str()),
         );
 
-        let symbol = engine_context
-            .exchanges
-            .get(&target_eai)
-            .with_expect(|| format!("failed to get exchange for {}", target_eai))
-            .symbols
-            .get(&currency_pair)
-            .with_expect(|| format!("failed to get symbol for {}", currency_pair))
-            .clone();
-
-        engine_context
-            .balance_manager
-            .lock()
-            .set_target_amount_limit(
-                configuration_descriptor.clone(),
-                target_eai,
-                symbol,
-                max_amount,
-            );
-
         ExampleStrategy {
             target_eai,
             currency_pair,
@@ -195,7 +176,9 @@ impl ExampleStrategy {
                     price,
                     &mut explanation,
                 )
-                .with_expect(|| format!("Failed to get balance for {}", self.target_eai));
+                .with_expect(|| format!("Failed to get balance for {}", self.target_eai))
+                .min(max_amount);
+
             explanation.add_reason(format!(
                 "max_amount changed to {} because target balance wasn't enough",
                 amount

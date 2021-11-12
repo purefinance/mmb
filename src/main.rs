@@ -27,6 +27,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
         CurrencyPair::from_codes("btc".into(), "usdt".into())
     }
 
+    // Max amount for orders that will be created
     fn max_amount(&self) -> Amount {
         dec!(0.001)
     }
