@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::core::exchanges::common::ToStdExpected;
 use crate::core::infrastructure::spawn_future;
 use crate::core::DateTime;
 use anyhow::Result;
@@ -94,9 +95,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
     }
 
     async fn handle_inner(&self, delay: Duration) {
-        let delay_std = delay
-            .to_std()
-            .expect("Unable to convert chrono::Duration to std::Duration");
+        let delay_std = delay.to_std_expected();
 
         sleep(delay_std).await;
         if let Err(error) = (*self.handler.lock())() {

@@ -17,6 +17,7 @@ use super::{
     triggers::every_requests_count_change_trigger::EveryRequestsCountChangeTrigger,
     triggers::less_or_equals_requests_count_trigger::LessOrEqualsRequestsCountTrigger,
 };
+use crate::core::exchanges::common::ToStdExpected;
 use crate::core::{
     exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType,
     infrastructure::spawn_future, infrastructure::FutureOutcome,
@@ -315,11 +316,7 @@ impl RequestsTimeoutManager {
         delay: Duration,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        let delay = delay.to_std().with_context(|| {
-            let msg = "Unable to convert chrono::Duration to std::Duration";
-            log::error!("{}", msg);
-            msg
-        })?;
+        let delay: std::time::Duration = delay.to_std_expected();
 
         let sleep_future = sleep(delay);
         let cancellation_token = cancellation_token.when_cancelled();

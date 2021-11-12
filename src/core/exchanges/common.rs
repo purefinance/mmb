@@ -1,3 +1,4 @@
+use crate::core::infrastructure::WithExpect;
 use crate::core::utils::{AppendTable16, AppendTable8};
 use anyhow::Result;
 use awc::http::StatusCode;
@@ -364,6 +365,21 @@ impl RestRequestOutcome {
 }
 
 pub type RestRequestResult = std::result::Result<String, RestRequestError>;
+
+pub trait ToStdExpected {
+    fn to_std_expected(&self) -> std::time::Duration;
+}
+
+impl ToStdExpected for chrono::Duration {
+    fn to_std_expected(&self) -> std::time::Duration {
+        self.to_std().with_expect(|| {
+            format!(
+                "Unable to convert value = {} from chrono::Duration to std::time::Duration",
+                self
+            )
+        })
+    }
+}
 
 #[cfg(test)]
 mod tests {

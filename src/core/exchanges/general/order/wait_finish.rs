@@ -8,6 +8,7 @@ use dashmap::mapref::entry::Entry::{Occupied, Vacant};
 use log::{error, info, trace, warn};
 use tokio::sync::{broadcast, oneshot};
 
+use crate::core::exchanges::common::ToStdExpected;
 use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::RequestResult;
@@ -158,11 +159,9 @@ impl Exchange {
                         .last_order_cancellation_status_request_time
                 }) {
                     Some(last_order_cancellation_status_request_time) => {
-                        let duration_from_last_cancellatioion_status = (current_time
-                            - last_order_cancellation_status_request_time)
-                            .to_std()
-                            .expect("Unable to convert chrono::Duration to std::time::Duration in poll_order_fills()");
-                        fallback_request_period - duration_from_last_cancellatioion_status
+                        fallback_request_period
+                            - (current_time - last_order_cancellation_status_request_time)
+                                .to_std_expected()
                     }
                     None => fallback_request_period,
                 };
