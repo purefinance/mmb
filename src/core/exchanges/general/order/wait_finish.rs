@@ -248,7 +248,7 @@ impl Exchange {
             return Ok(false);
         }
 
-        let exchange_account_id = &self.exchange_account_id;
+        let exchange_account_id = self.exchange_account_id;
         let client_order_id = &order.client_order_id();
         info!(
             "check_maker_only_order_status for exchange_account_id: {} and client order_id: {}",
@@ -388,7 +388,7 @@ impl Exchange {
     ) -> Result<RequestResult<()>> {
         self.timeout_manager
             .reserve_when_available(
-                &self.exchange_account_id,
+                self.exchange_account_id,
                 request_type,
                 pre_reservation_group_id,
                 cancellation_token,

@@ -1,29 +1,25 @@
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
-use crate::core::{
-    balance_manager::balance_request::BalanceRequest,
-    exchanges::common::{Amount, CurrencyCode, ExchangeId, Price, TradePlaceAccount},
-    orders::order::ClientOrderFillId,
-    utils::get_atomic_current_secs,
-    DateTime,
+use crate::{
+    core::{
+        balance_manager::balance_request::BalanceRequest,
+        exchanges::common::{Amount, CurrencyCode, ExchangeId, Price, TradePlaceAccount},
+        orders::order::ClientOrderFillId,
+        utils::get_atomic_current_secs,
+        DateTime,
+    },
+    impl_u64_id,
 };
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct ProfitLossBalanceChangeId(u64);
+impl_u64_id!(ProfitLossBalanceChangeId);
 
-static PROFIT_LOSS_BALANCE_CHANGE_ID: Lazy<AtomicU64> = Lazy::new(|| get_atomic_current_secs());
-
-impl ProfitLossBalanceChangeId {
-    pub fn generate() -> Self {
-        let new_id = PROFIT_LOSS_BALANCE_CHANGE_ID.fetch_add(1, Ordering::AcqRel);
-        Self(new_id)
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct ProfitLossBalanceChange {
     pub id: ProfitLossBalanceChangeId,
     pub client_order_fill_id: ClientOrderFillId,

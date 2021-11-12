@@ -7,7 +7,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 
 use super::balance_reservation::BalanceReservation;
 
-#[derive(Hash, Debug, PartialEq, Eq)]
+#[derive(Hash, Debug, PartialEq, Eq, Clone)]
 /// The entity for getting balance for account with ExchangeAccountId by CurrencyPair in CurrencyCode
 pub struct BalanceRequest {
     pub configuration_descriptor: Arc<ConfigurationDescriptor>,

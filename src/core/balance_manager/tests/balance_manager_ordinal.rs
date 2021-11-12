@@ -1,6 +1,6 @@
 use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
 #[double]
-use crate::core::misc::time_manager::time_manager;
+use crate::core::misc::time::time_manager;
 use crate::core::{
     balance_manager::balance_manager::BalanceManager,
     exchanges::{
@@ -301,7 +301,7 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .balance_was_received(&ExchangeAccountId::new("NotExistingExchangeId".into(), 0)),
+                .balance_was_received(ExchangeAccountId::new("NotExistingExchangeId".into(), 0)),
             false
         );
     }
@@ -313,7 +313,7 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .balance_was_received(&test_object.balance_manager_base.exchange_account_id_1),
+                .balance_was_received(test_object.balance_manager_base.exchange_account_id_1),
             false
         );
     }
@@ -325,7 +325,7 @@ mod tests {
 
         assert!(test_object
             .balance_manager()
-            .balance_was_received(&test_object.balance_manager_base.exchange_account_id_1));
+            .balance_was_received(test_object.balance_manager_base.exchange_account_id_1));
     }
 
     #[test]
@@ -334,7 +334,7 @@ mod tests {
         init_logger();
         let test_object = BalanceManagerOrdinal::new();
 
-        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id_1;
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let btc = BalanceManagerBase::btc();
         let eth = BalanceManagerBase::eth();
         let bnb = BalanceManagerBase::bnb();
@@ -342,7 +342,7 @@ mod tests {
 
         BalanceManagerBase::update_balance(
             test_object.balance_manager(),
-            exchange_account_id.clone(),
+            exchange_account_id,
             hashmap![
                 btc => dec!(2),
                 eth => dec!(1),
@@ -400,7 +400,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_balance_reservation_currency_code(
-                    &exchange_account_id,
+                    exchange_account_id,
                     test_object.balance_manager_base.currency_pair_metadata(),
                     side,
                 ),
@@ -437,7 +437,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_balance_reservation_currency_code(
-                    &exchange_account_id,
+                    exchange_account_id,
                     test_object.balance_manager_base.currency_pair_metadata(),
                     side,
                 ),
@@ -2565,7 +2565,7 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
-                &exchange_account_id,
+                exchange_account_id,
                 test_object.balance_manager_base.currency_pair_metadata(),
                 eth
             ),
@@ -2573,7 +2573,7 @@ mod tests {
         );
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
-                &exchange_account_id,
+                exchange_account_id,
                 test_object.balance_manager_base.currency_pair_metadata(),
                 bnb
             ),
@@ -2637,7 +2637,7 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
-                &exchange_account_id,
+                exchange_account_id,
                 test_object.balance_manager_base.currency_pair_metadata(),
                 eth
             ),
@@ -2645,7 +2645,7 @@ mod tests {
         );
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
-                &exchange_account_id,
+                exchange_account_id,
                 test_object.balance_manager_base.currency_pair_metadata(),
                 bnb
             ),
@@ -2712,7 +2712,7 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
-                &exchange_account_id,
+                exchange_account_id,
                 test_object.balance_manager_base.currency_pair_metadata(),
                 eth
             ),
@@ -2720,7 +2720,7 @@ mod tests {
         );
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
-                &exchange_account_id,
+                exchange_account_id,
                 test_object.balance_manager_base.currency_pair_metadata(),
                 bnb
             ),
@@ -4492,7 +4492,7 @@ mod tests {
 
         assert!(!test_object
             .balance_manager()
-            .balance_was_received(&exchange_account_id));
+            .balance_was_received(exchange_account_id));
 
         assert_eq!(
             test_object
@@ -5033,10 +5033,10 @@ mod tests {
         init_logger();
         let mut test_object = create_eth_btc_test_obj(dec!(10), dec!(0));
 
-        let exchange_account_id = &test_object.balance_manager_base.exchange_account_id_1;
+        let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         let trade_place = TradePlaceAccount::new(
-            exchange_account_id.clone(),
+            exchange_account_id,
             test_object
                 .balance_manager_base
                 .currency_pair_metadata()

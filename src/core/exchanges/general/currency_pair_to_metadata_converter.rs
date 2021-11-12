@@ -1,3 +1,8 @@
+#[cfg(test)]
+use mockall::automock;
+#[cfg(test)]
+use parking_lot::{Mutex, MutexGuard};
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -12,9 +17,10 @@ pub struct CurrencyPairToMetadataConverter {
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 }
 
+#[cfg_attr(test, automock)]
 impl CurrencyPairToMetadataConverter {
-    pub(crate) fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Self {
-        Self { exchanges_by_id }
+    pub(crate) fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Arc<Self> {
+        Arc::new(Self { exchanges_by_id })
     }
 
     pub(crate) fn get_currency_pair_metadata(
@@ -35,4 +41,11 @@ impl CurrencyPairToMetadataConverter {
             .get_currency_pair_metadata(currency_pair)
             .expect("failed to get currency pair")
     }
+
+    pub(crate) fn exchanges_by_id(&self) -> HashMap<ExchangeAccountId, Arc<Exchange>> {
+        self.exchanges_by_id.clone()
+    }
 }
+
+#[cfg(test)]
+crate::impl_mock_initializer!(MockCurrencyPairToMetadataConverter);

@@ -632,7 +632,7 @@ impl DispositionExecutor {
         let new_client_order_id = ClientOrderId::unique_id();
 
         let requests_group_id = self.engine_ctx.timeout_manager.try_reserve_group(
-            &self.exchange_account_id,
+            self.exchange_account_id,
             GROUP_REQUESTS_COUNT,
             DISPOSITION_EXECUTOR_REQUESTS_GROUP.to_string(),
         )?;
@@ -650,7 +650,7 @@ impl DispositionExecutor {
         // TODO reserve balances
 
         if !self.engine_ctx.timeout_manager.try_reserve_group_instant(
-            &self.exchange_account_id,
+            self.exchange_account_id,
             RequestType::CancelOrder,
             Some(requests_group_id),
         )? {
@@ -659,7 +659,7 @@ impl DispositionExecutor {
             let _ = self
                 .engine_ctx
                 .timeout_manager
-                .remove_group(&self.exchange_account_id, requests_group_id)?;
+                .remove_group(self.exchange_account_id, requests_group_id)?;
 
             return log_trace(
                 "Finished `try_create_order` because can't reserve requests",
@@ -820,7 +820,7 @@ impl DispositionExecutor {
         let _ = self
             .engine_ctx
             .timeout_manager
-            .remove_group(&self.exchange_account_id, request_group_id)?;
+            .remove_group(self.exchange_account_id, request_group_id)?;
         Ok(())
     }
 
@@ -834,7 +834,7 @@ impl DispositionExecutor {
         let result = self.strategy.handle_order_fill(
             cloned_order,
             price_slot,
-            &self.exchange_account_id,
+            self.exchange_account_id,
             self.cancellation_token.clone(),
         );
 

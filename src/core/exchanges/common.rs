@@ -7,17 +7,26 @@ use once_cell::sync::Lazy;
 use paste::paste;
 use regex::Regex;
 use rust_decimal::*;
+use rust_decimal_macros::dec;
 use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
+use smallstr::SmallString;
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::BTreeMap, time::Duration};
 use thiserror::Error;
+
+use crate::core::misc::derivative_position::DerivativePosition;
+use crate::core::orders::order::ExchangeOrderId;
 
 pub type Price = Decimal;
 pub type Amount = Decimal;
 pub type SortedOrderData = BTreeMap<Price, Amount>;
+
+type String16 = SmallString<[u8; 16]>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExchangeIdParseError(String);
@@ -318,6 +327,13 @@ impl ExchangeError {
         }
     }
 
+    pub(crate) fn parsing_error(message: &str) -> Self {
+        ExchangeError::new(
+            ExchangeErrorType::ParsingError,
+            format!("Unable to parse {}", message),
+            None,
+        )
+    }
     pub(crate) fn unknown_error(message: &str) -> Self {
         Self {
             error_type: ExchangeErrorType::Unknown,
@@ -378,6 +394,86 @@ impl ToStdExpected for chrono::Duration {
                 self
             )
         })
+    }
+}
+
+pub struct ClosedPosition {
+    exchange_order_id: ExchangeOrderId,
+    amount: Amount,
+}
+
+impl ClosedPosition {
+    pub fn new(exchange_order_id: ExchangeOrderId, amount: Amount) -> Self {
+        Self {
+            exchange_order_id,
+            amount,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ActivePositionId(String16);
+
+static ACTIVE_POSITION_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| {
+    AtomicU64::new(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Failed to get system time since UNIX_EPOCH")
+            .as_secs(),
+    )
+});
+
+impl ActivePositionId {
+    pub fn unique_id() -> Self {
+        let new_id = ACTIVE_POSITION_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
+        ActivePositionId(new_id.to_string().into())
+    }
+
+    pub fn new(client_order_id: String16) -> Self {
+        ActivePositionId(client_order_id)
+    }
+
+    /// Extracts a string slice containing the entire string.
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Extracts a string slice containing the entire string.
+    pub fn as_mut_str(&mut self) -> &mut str {
+        self.0.as_mut_str()
+    }
+}
+
+impl From<&str> for ActivePositionId {
+    fn from(value: &str) -> Self {
+        ActivePositionId(String16::from_str(value))
+    }
+}
+
+impl Display for ActivePositionId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ActivePosition {
+    pub id: ActivePositionId,
+    pub status: StatusCode,
+    pub time_stamp: u128,
+    pub pl: Amount,
+    pub derivative: DerivativePosition,
+}
+
+impl ActivePosition {
+    pub fn new(derivative: DerivativePosition) -> Self {
+        Self {
+            id: ActivePositionId::unique_id(),
+            status: StatusCode::default(),
+            time_stamp: 0,
+            pl: dec!(0),
+            derivative,
+        }
     }
 }
 

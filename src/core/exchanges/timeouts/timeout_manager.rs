@@ -39,36 +39,36 @@ impl TimeoutManager {
 
     pub fn try_reserve_group(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         requests_count: usize,
         group_type: String,
     ) -> Result<Option<RequestGroupId>> {
-        self.inner[exchange_account_id].try_reserve_group(group_type, now(), requests_count)
+        self.inner[&exchange_account_id].try_reserve_group(group_type, now(), requests_count)
     }
 
     pub fn remove_group(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         group_id: RequestGroupId,
     ) -> Result<bool> {
-        self.inner[exchange_account_id].remove_group(group_id, now())
+        self.inner[&exchange_account_id].remove_group(group_id, now())
     }
 
     pub fn try_reserve_instant(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         request_type: RequestType,
     ) -> Result<bool> {
-        self.inner[exchange_account_id].try_reserve_instant(request_type, now(), None)
+        self.inner[&exchange_account_id].try_reserve_instant(request_type, now(), None)
     }
 
     pub fn try_reserve_group_instant(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         request_type: RequestType,
         pre_reserved_group_id: Option<RequestGroupId>,
     ) -> Result<bool> {
-        self.inner[exchange_account_id].try_reserve_instant(
+        self.inner[&exchange_account_id].try_reserve_instant(
             request_type,
             now(),
             pre_reserved_group_id,
@@ -77,12 +77,12 @@ impl TimeoutManager {
 
     pub fn reserve_when_available(
         &self,
-        exchange_account_id: &ExchangeAccountId,
+        exchange_account_id: ExchangeAccountId,
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<impl Future<Output = FutureOutcome> + Send + Sync> {
-        let inner = (&self.inner[exchange_account_id]).clone();
+        let inner = (&self.inner[&exchange_account_id]).clone();
 
         const ERROR_MSG: &str = "Failed waiting in method TimeoutManager::reserve_when_available";
         let convert = |handle: JoinHandle<FutureOutcome>| {

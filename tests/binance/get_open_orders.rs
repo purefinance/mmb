@@ -92,7 +92,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
 
     settings.currency_pairs = Some(vec![
         CurrencyPairSetting {
-            base: "phb".into(),
+            base: "cnd".into(),
             quote: "btc".into(),
             currency_pair: None,
         },

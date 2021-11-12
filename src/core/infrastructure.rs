@@ -104,7 +104,7 @@ pub fn spawn_future_timed(
     })
 }
 
-/// Spawn future with logging and error, panic and cancellatioin handling
+/// Spawn future with logging and error, panic and cancellation handling
 /// Inside the crate prefer this function to all others
 pub fn spawn_future(
     action_name: &str,

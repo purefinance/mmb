@@ -29,7 +29,7 @@ use crate::core::infrastructure::WithExpect;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 #[double]
-use crate::core::misc::time_manager::time_manager;
+use crate::core::misc::time::time_manager;
 use crate::core::misc::traits_ext::decimal_inverse_sign::DecimalInverseSign;
 use crate::core::orders::order::{ClientOrderFillId, ClientOrderId, OrderSide};
 use crate::core::orders::order::{ReservationId, ReservationIdVecToStringExt};
@@ -50,7 +50,7 @@ pub(super) struct CanReserveResult {
 pub(crate) struct BalanceReservationManager {
     pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 
-    pub currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+    pub currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     reserved_amount_in_amount_currency: ServiceValueTree,
     amount_limits_in_amount_currency: ServiceValueTree,
 
@@ -66,7 +66,7 @@ pub(crate) struct BalanceReservationManager {
 impl BalanceReservationManager {
     pub fn new(
         exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        currency_pair_to_metadata_converter: CurrencyPairToMetadataConverter,
+        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Self {
         Self {
             exchanges_by_id: exchanges_by_id.clone(),

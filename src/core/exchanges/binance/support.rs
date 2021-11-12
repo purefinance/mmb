@@ -1,4 +1,5 @@
 use crate::core::infrastructure::WithExpect;
+use crate::core::misc::derivative_position::DerivativePosition;
 use std::str::FromStr;
 
 use std::sync::Arc;
@@ -12,12 +13,13 @@ use dashmap::DashMap;
 use itertools::Itertools;
 use log::{error, info};
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::binance::Binance;
-use crate::core::exchanges::common::SortedOrderData;
-use crate::core::exchanges::events::{ExchangeEvent, TradeId};
+use crate::core::exchanges::common::{ActivePosition, ClosedPosition, SortedOrderData};
+use crate::core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
 use crate::core::exchanges::general::order::get_order_trades::OrderTrade;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
@@ -60,6 +62,19 @@ pub struct BinanceOrderInfo {
     pub side: String,
 }
 
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+struct BinancePosition {
+    #[serde(rename = "symbol")]
+    pub specific_currency_pair: SpecificCurrencyPair,
+    #[serde(rename = "PositionAmt")]
+    pub position_amount: Amount,
+    #[serde(rename = "LiquidationPrice")]
+    pub liquidation_price: Price,
+    pub leverage: Decimal,
+    #[serde(rename = "PositionSide")]
+    pub position_side: Decimal,
+}
+
 #[async_trait]
 impl Support for Binance {
     fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
@@ -71,40 +86,22 @@ impl Support for Binance {
             return Ok(());
         }
 
-        match serde_json::from_str::<Value>(&response.content) {
-            Ok(data) => {
-                let message = data["msg"].as_str();
-                let code = data["code"].as_i64();
+        let data: Value = serde_json::from_str(&response.content)
+            .map_err(|err| ExchangeError::parsing_error(&format!("response.content: {:?}", err)))?;
 
-                match message {
-                    None => Err(ExchangeError::new(
-                        ExchangeErrorType::ParsingError,
-                        "Unable to parse msg field".into(),
-                        None,
-                    )),
-                    Some(message) => match code {
-                        None => Err(ExchangeError::new(
-                            ExchangeErrorType::ParsingError,
-                            "Unable to parse code field".into(),
-                            None,
-                        )),
-                        Some(code) => Err(ExchangeError::new(
-                            ExchangeErrorType::Unknown,
-                            message.to_string(),
-                            Some(code),
-                        )),
-                    },
-                }
-            }
-            Err(error) => {
-                let error_message = format!("Unable to parse response.content: {}", error);
-                Err(ExchangeError::new(
-                    ExchangeErrorType::ParsingError,
-                    error_message,
-                    None,
-                ))
-            }
-        }
+        let message = data["msg"]
+            .as_str()
+            .ok_or_else(|| ExchangeError::parsing_error("`msg` field"))?;
+
+        let code = data["code"]
+            .as_i64()
+            .ok_or_else(|| ExchangeError::parsing_error("`code` field"))?;
+
+        Err(ExchangeError::new(
+            ExchangeErrorType::Unknown,
+            message.to_string(),
+            Some(code),
+        ))
     }
 
     fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
@@ -471,6 +468,34 @@ impl Support for Binance {
     fn get_settings(&self) -> &ExchangeSettings {
         &self.settings
     }
+
+    fn parse_get_position(&self, response: &RestRequestOutcome) -> Vec<ActivePosition> {
+        let binance_positions: Vec<BinancePosition> = serde_json::from_str(&response.content)
+            .expect("Unable to parse response content for get_active_positions_core request");
+
+        binance_positions
+            .into_iter()
+            .map(|x| self.binance_position_to_active_position(x))
+            .collect_vec()
+    }
+
+    fn parse_close_position(&self, response: &RestRequestOutcome) -> Result<ClosedPosition> {
+        let binance_order: BinanceOrderInfo = serde_json::from_str(&response.content)
+            .context("Unable to parse response content for get_open_orders request")?;
+
+        let closed_position = ClosedPosition::new(
+            ExchangeOrderId::from(binance_order.exchange_order_id.to_string().as_ref()),
+            binance_order.orig_quantity,
+        );
+
+        Ok(closed_position)
+    }
+
+    fn parse_get_balance(&self, _response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
+        // this function is only used in Exchange::get_balance_and_positions_core()
+        // which isn't supported for Binance(look at ExchangeClient::request_get_balance_and_position() for Binance)
+        todo!("add implementation")
+    }
 }
 
 trait GetOrErr {
@@ -666,6 +691,36 @@ impl Binance {
         let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
 
         orders
+    }
+
+    fn binance_position_to_active_position(
+        &self,
+        binance_position: BinancePosition,
+    ) -> ActivePosition {
+        let currency_pair = self
+            .get_unified_currency_pair(&binance_position.specific_currency_pair)
+            .with_expect(|| {
+                format!(
+                    "Failed to get_unified_currency_pair for {:?}",
+                    binance_position.specific_currency_pair
+                )
+            });
+
+        let side = match binance_position.position_side > dec!(0) {
+            true => OrderSide::Buy,
+            false => OrderSide::Sell,
+        };
+
+        let derivative_position = DerivativePosition::new(
+            currency_pair,
+            binance_position.position_amount,
+            Some(side),
+            dec!(0),
+            binance_position.liquidation_price,
+            binance_position.leverage,
+        );
+
+        ActivePosition::new(derivative_position)
     }
 }
 
