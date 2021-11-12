@@ -760,11 +760,9 @@ impl BalanceManager {
         amount_2: Amount,
     ) {
         self.balance_reservation_manager
-            .unreserve(reservation_id_1, amount_1, &None)
-            .with_expect(|| format!("failed to unreserve {} {}", reservation_id_1, amount_1));
+            .unreserve_expected(reservation_id_1, amount_1, &None);
         self.balance_reservation_manager
-            .unreserve(reservation_id_2, amount_2, &None)
-            .with_expect(|| format!("failed to unreserve {} {}", reservation_id_2, amount_2));
+            .unreserve_expected(reservation_id_2, amount_2, &None);
         self.save_balances();
     }
 

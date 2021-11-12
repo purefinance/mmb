@@ -298,6 +298,21 @@ impl BalanceReservationManager {
         Ok(())
     }
 
+    pub fn unreserve_expected(
+        &mut self,
+        reservation_id: ReservationId,
+        amount: Amount,
+        client_or_order_id: &Option<ClientOrderId>,
+    ) -> () {
+        self.unreserve(reservation_id, amount, client_or_order_id)
+            .with_expect(|| {
+                format!(
+                "Failed to unreserve. reservation_id = {}, amount = {}, client_or_order_id = {:?}",
+                reservation_id, amount, client_or_order_id
+            )
+            });
+    }
+
     fn get_available_balance(
         &self,
         parameters: &ReserveParameters,
@@ -1441,10 +1456,7 @@ impl BalanceReservationManager {
 
         if successful_reservations.len() != reserve_parameters.len() {
             for (res_id, res_params) in successful_reservations {
-                self.unreserve(res_id, res_params.amount, &None)
-                    .with_expect(|| {
-                        format!("failed to unreserve for {} {}", res_id, res_params.amount)
-                    });
+                self.unreserve_expected(res_id, res_params.amount, &None);
             }
             return None;
         }
