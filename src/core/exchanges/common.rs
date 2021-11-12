@@ -383,11 +383,11 @@ impl RestRequestOutcome {
 pub type RestRequestResult = std::result::Result<String, RestRequestError>;
 
 pub trait ToStdExpected {
-    fn to_std_expected(&self) -> std::time::Duration;
+    fn to_std_expected(&self) -> Duration;
 }
 
 impl ToStdExpected for chrono::Duration {
-    fn to_std_expected(&self) -> std::time::Duration {
+    fn to_std_expected(&self) -> Duration {
         self.to_std().with_expect(|| {
             format!(
                 "Unable to convert value = {} from chrono::Duration to std::time::Duration",
