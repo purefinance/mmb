@@ -4,7 +4,7 @@ pub mod tests {
     use std::{collections::HashMap, sync::Arc};
 
     use mockall_double::double;
-    use parking_lot::{Mutex, MutexGuard};
+    use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
     use uuid::Uuid;
@@ -61,7 +61,7 @@ pub mod tests {
 
         time_manager_mock: time_manager::__now::Context,
         seconds_offset: Arc<Mutex<u32>>,
-        mock_lockers: Vec<MutexGuard<'static, ()>>,
+        mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
     }
 
     impl BalanceChangesCalculatorTestsBase {
@@ -111,7 +111,7 @@ pub mod tests {
 
         pub fn init_usd_converter(
             prices: HashMap<CurrencyCode, Price>,
-        ) -> (UsdConverter, MutexGuard<'static, ()>) {
+        ) -> (UsdConverter, ReentrantMutexGuard<'static, ()>) {
             let (mut usd_converter, usd_converter_locker) = UsdConverter::init_mock();
             usd_converter
                 .expect_convert_amount()
@@ -130,7 +130,10 @@ pub mod tests {
             exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
             is_derivative: bool,
             is_reversed: bool,
-        ) -> (CurrencyPairToMetadataConverter, MutexGuard<'static, ()>) {
+        ) -> (
+            CurrencyPairToMetadataConverter,
+            ReentrantMutexGuard<'static, ()>,
+        ) {
             let (mut currency_pair_to_symbol_converter, cp_to_symbol_locker) =
                 CurrencyPairToMetadataConverter::init_mock();
 
@@ -201,7 +204,7 @@ pub mod tests {
             is_derivative: bool,
             is_reversed: bool,
             usd_converter: UsdConverter,
-            usd_converter_locker: MutexGuard<'static, ()>,
+            usd_converter_locker: ReentrantMutexGuard<'static, ()>,
         ) -> Self {
             let exchange_1 = get_test_exchange_by_currency_codes(
                 false,

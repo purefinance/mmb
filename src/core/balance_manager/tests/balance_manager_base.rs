@@ -21,7 +21,7 @@ use crate::core::{
 
 use itertools::Itertools;
 use mockall_double::double;
-use parking_lot::{Mutex, MutexGuard};
+use parking_lot::{Mutex, MutexGuard, ReentrantMutexGuard};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -37,7 +37,7 @@ pub struct BalanceManagerBase {
     currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
 
     mock_object: time_manager::__now::Context,
-    mock_locker: MutexGuard<'static, ()>,
+    mock_locker: ReentrantMutexGuard<'static, ()>,
 }
 
 impl BalanceManagerBase {

@@ -25,8 +25,6 @@ use tokio::time::{sleep_until, Duration, Instant};
 
 #[cfg(test)]
 use mockall::automock;
-#[cfg(test)]
-use parking_lot::MutexGuard;
 
 const EXPECTED_EAI_SHOULD_BE_CREATED: &str =
     "Should exists because locks created for all exchange accounts in constructor";

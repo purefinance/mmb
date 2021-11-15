@@ -1,7 +1,5 @@
 #[cfg(test)]
 use mockall::automock;
-#[cfg(test)]
-use parking_lot::{Mutex, MutexGuard};
 
 use std::collections::HashMap;
 use std::sync::Arc;
