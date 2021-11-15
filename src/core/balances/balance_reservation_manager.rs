@@ -307,7 +307,7 @@ impl BalanceReservationManager {
         self.unreserve(reservation_id, amount, client_or_order_id)
             .with_expect(|| {
                 format!(
-                "Failed to unreserve. reservation_id = {}, amount = {}, client_or_order_id = {:?}",
+                "Failed to unreserve: reservation_id = {}, amount = {}, client_or_order_id = {:?}",
                 reservation_id, amount, client_or_order_id
             )
             });
