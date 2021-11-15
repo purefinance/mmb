@@ -8,13 +8,13 @@ use mmb_lib::core::{
 };
 use mmb_lib::strategies::disposition_strategy::ExampleStrategy;
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {
     pub spread: Decimal,
     pub currency_pair: CurrencyPairSetting,
+    pub max_amount: Decimal,
 }
 
 impl BaseStrategySettings for ExampleStrategySettings {
@@ -30,7 +30,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
 
     // Max amount for orders that will be created
     fn max_amount(&self) -> Amount {
-        dec!(0.001)
+        self.max_amount
     }
 }
 
