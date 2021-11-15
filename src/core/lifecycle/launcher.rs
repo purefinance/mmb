@@ -27,7 +27,6 @@ use anyhow::{anyhow, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
-use log::info;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
@@ -78,8 +77,8 @@ where
 {
     init_logger();
 
-    info!("*****************************");
-    info!("TradingEngine starting");
+    log::info!("*****************************");
+    log::info!("TradingEngine starting");
 
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
@@ -188,7 +187,7 @@ where
         .shutdown_service
         .register_service(disposition_executor_service);
 
-    info!("TradingEngine started");
+    log::info!("TradingEngine started");
     Ok(TradingEngine::new(
         engine_context.clone(),
         finish_graceful_shutdown_rx,

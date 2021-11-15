@@ -1,5 +1,4 @@
 use anyhow::Result;
-use log::{error, info};
 use tokio::sync::oneshot;
 
 use crate::core::{
@@ -66,7 +65,7 @@ impl Exchange {
         request_outcome: &Result<RestRequestOutcome>,
         order: &OrderCreating,
     ) -> CreateOrderResult {
-        info!(
+        log::info!(
             "Create response for {}, {:?}, {:?}",
             // TODO other order_headers_field
             order.header.client_order_id,
@@ -113,7 +112,7 @@ impl Exchange {
             if let Err(error) =
                 tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
             {
-                error!("Unable to send thru oneshot channel: {:?}", error);
+                log::error!("Unable to send thru oneshot channel: {:?}", error);
             }
         }
     }

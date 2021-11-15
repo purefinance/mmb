@@ -17,7 +17,6 @@ use awc::{
 };
 use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
-use log::{error, info, trace, warn};
 use std::time::{Duration, Instant};
 
 /// Time interval between heartbeat pings are sent
@@ -69,7 +68,7 @@ impl WebSocketActor {
 
         let (response, framed) = connected_client;
 
-        trace!(
+        log::trace!(
             "WebsocketActor {} {:?} connecting status: {}",
             exchange_account_id,
             role,
@@ -113,9 +112,11 @@ impl WebSocketActor {
     fn write(&mut self, msg: ws::Message) {
         match self.writer.write(msg) {
             Ok(_) => nothing_to_do(),
-            Err(msg) => error!(
+            Err(msg) => log::error!(
                 "WebsocketActor {} {:?} can't send message '{:?}'",
-                self.exchange_account_id, self.role, msg
+                self.exchange_account_id,
+                self.role,
+                msg
             ),
         }
     }
@@ -126,7 +127,7 @@ impl WebSocketActor {
         let role = self.role;
         ctx.run_interval(HEARTBEAT_INTERVAL, move |act, _ctx| {
             if Instant::now().duration_since(act.last_heartbeat_time) > HEARTBEAT_FAIL_TIMEOUT {
-                trace!(
+                log::trace!(
                     "WebsocketActor {} {:?} heartbeat failed, disconnecting!",
                     exchange_account_id,
                     role,
@@ -153,7 +154,7 @@ impl WebSocketActor {
                 self.connectivity_manager_notifier.message_received(text);
             }
             Err(error) => {
-                warn!("Unable to parse websocket message: {:?}", error)
+                log::warn!("Unable to parse websocket message: {:?}", error)
             }
         }
     }
@@ -163,7 +164,7 @@ impl Actor for WebSocketActor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
-        trace!(
+        log::trace!(
             "WebSocketActor {} {:?} started",
             self.exchange_account_id,
             self.role
@@ -172,7 +173,7 @@ impl Actor for WebSocketActor {
     }
 
     fn stopped(&mut self, _ctx: &mut Self::Context) {
-        trace!(
+        log::trace!(
             "WebSocketActor {} {:?} stopped",
             self.exchange_account_id,
             self.role
@@ -195,9 +196,11 @@ impl Handler<SendText> for WebSocketActor {
     type Result = ();
 
     fn handle(&mut self, msg: SendText, _ctx: &mut Self::Context) -> Self::Result {
-        info!(
+        log::info!(
             "WebsocketActor {} {:?} send msg: {}",
-            self.exchange_account_id, self.role, msg.0
+            self.exchange_account_id,
+            self.role,
+            msg.0
         );
         self.write(ws::Message::Text(msg.0.into()));
     }
@@ -207,9 +210,10 @@ impl Handler<ForceClose> for WebSocketActor {
     type Result = ();
 
     fn handle(&mut self, _msg: ForceClose, _ctx: &mut Self::Context) -> Self::Result {
-        info!(
+        log::info!(
             "WebsocketActor {} {:?} received ForceClose message",
-            self.exchange_account_id, self.role,
+            self.exchange_account_id,
+            self.role,
         );
 
         let close_reason = CloseReason::from(CloseCode::Normal);
@@ -222,7 +226,7 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
         match msg {
             Ok(msg) => match msg {
                 Frame::Text(ref text) => self.handle_websocket_message(text),
-                Frame::Binary(bytes) => trace!(
+                Frame::Binary(bytes) => log::trace!(
                     "WebsocketActor {} {:?} got binary message: {:x?}",
                     self.exchange_account_id,
                     self.role,
@@ -232,7 +236,7 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
                     if &msg[..] == PING_MESSAGE {
                         self.last_heartbeat_time = Instant::now();
                     } else {
-                        error!("WebsocketActor {} {:?} received wrong pong message: {}. We are sending message '{}' only",
+                        log::error!("WebsocketActor {} {:?} received wrong pong message: {}. We are sending message '{}' only",
                                    self.exchange_account_id,
                                    self.role,
                                    String::from_utf8_lossy(&msg),
@@ -242,7 +246,7 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
                 }
                 Frame::Ping(msg) => self.write(ws::Message::Pong(msg)),
                 Frame::Close(reason) => {
-                    trace!(
+                    log::trace!(
                         "Websocket {} {:?} closed with reason: {}",
                         self.exchange_account_id,
                         self.role,
@@ -257,7 +261,7 @@ impl StreamHandler<Result<Frame, WsProtocolError>> for WebSocketActor {
                 _ => {}
             },
             Err(err) => {
-                error!("{}", err.to_string());
+                log::error!("{}", err.to_string());
                 self.close_websocket(ctx);
             }
         }
@@ -339,7 +343,7 @@ mod tests {
         // Test timeout
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(10)) => panic!("Test time is gone!"),
-            _ = finish_receiver => info!("Test finished successfully")
+            _ = finish_receiver => log::info!("Test finished successfully")
         }
     }
 }

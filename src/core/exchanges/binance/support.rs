@@ -11,7 +11,6 @@ use awc::http::Uri;
 use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
-use log::{error, info};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -269,7 +268,7 @@ impl Support for Binance {
         exchange_account_id: crate::core::exchanges::common::ExchangeAccountId,
         message: &str,
     ) {
-        info!("Unknown message for {}: {}", exchange_account_id, message);
+        log::info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
@@ -535,9 +534,11 @@ impl Binance {
 
         if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
         {
-            info!(
+            log::info!(
                 "Current last_trade_id for currency_pair {} is {} >= trade_id {}",
-                currency_pair, *trade_id_from_lasts, trade_id
+                currency_pair,
+                *trade_id_from_lasts,
+                trade_id
             );
 
             return Ok(());
@@ -635,7 +636,7 @@ impl Binance {
             Ok(_) => Ok(()),
             Err(error) => {
                 let msg = format!("Unable to send exchange event in {}: {}", self.id, error);
-                error!("{}", msg);
+                log::error!("{}", msg);
                 self.application_manager
                     .clone()
                     .spawn_graceful_shutdown(msg.clone());

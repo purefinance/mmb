@@ -26,6 +26,7 @@ use crate::core::{balance_manager::balances::Balances, exchanges::common::Exchan
 use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
+use log::log;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -308,7 +309,7 @@ impl BalanceManager {
                 } else {
                     log::Level::Warn
                 };
-                log::log!(
+                log!(
                     log_level,
                     "Position on {} differs from local {:?} {:?}",
                     exchange_account_id,

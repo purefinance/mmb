@@ -9,7 +9,6 @@ use anyhow::Result;
 use dashmap::DashMap;
 use futures::future::join_all;
 use itertools::Itertools;
-use log::info;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::Duration;
 
@@ -89,7 +88,7 @@ impl EngineContext {
             return;
         }
 
-        info!("Graceful shutdown started");
+        log::info!("Graceful shutdown started");
 
         self.exchanges.iter().for_each(|x| {
             self.exchange_blocker.block(
@@ -127,7 +126,7 @@ impl EngineContext {
 
         unset_application_manager();
 
-        info!("Graceful shutdown finished");
+        log::info!("Graceful shutdown finished");
     }
 
     pub fn get_events_channel(&self) -> broadcast::Receiver<ExchangeEvent> {
@@ -140,7 +139,7 @@ async fn cancel_opened_orders(
     cancellation_token: CancellationToken,
     add_missing_open_orders: bool,
 ) {
-    info!("Canceling opened orders started");
+    log::info!("Canceling opened orders started");
 
     join_all(exchanges.iter().map(|x| {
         x.clone()
@@ -148,7 +147,7 @@ async fn cancel_opened_orders(
     }))
     .await;
 
-    info!("Canceling opened orders finished");
+    log::info!("Canceling opened orders finished");
 }
 
 pub struct TradingEngine {

@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use itertools::Itertools;
-use log::trace;
 
 use crate::core::{
     exchanges::{
@@ -53,7 +52,7 @@ impl Exchange {
                 .trade_option
                 .notification_on_each_currency_pair
         {
-            trace!(
+            log::trace!(
                 "Unknown currency pair {} for trades on {}",
                 trades_event.currency_pair,
                 self.exchange_account_id

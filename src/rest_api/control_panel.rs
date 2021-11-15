@@ -1,6 +1,5 @@
 use anyhow::Result;
 use futures::executor;
-use log::error;
 use parking_lot::Mutex;
 use std::{sync::mpsc, sync::mpsc::Sender, sync::Arc, thread};
 
@@ -47,7 +46,7 @@ impl ControlPanel {
     pub(crate) fn stop(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
         if let Some(server_stopper_tx) = self.server_stopper_tx.lock().take() {
             if let Err(error) = server_stopper_tx.send(()) {
-                error!("Unable to send signal to stop actix server: {}", error);
+                log::error!("Unable to send signal to stop actix server: {}", error);
             }
         }
 
@@ -92,14 +91,14 @@ impl ControlPanel {
         let cloned_self = self.clone();
         thread::spawn(move || {
             if let Err(error) = server_stopper_rx.recv() {
-                error!("Unable to receive signal to stop actix server: {}", error);
+                log::error!("Unable to receive signal to stop actix server: {}", error);
             }
 
             executor::block_on(server.stop(true));
 
             if let Some(work_finished_sender) = cloned_self.work_finished_sender.lock().take() {
                 if let Err(_) = work_finished_sender.send(Ok(())) {
-                    error!(
+                    log::error!(
                         "Unable to send notification about server stopped. Probably receiver is already dropped",
                     );
                 }

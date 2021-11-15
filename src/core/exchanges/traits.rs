@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use log::info;
 use tokio::sync::broadcast;
 
 use super::{
@@ -114,7 +113,7 @@ pub trait Support: Send + Sync {
     fn should_log_message(&self, message: &str) -> bool;
 
     fn log_unknown_message(&self, exchange_account_id: ExchangeAccountId, message: &str) {
-        info!("Unknown message for {}: {}", exchange_account_id, message);
+        log::info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;

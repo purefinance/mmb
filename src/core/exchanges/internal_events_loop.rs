@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use log::warn;
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, oneshot};
 
@@ -105,7 +104,7 @@ impl Service for InternalEventsLoop {
     fn graceful_shutdown(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
         let work_finished_receiver = self.work_finished_receiver.lock().take();
         if work_finished_receiver.is_none() {
-            warn!("'work_finished_receiver' wasn't created when started graceful shutdown in InternalEventsLoop");
+            log::warn!("'work_finished_receiver' wasn't created when started graceful shutdown in InternalEventsLoop");
         }
 
         work_finished_receiver

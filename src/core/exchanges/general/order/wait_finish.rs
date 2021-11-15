@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
-use log::{error, info, trace, warn};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::common::ToStdExpected;
@@ -250,9 +249,10 @@ impl Exchange {
 
         let exchange_account_id = self.exchange_account_id;
         let client_order_id = &order.client_order_id();
-        info!(
+        log::info!(
             "check_maker_only_order_status for exchange_account_id: {} and client order_id: {}",
-            exchange_account_id, client_order_id
+            exchange_account_id,
+            client_order_id
         );
 
         let _ = self
@@ -277,7 +277,7 @@ impl Exchange {
 
         match order.exchange_order_id() {
             None => {
-                error!("check_maker_only_order_status was called for an order with no exchange_order_id with exchange_account_id: {} and client order_id: {}",
+                log::error!("check_maker_only_order_status was called for an order with no exchange_order_id with exchange_account_id: {} and client order_id: {}",
                     exchange_account_id,
                     client_order_id);
 
@@ -331,7 +331,7 @@ impl Exchange {
             // We end up here before an order was created, so we do not need to check for fills before the moment
             // when Creation fallback does its job and calls created/failed_to_create
             if order.status() == OrderStatus::Creating {
-                warn!(
+                log::warn!(
                     "check_order_fills was called for a creating order with client order id {}",
                     order.client_order_id()
                 );
@@ -358,7 +358,7 @@ impl Exchange {
                         return Ok(());
                     }
 
-                    warn!("Error received for request_type {:?}, with client_id {}, exchange_order_id {:?}, exchange_account_id {:?}, curency_pair {}: {:?}",
+                    log::warn!("Error received for request_type {:?}, with client_id {}, exchange_order_id {:?}, exchange_account_id {:?}, curency_pair {}: {:?}",
                         request_type_to_use,
                         order.client_order_id(),
                         order.exchange_order_id(),
@@ -395,7 +395,7 @@ impl Exchange {
             )?
             .await;
 
-        info!("Checking request_type {:?} in check_order_fills with client_order_id {}, exchange_order_id {:?}, on {}",
+        log::info!("Checking request_type {:?} in check_order_fills with client_order_id {}, exchange_order_id {:?}, on {}",
             request_type,
             order.client_order_id(),
             order.exchange_order_id(),
@@ -510,7 +510,7 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         if order.is_finished() {
-            info!(
+            log::info!(
                 "Instantly exiting create_order_finish_future() because status is {:?} {} {:?} {}",
                 order.status(),
                 order.client_order_id(),
@@ -529,7 +529,7 @@ impl Exchange {
             .or_insert(tx);
 
         if order.is_finished() {
-            trace!(
+            log::trace!(
                 "Exiting create_order_finish_task because order's status turned {:?} {} {:?} {}",
                 order.status(),
                 order.client_order_id(),

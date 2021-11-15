@@ -6,7 +6,6 @@ use crate::core::DateTime;
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use futures::FutureExt;
-use log::error;
 use parking_lot::Mutex;
 use tokio::time::sleep;
 
@@ -99,7 +98,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
 
         sleep(delay_std).await;
         if let Err(error) = (*self.handler.lock())() {
-            error!(
+            log::error!(
                 "Error in MoreOrEqualsAvailableRequestsCountTrigger: {:?}",
                 error
             );

@@ -3,7 +3,7 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
-use log::{error, info, trace, warn};
+use log::log;
 use scopeguard;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
@@ -32,7 +32,7 @@ impl Exchange {
         check_order_fills: bool,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        info!(
+        log::info!(
             "Executing wait_cancel_order() with order: {} {:?} {}",
             order.client_order_id(),
             order.exchange_order_id(),
@@ -96,7 +96,7 @@ impl Exchange {
         });
 
         if is_canceling_from_wait_cancel_order {
-            error!(
+            log::error!(
                 "Order {} {:?} is already cancelling by wait_cancel_order",
                 order.client_order_id(),
                 order.exchange_order_id()
@@ -120,7 +120,7 @@ impl Exchange {
                 log::Level::Warn
             };
 
-            log::log!(
+            log!(
                 log_event_level,
                 "Cancellation iteration is {} on {} {:?} {}",
                 attempt_number,
@@ -159,7 +159,7 @@ impl Exchange {
                         bail!("Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead")
                     }
 
-                    warn!("Cancel response TimedOut - re-cancelling order {} {:?} {}",
+                   log::warn!("Cancel response TimedOut - re-cancelling order {} {:?} {}",
                         order.client_order_id(),
                         order.exchange_order_id(),
                         self.exchange_account_id);
@@ -183,7 +183,7 @@ impl Exchange {
                 )
             });
 
-        trace!(
+        log::trace!(
             "Order data in wait_cancel_order_work(): client_order_id: {}, exchange_order_id: {:?},
             checked_order_fills: {}, order_has_missed_fills: {:?},
             order_cancellation_event_source_type: {:?}, last_cancellation_error: {:?},
@@ -220,7 +220,7 @@ impl Exchange {
         if !order.fn_ref(|s| s.internal_props.canceled_not_from_wait_cancel_order)
             && order.status() != OrderStatus::Completed
         {
-            info!("Adding cancel_orderSucceeded event from wait_cancel_order() for order {} {:?} on {}",
+            log::info!("Adding cancel_orderSucceeded event from wait_cancel_order() for order {} {:?} on {}",
                 order.client_order_id(),
                 order.exchange_order_id(),
                 self.exchange_account_id);
@@ -239,7 +239,7 @@ impl Exchange {
         cancellation_token: CancellationToken,
         order_is_finished_token: CancellationToken,
     ) -> Result<()> {
-        info!(
+        log::info!(
             "Cancel order future finished first on order {}, {:?} {}",
             order.client_order_id(),
             order.exchange_order_id(),
@@ -309,7 +309,7 @@ impl Exchange {
                 return Ok(());
             }
 
-            trace!(
+            log::trace!(
                 "Checking order status in check_order_cancellation_status with order {} {:?} {}",
                 order.client_order_id(),
                 order.exchange_order_id(),
@@ -349,7 +349,7 @@ impl Exchange {
                         break;
                     }
 
-                    warn!(
+                    log::warn!(
                         "Error for order_info was received {} {:?} {} {:?} {:?}",
                         order.client_order_id(),
                         order.exchange_order_id(),
@@ -404,7 +404,7 @@ impl Exchange {
             )
         });
 
-        info!(
+        log::info!(
             "Order with {}, {:?} order_filled_amount_after_cancellation: {:?}, order_filed_amount: {}",
             order.client_order_id(),
             order.exchange_order_id(),
@@ -415,7 +415,7 @@ impl Exchange {
         match order_filled_amount_after_cancellation {
             Some(order_filled_amount_after_cancellation) => {
                 if order_filled_amount_after_cancellation < order_filled_amount {
-                    error!("Received order with filled amount {} less then order.filled_amount {} {} {:?} on {}",
+                    log::error!("Received order with filled amount {} less then order.filled_amount {} {} {:?} on {}",
                         order_filled_amount_after_cancellation,
                         order_filled_amount,
                         order.client_order_id(),
