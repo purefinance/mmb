@@ -852,7 +852,8 @@ impl Exchange {
                     "GetBalance for {} reached maximum retries - reconnecting",
                     self.exchange_account_id
                 );
-                // REVIEW: what is this? (grays)
+
+                // TODO: uncomment it after implementation reconnect function
                 // await Reconnect();
                 return None;
             }
