@@ -116,10 +116,9 @@ where
         exchanges_map.clone().into_iter().collect();
 
     let currency_pair_to_metadata_converter =
-        CurrencyPairToMetadataConverter::new(exchanges_hashmap.clone());
+        CurrencyPairToMetadataConverter::new(exchanges_hashmap);
 
-    let balance_manager =
-        BalanceManager::new(exchanges_hashmap, currency_pair_to_metadata_converter);
+    let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
 
     balance_manager
         .lock()

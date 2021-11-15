@@ -49,7 +49,6 @@ async fn main() -> Result<()> {
             settings.strategy.currency_pair(),
             settings.strategy.spread,
             ctx,
-            settings.strategy.max_amount(),
         ))
     })
     .await?;

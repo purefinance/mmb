@@ -379,11 +379,13 @@ impl Exchange {
                     let header = order_ref.fn_ref(|x| x.header.clone());
                     let client_order_id = header.client_order_id.clone();
                     match header.reservation_id {
-                        None => warn!("Created order {} without reservation_id", client_order_id),
+                        None => {
+                            log::warn!("Created order {} without reservation_id", client_order_id)
+                        }
                         Some(reservation_id) => {
                             let bm_lock = self.balance_manager.lock();
                             match bm_lock.as_ref().expect("BalanceManager should be initialized before receiving order events").upgrade() {
-                                None => warn!("BalanceManager ref can't be upgraded in handler create order succeeded event"),
+                                None => log::warn!("BalanceManager ref can't be upgraded in handler create order succeeded event"),
                                 Some(balance_manager) => balance_manager.lock().approve_reservation(
                                     reservation_id,
                                     &client_order_id,

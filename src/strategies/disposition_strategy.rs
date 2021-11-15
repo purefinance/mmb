@@ -56,7 +56,6 @@ impl ExampleStrategy {
         currency_pair: CurrencyPair,
         spread: Decimal,
         engine_context: Arc<EngineContext>,
-        max_amount: Amount,
     ) -> Self {
         let configuration_descriptor = ConfigurationDescriptor::new(
             "ExampleStrategy".into(),
