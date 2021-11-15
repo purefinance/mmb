@@ -10,7 +10,6 @@ use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccou
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
-use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::misc::derivative_position::DerivativePosition;
@@ -45,13 +44,11 @@ pub struct BalanceManager {
 
 impl BalanceManager {
     pub fn new(
-        exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),
             balance_reservation_manager: BalanceReservationManager::new(
-                exchanges_by_id,
                 currency_pair_to_metadata_converter,
             ),
             last_order_fills: HashMap::new(),
@@ -211,7 +208,7 @@ impl BalanceManager {
             let currency_pair = position_info.currency_pair;
             let currency_pair_metadata = self
                 .balance_reservation_manager
-                .exchanges_by_id
+                .exchanges_by_id()
                 .get(&exchange_account_id)
                 .with_context(|| format!(
                         "currency_pair_metadata not found for exchange with account id {:?} and currency pair {}",
@@ -339,7 +336,7 @@ impl BalanceManager {
         {
             let exchange_currencies = self
                 .balance_reservation_manager
-                .exchanges_by_id
+                .exchanges_by_id()
                 .get(&exchange_account_id)
                 .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
                 .currencies
@@ -362,7 +359,7 @@ impl BalanceManager {
         self.restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
 
         self.balance_reservation_manager
-            .exchanges_by_id
+            .exchanges_by_id()
             .get(&exchange_account_id)
             .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
             .currencies
@@ -454,11 +451,10 @@ impl BalanceManager {
     pub fn custom_clone(this: Arc<Mutex<Self>>) -> Arc<Mutex<BalanceManager>> {
         let this_locked = this.lock();
         let balances = this_locked.get_balances();
-        let exchanges_by_id = &this_locked.balance_reservation_manager.exchanges_by_id;
-        let new_balance_manager = Self::new(
+        let exchanges_by_id = this_locked.balance_reservation_manager.exchanges_by_id();
+        let new_balance_manager = Self::new(CurrencyPairToMetadataConverter::new(
             exchanges_by_id.clone(),
-            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone()),
-        );
+        ));
         drop(this_locked);
 
         let mut new_bm_lock = new_balance_manager.lock();
@@ -906,12 +902,6 @@ impl BalanceManager {
                         balance,
                         price_quote_to_base,
                     );
-                log::error!(
-                    "DEBUG: currency_code {} balance_in_amount_currency_code {} balance {}",
-                    currency_code,
-                    balance_in_amount_currency_code,
-                    balance
-                );
                 Some(
                     currency_pair_metadata
                         .round_to_remove_amount_precision_error(balance_in_amount_currency_code)
@@ -993,7 +983,7 @@ impl BalanceManager {
         side: OrderSide,
     ) -> CurrencyCode {
         self.balance_reservation_manager
-            .exchanges_by_id
+            .exchanges_by_id()
             .get(&exchange_account_id)
             .expect("failed to get exchange")
             .get_balance_reservation_currency_code(currency_pair_metadata, side)
@@ -1027,7 +1017,7 @@ impl BalanceManager {
     pub async fn update_balances_for_exchanges(&mut self, cancellation_token: CancellationToken) {
         let exchanges = self
             .balance_reservation_manager
-            .exchanges_by_id
+            .exchanges_by_id()
             .values()
             .cloned()
             .collect_vec();

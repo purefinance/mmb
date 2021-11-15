@@ -169,7 +169,7 @@ pub mod tests {
 
             currency_pair_to_symbol_converter
                 .expect_exchanges_by_id()
-                .returning(move || exchanges_by_id.clone());
+                .return_const(exchanges_by_id);
 
             (currency_pair_to_symbol_converter, cp_to_symbol_locker)
         }

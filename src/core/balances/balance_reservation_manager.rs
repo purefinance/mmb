@@ -47,8 +47,6 @@ pub(super) struct CanReserveResult {
 
 #[derive(Clone)]
 pub(crate) struct BalanceReservationManager {
-    pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-
     pub currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     reserved_amount_in_amount_currency: ServiceValueTree,
     amount_limits_in_amount_currency: ServiceValueTree,
@@ -63,21 +61,25 @@ pub(crate) struct BalanceReservationManager {
 }
 
 impl BalanceReservationManager {
-    pub fn new(
-        exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
-    ) -> Self {
+    pub fn new(currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>) -> Self {
         Self {
-            exchanges_by_id: exchanges_by_id.clone(),
-            currency_pair_to_metadata_converter,
+            currency_pair_to_metadata_converter: currency_pair_to_metadata_converter.clone(),
             reserved_amount_in_amount_currency: ServiceValueTree::new(),
             amount_limits_in_amount_currency: ServiceValueTree::new(),
             position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount::new(),
             reservation_id: ReservationId::generate(),
-            virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),
+            virtual_balance_holder: VirtualBalanceHolder::new(
+                currency_pair_to_metadata_converter
+                    .exchanges_by_id()
+                    .clone(),
+            ),
             balance_reservation_storage: BalanceReservationStorage::new(),
             is_call_from_clone: false,
         }
+    }
+
+    pub fn exchanges_by_id(&self) -> &HashMap<ExchangeAccountId, Arc<Exchange>> {
+        &self.currency_pair_to_metadata_converter.exchanges_by_id()
     }
 
     pub fn update_reserved_balances(
@@ -199,7 +201,7 @@ impl BalanceReservationManager {
         }
 
         if !self
-            .exchanges_by_id
+            .exchanges_by_id()
             .contains_key(&reservation.exchange_account_id)
         {
             log::error!(
@@ -665,7 +667,7 @@ impl BalanceReservationManager {
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
     ) -> Decimal {
-        self.exchanges_by_id
+        self.exchanges_by_id()
             .get(&exchange_account_id)
             .expect("failed to get exchange")
             .leverage_by_currency_pair
@@ -1659,7 +1661,7 @@ impl BalanceReservationManager {
         let currency_pair_metadata = reserve_parameters.currency_pair_metadata.clone();
 
         let reservation_currency_code = self
-            .exchanges_by_id
+            .exchanges_by_id()
             .get(&reserve_parameters.exchange_account_id)
             .expect("failed to get exchange")
             .get_balance_reservation_currency_code(
