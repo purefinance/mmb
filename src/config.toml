@@ -1,5 +1,6 @@
 [strategy]
 spread = 3
+currency_pair = { base = "btc", quote = "usdt" }
 
 [[core.exchanges]]
 exchange_account_id = "Binance0"

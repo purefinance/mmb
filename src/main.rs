@@ -1,5 +1,5 @@
 use anyhow::Result;
-use mmb_lib::core::settings::BaseStrategySettings;
+use mmb_lib::core::settings::{BaseStrategySettings, CurrencyPairSetting};
 use mmb_lib::core::{
     config::CONFIG_PATH,
     config::CREDENTIALS_PATH,
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {
     pub spread: Decimal,
+    pub currency_pair: CurrencyPairSetting,
 }
 
 impl BaseStrategySettings for ExampleStrategySettings {
@@ -24,7 +25,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("btc".into(), "usdt".into())
+        CurrencyPair::from_codes(self.currency_pair.base, self.currency_pair.quote)
     }
 
     // Max amount for orders that will be created
