@@ -122,25 +122,6 @@ impl ExampleStrategy {
             snapshot.get_top(side)?.0
         };
 
-        let engine_context = self.engine_context.clone();
-
-        let exchanges = engine_context
-            .exchanges
-            .get(&self.target_eai)
-            .with_expect(|| {
-                format!(
-                    "Failed to get exchange with ExchangeAccountId: {}",
-                    self.target_eai
-                )
-            });
-
-        let symbol = exchanges.symbols.get(&self.currency_pair).with_expect(|| {
-            format!(
-                "Failed to get symbols with CurrencyPair: {}",
-                self.currency_pair
-            )
-        });
-
         let amount;
         explanation = {
             let mut explanation = Some(explanation);

@@ -510,7 +510,7 @@ impl Support for Binance {
         if self.settings.is_margin_trading {
             Binance::get_margin_exchange_balances_and_positions(binance_account_info.balances)
         } else {
-            Binance::get_spot_exchange_balances_and_positions(binance_account_info.balances)
+            self.get_spot_exchange_balances_and_positions(binance_account_info.balances)
         }
     }
 }

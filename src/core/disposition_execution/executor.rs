@@ -874,7 +874,7 @@ impl DispositionExecutor {
     }
 
     fn unreserve_order_amount(&self, order: &OrderRef, _price_slot: &PriceSlot) {
-        let (reservation_id, client_order_id, amount) = order.fn_mut(|x| {
+        let (reservation_id, client_order_id, amount) = order.fn_ref(|x| {
             (
                 x.header.reservation_id,
                 x.header.client_order_id.clone(),

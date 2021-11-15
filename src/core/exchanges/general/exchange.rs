@@ -729,8 +729,8 @@ impl Exchange {
 
                 let balances = balances_result.balances;
                 let positions = position_result
-                    .iter()
-                    .map(|x| x.derivative.clone())
+                    .into_iter()
+                    .map(|x| x.derivative)
                     .collect_vec();
 
                 ExchangeBalancesAndPositions {
@@ -781,33 +781,36 @@ impl Exchange {
             let result = self
                 .get_balance_and_positions(cancellation_token.clone())
                 .await
-                .map(|balance_and_positions| {
-                    if balance_and_positions.balances.is_empty() {
-                        return None;
-                    }
+                .map(
+                    |ExchangeBalancesAndPositions {
+                         positions,
+                         balances,
+                     }| {
+                        if balances.is_empty() {
+                            return None;
+                        }
 
-                    let positions = balance_and_positions
-                        .positions
-                        .iter()
-                        .flat_map(|position| {
-                            position
-                                .iter()
-                                .filter(|x| self.symbols.contains_key(&x.currency_pair))
+                        let positions = positions
+                            .into_iter()
+                            .flat_map(|position| {
+                                position
+                                    .into_iter()
+                                    .filter(|x| self.symbols.contains_key(&x.currency_pair))
+                            })
+                            .collect_vec();
+
+                        let positions = if !positions.is_empty() {
+                            Some(positions)
+                        } else {
+                            None
+                        };
+
+                        Some(ExchangeBalancesAndPositions {
+                            balances,
+                            positions,
                         })
-                        .cloned()
-                        .collect_vec();
-
-                    let positions = if !positions.is_empty() {
-                        Some(positions)
-                    } else {
-                        None
-                    };
-
-                    Some(ExchangeBalancesAndPositions {
-                        balances: balance_and_positions.balances,
-                        positions,
-                    })
-                });
+                    },
+                );
 
             let error_message = match result {
                 Ok(balances_and_positions_opt) => {
