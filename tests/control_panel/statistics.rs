@@ -23,7 +23,6 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::borrow::Borrow;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -123,9 +122,7 @@ async fn orders_cancelled() {
         Some("FromOrdersCancelledTest".to_owned()),
         CancellationToken::default(),
         get_minimal_price(
-            exchange
-                .borrow()
-                .get_specific_currency_pair(test_currency_pair),
+            exchange.get_specific_currency_pair(test_currency_pair),
             &Binance::make_hosts(is_margin_trading),
             &api_key,
         )
