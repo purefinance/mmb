@@ -68,6 +68,7 @@ impl ExchangeSettings {
     }
 }
 
+#[derive(Clone)]
 pub struct Hosts {
     pub web_socket_host: String,
     // Some exchanges have two websockets, for public and private data

@@ -15,6 +15,7 @@ use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
+use crate::core::exchanges::common::SpecificCurrencyPair;
 use crate::core::exchanges::common::{ActivePosition, ClosedPosition, TradePlace};
 use crate::core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, Trade};
 use crate::core::exchanges::general::features::{BalancePositionOption, ExchangeFeatures};
@@ -685,5 +686,10 @@ impl Exchange {
         self.exchange_client.is_rest_error_code(&response)?;
 
         Ok(self.exchange_client.parse_get_balance(&response))
+    }
+
+    pub fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair {
+        self.exchange_client
+            .get_specific_currency_pair(currency_pair)
     }
 }
