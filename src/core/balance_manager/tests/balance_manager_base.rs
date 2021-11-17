@@ -62,29 +62,29 @@ impl BalanceManagerBase {
     }
 
     pub fn update_balance(
-        mut balance_manager: MutexGuard<BalanceManager>,
+        balance_manager: Arc<Mutex<BalanceManager>>,
         exchange_account_id: ExchangeAccountId,
         balances_by_currency_code: HashMap<CurrencyCode, Amount>,
     ) {
-        balance_manager
-            .update_exchange_balance(
-                exchange_account_id,
-                &ExchangeBalancesAndPositions {
-                    balances: balances_by_currency_code
-                        .iter()
-                        .map(|x| ExchangeBalance {
-                            currency_code: x.0.clone(),
-                            balance: x.1.clone(),
-                        })
-                        .collect(),
-                    positions: None,
-                },
-            )
-            .expect("failed to update exchange balance");
+        BalanceManager::update_exchange_balance(
+            balance_manager,
+            exchange_account_id,
+            &ExchangeBalancesAndPositions {
+                balances: balances_by_currency_code
+                    .iter()
+                    .map(|x| ExchangeBalance {
+                        currency_code: x.0.clone(),
+                        balance: x.1.clone(),
+                    })
+                    .collect(),
+                positions: None,
+            },
+        )
+        .expect("failed to update exchange balance");
     }
 
     pub fn update_balance_with_positions(
-        mut balance_manager: MutexGuard<BalanceManager>,
+        balance_manager: Arc<Mutex<BalanceManager>>,
         exchange_account_id: ExchangeAccountId,
         balances_by_currency_code: HashMap<CurrencyCode, Amount>,
         positions_by_currency_pair: HashMap<CurrencyPair, Decimal>,
@@ -104,15 +104,15 @@ impl BalanceManagerBase {
                 .collect_vec(),
         );
 
-        balance_manager
-            .update_exchange_balance(
-                exchange_account_id,
-                &ExchangeBalancesAndPositions {
-                    balances,
-                    positions,
-                },
-            )
-            .expect("failed to update exchange balance");
+        BalanceManager::update_exchange_balance(
+            balance_manager,
+            exchange_account_id,
+            &ExchangeBalancesAndPositions {
+                balances,
+                positions,
+            },
+        )
+        .expect("failed to update exchange balance");
     }
 
     pub fn new() -> Self {
@@ -157,6 +157,13 @@ impl BalanceManagerBase {
             Some(res) => res.lock(),
             None => panic!("should be non None here"),
         }
+    }
+
+    pub fn balance_manager_expected(&self) -> Arc<Mutex<BalanceManager>> {
+        self.balance_manager
+            .as_ref()
+            .expect("should be non None here")
+            .clone()
     }
 
     pub fn set_balance_manager(&mut self, input: Arc<Mutex<BalanceManager>>) {

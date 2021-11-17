@@ -25,6 +25,7 @@ use crate::core::{balance_manager::balances::Balances, exchanges::common::Exchan
 
 use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
+use futures::future::join_all;
 use itertools::Itertools;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
@@ -325,16 +326,19 @@ impl BalanceManager {
     }
 
     pub fn update_exchange_balance(
-        &mut self,
+        this: Arc<Mutex<Self>>,
         exchange_account_id: ExchangeAccountId,
         balances_and_positions: &ExchangeBalancesAndPositions,
     ) -> Result<()> {
         let mut filtered_exchange_balances = HashMap::new();
 
-        let whole_balances_before = self.calculate_whole_balances()?;
+        let mut this = this.lock();
+        let locked_self = &mut *this;
+
+        let whole_balances_before = locked_self.calculate_whole_balances()?;
 
         {
-            let exchange_currencies = self
+            let exchange_currencies = locked_self
                 .balance_reservation_manager
                 .exchanges_by_id()
                 .get(&exchange_account_id)
@@ -356,9 +360,11 @@ impl BalanceManager {
             }
         }
 
-        self.restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
+        locked_self
+            .restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
 
-        self.balance_reservation_manager
+        locked_self
+            .balance_reservation_manager
             .exchanges_by_id()
             .get(&exchange_account_id)
             .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
@@ -369,7 +375,7 @@ impl BalanceManager {
                 let _ = filtered_exchange_balances.entry(x.clone()).or_default();
             });
 
-        let reservations_by_exchange_account_id = self
+        let reservations_by_exchange_account_id = locked_self
             .balance_reservation_manager
             .balance_reservation_storage
             .get_all_raw_reservations()
@@ -388,11 +394,12 @@ impl BalanceManager {
             }
         }
 
-        self.balance_reservation_manager
+        locked_self
+            .balance_reservation_manager
             .virtual_balance_holder
             .update_balances(exchange_account_id, &filtered_exchange_balances);
 
-        let whole_balances_after = self.calculate_whole_balances()?;
+        let whole_balances_after = locked_self.calculate_whole_balances()?;
 
         log::info!(
             "Updated balances for {} {:?} {:?} {:?}",
@@ -402,8 +409,8 @@ impl BalanceManager {
             filtered_exchange_balances
         );
 
-        self.save_balances();
-        self.save_balance_update(whole_balances_before, whole_balances_after);
+        locked_self.save_balances();
+        locked_self.save_balance_update(whole_balances_before, whole_balances_after);
         Ok(())
     }
 
@@ -1014,25 +1021,44 @@ impl BalanceManager {
         self.balance_changes_service = Some(service);
     }
 
-    pub async fn update_balances_for_exchanges(&mut self, cancellation_token: CancellationToken) {
-        let exchanges = self
+    pub async fn update_balances_for_exchanges(
+        this: Arc<Mutex<Self>>,
+        cancellation_token: CancellationToken,
+    ) {
+        let exchanges = this
+            .lock()
             .balance_reservation_manager
             .exchanges_by_id()
             .values()
             .cloned()
             .collect_vec();
 
-        for exchange in exchanges {
-            let balances_and_positions = exchange
-                .get_balance(cancellation_token.clone())
-                .await
-                .with_expect(|| {
-                    format!("failed to get balance for {}", exchange.exchange_account_id)
-                });
+        let update_actions = exchanges
+            .iter()
+            .map(|exchange| {
+                let this = this.clone();
+                let cancellation_token = cancellation_token.clone();
+                let action = async move {
+                    let balances_and_positions = exchange
+                        .get_balance(cancellation_token.clone())
+                        .await
+                        .with_expect(|| {
+                            format!("failed to get balance for {}", exchange.exchange_account_id)
+                        });
 
-            self.update_exchange_balance(exchange.exchange_account_id, &balances_and_positions)
-                .expect("failed to update exchange balance");
-        }
+                    Self::update_exchange_balance(
+                        this,
+                        exchange.exchange_account_id,
+                        &balances_and_positions,
+                    )
+                    .expect("failed to update exchange balance");
+                };
+
+                action
+            })
+            .collect_vec();
+
+        join_all(update_actions).await;
     }
 
     // TODO: should be implemented
