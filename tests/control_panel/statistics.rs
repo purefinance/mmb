@@ -74,7 +74,7 @@ async fn orders_cancelled() {
             Ok(())
         }
 
-        fn configuration_descriptor(&self) -> Arc<ConfigurationDescriptor> {
+        fn configuration_descriptor(&self) -> ConfigurationDescriptor {
             ConfigurationDescriptor::new("TestStrategy".into(), "orders_cancelled_test".into())
         }
     }

@@ -31,7 +31,7 @@ pub struct BalanceManagerBase {
     pub exchange_account_id_1: ExchangeAccountId,
     pub exchange_account_id_2: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
-    pub configuration_descriptor: Arc<ConfigurationDescriptor>,
+    pub configuration_descriptor: ConfigurationDescriptor,
     pub balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     pub seconds_offset_in_mock: Arc<Mutex<u32>>,
     currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
@@ -131,7 +131,9 @@ impl BalanceManagerBase {
             currency_pair: Self::currency_pair(),
             configuration_descriptor: ConfigurationDescriptor::new(
                 "LiquidityGenerator".into(),
-                exchange_account_id_1.to_string() + ";" + Self::currency_pair().as_str(),
+                (exchange_account_id_1.to_string() + ";" + Self::currency_pair().as_str())
+                    .as_str()
+                    .into(),
             ),
             seconds_offset_in_mock,
             currency_pair_metadata: None,
@@ -167,7 +169,7 @@ impl BalanceManagerBase {
 
     pub fn create_balance_request(&self, currency_code: CurrencyCode) -> BalanceRequest {
         BalanceRequest::new(
-            self.configuration_descriptor.clone(),
+            self.configuration_descriptor,
             self.exchange_account_id_1,
             self.currency_pair,
             currency_code,
@@ -181,7 +183,7 @@ impl BalanceManagerBase {
         amount: Amount,
     ) -> ReserveParameters {
         ReserveParameters::new(
-            self.configuration_descriptor.clone(),
+            self.configuration_descriptor,
             self.exchange_account_id_1,
             self.currency_pair_metadata(),
             order_side,
@@ -192,7 +194,7 @@ impl BalanceManagerBase {
 
     pub fn get_balance_by_trade_side(&self, side: OrderSide, price: Price) -> Option<Amount> {
         self.balance_manager().get_balance_by_side(
-            self.configuration_descriptor.clone(),
+            self.configuration_descriptor,
             self.exchange_account_id_1,
             self.currency_pair_metadata(),
             side,
@@ -206,7 +208,7 @@ impl BalanceManagerBase {
         price: Price,
     ) -> Option<Amount> {
         self.balance_manager().get_balance_by_currency_code(
-            self.configuration_descriptor.clone(),
+            self.configuration_descriptor,
             self.exchange_account_id_1,
             self.currency_pair_metadata(),
             currency_code,
@@ -221,7 +223,7 @@ impl BalanceManagerBase {
         price: Price,
     ) -> Option<Amount> {
         balance_manager.get_balance_by_currency_code(
-            self.configuration_descriptor.clone(),
+            self.configuration_descriptor,
             self.exchange_account_id_1,
             self.currency_pair_metadata(),
             currency_code,

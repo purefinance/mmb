@@ -30,7 +30,7 @@ impl BalanceChangesCalculator {
 
     pub fn get_balance_changes(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order: &OrderSnapshot,
         order_fill: &OrderFill,
     ) -> BalanceChangesCalculatorResult {
@@ -51,7 +51,7 @@ impl BalanceChangesCalculator {
 
     fn get_balance_changes_calculator_results(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order: &OrderSnapshot,
         order_fill: &OrderFill,
         symbol: Arc<CurrencyPairMetadata>,

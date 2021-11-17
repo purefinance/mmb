@@ -17,6 +17,9 @@ pub mod tests {
     use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
     use crate::core::misc::time;
+    use crate::core::service_configuration::configuration_descriptor::{
+        ServiceConfigurationKey, ServiceName,
+    };
     use crate::{
         core::{
             balance_changes::{
@@ -48,7 +51,7 @@ pub mod tests {
     };
 
     pub struct BalanceChangesCalculatorTestsBase {
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         pub currency_list: Vec<CurrencyCode>,
         pub exchange_1: Arc<Exchange>,
         pub exchange_2: Arc<Exchange>,
@@ -97,11 +100,11 @@ pub mod tests {
             CurrencyPair::from_codes(Self::quote(), Self::base())
         }
 
-        fn service_name() -> String {
+        fn service_name() -> ServiceName {
             "calculator_tests_base_service_name".into()
         }
 
-        fn service_configuration_key() -> String {
+        fn service_configuration_key() -> ServiceConfigurationKey {
             "calculator_tests_base_service_key".into()
         }
 
@@ -321,7 +324,7 @@ pub mod tests {
             for order in orders {
                 for fill in &order.fills.fills {
                     let balance_changes = self.balance_changes_calculator.get_balance_changes(
-                        self.configuration_descriptor.clone(),
+                        self.configuration_descriptor,
                         order,
                         fill,
                     );
@@ -360,7 +363,7 @@ pub mod tests {
             currency_code: CurrencyCode,
         ) -> Decimal {
             let request = BalanceRequest::new(
-                self.configuration_descriptor.clone(),
+                self.configuration_descriptor,
                 exchange_account_id,
                 currency_pair,
                 currency_code,

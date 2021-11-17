@@ -527,7 +527,7 @@ impl BalanceManager {
 
     pub fn get_fill_amount_position_percent(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -545,7 +545,7 @@ impl BalanceManager {
     /// from OrderEventType::OrderFilled
     pub fn order_was_filled(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
     ) {
         let order_fill = order_snapshot
@@ -559,7 +559,7 @@ impl BalanceManager {
 
     pub fn order_was_filled_with_fill(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
         order_fill: &OrderFill,
     ) {
@@ -588,7 +588,7 @@ impl BalanceManager {
 
     fn handle_order_fill(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         order_snapshot: &OrderSnapshot,
@@ -680,7 +680,7 @@ impl BalanceManager {
     /// from OrderEventType::OrderCompleted
     pub fn order_was_finished(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
     ) {
         for order_fill in &order_snapshot.fills.fills {
@@ -876,7 +876,7 @@ impl BalanceManager {
 
     pub fn get_leveraged_balance_in_amount_currency_code(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         side: OrderSide,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
@@ -927,7 +927,7 @@ impl BalanceManager {
 
     pub fn get_balance_by_currency_code(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: CurrencyCode,
@@ -945,7 +945,7 @@ impl BalanceManager {
 
     pub fn get_balance_by_side(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -997,7 +997,7 @@ impl BalanceManager {
 
     pub fn set_target_amount_limit(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         limit: Amount,
