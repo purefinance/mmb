@@ -98,7 +98,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
 
         sleep(delay_std).await;
         if let Err(error) = (*self.handler.lock())() {
-            log::error!("Error while checking threshold: {:?}", error);
+            log::error!("MoreOrEqualsAvailableRequestsCountTrigger: {:?}", error);
         }
     }
 }
