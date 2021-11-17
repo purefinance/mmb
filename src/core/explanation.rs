@@ -92,12 +92,25 @@ impl<T: Eq + PartialEq> Eq for WithExplanation<T> {}
 
 pub trait OptionExplanationAddReasonExt {
     fn add_reason(&mut self, reason: String);
+
+    fn with_reason<C>(&mut self, f: impl FnOnce() -> C)
+    where
+        C: Into<Reason>;
 }
 
 impl OptionExplanationAddReasonExt for Option<Explanation> {
     fn add_reason(&mut self, reason: String) {
         if let Some(explanation) = self {
             explanation.add_reason(reason);
+        }
+    }
+
+    fn with_reason<C>(&mut self, reason: impl FnOnce() -> C)
+    where
+        C: Into<Reason>,
+    {
+        if let Some(explanation) = self {
+            explanation.add_reason(reason());
         }
     }
 }

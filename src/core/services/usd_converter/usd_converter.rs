@@ -3,9 +3,6 @@ use std::sync::Arc;
 #[cfg(test)]
 use mockall::automock;
 
-#[cfg(test)]
-use parking_lot::{Mutex, MutexGuard};
-
 use crate::core::{
     exchanges::common::{Amount, CurrencyCode},
     lifecycle::cancellation_token::CancellationToken,

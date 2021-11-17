@@ -1,7 +1,12 @@
-#[cfg(test)]
+use chrono::Utc;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
-use std::{collections::HashMap, sync::Arc};
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
+use uuid::Uuid;
+
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
 use crate::core::{
@@ -21,10 +26,6 @@ use crate::core::{
     },
 };
 use crate::hashmap;
-use chrono::Utc;
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
-use uuid::Uuid;
 
 pub struct BalanceManagerDerivative {
     balance_manager_base: BalanceManagerBase,
@@ -66,8 +67,7 @@ impl BalanceManagerDerivative {
         let currency_pair_to_metadata_converter =
             CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
 
-        let balance_manager =
-            BalanceManager::new(exchanges_by_id.clone(), currency_pair_to_metadata_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
         (currency_pair_metadata, balance_manager, exchanges_by_id)
     }
 

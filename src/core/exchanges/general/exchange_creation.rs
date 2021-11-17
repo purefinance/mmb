@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use tokio::sync::broadcast;
-
 use super::commission::Commission;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::lifecycle::application_manager::ApplicationManager;
@@ -15,6 +13,7 @@ use crate::core::{
     },
     settings::CoreSettings,
 };
+use tokio::sync::broadcast;
 
 pub fn create_timeout_manager(
     core_settings: &CoreSettings,
@@ -64,7 +63,7 @@ pub async fn create_exchange(
         exchange_client_builder.get_timeout_arguments(),
         events_channel,
         application_manager,
-        timeout_manager.clone(),
+        timeout_manager,
         Commission::default(),
     );
 

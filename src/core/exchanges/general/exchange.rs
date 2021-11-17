@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
-use anyhow::{bail, Context, Error, Result};
+use anyhow::{anyhow, bail, Context, Error, Result};
 use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::FutureExt;
@@ -16,13 +16,16 @@ use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
 use crate::core::exchanges::common::{ActivePosition, ClosedPosition, TradePlace};
-use crate::core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, Trade};
+use crate::core::exchanges::events::{
+    BalanceUpdateEvent, ExchangeBalancesAndPositions, ExchangeEvent, LiquidationPriceEvent, Trade,
+};
 use crate::core::exchanges::general::features::{BalancePositionOption, ExchangeFeatures};
 use crate::core::exchanges::general::order::cancel::CancelOrderResult;
 use crate::core::exchanges::general::order::create::CreateOrderResult;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
+use crate::core::misc::time::time_manager;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{OrderHeader, OrderSide};
 use crate::core::orders::pool::OrdersPool;
@@ -40,6 +43,7 @@ use crate::core::{
 };
 use crate::core::{nothing_to_do, DateTime};
 
+use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::{
     connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
     orders::order::ClientOrderId,
@@ -104,6 +108,7 @@ pub struct Exchange {
     pub(super) last_trades_update_time: DashMap<TradePlace, DateTime>,
     pub(super) last_trades: DashMap<TradePlace, Trade>,
     pub(super) timeout_manager: Arc<TimeoutManager>,
+    pub(super) balance_manager: Mutex<Option<Weak<Mutex<BalanceManager>>>>,
     // It allows to send and receive notification about event in websocket channel
     // Websocket event is main source detecting order creation result
     // Rest response using only for unsuccessful operations as error
@@ -165,6 +170,7 @@ impl Exchange {
             leverage_by_currency_pair: DashMap::new(),
             last_trades_update_time: DashMap::new(),
             last_trades: DashMap::new(),
+            balance_manager: Mutex::new(None),
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -318,6 +324,10 @@ impl Exchange {
             "Websocket message from {}: {}",
             self.exchange_account_id, msg
         );
+    }
+
+    pub fn setup_balance_manager(&self, balance_manager: Arc<Mutex<BalanceManager>>) {
+        *self.balance_manager.lock() = Some(Arc::downgrade(&balance_manager));
     }
 
     pub async fn connect(self: Arc<Self>) {
@@ -669,6 +679,81 @@ impl Exchange {
         Ok(self.exchange_client.parse_get_position(&response))
     }
 
+    pub(super) async fn get_balance_core(&self) -> Result<ExchangeBalancesAndPositions> {
+        let response = self.exchange_client.request_get_balance().await?;
+
+        log::info!(
+            "get_balance_core response on {:?} {:?}",
+            self.exchange_account_id,
+            response,
+        );
+
+        self.exchange_client.is_rest_error_code(&response)?;
+
+        Ok(self.exchange_client.parse_get_balance(&response))
+    }
+
+    async fn get_balance_and_positions(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Result<ExchangeBalancesAndPositions> {
+        self.timeout_manager
+            .reserve_when_available(
+                self.exchange_account_id,
+                RequestType::GetBalance,
+                None,
+                cancellation_token.clone(),
+            )?
+            .await;
+
+        let balance_result = match self.features.balance_position_option {
+            BalancePositionOption::NonDerivative => return self.get_balance_core().await,
+            BalancePositionOption::SingleRequest => self.get_balance_and_positions_core().await?,
+            BalancePositionOption::IndividualRequests => {
+                let balances_result = self.get_balance_core().await?;
+
+                if balances_result.positions.is_some() {
+                    bail!("Exchange supports SingleRequest but Individual is used")
+                }
+
+                self.timeout_manager
+                    .reserve_when_available(
+                        self.exchange_account_id,
+                        RequestType::GetActivePositions,
+                        None,
+                        cancellation_token.clone(),
+                    )?
+                    .await;
+
+                let position_result = self.get_active_positions_core().await?;
+
+                let balances = balances_result.balances;
+                let positions = position_result
+                    .into_iter()
+                    .map(|x| x.derivative)
+                    .collect_vec();
+
+                ExchangeBalancesAndPositions {
+                    balances,
+                    positions: Some(positions),
+                }
+            }
+        };
+
+        if let Some(positions) = &balance_result.positions {
+            for position in positions {
+                if let Some(mut leverage) = self
+                    .leverage_by_currency_pair
+                    .get_mut(&position.currency_pair)
+                {
+                    *leverage.value_mut() = position.leverage;
+                }
+            }
+        }
+
+        Ok(balance_result)
+    }
+
     async fn get_balance_and_positions_core(&self) -> Result<ExchangeBalancesAndPositions> {
         let response = self
             .exchange_client
@@ -677,7 +762,7 @@ impl Exchange {
             .expect("request_close_position failed.");
 
         log::info!(
-            "get_balance_and_positions response on {:?} {:?}",
+            "get_balance_and_positions_core response on {:?} {:?}",
             self.exchange_account_id,
             response,
         );
@@ -685,5 +770,133 @@ impl Exchange {
         self.exchange_client.is_rest_error_code(&response)?;
 
         Ok(self.exchange_client.parse_get_balance(&response))
+    }
+
+    pub async fn get_balance(
+        &self,
+        cancellation_token: CancellationToken,
+    ) -> Option<ExchangeBalancesAndPositions> {
+        let mut retry_attempt = 1;
+        loop {
+            let result = self
+                .get_balance_and_positions(cancellation_token.clone())
+                .await
+                .map(
+                    |ExchangeBalancesAndPositions {
+                         positions,
+                         balances,
+                     }| {
+                        if balances.is_empty() {
+                            return None;
+                        }
+
+                        let positions = positions
+                            .into_iter()
+                            .flat_map(|position| {
+                                position
+                                    .into_iter()
+                                    .filter(|x| self.symbols.contains_key(&x.currency_pair))
+                            })
+                            .collect_vec();
+
+                        let positions = if !positions.is_empty() {
+                            Some(positions)
+                        } else {
+                            None
+                        };
+
+                        Some(ExchangeBalancesAndPositions {
+                            balances,
+                            positions,
+                        })
+                    },
+                );
+
+            let error_message = match result {
+                Ok(balances_and_positions_opt) => {
+                    if let Some(balances_and_positions) = balances_and_positions_opt {
+                        self.events_channel
+                        .send(
+                            ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
+                                exchange_account_id: self.exchange_account_id,
+                                balances_and_positions: balances_and_positions.clone(),
+                            }
+                        )).expect("Exchange::get_balance: Unable to send event. Probably receiver is already dropped");
+
+                        if let Some(positions) = &balances_and_positions.positions {
+                            for position_info in positions {
+                                self.handle_liquidation_price(
+                                    position_info.currency_pair,
+                                    position_info.liquidation_price,
+                                    position_info.average_entry_price,
+                                    position_info.side.expect("position_info.side is None"),
+                                )
+                            }
+                        }
+
+                        return Some(balances_and_positions);
+                    }
+                    anyhow!("Balances is empty")
+                }
+                Err(error) => error,
+            };
+
+            log::warn!(
+                "Failed to get balance for {} on retry {}: {:?}",
+                self.exchange_account_id,
+                retry_attempt,
+                error_message,
+            );
+            if retry_attempt == 5 {
+                log::warn!(
+                    "GetBalance for {} reached maximum retries - reconnecting",
+                    self.exchange_account_id
+                );
+
+                // TODO: uncomment it after implementation reconnect function
+                // await Reconnect();
+                return None;
+            }
+
+            retry_attempt += 1;
+        }
+    }
+
+    fn handle_liquidation_price(
+        &self,
+        currency_pair: CurrencyPair,
+        liquidation_price: Price,
+        entry_price: Price,
+        side: OrderSide,
+    ) {
+        if !self.symbols.contains_key(&currency_pair) {
+            log::warn!(
+                "Unknown currency pair {} in handle_liquidation_price for {}",
+                currency_pair,
+                self.exchange_account_id
+            );
+            return;
+        }
+
+        let event = LiquidationPriceEvent::new(
+            time_manager::now(),
+            self.exchange_account_id,
+            currency_pair,
+            liquidation_price,
+            entry_price,
+            side,
+        );
+
+        self.events_channel
+            .send(ExchangeEvent::LiquidationPrice(event))
+            .expect(
+                "Exchange::handle_liquidation_price: Unable to send event. Probably receiver is already dropped",
+            );
+
+        // TODO: fix it when DataRecorder will be implemented
+        // if (exchange.IsRecordingMarketData)
+        // {
+        //     DataRecorder.Save(liquidationPrice);
+        // }
     }
 }

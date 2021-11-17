@@ -22,19 +22,18 @@ pub(crate) mod tests {
 
     use chrono::TimeZone;
     use mockall_double::double;
-    use once_cell::sync::Lazy;
-    use parking_lot::{Mutex, MutexGuard};
+    use parking_lot::{Mutex, ReentrantMutexGuard};
 
     #[double]
     use super::time_manager;
 
-    /// Needs for syncing mock objects https://docs.rs/mockall/0.10.2/mockall/#static-methods
-    static TIME_MANAGER_MOCK_MUTEX: Lazy<Mutex<()>> = Lazy::new(Mutex::default);
-
     pub(crate) fn init_mock(
         seconds_offset: Arc<Mutex<u32>>,
-    ) -> (time_manager::__now::Context, MutexGuard<'static, ()>) {
-        let mock_locker = TIME_MANAGER_MOCK_MUTEX.lock();
+    ) -> (
+        time_manager::__now::Context,
+        ReentrantMutexGuard<'static, ()>,
+    ) {
+        let mock_locker = crate::MOCK_MUTEX.lock();
         let time_manager_mock_object = time_manager::now_context();
         time_manager_mock_object.expect().returning(move || {
             chrono::Utc

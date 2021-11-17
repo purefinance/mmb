@@ -1,3 +1,13 @@
+use mockall_double::double;
+use parking_lot::Mutex;
+use parking_lot::MutexGuard;
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
+use uuid::Uuid;
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
 #[double]
 use crate::core::misc::time::time_manager;
@@ -19,14 +29,6 @@ use crate::core::{
     DateTime,
 };
 use crate::hashmap;
-use mockall_double::double;
-#[cfg(test)]
-use parking_lot::Mutex;
-use parking_lot::MutexGuard;
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
-use std::{collections::HashMap, sync::Arc};
-use uuid::Uuid;
 
 pub struct BalanceManagerOrdinal {
     pub balance_manager_base: BalanceManagerBase,
@@ -38,10 +40,9 @@ impl BalanceManagerOrdinal {
         let (currency_pair_metadata, exchanges_by_id) =
             BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
         let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
+            CurrencyPairToMetadataConverter::new(exchanges_by_id);
 
-        let balance_manager =
-            BalanceManager::new(exchanges_by_id.clone(), currency_pair_to_metadata_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
         (currency_pair_metadata, balance_manager)
     }
 
@@ -4436,12 +4437,9 @@ mod tests {
         let (_, exchanges_by_id) = BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
 
         let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
+            CurrencyPairToMetadataConverter::new(exchanges_by_id);
 
-        let balance_manager = BalanceManager::new(
-            exchanges_by_id.clone(),
-            currency_pair_to_metadata_converter.clone(),
-        );
+        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter.clone());
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
@@ -4480,10 +4478,7 @@ mod tests {
 
         test_object
             .balance_manager_base
-            .set_balance_manager(BalanceManager::new(
-                exchanges_by_id,
-                currency_pair_to_metadata_converter,
-            ));
+            .set_balance_manager(BalanceManager::new(currency_pair_to_metadata_converter));
 
         test_object
             .balance_manager()

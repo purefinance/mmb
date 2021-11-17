@@ -1,5 +1,5 @@
 use anyhow::Result;
-use mmb_lib::core::settings::BaseStrategySettings;
+use mmb_lib::core::settings::{BaseStrategySettings, CurrencyPairSetting};
 use mmb_lib::core::{
     config::CONFIG_PATH,
     config::CREDENTIALS_PATH,
@@ -8,12 +8,13 @@ use mmb_lib::core::{
 };
 use mmb_lib::strategies::disposition_strategy::ExampleStrategy;
 use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {
     pub spread: Decimal,
+    pub currency_pair: CurrencyPairSetting,
+    pub max_amount: Decimal,
 }
 
 impl BaseStrategySettings for ExampleStrategySettings {
@@ -24,11 +25,12 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("eos".into(), "btc".into())
+        CurrencyPair::from_codes(self.currency_pair.base, self.currency_pair.quote)
     }
 
+    // Max amount for orders that will be created
     fn max_amount(&self) -> Amount {
-        dec!(1)
+        self.max_amount
     }
 }
 
