@@ -153,7 +153,7 @@ mod tests {
     use std::time::Duration;
 
     use chrono::Utc;
-    use parking_lot::Mutex;
+    use parking_lot::{Mutex, RwLock};
     use rstest::rstest;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
@@ -170,6 +170,7 @@ mod tests {
     use crate::core::orders::order::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
     };
+    use crate::core::orders::pool::OrdersPool;
     use crate::core::{
         balance_manager::tests::balance_manager_base::BalanceManagerBase,
         exchanges::common::ExchangeAccountId,
@@ -3212,6 +3213,9 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .is_some());
 
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
                 .balance_manager_base
@@ -3219,7 +3223,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(vec![order.clone()]),
+            Some(vec![order_ref]),
         )
         .expect("in test");
 
@@ -3312,6 +3316,9 @@ mod tests {
             .try_reserve(&reserve_parameters, &mut None)
             .is_some());
 
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
                 .balance_manager_base
@@ -3319,7 +3326,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(vec![order.clone()]),
+            Some(vec![order_ref.clone()]),
         )
         .expect("in test");
 
@@ -3426,6 +3433,9 @@ mod tests {
             order.amount(),
         );
 
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order.clone())));
+
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
                 .balance_manager_base
@@ -3433,7 +3443,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(vec![order.clone()]),
+            Some(vec![order_ref]),
         )
         .expect("in test");
 
@@ -3991,6 +4001,9 @@ mod tests {
             order_1.amount(),
         );
 
+        let order_pool = OrdersPool::new();
+        let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order_1.clone())));
+
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
                 .balance_manager_base
@@ -3998,7 +4011,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(vec![order_1.clone()]),
+            Some(vec![order_ref]),
         )
         .expect("in test");
 
@@ -4125,6 +4138,11 @@ mod tests {
             order_3.amount(),
         );
 
+        let order_pool = OrdersPool::new();
+        let order_ref_1 = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order_1.clone())));
+        let order_ref_2 = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order_2.clone())));
+        let order_ref_3 = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order_3.clone())));
+
         let cloned_balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
             test_object
                 .balance_manager_base
@@ -4132,7 +4150,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(vec![order_1, order_2, order_3]),
+            Some(vec![order_ref_1, order_ref_2, order_ref_3]),
         )
         .expect("in test");
 
