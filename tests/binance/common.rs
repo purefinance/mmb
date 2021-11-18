@@ -20,7 +20,7 @@ use mmb_lib::{
     },
     hashmap,
 };
-use rust_decimal::{prelude::FromPrimitive, Decimal};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 pub(crate) fn get_binance_credentials() -> Result<(String, String)> {
@@ -79,23 +79,9 @@ pub(crate) async fn get_minimal_price(
     hosts: &Hosts,
     api_key: &String,
 ) -> Decimal {
-    // structs for parsing json
     #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-    struct Filter {
-        #[serde(rename = "filterType")]
-        pub filter_type: String,
-        #[serde(rename = "minPrice")]
-        pub min_price: Option<Decimal>,
-        #[serde(rename = "avgPriceMins")]
-        pub multiplier: Option<i64>,
-    }
-    #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-    struct Symbol {
-        pub filters: Vec<Filter>,
-    }
-    #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-    struct ExchangeInfo {
-        pub symbols: Vec<Symbol>,
+    struct OrderBook {
+        pub bids: Vec<(Decimal, Decimal)>,
     }
 
     // requesting data
@@ -103,7 +89,7 @@ pub(crate) async fn get_minimal_price(
 
     let rest_client = RestClient::new();
 
-    let url_path = "/api/v3/exchangeInfo";
+    let url_path = "/api/v3/depth";
     let full_url = rest_client::build_uri(&hosts.rest_host, url_path, &http_params)
         .expect("build_uri is failed");
 
@@ -114,36 +100,14 @@ pub(crate) async fn get_minimal_price(
         .content;
 
     // json parsing
-    let value: ExchangeInfo = serde_json::from_str(data.as_str())
+    let value: OrderBook = serde_json::from_str(data.as_str())
         .with_expect(|| format!("failed to deserialize data: {}", data));
 
     // getting min_price from ExchangeInfo
     value
-        .symbols
-        .into_iter()
-        .map(|x| {
-            let min_price = x
-                .filters
-                .iter()
-                .find(|y| y.filter_type == "PRICE_FILTER")
-                .expect("Failed to find 'PRICE_FILTER'")
-                .min_price
-                .expect("min_price is None");
-
-            // binance accept only min * multiplier prices
-            let multiplier = x
-                .filters
-                .into_iter()
-                .find(|y| y.filter_type == "PERCENT_PRICE")
-                .expect("Failed to find 'PERCENT_PRICE'")
-                .multiplier
-                .expect("multiplier is None");
-
-            (min_price
-                * Decimal::from_i64(multiplier)
-                    .with_expect(|| format!("Failed to convert {} to Decimal", multiplier)))
-            .normalize()
-        })
-        .next()
-        .expect("Failed to get min_price")
+        .bids
+        .get(value.bids.len() / 2)
+        .expect("failed to get bid from the middle of the order book")
+        .clone()
+        .0
 }

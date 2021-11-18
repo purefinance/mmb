@@ -81,7 +81,7 @@ impl OrderProxy {
     }
 
     pub fn default_amount() -> Decimal {
-        dec!(10000)
+        dec!(1000)
     }
 
     pub fn default_price() -> Decimal {
