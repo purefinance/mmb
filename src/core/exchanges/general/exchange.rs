@@ -845,11 +845,11 @@ impl Exchange {
                 self.exchange_account_id, retry_attempt
             );
 
-            let result = self
+            let balances_and_positions = self
                 .get_balance_and_positions(cancellation_token.clone())
                 .await;
 
-            let balances_and_positions = match result {
+            let balances_and_positions = match balances_and_positions {
                 Ok(ExchangeBalancesAndPositions {
                     positions,
                     balances,
