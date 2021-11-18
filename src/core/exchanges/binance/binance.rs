@@ -19,6 +19,7 @@ use crate::core::exchanges::events::{
 use crate::core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
+use crate::core::exchanges::hosts::Hosts;
 use crate::core::exchanges::rest_client::RestClient;
 use crate::core::exchanges::traits::ExchangeClientBuilderResult;
 use crate::core::exchanges::{
@@ -35,7 +36,7 @@ use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventDa
 use crate::core::infrastructure::WithExpect;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
-use crate::core::settings::{ExchangeSettings, Hosts};
+use crate::core::settings::ExchangeSettings;
 use crate::core::DateTime;
 use crate::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use crate::core::{lifecycle::application_manager::ApplicationManager, utils};
@@ -108,15 +109,15 @@ impl Binance {
     pub fn make_hosts(is_margin_trading: bool) -> Hosts {
         if is_margin_trading {
             Hosts {
-                web_socket_host: "wss://fstream.binance.com".to_string(),
-                web_socket2_host: "wss://fstream3.binance.com".to_string(),
-                rest_host: "https://fapi.binance.com".to_string(),
+                web_socket_host: "wss://fstream.binance.com",
+                web_socket2_host: "wss://fstream3.binance.com",
+                rest_host: "https://fapi.binance.com",
             }
         } else {
             Hosts {
-                web_socket_host: "wss://stream.binance.com:9443".to_string(),
-                web_socket2_host: "wss://stream.binance.com:9443".to_string(),
-                rest_host: "https://api.binance.com".to_string(),
+                web_socket_host: "wss://stream.binance.com:9443",
+                web_socket2_host: "wss://stream.binance.com:9443",
+                rest_host: "https://api.binance.com",
             }
         }
     }
