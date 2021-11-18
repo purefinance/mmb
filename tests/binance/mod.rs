@@ -1,3 +1,4 @@
+pub mod account_balance;
 pub mod binance_builder;
 pub mod cancel_order;
 pub mod common;
