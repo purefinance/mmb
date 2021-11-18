@@ -28,7 +28,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::binance::common::get_minimal_price;
+use crate::binance::common::get_default_price;
 use crate::core::order::OrderProxy;
 use crate::get_binance_credentials_or_exit;
 
@@ -126,7 +126,7 @@ async fn orders_cancelled() {
         exchange_account_id,
         Some("FromOrdersCancelledTest".to_owned()),
         CancellationToken::default(),
-        get_minimal_price(
+        get_default_price(
             exchange.get_specific_currency_pair(test_currency_pair),
             &Binance::make_hosts(is_margin_trading),
             &api_key,

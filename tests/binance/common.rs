@@ -74,7 +74,7 @@ pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc
     TimeoutManager::new(hashmap![exchange_account_id => request_timeout_manager])
 }
 
-pub(crate) async fn get_minimal_price(
+pub(crate) async fn get_default_price(
     currency_pair: SpecificCurrencyPair,
     hosts: &Hosts,
     api_key: &String,
@@ -103,7 +103,8 @@ pub(crate) async fn get_minimal_price(
     let value: OrderBook = serde_json::from_str(data.as_str())
         .with_expect(|| format!("failed to deserialize data: {}", data));
 
-    // getting min_price from ExchangeInfo
+    // getting price for order from the middle of the order book
+    // use bids because this price is little lower then asks
     value
         .bids
         .get(value.bids.len() / 2)

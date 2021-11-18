@@ -18,7 +18,7 @@ use mmb_lib::core::settings::Hosts;
 use mmb_lib::hashmap;
 use tokio::sync::broadcast;
 
-use crate::binance::common::get_minimal_price;
+use crate::binance::common::get_default_price;
 use crate::binance::common::{get_binance_credentials, get_timeout_manager};
 use crate::core::order::OrderProxy;
 
@@ -123,7 +123,7 @@ impl BinanceBuilder {
                 .await;
         }
 
-        let default_price = get_minimal_price(
+        let default_price = get_default_price(
             exchange.get_specific_currency_pair(OrderProxy::default_currency_pair()),
             &hosts,
             &settings.api_key,
