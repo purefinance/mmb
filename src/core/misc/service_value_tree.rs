@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId};
@@ -229,10 +228,10 @@ impl ServiceValueTree {
                                         currency_codes.iter().map(move |(currency_code, value)| {
                                             (
                                                 BalanceRequest::new(
-                                                    Arc::from(ConfigurationDescriptor::new(
+                                                    ConfigurationDescriptor::new(
                                                         service_name.clone(),
                                                         service_configuration_key.clone(),
-                                                    )),
+                                                    ),
                                                     exchange_account_id.clone(),
                                                     *currency_pair,
                                                     *currency_code,
@@ -333,10 +332,10 @@ mod test {
                             );
                             balances.insert(
                                 BalanceRequest::new(
-                                    Arc::from(ConfigurationDescriptor::new(
+                                    ConfigurationDescriptor::new(
                                         service_name.clone(),
                                         service_configuration_key.clone(),
-                                    )),
+                                    ),
                                     exchange_account_id,
                                     currency_pair,
                                     currency_code,
@@ -513,10 +512,10 @@ mod test {
 
         test_data.1.insert(
             BalanceRequest::new(
-                Arc::from(ConfigurationDescriptor::new(
+                ConfigurationDescriptor::new(
                     new_service_name.clone(),
                     new_service_configuration_key.clone(),
-                )),
+                ),
                 new_exchange_account_id,
                 new_currency_pair,
                 new_currency_code,

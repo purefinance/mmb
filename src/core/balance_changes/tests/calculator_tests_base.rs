@@ -4,7 +4,7 @@ pub mod tests {
     use std::{collections::HashMap, sync::Arc};
 
     use mockall_double::double;
-    use parking_lot::{Mutex, MutexGuard, RwLock};
+    use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
     use uuid::Uuid;
@@ -41,7 +41,6 @@ pub mod tests {
                     ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
                     OrderType,
                 },
-                pool::OrderRef,
             },
             service_configuration::configuration_descriptor::ConfigurationDescriptor,
         },
@@ -62,7 +61,7 @@ pub mod tests {
 
         time_manager_mock: time_manager::__now::Context,
         seconds_offset: Arc<Mutex<u32>>,
-        mock_lockers: Vec<MutexGuard<'static, ()>>,
+        mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
     }
 
     impl BalanceChangesCalculatorTestsBase {
@@ -112,7 +111,7 @@ pub mod tests {
 
         pub fn init_usd_converter(
             prices: HashMap<CurrencyCode, Price>,
-        ) -> (UsdConverter, MutexGuard<'static, ()>) {
+        ) -> (UsdConverter, ReentrantMutexGuard<'static, ()>) {
             let (mut usd_converter, usd_converter_locker) = UsdConverter::init_mock();
             usd_converter
                 .expect_convert_amount()
@@ -131,7 +130,10 @@ pub mod tests {
             exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
             is_derivative: bool,
             is_reversed: bool,
-        ) -> (CurrencyPairToMetadataConverter, MutexGuard<'static, ()>) {
+        ) -> (
+            CurrencyPairToMetadataConverter,
+            ReentrantMutexGuard<'static, ()>,
+        ) {
             let (mut currency_pair_to_symbol_converter, cp_to_symbol_locker) =
                 CurrencyPairToMetadataConverter::init_mock();
 
@@ -170,7 +172,7 @@ pub mod tests {
 
             currency_pair_to_symbol_converter
                 .expect_exchanges_by_id()
-                .returning(move || exchanges_by_id.clone());
+                .return_const(exchanges_by_id);
 
             (currency_pair_to_symbol_converter, cp_to_symbol_locker)
         }
@@ -202,7 +204,7 @@ pub mod tests {
             is_derivative: bool,
             is_reversed: bool,
             usd_converter: UsdConverter,
-            usd_converter_locker: MutexGuard<'static, ()>,
+            usd_converter_locker: ReentrantMutexGuard<'static, ()>,
         ) -> Self {
             let exchange_1 = get_test_exchange_by_currency_codes(
                 false,
@@ -241,10 +243,10 @@ pub mod tests {
             mock_lockers.push(time_manager_locker);
 
             let mut this = Self {
-                configuration_descriptor: Arc::new(ConfigurationDescriptor::new(
+                configuration_descriptor: ConfigurationDescriptor::new(
                     Self::service_name(),
                     Self::service_configuration_key(),
-                )),
+                ),
                 currency_list: vec![Self::base(), Self::quote()],
                 exchange_1,
                 exchange_2,
@@ -275,7 +277,7 @@ pub mod tests {
             filled_amount: Amount,
             commission_currency_code: CurrencyCode,
             commission_amount: Amount,
-        ) -> OrderRef {
+        ) -> OrderSnapshot {
             let mut order = OrderSnapshot::with_params(
                 ClientOrderId::unique_id(),
                 OrderType::Limit,
@@ -311,12 +313,13 @@ pub mod tests {
                     None,
                 ));
             }
-            OrderRef::new(Arc::new(RwLock::new(order)))
+
+            order
         }
 
-        pub async fn calculate_balance_changes(&mut self, orders: Vec<&OrderRef>) {
+        pub async fn calculate_balance_changes(&mut self, orders: Vec<&OrderSnapshot>) {
             for order in orders {
-                for fill in order.get_fills().0 {
+                for fill in &order.fills.fills {
                     let balance_changes = self.balance_changes_calculator.get_balance_changes(
                         self.configuration_descriptor.clone(),
                         order,
@@ -336,7 +339,7 @@ pub mod tests {
 
                         let profit_loss_balance_change = ProfitLossBalanceChange::new(
                             request,
-                            order.exchange_account_id().exchange_id,
+                            order.header.exchange_account_id.exchange_id,
                             ClientOrderFillId::unique_id(),
                             time_manager::now(),
                             balance_change,

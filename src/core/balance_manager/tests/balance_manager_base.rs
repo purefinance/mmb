@@ -21,7 +21,7 @@ use crate::core::{
 
 use itertools::Itertools;
 use mockall_double::double;
-use parking_lot::{Mutex, MutexGuard};
+use parking_lot::{Mutex, MutexGuard, ReentrantMutexGuard};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -37,7 +37,7 @@ pub struct BalanceManagerBase {
     currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
 
     mock_object: time_manager::__now::Context,
-    mock_locker: MutexGuard<'static, ()>,
+    mock_locker: ReentrantMutexGuard<'static, ()>,
 }
 
 impl BalanceManagerBase {
@@ -129,10 +129,10 @@ impl BalanceManagerBase {
             exchange_account_id_1,
             exchange_account_id_2,
             currency_pair: Self::currency_pair(),
-            configuration_descriptor: Arc::from(ConfigurationDescriptor::new(
+            configuration_descriptor: ConfigurationDescriptor::new(
                 "LiquidityGenerator".into(),
                 exchange_account_id_1.to_string() + ";" + Self::currency_pair().as_str(),
-            )),
+            ),
             seconds_offset_in_mock,
             currency_pair_metadata: None,
             balance_manager: None,

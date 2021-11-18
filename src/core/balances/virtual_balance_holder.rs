@@ -5,7 +5,7 @@ use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeAccountId, Price};
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::Exchange;
-use crate::core::explanation::Explanation;
+use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::core::misc::service_value_tree::ServiceValueTree;
 
 use rust_decimal_macros::dec;
@@ -135,12 +135,12 @@ impl VirtualBalanceHolder {
             price,
         )?;
 
-        if let Some(explanation) = explanation {
-            explanation.add_reason(format!(
+        explanation.with_reason(|| {
+            format!(
                 "get_virtual_balance exchange_balance = {}",
                 exchange_balance
-            ));
-        }
+            )
+        });
 
         let current_balance_diff = if !currency_pair_metadata.is_derivative {
             self.balance_diff
@@ -161,12 +161,12 @@ impl VirtualBalanceHolder {
                 .get_by_balance_request(&balance_currency_code_request)
                 .unwrap_or(dec!(0));
 
-            if let Some(explanation) = explanation {
-                explanation.add_reason(format!(
+            explanation.with_reason(|| {
+                format!(
                     "get_virtual_balance balance_currency_code_balance_diff = {}",
                     balance_currency_code_balance_diff
-                ));
-            }
+                )
+            });
 
             let cur_balance_diff = currency_pair_metadata
                 .convert_amount_from_balance_currency_code(
@@ -175,12 +175,12 @@ impl VirtualBalanceHolder {
                     price,
                 );
 
-            if let Some(explanation) = explanation {
-                explanation.add_reason(format!(
+            explanation.with_reason(|| {
+                format!(
                     "get_virtual_balance current_balance_diff = {}",
                     cur_balance_diff
-                ));
-            }
+                )
+            });
 
             cur_balance_diff
         };

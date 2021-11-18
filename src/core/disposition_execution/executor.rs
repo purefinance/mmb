@@ -20,13 +20,15 @@ use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadat
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::explanation::{Explanation, WithExplanation};
+use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::{EngineContext, Service};
+use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{
     ClientOrderId, OrderCreating, OrderExecutionType, OrderHeader, OrderSide, OrderSnapshot,
-    OrderStatus, OrderType, ReservationId,
+    OrderStatus, OrderType,
 };
 use crate::core::orders::pool::OrderRef;
 use crate::core::{
@@ -225,7 +227,11 @@ impl DispositionExecutor {
                         );
                         let price_slot = self.get_price_slot(order);
                         if let Some(price_slot) = price_slot {
-                            // TODO recalculate balances on order fill when BalanceManager will be implemented
+                            self.engine_ctx.balance_manager.lock().order_was_filled(
+                                self.strategy.configuration_descriptor(),
+                                cloned_order,
+                            );
+
                             if cloned_order.status() == OrderStatus::Completed {
                                 return Ok(());
                             }
@@ -647,14 +653,71 @@ impl DispositionExecutor {
             Some(v) => v,
         };
 
-        // TODO reserve balances
+        let target_reserve_parameters = ReserveParameters::new(
+            self.strategy.configuration_descriptor(),
+            self.exchange_account_id,
+            self.currency_pair_metadata.clone(),
+            new_disposition.side(),
+            new_disposition.price(),
+            new_order_amount,
+        );
+
+        let reservation_id;
+        *explanation = {
+            let mut explanation = Some(explanation.clone());
+
+            // This expect can happened if try_reserve() sets the explanation to None
+            let explanation_err_msg =
+                "DispositionExecutor::try_create_order(): Explanation should be non None here";
+
+            reservation_id = match self
+                .engine_ctx
+                .balance_manager
+                .lock()
+                .try_reserve(&target_reserve_parameters, &mut explanation)
+            {
+                Some(reservation_id) => reservation_id,
+                None => {
+                    self.engine_ctx
+                        .timeout_manager
+                        .remove_group(self.exchange_account_id, requests_group_id)
+                        .with_expect(|| {
+                            format!(
+                                "failed to remove_group for {} {}",
+                                self.exchange_account_id, requests_group_id,
+                            )
+                        });
+
+                    return log_trace(
+                        format!(
+                            "Finished try_create_order because can't reserve balance {}",
+                            new_order_amount
+                        ),
+                        &mut explanation.expect(explanation_err_msg),
+                    );
+                }
+            };
+
+            explanation.expect(explanation_err_msg)
+        };
 
         if !self.engine_ctx.timeout_manager.try_reserve_group_instant(
             self.exchange_account_id,
             RequestType::CancelOrder,
             Some(requests_group_id),
         )? {
-            // TODO unreserve balances
+            self.engine_ctx
+                .balance_manager
+                .lock()
+                .unreserve_rest(
+                    reservation_id,
+                )
+                .with_expect(|| {
+                    format!(
+                        "DispositionExecutor::try_create_order() failed to unreserve_rest for: {:?}",
+                        reservation_id
+                    )
+                });
 
             let _ = self
                 .engine_ctx
@@ -678,8 +741,7 @@ impl DispositionExecutor {
             new_disposition.side(),
             new_order_amount,
             OrderExecutionType::MakerOnly,
-            // TODO fix after implementation balances reservation
-            Some(ReservationId::generate()),
+            Some(reservation_id),
             None,
             new_estimating.strategy_name.clone(),
         );
@@ -810,9 +872,27 @@ impl DispositionExecutor {
         );
         Ok(())
     }
-    fn unreserve_order_amount(&self, _order: &OrderRef, _price_slot: &PriceSlot) {
-        // TODO needed implementation after BalanceManager
+
+    fn unreserve_order_amount(&self, order: &OrderRef, _price_slot: &PriceSlot) {
+        let (reservation_id, client_order_id, amount) = order.fn_ref(|x| {
+            (
+                x.header.reservation_id,
+                x.header.client_order_id.clone(),
+                x.header.amount,
+            )
+        });
+
+        self.engine_ctx
+            .balance_manager
+            .lock()
+            .unreserve_by_client_order_id(
+                reservation_id.expect("InternalEventsLoop: ReservationId is None"),
+                client_order_id,
+                amount,
+            )
+            .with_expect(|| format!("InternalEventsLoop: failed to unreserve order {:?}", order));
     }
+
     fn remove_request_group(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
         let request_group_id =
             price_slot.order.borrow().orders[&order.client_order_id()].request_group_id;

@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
+use mmb_lib::core::balance_manager::balance_manager::BalanceManager;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
+use mmb_lib::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
@@ -13,6 +15,7 @@ use mmb_lib::core::settings::ExchangeSettings;
 
 use anyhow::Result;
 use mmb_lib::core::settings::Hosts;
+use mmb_lib::hashmap;
 use tokio::sync::broadcast;
 
 use crate::binance::common::get_minimal_price;
@@ -103,6 +106,14 @@ impl BinanceBuilder {
         );
         exchange.clone().connect().await;
         exchange.build_metadata(&settings.currency_pairs).await;
+
+        let currency_pair_to_metadata_converter = CurrencyPairToMetadataConverter::new(
+            hashmap![ exchange_account_id => exchange.clone()  ],
+        );
+
+        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
+
+        exchange.setup_balance_manager(balance_manager);
 
         // TODO Remove that workaround when RAII order clearing will be implemented
         if need_to_clean_up {

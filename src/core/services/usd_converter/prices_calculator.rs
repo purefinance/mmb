@@ -85,7 +85,7 @@ mod test {
 
     use chrono::Utc;
     use mockall_double::double;
-    use parking_lot::MutexGuard;
+    use parking_lot::ReentrantMutexGuard;
 
     #[double]
     use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
@@ -107,7 +107,11 @@ mod test {
 
     use super::*;
 
-    fn generate_one_step_setup() -> (CurrencyPair, PriceSourceChain, MutexGuard<'static, ()>) {
+    fn generate_one_step_setup() -> (
+        CurrencyPair,
+        PriceSourceChain,
+        ReentrantMutexGuard<'static, ()>,
+    ) {
         let base_currency_code = "USDT".into();
         let quote_currency_code = "BTC".into();
         let currency_pair = CurrencyPair::from_codes(base_currency_code, quote_currency_code);
@@ -251,7 +255,7 @@ mod test {
         price_source_chain: PriceSourceChain,
     }
 
-    fn generate_two_step_setup() -> (TwoStepSetup, MutexGuard<'static, ()>) {
+    fn generate_two_step_setup() -> (TwoStepSetup, ReentrantMutexGuard<'static, ()>) {
         let base_currency_code_1 = "USDT".into();
         let quote_currency_code_1 = "BTC".into();
         let currency_pair_1 = CurrencyPair::from_codes(base_currency_code_1, quote_currency_code_1);

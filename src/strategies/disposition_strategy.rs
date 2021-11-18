@@ -1,21 +1,25 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
 use crate::core::exchanges::common::{
-    CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
+    Amount, CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
 use crate::core::exchanges::general::currency_pair_metadata::Round;
-use crate::core::explanation::{Explanation, WithExplanation};
+use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
+use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
+use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::core::DateTime;
 
 pub trait DispositionStrategy: Send + Sync + 'static {
@@ -34,6 +38,8 @@ pub trait DispositionStrategy: Send + Sync + 'static {
         target_eai: ExchangeAccountId,
         cancellation_token: CancellationToken,
     ) -> Result<()>;
+
+    fn configuration_descriptor(&self) -> Arc<ConfigurationDescriptor>;
 }
 
 pub struct ExampleStrategy {
@@ -41,6 +47,7 @@ pub struct ExampleStrategy {
     currency_pair: CurrencyPair,
     spread: Decimal,
     engine_context: Arc<EngineContext>,
+    configuration_descriptor: Arc<ConfigurationDescriptor>,
 }
 
 impl ExampleStrategy {
@@ -48,13 +55,19 @@ impl ExampleStrategy {
         target_eai: ExchangeAccountId,
         currency_pair: CurrencyPair,
         spread: Decimal,
-        engine_ctx: Arc<EngineContext>,
+        engine_context: Arc<EngineContext>,
     ) -> Self {
+        let configuration_descriptor = ConfigurationDescriptor::new(
+            "ExampleStrategy".into(),
+            format!("{};{}", target_eai, currency_pair.as_str()),
+        );
+
         ExampleStrategy {
             target_eai,
             currency_pair,
             spread,
-            engine_context: engine_ctx,
+            engine_context,
+            configuration_descriptor,
         }
     }
 
@@ -73,10 +86,10 @@ impl ExampleStrategy {
     fn calc_trading_context_by_side(
         &mut self,
         side: OrderSide,
-        max_amount: Decimal,
+        max_amount: Amount,
         _now: DateTime,
         local_snapshots_service: &LocalSnapshotsService,
-        explanation: Explanation,
+        mut explanation: Explanation,
     ) -> Option<TradingContextBySide> {
         let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
         let ask_min_price = snapshot.get_top_ask()?.0;
@@ -84,33 +97,80 @@ impl ExampleStrategy {
 
         let current_spread = ask_min_price - bid_max_price;
 
+        let symbol = self
+            .engine_context
+            .exchanges
+            .get(&self.target_eai)?
+            .symbols
+            .get(&self.currency_pair)?
+            .clone();
+
         let price = if current_spread < self.spread {
             let order_book_middle = (bid_max_price + ask_min_price) * dec!(0.5);
-            let currency_pair_metadata = self
-                .engine_context
-                .exchanges
-                .get(&self.target_eai)?
-                .symbols
-                .get(&self.currency_pair)?
-                .clone();
 
             match side {
                 OrderSide::Sell => {
                     let price = order_book_middle + (current_spread * dec!(0.5));
-                    currency_pair_metadata
-                        .price_round(price, Round::Ceiling)
-                        .ok()?
+                    symbol.price_round(price, Round::Ceiling).ok()?
                 }
                 OrderSide::Buy => {
                     let price = order_book_middle - (current_spread * dec!(0.5));
-                    currency_pair_metadata
-                        .price_round(price, Round::Floor)
-                        .ok()?
+                    symbol.price_round(price, Round::Floor).ok()?
                 }
             }
         } else {
             snapshot.get_top(side)?.0
         };
+
+        let amount;
+        explanation = {
+            let mut explanation = Some(explanation);
+
+            // TODO: delete deep_clone
+            let orders = self
+                .engine_context
+                .exchanges
+                .iter()
+                .flat_map(|x| {
+                    x.orders
+                        .not_finished
+                        .iter()
+                        .map(|y| y.value().deep_clone())
+                        .collect_vec()
+                })
+                .collect_vec();
+
+            let balance_manager = BalanceManager::clone_and_subtract_not_approved_data(
+                self.engine_context.balance_manager.clone(),
+                Some(orders),
+            )
+            .expect("ExampleStrategy::calc_trading_context_by_side: failed to clone and subtract not approved data for BalanceManager");
+
+            amount = balance_manager
+                .lock()
+                .get_leveraged_balance_in_amount_currency_code(
+                    self.configuration_descriptor.clone(),
+                    side,
+                    self.target_eai,
+                    symbol.clone(),
+                    price,
+                    &mut explanation,
+                )
+                .with_expect(|| format!("Failed to get balance for {}", self.target_eai))
+                .min(max_amount);
+
+            explanation.add_reason(format!(
+                "max_amount changed to {} because target balance wasn't enough",
+                amount
+            ));
+
+            // This expect can happened if get_leveraged_balance_in_amount_currency_code() sets the explanation to None
+            explanation.expect(
+                "ExampleStrategy::calc_trading_context_by_side(): Explanation should be non None here"
+            )
+        };
+
+        let amount = symbol.amount_round(amount, Round::Floor).ok()?;
 
         Some(TradingContextBySide {
             max_amount,
@@ -122,10 +182,10 @@ impl ExampleStrategy {
                         self.trade_place_account(),
                         side,
                         price,
-                        max_amount,
+                        amount,
                     ),
                 }),
-                explanation: explanation.clone(),
+                explanation,
             }],
         })
     }
@@ -167,5 +227,9 @@ impl DispositionStrategy for ExampleStrategy {
     ) -> Result<()> {
         // TODO save order fill info in Database
         Ok(())
+    }
+
+    fn configuration_descriptor(&self) -> Arc<ConfigurationDescriptor> {
+        self.configuration_descriptor.clone()
     }
 }
