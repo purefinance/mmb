@@ -69,7 +69,7 @@ async fn launch_engine() -> Result<()> {
             Ok(())
         }
 
-        fn configuration_descriptor(&self) -> Arc<ConfigurationDescriptor> {
+        fn configuration_descriptor(&self) -> ConfigurationDescriptor {
             ConfigurationDescriptor::new("TestStrategy".into(), "lifecycle_test".into())
         }
     }

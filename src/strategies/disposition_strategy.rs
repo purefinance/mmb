@@ -39,7 +39,7 @@ pub trait DispositionStrategy: Send + Sync + 'static {
         cancellation_token: CancellationToken,
     ) -> Result<()>;
 
-    fn configuration_descriptor(&self) -> Arc<ConfigurationDescriptor>;
+    fn configuration_descriptor(&self) -> ConfigurationDescriptor;
 }
 
 pub struct ExampleStrategy {
@@ -47,7 +47,7 @@ pub struct ExampleStrategy {
     currency_pair: CurrencyPair,
     spread: Decimal,
     engine_context: Arc<EngineContext>,
-    configuration_descriptor: Arc<ConfigurationDescriptor>,
+    configuration_descriptor: ConfigurationDescriptor,
 }
 
 impl ExampleStrategy {
@@ -59,7 +59,9 @@ impl ExampleStrategy {
     ) -> Self {
         let configuration_descriptor = ConfigurationDescriptor::new(
             "ExampleStrategy".into(),
-            format!("{};{}", target_eai, currency_pair.as_str()),
+            (target_eai.to_string() + ";" + currency_pair.as_str())
+                .as_str()
+                .into(),
         );
 
         ExampleStrategy {
@@ -229,7 +231,7 @@ impl DispositionStrategy for ExampleStrategy {
         Ok(())
     }
 
-    fn configuration_descriptor(&self) -> Arc<ConfigurationDescriptor> {
+    fn configuration_descriptor(&self) -> ConfigurationDescriptor {
         self.configuration_descriptor.clone()
     }
 }
