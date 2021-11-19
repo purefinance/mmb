@@ -792,10 +792,10 @@ impl Exchange {
             })
             .collect_vec();
 
-        let positions = if !positions.is_empty() {
-            Some(positions)
-        } else {
+        let positions = if positions.is_empty() {
             None
+        } else {
+            Some(positions)
         };
 
         Some(ExchangeBalancesAndPositions {
@@ -806,80 +806,75 @@ impl Exchange {
 
     fn handle_balances_and_positions(
         &self,
-        balances_and_positions: Option<ExchangeBalancesAndPositions>,
-    ) -> Option<ExchangeBalancesAndPositions> {
-        if let Some(balances_and_positions) = balances_and_positions {
-            self.events_channel
-                    .send(
-                        ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
-                            exchange_account_id: self.exchange_account_id,
-                            balances_and_positions: balances_and_positions.clone(),
-                        }
-                    )).expect("Exchange::get_balance: Unable to send event. Probably receiver is already dropped");
+        balances_and_positions: ExchangeBalancesAndPositions,
+    ) -> ExchangeBalancesAndPositions {
+        self.events_channel
+            .send(ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
+                exchange_account_id: self.exchange_account_id,
+                balances_and_positions: balances_and_positions.clone(),
+            }))
+            .expect(
+                "Exchange::get_balance: Unable to send event. Probably receiver is already dropped",
+            );
 
-            if let Some(positions) = &balances_and_positions.positions {
-                for position_info in positions {
-                    self.handle_liquidation_price(
-                        position_info.currency_pair,
-                        position_info.liquidation_price,
-                        position_info.average_entry_price,
-                        position_info.side.expect("position_info.side is None"),
-                    )
-                }
+        if let Some(positions) = &balances_and_positions.positions {
+            for position_info in positions {
+                self.handle_liquidation_price(
+                    position_info.currency_pair,
+                    position_info.liquidation_price,
+                    position_info.average_entry_price,
+                    position_info.side.expect("position_info.side is None"),
+                )
             }
-
-            return Some(balances_and_positions);
         }
 
-        None
+        balances_and_positions
     }
 
     pub async fn get_balance(
         &self,
         cancellation_token: CancellationToken,
     ) -> Option<ExchangeBalancesAndPositions> {
-        let mut retry_attempt = 1;
-        loop {
-            let error_msg = format!(
-                "Failed to get balance for {} on retry {}",
-                self.exchange_account_id, retry_attempt
-            );
+        let print_warn = |retry_attempt: i32, error: String| {
+            log::warn!(
+                "Failed to get balance for {} on retry {}: {}",
+                self.exchange_account_id,
+                retry_attempt,
+                error
+            )
+        };
 
+        for retry_attempt in 1..=5 {
             let balances_and_positions = self
                 .get_balance_and_positions(cancellation_token.clone())
                 .await;
 
-            let balances_and_positions = match balances_and_positions {
+            match balances_and_positions {
                 Ok(ExchangeBalancesAndPositions {
                     positions,
                     balances,
-                }) => self.verify_balances_and_positions(positions, balances),
+                }) => {
+                    if let Some(balances_and_positions) =
+                        self.verify_balances_and_positions(positions, balances)
+                    {
+                        return Some(self.handle_balances_and_positions(balances_and_positions));
+                    }
+                    (print_warn)(retry_attempt, "balances is empty".into());
+                }
                 Err(error) => {
-                    log::warn!("{}: {:?}", error_msg, error,);
-                    None
+                    (print_warn)(retry_attempt, error.to_string());
                 }
             };
-
-            let balances_and_positions = self.handle_balances_and_positions(balances_and_positions);
-            if balances_and_positions.is_some() {
-                return balances_and_positions;
-            }
-
-            log::warn!("{}: balances is empty", error_msg);
-
-            if retry_attempt == 5 {
-                log::warn!(
-                    "GetBalance for {} reached maximum retries - reconnecting",
-                    self.exchange_account_id
-                );
-
-                // TODO: uncomment it after implementation reconnect function
-                // await Reconnect();
-                return None;
-            }
-
-            retry_attempt += 1;
         }
+
+        // TODO: uncomment it after implementation reconnect function
+        // log::warn!(
+        //     "GetBalance for {} reached maximum retries - reconnecting",
+        //     self.exchange_account_id
+        // );
+
+        // await Reconnect();
+        return None;
     }
 
     fn handle_liquidation_price(
