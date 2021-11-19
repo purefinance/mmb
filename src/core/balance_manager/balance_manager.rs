@@ -25,6 +25,7 @@ use crate::core::{balance_manager::balances::Balances, exchanges::common::Exchan
 
 use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
+use futures::future::join_all;
 use itertools::Itertools;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
@@ -1014,25 +1015,44 @@ impl BalanceManager {
         self.balance_changes_service = Some(service);
     }
 
-    pub async fn update_balances_for_exchanges(&mut self, cancellation_token: CancellationToken) {
-        let exchanges = self
+    pub async fn update_balances_for_exchanges(
+        this: Arc<Mutex<Self>>,
+        cancellation_token: CancellationToken,
+    ) {
+        let exchanges = this
+            .lock()
             .balance_reservation_manager
             .exchanges_by_id()
             .values()
             .cloned()
             .collect_vec();
 
-        for exchange in exchanges {
-            let balances_and_positions = exchange
-                .get_balance(cancellation_token.clone())
-                .await
-                .with_expect(|| {
-                    format!("failed to get balance for {}", exchange.exchange_account_id)
-                });
+        let update_actions = exchanges
+            .iter()
+            .map(|exchange| {
+                let this = this.clone();
+                let cancellation_token = cancellation_token.clone();
+                let action = async move {
+                    let balances_and_positions = exchange
+                        .get_balance(cancellation_token.clone())
+                        .await
+                        .with_expect(|| {
+                            format!("failed to get balance for {}", exchange.exchange_account_id)
+                        });
 
-            self.update_exchange_balance(exchange.exchange_account_id, &balances_and_positions)
-                .expect("failed to update exchange balance");
-        }
+                    this.lock()
+                        .update_exchange_balance(
+                            exchange.exchange_account_id,
+                            &balances_and_positions,
+                        )
+                        .expect("failed to update exchange balance");
+                };
+
+                action
+            })
+            .collect_vec();
+
+        join_all(update_actions).await;
     }
 
     // TODO: should be implemented

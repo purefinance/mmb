@@ -62,7 +62,7 @@ impl BalanceManagerBase {
     }
 
     pub fn update_balance(
-        mut balance_manager: MutexGuard<BalanceManager>,
+        balance_manager: &mut BalanceManager,
         exchange_account_id: ExchangeAccountId,
         balances_by_currency_code: HashMap<CurrencyCode, Amount>,
     ) {
@@ -84,7 +84,7 @@ impl BalanceManagerBase {
     }
 
     pub fn update_balance_with_positions(
-        mut balance_manager: MutexGuard<BalanceManager>,
+        balance_manager: &mut BalanceManager,
         exchange_account_id: ExchangeAccountId,
         balances_by_currency_code: HashMap<CurrencyCode, Amount>,
         positions_by_currency_pair: HashMap<CurrencyPair, Decimal>,

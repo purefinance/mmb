@@ -120,10 +120,11 @@ where
 
     let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
 
-    balance_manager
-        .lock()
-        .update_balances_for_exchanges(application_manager.stop_token())
-        .await;
+    BalanceManager::update_balances_for_exchanges(
+        balance_manager.clone(),
+        application_manager.stop_token(),
+    )
+    .await;
 
     for exchange in &exchanges_map {
         exchange
