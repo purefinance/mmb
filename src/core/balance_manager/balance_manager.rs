@@ -326,19 +326,16 @@ impl BalanceManager {
     }
 
     pub fn update_exchange_balance(
-        this: Arc<Mutex<Self>>,
+        &mut self,
         exchange_account_id: ExchangeAccountId,
         balances_and_positions: &ExchangeBalancesAndPositions,
     ) -> Result<()> {
         let mut filtered_exchange_balances = HashMap::new();
 
-        let mut this = this.lock();
-        let locked_self = &mut *this;
-
-        let whole_balances_before = locked_self.calculate_whole_balances()?;
+        let whole_balances_before = self.calculate_whole_balances()?;
 
         {
-            let exchange_currencies = locked_self
+            let exchange_currencies = self
                 .balance_reservation_manager
                 .exchanges_by_id()
                 .get(&exchange_account_id)
@@ -360,11 +357,9 @@ impl BalanceManager {
             }
         }
 
-        locked_self
-            .restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
+        self.restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
 
-        locked_self
-            .balance_reservation_manager
+        self.balance_reservation_manager
             .exchanges_by_id()
             .get(&exchange_account_id)
             .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
@@ -375,7 +370,7 @@ impl BalanceManager {
                 let _ = filtered_exchange_balances.entry(x.clone()).or_default();
             });
 
-        let reservations_by_exchange_account_id = locked_self
+        let reservations_by_exchange_account_id = self
             .balance_reservation_manager
             .balance_reservation_storage
             .get_all_raw_reservations()
@@ -394,12 +389,11 @@ impl BalanceManager {
             }
         }
 
-        locked_self
-            .balance_reservation_manager
+        self.balance_reservation_manager
             .virtual_balance_holder
             .update_balances(exchange_account_id, &filtered_exchange_balances);
 
-        let whole_balances_after = locked_self.calculate_whole_balances()?;
+        let whole_balances_after = self.calculate_whole_balances()?;
 
         log::info!(
             "Updated balances for {} {:?} {:?} {:?}",
@@ -409,8 +403,8 @@ impl BalanceManager {
             filtered_exchange_balances
         );
 
-        locked_self.save_balances();
-        locked_self.save_balance_update(whole_balances_before, whole_balances_after);
+        self.save_balances();
+        self.save_balance_update(whole_balances_before, whole_balances_after);
         Ok(())
     }
 
@@ -1046,12 +1040,12 @@ impl BalanceManager {
                             format!("failed to get balance for {}", exchange.exchange_account_id)
                         });
 
-                    Self::update_exchange_balance(
-                        this,
-                        exchange.exchange_account_id,
-                        &balances_and_positions,
-                    )
-                    .expect("failed to update exchange balance");
+                    this.lock()
+                        .update_exchange_balance(
+                            exchange.exchange_account_id,
+                            &balances_and_positions,
+                        )
+                        .expect("failed to update exchange balance");
                 };
 
                 action
