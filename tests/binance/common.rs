@@ -74,7 +74,7 @@ pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc
     TimeoutManager::new(hashmap![exchange_account_id => request_timeout_manager])
 }
 
-/// Automatic price calculation for orders. This function gets the price from the middle of the order book.
+/// Automatic price calculation for orders. This function gets the price from the middle of order book bids side.
 /// This helps to avoid creating orders in the top of the order book.
 pub(crate) async fn get_default_price(
     currency_pair: SpecificCurrencyPair,
