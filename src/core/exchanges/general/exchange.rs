@@ -780,17 +780,17 @@ impl Exchange {
         &self,
         positions: Option<Vec<DerivativePosition>>,
         balances: Vec<ExchangeBalance>,
-    ) -> Option<ExchangeBalancesAndPositions> {
+    ) -> ExchangeBalancesAndPositions {
         let positions = positions.map(|x| {
             x.into_iter()
                 .filter(|y| self.symbols.contains_key(&y.currency_pair))
                 .collect_vec()
         });
 
-        Some(ExchangeBalancesAndPositions {
+        ExchangeBalancesAndPositions {
             balances,
             positions,
-        })
+        }
     }
 
     fn handle_balances_and_positions(
@@ -848,15 +848,11 @@ impl Exchange {
                         continue;
                     }
 
-                    if let Some(balances_and_positions) =
-                        self.remove_unknown_currency_pairs(positions, balances)
-                    {
-                        return Some(self.handle_balances_and_positions(balances_and_positions));
-                    }
+                    return Some(self.handle_balances_and_positions(
+                        self.remove_unknown_currency_pairs(positions, balances),
+                    ));
                 }
-                Err(error) => {
-                    (print_warn)(retry_attempt, error.to_string());
-                }
+                Err(error) => (print_warn)(retry_attempt, error.to_string()),
             };
         }
 
