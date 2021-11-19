@@ -774,29 +774,18 @@ impl Exchange {
         Ok(self.exchange_client.parse_get_balance(&response))
     }
 
-    fn verify_balances_and_positions(
+    /// Remove currency pairs that aren't supported by the current exchange
+    /// if all currencies aren't supported return None
+    fn remove_unknown_currency_pairs(
         &self,
         positions: Option<Vec<DerivativePosition>>,
         balances: Vec<ExchangeBalance>,
     ) -> Option<ExchangeBalancesAndPositions> {
-        if balances.is_empty() {
-            return None;
-        }
-
-        let positions = positions
-            .into_iter()
-            .flat_map(|position| {
-                position
-                    .into_iter()
-                    .filter(|x| self.symbols.contains_key(&x.currency_pair))
-            })
-            .collect_vec();
-
-        let positions = if positions.is_empty() {
-            None
-        } else {
-            Some(positions)
-        };
+        let positions = positions.map(|x| {
+            x.into_iter()
+                .filter(|y| self.symbols.contains_key(&y.currency_pair))
+                .collect_vec()
+        });
 
         Some(ExchangeBalancesAndPositions {
             balances,
@@ -854,12 +843,16 @@ impl Exchange {
                     positions,
                     balances,
                 }) => {
+                    if balances.is_empty() {
+                        (print_warn)(retry_attempt, "balances is empty".into());
+                        continue;
+                    }
+
                     if let Some(balances_and_positions) =
-                        self.verify_balances_and_positions(positions, balances)
+                        self.remove_unknown_currency_pairs(positions, balances)
                     {
                         return Some(self.handle_balances_and_positions(balances_and_positions));
                     }
-                    (print_warn)(retry_attempt, "balances is empty".into());
                 }
                 Err(error) => {
                     (print_warn)(retry_attempt, error.to_string());
@@ -867,12 +860,12 @@ impl Exchange {
             };
         }
 
-        // TODO: uncomment it after implementation reconnect function
-        // log::warn!(
-        //     "GetBalance for {} reached maximum retries - reconnecting",
-        //     self.exchange_account_id
-        // );
+        log::warn!(
+            "GetBalance for {} reached maximum retries - reconnecting",
+            self.exchange_account_id
+        );
 
+        // TODO: uncomment it after implementation reconnect function
         // await Reconnect();
         return None;
     }
