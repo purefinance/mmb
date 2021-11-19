@@ -487,16 +487,18 @@ impl BalanceManager {
 
         let mut applied_orders = HashSet::new();
         for order in orders_to_subtract {
-            let (is_finished, order_type, client_order_id, reservation_id) = order.fn_ref(|x| {
-                (
-                    x.props.is_finished(),
-                    x.header.order_type,
-                    x.header.client_order_id.clone(),
-                    x.header.reservation_id,
-                )
-            });
+            let (is_finished, order_type, client_order_id, reservation_id, status) =
+                order.fn_ref(|x| {
+                    (
+                        x.props.is_finished(),
+                        x.header.order_type,
+                        x.header.client_order_id.clone(),
+                        x.header.reservation_id,
+                        x.props.status,
+                    )
+                });
 
-            if is_finished || order.status() == OrderStatus::Creating {
+            if is_finished || status == OrderStatus::Creating {
                 continue;
             }
 
