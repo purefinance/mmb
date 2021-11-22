@@ -246,7 +246,7 @@ impl RequestsTimeoutManager {
         current_time: DateTime,
         cancellation_token: CancellationToken,
     ) -> Result<(JoinHandle<FutureOutcome>, DateTime, Duration)> {
-        // Note: calculation doesnt' support request cancellation
+        // Note: calculation doesn't support request cancellation
         // Note: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
 
         // Algorithm:
@@ -318,6 +318,8 @@ impl RequestsTimeoutManager {
         delay: Duration,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
+        // Should never panic, because function wait_for_request_availability
+        // has one call with guaranteed non-negative delay.
         let delay: std::time::Duration = delay.to_std_expected();
 
         let sleep_future = sleep(delay);
@@ -345,9 +347,9 @@ impl RequestsTimeoutManager {
     }
 
     fn try_get_strong(
-        weak_timout_manager: Weak<RequestsTimeoutManager>,
+        weak_timeout_manager: Weak<RequestsTimeoutManager>,
     ) -> Result<Arc<RequestsTimeoutManager>> {
-        weak_timout_manager.upgrade().with_context(|| {
+        weak_timeout_manager.upgrade().with_context(|| {
             let error_message = "Unable to upgrade weak reference to RequestsTimeoutManager instance. Probably it's dropped";
            log::info!("{}", error_message);
             anyhow!(error_message)
