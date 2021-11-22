@@ -183,10 +183,6 @@ impl BalanceManagerDerivative {
         self.balance_manager_base.balance_manager()
     }
 
-    pub fn balance_manager_arc(&self) -> Arc<Mutex<BalanceManager>> {
-        self.balance_manager_base.balance_manager_expected()
-    }
-
     pub fn fill_order(
         &mut self,
         side: OrderSide,
@@ -268,7 +264,7 @@ mod tests {
         ];
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -287,7 +283,7 @@ mod tests {
         let test_object = BalanceManagerDerivative::new(is_reversed);
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_1,
             currency_codes
                 .into_iter()
@@ -307,13 +303,13 @@ mod tests {
         let test_object = BalanceManagerDerivative::new(is_reversed);
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_1,
             hashmap![cc_for_first => amount_for_first],
         );
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_2,
             hashmap![cc_for_second => amount_for_second],
         );
@@ -391,14 +387,14 @@ mod tests {
                 .currency_pair_metadata()
                 .currency_pair();
             BalanceManagerBase::update_balance_with_positions(
-                test_object.balance_manager_arc(),
+                &mut *test_object.balance_manager(),
                 exchange_account_id,
                 balance_map,
                 hashmap![symbol_currency_pair => symbol_currency_pair_amount],
             );
         } else {
             BalanceManagerBase::update_balance(
-                test_object.balance_manager_arc(),
+                &mut *test_object.balance_manager(),
                 exchange_account_id,
                 balance_map,
             );
@@ -2513,7 +2509,7 @@ mod tests {
         );
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap!(BalanceManagerBase::eth() => dec!(25)),
         );
@@ -2590,7 +2586,7 @@ mod tests {
             .currency_pair_metadata()
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::eth() => dec!(25)],
             hashmap![symbol_currency_pair => dec!(1)],
@@ -2647,7 +2643,7 @@ mod tests {
             .currency_pair_metadata()
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::eth() => original_balance],
             hashmap![symbol_currency_pair => position],
@@ -2720,7 +2716,7 @@ mod tests {
             .currency_pair_metadata()
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::btc() => original_balance],
             hashmap![symbol_currency_pair=> position],
@@ -2810,7 +2806,7 @@ mod tests {
             .currency_pair_metadata()
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::eth() => original_balance],
             hashmap![symbol_currency_pair => position],
@@ -2883,7 +2879,7 @@ mod tests {
             .currency_pair_metadata()
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::btc()=> original_balance],
             hashmap![symbol_currency_pair=> position],
@@ -2980,7 +2976,7 @@ mod tests {
             );
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::eth()=> dec!(1000)],
         );
@@ -3128,7 +3124,7 @@ mod tests {
             );
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::btc()=> dec!(1000)],
         );
@@ -3274,7 +3270,7 @@ mod tests {
             );
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::eth()=> dec!(1000)],
         );
@@ -3448,7 +3444,7 @@ mod tests {
             );
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::btc() => dec!(1000)],
         );
@@ -4512,7 +4508,7 @@ mod tests {
         let balance = dec!(0.0139536399914456800684345595);
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::eth() => balance],
         );
@@ -4560,7 +4556,7 @@ mod tests {
             .currency_pair_metadata()
             .currency_pair();
         BalanceManagerBase::update_balance_with_positions(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id_2,
             hashmap![BalanceManagerBase::eth() => dec!(0)],
             hashmap![symbol_currency_pair.clone() => position],
@@ -4622,7 +4618,7 @@ mod tests {
         );
 
         BalanceManagerBase::update_balance_with_positions(
-            test_object.balance_manager_arc(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::eth() => dec!(1)],
             hashmap![symbol_currency_pair.clone() => dec!(3)],
