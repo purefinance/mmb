@@ -120,7 +120,7 @@ impl BalanceManager {
     pub fn unreserve_rest(&mut self, reservation_id: ReservationId) -> Result<()> {
         let amount = self
             .balance_reservation_manager
-            .get_balance_reservation(reservation_id)
+            .get_reservation(reservation_id)
             .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?
             .unreserved_amount;
         return self.unreserve(reservation_id, amount);
@@ -695,7 +695,7 @@ impl BalanceManager {
 
         if order_snapshot.status() == OrderStatus::Canceled {
             if let Some(reservation_id) = order_snapshot.header.reservation_id {
-                if self.get_balance_reservation(reservation_id).is_some() {
+                if self.get_reservation(reservation_id).is_some() {
                     self.balance_reservation_manager
                         .cancel_approved_reservation(
                             reservation_id,
@@ -707,36 +707,30 @@ impl BalanceManager {
         }
     }
 
-    pub fn get_balance_reservation(
-        &self,
-        reservation_id: ReservationId,
-    ) -> Option<&BalanceReservation> {
+    pub fn get_reservation(&self, reservation_id: ReservationId) -> Option<&BalanceReservation> {
         self.balance_reservation_manager
-            .get_balance_reservation(reservation_id)
+            .get_reservation(reservation_id)
     }
 
-    pub fn get_balance_reservation_expected(
-        &self,
-        reservation_id: ReservationId,
-    ) -> &BalanceReservation {
+    pub fn get_reservation_expected(&self, reservation_id: ReservationId) -> &BalanceReservation {
         self.balance_reservation_manager
-            .get_balance_reservation_expected(reservation_id)
+            .get_reservation_expected(reservation_id)
     }
 
-    pub fn get_mut_balance_reservation(
+    pub fn get_mut_reservation(
         &mut self,
         reservation_id: ReservationId,
     ) -> Option<&mut BalanceReservation> {
         self.balance_reservation_manager
-            .get_mut_balance_reservation(reservation_id)
+            .get_mut_reservation(reservation_id)
     }
 
-    pub fn get_mut_balance_reservation_expected(
+    pub fn get_mut_reservation_expected(
         &mut self,
         reservation_id: ReservationId,
     ) -> &mut BalanceReservation {
         self.balance_reservation_manager
-            .get_mut_balance_reservation_expected(reservation_id)
+            .get_mut_reservation_expected(reservation_id)
     }
 
     pub fn unreserve_pair(

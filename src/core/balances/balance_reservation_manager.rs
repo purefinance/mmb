@@ -135,29 +135,23 @@ impl BalanceReservationManager {
         self.position_by_fill_amount_in_amount_currency = position_by_fill_amount;
     }
 
-    pub fn get_balance_reservation(
-        &self,
-        reservation_id: ReservationId,
-    ) -> Option<&BalanceReservation> {
+    pub fn get_reservation(&self, reservation_id: ReservationId) -> Option<&BalanceReservation> {
         self.balance_reservation_storage.get(reservation_id)
     }
 
-    pub fn get_balance_reservation_expected(
-        &self,
-        reservation_id: ReservationId,
-    ) -> &BalanceReservation {
+    pub fn get_reservation_expected(&self, reservation_id: ReservationId) -> &BalanceReservation {
         self.balance_reservation_storage
             .get_expected(reservation_id)
     }
 
-    pub fn get_mut_balance_reservation(
+    pub fn get_mut_reservation(
         &mut self,
         reservation_id: ReservationId,
     ) -> Option<&mut BalanceReservation> {
         self.balance_reservation_storage.get_mut(reservation_id)
     }
 
-    pub fn get_mut_balance_reservation_expected(
+    pub fn get_mut_reservation_expected(
         &mut self,
         reservation_id: ReservationId,
     ) -> &mut BalanceReservation {
@@ -171,7 +165,7 @@ impl BalanceReservationManager {
         amount: Amount,
         client_or_order_id: &Option<ClientOrderId>,
     ) -> Result<()> {
-        let reservation = match self.get_balance_reservation(reservation_id) {
+        let reservation = match self.get_reservation(reservation_id) {
             Some(reservation) => reservation,
             None => {
                 let reservation_ids = self.balance_reservation_storage.get_reservation_ids();
@@ -232,16 +226,14 @@ impl BalanceReservationManager {
         self.unreserve_not_approved_part(reservation_id, client_or_order_id, amount_to_unreserve)
             .with_context(|| format!("failed unreserve not approved part"))?;
 
-        let reservation = self.get_balance_reservation_expected(reservation_id);
+        let reservation = self.get_reservation_expected(reservation_id);
         let balance_request = BalanceRequest::from_reservation(reservation);
         self.add_reserved_amount(&balance_request, reservation_id, -amount_to_unreserve, true)?;
 
         let new_balance = self.get_available_balance(&balance_params, true, &mut None);
         log::info!("VirtualBalanceHolder {}", new_balance);
 
-        let mut reservation = self
-            .get_balance_reservation_expected(reservation_id)
-            .clone();
+        let mut reservation = self.get_reservation_expected(reservation_id).clone();
         if reservation.unreserved_amount < dec!(0)
             || reservation.is_amount_within_symbol_margin_error(reservation.unreserved_amount)
         {
@@ -766,7 +758,7 @@ impl BalanceReservationManager {
         client_order_id: &Option<ClientOrderId>,
         amount_to_unreserve: Amount,
     ) -> Result<()> {
-        let reservation = self.get_mut_balance_reservation_expected(reservation_id);
+        let reservation = self.get_mut_reservation_expected(reservation_id);
         let client_order_id = match client_order_id {
             Some(client_order_id) => client_order_id,
             None => {
@@ -1085,7 +1077,7 @@ impl BalanceReservationManager {
         reservation_id: ReservationId,
         client_order_id: &ClientOrderId,
     ) {
-        let reservation = match self.get_mut_balance_reservation(reservation_id) {
+        let reservation = match self.get_mut_reservation(reservation_id) {
             Some(reservation_id) => reservation_id,
             None => {
                 log::error!(
@@ -1179,7 +1171,7 @@ impl BalanceReservationManager {
         amount: Amount,
     ) -> Result<()> {
         let approve_time = time_manager::now();
-        let reservation = match self.get_mut_balance_reservation(reservation_id) {
+        let reservation = match self.get_mut_reservation(reservation_id) {
             Some(reservation) => reservation,
             None => {
                 log::error!(
@@ -1236,9 +1228,9 @@ impl BalanceReservationManager {
         amount: Amount,
         client_order_id: &Option<ClientOrderId>,
     ) -> bool {
-        let src_reservation = self.get_balance_reservation_expected(src_reservation_id);
+        let src_reservation = self.get_reservation_expected(src_reservation_id);
 
-        let dst_reservation = self.get_balance_reservation_expected(dst_reservation_id);
+        let dst_reservation = self.get_reservation_expected(dst_reservation_id);
 
         if src_reservation.configuration_descriptor != dst_reservation.configuration_descriptor
             || src_reservation.exchange_account_id != dst_reservation.exchange_account_id
@@ -1315,7 +1307,7 @@ impl BalanceReservationManager {
         amount_to_move: Amount,
         client_order_id: &Option<ClientOrderId>,
     ) {
-        let src_reservation = self.get_balance_reservation_expected(src_reservation_id);
+        let src_reservation = self.get_reservation_expected(src_reservation_id);
         let new_src_unreserved_amount = src_reservation.unreserved_amount - amount_to_move;
         log::info!(
             "trying to update src unreserved amount for transfer: {:?} {} {:?}",
@@ -1331,7 +1323,7 @@ impl BalanceReservationManager {
             dec!(0),
         );
 
-        let dst_reservation = self.get_balance_reservation_expected(dst_reservation_id);
+        let dst_reservation = self.get_reservation_expected(dst_reservation_id);
         let new_dst_unreserved_amount = dst_reservation.unreserved_amount + amount_to_move;
         log::info!(
             "trying to update dst unreserved amount for transfer: {:?} {} {:?}",
@@ -1364,7 +1356,7 @@ impl BalanceReservationManager {
         target_cost_diff: Decimal,
     ) -> Decimal {
         let approve_time = time_manager::now();
-        let reservation = self.get_mut_balance_reservation_expected(reservation_id);
+        let reservation = self.get_mut_reservation_expected(reservation_id);
         // we should check the case when we have insignificant calculation errors
         if new_unreserved_amount < dec!(0)
             && !reservation.is_amount_within_symbol_margin_error(new_unreserved_amount)
@@ -1428,7 +1420,7 @@ impl BalanceReservationManager {
             reservation_amount_diff,
             false,
         );
-        let reservation = self.get_mut_balance_reservation_expected(reservation_id);
+        let reservation = self.get_mut_reservation_expected(reservation_id);
 
         let cost_diff = if is_src_request {
             reservation
@@ -1447,13 +1439,11 @@ impl BalanceReservationManager {
                 -cost_diff,
                 buff_price,
             );
-        let reservation = self.get_mut_balance_reservation_expected(reservation_id);
+        let reservation = self.get_mut_reservation_expected(reservation_id);
 
         reservation.cost += cost_diff;
         reservation.amount += reservation_amount_diff;
-        let reservation = self
-            .get_balance_reservation_expected(reservation_id)
-            .clone();
+        let reservation = self.get_reservation_expected(reservation_id).clone();
 
         if reservation.is_amount_within_symbol_margin_error(new_unreserved_amount) {
             self.balance_reservation_storage
@@ -1751,7 +1741,7 @@ impl BalanceReservationManager {
         reservation_id: ReservationId,
         new_price: Price,
     ) -> bool {
-        let reservation = match self.get_balance_reservation(reservation_id) {
+        let reservation = match self.get_reservation(reservation_id) {
             Some(reservation) => reservation,
             None => {
                 log::error!(
@@ -1823,7 +1813,7 @@ impl BalanceReservationManager {
 
         let balance_request = BalanceRequest::from_reservation(reservation);
 
-        let reservation = self.get_mut_balance_reservation_expected(reservation_id);
+        let reservation = self.get_mut_reservation_expected(reservation_id);
         reservation.price = new_price;
 
         let reservation_amount_diff = reservation
@@ -1849,7 +1839,7 @@ impl BalanceReservationManager {
             )
         });
 
-        let reservation = self.get_mut_balance_reservation_expected(reservation_id);
+        let reservation = self.get_mut_reservation_expected(reservation_id);
         reservation.not_approved_amount = new_raw_rest_amount;
 
         log::info!(
