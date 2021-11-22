@@ -86,7 +86,6 @@ pub(crate) async fn get_default_price(
         pub bids: Vec<(Decimal, Decimal)>,
     }
 
-    // requesting data
     let http_params = vec![("symbol".to_owned(), currency_pair.as_str().to_owned())];
 
     let rest_client = RestClient::new();
@@ -101,7 +100,6 @@ pub(crate) async fn get_default_price(
         .expect("failed to request exchangeInfo")
         .content;
 
-    // json parsing
     let value: OrderBook = serde_json::from_str(data.as_str())
         .with_expect(|| format!("failed to deserialize data: {}", data));
 
