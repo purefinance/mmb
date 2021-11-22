@@ -17,7 +17,7 @@ struct VirtualBalanceHolderTests {
     pub exchange_account_id: ExchangeAccountId,
     exchange: Arc<Exchange>,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
-    configuration_descriptor: Arc<ConfigurationDescriptor>,
+    configuration_descriptor: ConfigurationDescriptor,
 }
 
 impl VirtualBalanceHolderTests {

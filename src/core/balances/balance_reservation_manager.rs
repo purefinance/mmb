@@ -307,7 +307,7 @@ impl BalanceReservationManager {
 
     pub fn try_get_available_balance_with_unknown_side(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: CurrencyCode,
@@ -344,7 +344,7 @@ impl BalanceReservationManager {
 
     pub fn try_get_available_balance(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -679,7 +679,7 @@ impl BalanceReservationManager {
 
     fn get_position_values(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -900,7 +900,7 @@ impl BalanceReservationManager {
 
     pub fn get_fill_amount_position_percent(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -926,7 +926,7 @@ impl BalanceReservationManager {
         client_order_fill_id: &Option<ClientOrderFillId>,
         fill_amount: Amount,
         price: Price,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
     ) -> (Amount, CurrencyCode) {
@@ -1083,7 +1083,7 @@ impl BalanceReservationManager {
         converted_commission_currency_code: CurrencyCode,
         converted_commission_amount: Amount,
         price: Price,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
     ) {
@@ -1866,7 +1866,7 @@ impl BalanceReservationManager {
 
     pub fn get_available_leveraged_balance(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -1887,7 +1887,7 @@ impl BalanceReservationManager {
 
     pub fn set_target_amount_limit(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         limit: Amount,

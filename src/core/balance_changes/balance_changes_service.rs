@@ -196,7 +196,7 @@ impl BalanceChangesService {
 
     pub fn add_balance_change(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order: &OrderSnapshot,
         order_fill: &OrderFill,
     ) {

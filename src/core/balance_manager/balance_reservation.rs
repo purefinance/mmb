@@ -17,7 +17,7 @@ use rust_decimal_macros::dec;
 
 #[derive(Clone, Debug)]
 pub struct BalanceReservation {
-    pub configuration_descriptor: Arc<ConfigurationDescriptor>,
+    pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
     pub order_side: OrderSide,
@@ -37,7 +37,7 @@ pub struct BalanceReservation {
 
 impl BalanceReservation {
     pub fn new(
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         order_side: OrderSide,

@@ -25,6 +25,7 @@ use crate::core::{balance_manager::balances::Balances, exchanges::common::Exchan
 
 use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
+use futures::future::join_all;
 use itertools::Itertools;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
@@ -527,7 +528,7 @@ impl BalanceManager {
 
     pub fn get_fill_amount_position_percent(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -545,7 +546,7 @@ impl BalanceManager {
     /// from OrderEventType::OrderFilled
     pub fn order_was_filled(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
     ) {
         let order_fill = order_snapshot
@@ -559,7 +560,7 @@ impl BalanceManager {
 
     pub fn order_was_filled_with_fill(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
         order_fill: &OrderFill,
     ) {
@@ -588,7 +589,7 @@ impl BalanceManager {
 
     fn handle_order_fill(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         order_snapshot: &OrderSnapshot,
@@ -680,7 +681,7 @@ impl BalanceManager {
     /// from OrderEventType::OrderCompleted
     pub fn order_was_finished(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
     ) {
         for order_fill in &order_snapshot.fills.fills {
@@ -876,7 +877,7 @@ impl BalanceManager {
 
     pub fn get_leveraged_balance_in_amount_currency_code(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         side: OrderSide,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
@@ -927,7 +928,7 @@ impl BalanceManager {
 
     pub fn get_balance_by_currency_code(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: CurrencyCode,
@@ -945,7 +946,7 @@ impl BalanceManager {
 
     pub fn get_balance_by_side(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -997,7 +998,7 @@ impl BalanceManager {
 
     pub fn set_target_amount_limit(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         limit: Amount,
@@ -1014,25 +1015,44 @@ impl BalanceManager {
         self.balance_changes_service = Some(service);
     }
 
-    pub async fn update_balances_for_exchanges(&mut self, cancellation_token: CancellationToken) {
-        let exchanges = self
+    pub async fn update_balances_for_exchanges(
+        this: Arc<Mutex<Self>>,
+        cancellation_token: CancellationToken,
+    ) {
+        let exchanges = this
+            .lock()
             .balance_reservation_manager
             .exchanges_by_id()
             .values()
             .cloned()
             .collect_vec();
 
-        for exchange in exchanges {
-            let balances_and_positions = exchange
-                .get_balance(cancellation_token.clone())
-                .await
-                .with_expect(|| {
-                    format!("failed to get balance for {}", exchange.exchange_account_id)
-                });
+        let update_actions = exchanges
+            .iter()
+            .map(|exchange| {
+                let this = this.clone();
+                let cancellation_token = cancellation_token.clone();
+                let action = async move {
+                    let balances_and_positions = exchange
+                        .get_balance(cancellation_token.clone())
+                        .await
+                        .with_expect(|| {
+                            format!("failed to get balance for {}", exchange.exchange_account_id)
+                        });
 
-            self.update_exchange_balance(exchange.exchange_account_id, &balances_and_positions)
-                .expect("failed to update exchange balance");
-        }
+                    this.lock()
+                        .update_exchange_balance(
+                            exchange.exchange_account_id,
+                            &balances_and_positions,
+                        )
+                        .expect("failed to update exchange balance");
+                };
+
+                action
+            })
+            .collect_vec();
+
+        join_all(update_actions).await;
     }
 
     // TODO: should be implemented

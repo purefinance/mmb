@@ -190,7 +190,7 @@ mod tests {
         balance_map.insert(eth_currency_code, eth_amount);
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -208,7 +208,7 @@ mod tests {
         let test_object = BalanceManagerOrdinal::new();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_1,
             currency_codes
                 .into_iter()
@@ -227,13 +227,13 @@ mod tests {
         let test_object = BalanceManagerOrdinal::new();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_1,
             hashmap![cc_for_first => amount_for_first],
         );
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_2,
             hashmap![cc_for_second => amount_for_second],
         );
@@ -288,7 +288,7 @@ mod tests {
         let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(currency_code, amount);
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -342,7 +342,7 @@ mod tests {
         let eos = "EOS".into();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2528,7 +2528,7 @@ mod tests {
         let bnb = BalanceManagerBase::bnb();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2548,7 +2548,7 @@ mod tests {
             .is_some());
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2593,7 +2593,7 @@ mod tests {
         let bnb = BalanceManagerBase::bnb();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2620,7 +2620,7 @@ mod tests {
             .approve_reservation(reservation_id, &client_order_id, amount);
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2671,7 +2671,7 @@ mod tests {
         ];
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map.clone(),
         );
@@ -2699,7 +2699,7 @@ mod tests {
 
         balance_map.insert(btc, dec!(1.5));
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -4445,8 +4445,9 @@ mod tests {
 
         let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(1));
+
         BalanceManagerBase::update_balance(
-            balance_manager.lock(),
+            &mut *balance_manager.lock(),
             exchange_account_id,
             balance_map,
         );
@@ -4568,7 +4569,7 @@ mod tests {
         balance_map.insert(BalanceManagerBase::btc(), dec!(10));
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -4911,7 +4912,7 @@ mod tests {
         balance_map.insert(BalanceManagerBase::eth(), dec!(1));
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -4987,7 +4988,7 @@ mod tests {
         balance_map.insert(BalanceManagerBase::eth(), dec!(0.5));
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
