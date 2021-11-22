@@ -19,12 +19,9 @@ impl LocalSnapshotsService {
     }
 
     pub fn get_snapshot_expected(&self, trade_place: TradePlace) -> &LocalOrderBookSnapshot {
-        self.local_snapshots.get(&trade_place).with_expect(|| {
-            format!(
-                "Can't get snapshot for {:?} (this shouldn't happen)",
-                trade_place
-            )
-        })
+        self.local_snapshots
+            .get(&trade_place)
+            .with_expect(|| format!("Can't get snapshot for {:?}", trade_place))
     }
 
     /// Create snapshot if it does not exist
