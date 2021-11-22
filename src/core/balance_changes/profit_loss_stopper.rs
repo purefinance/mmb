@@ -132,7 +132,7 @@ mod test {
     use std::sync::Arc;
 
     use chrono::Duration;
-    use parking_lot::{Mutex, MutexGuard};
+    use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal_macros::dec;
 
     #[double]
@@ -194,7 +194,7 @@ mod test {
 
         time_manager_mock: time_manager::__now::Context,
         seconds_offset_in_mock: Arc<Mutex<u32>>,
-        mock_lockers: Vec<MutexGuard<'static, ()>>,
+        mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
     }
 
     impl TestContext {
@@ -206,7 +206,7 @@ mod test {
             balance_manager: Arc<Mutex<BalanceManager>>,
             time_manager_mock: time_manager::__now::Context,
             seconds_offset_in_mock: Arc<Mutex<u32>>,
-            mock_lockers: Vec<MutexGuard<'static, ()>>,
+            mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
         ) -> Self {
             Self {
                 exchange_blocker,
@@ -234,7 +234,7 @@ mod test {
     fn init_with_exchange_blocker(
         max_period: Duration,
         exchange_blocker: Arc<ExchangeBlocker>,
-        exchange_blocker_locker: MutexGuard<'static, ()>,
+        exchange_blocker_locker: ReentrantMutexGuard<'static, ()>,
         get_last_position_change_calling_times: usize,
     ) -> TestContext {
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
@@ -299,8 +299,8 @@ mod test {
             id: ProfitLossBalanceChangeId::generate(),
             client_order_fill_id,
             change_date,
-            service_name: "test".to_string(),
-            service_configuration_key: "test".to_string(),
+            service_name: "test".into(),
+            service_configuration_key: "test".into(),
             exchange_id: exchange_id(),
             trade_place: TradePlaceAccount::new(exchange_account_id(), currency_pair()),
             currency_code: btc(),

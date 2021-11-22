@@ -1,5 +1,4 @@
-#[cfg(test)]
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::balances::virtual_balance_holder::VirtualBalanceHolder;
@@ -11,13 +10,14 @@ use crate::core::exchanges::{
     general::{exchange::Exchange, test_helper::get_test_exchange_by_currency_codes},
 };
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use crate::hashmap;
 
 struct VirtualBalanceHolderTests {
     virtual_balance_holder: VirtualBalanceHolder,
     pub exchange_account_id: ExchangeAccountId,
     exchange: Arc<Exchange>,
     pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
-    configuration_descriptor: Arc<ConfigurationDescriptor>,
+    configuration_descriptor: ConfigurationDescriptor,
 }
 
 impl VirtualBalanceHolderTests {
@@ -44,8 +44,7 @@ impl VirtualBalanceHolderTests {
 
     fn new_core(tmp_exchange: Arc<Exchange>) -> Self {
         let exchange_account_id = tmp_exchange.exchange_account_id;
-        let mut exchanges_by_id = HashMap::new();
-        exchanges_by_id.insert(exchange_account_id, tmp_exchange.clone());
+        let exchanges_by_id = hashmap![ exchange_account_id => tmp_exchange.clone() ];
 
         Self {
             virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),
@@ -54,10 +53,10 @@ impl VirtualBalanceHolderTests {
             currency_pair_metadata: tmp_exchange
                 .get_currency_pair_metadata(VirtualBalanceHolderTests::currency_pair())
                 .expect("in test"),
-            configuration_descriptor: Arc::from(ConfigurationDescriptor::new(
+            configuration_descriptor: ConfigurationDescriptor::new(
                 "service".into(),
                 "config".into(),
-            )),
+            ),
         }
     }
 

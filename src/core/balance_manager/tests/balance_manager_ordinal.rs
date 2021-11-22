@@ -1,3 +1,13 @@
+use mockall_double::double;
+use parking_lot::Mutex;
+use parking_lot::MutexGuard;
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
+use uuid::Uuid;
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
 #[double]
 use crate::core::misc::time::time_manager;
@@ -19,14 +29,6 @@ use crate::core::{
     DateTime,
 };
 use crate::hashmap;
-use mockall_double::double;
-#[cfg(test)]
-use parking_lot::Mutex;
-use parking_lot::MutexGuard;
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
-use std::{collections::HashMap, sync::Arc};
-use uuid::Uuid;
 
 pub struct BalanceManagerOrdinal {
     pub balance_manager_base: BalanceManagerBase,
@@ -38,10 +40,9 @@ impl BalanceManagerOrdinal {
         let (currency_pair_metadata, exchanges_by_id) =
             BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
         let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
+            CurrencyPairToMetadataConverter::new(exchanges_by_id);
 
-        let balance_manager =
-            BalanceManager::new(exchanges_by_id.clone(), currency_pair_to_metadata_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
         (currency_pair_metadata, balance_manager)
     }
 
@@ -189,7 +190,7 @@ mod tests {
         balance_map.insert(eth_currency_code, eth_amount);
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -207,7 +208,7 @@ mod tests {
         let test_object = BalanceManagerOrdinal::new();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_1,
             currency_codes
                 .into_iter()
@@ -226,13 +227,13 @@ mod tests {
         let test_object = BalanceManagerOrdinal::new();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_1,
             hashmap![cc_for_first => amount_for_first],
         );
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             test_object.balance_manager_base.exchange_account_id_2,
             hashmap![cc_for_second => amount_for_second],
         );
@@ -287,7 +288,7 @@ mod tests {
         let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(currency_code, amount);
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -341,7 +342,7 @@ mod tests {
         let eos = "EOS".into();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2527,7 +2528,7 @@ mod tests {
         let bnb = BalanceManagerBase::bnb();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2547,7 +2548,7 @@ mod tests {
             .is_some());
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2592,7 +2593,7 @@ mod tests {
         let bnb = BalanceManagerBase::bnb();
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2619,7 +2620,7 @@ mod tests {
             .approve_reservation(reservation_id, &client_order_id, amount);
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![
                 btc => dec!(2),
@@ -2670,7 +2671,7 @@ mod tests {
         ];
 
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map.clone(),
         );
@@ -2698,7 +2699,7 @@ mod tests {
 
         balance_map.insert(btc, dec!(1.5));
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -4436,19 +4437,17 @@ mod tests {
         let (_, exchanges_by_id) = BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
 
         let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
+            CurrencyPairToMetadataConverter::new(exchanges_by_id);
 
-        let balance_manager = BalanceManager::new(
-            exchanges_by_id.clone(),
-            currency_pair_to_metadata_converter.clone(),
-        );
+        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter.clone());
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(1));
+
         BalanceManagerBase::update_balance(
-            balance_manager.lock(),
+            &mut *balance_manager.lock(),
             exchange_account_id,
             balance_map,
         );
@@ -4480,10 +4479,7 @@ mod tests {
 
         test_object
             .balance_manager_base
-            .set_balance_manager(BalanceManager::new(
-                exchanges_by_id,
-                currency_pair_to_metadata_converter,
-            ));
+            .set_balance_manager(BalanceManager::new(currency_pair_to_metadata_converter));
 
         test_object
             .balance_manager()
@@ -4573,7 +4569,7 @@ mod tests {
         balance_map.insert(BalanceManagerBase::btc(), dec!(10));
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -4916,7 +4912,7 @@ mod tests {
         balance_map.insert(BalanceManagerBase::eth(), dec!(1));
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );
@@ -4992,7 +4988,7 @@ mod tests {
         balance_map.insert(BalanceManagerBase::eth(), dec!(0.5));
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         BalanceManagerBase::update_balance(
-            test_object.balance_manager(),
+            &mut *test_object.balance_manager(),
             exchange_account_id,
             balance_map,
         );

@@ -11,6 +11,7 @@ use crate::{
         balance_manager::balance_request::BalanceRequest,
         exchanges::common::{Amount, CurrencyCode, ExchangeId, Price, TradePlaceAccount},
         orders::order::ClientOrderFillId,
+        service_configuration::configuration_descriptor::{ServiceConfigurationKey, ServiceName},
         utils::get_atomic_current_secs,
         DateTime,
     },
@@ -24,8 +25,8 @@ pub(crate) struct ProfitLossBalanceChange {
     pub id: ProfitLossBalanceChangeId,
     pub client_order_fill_id: ClientOrderFillId,
     pub change_date: DateTime,
-    pub service_name: String,
-    pub service_configuration_key: String,
+    pub service_name: ServiceName,
+    pub service_configuration_key: ServiceConfigurationKey,
     pub exchange_id: ExchangeId,
     pub trade_place: TradePlaceAccount,
     pub currency_code: CurrencyCode,
@@ -47,7 +48,7 @@ impl ProfitLossBalanceChange {
             id: ProfitLossBalanceChangeId::generate(),
             client_order_fill_id,
             change_date,
-            service_name: request.configuration_descriptor.service_name.clone(),
+            service_name: request.configuration_descriptor.service_name,
             service_configuration_key: request
                 .configuration_descriptor
                 .service_configuration_key

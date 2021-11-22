@@ -142,6 +142,22 @@ macro_rules! hashmap {
     }}
 }
 
+#[macro_export]
+macro_rules! dashmap {
+    ($( $key: expr => $val: expr ),*) => {{
+         let map = dashmap::DashMap::new();
+         $( map.insert($key, $val); )*
+         map
+    }}
+}
+
+#[cfg(test)]
+use parking_lot::ReentrantMutex;
+
+#[cfg(test)]
+pub(crate) static MOCK_MUTEX: once_cell::sync::Lazy<ReentrantMutex<()>> =
+    once_cell::sync::Lazy::new(ReentrantMutex::default);
+
 /// This macros is needed to create function that will initialize a mock object and a locker for $ type
 /// because mockall doesn't support multithreading.
 /// Example:
@@ -174,20 +190,14 @@ macro_rules! hashmap {
 ///     }
 /// }
 /// ```
-///
 #[macro_export]
 macro_rules! impl_mock_initializer {
     ($type: ident) => {
-        paste::paste! {
-            /// Needs for syncing mock objects https://docs.rs/mockall/0.10.2/mockall/#static-methods
-            #[cfg(test)]
-            static [<$type:snake:upper _LOCKER>]: once_cell::sync::Lazy<Mutex<()>> = once_cell::sync::Lazy::new(Mutex::default);
-        }
-
         #[cfg(test)]
+        #[allow(unused_qualifications)]
         impl $type {
-            pub fn init_mock() -> ($type, MutexGuard<'static, ()>) {
-                let locker = paste::paste! { [<$type:snake:upper _LOCKER>] }.lock();
+            pub fn init_mock() -> ($type, parking_lot::ReentrantMutexGuard<'static, ()>) {
+                let locker = crate::MOCK_MUTEX.lock();
                 ($type::default(), locker)
             }
         }

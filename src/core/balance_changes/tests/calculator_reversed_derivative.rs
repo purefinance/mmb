@@ -3,7 +3,7 @@ mod tests {
     use std::collections::HashMap;
 
     use mockall_double::double;
-    use parking_lot::MutexGuard;
+    use parking_lot::ReentrantMutexGuard;
     use rstest::rstest;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
@@ -23,7 +23,7 @@ mod tests {
 
     fn init_usd_converter(
         prices: HashMap<CurrencyCode, Price>,
-    ) -> (UsdConverter, MutexGuard<'static, ()>) {
+    ) -> (UsdConverter, ReentrantMutexGuard<'static, ()>) {
         let (mut usd_converter, usd_converter_locker) = UsdConverter::init_mock();
         usd_converter
             .expect_convert_amount()

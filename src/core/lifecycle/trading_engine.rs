@@ -12,6 +12,7 @@ use itertools::Itertools;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::Duration;
 
+use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::block_reasons;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents};
@@ -42,6 +43,7 @@ pub struct EngineContext {
     pub exchange_blocker: Arc<ExchangeBlocker>,
     pub application_manager: Arc<ApplicationManager>,
     pub timeout_manager: Arc<TimeoutManager>,
+    pub balance_manager: Arc<Mutex<BalanceManager>>,
     is_graceful_shutdown_started: AtomicBool,
     exchange_events: ExchangeEvents,
     finish_graceful_shutdown_sender: Mutex<Option<oneshot::Sender<()>>>,
@@ -55,6 +57,7 @@ impl EngineContext {
         finish_graceful_shutdown_sender: oneshot::Sender<()>,
         timeout_manager: Arc<TimeoutManager>,
         application_manager: Arc<ApplicationManager>,
+        balance_manager: Arc<Mutex<BalanceManager>>,
     ) -> Arc<Self> {
         let exchange_account_ids = app_settings
             .exchanges
@@ -69,6 +72,7 @@ impl EngineContext {
             exchange_blocker: ExchangeBlocker::new(exchange_account_ids),
             application_manager: application_manager.clone(),
             timeout_manager,
+            balance_manager,
             is_graceful_shutdown_started: Default::default(),
             exchange_events,
             finish_graceful_shutdown_sender: Mutex::new(Some(finish_graceful_shutdown_sender)),

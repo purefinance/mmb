@@ -7,6 +7,7 @@ use mmb_lib::core::explanation::Explanation;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_lib::core::orders::order::OrderSnapshot;
+use mmb_lib::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_lib::core::settings::BaseStrategySettings;
 use mmb_lib::core::{
     exchanges::common::Amount,
@@ -43,6 +44,7 @@ impl BaseStrategySettings for TestStrategySettings {
 }
 
 #[actix_rt::test]
+#[ignore] // TODO: need to fix problem with empty keys for binance
 async fn launch_engine() -> Result<()> {
     struct TestStrategy;
 
@@ -65,6 +67,10 @@ async fn launch_engine() -> Result<()> {
             _cancellation_token: CancellationToken,
         ) -> anyhow::Result<()> {
             Ok(())
+        }
+
+        fn configuration_descriptor(&self) -> ConfigurationDescriptor {
+            ConfigurationDescriptor::new("TestStrategy".into(), "lifecycle_test".into())
         }
     }
 

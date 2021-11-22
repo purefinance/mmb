@@ -9,7 +9,10 @@ use crate::core::{
     balance_manager::balance_request::BalanceRequest,
     exchanges::general::currency_pair_metadata::CurrencyPairMetadata,
     misc::service_value_tree::ServiceValueTree,
-    orders::{fill::OrderFill, order::OrderSide, pool::OrderRef},
+    orders::{
+        fill::OrderFill,
+        order::{OrderSide, OrderSnapshot},
+    },
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 
@@ -27,38 +30,38 @@ impl BalanceChangesCalculator {
 
     pub fn get_balance_changes(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
-        order: &OrderRef,
-        order_fill: OrderFill,
+        configuration_descriptor: ConfigurationDescriptor,
+        order: &OrderSnapshot,
+        order_fill: &OrderFill,
     ) -> BalanceChangesCalculatorResult {
-        let (currency_pair, exchange_account_id) =
-            order.fn_ref(|x| (x.header.currency_pair, x.header.exchange_account_id));
-
         let symbol = self
             .currency_pair_to_symbol_converter
-            .get_currency_pair_metadata(exchange_account_id, currency_pair);
+            .get_currency_pair_metadata(
+                order.header.exchange_account_id,
+                order.header.currency_pair,
+            );
 
         self.get_balance_changes_calculator_results(
             configuration_descriptor,
             order,
-            order_fill,
+            &order_fill,
             symbol,
         )
     }
 
     fn get_balance_changes_calculator_results(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
-        order: &OrderRef,
-        order_fill: OrderFill,
+        configuration_descriptor: ConfigurationDescriptor,
+        order: &OrderSnapshot,
+        order_fill: &OrderFill,
         symbol: Arc<CurrencyPairMetadata>,
     ) -> BalanceChangesCalculatorResult {
         let price = order_fill.price();
         let filled_amount = order_fill.amount() * symbol.amount_multiplier;
         let commission_amount = order_fill.commission_amount();
 
-        let (order_side, exchange_account_id) =
-            order.fn_ref(|x| (x.header.side, x.header.exchange_account_id));
+        let order_side = order.header.side;
+        let exchange_account_id = order.header.exchange_account_id;
 
         let (new_base_amount, new_quote_amount) = if !symbol.is_derivative {
             match order_side {

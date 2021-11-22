@@ -10,8 +10,8 @@ use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccou
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
 use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
-use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::Explanation;
+use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::misc::derivative_position::DerivativePosition;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
@@ -25,6 +25,7 @@ use crate::core::{balance_manager::balances::Balances, exchanges::common::Exchan
 
 use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
+use futures::future::join_all;
 use itertools::Itertools;
 use log::log;
 use parking_lot::Mutex;
@@ -45,13 +46,11 @@ pub struct BalanceManager {
 
 impl BalanceManager {
     pub fn new(
-        exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
         currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),
             balance_reservation_manager: BalanceReservationManager::new(
-                exchanges_by_id,
                 currency_pair_to_metadata_converter,
             ),
             last_order_fills: HashMap::new(),
@@ -211,7 +210,7 @@ impl BalanceManager {
             let currency_pair = position_info.currency_pair;
             let currency_pair_metadata = self
                 .balance_reservation_manager
-                .exchanges_by_id
+                .exchanges_by_id()
                 .get(&exchange_account_id)
                 .with_context(|| format!(
                         "currency_pair_metadata not found for exchange with account id {:?} and currency pair {}",
@@ -339,7 +338,7 @@ impl BalanceManager {
         {
             let exchange_currencies = self
                 .balance_reservation_manager
-                .exchanges_by_id
+                .exchanges_by_id()
                 .get(&exchange_account_id)
                 .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
                 .currencies
@@ -362,7 +361,7 @@ impl BalanceManager {
         self.restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
 
         self.balance_reservation_manager
-            .exchanges_by_id
+            .exchanges_by_id()
             .get(&exchange_account_id)
             .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
             .currencies
@@ -430,18 +429,10 @@ impl BalanceManager {
                 continue;
             }
 
-            if !balances_dict.contains_key(&reservation.exchange_account_id) {
-                continue;
-            }
-
-            let balances = balances_dict
-                .get_mut(&reservation.exchange_account_id)
-                .with_context(|| {
-                    format!(
-                        "failed to get balances from for {}",
-                        reservation.exchange_account_id,
-                    )
-                })?;
+            let balances = match balances_dict.get_mut(&reservation.exchange_account_id) {
+                Some(balances) => balances,
+                None => continue,
+            };
 
             let mut balance = balances
                 .get_mut(&reservation.reservation_currency_code)
@@ -452,7 +443,9 @@ impl BalanceManager {
                     )
                 })?;
 
-            balance += reservation.get_proportional_cost_amount(reservation.not_approved_amount)?;
+            balance += reservation.convert_in_reservation_currency(
+                reservation.get_proportional_cost_amount(reservation.not_approved_amount)?,
+            );
         }
         Ok(balances_dict)
     }
@@ -460,11 +453,10 @@ impl BalanceManager {
     pub fn custom_clone(this: Arc<Mutex<Self>>) -> Arc<Mutex<BalanceManager>> {
         let this_locked = this.lock();
         let balances = this_locked.get_balances();
-        let exchanges_by_id = &this_locked.balance_reservation_manager.exchanges_by_id;
-        let new_balance_manager = Self::new(
+        let exchanges_by_id = this_locked.balance_reservation_manager.exchanges_by_id();
+        let new_balance_manager = Self::new(CurrencyPairToMetadataConverter::new(
             exchanges_by_id.clone(),
-            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone()),
-        );
+        ));
         drop(this_locked);
 
         let mut new_bm_lock = new_balance_manager.lock();
@@ -537,7 +529,7 @@ impl BalanceManager {
 
     pub fn get_fill_amount_position_percent(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -555,7 +547,7 @@ impl BalanceManager {
     /// from OrderEventType::OrderFilled
     pub fn order_was_filled(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
     ) {
         let order_fill = order_snapshot
@@ -569,7 +561,7 @@ impl BalanceManager {
 
     pub fn order_was_filled_with_fill(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
         order_fill: &OrderFill,
     ) {
@@ -579,19 +571,26 @@ impl BalanceManager {
             .currency_pair_to_metadata_converter
             .get_currency_pair_metadata(exchange_account_id, order_snapshot.header.currency_pair);
         self.handle_order_fill(
-            configuration_descriptor,
+            configuration_descriptor.clone(),
             exchange_account_id,
             currency_pair_metadata,
             order_snapshot,
             order_fill,
         );
         self.save_balances();
-        // _balanceChangesService?.AddBalanceChange(configurationDescriptor, order, orderFill); // TODO: fix me when added
+
+        if let Some(balance_changes_service) = &self.balance_changes_service {
+            balance_changes_service.add_balance_change(
+                configuration_descriptor,
+                order_snapshot,
+                order_fill,
+            );
+        }
     }
 
     fn handle_order_fill(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         order_snapshot: &OrderSnapshot,
@@ -683,7 +682,7 @@ impl BalanceManager {
     /// from OrderEventType::OrderCompleted
     pub fn order_was_finished(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
     ) {
         for order_fill in &order_snapshot.fills.fills {
@@ -886,7 +885,7 @@ impl BalanceManager {
 
     pub fn get_leveraged_balance_in_amount_currency_code(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         side: OrderSide,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
@@ -932,7 +931,7 @@ impl BalanceManager {
 
     pub fn get_balance_by_currency_code(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         currency_code: CurrencyCode,
@@ -950,7 +949,7 @@ impl BalanceManager {
 
     pub fn get_balance_by_side(
         &self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         side: OrderSide,
@@ -988,7 +987,7 @@ impl BalanceManager {
         side: OrderSide,
     ) -> CurrencyCode {
         self.balance_reservation_manager
-            .exchanges_by_id
+            .exchanges_by_id()
             .get(&exchange_account_id)
             .expect("failed to get exchange")
             .get_balance_reservation_currency_code(currency_pair_metadata, side)
@@ -999,9 +998,10 @@ impl BalanceManager {
             .virtual_balance_holder
             .has_real_balance_on_exchange(exchange_account_id)
     }
+
     pub fn set_target_amount_limit(
         &mut self,
-        configuration_descriptor: Arc<ConfigurationDescriptor>,
+        configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
         currency_pair_metadata: Arc<CurrencyPairMetadata>,
         limit: Amount,
@@ -1013,8 +1013,49 @@ impl BalanceManager {
             limit,
         );
     }
+
     pub fn set_balance_changes_service(&mut self, service: Arc<BalanceChangesService>) {
         self.balance_changes_service = Some(service);
+    }
+
+    pub async fn update_balances_for_exchanges(
+        this: Arc<Mutex<Self>>,
+        cancellation_token: CancellationToken,
+    ) {
+        let exchanges = this
+            .lock()
+            .balance_reservation_manager
+            .exchanges_by_id()
+            .values()
+            .cloned()
+            .collect_vec();
+
+        let update_actions = exchanges
+            .iter()
+            .map(|exchange| {
+                let this = this.clone();
+                let cancellation_token = cancellation_token.clone();
+                let action = async move {
+                    let balances_and_positions = exchange
+                        .get_balance(cancellation_token.clone())
+                        .await
+                        .with_expect(|| {
+                            format!("failed to get balance for {}", exchange.exchange_account_id)
+                        });
+
+                    this.lock()
+                        .update_exchange_balance(
+                            exchange.exchange_account_id,
+                            &balances_and_positions,
+                        )
+                        .expect("failed to update exchange balance");
+                };
+
+                action
+            })
+            .collect_vec();
+
+        join_all(update_actions).await;
     }
 
     // TODO: should be implemented

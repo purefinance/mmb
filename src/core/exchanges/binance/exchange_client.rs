@@ -200,6 +200,18 @@ impl ExchangeClient for Binance {
         panic!("not supported request")
     }
 
+    async fn request_get_balance(&self) -> Result<RestRequestOutcome> {
+        let mut http_params = Vec::new();
+        self.add_authentification_headers(&mut http_params)?;
+        let url_path = match self.settings.is_margin_trading {
+            true => "/fapi/v2/account",
+            false => "/api/v3/account",
+        };
+
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+        self.rest_client.get(full_url, &self.settings.api_key).await
+    }
+
     async fn request_close_position(
         &self,
         position: &ActivePosition,

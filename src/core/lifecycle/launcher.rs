@@ -1,5 +1,7 @@
+use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
+use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
 use crate::core::exchanges::general::exchange_creation::create_timeout_manager;
@@ -61,7 +63,7 @@ where
     Load(String, String),
 }
 
-async fn before_enging_context_init<'a, StrategySettings>(
+async fn before_engine_context_init<'a, StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
 ) -> Result<(
@@ -92,6 +94,7 @@ where
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
     let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
+
     let exchanges = create_exchanges(
         &settings.core,
         build_settings,
@@ -108,6 +111,26 @@ where
 
     let exchange_events = ExchangeEvents::new(events_sender.clone());
 
+    let exchanges_hashmap: HashMap<ExchangeAccountId, Arc<Exchange>> =
+        exchanges_map.clone().into_iter().collect();
+
+    let currency_pair_to_metadata_converter =
+        CurrencyPairToMetadataConverter::new(exchanges_hashmap);
+
+    let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
+
+    BalanceManager::update_balances_for_exchanges(
+        balance_manager.clone(),
+        application_manager.stop_token(),
+    )
+    .await;
+
+    for exchange in &exchanges_map {
+        exchange
+            .value()
+            .setup_balance_manager(balance_manager.clone())
+    }
+
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
     let engine_context = EngineContext::new(
         settings.core.clone(),
@@ -116,6 +139,7 @@ where
         finish_graceful_shutdown_tx,
         timeout_manager,
         application_manager.clone(),
+        balance_manager,
     );
 
     Ok((
@@ -233,7 +257,7 @@ pub async fn launch_trading_engine<'a, StrategySettings>(
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
-    let action_outcome = AssertUnwindSafe(before_enging_context_init(
+    let action_outcome = AssertUnwindSafe(before_engine_context_init(
         build_settings,
         init_user_settings,
     ))

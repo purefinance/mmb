@@ -5,14 +5,17 @@ use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
+use itertools::Itertools;
 use parking_lot::{Mutex, RwLock};
 use serde_json::Value;
 use sha2::Sha256;
 use tokio::sync::broadcast;
 
-use super::support::BinanceOrderInfo;
+use super::support::{BinanceBalances, BinanceOrderInfo};
 use crate::core::exchanges::common::{Amount, Price};
-use crate::core::exchanges::events::{ExchangeEvent, TradeId};
+use crate::core::exchanges::events::{
+    ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId,
+};
 use crate::core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
@@ -29,6 +32,7 @@ use crate::core::exchanges::{
     events::AllowedEventSourceType,
 };
 use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
+use crate::core::infrastructure::WithExpect;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::{ExchangeSettings, Hosts};
@@ -327,6 +331,15 @@ impl Binance {
             .map(|some| some.value().clone())
     }
 
+    pub(crate) fn get_currency_code_expected(&self, currency_id: &CurrencyId) -> CurrencyCode {
+        self.get_currency_code(currency_id).with_expect(|| {
+            format!(
+                "Failed to convert CurrencyId({}) to CurrencyCode for {}",
+                currency_id, self.id
+            )
+        })
+    }
+
     fn prepare_data_for_fill_handler(
         &self,
         json_response: &Value,
@@ -398,6 +411,30 @@ impl Binance {
             "FILL" | "TRADE" | "PARTIAL_FILL" => Ok(OrderFillType::UserTrade),
             _ => bail!("Unable to map trade type"),
         }
+    }
+
+    pub(super) fn get_spot_exchange_balances_and_positions(
+        &self,
+        raw_balances: Vec<BinanceBalances>,
+    ) -> ExchangeBalancesAndPositions {
+        let balances = raw_balances
+            .iter()
+            .map(|balance| ExchangeBalance {
+                currency_code: self.get_currency_code_expected(&balance.asset.as_str().into()),
+                balance: balance.free,
+            })
+            .collect_vec();
+
+        ExchangeBalancesAndPositions {
+            balances,
+            positions: None,
+        }
+    }
+
+    pub(super) fn get_margin_exchange_balances_and_positions(
+        _raw_balances: Vec<BinanceBalances>,
+    ) -> ExchangeBalancesAndPositions {
+        todo!("implement it later")
     }
 }
 
