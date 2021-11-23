@@ -15,7 +15,7 @@ use crate::core::{
     },
     infrastructure::{spawn_future, WithExpect},
     lifecycle::cancellation_token::CancellationToken,
-    misc::price_by_order_side::PriceByOrderSide,
+    misc::{price_by_order_side::PriceByOrderSide, traits_ext::send_expected::SendExpected},
     order_book::local_snapshot_service::LocalSnapshotsService,
     services::usd_converter::{prices_calculator, rebase_price_step::RebaseDirection},
     settings::CurrencyPriceSourceSettings,
@@ -83,7 +83,7 @@ impl PriceSourceEventLoop {
                         &self.local_snapshot_service,
                         &convert_amount.chain,
                     );
-                    convert_amount.task_finished_sender.send(result).expect("PriceSourceEventLoop::run_loop(): Unable to send trades event. Probably receiver is already dropped");
+                    convert_amount.task_finished_sender.send_expected(result);
                 },
                 core_event_res = self.rx_core.recv() => {
                     let event = core_event_res.context("Error during receiving event on rx_core")?;

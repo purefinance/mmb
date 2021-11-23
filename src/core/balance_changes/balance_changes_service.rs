@@ -11,6 +11,7 @@ use crate::core::misc::time::time_manager;
 #[double]
 use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
+use crate::core::misc::traits_ext::send_expected::{SendExpectedAsync, TrySendExpected};
 use crate::core::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
@@ -108,11 +109,7 @@ impl BalanceChangesService {
                         );
                         return;
                     }
-                    let _ = this.tx_event.send(BalanceChangeServiceEvent::OnTimer).await.map_err(|_|
-                        panic!(
-                            "BalanceChangesService::timer_action: Unable to send event, probably receiver is dropped already"
-                        )
-                    );
+                    let _ = this.tx_event.send_expected(BalanceChangeServiceEvent::OnTimer).await;
                 }.boxed()
             }
         };
@@ -225,14 +222,6 @@ impl BalanceChangesService {
             time_manager::now(),
         ));
 
-        let _ = self
-            .tx_event
-            .try_send(balance_changes_event)
-            .map_err(|error| {
-                panic!(
-                    "BalanceChangesService::add_balance_change: Unable to send event: {}",
-                    error.to_string()
-                )
-            });
+        let _ = self.tx_event.try_send_expected(balance_changes_event);
     }
 }

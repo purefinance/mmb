@@ -1,4 +1,5 @@
 use crate::core::lifecycle::cancellation_token::CancellationToken;
+use crate::core::misc::traits_ext::send_expected::SendExpectedByRef;
 use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
@@ -247,7 +248,7 @@ impl ConnectivityManager {
                     ..
                 } = websocket_state_guard.borrow().state
                 {
-                    let _ = finished_sender.send(()).expect("Can't send finish message in ConnectivityManager::notify_connection_closed");
+                    let _ = finished_sender.send_expected(());
                 }
             }
 

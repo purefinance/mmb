@@ -22,6 +22,7 @@ use crate::core::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::lifecycle::shutdown::ShutdownService;
+use crate::core::misc::traits_ext::send_expected::SendExpected;
 use crate::core::settings::CoreSettings;
 use crate::core::{
     infrastructure::unset_application_manager, lifecycle::application_manager::ApplicationManager,
@@ -126,8 +127,7 @@ impl EngineContext {
             .lock()
             .take()
             .expect("'finish_graceful_shutdown_sender' should exists in EngineContext")
-            .send(())
-            .expect("Unexpected error from 'finish_graceful_shutdown_sender' in EngineContext");
+            .send_expected(());
 
         unset_application_manager();
 
