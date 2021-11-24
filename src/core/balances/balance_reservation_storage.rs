@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
+use crate::core::infrastructure::WithExpect;
 use crate::core::orders::order::ReservationId;
 #[derive(Clone)]
 pub(crate) struct BalanceReservationStorage {
@@ -41,15 +42,30 @@ impl BalanceReservationStorage {
         self.reserved_balances_by_id.keys().cloned().collect_vec()
     }
 
-    pub fn try_get(&self, reservation_id: &ReservationId) -> Option<&BalanceReservation> {
-        self.reserved_balances_by_id.get(reservation_id)
+    pub fn get(&self, reservation_id: ReservationId) -> Option<&BalanceReservation> {
+        self.reserved_balances_by_id.get(&reservation_id)
     }
 
-    pub fn try_get_mut(
-        &mut self,
-        reservation_id: &ReservationId,
-    ) -> Option<&mut BalanceReservation> {
-        self.reserved_balances_by_id.get_mut(reservation_id)
+    pub fn get_mut(&mut self, reservation_id: ReservationId) -> Option<&mut BalanceReservation> {
+        self.reserved_balances_by_id.get_mut(&reservation_id)
+    }
+
+    pub fn get_expected(&self, reservation_id: ReservationId) -> &BalanceReservation {
+        self.get(reservation_id).with_expect(|| {
+            format!(
+                "Failed to get balance reservation with id = {}",
+                reservation_id
+            )
+        })
+    }
+
+    pub fn get_mut_expected(&mut self, reservation_id: ReservationId) -> &mut BalanceReservation {
+        self.get_mut(reservation_id).with_expect(|| {
+            format!(
+                "Failed to get mut balance reservation with id = {}",
+                reservation_id
+            )
+        })
     }
 
     fn update_metrics(&self) {

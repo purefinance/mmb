@@ -4,7 +4,6 @@ use super::{
 };
 use anyhow::{Context, Result};
 use futures::FutureExt;
-use log::error;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -47,7 +46,7 @@ impl TradePlaceAccountStatistic {
 
     fn decrement_partially_filled_orders(&mut self) {
         if self.partially_filled_orders_count == 0 {
-            error!("Unable to decrement partially filled orders count, because there are no more partially filled orders");
+            log::error!("Unable to decrement partially filled orders count, because there are no more partially filled orders");
         } else {
             self.partially_filled_orders_count -= 1;
         }

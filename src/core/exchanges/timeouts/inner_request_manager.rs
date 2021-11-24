@@ -11,7 +11,6 @@ use crate::core::{
 };
 use anyhow::{anyhow, bail, Result};
 use chrono::Duration;
-use log::info;
 
 pub(super) struct InnerRequestsTimeoutManager {
     pub(super) requests_per_period: usize,
@@ -53,9 +52,10 @@ impl InnerRequestsTimeoutManager {
         let request = self.add_request(request_type, current_time, None)?;
         self.last_time = Some(current_time);
 
-        info!(
+        log::info!(
             "Reserved request {:?} without group, instant {}",
-            request_type, current_time
+            request_type,
+            current_time
         );
 
         // TODO save to DataRecorder

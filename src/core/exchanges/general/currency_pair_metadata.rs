@@ -1,3 +1,5 @@
+use crate::core::infrastructure::WithExpect;
+
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -175,6 +177,16 @@ impl CurrencyPairMetadata {
                 Self::round_by_tick(amount, tick * dec!(0.01), Round::ToNearest)
             }
         }
+    }
+
+    pub fn round_to_remove_amount_precision_error_expected(&self, amount: Amount) -> Amount {
+        self.round_to_remove_amount_precision_error(amount)
+            .with_expect(|| {
+                format!(
+                    "failed to round to remove amount precision error from {:?} for {}",
+                    self, amount
+                )
+            })
     }
 
     fn round_by_tick(value: Decimal, tick: Decimal, round: Round) -> Result<Decimal> {

@@ -5,7 +5,6 @@ use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
 use futures::FutureExt;
 use itertools::Itertools;
-use log::{error, trace, warn};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -110,7 +109,7 @@ impl Service for DispositionExecutorService {
     fn graceful_shutdown(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
         let work_finished_receiver = self.work_finished_receiver.lock().take();
         if work_finished_receiver.is_none() {
-            warn!("'work_finished_receiver' wasn't created when started graceful shutdown in DispositionExecutor");
+            log::warn!("'work_finished_receiver' wasn't created when started graceful shutdown in DispositionExecutor");
         }
 
         work_finished_receiver
@@ -204,7 +203,7 @@ impl DispositionExecutor {
                     OrderEventType::CreateOrderSucceeded => nothing_to_do(),
                     OrderEventType::CreateOrderFailed => {
                         let client_order_id = order.client_order_id();
-                        trace!(
+                        log::trace!(
                             "Started handling event CreateOrderFailed {} in DispositionExecutor",
                             client_order_id
                         );
@@ -215,13 +214,13 @@ impl DispositionExecutor {
                         };
 
                         self.finish_order(order, price_slot)?;
-                        trace!(
+                        log::trace!(
                             "Finished handling event CreateOrderFailed {} in DispositionExecutor",
                             client_order_id
                         );
                     }
                     OrderEventType::OrderFilled { ref cloned_order } => {
-                        trace!(
+                        log::trace!(
                             "Started handling event OrderFilled {} in DispositionExecutor",
                             cloned_order.header.client_order_id
                         );
@@ -238,13 +237,13 @@ impl DispositionExecutor {
 
                             self.handle_order_fill(cloned_order, price_slot)?;
                         }
-                        trace!(
+                        log::trace!(
                             "Finished handling event OrderFilled {} in DispositionExecutor",
                             cloned_order.header.client_order_id
                         );
                     }
                     OrderEventType::OrderCompleted { ref cloned_order } => {
-                        trace!(
+                        log::trace!(
                             "Started handling event OrderCompleted {} in DispositionExecutor",
                             cloned_order.header.client_order_id
                         );
@@ -253,14 +252,14 @@ impl DispositionExecutor {
                             self.handle_order_fill(cloned_order, price_slot)?;
                             self.finish_order(order, price_slot)?;
                         }
-                        trace!(
+                        log::trace!(
                             "Finished handling event OrderCompleted {} in DispositionExecutor",
                             cloned_order.header.client_order_id
                         );
                     }
                     OrderEventType::CancelOrderSucceeded => {
                         let client_order_id = order.client_order_id();
-                        trace!(
+                        log::trace!(
                             "Started handling event CancelOrderSucceeded {} in DispositionExecutor",
                             client_order_id
                         );
@@ -272,7 +271,7 @@ impl DispositionExecutor {
                         };
 
                         self.finish_order(order, price_slot)?;
-                        trace!(
+                        log::trace!(
                             "Finished handling event CancelOrderSucceeded {} in DispositionExecutor",
                             client_order_id
                         );
@@ -363,7 +362,7 @@ impl DispositionExecutor {
         explanation: &mut Explanation,
     ) -> Result<()> {
         let composite_order = &price_slot.order;
-        trace!(
+        log::trace!(
             "Starting synchronize price slot {} {}",
             price_slot.id,
             composite_order.borrow().side
@@ -499,7 +498,7 @@ impl DispositionExecutor {
             }
         }
 
-        trace!(
+        log::trace!(
             "Finish synchronize price slot {} {}",
             price_slot.id,
             price_slot.order.borrow().side
@@ -531,16 +530,16 @@ impl DispositionExecutor {
     ) {
         explanation.add_reason(explanation_msg);
 
-        trace!("start_cancelling_orders: begin ({})", explanation_msg);
+        log::trace!("start_cancelling_orders: begin ({})", explanation_msg);
 
         order_records.for_each(|or| self.cancel_order(or, explanation));
 
-        trace!("start_cancelling_orders: Finish ({})", explanation_msg);
+        log::trace!("start_cancelling_orders: Finish ({})", explanation_msg);
     }
 
     fn cancel_order(&self, order_record: &mut OrderRecord, explanation: &mut Explanation) {
         if order_record.is_cancellation_requested {
-            trace!(
+            log::trace!(
                 "Trying cancelling order {}. Cancellation was started already.",
                 order_record.order.client_order_id()
             );
@@ -555,7 +554,7 @@ impl DispositionExecutor {
             order.exchange_account_id()
         ));
 
-        trace!("Begin cancel_order {}", order.client_order_id());
+        log::trace!("Begin cancel_order {}", order.client_order_id());
 
         let client_order_id = order.client_order_id();
         let request_group_id = order_record.request_group_id.clone();
@@ -563,11 +562,11 @@ impl DispositionExecutor {
         let cancellation_token = self.cancellation_token.clone();
 
         let action = async move {
-            trace!("Begin wait_cancel_order {}", client_order_id);
+            log::trace!("Begin wait_cancel_order {}", client_order_id);
             exchange
                 .wait_cancel_order(order, Some(request_group_id), false, cancellation_token)
                 .await?;
-            trace!("Finished wait_cancel_order {}", client_order_id);
+            log::trace!("Finished wait_cancel_order {}", client_order_id);
 
             Ok(())
         };
@@ -600,7 +599,7 @@ impl DispositionExecutor {
         now: DateTime,
         explanation: &mut Explanation,
     ) -> Result<()> {
-        trace!("Begin try_create_order");
+        log::trace!("Begin try_create_order");
 
         let side = price_slot.order.borrow().side;
         let new_disposition = &new_estimating.disposition;
@@ -768,7 +767,7 @@ impl DispositionExecutor {
             let cancellation_token = self.cancellation_token.clone();
 
             let action = async move {
-                trace!("Begin create_order {}", new_client_order_id);
+                log::trace!("Begin create_order {}", new_client_order_id);
 
                 let order_creating = OrderCreating {
                     header: new_order_header,
@@ -779,7 +778,7 @@ impl DispositionExecutor {
                     .create_order(&order_creating, None, cancellation_token)
                     .await?;
 
-                trace!("Finished create_order {}", new_client_order_id);
+                log::trace!("Finished create_order {}", new_client_order_id);
 
                 Ok(())
             };
@@ -790,7 +789,7 @@ impl DispositionExecutor {
             );
         }
 
-        trace!("Begin try_create_order {}", new_client_order_id);
+        log::trace!("Begin try_create_order {}", new_client_order_id);
         Ok(())
     }
 
@@ -847,7 +846,7 @@ impl DispositionExecutor {
             return price_slot;
         }
 
-        error!(
+        log::error!(
             "Can't find order with client_order_id {} {} in orders state of DispositionExecutor",
             order.client_order_id(),
             self.exchange_account_id
@@ -857,7 +856,7 @@ impl DispositionExecutor {
 
     fn finish_order(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
         let client_order_id = order.client_order_id();
-        trace!(
+        log::trace!(
             "Started DispositionExecutor::finish_order {}",
             client_order_id
         );
@@ -866,7 +865,7 @@ impl DispositionExecutor {
 
         price_slot.remove_order(order);
 
-        trace!(
+        log::trace!(
             "Finished DispositionExecutor::finish_order {}",
             client_order_id
         );
@@ -909,7 +908,7 @@ impl DispositionExecutor {
         cloned_order: &Arc<OrderSnapshot>,
         price_slot: &PriceSlot,
     ) -> Result<()> {
-        trace!("Begin handle_order_fill");
+        log::trace!("Begin handle_order_fill");
 
         let result = self.strategy.handle_order_fill(
             cloned_order,
@@ -918,7 +917,7 @@ impl DispositionExecutor {
             self.cancellation_token.clone(),
         );
 
-        trace!("Finish handle_order_fill");
+        log::trace!("Finish handle_order_fill");
         result
     }
 
@@ -976,7 +975,7 @@ fn get_cancelling_orders<'a>(
     desired_amount: Amount,
     remaining_amount: Amount,
 ) -> Vec<&'a mut OrderRecord> {
-    trace!("Started get_cancelling_orders");
+    log::trace!("Started get_cancelling_orders");
 
     let delta_amount = remaining_amount - desired_amount;
 
@@ -1007,7 +1006,7 @@ fn get_cancelling_orders<'a>(
         }
     }
 
-    trace!("Finished get_cancelling_orders");
+    log::trace!("Finished get_cancelling_orders");
 
     cancelling_orders
 }
@@ -1020,7 +1019,7 @@ fn now() -> DateTime {
 fn log_trace<'a>(msg: impl AsRef<str>, explanation: &mut Explanation) -> Result<()> {
     let msg = msg.as_ref();
 
-    trace!("{}", msg);
+    log::trace!("{}", msg);
     explanation.add_reason(msg);
 
     Ok(())

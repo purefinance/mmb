@@ -1,6 +1,5 @@
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
-use log::{error, info, warn};
 use tokio::sync::oneshot;
 
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
@@ -51,7 +50,7 @@ impl Exchange {
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
-        info!("Submitting order {:?}", order_to_create);
+        log::info!("Submitting order {:?}", order_to_create);
         self.orders
             .add_simple_initial(order_to_create.header.clone(), Some(order_to_create.price));
 
@@ -112,7 +111,7 @@ impl Exchange {
                 }
 
                 if result_order.status() == OrderStatus::Creating {
-                    error!(
+                    log::error!(
                         "OrderStatus of order {} is Creating at the end of create order procedure",
                         result_order.client_order_id()
                     );
@@ -121,7 +120,7 @@ impl Exchange {
                 // TODO DataRecorder.Save(order); Do we really need it here?
                 // Cause it's already performed in handle_create_order_succeeded
 
-                info!(
+                log::info!(
                     "Order was submitted {} {:?} {:?} on {}",
                     result_order.client_order_id(),
                     result_order.exchange_order_id(),
@@ -197,7 +196,7 @@ impl Exchange {
                 args_to_log
             );
 
-            error!("{}", error_msg);
+            log::error!("{}", error_msg);
             bail!("{}", error_msg);
         }
 
@@ -207,7 +206,7 @@ impl Exchange {
                 args_to_log
             );
 
-            error!("{}", error_msg);
+           log::error!("{}", error_msg);
             error_msg
         })?;
 
@@ -230,7 +229,7 @@ impl Exchange {
         match status {
             OrderStatus::Created => Self::log_error_and_propagate("Created", args_to_log),
             OrderStatus::FailedToCreate => {
-                warn!(
+                log::warn!(
                     "CreateOrderFailed was received for a FaildeToCreate order {:?}",
                     args_to_log
                 );
@@ -257,9 +256,10 @@ impl Exchange {
 
                 // TODO DataRecorder.Save(order)
 
-                warn!(
+                log::warn!(
                     "Order creation failed {:?}, with error: {:?}",
-                    args_to_log, exchange_error
+                    args_to_log,
+                    exchange_error
                 );
 
                 Ok(())
@@ -276,7 +276,7 @@ impl Exchange {
             template, args_to_log
         );
 
-        error!("{}", error_msg);
+        log::error!("{}", error_msg);
         bail!("{}", error_msg)
     }
 
@@ -297,7 +297,7 @@ impl Exchange {
                 args_to_log
             );
 
-            error!("{}", error_msg);
+            log::error!("{}", error_msg);
             bail!("{}", error_msg);
         }
 
@@ -307,13 +307,13 @@ impl Exchange {
                 args_to_log
             );
 
-            error!("{}", error_msg);
+            log::error!("{}", error_msg);
             bail!("{}", error_msg);
         }
 
         match self.orders.cache_by_client_id.get(client_order_id) {
             None => {
-                warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
+                log::warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
 
                 return Ok(());
             }
@@ -342,7 +342,7 @@ impl Exchange {
                                 args_to_log
                 );
 
-                error!("{}", error_msg);
+                log::error!("{}", error_msg);
                 bail!("{}", error_msg)
             }
             OrderStatus::Created => log_warn("Created", args_to_log),
@@ -356,7 +356,7 @@ impl Exchange {
                     .cache_by_exchange_id
                     .contains_key(exchange_order_id)
                 {
-                    info!(
+                    log::info!(
                         "Order has already been added to the local orders pool {:?}",
                         args_to_log
                     );
@@ -417,7 +417,7 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         if order.status() != OrderStatus::Creating {
-            info!("Instantly exiting create_order_created_task because order's status is {:?} {} {:?} on {}",
+            log::info!("Instantly exiting create_order_created_task because order's status is {:?} {} {:?} on {}",
                 order.status(),
                 order.client_order_id(),
                 order.exchange_order_id(),
@@ -434,7 +434,7 @@ impl Exchange {
             .or_insert(tx);
 
         if order.status() != OrderStatus::Creating {
-            info!("Exiting create_order_created_task because order's status turned {:?} while oneshot::channel were creating {} {:?} on {}",
+            log::info!("Exiting create_order_created_task because order's status turned {:?} while oneshot::channel were creating {} {:?} on {}",
                 order.status(),
                 order.client_order_id(),
                 order.exchange_order_id(),
@@ -464,9 +464,10 @@ fn log_warn(
     template: &str,
     args_to_log: (ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
 ) -> Result<()> {
-    warn!(
+    log::warn!(
         "CreateOrderSucceeded was received for a {} order {:?}",
-        template, args_to_log
+        template,
+        args_to_log
     );
     Ok(())
 }

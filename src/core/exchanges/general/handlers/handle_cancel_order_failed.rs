@@ -1,6 +1,5 @@
 use anyhow::Result;
 use chrono::Utc;
-use log::{error, warn};
 
 use crate::core::{
     exchanges::common::ExchangeError, exchanges::common::ExchangeErrorType,
@@ -25,7 +24,7 @@ impl Exchange {
 
         match self.orders.cache_by_exchange_id.get(&exchange_order_id) {
             None => {
-                error!("cancel_order_failed was called for an order which is not in the local order pool: {:?} on {}",
+                log::error!("cancel_order_failed was called for an order which is not in the local order pool: {:?} on {}",
                     exchange_order_id,
                     self.exchange_account_id);
 
@@ -51,7 +50,7 @@ impl Exchange {
     ) -> Result<()> {
         match order.status() {
             OrderStatus::Canceled => {
-                warn!(
+                log::warn!(
                     "cancel_order_failed was called for already Canceled order: {} {:?} on {}",
                     order.client_order_id(),
                     order.exchange_order_id(),
@@ -61,7 +60,7 @@ impl Exchange {
                 return Ok(());
             }
             OrderStatus::Completed => {
-                warn!(
+                log::warn!(
                     "cancel_order_failed was called for already Completed order: {} {:?} on {}",
                     order.client_order_id(),
                     order.exchange_order_id(),
@@ -115,7 +114,7 @@ impl Exchange {
                 order.fn_mut(|order| order.set_status(OrderStatus::FailedToCancel, Utc::now()));
                 self.add_event_on_order_change(&order, OrderEventType::CancelOrderFailed)?;
 
-                warn!(
+                log::warn!(
                     "Order cancellation failed: {} {:?} on {} with error: {:?} {:?} {}",
                     order.client_order_id(),
                     order.exchange_order_id(),
