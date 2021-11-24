@@ -83,19 +83,7 @@ impl Binance {
             .is_reducing_market_data
             .unwrap_or(is_reducing_market_data);
 
-        let hosts = if settings.is_margin_trading {
-            Hosts {
-                web_socket_host: "wss://fstream.binance.com".to_string(),
-                web_socket2_host: "wss://fstream3.binance.com".to_string(),
-                rest_host: "https://fapi.binance.com".to_string(),
-            }
-        } else {
-            Hosts {
-                web_socket_host: "wss://stream.binance.com:9443".to_string(),
-                web_socket2_host: "wss://stream.binance.com:9443".to_string(),
-                rest_host: "https://api.binance.com".to_string(),
-            }
-        };
+        let hosts = Self::make_hosts(settings.is_margin_trading);
 
         Self {
             id,
@@ -115,6 +103,22 @@ impl Binance {
             events_channel,
             application_manager,
             rest_client: RestClient::new(),
+        }
+    }
+
+    pub fn make_hosts(is_margin_trading: bool) -> Hosts {
+        if is_margin_trading {
+            Hosts {
+                web_socket_host: "wss://fstream.binance.com".to_string(),
+                web_socket2_host: "wss://fstream3.binance.com".to_string(),
+                rest_host: "https://fapi.binance.com".to_string(),
+            }
+        } else {
+            Hosts {
+                web_socket_host: "wss://stream.binance.com:9443".to_string(),
+                web_socket2_host: "wss://stream.binance.com:9443".to_string(),
+                rest_host: "https://api.binance.com".to_string(),
+            }
         }
     }
 

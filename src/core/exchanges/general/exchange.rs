@@ -15,6 +15,8 @@ use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
+#[cfg(debug_assertions)]
+use crate::core::exchanges::common::SpecificCurrencyPair;
 use crate::core::exchanges::common::{ActivePosition, ClosedPosition, TradePlace};
 use crate::core::exchanges::events::{
     BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
@@ -902,5 +904,11 @@ impl Exchange {
         // {
         //     DataRecorder.Save(liquidationPrice);
         // }
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair {
+        self.exchange_client
+            .get_specific_currency_pair(currency_pair)
     }
 }

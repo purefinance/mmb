@@ -9,9 +9,19 @@ use mmb_lib::{
         timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory,
         timeouts::timeout_manager::TimeoutManager,
     },
-    core::lifecycle::launcher::EngineBuildConfig,
+    core::{
+        exchanges::{
+            common::SpecificCurrencyPair,
+            rest_client::{self, RestClient},
+        },
+        infrastructure::WithExpect,
+        lifecycle::launcher::EngineBuildConfig,
+        settings::Hosts,
+    },
     hashmap,
 };
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 pub(crate) fn get_binance_credentials() -> Result<(String, String)> {
     let api_key = std::env::var("BINANCE_API_KEY");
@@ -62,4 +72,43 @@ pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc
     );
 
     TimeoutManager::new(hashmap![exchange_account_id => request_timeout_manager])
+}
+
+/// Automatic price calculation for orders. This function gets the price from the middle of order book bids side.
+/// This helps to avoid creating orders in the top of the order book.
+pub(crate) async fn get_default_price(
+    currency_pair: SpecificCurrencyPair,
+    hosts: &Hosts,
+    api_key: &String,
+) -> Decimal {
+    #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+    struct OrderBook {
+        pub bids: Vec<(Decimal, Decimal)>,
+    }
+
+    let http_params = vec![("symbol".to_owned(), currency_pair.as_str().to_owned())];
+
+    let rest_client = RestClient::new();
+
+    let url_path = "/api/v3/depth";
+    let full_url = rest_client::build_uri(&hosts.rest_host, url_path, &http_params)
+        .expect("build_uri is failed");
+
+    let data = rest_client
+        .get(full_url, &api_key)
+        .await
+        .expect("failed to request exchangeInfo")
+        .content;
+
+    let value: OrderBook = serde_json::from_str(data.as_str())
+        .with_expect(|| format!("failed to deserialize data: {}", data));
+
+    // getting price for order from the middle of the order book
+    // use bids because this price is little lower then asks
+    value
+        .bids
+        .get(value.bids.len() / 2)
+        .expect("failed to get bid from the middle of the order book")
+        .clone()
+        .0
 }

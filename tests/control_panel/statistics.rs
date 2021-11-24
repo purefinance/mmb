@@ -3,6 +3,7 @@ use futures::FutureExt;
 use hyper::Uri;
 use mmb_lib::core::config::parse_settings;
 use mmb_lib::core::disposition_execution::{PriceSlot, TradingContext};
+use mmb_lib::core::exchanges::binance::binance::Binance;
 use mmb_lib::core::explanation::Explanation;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::order_book::local_snapshot_service::LocalSnapshotsService;
@@ -27,6 +28,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
+use crate::binance::common::get_default_price;
 use crate::core::order::OrderProxy;
 use crate::get_binance_credentials_or_exit;
 
@@ -91,6 +93,9 @@ async fn orders_cancelled() {
     exchange_settings.secret_key = secret_key;
     let exchange_account_id = exchange_settings.exchange_account_id;
 
+    let is_margin_trading = exchange_settings.is_margin_trading;
+    let api_key = exchange_settings.api_key.clone();
+
     let init_settings = InitSettings::Directly(settings.clone());
     let engine = launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy))
         .await
@@ -121,6 +126,12 @@ async fn orders_cancelled() {
         exchange_account_id,
         Some("FromOrdersCancelledTest".to_owned()),
         CancellationToken::default(),
+        get_default_price(
+            exchange.get_specific_currency_pair(test_currency_pair),
+            &Binance::make_hosts(is_margin_trading),
+            &api_key,
+        )
+        .await,
     );
 
     let created_order = order.create_order(exchange.clone()).await.expect("in test");

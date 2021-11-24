@@ -14,13 +14,19 @@ use mmb_lib::core::settings::CurrencyPairSetting;
 use mmb_lib::core::settings::ExchangeSettings;
 
 use anyhow::Result;
+use mmb_lib::core::settings::Hosts;
 use mmb_lib::hashmap;
 use tokio::sync::broadcast;
 
+use crate::binance::common::get_default_price;
 use crate::binance::common::{get_binance_credentials, get_timeout_manager};
+use crate::core::order::OrderProxy;
 
 pub struct BinanceBuilder {
     pub exchange: Arc<Exchange>,
+    pub hosts: Hosts,
+    pub exchange_settings: ExchangeSettings,
+    pub default_price: Price,
     pub tx: broadcast::Sender<ExchangeEvent>,
     pub rx: broadcast::Receiver<ExchangeEvent>,
 }
@@ -85,6 +91,8 @@ impl BinanceBuilder {
             false,
         ));
 
+        let hosts = binance.hosts.clone();
+
         let timeout_manager = get_timeout_manager(exchange_account_id);
         let exchange = Exchange::new(
             exchange_account_id,
@@ -115,6 +123,20 @@ impl BinanceBuilder {
                 .await;
         }
 
-        Ok(BinanceBuilder { exchange, tx, rx })
+        let default_price = get_default_price(
+            exchange.get_specific_currency_pair(OrderProxy::default_currency_pair()),
+            &hosts,
+            &settings.api_key,
+        )
+        .await;
+
+        Ok(BinanceBuilder {
+            exchange,
+            hosts,
+            exchange_settings: settings,
+            default_price,
+            tx,
+            rx,
+        })
     }
 }

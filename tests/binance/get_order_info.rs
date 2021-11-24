@@ -5,6 +5,7 @@ use mmb_lib::core::exchanges::events::AllowedEventSourceType;
 use mmb_lib::core::exchanges::general::commission::Commission;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::orders::order::*;
 
 use crate::binance::binance_builder::BinanceBuilder;
@@ -12,6 +13,7 @@ use crate::core::order::OrderProxy;
 
 #[actix_rt::test]
 async fn get_order_info() {
+    init_logger();
     let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
@@ -40,6 +42,7 @@ async fn get_order_info() {
         exchange_account_id,
         Some("FromGetOrderInfoTest".to_owned()),
         CancellationToken::default(),
+        binance_builder.default_price,
     );
     order_proxy.reservation_id = Some(ReservationId::generate());
 
