@@ -401,8 +401,11 @@ pub trait ToStdExpected {
 }
 
 impl ToStdExpected for chrono::Duration {
+    /// Converts chrono::Duration to std::time::Duration.
+    ///
+    /// # Panics
+    /// Panic only on negative delay
     fn to_std_expected(&self) -> Duration {
-        // Panic only on negative delay
         self.to_std().with_expect(|| {
             format!(
                 "Unable to convert value = {} from chrono::Duration to std::time::Duration",
