@@ -2,6 +2,7 @@ use core::panic;
 use std::fmt::{Display, Formatter};
 
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::broadcast;
 
@@ -79,7 +80,7 @@ pub enum TickDirection {
     PlusTick,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq)]
 pub enum TradeId {
     Number(u64),
     String(Box<str>),
@@ -101,6 +102,21 @@ impl From<Value> for TradeId {
         match value.as_u64() {
             Some(value) => TradeId::Number(value),
             None => TradeId::String(value.to_string().into_boxed_str()),
+        }
+    }
+}
+
+impl PartialEq for TradeId {
+    fn eq(&self, other: &TradeId) -> bool {
+        match self {
+            TradeId::Number(this) => match other {
+                TradeId::Number(other) => this == other,
+                TradeId::String(other) => &this.to_string().into_boxed_str() == other,
+            },
+            TradeId::String(this) => match other {
+                TradeId::Number(other) => &other.to_string().into_boxed_str() == this,
+                TradeId::String(other) => this == other,
+            },
         }
     }
 }

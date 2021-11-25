@@ -349,7 +349,7 @@ impl Binance {
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,
     ) -> Result<FillEventData> {
-        let trade_id = json_response["t"].to_string().trim_matches('"').to_owned();
+        let trade_id = TradeId::from(json_response["t"].clone());
         let last_filled_price = json_response["L"]
             .as_str()
             .ok_or(anyhow!("Unable to parse last filled price"))?;

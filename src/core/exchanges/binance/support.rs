@@ -425,7 +425,7 @@ impl Support for Binance {
         #[derive(Serialize, Deserialize, Debug)]
         #[serde(rename_all = "camelCase")]
         struct BinanceMyTrade {
-            id: u64,
+            id: TradeId,
             order_id: u64,
             price: Price,
             #[serde(alias = "qty")]
@@ -452,7 +452,7 @@ impl Support for Binance {
                 let fee_currency_code = commission_currency_code.context("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting")?;
                 Ok(OrderTrade::new(
                     ExchangeOrderId::from(self.order_id.to_string().as_ref()),
-                    self.id.to_string(),
+                    self.id.clone(),
                     datetime,
                     self.price,
                     self.amount,
@@ -539,8 +539,7 @@ impl GetOrErr for Value {
 
 impl Binance {
     pub(crate) fn handle_trade(&self, currency_pair: CurrencyPair, data: &Value) -> Result<()> {
-        let test = data["t"].clone();
-        let trade_id = TradeId::from(test);
+        let trade_id = TradeId::from(data["t"].clone());
 
         let mut trade_id_from_lasts =
             self.last_trade_ids.get_mut(&currency_pair).with_expect(|| {

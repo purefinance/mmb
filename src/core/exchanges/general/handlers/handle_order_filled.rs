@@ -9,10 +9,16 @@ use uuid::Uuid;
 
 use crate::core::{
     exchanges::{
-        common::Amount, common::CurrencyCode, common::CurrencyPair, common::ExchangeAccountId,
-        common::Price, events::AllowedEventSourceType, general::commission::Percent,
+        common::Amount,
+        common::CurrencyCode,
+        common::CurrencyPair,
+        common::ExchangeAccountId,
+        common::Price,
+        events::{AllowedEventSourceType, TradeId},
+        general::commission::Percent,
         general::currency_pair_metadata::CurrencyPairMetadata,
-        general::currency_pair_metadata::Round, general::exchange::Exchange,
+        general::currency_pair_metadata::Round,
+        general::exchange::Exchange,
     },
     math::ConvertPercentToRate,
     orders::{
@@ -33,7 +39,7 @@ use crate::core::{
 
 type ArgsToLog = (
     ExchangeAccountId,
-    Option<String>,
+    Option<TradeId>,
     Option<ClientOrderId>,
     ExchangeOrderId,
     AllowedEventSourceType,
@@ -43,7 +49,7 @@ type ArgsToLog = (
 #[derive(Debug, Clone)]
 pub struct FillEventData {
     pub source_type: EventSourceType,
-    pub trade_id: Option<String>,
+    pub trade_id: Option<TradeId>,
     pub client_order_id: Option<ClientOrderId>,
     pub exchange_order_id: ExchangeOrderId,
     pub fill_price: Price,
@@ -108,7 +114,11 @@ impl Exchange {
                 }
 
                 info!("Received a fill for not existing order {:?}", &args_to_log);
-                // TODO BufferedFillsManager.add_fill()
+                self.buffered_fills_manager.lock().add_fill(
+                    self.exchange_account_id,
+                    event_data,
+                    None,
+                );
 
                 unimplemented!("First need to implement BufferedFillsManager");
             }
@@ -117,7 +127,7 @@ impl Exchange {
     }
 
     fn was_trade_already_received(
-        trade_id: &Option<String>,
+        trade_id: &Option<TradeId>,
         order_fills: &Vec<OrderFill>,
         order_ref: &OrderRef,
     ) -> bool {
@@ -508,7 +518,7 @@ impl Exchange {
 
     fn add_fill(
         &self,
-        trade_id: &Option<String>,
+        trade_id: &Option<TradeId>,
         is_diff: bool,
         fill_type: OrderFillType,
         currency_pair_metadata: &CurrencyPairMetadata,
@@ -774,7 +784,7 @@ impl Exchange {
         template: &str,
         args_to_log: &(
             ExchangeAccountId,
-            Option<String>,
+            Option<TradeId>,
             Option<ClientOrderId>,
             ExchangeOrderId,
             AllowedEventSourceType,
