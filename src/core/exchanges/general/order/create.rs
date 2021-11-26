@@ -436,7 +436,20 @@ impl Exchange {
                         .remove_fills(self.exchange_account_id, exchange_order_id);
                 }
 
-                // TODO if BufferedCanceledOrdersManager.TryGetOrder(...)
+                let mut buffered_canceled_orders_manager =
+                    self.buffered_canceled_orders_manager.lock();
+                if buffered_canceled_orders_manager
+                    .is_order_buffered(self.exchange_account_id, &exchange_order_id)
+                {
+                    self.handle_cancel_order_succeeded(
+                        Some(&client_order_id),
+                        &exchange_order_id,
+                        None,
+                        source_type.clone(),
+                    )?;
+                    buffered_canceled_orders_manager
+                        .remove_order(self.exchange_account_id, &exchange_order_id);
+                }
 
                 // TODO DataRecorder.Save(order); Do we really need it here?
                 // Cause it's already performed in handle_create_order_succeeded

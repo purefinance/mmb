@@ -15,9 +15,9 @@ pub struct BufferedFillsManager {
 }
 
 impl BufferedFillsManager {
-    pub fn new(exchange_account_id: Vec<ExchangeAccountId>) -> Self {
+    pub fn new(exchange_account_ids: Vec<ExchangeAccountId>) -> Self {
         Self {
-            buffered_fills_by_exchange_id: exchange_account_id
+            buffered_fills_by_exchange_id: exchange_account_ids
                 .into_iter()
                 .map(|eai| (eai, HashMap::<ExchangeOrderId, Vec<BufferedFill>>::new()))
                 .collect(),
@@ -53,13 +53,6 @@ impl BufferedFillsManager {
             fill_date,
             event_date.source_type,
         );
-
-        if self
-            .buffered_fills_by_exchange_id
-            .contains_key(&exchange_account_id)
-        {
-            panic!("Exchange {} is unknown", exchange_account_id)
-        }
 
         let buffered_fills_by_exchange_order_id = self
             .buffered_fills_by_exchange_id

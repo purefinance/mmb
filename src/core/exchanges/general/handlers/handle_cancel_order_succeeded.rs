@@ -41,8 +41,10 @@ impl Exchange {
 
         match self.orders.cache_by_exchange_id.get(&exchange_order_id) {
             None => {
-                // TODO BufferedCanceledOrderManager.add_order(exchange_order_id, self.exchange_account_id)
-                // TODO All other code connected BufferedCaceledOrderManager
+                self.buffered_canceled_orders_manager
+                    .lock()
+                    .add_order(self.exchange_account_id, exchange_order_id.clone());
+
                 match client_order_id {
                     Some(client_order_id) => {
                         self.raise_order_created(&client_order_id, &exchange_order_id, source_type)
