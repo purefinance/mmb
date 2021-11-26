@@ -3,6 +3,7 @@ use chrono::Utc;
 use tokio::sync::oneshot;
 
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
+use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::orders::event::OrderEventType;
 use crate::core::{
@@ -375,9 +376,9 @@ impl Exchange {
                     .cache_by_exchange_id
                     .insert(exchange_order_id.clone(), order_ref.clone());
 
+                let header = order_ref.fn_ref(|x| x.header.clone());
+                let client_order_id = header.client_order_id.clone();
                 if order_ref.order_type() != OrderType::Liquidation {
-                    let header = order_ref.fn_ref(|x| x.header.clone());
-                    let client_order_id = header.client_order_id.clone();
                     match header.reservation_id {
                         None => {
                             log::warn!("Created order {} without reservation_id", client_order_id)
@@ -398,7 +399,43 @@ impl Exchange {
 
                 self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderSucceeded)?;
 
-                // TODO if BufferedFillsManager.TryGetFills(...)
+                let mut buffered_fills_manager = self.buffered_fills_manager.lock();
+                if let Some(buffered_fills) =
+                    buffered_fills_manager.get_fills(self.exchange_account_id, &exchange_order_id)
+                {
+                    log::trace!(
+                        "Found buffered fills for an order {} {} {} {:?}",
+                        self.exchange_account_id,
+                        client_order_id,
+                        exchange_order_id,
+                        buffered_fills
+                    );
+
+                    for buffered_fill in buffered_fills {
+                        self.handle_order_filled(FillEventData {
+                            source_type: buffered_fill.event_source_type,
+                            trade_id: Some(buffered_fill.trade_id),
+                            client_order_id: Some(client_order_id.clone()),
+                            exchange_order_id: buffered_fill.exchange_order_id,
+                            fill_price: buffered_fill.fill_price,
+                            fill_amount: buffered_fill.fill_amount,
+                            is_diff: buffered_fill.is_diff,
+                            total_filled_amount: buffered_fill.total_filled_amount,
+                            order_role: buffered_fill.order_role,
+                            commission_currency_code: Some(buffered_fill.commission_currency_code),
+                            commission_rate: buffered_fill.commission_rate,
+                            commission_amount: buffered_fill.commission_amount,
+                            fill_type: buffered_fill.order_fill_type,
+                            trade_currency_pair: Some(buffered_fill.trade_currency_pair),
+                            order_side: buffered_fill.side,
+                            order_amount: None,
+                        })?;
+                    }
+
+                    buffered_fills_manager
+                        .remove_fills(self.exchange_account_id, exchange_order_id);
+                }
+
                 // TODO if BufferedCanceledOrdersManager.TryGetOrder(...)
 
                 // TODO DataRecorder.Save(order); Do we really need it here?

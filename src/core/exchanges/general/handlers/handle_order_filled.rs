@@ -113,13 +113,23 @@ impl Exchange {
                 }
 
                 log::info!("Received a fill for not existing order {:?}", &args_to_log);
+
+                let source_type = event_data.source_type.clone();
+                let exchange_order_id = event_data.exchange_order_id.clone();
+                let client_or_order_id_opt = event_data.client_order_id.clone();
+
                 self.buffered_fills_manager.lock().add_fill(
                     self.exchange_account_id,
                     event_data,
                     None,
                 );
 
-                unimplemented!("First need to implement BufferedFillsManager");
+                // REVIEW: это нужно было сюда переносить?
+                if let Some(client_order_id) = client_or_order_id_opt {
+                    self.raise_order_created(&client_order_id, &exchange_order_id, source_type);
+                }
+
+                Ok(())
             }
             Some(order_ref) => self.try_to_create_and_add_order_fill(&mut event_data, &order_ref),
         }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::core::{
     exchanges::{common::ExchangeAccountId, general::handlers::handle_order_filled::FillEventData},
     infrastructure::WithExpect,
-    orders::order::{ExchangeOrderId, OrderRole},
+    orders::order::ExchangeOrderId,
     DateTime,
 };
 
@@ -30,7 +30,6 @@ impl BufferedFillsManager {
         event_date: FillEventData,
         fill_date: Option<DateTime>,
     ) {
-        let is_maker = event_date.order_role.map(|x| x == OrderRole::Maker);
         //likely we got a fill notification before an order creation notification
         let buffered_fill = BufferedFill::new(
             exchange_account_id,
@@ -40,7 +39,7 @@ impl BufferedFillsManager {
             event_date.fill_amount,
             event_date.is_diff,
             event_date.total_filled_amount,
-            is_maker,
+            event_date.order_role,
             event_date
                 .commission_currency_code
                 .expect("commission_currency_code is None"),
@@ -80,7 +79,7 @@ impl BufferedFillsManager {
                 event_date.fill_price,
                 event_date.fill_amount,
                 event_date.total_filled_amount,
-                is_maker,
+                event_date.order_role,
                 event_date.commission_currency_code,
                 event_date.commission_amount
             )

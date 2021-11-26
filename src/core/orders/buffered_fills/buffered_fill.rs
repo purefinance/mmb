@@ -7,12 +7,12 @@ use crate::core::{
     },
     orders::{
         fill::{EventSourceType, OrderFillType},
-        order::{ExchangeOrderId, OrderSide},
+        order::{ExchangeOrderId, OrderRole, OrderSide},
     },
     DateTime,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BufferedFill {
     pub exchange_account_id: ExchangeAccountId,
     pub trade_id: TradeId,
@@ -21,7 +21,7 @@ pub struct BufferedFill {
     pub fill_amount: Amount,
     pub is_diff: bool,
     pub total_filled_amount: Option<Amount>,
-    pub is_maker: Option<bool>,
+    pub order_role: Option<OrderRole>,
     pub commission_currency_code: CurrencyCode,
     pub commission_rate: Option<Decimal>,
     pub commission_amount: Option<Amount>,
@@ -41,7 +41,7 @@ impl BufferedFill {
         fill_amount: Amount,
         is_diff: bool,
         total_filled_amount: Option<Amount>,
-        is_maker: Option<bool>,
+        order_role: Option<OrderRole>,
         commission_currency_code: CurrencyCode,
         commission_rate: Option<Decimal>,
         commission_amount: Option<Amount>,
@@ -59,7 +59,7 @@ impl BufferedFill {
             fill_amount,
             is_diff,
             total_filled_amount,
-            is_maker,
+            order_role,
             commission_currency_code,
             commission_rate,
             commission_amount,
