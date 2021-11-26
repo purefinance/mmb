@@ -400,9 +400,7 @@ impl Exchange {
                 self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderSucceeded)?;
 
                 let mut buffered_fills_manager = self.buffered_fills_manager.lock();
-                if let Some(buffered_fills) =
-                    buffered_fills_manager.get_fills(self.exchange_account_id, &exchange_order_id)
-                {
+                if let Some(buffered_fills) = buffered_fills_manager.get_fills(&exchange_order_id) {
                     log::trace!(
                         "Found buffered fills for an order {} {} {} {:?}",
                         self.exchange_account_id,
@@ -432,23 +430,19 @@ impl Exchange {
                         })?;
                     }
 
-                    buffered_fills_manager
-                        .remove_fills(self.exchange_account_id, exchange_order_id);
+                    buffered_fills_manager.remove_fills(exchange_order_id);
                 }
 
                 let mut buffered_canceled_orders_manager =
                     self.buffered_canceled_orders_manager.lock();
-                if buffered_canceled_orders_manager
-                    .is_order_buffered(self.exchange_account_id, &exchange_order_id)
-                {
+                if buffered_canceled_orders_manager.is_order_buffered(&exchange_order_id) {
                     self.handle_cancel_order_succeeded(
                         Some(&client_order_id),
                         &exchange_order_id,
                         None,
                         source_type.clone(),
                     )?;
-                    buffered_canceled_orders_manager
-                        .remove_order(self.exchange_account_id, &exchange_order_id);
+                    buffered_canceled_orders_manager.remove_order(&exchange_order_id);
                 }
 
                 // TODO DataRecorder.Save(order); Do we really need it here?

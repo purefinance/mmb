@@ -180,12 +180,8 @@ impl Exchange {
             last_trades: DashMap::new(),
             balance_manager: Mutex::new(None),
             // REVIEW: может быть BufferedFillsManager ненужно хранить buffered_fills_by_exchange_id тк для каждого exchange будет свой buffered_fills_manager?
-            buffered_fills_manager: Mutex::new(BufferedFillsManager::new(vec![
-                exchange_account_id,
-            ])),
-            buffered_canceled_orders_manager: Mutex::new(BufferedCanceledOrdersManager::new(vec![
-                exchange_account_id,
-            ])),
+            buffered_fills_manager: Mutex::new(BufferedFillsManager::new()),
+            buffered_canceled_orders_manager: Mutex::new(BufferedCanceledOrdersManager::new()),
         });
 
         exchange.clone().setup_connectivity_manager();
