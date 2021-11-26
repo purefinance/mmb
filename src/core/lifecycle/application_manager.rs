@@ -2,7 +2,6 @@ use super::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::EngineContext;
 use crate::core::nothing_to_do;
 use futures::{Future, FutureExt};
-use log::{error, info, warn};
 use std::panic;
 use std::sync::{Arc, Weak};
 use tokio::sync::{Mutex, MutexGuard};
@@ -51,10 +50,12 @@ impl ApplicationManager {
             let action_outcome = panic::AssertUnwindSafe(handler).catch_unwind().await;
 
             match action_outcome {
-                Ok(()) => info!("{} completed successfully", FUTURE_NAME),
+                Ok(()) => log::info!("{} completed successfully", FUTURE_NAME),
                 Err(panic) => match panic.downcast_ref::<String>() {
-                    Some(message) => error!("{} panicked with error: {}", FUTURE_NAME, message),
-                    None => error!("{} panicked without message", FUTURE_NAME),
+                    Some(message) => {
+                        log::error!("{} panicked with error: {}", FUTURE_NAME, message)
+                    }
+                    None => log::error!("{} panicked without message", FUTURE_NAME),
                 },
             }
         }))
@@ -76,15 +77,15 @@ pub fn start_graceful_shutdown_inner(
     reason: &str,
 ) -> Option<impl Future<Output = ()> + 'static> {
     let engine_context = engine_context_guard.as_ref().or_else(|| {
-        error!("Tried to request graceful shutdown with reason '{}', but 'engine_context' is not specified", reason);
+       log::error!("Tried to request graceful shutdown with reason '{}', but 'engine_context' is not specified", reason);
         None
     })?;
 
-    info!("Requested graceful shutdown: {}", reason);
+    log::info!("Requested graceful shutdown: {}", reason);
 
     match engine_context.upgrade() {
         None => {
-            warn!("Can't execute graceful shutdown with reason '{}', because 'engine_context' was dropped already", reason);
+            log::warn!("Can't execute graceful shutdown with reason '{}', because 'engine_context' was dropped already", reason);
             None
         }
         Some(ctx) => Some(ctx.graceful_shutdown()),

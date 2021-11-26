@@ -1,4 +1,5 @@
 use crate::core::exchanges::common::*;
+use crate::core::infrastructure::WithExpect;
 use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use crate::core::order_book::*;
 use std::collections::HashMap;
@@ -15,6 +16,12 @@ impl LocalSnapshotsService {
 
     pub fn get_snapshot(&self, trade_place: TradePlace) -> Option<&LocalOrderBookSnapshot> {
         self.local_snapshots.get(&trade_place)
+    }
+
+    pub fn get_snapshot_expected(&self, trade_place: TradePlace) -> &LocalOrderBookSnapshot {
+        self.local_snapshots
+            .get(&trade_place)
+            .with_expect(|| format!("Can't get snapshot for {:?}", trade_place))
     }
 
     /// Create snapshot if it does not exist

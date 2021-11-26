@@ -1,3 +1,4 @@
+use crate::core::infrastructure::WithExpect;
 use anyhow::Result;
 use awc::http::StatusCode;
 use itertools::Itertools;
@@ -394,6 +395,25 @@ impl RestRequestOutcome {
 }
 
 pub type RestRequestResult = std::result::Result<String, RestRequestError>;
+
+pub trait ToStdExpected {
+    fn to_std_expected(&self) -> Duration;
+}
+
+impl ToStdExpected for chrono::Duration {
+    /// Converts chrono::Duration to std::time::Duration.
+    ///
+    /// # Panics
+    /// Panic only on negative delay
+    fn to_std_expected(&self) -> Duration {
+        self.to_std().with_expect(|| {
+            format!(
+                "Unable to convert value = {} from chrono::Duration to std::time::Duration",
+                self
+            )
+        })
+    }
+}
 
 pub struct ClosedPosition {
     exchange_order_id: ExchangeOrderId,

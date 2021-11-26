@@ -6,7 +6,6 @@ use dashmap::DashMap;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
-use log::error;
 use parking_lot::{Mutex, RwLock};
 use serde_json::Value;
 use sha2::Sha256;
@@ -276,9 +275,10 @@ impl Binance {
                         EventSourceType::WebSocket,
                     );
                 }
-                _ => error!(
+                _ => log::error!(
                     "execution_type is NEW but order_status is {} for message {}",
-                    order_status, msg_to_log
+                    order_status,
+                    msg_to_log
                 ),
             },
             "CANCELED" => match order_status {
@@ -289,9 +289,10 @@ impl Binance {
                         EventSourceType::WebSocket,
                     );
                 }
-                _ => error!(
+                _ => log::error!(
                     "execution_type is CANCELED but order_status is {} for message {}",
-                    order_status, msg_to_log
+                    order_status,
+                    msg_to_log
                 ),
             },
             "REJECTED" => {
@@ -306,9 +307,10 @@ impl Binance {
                         EventSourceType::WebSocket,
                     );
                 }
-                _ => error!(
+                _ => log::error!(
                     "Order {} was expired, message: {}",
-                    client_order_id, msg_to_log
+                    client_order_id,
+                    msg_to_log
                 ),
             },
             "TRADE" | "CALCULATED" => {
@@ -321,7 +323,7 @@ impl Binance {
 
                 (&self.handle_order_filled_callback).lock()(event_data);
             }
-            _ => error!("Impossible execution type"),
+            _ => log::error!("Impossible execution type"),
         }
 
         Ok(())

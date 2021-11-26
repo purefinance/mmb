@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 use chrono::Utc;
 use futures::future::join_all;
 use itertools::Itertools;
-use log::{error, info};
 use tokio::sync::oneshot;
 
 use crate::core::{
@@ -59,7 +58,7 @@ impl Exchange {
     ) -> Result<Option<CancelOrderResult>> {
         match order.status() {
             OrderStatus::Canceled => {
-                info!(
+                log::info!(
                     "This order {} {:?} are already canceled",
                     order.client_order_id(),
                     order.exchange_order_id()
@@ -68,7 +67,7 @@ impl Exchange {
                 Ok(None)
             }
             OrderStatus::Completed => {
-                info!(
+                log::info!(
                     "This order {} {:?} are already completed",
                     order.client_order_id(),
                     order.exchange_order_id()
@@ -79,7 +78,7 @@ impl Exchange {
             _ => {
                 order.fn_mut(|order| order.set_status(OrderStatus::Canceling, Utc::now()));
 
-                info!(
+                log::info!(
                     "Submitting order cancellation {} {:?} on {}",
                     order.client_order_id(),
                     order.exchange_order_id(),
@@ -93,7 +92,7 @@ impl Exchange {
                     .cancel_order(&order_to_cancel, cancellation_token)
                     .await?;
 
-                info!(
+                log::info!(
                     "Submitted order cancellation {} {:?} on {}: {:?}",
                     order.client_order_id(),
                     order.exchange_order_id(),
@@ -189,9 +188,11 @@ impl Exchange {
         request_outcome: &Result<RestRequestOutcome>,
         order: &OrderCancelling,
     ) -> CancelOrderResult {
-        info!(
+        log::info!(
             "Cancel response for {}, {:?}, {:?}",
-            order.header.client_order_id, order.header.exchange_account_id, request_outcome
+            order.header.client_order_id,
+            order.header.exchange_account_id,
+            request_outcome
         );
 
         match request_outcome {
@@ -230,7 +231,7 @@ impl Exchange {
                     source_type,
                     filled_amount,
                 )) {
-                    error!(
+                    log::error!(
                         "raise_order_cancelled failed: unable to send thru oneshot channel: {:?}",
                         error
                     );
@@ -276,7 +277,7 @@ impl Exchange {
         }
 
         if !not_found_orders.is_empty() {
-            error!(
+            log::error!(
                 "`cancel_orders` was received for an orders which are not in the system {}: {}",
                 self.exchange_account_id,
                 not_found_orders.iter().join(", "),

@@ -1,5 +1,6 @@
 use chrono::{Duration, Utc};
 
+use crate::core::exchanges::common::ToStdExpected;
 use crate::core::{
     exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
     lifecycle::cancellation_token::CancellationToken, DateTime,
@@ -35,11 +36,7 @@ impl PollingTimeoutManager {
         let delay_till_fallback_request = interval - time_since_last_request;
 
         if delay_till_fallback_request.num_milliseconds() > 0 {
-            let sleep = tokio::time::sleep(
-                delay_till_fallback_request
-                    .to_std()
-                    .expect("Unable to convert chrono::Duration to std::time::Duration in PollingTimeoutManager::wait()"),
-            );
+            let sleep = tokio::time::sleep(delay_till_fallback_request.to_std_expected());
             tokio::select! {
                 _ = sleep => {}
                 _ = cancellation_token.when_cancelled() => {}

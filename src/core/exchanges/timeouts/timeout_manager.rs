@@ -9,7 +9,6 @@ use uuid::Uuid;
 
 use anyhow::Result;
 use chrono::Utc;
-use log::error;
 
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::request_type::RequestType;
@@ -90,7 +89,7 @@ impl TimeoutManager {
                 Ok(future_outcome) => future_outcome,
                 // Only panic can happen here and only in case if spawn_future() panicked itself
                 Err(error) => {
-                    error!("Future in reserve_when_available got error: {}", error);
+                    log::error!("Future in reserve_when_available got error: {}", error);
                     FutureOutcome::new(
                         "spawn_future() for reserve_when_available".to_owned(),
                         Uuid::new_v4(),

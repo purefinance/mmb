@@ -3,7 +3,6 @@ use crate::core::{
     exchanges::general::exchange::Exchange, orders::order::OrderInfo, orders::pool::OrderRef,
 };
 use anyhow::*;
-use log::info;
 
 impl Exchange {
     pub async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
@@ -23,7 +22,7 @@ impl Exchange {
     }
 
     async fn get_order_info_core(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
-        info!(
+        log::info!(
             "get_order_info response: {}, {:?} on {}",
             order.client_order_id(),
             order.exchange_order_id(),

@@ -7,7 +7,6 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 use enum_map::{enum_map, EnumMap};
-use log::{error, info};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -219,7 +218,7 @@ impl CompositeOrder {
 
     pub fn add_order_record(&mut self, order: OrderRef, request_group_id: RequestGroupId) {
         let client_order_id = order.client_order_id();
-        info!(
+        log::info!(
             "Adding order clientOrderId {} in current state of DispositionExecutor",
             client_order_id
         );
@@ -228,18 +227,18 @@ impl CompositeOrder {
             .orders
             .insert(client_order_id, OrderRecord::new(order, request_group_id))
         {
-            error!("The order with clientOrderId {} already exists in CompositeOrder of DispositionExecutor state when adding order record", order.order.client_order_id())
+            log::error!("The order with clientOrderId {} already exists in CompositeOrder of DispositionExecutor state when adding order record", order.order.client_order_id())
         }
     }
 
     pub fn remove_order(&mut self, order: &OrderRef) {
         let client_order_id = order.client_order_id();
         match self.orders.remove(&client_order_id) {
-            None => error!(
+            None => log::error!(
                 "Can't find order {} for removing in CompositeOrder of DispositionExecutor state",
                 client_order_id
             ),
-            Some(_) => info!(
+            Some(_) => log::info!(
                 "Removed order {} in state of DispositionExecutor",
                 client_order_id
             ),

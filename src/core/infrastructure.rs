@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
-use log::{error, info, trace, Level};
+use log::log;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::fmt::{Debug, Display};
@@ -89,12 +89,12 @@ pub fn spawn_future_timed(
     let future_id = Uuid::new_v4();
     let action = handle_action_outcome(action_name.clone(), future_id, is_critical, action);
 
-    info!("Future {} with id {} started", action_name, future_id);
+    log::info!("Future {} with id {} started", action_name, future_id);
 
     tokio::spawn(async move {
         tokio::select! {
             _ = tokio::time::sleep(duration) => {
-                error!("Time in form of {:?} is over, but future {} is not completed yet", duration, action_name);
+                log::error!("Time in form of {:?} is over, but future {} is not completed yet", duration, action_name);
                 FutureOutcome::new(action_name, future_id, CompletionReason::TimeExpired)
             }
             action_outcome = action => {
@@ -114,7 +114,7 @@ pub fn spawn_future(
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
 
-    info!("Future {} with id {} started", action_name, future_id);
+    log::info!("Future {} with id {} started", action_name, future_id);
 
     tokio::spawn(handle_action_outcome(
         action_name,
@@ -136,7 +136,7 @@ async fn handle_action_outcome(
     match action_outcome {
         Ok(future_outcome) => match future_outcome {
             Ok(()) => {
-                trace!("{} successfully completed", log_template);
+                log::trace!("{} successfully completed", log_template);
 
                 FutureOutcome::new(
                     action_name,
@@ -146,12 +146,12 @@ async fn handle_action_outcome(
             }
             Err(error) => {
                 if error.to_string() == OPERATION_CANCELED_MSG {
-                    trace!("{} was cancelled via Result<()>", log_template);
+                    log::trace!("{} was cancelled via Result<()>", log_template);
 
                     return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
                 }
 
-                error!("{} returned error: {:?}", log_template, error);
+                log::error!("{} returned error: {:?}", log_template, error);
                 return FutureOutcome::new(action_name, future_id, CompletionReason::Error);
             }
         },
@@ -159,11 +159,11 @@ async fn handle_action_outcome(
             Some(error_msg) => {
                 if error_msg == OPERATION_CANCELED_MSG {
                     let log_level = if is_critical {
-                        Level::Error
+                        log::Level::Error
                     } else {
-                        Level::Trace
+                        log::Level::Trace
                     };
-                    log::log!(log_level, "{} was cancelled via panic", log_template);
+                    log!(log_level, "{} was cancelled via panic", log_template);
 
                     if !is_critical {
                         return FutureOutcome::new(
@@ -175,7 +175,7 @@ async fn handle_action_outcome(
                 }
 
                 let error_message = format!("{} panicked with error: {}", log_template, error_msg);
-                error!("{}", error_message);
+                log::error!("{}", error_message);
 
                 spawn_graceful_shutdown(&log_template, &error_message);
 
@@ -183,7 +183,7 @@ async fn handle_action_outcome(
             }
             None => {
                 let error_message = format!("{} panicked with non string error", log_template);
-                error!("{}", error_message);
+                log::error!("{}", error_message);
 
                 spawn_graceful_shutdown(&log_template, &error_message);
 
@@ -200,11 +200,11 @@ fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
                 Some(application_manager) => {
                     application_manager.clone().spawn_graceful_shutdown(error_message.to_owned());
                 }
-                None => error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
+                None => log::error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
                     log_template),
             }
         }
-        None => error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
+        None => log::error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
             log_template),
     }
 }

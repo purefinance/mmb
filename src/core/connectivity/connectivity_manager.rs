@@ -9,7 +9,7 @@ use crate::core::{
 use actix::Addr;
 use anyhow::Result;
 use futures::Future;
-use log::{error, info, log, trace, warn, Level};
+use log::log;
 use parking_lot::Mutex;
 use std::pin::Pin;
 use std::{
@@ -135,7 +135,7 @@ impl ConnectivityManager {
         is_enabled_secondary_websocket: bool,
         get_websocket_params: GetWSParamsCallback,
     ) -> bool {
-        trace!(
+        log::trace!(
             "ConnectivityManager '{}' connecting",
             self.exchange_account_id
         );
@@ -215,15 +215,18 @@ impl ConnectivityManager {
             let sending_result =
                 websocket_actor.try_send(websocket_actor::SendText(message.to_owned()));
             if let Err(ref err) = sending_result {
-                error!(
+                log::error!(
                     "Error {} happened when sending to websocket {} message: {}",
-                    err, self.exchange_account_id, message
+                    err,
+                    self.exchange_account_id,
+                    message
                 )
             }
         } else {
-            error!(
+            log::error!(
                 "Attempt to send message on {} when websocket is not connected: {}",
-                self.exchange_account_id, message
+                self.exchange_account_id,
+                message
             );
         }
     }
@@ -274,7 +277,7 @@ impl ConnectivityManager {
         let mut attempt = 0;
 
         while !cancel_websocket_connecting.is_cancellation_requested() {
-            trace!(
+            log::trace!(
                 "Getting WebSocket parameters for {}",
                 self.exchange_account_id
             );
@@ -303,9 +306,10 @@ impl ConnectivityManager {
                                 };
 
                             if attempt > 0 {
-                                info!(
+                                log::info!(
                                     "Opened websocket connection for {} after {} attempts",
-                                    self.exchange_account_id, attempt
+                                    self.exchange_account_id,
+                                    attempt
                                 );
                             }
 
@@ -321,15 +325,15 @@ impl ConnectivityManager {
                             return true;
                         }
                         Err(error) => {
-                            warn!("Attempt to connect failed: {:?}", error);
+                            log::warn!("Attempt to connect failed: {:?}", error);
                         }
                     };
 
                     attempt += 1;
 
                     let log_level = match attempt < MAX_RETRY_CONNECT_COUNT {
-                        true => Level::Warn,
-                        false => Level::Error,
+                        true => log::Level::Warn,
+                        false => log::Level::Error,
                     };
                     log!(
                         log_level,
@@ -345,9 +349,10 @@ impl ConnectivityManager {
                         );
                     }
                 }
-                Err(error) => warn!(
+                Err(error) => log::warn!(
                     "Error while getting parameters for websocket {:?}: {:#}",
-                    role, error
+                    role,
+                    error
                 ),
             }
         }
@@ -387,12 +392,15 @@ impl ConnectivityManagerNotifier {
                 Some(connectivity_manager) => {
                     connectivity_manager.notify_connection_closed(self.websocket_role)
                 }
-                None => info!("Unable to upgrade weak reference to ConnectivityManager instance",),
+                None => {
+                    log::info!("Unable to upgrade weak reference to ConnectivityManager instance",)
+                }
             }
         } else {
-            info!(
+            log::info!(
                 "WebsocketActor {} {:?} notify about connection closed (in tests)",
-                exchange_account_id, self.websocket_role
+                exchange_account_id,
+                self.websocket_role
             )
         }
     }
@@ -401,12 +409,12 @@ impl ConnectivityManagerNotifier {
         if let Some(connectivity_manager) = &self.connectivity_manager {
             match connectivity_manager.upgrade() {
                 Some(connectivity_manager) => connectivity_manager.callback_msg_received.lock()(data),
-                None => info!(
+                None => log::info!(
                     "Unable to upgrade weak reference to ConnectivityManager instance. Probably it's dropped",
                 ),
             }
         } else {
-            info!(
+            log::info!(
                 "WebsocketActor '{:?}' notify that new text message accepted",
                 data
             )

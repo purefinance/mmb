@@ -4,7 +4,6 @@ use std::sync::{Arc, Weak};
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Duration;
 use futures::FutureExt;
-use log::{error, info};
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -17,6 +16,7 @@ use super::{
     triggers::every_requests_count_change_trigger::EveryRequestsCountChangeTrigger,
     triggers::less_or_equals_requests_count_trigger::LessOrEqualsRequestsCountTrigger,
 };
+use crate::core::exchanges::common::ToStdExpected;
 use crate::core::{
     exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType,
     infrastructure::spawn_future, infrastructure::FutureOutcome,
@@ -93,9 +93,10 @@ impl RequestsTimeoutManager {
         let group = PreReservedGroup::new(group_id, group_type, requests_count);
         inner.pre_reserved_groups.push(group.clone());
 
-        info!(
+        log::info!(
             "PreReserved group with group_id {} and request_count {} was added",
-            group_id, requests_count
+            group_id,
+            requests_count
         );
 
         // TODO save to DataRecorder
@@ -118,7 +119,7 @@ impl RequestsTimeoutManager {
 
         match stored_group {
             None => {
-                error!("Cannot find PreReservedGroup {} for removing", { group_id });
+                log::error!("Cannot find PreReservedGroup {} for removing", { group_id });
                 // TODO save to DataRecorder
 
                 Ok(false)
@@ -128,7 +129,7 @@ impl RequestsTimeoutManager {
                 let pre_reserved_requests_count = group.pre_reserved_requests_count;
                 inner.pre_reserved_groups.remove(group_index);
 
-                info!(
+                log::info!(
                     "PreReservedGroup with group_id {} and pre_reserved_requests_count {} was removed",
                     group_id, pre_reserved_requests_count
                 );
@@ -170,9 +171,10 @@ impl RequestsTimeoutManager {
 
         match group {
             None => {
-                error!(
+                log::error!(
                     "Cannot find PreReservedGroup {} for reserve requests instant {:?}",
-                    pre_reserved_group_id, request_type
+                    pre_reserved_group_id,
+                    request_type
                 );
 
                 // TODO save to DataRecorder
@@ -207,7 +209,7 @@ impl RequestsTimeoutManager {
 
                 let request = inner.add_request(request_type, current_time, Some(group.id))?;
 
-                info!(
+                log::info!(
                     "Request {:?} reserved for group with pre_reserved_group_id {},
                     all_available_requests_count {},
                     pre_reserved_groups.len() {},
@@ -244,7 +246,7 @@ impl RequestsTimeoutManager {
         current_time: DateTime,
         cancellation_token: CancellationToken,
     ) -> Result<(JoinHandle<FutureOutcome>, DateTime, Duration)> {
-        // Note: calculation doesnt' support request cancellation
+        // Note: calculation doesn't support request cancellation
         // Note: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
 
         // Algorithm:
@@ -282,9 +284,10 @@ impl RequestsTimeoutManager {
             inner.add_request(request_type, request_start_time, None)?
         };
 
-        info!(
+        log::info!(
             "Request {:?} reserved, available in request_start_time {}",
-            request_type, request_start_time
+            request_type,
+            request_start_time
         );
 
         // TODO save to DataRecorder. Delete drop
@@ -315,11 +318,9 @@ impl RequestsTimeoutManager {
         delay: Duration,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        let delay = delay.to_std().with_context(|| {
-            let msg = "Unable to convert chrono::Duration to std::Duration";
-            log::error!("{}", msg);
-            msg
-        })?;
+        // Should never panic, because function wait_for_request_availability
+        // has one call with guaranteed non-negative delay.
+        let delay: std::time::Duration = delay.to_std_expected();
 
         let sleep_future = sleep(delay);
         let cancellation_token = cancellation_token.when_cancelled();
@@ -346,11 +347,11 @@ impl RequestsTimeoutManager {
     }
 
     fn try_get_strong(
-        weak_timout_manager: Weak<RequestsTimeoutManager>,
+        weak_timeout_manager: Weak<RequestsTimeoutManager>,
     ) -> Result<Arc<RequestsTimeoutManager>> {
-        weak_timout_manager.upgrade().with_context(|| {
+        weak_timeout_manager.upgrade().with_context(|| {
             let error_message = "Unable to upgrade weak reference to RequestsTimeoutManager instance. Probably it's dropped";
-            info!("{}", error_message);
+           log::info!("{}", error_message);
             anyhow!(error_message)
         })
     }

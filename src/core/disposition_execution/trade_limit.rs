@@ -1,5 +1,3 @@
-use log::trace;
-
 use crate::core::disposition_execution::TradeDisposition;
 use crate::core::exchanges::common::Amount;
 use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
@@ -27,7 +25,7 @@ pub fn is_enough_amount_and_cost(
     );
 
     if need_log {
-        trace!("{}", msg);
+        log::trace!("{}", msg);
     }
 
     return Err(msg);

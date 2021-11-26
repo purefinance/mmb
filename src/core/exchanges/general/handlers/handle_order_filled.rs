@@ -1,6 +1,5 @@
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
-use log::{error, info, warn};
 use parking_lot::RwLock;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -81,7 +80,7 @@ impl Exchange {
             self.features.allowed_fill_event_source_type,
             event_data.source_type,
         ) {
-            info!("Ignoring fill {:?}", args_to_log);
+            log::info!("Ignoring fill {:?}", args_to_log);
             return Ok(());
         }
 
@@ -113,7 +112,7 @@ impl Exchange {
                     return self.try_to_create_and_add_order_fill(&mut event_data, &order_ref);
                 }
 
-                info!("Received a fill for not existing order {:?}", &args_to_log);
+                log::info!("Received a fill for not existing order {:?}", &args_to_log);
                 self.buffered_fills_manager.lock().add_fill(
                     self.exchange_account_id,
                     event_data,
@@ -141,9 +140,10 @@ impl Exchange {
                 .map(|fill_trade_id| fill_trade_id == current_trade_id)
                 .unwrap_or(false)
         }) {
-            info!(
+            log::info!(
                 "Trade with {} was received already for order {:?}",
-                current_trade_id, order_ref
+                current_trade_id,
+                order_ref
             );
 
             return true;
@@ -162,7 +162,7 @@ impl Exchange {
             // It happens when WebSocket is glitchy and we miss update and the problem is we have no idea how to handle diff updates
             // after applying a non-diff one as there's no TradeId, so we have to ignore all the diff updates afterwards
             // relying only on fallbacks
-            warn!(
+            log::warn!(
                 "Unable to process a diff fill after a non-diff one {:?}",
                 order_ref
             );
@@ -179,7 +179,7 @@ impl Exchange {
         order_ref: &OrderRef,
     ) -> bool {
         if !event_data.is_diff && order_filled_amount >= event_data.fill_amount {
-            warn!(
+            log::warn!(
                 "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
                 order_filled_amount,
                 event_data.fill_amount,
@@ -201,9 +201,11 @@ impl Exchange {
     ) -> bool {
         if let Some(total_filled_amount) = event_data.total_filled_amount {
             if order_filled_amount + last_fill_amount != total_filled_amount {
-                warn!(
+                log::warn!(
                     "Fill was missed because {} != {} for {:?}",
-                    order_filled_amount, total_filled_amount, order_ref
+                    order_filled_amount,
+                    total_filled_amount,
+                    order_ref
                 );
 
                 return true;
@@ -248,7 +250,7 @@ impl Exchange {
         }
 
         if last_fill_amount.is_zero() {
-            warn!(
+            log::warn!(
                 "last_fill_amount was received for 0 for {}, {:?}",
                 order_ref.client_order_id(),
                 order_ref.exchange_order_id()
@@ -269,9 +271,10 @@ impl Exchange {
         let total_filled_cost: Decimal = order_fills.iter().map(|fill| fill.cost()).sum();
         let cost_diff = last_fill_cost - total_filled_cost;
         if cost_diff <= dec!(0) {
-            warn!(
+            log::warn!(
                 "cost_diff is {} which is <= 0 for {:?}",
-                cost_diff, order_ref
+                cost_diff,
+                order_ref
             );
 
             return None;
@@ -323,7 +326,7 @@ impl Exchange {
                 event_data
             );
 
-            error!("{}", error_msg);
+            log::error!("{}", error_msg);
             bail!("{}", error_msg)
         }
 
@@ -340,13 +343,13 @@ impl Exchange {
                 {
                     let error_msg = format!("Fill has neither commission nor commission rate");
 
-                    error!("{}", error_msg);
+                    log::error!("{}", error_msg);
                     bail!("{}", error_msg)
                 }
 
                 order_ref.role().with_context(|| {
                     let error_msg = format!("Unable to determine order_role");
-                    error!("{}", error_msg);
+                    log::error!("{}", error_msg);
                     error_msg
                 })
             }
@@ -439,9 +442,10 @@ impl Exchange {
                             *converted_commission_currency_code =
                                 currency_pair_metadata.quote_currency_code();
                         }
-                        None => error!(
+                        None => log::error!(
                             "Top bids and asks for {} and currency pair {:?} do not exist",
-                            self.exchange_account_id, currency_pair
+                            self.exchange_account_id,
+                            currency_pair
                         ),
                     }
                 }
@@ -466,7 +470,7 @@ impl Exchange {
                 order_ref.exchange_order_id(),
             );
 
-            error!("{}", error_msg);
+            log::error!("{}", error_msg);
             bail!("{}", error_msg)
         }
 
@@ -483,7 +487,7 @@ impl Exchange {
         self.add_event_on_order_change(order_ref, OrderEventType::OrderFilled { cloned_order })
             .context("Unable to send event, probably receiver is dropped already")?;
 
-        info!(
+        log::info!(
             "Added a fill {} {:?} {} {:?} {:?}",
             self.exchange_account_id,
             event_data.trade_id,
@@ -615,9 +619,11 @@ impl Exchange {
 
         Self::wrong_status_or_cancelled(order_ref, &event_data)?;
 
-        info!(
+        log::info!(
             "Received fill {:?} {} {}",
-            event_data, last_fill_price, last_fill_amount
+            event_data,
+            last_fill_price,
+            last_fill_amount
         );
 
         let commission_currency_code = event_data.commission_currency_code.unwrap_or_else(|| {
@@ -793,7 +799,7 @@ impl Exchange {
     ) -> Result<()> {
         let error_msg = format!("{} {:?}", template, args_to_log);
 
-        error!("{}", error_msg);
+        log::error!("{}", error_msg);
         bail!("{}", error_msg)
     }
 

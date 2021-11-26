@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
 use dashmap::DashMap;
 use itertools::Itertools;
-use log::warn;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 
@@ -50,7 +49,7 @@ impl Exchange {
                     );
 
                     if retry < MAX_RETRIES {
-                        warn!("{}", error_message);
+                        log::warn!("{}", error_message);
                     } else {
                         panic!("{}", error_message);
                     }

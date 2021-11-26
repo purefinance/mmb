@@ -1,5 +1,4 @@
 use actix_web::{error, get, post, web, Error, HttpResponse, Responder};
-use log::{error, warn};
 use std::sync::{mpsc::Sender, Arc};
 
 use crate::core::{
@@ -17,7 +16,7 @@ pub(super) async fn health() -> impl Responder {
 #[post("/stop")]
 pub(super) async fn stop(server_stopper_tx: web::Data<Sender<()>>) -> impl Responder {
     if let Err(error) = server_stopper_tx.send(()) {
-        error!("Unable to send signal to stop actix server: {}", error);
+        log::error!("Unable to send signal to stop actix server: {}", error);
     }
 
     HttpResponse::Ok().body("ControlPanel turned off")
@@ -40,7 +39,7 @@ pub(super) async fn set_config(
             "Error while trying save new config in set_config endpoint: {}",
             err.to_string()
         );
-        warn!("{}", error_message);
+        log::warn!("{}", error_message);
 
         error::ErrorBadRequest(error_message)
     })?;
