@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
+use mmb_lib::core::exchanges::hosts::Hosts;
 use mmb_lib::{
     core::exchanges::common::ExchangeId,
     core::exchanges::{
@@ -16,7 +17,6 @@ use mmb_lib::{
         },
         infrastructure::WithExpect,
         lifecycle::launcher::EngineBuildConfig,
-        settings::Hosts,
     },
     hashmap,
 };

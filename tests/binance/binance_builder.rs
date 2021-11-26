@@ -1,21 +1,19 @@
-use std::sync::Arc;
-
+use anyhow::Result;
 use mmb_lib::core::balance_manager::balance_manager::BalanceManager;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
 use mmb_lib::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
+use mmb_lib::core::exchanges::hosts::Hosts;
 use mmb_lib::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_lib::core::exchanges::{binance::binance::*, general::commission::Commission};
 use mmb_lib::core::lifecycle::application_manager::ApplicationManager;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_lib::core::settings::CurrencyPairSetting;
 use mmb_lib::core::settings::ExchangeSettings;
-
-use anyhow::Result;
-use mmb_lib::core::settings::Hosts;
 use mmb_lib::hashmap;
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::binance::common::get_default_price;
