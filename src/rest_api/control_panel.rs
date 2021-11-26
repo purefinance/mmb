@@ -1,3 +1,4 @@
+use actix_server::ServerHandle;
 use anyhow::Result;
 use futures::executor;
 use parking_lot::Mutex;
@@ -78,23 +79,27 @@ impl ControlPanel {
         .workers(1)
         .run();
 
-        let cloned_server = server.clone();
+        let server_handle = server.handle();
         self.clone()
-            .server_stopping(cloned_server, server_stopper_rx);
+            .server_stopping(server_handle, server_stopper_rx);
 
         self.clone().start_server(server);
 
         Ok(())
     }
 
-    fn server_stopping(self: Arc<Self>, server: Server, server_stopper_rx: mpsc::Receiver<()>) {
+    fn server_stopping(
+        self: Arc<Self>,
+        server_handle: ServerHandle,
+        server_stopper_rx: mpsc::Receiver<()>,
+    ) {
         let cloned_self = self.clone();
         thread::spawn(move || {
             if let Err(error) = server_stopper_rx.recv() {
                 log::error!("Unable to receive signal to stop actix server: {}", error);
             }
 
-            executor::block_on(server.stop(true));
+            executor::block_on(server_handle.stop(true));
 
             if let Some(work_finished_sender) = cloned_self.work_finished_sender.lock().take() {
                 if let Err(_) = work_finished_sender.send(Ok(())) {
