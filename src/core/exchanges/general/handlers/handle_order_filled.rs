@@ -124,7 +124,6 @@ impl Exchange {
                     None,
                 );
 
-                // REVIEW: это нужно было сюда переносить?
                 if let Some(client_order_id) = client_or_order_id_opt {
                     self.raise_order_created(&client_order_id, &exchange_order_id, source_type);
                 }

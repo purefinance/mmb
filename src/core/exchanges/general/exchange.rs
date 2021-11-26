@@ -179,7 +179,6 @@ impl Exchange {
             last_trades_update_time: DashMap::new(),
             last_trades: DashMap::new(),
             balance_manager: Mutex::new(None),
-            // REVIEW: может быть BufferedFillsManager ненужно хранить buffered_fills_by_exchange_id тк для каждого exchange будет свой buffered_fills_manager?
             buffered_fills_manager: Mutex::new(BufferedFillsManager::new()),
             buffered_canceled_orders_manager: Mutex::new(BufferedCanceledOrdersManager::new()),
         });
