@@ -31,11 +31,13 @@ use super::{
     profit_loss_stopper_service::ProfitLossStopperService,
 };
 
+#[derive(Debug)]
 enum BalanceChangeServiceEvent {
     OnTimer,
     BalanceChange(BalanceChange),
 }
 
+#[derive(Debug)]
 struct BalanceChange {
     pub balance_changes: BalanceChangesCalculatorResult,
     pub client_order_fill_id: ClientOrderFillId,
