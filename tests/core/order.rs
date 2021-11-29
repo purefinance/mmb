@@ -26,6 +26,7 @@ use std::sync::Arc;
 ///     exchange_account_id,
 ///     Some("FromExample".to_owned()),
 ///     CancellationToken::default(),
+///     price,
 /// );
 /// order_proxy.amount = dec!(5000); // Optional amount changing
 /// let created_order = order_proxy
@@ -55,6 +56,7 @@ impl OrderProxy {
         exchange_account_id: ExchangeAccountId,
         strategy_name: Option<String>,
         cancellation_token: CancellationToken,
+        price: Price,
     ) -> Self {
         Self {
             client_order_id: ClientOrderId::unique_id(),
@@ -68,7 +70,7 @@ impl OrderProxy {
             reservation_id: None,
             signal_id: None,
             strategy_name: strategy_name.unwrap_or("OrderTest".to_owned()),
-            price: OrderProxy::default_price(),
+            price,
             cancellation_token,
             timeout: Duration::from_secs(5),
         }

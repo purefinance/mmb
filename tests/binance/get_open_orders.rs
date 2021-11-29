@@ -44,12 +44,14 @@ async fn open_orders_exists() {
         exchange_account_id,
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
+        binance_builder.default_price,
     );
 
     let second_order_proxy = OrderProxy::new(
         exchange_account_id,
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
+        binance_builder.default_price,
     );
 
     if let Err(error) = first_order_proxy
@@ -131,6 +133,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         exchange_account_id,
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
+        binance_builder.default_price,
     );
 
     first_order_proxy
@@ -142,9 +145,10 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         exchange_account_id,
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
+        binance_builder.default_price,
     );
     second_order_proxy.currency_pair = CurrencyPair::from_codes("cnd".into(), "btc".into());
-    second_order_proxy.amount = dec!(1000);
+    second_order_proxy.amount = dec!(10000);
 
     second_order_proxy
         .create_order(binance_builder.exchange.clone())

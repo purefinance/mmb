@@ -5,7 +5,7 @@ use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::FutureExt;
 use itertools::Itertools;
-use log::{error, info, warn, Level};
+use log::log;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -15,6 +15,8 @@ use super::commission::Commission;
 use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
+#[cfg(debug_assertions)]
+use crate::core::exchanges::common::SpecificCurrencyPair;
 use crate::core::exchanges::common::{ActivePosition, ClosedPosition, TradePlace};
 use crate::core::exchanges::events::{
     BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
@@ -187,14 +189,14 @@ impl Exchange {
         self.connectivity_manager
             .set_callback_msg_received(Box::new(move |data| match exchange_weak.upgrade() {
                 Some(exchange) => exchange.on_websocket_message(data),
-                None => info!("Unable to upgrade weak reference to Exchange instance"),
+                None => log::info!("Unable to upgrade weak reference to Exchange instance"),
             }));
 
         let exchange_weak = Arc::downgrade(&self);
         self.connectivity_manager
             .set_callback_connecting(Box::new(move || match exchange_weak.upgrade() {
                 Some(exchange) => exchange.on_connecting(),
-                None => info!("Unable to upgrade weak reference to Exchange instance"),
+                None => log::info!("Unable to upgrade weak reference to Exchange instance"),
             }));
     }
 
@@ -205,7 +207,7 @@ impl Exchange {
                 Some(exchange) => {
                     exchange.raise_order_created(&client_order_id, &exchange_order_id, source_type)
                 }
-                None => info!("Unable to upgrade weak reference to Exchange instance",),
+                None => log::info!("Unable to upgrade weak reference to Exchange instance",),
             },
         ));
 
@@ -221,14 +223,14 @@ impl Exchange {
 
                     if let Err(error) = raise_outcome {
                         let error_message = format!("Error in raise_order_cancelled: {:?}", error);
-                        error!("{}", error_message);
+                        log::error!("{}", error_message);
                         exchange
                             .application_manager
                             .clone()
                             .spawn_graceful_shutdown(error_message);
                     };
                 }
-                None => info!("Unable to upgrade weak reference to Exchange instance",),
+                None => log::info!("Unable to upgrade weak reference to Exchange instance",),
             },
         ));
 
@@ -242,14 +244,14 @@ impl Exchange {
                         if let Err(error) = handle_outcome {
                             let error_message =
                                 format!("Error in handle_order_filled: {:?}", error);
-                            error!("{}", error_message);
+                            log::error!("{}", error_message);
                             exchange
                                 .application_manager
                                 .clone()
                                 .spawn_graceful_shutdown(error_message);
                         };
                     }
-                    None => info!("Unable to upgrade weak reference to Exchange instance",),
+                    None => log::info!("Unable to upgrade weak reference to Exchange instance",),
                 }
             }));
 
@@ -269,14 +271,14 @@ impl Exchange {
 
                         if let Err(error) = handle_outcome {
                             let error_message = format!("Error in handle_trade: {:?}", error);
-                            error!("{}", error_message);
+                            log::error!("{}", error_message);
                             exchange
                                 .application_manager
                                 .clone()
                                 .spawn_graceful_shutdown(error_message);
                         };
                     }
-                    None => info!("Unable to upgrade weak reference to Exchange instance",),
+                    None => log::info!("Unable to upgrade weak reference to Exchange instance",),
                 }
             },
         ));
@@ -297,7 +299,7 @@ impl Exchange {
 
         let callback_outcome = self.exchange_client.on_websocket_message(msg);
         if let Err(error) = callback_outcome {
-            warn!(
+            log::warn!(
                 "Error occurred while websocket message processing: {:?}",
                 error
             );
@@ -315,7 +317,7 @@ impl Exchange {
 
         let callback_outcome = self.exchange_client.on_connecting();
         if let Err(error) = callback_outcome {
-            warn!(
+            log::warn!(
                 "Error occurred while websocket message processing: {:?}",
                 error
             );
@@ -323,9 +325,10 @@ impl Exchange {
     }
 
     fn log_websocket_message(&self, msg: &str) {
-        info!(
+        log::info!(
             "Websocket message from {}: {}",
-            self.exchange_account_id, msg
+            self.exchange_account_id,
+            msg
         );
     }
 
@@ -340,7 +343,7 @@ impl Exchange {
 
     async fn try_connect(self: Arc<Self>) {
         // TODO IsWebSocketConnecting()
-        info!("Websocket: Connecting on {}", "test_exchange_id");
+        log::info!("Websocket: Connecting on {}", "test_exchange_id");
 
         // TODO if UsingWebsocket
         // TODO handle results
@@ -438,11 +441,11 @@ impl Exchange {
         write!(&mut msg, " {}", log_template).expect("Writing rest error");
 
         let log_level = match error.error_type {
-            RateLimit | Authentication | InsufficientFunds | InvalidOrder => Level::Error,
-            _ => Level::Warn,
+            RateLimit | Authentication | InsufficientFunds | InvalidOrder => log::Level::Error,
+            _ => log::Level::Warn,
         };
 
-        log::log!(log_level, "{}. Response: {:?}", &msg, response);
+        log!(log_level, "{}. Response: {:?}", &msg, response);
 
         // TODO some HandleRestError via BotBase
 
@@ -474,8 +477,8 @@ impl Exchange {
     ) -> Result<()> {
         let content = &response.content;
         let log_event_level = match serde_json::from_str::<Value>(content) {
-            Ok(_) => Level::Error,
-            Err(_) => Level::Warn,
+            Ok(_) => log::Level::Error,
+            Err(_) => log::Level::Warn,
         };
 
         let mut msg_to_log = format!(
@@ -491,9 +494,9 @@ impl Exchange {
         }
 
         // TODO Add some other fields as Exchange::Id, Exchange::Name
-        log::log!(log_event_level, "{}.", msg_to_log,);
+        log!(log_event_level, "{}.", msg_to_log,);
 
-        if log_event_level == Level::Error {
+        if log_event_level == log::Level::Error {
             bail!("{}", msg_to_log);
         }
 
@@ -897,5 +900,11 @@ impl Exchange {
         // {
         //     DataRecorder.Save(liquidationPrice);
         // }
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair {
+        self.exchange_client
+            .get_specific_currency_pair(currency_pair)
     }
 }

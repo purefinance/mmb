@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
-use crate::core::{infrastructure::spawn_future, DateTime};
+use crate::core::exchanges::common::ToStdExpected;
+use crate::core::infrastructure::spawn_future;
+use crate::core::DateTime;
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use futures::FutureExt;
-use log::error;
 use parking_lot::Mutex;
 use tokio::time::sleep;
 
@@ -93,22 +94,11 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
     }
 
     async fn handle_inner(&self, delay: Duration) {
-        match delay.to_std() {
-            Ok(delay) => {
-                sleep(delay).await;
-                if let Err(error) = (*self.handler.lock())() {
-                    error!(
-                        "Error in MoreOrEqualsAvailableRequestsCountTrigger: {:?}",
-                        error
-                    );
-                }
-            }
-            Err(error) => {
-                error!(
-                    "Unable to convert chrono::Duration to std::Duration: {}",
-                    error
-                );
-            }
+        let delay_std = delay.to_std_expected();
+
+        sleep(delay_std).await;
+        if let Err(error) = (*self.handler.lock())() {
+            log::error!("MoreOrEqualsAvailableRequestsCountTrigger: {:?}", error);
         }
     }
 }

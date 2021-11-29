@@ -6,7 +6,6 @@ use anyhow::Result;
 use futures::future::join_all;
 use futures::FutureExt;
 use itertools::Itertools;
-use log::{error, info, trace};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -37,7 +36,7 @@ pub struct ShutdownService {
 
 impl ShutdownService {
     pub fn register_service(self: &Arc<Self>, service: Arc<dyn Service>) {
-        trace!("Registered in ShutdownService service '{}'", service.name());
+        log::trace!("Registered in ShutdownService service '{}'", service.name());
         self.state.lock().services.push(service);
     }
 
@@ -48,17 +47,17 @@ impl ShutdownService {
     }
 
     pub fn register_actor(&self, name: String, actor: Recipient<GracefulShutdownMsg>) {
-        trace!("Registered in ShutdownService actor '{}'", name);
+        log::trace!("Registered in ShutdownService actor '{}'", name);
         self.state.lock().actors.push(ActorInfo { name, actor });
     }
 
     pub(crate) async fn graceful_shutdown(&self) -> Vec<String> {
         let mut finish_receivers = Vec::new();
 
-        trace!("Prepare to drop services in ShutdownService started");
+        log::trace!("Prepare to drop services in ShutdownService started");
 
         {
-            trace!("Running graceful shutdown for actors started");
+            log::trace!("Running graceful shutdown for actors started");
 
             let state_guard = self.state.lock();
             for actor_info in &state_guard.actors {
@@ -69,29 +68,29 @@ impl ShutdownService {
 
                 let actor_name = format!("actor {}", actor_info.name);
 
-                trace!("Waiting graceful shutdown finishing for {}", actor_name);
+                log::trace!("Waiting graceful shutdown finishing for {}", actor_name);
                 finish_receivers.push((actor_name, receiver));
             }
 
-            trace!("Running graceful shutdown for actors finished");
+            log::trace!("Running graceful shutdown for actors finished");
 
-            trace!("Running graceful shutdown for services started");
+            log::trace!("Running graceful shutdown for services started");
             for service in &state_guard.services {
                 let receiver = service.clone().graceful_shutdown();
 
                 if let Some(receiver) = receiver {
                     let service_name = format!("service {}", service.name());
 
-                    trace!("Waiting finishing graceful shutdown for {}", service_name);
+                    log::trace!("Waiting finishing graceful shutdown for {}", service_name);
                     finish_receivers.push((service_name, receiver));
                 } else {
-                    trace!(
+                    log::trace!(
                         "Service {} not needed waiting graceful shutdown or already finished",
                         service.name()
                     )
                 }
             }
-            trace!("Running graceful shutdown for services finished");
+            log::trace!("Running graceful shutdown for services finished");
         }
 
         // log errors when its came
@@ -101,7 +100,7 @@ impl ShutdownService {
                 receiver.map(
                     move |finishing_service_send_result| match finishing_service_send_result {
                         Err(err) => {
-                            error!(
+                           log::error!(
                                 "Can't receive message for finishing graceful shutdown in {} because of error: {:?}",
                                 service_name,
                                 err
@@ -109,14 +108,14 @@ impl ShutdownService {
                         },
                         Ok(finishing_service_result) => match finishing_service_result {
                             Err(err) => {
-                                error!(
+                               log::error!(
                                     "{} finished on graceful shutdown with error: {:?}",
                                     service_name,
                                     err
                                 );
                             }
                             Ok(_) => {
-                                trace!(
+                               log::trace!(
                                     "Graceful shutdown for {} completed successfully",
                                     service_name
                                 );
@@ -129,16 +128,16 @@ impl ShutdownService {
 
         const TIMEOUT: Duration = Duration::from_secs(3);
         tokio::select! {
-            _ = join_all(finishing_services_futures) => trace!("All services sent finished marker at given time"),
-            _ = sleep(TIMEOUT) => error!("Not all services finished after timeout ({} sec)", TIMEOUT.as_secs()),
+            _ = join_all(finishing_services_futures) =>log::trace!("All services sent finished marker at given time"),
+            _ = sleep(TIMEOUT) =>log::error!("Not all services finished after timeout ({} sec)", TIMEOUT.as_secs()),
         }
 
-        trace!("Prepare to drop services in ShutdownService finished");
+        log::trace!("Prepare to drop services in ShutdownService finished");
 
-        trace!("Stopping actor system");
+        log::trace!("Stopping actor system");
         System::current().stop();
 
-        trace!("Drop services in ShutdownService started");
+        log::trace!("Drop services in ShutdownService started");
 
         let weak_services;
         {
@@ -150,7 +149,7 @@ impl ShutdownService {
                 .collect_vec();
         }
 
-        trace!("Drop services in ShutdownService finished");
+        log::trace!("Drop services in ShutdownService finished");
 
         let not_dropped_services = weak_services
             .iter()
@@ -166,9 +165,9 @@ impl ShutdownService {
             .collect_vec();
 
         if not_dropped_services.is_empty() {
-            info!("After graceful shutdown all services dropped completely")
+            log::info!("After graceful shutdown all services dropped completely")
         } else {
-            error!(
+            log::error!(
                 "After graceful shutdown follow services wasn't dropped:{}{}",
                 text::LINE_ENDING,
                 not_dropped_services.join(text::LINE_ENDING)

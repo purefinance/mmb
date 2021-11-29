@@ -11,7 +11,6 @@ use crate::core::{
 };
 use anyhow::Error;
 use anyhow::{bail, Context};
-use log::{info, warn};
 use parking_lot::RwLock;
 
 use std::sync::Arc;
@@ -31,7 +30,7 @@ impl Exchange {
                 Err(error) => {
                     count += 1;
                     if count < MAX_COUNT {
-                        warn!("{}", error);
+                        log::warn!("{}", error);
                     } else {
                         return Err(error);
                     }
@@ -78,9 +77,10 @@ impl Exchange {
                     .into_result()?;
                 let response = self.exchange_client.request_open_orders().await?;
 
-                info!(
+                log::info!(
                     "get_open_orders() response on {}: {:?}",
-                    self.exchange_account_id, response
+                    self.exchange_account_id,
+                    response
                 );
 
                 if let Some(error) = self.get_rest_error(&response) {

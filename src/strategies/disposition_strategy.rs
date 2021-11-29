@@ -137,7 +137,7 @@ impl ExampleStrategy {
                     x.orders
                         .not_finished
                         .iter()
-                        .map(|y| y.value().deep_clone())
+                        .map(|y| y.clone())
                         .collect_vec()
                 })
                 .collect_vec();

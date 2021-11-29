@@ -1,6 +1,5 @@
 use anyhow::{bail, Result};
 use chrono::Utc;
-use log::{error, info, warn};
 
 use crate::core::{
     exchanges::common::Amount,
@@ -29,7 +28,7 @@ impl Exchange {
         );
 
         if Self::should_ignore_event(self.features.allowed_cancel_event_source_type, source_type) {
-            info!("Ignoring fill {:?}", args_to_log);
+            log::info!("Ignoring fill {:?}", args_to_log);
             return Ok(());
         }
 
@@ -49,7 +48,7 @@ impl Exchange {
                         self.raise_order_created(&client_order_id, &exchange_order_id, source_type)
                     }
                     None => {
-                        error!("cancel_order_succeeded was received for an order which is not in the system {} {:?}",
+                        log::error!("cancel_order_succeeded was received for an order which is not in the system {} {:?}",
                             self.exchange_account_id,
                             exchange_order_id);
                     }
@@ -78,9 +77,12 @@ impl Exchange {
             _ => return false,
         };
 
-        warn!(
+        log::warn!(
             "CancelOrderSucceeded received for {} order {} {:?} {}",
-            arg_to_log, client_order_id, exchange_order_id, self.exchange_account_id
+            arg_to_log,
+            client_order_id,
+            exchange_order_id,
+            self.exchange_account_id
         );
 
         true
@@ -115,7 +117,7 @@ impl Exchange {
         // Usually we raise CancelOrderSucceeded in WaitCancelOrder after a check for fills via fallback
         // but in this particular case the cancellation is triggered by exchange itself, so WaitCancelOrder was never called
         if !is_canceling_from_wait_cancel_order {
-            info!("Adding CancelOrderSucceeded event from handle_cancel_order_succeeded() {:?} {:?} on {}",
+            log::info!("Adding CancelOrderSucceeded event from handle_cancel_order_succeeded() {:?} {:?} on {}",
                 client_order_id,
                 exchange_order_id,
                 self.exchange_account_id);
@@ -131,9 +133,11 @@ impl Exchange {
             self.add_event_on_order_change(order_ref, OrderEventType::CancelOrderSucceeded)?;
         }
 
-        info!(
+        log::info!(
             "Order was successfully cancelled {:?} {:?} on {}",
-            client_order_id, exchange_order_id, self.exchange_account_id
+            client_order_id,
+            exchange_order_id,
+            self.exchange_account_id
         );
 
         // TODO DataRecorder.save(order_ref)
@@ -152,7 +156,7 @@ impl Exchange {
     ) -> Result<()> {
         let error_msg = format!("{} {:?}", template, args_to_log);
 
-        error!("{}", error_msg);
+        log::error!("{}", error_msg);
         bail!("{}", error_msg)
     }
 }

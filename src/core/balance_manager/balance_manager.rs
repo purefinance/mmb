@@ -19,6 +19,7 @@ use crate::core::orders::fill::OrderFill;
 use crate::core::orders::order::{
     ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, OrderType, ReservationId,
 };
+use crate::core::orders::pool::OrderRef;
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::core::DateTime;
 use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
@@ -27,6 +28,7 @@ use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
 use futures::future::join_all;
 use itertools::Itertools;
+use log::log;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -119,7 +121,7 @@ impl BalanceManager {
     pub fn unreserve_rest(&mut self, reservation_id: ReservationId) -> Result<()> {
         let amount = self
             .balance_reservation_manager
-            .try_get_reservation(&reservation_id)
+            .get_reservation(reservation_id)
             .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?
             .unreserved_amount;
         return self.unreserve(reservation_id, amount);
@@ -307,7 +309,7 @@ impl BalanceManager {
                 } else {
                     log::Level::Warn
                 };
-                log::log!(
+                log!(
                     log_level,
                     "Position on {} differs from local {:?} {:?}",
                     exchange_account_id,
@@ -468,7 +470,7 @@ impl BalanceManager {
 
     pub fn clone_and_subtract_not_approved_data(
         this: Arc<Mutex<Self>>,
-        orders: Option<Vec<OrderSnapshot>>,
+        orders: Option<Vec<OrderRef>>,
     ) -> Result<Arc<Mutex<BalanceManager>>> {
         let balance_manager = Self::custom_clone(this.clone());
 
@@ -486,23 +488,34 @@ impl BalanceManager {
 
         let mut applied_orders = HashSet::new();
         for order in orders_to_subtract {
-            if order.props.is_finished() || order.status() == OrderStatus::Creating {
+            let (is_finished, order_type, client_order_id, reservation_id, status) =
+                order.fn_ref(|x| {
+                    (
+                        x.props.is_finished(),
+                        x.header.order_type,
+                        x.header.client_order_id.clone(),
+                        x.header.reservation_id,
+                        x.props.status,
+                    )
+                });
+
+            if is_finished || status == OrderStatus::Creating {
                 continue;
             }
 
-            if order.header.order_type == OrderType::Market {
+            if order_type == OrderType::Market {
                 bail!("Clone doesn't support market orders because we need to know the price")
             }
 
-            if applied_orders.insert(order.header.client_order_id.clone()) {
-                let reservation_id = match order.header.reservation_id {
+            if applied_orders.insert(client_order_id.clone()) {
+                let reservation_id = match reservation_id {
                     Some(reservation_id) => reservation_id,
                     None => continue,
                 };
 
                 bm_locked.unreserve_by_client_order_id(
                     reservation_id,
-                    order.header.client_order_id.clone(),
+                    client_order_id,
                     order.amount(),
                 )?
             }
@@ -553,7 +566,7 @@ impl BalanceManager {
             .fills
             .fills
             .last()
-            .expect(format!("failed to get fills from order {:?}", order_snapshot).as_str());
+            .with_expect(|| format!("failed to get fills from order {:?}", order_snapshot));
 
         self.order_was_filled_with_fill(configuration_descriptor, order_snapshot, order_fill)
     }
@@ -694,7 +707,7 @@ impl BalanceManager {
 
         if order_snapshot.status() == OrderStatus::Canceled {
             if let Some(reservation_id) = order_snapshot.header.reservation_id {
-                if self.try_get_reservation(&reservation_id).is_some() {
+                if self.get_reservation(reservation_id).is_some() {
                     self.balance_reservation_manager
                         .cancel_approved_reservation(
                             reservation_id,
@@ -706,18 +719,14 @@ impl BalanceManager {
         }
     }
 
-    pub fn try_get_reservation(
-        &self,
-        reservation_id: &ReservationId,
-    ) -> Option<&BalanceReservation> {
+    pub fn get_reservation(&self, reservation_id: ReservationId) -> Option<&BalanceReservation> {
         self.balance_reservation_manager
-            .balance_reservation_storage
-            .try_get(reservation_id)
+            .get_reservation(reservation_id)
     }
 
-    pub fn get_reservation(&self, reservation_id: &ReservationId) -> &BalanceReservation {
-        self.try_get_reservation(reservation_id)
-            .expect("failed to get reservation for reservation_id: {}")
+    pub fn get_reservation_expected(&self, reservation_id: ReservationId) -> &BalanceReservation {
+        self.balance_reservation_manager
+            .get_reservation_expected(reservation_id)
     }
 
     pub fn get_mut_reservation(
@@ -725,7 +734,15 @@ impl BalanceManager {
         reservation_id: ReservationId,
     ) -> Option<&mut BalanceReservation> {
         self.balance_reservation_manager
-            .get_mut_reservation(&reservation_id)
+            .get_mut_reservation(reservation_id)
+    }
+
+    pub fn get_mut_reservation_expected(
+        &mut self,
+        reservation_id: ReservationId,
+    ) -> &mut BalanceReservation {
+        self.balance_reservation_manager
+            .get_mut_reservation_expected(reservation_id)
     }
 
     pub fn unreserve_pair(
@@ -736,11 +753,9 @@ impl BalanceManager {
         amount_2: Amount,
     ) {
         self.balance_reservation_manager
-            .unreserve(reservation_id_1, amount_1, &None)
-            .expect(format!("failed to unreserve {} {}", reservation_id_1, amount_1).as_str());
+            .unreserve_expected(reservation_id_1, amount_1, &None);
         self.balance_reservation_manager
-            .unreserve(reservation_id_2, amount_2, &None)
-            .expect(format!("failed to unreserve {} {}", reservation_id_2, amount_2).as_str());
+            .unreserve_expected(reservation_id_2, amount_2, &None);
         self.save_balances();
     }
 
@@ -752,13 +767,12 @@ impl BalanceManager {
     ) {
         self.balance_reservation_manager
             .approve_reservation(reservation_id, client_order_id, amount)
-            .expect(
+            .with_expect(|| {
                 format!(
                     "failed to approve reservation {} {} {} ",
                     reservation_id, client_order_id, amount,
                 )
-                .as_str(),
-            );
+            });
 
         self.save_balances();
     }
@@ -904,14 +918,9 @@ impl BalanceManager {
                         price_quote_to_base,
                     );
                 Some(
-                    currency_pair_metadata
-                        .round_to_remove_amount_precision_error(balance_in_amount_currency_code)
-                        .with_expect(|| {
-                            format!(
-                                "failed to round to remove amount precision error from {:?} for {}",
-                                currency_pair_metadata, balance_in_amount_currency_code
-                            )
-                        }),
+                    currency_pair_metadata.round_to_remove_amount_precision_error_expected(
+                        balance_in_amount_currency_code,
+                    ),
                 )
             }
             None => {

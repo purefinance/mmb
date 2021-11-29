@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use log::warn;
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, oneshot};
 
@@ -75,9 +74,8 @@ fn update_order_book_top_for_exchange(
 ) {
     let trade_place_account = local_snapshots_service.update(order_book_event);
     if let Some(trade_place_account) = &trade_place_account {
-        let snapshot = local_snapshots_service
-            .get_snapshot(trade_place_account.trade_place())
-            .expect("snapshot should exists because we just added one");
+        let snapshot =
+            local_snapshots_service.get_snapshot_expected(trade_place_account.trade_place());
 
         let order_book_top = OrderBookTop {
             ask: snapshot
@@ -106,7 +104,7 @@ impl Service for InternalEventsLoop {
     fn graceful_shutdown(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
         let work_finished_receiver = self.work_finished_receiver.lock().take();
         if work_finished_receiver.is_none() {
-            warn!("'work_finished_receiver' wasn't created when started graceful shutdown in InternalEventsLoop");
+            log::warn!("'work_finished_receiver' wasn't created when started graceful shutdown in InternalEventsLoop");
         }
 
         work_finished_receiver

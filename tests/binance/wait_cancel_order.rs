@@ -54,6 +54,7 @@ async fn cancellation_waited_successfully() {
         exchange_account_id,
         Some("FromCancellationWaitedSuccessfullyTest".to_owned()),
         CancellationToken::default(),
+        binance_builder.default_price,
     );
 
     let order_ref = order_proxy
@@ -101,6 +102,7 @@ async fn cancellation_waited_failed_fallback() {
         exchange_account_id,
         Some("FromCancellationWaitedFailedFallbackTest".to_owned()),
         CancellationToken::default(),
+        binance_builder.default_price,
     );
 
     let order_ref = order_proxy

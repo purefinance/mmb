@@ -10,7 +10,6 @@ use futures::{
     FutureExt,
 };
 use itertools::Itertools;
-use log::{error, trace};
 use parking_lot::{Mutex, RwLock};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -246,7 +245,7 @@ impl ExchangeBlockerEventsProcessor {
         event: ExchangeBlockerInternalEvent,
     ) {
         if events_sender.is_closed() {
-            trace!(
+            log::trace!(
                 "Can't send message to ExchangeBlockerEventsProcessor channel because it is closed"
             );
             return;
@@ -269,7 +268,7 @@ impl ExchangeBlockerEventsProcessor {
             let event = events_receiver.recv().await;
             let event = match event {
                 None => {
-                    trace!("Finished events processing in ExchangeBlocker because event channel was closed");
+                    log::trace!("Finished events processing in ExchangeBlocker because event channel was closed");
                     return;
                 }
                 Some(event) => event,
@@ -280,7 +279,7 @@ impl ExchangeBlockerEventsProcessor {
 
         events_receiver.close();
 
-        trace!("ExchangeBlocker event processing is cancelled");
+        log::trace!("ExchangeBlocker event processing is cancelled");
     }
 
     fn move_next_blocker_state_if_can(
@@ -401,12 +400,12 @@ impl ExchangeBlockerEventsProcessor {
 
         match removed_blocker {
             None => {
-                error!(
+                log::error!(
                     "Can't find blocker {} {} in method ExchangeBlockerEventsProcessor::remove_blocker()",
                     event.blocker_id.exchange_account_id, event.blocker_id.reason);
             }
             Some(_) => {
-                trace!(
+                log::trace!(
                     "Successfully unblocked {} {} in ExchangeBlocker",
                     event.blocker_id.exchange_account_id,
                     event.blocker_id.reason
@@ -421,18 +420,18 @@ impl ExchangeBlockerEventsProcessor {
 
         let processing_handle = match self.processing_handle.lock().take() {
             None => {
-                trace!("ExchangeBlocker::stop_processing() called more then 1 time");
+                log::trace!("ExchangeBlocker::stop_processing() called more then 1 time");
                 return;
             }
             Some(rx) => rx,
         };
 
-        trace!("ExchangeBlocker::stop_processing waiting for completion of processing");
+        log::trace!("ExchangeBlocker::stop_processing waiting for completion of processing");
         processing_handle.abort();
         let res = processing_handle.await;
         if let Err(join_err) = res {
             if join_err.is_panic() {
-                error!(
+                log::error!(
                     "We get panic in ExchangeBlockerEventsProcessor::processing(): {}",
                     join_err
                 )
@@ -528,7 +527,7 @@ impl ExchangeBlocker {
         reason: BlockReason,
         block_type: BlockType,
     ) {
-        trace!(
+        log::trace!(
             "ExchangeBlocker::block() started {} {}",
             exchange_account_id,
             reason
@@ -557,7 +556,7 @@ impl ExchangeBlocker {
             }
         }
 
-        trace!(
+        log::trace!(
             "ExchangeBlocker::block() finished {} {}",
             exchange_account_id,
             reason
@@ -602,7 +601,7 @@ impl ExchangeBlocker {
             }
             BlockType::Manual => match &mut *blocker.timeout.lock() {
                 Timeout::ReadyUnblock => rollback_to_blocked_progress(blocker),
-                Timeout::InProgress { .. } => error!("Can't block exchange by reason untimely until timed blocking by reason will be unblocked")
+                Timeout::InProgress { .. } =>log::error!("Can't block exchange by reason untimely until timed blocking by reason will be unblocked")
             },
         }
     }
@@ -635,7 +634,7 @@ impl ExchangeBlocker {
             sleep_until(end_time).await;
 
             match self_wk.upgrade() {
-                None => trace!(
+                None =>log::trace!(
                     "Can't upgrade exchange blocker reference in unblock timer of ExchangeBlocker for blocker '{}'", &blocker_id
                 ),
                 Some(self_rc) => {
@@ -649,7 +648,7 @@ impl ExchangeBlocker {
                         .get(&reason)
                     {
                         None => {
-                            error!("Not found blocker '{}' on timer tick. If unblock forced, timer should be stopped manually.", &blocker_id)
+                           log::error!("Not found blocker '{}' on timer tick. If unblock forced, timer should be stopped manually.", &blocker_id)
                         }
                         Some(blocker) => *blocker.timeout.lock() = Timeout::ReadyUnblock,
                     }
@@ -663,7 +662,7 @@ impl ExchangeBlocker {
     }
 
     pub fn unblock(&self, exchange_account_id: ExchangeAccountId, reason: BlockReason) {
-        trace!("Unblock started {} {}", exchange_account_id, reason);
+        log::trace!("Unblock started {} {}", exchange_account_id, reason);
 
         let blocker_id = BlockerId::new(exchange_account_id, reason);
 
@@ -689,7 +688,7 @@ impl ExchangeBlocker {
         };
         ExchangeBlockerEventsProcessor::add_event(self.events_sender.lock().deref_mut(), event);
 
-        trace!("Unblock finished {} {}", exchange_account_id, reason);
+        log::trace!("Unblock finished {} {}", exchange_account_id, reason);
     }
 
     pub async fn wait_unblock(
@@ -697,7 +696,7 @@ impl ExchangeBlocker {
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
     ) {
-        trace!(
+        log::trace!(
             "ExchangeBlocker::wait_unblock() started {}",
             exchange_account_id
         );
@@ -729,7 +728,7 @@ impl ExchangeBlocker {
             }
         }
 
-        trace!(
+        log::trace!(
             "ExchangeBlocker::wait_unblock() finished {}",
             exchange_account_id
         );
@@ -741,7 +740,7 @@ impl ExchangeBlocker {
         reason: BlockReason,
         cancellation_token: CancellationToken,
     ) {
-        trace!(
+        log::trace!(
             "ExchangeBlocker::wait_unblock_with_reason started {} {}",
             exchange_account_id,
             reason
@@ -765,7 +764,7 @@ impl ExchangeBlocker {
             _ = cancellation_token.when_cancelled() => return (),
         }
 
-        trace!(
+        log::trace!(
             "ExchangeBlocker::wait_unblock_with_reason finished {} {}",
             exchange_account_id,
             reason
@@ -777,7 +776,7 @@ impl ExchangeBlocker {
     }
 
     pub async fn stop_blocker(&self) {
-        trace!("ExchangeBlocker::stop_blocker() started");
+        log::trace!("ExchangeBlocker::stop_blocker() started");
         self.events_processor.stop_processing().await;
     }
 }
