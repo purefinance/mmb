@@ -5,6 +5,7 @@ use tokio::sync::oneshot;
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
 use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::core::misc::traits_ext::send_expected::SendExpected;
 use crate::core::orders::event::OrderEventType;
 use crate::core::{
     exchanges::common::ExchangeAccountId,
@@ -449,6 +450,9 @@ impl Exchange {
                 // Cause it's already performed in handle_create_order_succeeded
 
                 log::info!("Order was created: {:?}", args_to_log);
+                if let Some(tx) = self.orders_created_events.remove(&client_order_id) {
+                    tx.1.send_expected(());
+                }
 
                 Ok(())
             }
