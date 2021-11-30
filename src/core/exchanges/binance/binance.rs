@@ -404,6 +404,7 @@ impl Binance {
             trade_currency_pair: None,
             order_side: Some(order_side),
             order_amount: None,
+            fill_date: None,
         };
 
         Ok(event_data)

@@ -454,6 +454,7 @@ impl Exchange {
                             trade_currency_pair: None,
                             order_side: None,
                             order_amount: None,
+                            fill_date: None,
                         };
                         self.handle_order_filled(event_data)?;
 
@@ -499,6 +500,7 @@ impl Exchange {
             trade_currency_pair: None,
             order_side: None,
             order_amount: None,
+            fill_date: None,
         };
 
         self.handle_order_filled(event_data)

@@ -4,7 +4,6 @@ use crate::core::{
     exchanges::{common::ExchangeAccountId, general::handlers::handle_order_filled::FillEventData},
     infrastructure::WithExpect,
     orders::order::ExchangeOrderId,
-    DateTime,
 };
 
 use super::buffered_fill::BufferedFill;
@@ -21,12 +20,7 @@ impl BufferedFillsManager {
         }
     }
 
-    pub fn add_fill(
-        &mut self,
-        exchange_account_id: ExchangeAccountId,
-        event_date: FillEventData,
-        fill_date: Option<DateTime>,
-    ) {
+    pub fn add_fill(&mut self, exchange_account_id: ExchangeAccountId, event_date: FillEventData) {
         //likely we got a fill notification before an order creation notification
         let buffered_fill = BufferedFill::new(
             exchange_account_id,
@@ -47,7 +41,7 @@ impl BufferedFillsManager {
             event_date
                 .trade_currency_pair
                 .expect("trade_currency_pair is None"),
-            fill_date,
+            event_date.fill_date,
             event_date.source_type,
         );
 

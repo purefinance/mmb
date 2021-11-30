@@ -427,6 +427,7 @@ impl Exchange {
                             trade_currency_pair: Some(buffered_fill.trade_currency_pair),
                             order_side: buffered_fill.side,
                             order_amount: None,
+                            fill_date: None,
                         })?;
                     }
 
