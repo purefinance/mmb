@@ -17,8 +17,7 @@ where
     T: Send + std::fmt::Debug,
 {
     fn send_expected(self, value: T) {
-        let _ = self
-            .send(value)
+        self.send(value)
             .with_expect(|| format!("{}", UNABLE_TO_SEND));
     }
 }
@@ -37,8 +36,7 @@ where
     T: Send + std::fmt::Debug,
 {
     async fn send_expected_async(&self, value: T) {
-        let _ = self
-            .send(value)
+        self.send(value)
             .await
             .with_expect(|| format!("{}", UNABLE_TO_SEND));
     }
@@ -56,8 +54,7 @@ where
     T: Send + std::fmt::Debug,
 {
     fn send_expected(&self, value: T) {
-        let _ = self
-            .send(value)
+        self.send(value)
             .with_expect(|| format!("{}", UNABLE_TO_SEND));
     }
 }
@@ -67,8 +64,7 @@ where
     T: Send + std::fmt::Debug,
 {
     fn send_expected(&self, value: T) {
-        let _ = self
-            .try_send(value)
+        self.try_send(value)
             .with_expect(|| format!("{}", UNABLE_TO_SEND));
     }
 }
