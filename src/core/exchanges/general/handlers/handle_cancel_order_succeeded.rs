@@ -46,14 +46,12 @@ impl Exchange {
                     .add_order(self.exchange_account_id, exchange_order_id.clone());
 
                 match client_order_id {
-                    Some(client_order_id) => {
-                        self.raise_order_created(&client_order_id, &exchange_order_id, source_type)
-                    }
-                    None => {
+                    Some(client_order_id) => 
+                        self.raise_order_created(&client_order_id, &exchange_order_id, source_type),
+                    None => 
                         log::error!("cancel_order_succeeded was received for an order which is not in the system {} {:?}",
                             self.exchange_account_id,
-                            exchange_order_id);
-                    }
+                            exchange_order_id),
                 }
 
                 Ok(())

@@ -114,9 +114,9 @@ impl Exchange {
 
                 log::info!("Received a fill for not existing order {:?}", &args_to_log);
 
-                let source_type = event_data.source_type.clone();
+                let source_type = event_data.source_type;
                 let exchange_order_id = event_data.exchange_order_id.clone();
-                let client_or_order_id_opt = event_data.client_order_id.clone();
+                let client_or_order_id = event_data.client_order_id.clone();
 
                 self.buffered_fills_manager.lock().add_fill(
                     self.exchange_account_id,
@@ -124,7 +124,7 @@ impl Exchange {
                     None,
                 );
 
-                if let Some(client_order_id) = client_or_order_id_opt {
+                if let Some(client_order_id) = client_or_order_id {
                     self.raise_order_created(&client_order_id, &exchange_order_id, source_type);
                 }
 
