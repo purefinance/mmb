@@ -6,7 +6,7 @@ use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 
 use super::{
-    currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Precision,
+    symbol::Symbol, symbol::Precision,
     exchange::Exchange,
 };
 use crate::core::exchanges::binance::binance::BinanceBuilder;
@@ -41,7 +41,7 @@ pub(crate) fn get_test_exchange_by_currency_codes_and_amount_code(
     amount_currency_code: &str,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let price_tick = dec!(0.1);
-    let symbol = Arc::new(CurrencyPairMetadata::new(
+    let symbol = Arc::new(Symbol::new(
         false,
         is_derivative,
         base_currency_code.into(),
@@ -80,7 +80,7 @@ pub(crate) fn get_test_exchange_by_currency_codes(
 }
 
 pub(crate) fn get_test_exchange_with_symbol(
-    symbol: Arc<CurrencyPairMetadata>,
+    symbol: Arc<Symbol>,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
     get_test_exchange_with_symbol_and_id(
@@ -89,7 +89,7 @@ pub(crate) fn get_test_exchange_with_symbol(
     )
 }
 pub(crate) fn get_test_exchange_with_symbol_and_id(
-    symbol: Arc<CurrencyPairMetadata>,
+    symbol: Arc<Symbol>,
     exchange_account_id: ExchangeAccountId,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let settings = settings::ExchangeSettings::new_short(

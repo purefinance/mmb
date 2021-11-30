@@ -9,7 +9,7 @@ use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::common::ToStdExpected;
 use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::exchanges::general::features::RestFillsType;
 use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
@@ -381,7 +381,7 @@ impl Exchange {
     pub(crate) async fn check_order_fills_using_request_type(
         &self,
         order: &OrderRef,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,

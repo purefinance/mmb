@@ -7,7 +7,7 @@ use crate::core::exchanges::general::currency_pair_to_metadata_converter::Curren
 
 use crate::core::{
     balance_manager::balance_request::BalanceRequest,
-    exchanges::general::currency_pair_metadata::CurrencyPairMetadata,
+    exchanges::general::symbol::Symbol,
     misc::service_value_tree::ServiceValueTree,
     orders::{
         fill::OrderFill,
@@ -54,7 +54,7 @@ impl BalanceChangesCalculator {
         configuration_descriptor: ConfigurationDescriptor,
         order: &OrderSnapshot,
         order_fill: &OrderFill,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
     ) -> BalanceChangesCalculatorResult {
         let price = order_fill.price();
         let filled_amount = order_fill.amount() * symbol.amount_multiplier;

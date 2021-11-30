@@ -9,7 +9,7 @@ use crate::core::{
     exchanges::{
         common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId},
         events::ExchangeBalancesAndPositions,
-        general::currency_pair_metadata::CurrencyPairMetadata,
+        general::symbol::Symbol,
     },
     misc::{derivative_position::DerivativePosition, reserve_parameters::ReserveParameters, time},
     orders::order::{
@@ -34,7 +34,7 @@ pub struct BalanceManagerBase {
     pub configuration_descriptor: ConfigurationDescriptor,
     pub balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     pub seconds_offset_in_mock: Arc<Mutex<u32>>,
-    symbol: Option<Arc<CurrencyPairMetadata>>,
+    symbol: Option<Arc<Symbol>>,
 
     mock_object: time_manager::__now::Context,
     mock_locker: ReentrantMutexGuard<'static, ()>,
@@ -145,7 +145,7 @@ impl BalanceManagerBase {
 }
 
 impl BalanceManagerBase {
-    pub fn symbol(&self) -> Arc<CurrencyPairMetadata> {
+    pub fn symbol(&self) -> Arc<Symbol> {
         match &self.symbol {
             Some(res) => res.clone(),
             None => panic!("should be non None here"),
@@ -163,7 +163,7 @@ impl BalanceManagerBase {
         self.balance_manager = Some(input);
     }
 
-    pub fn set_symbol(&mut self, input: Arc<CurrencyPairMetadata>) {
+    pub fn set_symbol(&mut self, input: Arc<Symbol>) {
         self.symbol = Some(input);
     }
 

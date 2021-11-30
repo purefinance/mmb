@@ -6,7 +6,7 @@ use crate::core::exchanges::common::Amount;
 use crate::core::exchanges::common::CurrencyCode;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::common::Price;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::orders::order::ClientOrderId;
 use crate::core::orders::order::OrderSide;
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
@@ -19,7 +19,7 @@ use rust_decimal_macros::dec;
 pub struct BalanceReservation {
     pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_account_id: ExchangeAccountId,
-    pub symbol: Arc<CurrencyPairMetadata>,
+    pub symbol: Arc<Symbol>,
     pub order_side: OrderSide,
     pub price: Price,
     pub amount: Amount,
@@ -39,7 +39,7 @@ impl BalanceReservation {
     pub fn new(
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         order_side: OrderSide,
         price: Price,
         amount: Amount,

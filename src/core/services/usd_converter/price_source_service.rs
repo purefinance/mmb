@@ -11,7 +11,7 @@ use crate::core::{
     exchanges::{
         common::{Amount, CurrencyCode, ExchangeId, TradePlace},
         events::ExchangeEvent,
-        general::currency_pair_metadata::CurrencyPairMetadata,
+        general::symbol::Symbol,
     },
     infrastructure::{spawn_future, WithExpect},
     lifecycle::cancellation_token::CancellationToken,
@@ -318,7 +318,7 @@ impl PriceSourceService {
     fn add_symbol_to_hashmap(
         currency_code: CurrencyCode,
         exchange_id: ExchangeId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         symbol_by_currency_code: &mut HashMap<CurrencyCode, Vec<RebasePriceStep>>,
     ) {
         let list = symbol_by_currency_code
@@ -445,7 +445,7 @@ pub mod test {
         exchanges::{
             common::{CurrencyPair, ExchangeAccountId},
             general::{
-                currency_pair_metadata::Precision,
+                symbol::Precision,
                 test_helper::{
                     get_test_exchange_by_currency_codes,
                     get_test_exchange_with_symbol,
@@ -480,8 +480,8 @@ pub mod test {
     fn create_symbol(
         base: CurrencyCode,
         quote: CurrencyCode,
-    ) -> Arc<CurrencyPairMetadata> {
-        Arc::new(CurrencyPairMetadata::new(
+    ) -> Arc<Symbol> {
+        Arc::new(Symbol::new(
             false,
             false,
             base.as_str().into(),

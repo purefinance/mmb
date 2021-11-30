@@ -1,6 +1,6 @@
 use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeError, Price};
 use crate::core::exchanges::events::TradeId;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::{ExchangeOrderId, OrderRole};
@@ -58,7 +58,7 @@ impl OrderTrade {
 impl Exchange {
     pub async fn get_order_trades(
         &self,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         let fills_type = &self.features.rest_fills_features.fills_type;
@@ -73,7 +73,7 @@ impl Exchange {
 
     async fn get_my_trades_with_filter(
         &self,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         let my_trades = self.get_my_trades(symbol, None).await?;
@@ -96,7 +96,7 @@ impl Exchange {
 
     pub async fn get_my_trades(
         &self,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         last_date_time: Option<DateTime>,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         // TODO Add metric UseTimeMetric(RequestType::GetMyTrades)

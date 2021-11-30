@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeAccountId, Price};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::core::misc::service_value_tree::ServiceValueTree;
@@ -87,7 +87,7 @@ impl VirtualBalanceHolder {
     pub fn add_balance_by_symbol(
         &mut self,
         request: &BalanceRequest,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         diff_in_amount_currency: Amount,
         price: Price,
     ) {
@@ -124,7 +124,7 @@ impl VirtualBalanceHolder {
     pub fn get_virtual_balance(
         &self,
         balance_request: &BalanceRequest,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         price: Option<Price>,
         explanation: &mut Option<Explanation>,
     ) -> Option<Amount> {
@@ -190,7 +190,7 @@ impl VirtualBalanceHolder {
     pub fn get_exchange_balance(
         &self,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         currency_code: CurrencyCode,
         price: Option<Price>,
     ) -> Option<Amount> {

@@ -32,7 +32,7 @@ pub mod tests {
             exchanges::{
                 common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
                 general::{
-                    currency_pair_metadata::{CurrencyPairMetadata, Precision},
+                    symbol::{Symbol, Precision},
                     exchange::Exchange,
                     test_helper::get_test_exchange_by_currency_codes,
                 },
@@ -147,7 +147,7 @@ pub mod tests {
                 (false, false) => (Self::base(), None),
             };
 
-            let mut symbol = CurrencyPairMetadata::new(
+            let mut symbol = Symbol::new(
                 false,
                 is_derivative,
                 Self::base().as_str().into(),
@@ -396,10 +396,10 @@ pub mod tests {
             base: CurrencyCode,
             quote: CurrencyCode,
             is_derivative: bool,
-        ) -> Arc<CurrencyPairMetadata> {
+        ) -> Arc<Symbol> {
             let amount = if is_derivative { quote } else { base };
 
-            Arc::new(CurrencyPairMetadata::new(
+            Arc::new(Symbol::new(
                 false,
                 is_derivative,
                 base.as_str().into(),

@@ -8,7 +8,7 @@ use crate::core::balances::balance_reservation_manager::BalanceReservationManage
 use crate::core::exchanges::common::{Amount, Price};
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
-use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
+use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::explanation::Explanation;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
@@ -543,7 +543,7 @@ impl BalanceManager {
         &self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> Decimal {
         self.balance_reservation_manager
@@ -604,7 +604,7 @@ impl BalanceManager {
         &mut self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         order_snapshot: &OrderSnapshot,
         order_fill: &OrderFill,
     ) {
@@ -870,7 +870,7 @@ impl BalanceManager {
     pub fn get_exchange_balance(
         &self,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         currency_code: CurrencyCode,
     ) -> Option<Amount> {
         self.balance_reservation_manager
@@ -894,7 +894,7 @@ impl BalanceManager {
         configuration_descriptor: ConfigurationDescriptor,
         side: OrderSide,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         price_quote_to_base: Price,
         explanation: &mut Option<Explanation>,
     ) -> Option<Decimal> {
@@ -939,7 +939,7 @@ impl BalanceManager {
         &self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         currency_code: CurrencyCode,
         price: Price,
     ) -> Option<Amount> {
@@ -957,7 +957,7 @@ impl BalanceManager {
         &self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
         price: Price,
     ) -> Option<Amount> {
@@ -989,7 +989,7 @@ impl BalanceManager {
     pub fn get_balance_reservation_currency_code(
         &self,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> CurrencyCode {
         self.balance_reservation_manager
@@ -1009,7 +1009,7 @@ impl BalanceManager {
         &mut self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         limit: Amount,
     ) {
         self.balance_reservation_manager.set_target_amount_limit(

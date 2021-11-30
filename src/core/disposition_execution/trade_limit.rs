@@ -1,12 +1,12 @@
 use crate::core::disposition_execution::TradeDisposition;
 use crate::core::exchanges::common::Amount;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 
 pub fn is_enough_amount_and_cost(
     disposition: &TradeDisposition,
     amount: Amount,
     need_log: bool,
-    symbol: &CurrencyPairMetadata,
+    symbol: &Symbol,
 ) -> Result<(), String> {
     let min_amount = symbol
         .get_min_amount(disposition.price())

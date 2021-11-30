@@ -8,7 +8,7 @@ use crate::core::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId
 use crate::core::infrastructure::WithExpect;
 use crate::core::settings::CurrencyPairSetting;
 
-use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
+use super::{symbol::Symbol, exchange::Exchange};
 
 impl Exchange {
     pub async fn build_metadata(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {
@@ -36,7 +36,7 @@ impl Exchange {
         ));
     }
 
-    async fn request_metadata_with_retries(&self) -> Vec<Arc<CurrencyPairMetadata>> {
+    async fn request_metadata_with_retries(&self) -> Vec<Arc<Symbol>> {
         const MAX_RETRIES: u8 = 5;
         let mut retry = 0;
         loop {
@@ -60,7 +60,7 @@ impl Exchange {
         }
     }
 
-    async fn build_metadata_core(&self) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
+    async fn build_metadata_core(&self) -> Result<Vec<Arc<Symbol>>> {
         let response = &self.exchange_client.request_metadata().await?;
 
         if let Some(error) = self.get_rest_error(response) {
@@ -84,7 +84,7 @@ impl Exchange {
         }
     }
 
-    fn setup_symbols(&self, symbols: Vec<Arc<CurrencyPairMetadata>>) {
+    fn setup_symbols(&self, symbols: Vec<Arc<Symbol>>) {
         let mut currencies = symbols
             .iter()
             .flat_map(|x| vec![x.base_currency_code, x.quote_currency_code])
@@ -108,7 +108,7 @@ impl Exchange {
 }
 
 fn get_supported_currencies(
-    symbols: &[Arc<CurrencyPairMetadata>],
+    symbols: &[Arc<Symbol>],
 ) -> DashMap<CurrencyCode, CurrencyId> {
     symbols
         .iter()
@@ -123,9 +123,9 @@ fn get_supported_currencies(
 
 fn get_symbols(
     currency_pairs: &[CurrencyPairSetting],
-    exchange_symbols: &[Arc<CurrencyPairMetadata>],
+    exchange_symbols: &[Arc<Symbol>],
     exchange_account_id: ExchangeAccountId,
-) -> Vec<Arc<CurrencyPairMetadata>> {
+) -> Vec<Arc<Symbol>> {
     currency_pairs
         .iter()
         .filter_map(|x| get_matched_currency_pair(x, exchange_symbols, exchange_account_id))
@@ -134,9 +134,9 @@ fn get_symbols(
 
 fn get_matched_currency_pair(
     currency_pair_setting: &CurrencyPairSetting,
-    exchange_symbols: &[Arc<CurrencyPairMetadata>],
+    exchange_symbols: &[Arc<Symbol>],
     exchange_account_id: ExchangeAccountId,
-) -> Option<Arc<CurrencyPairMetadata>> {
+) -> Option<Arc<Symbol>> {
     // currency pair metadata and currency pairs from settings should match 1 to 1
     let settings_currency_pair = currency_pair_setting.currency_pair.as_deref();
     let filtered_metadata = exchange_symbols

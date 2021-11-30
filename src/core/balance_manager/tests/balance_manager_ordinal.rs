@@ -16,7 +16,7 @@ use crate::core::{
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
-            currency_pair_metadata::{CurrencyPairMetadata, Precision},
+            symbol::{Symbol, Precision},
             currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
             exchange::Exchange,
             test_helper::get_test_exchange_with_symbol_and_id,
@@ -36,7 +36,7 @@ pub struct BalanceManagerOrdinal {
 }
 
 impl BalanceManagerOrdinal {
-    fn create_balance_manager() -> (Arc<CurrencyPairMetadata>, Arc<Mutex<BalanceManager>>) {
+    fn create_balance_manager() -> (Arc<Symbol>, Arc<Mutex<BalanceManager>>) {
         let (symbol, exchanges_by_id) =
             BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
         let currency_pair_to_metadata_converter =
@@ -47,12 +47,12 @@ impl BalanceManagerOrdinal {
     }
 
     fn create_balance_manager_ctor_parameters() -> (
-        Arc<CurrencyPairMetadata>,
+        Arc<Symbol>,
         HashMap<ExchangeAccountId, Arc<Exchange>>,
     ) {
         let base = BalanceManagerBase::eth();
         let quote = BalanceManagerBase::btc();
-        let symbol = Arc::from(CurrencyPairMetadata::new(
+        let symbol = Arc::from(Symbol::new(
             false,
             false,
             base.as_str().into(),
@@ -161,8 +161,8 @@ mod tests {
     use crate::core::balance_manager::balance_manager::BalanceManager;
     use crate::core::balance_manager::position_change::PositionChange;
     use crate::core::exchanges::common::{Amount, CurrencyCode, Price, TradePlaceAccount};
-    use crate::core::exchanges::general::currency_pair_metadata::{
-        CurrencyPairMetadata, Precision,
+    use crate::core::exchanges::general::symbol::{
+        Symbol, Precision,
     };
     use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
     use crate::core::logger::init_logger;
@@ -1305,7 +1305,7 @@ mod tests {
         init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let symbol = Arc::from(CurrencyPairMetadata::new(
+        let symbol = Arc::from(Symbol::new(
             false,
             false,
             BalanceManagerBase::eth().as_str().into(),

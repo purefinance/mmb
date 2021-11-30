@@ -23,7 +23,7 @@ use crate::core::exchanges::general::order::get_order_trades::OrderTrade;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
-    general::currency_pair_metadata::CurrencyPairMetadata,
+    general::symbol::Symbol,
     general::handlers::handle_order_filled::FillEventData, traits::Support,
 };
 use crate::core::order_book::event::{EventType, OrderBookEvent};
@@ -34,7 +34,7 @@ use crate::core::settings::ExchangeSettings;
 use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole,
-    exchanges::general::currency_pair_metadata::Precision,
+    exchanges::general::symbol::Precision,
 };
 use crate::core::{
     exchanges::common::{
@@ -308,7 +308,7 @@ impl Support for Binance {
     fn parse_metadata(
         &self,
         response: &RestRequestOutcome,
-    ) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
+    ) -> Result<Vec<Arc<Symbol>>> {
         let deserialized: Value = serde_json::from_str(&response.content)
             .context("Unable to deserialize response from Binance")?;
         let symbols = deserialized
@@ -394,7 +394,7 @@ impl Support for Binance {
                 ),
             };
 
-            let symbol = CurrencyPairMetadata::new(
+            let symbol = Symbol::new(
                 is_active,
                 is_derivative,
                 base_currency_id.as_str().into(),

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::core::balance_manager::balance_reservation::BalanceReservation;
 use crate::core::exchanges::common::{Amount, ExchangeAccountId, Price};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::orders::order::OrderSide;
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
@@ -11,7 +11,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 pub struct ReserveParameters {
     pub(crate) configuration_descriptor: ConfigurationDescriptor,
     pub(crate) exchange_account_id: ExchangeAccountId,
-    pub(crate) symbol: Arc<CurrencyPairMetadata>,
+    pub(crate) symbol: Arc<Symbol>,
     pub(crate) order_side: OrderSide,
     pub(crate) price: Price,
     pub(crate) amount: Amount,
@@ -21,7 +21,7 @@ impl ReserveParameters {
     pub fn new(
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         order_side: OrderSide,
         price: Price,
         amount: Amount,

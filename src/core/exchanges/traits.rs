@@ -13,9 +13,9 @@ use super::{
     },
     common::{Amount, ClosedPosition, CurrencyId, Price},
     events::{ExchangeBalancesAndPositions, TradeId},
-    general::currency_pair_metadata::BeforeAfter,
+    general::symbol::BeforeAfter,
     general::handlers::handle_order_filled::FillEventData,
-    general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
+    general::{symbol::Symbol, order::get_order_trades::OrderTrade},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::events::ExchangeEvent;
@@ -54,7 +54,7 @@ pub trait ExchangeClient: Support {
 
     async fn request_my_trades(
         &self,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome>;
 
@@ -123,11 +123,11 @@ pub trait Support: Send + Sync {
     fn parse_metadata(
         &self,
         response: &RestRequestOutcome,
-    ) -> Result<Vec<Arc<CurrencyPairMetadata>>>;
+    ) -> Result<Vec<Arc<Symbol>>>;
 
     fn get_balance_reservation_currency_code(
         &self,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> CurrencyCode {
         symbol.get_trade_code(side, BeforeAfter::Before)

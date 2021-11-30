@@ -21,7 +21,7 @@ use crate::core::balances::{
 use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
-use crate::core::exchanges::general::currency_pair_metadata::{BeforeAfter, CurrencyPairMetadata};
+use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
@@ -330,7 +330,7 @@ impl BalanceReservationManager {
         &self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         currency_code: CurrencyCode,
         price: Price,
     ) -> Option<Amount> {
@@ -367,7 +367,7 @@ impl BalanceReservationManager {
         &self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
         price: Price,
         include_free_amount: bool,
@@ -497,7 +497,7 @@ impl BalanceReservationManager {
     pub fn get_position_in_amount_currency_code(
         &self,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> Decimal {
         if !symbol.is_derivative {
@@ -517,7 +517,7 @@ impl BalanceReservationManager {
     fn get_unreserved_position_in_amount_currency_code(
         &self,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> Decimal {
         let position = self.get_position_in_amount_currency_code(
@@ -540,7 +540,7 @@ impl BalanceReservationManager {
     fn get_balance_with_applied_limits(
         &self,
         request: &BalanceRequest,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
         mut balance_in_currency_code: Amount,
         price: Price,
@@ -672,7 +672,7 @@ impl BalanceReservationManager {
     }
 
     fn get_untouchable_amount(
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         amount: Amount,
     ) -> Amount {
         // We want to keep the trading engine from reserving all the balance for derivatives as so far we don't take into account
@@ -702,7 +702,7 @@ impl BalanceReservationManager {
         &self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> BalancePositionModel {
         let currency_code = symbol.get_trade_code(side, BeforeAfter::Before);
@@ -905,7 +905,7 @@ impl BalanceReservationManager {
     pub(crate) fn restore_fill_amount_position(
         &mut self,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         new_position: Decimal,
     ) -> Result<()> {
         if !symbol.is_derivative {
@@ -941,7 +941,7 @@ impl BalanceReservationManager {
         &self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> Decimal {
         let position = self.get_position_values(
@@ -967,7 +967,7 @@ impl BalanceReservationManager {
         price: Price,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
     ) -> (Amount, CurrencyCode) {
         let mut change_amount_in_currency = dec!(0);
 
@@ -1124,7 +1124,7 @@ impl BalanceReservationManager {
         price: Price,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
     ) {
         let leverage =
             self.get_leverage(exchange_account_id, symbol.currency_pair());
@@ -1870,7 +1870,7 @@ impl BalanceReservationManager {
         &self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
         price: Price,
         explanation: &mut Option<Explanation>,
@@ -1891,7 +1891,7 @@ impl BalanceReservationManager {
         &mut self,
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         limit: Amount,
     ) {
         for currency_code in [

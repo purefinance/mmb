@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::balances::virtual_balance_holder::VirtualBalanceHolder;
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::test_helper::get_test_exchange_by_currency_codes_and_amount_code;
 use crate::core::exchanges::{
     common::ExchangeAccountId,
@@ -16,7 +16,7 @@ struct VirtualBalanceHolderTests {
     virtual_balance_holder: VirtualBalanceHolder,
     pub exchange_account_id: ExchangeAccountId,
     exchange: Arc<Exchange>,
-    pub symbol: Arc<CurrencyPairMetadata>,
+    pub symbol: Arc<Symbol>,
     configuration_descriptor: ConfigurationDescriptor,
 }
 

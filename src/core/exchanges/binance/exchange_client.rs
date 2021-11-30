@@ -1,6 +1,6 @@
 use super::binance::Binance;
 use crate::core::exchanges::common::{ActivePosition, Price};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
 use crate::core::orders::order::*;
@@ -165,7 +165,7 @@ impl ExchangeClient for Binance {
 
     async fn request_my_trades(
         &self,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         _last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome> {
         let specific_currency_pair =

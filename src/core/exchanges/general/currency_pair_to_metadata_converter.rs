@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::core::exchanges::common::CurrencyPair;
 use crate::core::exchanges::common::ExchangeAccountId;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::infrastructure::WithExpect;
 
@@ -25,7 +25,7 @@ impl CurrencyPairToMetadataConverter {
         &self,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
-    ) -> Arc<CurrencyPairMetadata> {
+    ) -> Arc<Symbol> {
         let exchange = self
             .exchanges_by_id
             .get(&exchange_account_id)

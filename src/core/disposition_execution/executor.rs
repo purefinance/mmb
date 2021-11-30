@@ -15,7 +15,7 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
 use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::explanation::{Explanation, WithExplanation};
@@ -119,7 +119,7 @@ impl Service for DispositionExecutorService {
 struct DispositionExecutor {
     engine_ctx: Arc<EngineContext>,
     exchange_account_id: ExchangeAccountId,
-    symbol: Arc<CurrencyPairMetadata>,
+    symbol: Arc<Symbol>,
     max_amount: Amount,
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     local_snapshots_service: LocalSnapshotsService,

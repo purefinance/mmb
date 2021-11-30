@@ -15,8 +15,7 @@ use crate::core::{
         common::Price,
         events::{AllowedEventSourceType, TradeId},
         general::commission::Percent,
-        general::currency_pair_metadata::CurrencyPairMetadata,
-        general::currency_pair_metadata::Round,
+        general::symbol::{CurrencyPairMetadata, Round},
         general::exchange::Exchange,
     },
     math::ConvertPercentToRate,
@@ -226,7 +225,7 @@ impl Exchange {
 
     fn get_last_fill_data(
         event_data: &mut FillEventData,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         order_fills: &Vec<OrderFill>,
         order_filled_amount: Amount,
         order_ref: &OrderRef,
@@ -295,7 +294,7 @@ impl Exchange {
     fn calculate_last_fill_data(
         last_fill_amount: Amount,
         order_filled_amount: Amount,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         cost_diff: Price,
     ) -> Result<(Price, Amount, Price)> {
         let amount_diff = last_fill_amount - order_filled_amount;
@@ -372,7 +371,7 @@ impl Exchange {
         last_fill_amount: Amount,
         last_fill_price: Price,
         commission_currency_code: CurrencyCode,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
     ) -> Result<Amount> {
         match event_data_commission_amount {
             Some(commission_amount) => Ok(commission_amount.clone()),
@@ -411,7 +410,7 @@ impl Exchange {
     fn update_commission_for_bnb_case(
         &self,
         commission_currency_code: CurrencyCode,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         commission_amount: Amount,
         converted_commission_amount: &mut Amount,
         converted_commission_currency_code: &mut CurrencyCode,
@@ -534,7 +533,7 @@ impl Exchange {
         trade_id: &Option<TradeId>,
         is_diff: bool,
         fill_type: OrderFillType,
-        symbol: &CurrencyPairMetadata,
+        symbol: &Symbol,
         order_ref: &OrderRef,
         converted_commission_currency_code: CurrencyCode,
         last_fill_amount: Amount,
