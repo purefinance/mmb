@@ -103,7 +103,7 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
     let (tx, rx) = broadcast::channel(10);
 
     let binance = Box::new(Binance::new(
-        "Binance0".parse().expect("in test"),
+        "Binance_0".parse().expect("in test"),
         settings.clone(),
         tx.clone(),
         application_manager.clone(),

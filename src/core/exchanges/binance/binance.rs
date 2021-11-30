@@ -491,7 +491,7 @@ mod tests {
         // All values and strings gotten from binanсe API example
         let right_value = "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71";
 
-        let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
 
         let settings = ExchangeSettings::new_short(
             exchange_account_id,

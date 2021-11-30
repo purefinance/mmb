@@ -56,7 +56,7 @@ impl FromStr for ExchangeAccountId {
     type Err = ExchangeIdParseError;
 
     fn from_str(text: &str) -> std::result::Result<Self, Self::Err> {
-        let regex = Regex::new(r"(^[A-Za-z]+)(\d+$)")
+        let regex = Regex::new(r"(^[A-Za-z]+)_(\d+$)")
             .map_err(|err| ExchangeIdParseError(err.to_string()))?;
 
         let captures = regex
@@ -98,7 +98,7 @@ impl<'de> Visitor<'de> for ExchangeAccountIdVisitor {
         v.parse().map_err(|_| {
             de::Error::invalid_value(
                 de::Unexpected::Str(v),
-                &"ExchangeAccountId as a string with account number on the tail",
+                &"ExchangeAccountId as a string with account number on the tail that si separated by a '_' character",
             )
         })
     }
@@ -125,7 +125,7 @@ impl Serialize for ExchangeAccountId {
 
 impl Display for ExchangeAccountId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.exchange_id.as_str(), self.account_number)
+        write!(f, "{}_{}", self.exchange_id.as_str(), self.account_number)
     }
 }
 
@@ -565,7 +565,7 @@ mod tests {
 
         #[test]
         pub fn correct() {
-            let exchange_account_id = "Binance0".parse::<ExchangeAccountId>();
+            let exchange_account_id = "Binance_0".parse::<ExchangeAccountId>();
             assert_eq!(
                 exchange_account_id,
                 Ok(ExchangeAccountId::new("Binance".into(), 0))
@@ -592,7 +592,7 @@ mod tests {
 
         #[test]
         pub fn failed_because_invalid_number() {
-            let exchange_account_id = "binance256".parse::<ExchangeAccountId>();
+            let exchange_account_id = "binance_256".parse::<ExchangeAccountId>();
             assert_eq!(
                 exchange_account_id,
                 Err(ExchangeIdParseError(
@@ -609,9 +609,9 @@ mod tests {
 
         #[test]
         pub fn simple() {
-            let exchange_account_id = "Binance1".parse::<ExchangeAccountId>().expect("in test");
+            let exchange_account_id = "Binance_1".parse::<ExchangeAccountId>().expect("in test");
             let result = exchange_account_id.to_string();
-            assert_eq!(result, "Binance1".to_string())
+            assert_eq!(result, "Binance_1".to_string())
         }
     }
 }

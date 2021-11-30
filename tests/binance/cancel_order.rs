@@ -14,7 +14,7 @@ use crate::core::order::OrderProxy;
 async fn cancelled_successfully() {
     init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
@@ -59,7 +59,7 @@ async fn cancelled_successfully() {
 async fn cancel_opened_orders_successfully() {
     init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
@@ -129,7 +129,7 @@ async fn cancel_opened_orders_successfully() {
 
 #[actix_rt::test]
 async fn nothing_to_cancel() {
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
