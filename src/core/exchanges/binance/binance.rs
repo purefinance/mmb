@@ -382,7 +382,7 @@ impl Binance {
         );
         let fill_date: DateTime = (UNIX_EPOCH
             + Duration::from_millis(
-                json_response["T"]
+                json_response["E"]
                     .as_u64()
                     .ok_or(anyhow!("Unable to parse transaction time"))?,
             ))
