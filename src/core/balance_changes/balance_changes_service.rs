@@ -111,7 +111,7 @@ impl BalanceChangesService {
                         );
                         return;
                     }
-                    let _ = this.tx_event.send_expected_async(BalanceChangeServiceEvent::OnTimer).await;
+                    this.tx_event.send_expected_async(BalanceChangeServiceEvent::OnTimer).await;
                 }.boxed()
             }
         };
@@ -224,6 +224,6 @@ impl BalanceChangesService {
             time_manager::now(),
         ));
 
-        let _ = self.tx_event.send_expected(balance_changes_event);
+        self.tx_event.send_expected(balance_changes_event);
     }
 }

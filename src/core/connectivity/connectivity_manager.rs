@@ -251,7 +251,7 @@ impl ConnectivityManager {
                     ..
                 } = websocket_state_guard.borrow().state
                 {
-                    let _ = finished_sender.send_expected(());
+                    finished_sender.send_expected(());
                 }
             }
 
