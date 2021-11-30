@@ -551,7 +551,7 @@ impl Exchange {
         Ok(())
     }
 
-    fn finish_order_future(&self, order: &OrderRef) {
+    pub fn finish_order_future(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_finish_events.remove(&order.client_order_id()) {
             let _ = tx.send(());
         }

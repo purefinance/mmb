@@ -8,10 +8,13 @@ use tokio::sync::{broadcast, oneshot};
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
+use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::lifecycle::trading_engine::Service;
+use crate::core::nothing_to_do;
 use crate::core::order_book::event::OrderBookEvent;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
+use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::OrderType;
 
 pub(crate) struct InternalEventsLoop {
@@ -53,6 +56,25 @@ impl InternalEventsLoop {
                     )
                 }
                 ExchangeEvent::OrderEvent(order_event) => {
+                    let target_eai = order_event.order.exchange_account_id();
+                    let exchange = exchanges_map
+                        .get(&target_eai)
+                        .with_expect(|| format!("Failed to get Exchange for {}", target_eai));
+
+                    match order_event.event_type {
+                        OrderEventType::CreateOrderSucceeded => {
+                            exchange.create_order_task(&order_event.order);
+                        }
+                        OrderEventType::CreateOrderFailed => {
+                            exchange.create_order_task(&order_event.order);
+                            exchange.finish_order_future(&order_event.order);
+                        }
+                        OrderEventType::CancelOrderSucceeded
+                        | OrderEventType::OrderCompleted { cloned_order: _ } => {
+                            exchange.finish_order_future(&order_event.order);
+                        }
+                        _ => nothing_to_do(),
+                    }
                     if let OrderType::Liquidation = order_event.order.order_type() {
                         // TODO react on order liquidation
                     }

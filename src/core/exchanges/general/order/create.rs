@@ -450,8 +450,6 @@ impl Exchange {
 
                 log::info!("Order was created: {:?}", args_to_log);
 
-                self.create_order_task(order_ref);
-
                 Ok(())
             }
         }
@@ -499,7 +497,7 @@ impl Exchange {
         Ok(())
     }
 
-    fn create_order_task(&self, order: &OrderRef) {
+    pub fn create_order_task(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_created_events.remove(&order.client_order_id()) {
             let _ = tx.send(());
         }
