@@ -394,7 +394,7 @@ impl Support for Binance {
                 ),
             };
 
-            let currency_pair_metadata = CurrencyPairMetadata::new(
+            let symbol = CurrencyPairMetadata::new(
                 is_active,
                 is_derivative,
                 base_currency_id.as_str().into(),
@@ -412,7 +412,7 @@ impl Support for Binance {
                 amount_precision,
             );
 
-            result.push(Arc::new(currency_pair_metadata))
+            result.push(Arc::new(symbol))
         }
 
         Ok(result)

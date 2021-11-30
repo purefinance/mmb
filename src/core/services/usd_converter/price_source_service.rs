@@ -143,7 +143,7 @@ impl PriceSourceEventLoop {
                     .map(|step| {
                         TradePlace::new(
                             step.exchange_id,
-                            step.currency_pair_metadata.currency_pair(),
+                            step.symbol.currency_pair(),
                         )
                     })
             })
@@ -229,21 +229,21 @@ impl PriceSourceService {
                     );
                 }
 
-                let mut currency_pair_metadata_by_currency_code = HashMap::new();
+                let mut symbol_by_currency_code = HashMap::new();
                 for pair in &setting.exchange_id_currency_pair_settings {
                     let metadata = currency_pair_to_metadata_converter
-                        .get_currency_pair_metadata(pair.exchange_account_id, pair.currency_pair);
-                    Self::add_currency_pair_metadata_to_hashmap(
+                        .get_symbol(pair.exchange_account_id, pair.currency_pair);
+                    Self::add_symbol_to_hashmap(
                         metadata.quote_currency_code(),
                         pair.exchange_account_id.exchange_id,
                         metadata.clone(),
-                        &mut currency_pair_metadata_by_currency_code,
+                        &mut symbol_by_currency_code,
                     );
-                    Self::add_currency_pair_metadata_to_hashmap(
+                    Self::add_symbol_to_hashmap(
                         metadata.base_currency_code(),
                         pair.exchange_account_id.exchange_id,
                         metadata.clone(),
-                        &mut currency_pair_metadata_by_currency_code,
+                        &mut symbol_by_currency_code,
                     );
                 }
 
@@ -251,7 +251,7 @@ impl PriceSourceService {
                 let mut current_currency_code = setting.start_currency_code;
 
                 for _ in 0..setting.exchange_id_currency_pair_settings.len() {
-                    let list = currency_pair_metadata_by_currency_code
+                    let list = symbol_by_currency_code
                         .get(&current_currency_code)
                         .with_expect(||
                             Self::format_panic_message(
@@ -276,15 +276,15 @@ impl PriceSourceService {
                     rebase_price_steps.push(step.clone());
 
                     current_currency_code = match step.direction {
-                        RebaseDirection::ToQuote => step.currency_pair_metadata.quote_currency_code,
-                        RebaseDirection::ToBase => step.currency_pair_metadata.base_currency_code,
+                        RebaseDirection::ToQuote => step.symbol.quote_currency_code,
+                        RebaseDirection::ToBase => step.symbol.base_currency_code,
                     };
 
                     if current_currency_code == setting.end_currency_code {
                         break;
                     }
-                    let step_metadata = step.currency_pair_metadata.clone();
-                    currency_pair_metadata_by_currency_code
+                    let step_metadata = step.symbol.clone();
+                    symbol_by_currency_code
                         .get_mut(&current_currency_code)
                         .with_expect(||
                             Self::format_panic_message(
@@ -295,7 +295,7 @@ impl PriceSourceService {
                                 ),
                             ),
                         )
-                        .retain(|x| x.currency_pair_metadata != step_metadata);
+                        .retain(|x| x.symbol != step_metadata);
                 }
                 PriceSourceChain::new(
                     setting.start_currency_code,
@@ -315,22 +315,22 @@ impl PriceSourceService {
         }
     }
 
-    fn add_currency_pair_metadata_to_hashmap(
+    fn add_symbol_to_hashmap(
         currency_code: CurrencyCode,
         exchange_id: ExchangeId,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        currency_pair_metadata_by_currency_code: &mut HashMap<CurrencyCode, Vec<RebasePriceStep>>,
+        symbol: Arc<CurrencyPairMetadata>,
+        symbol_by_currency_code: &mut HashMap<CurrencyCode, Vec<RebasePriceStep>>,
     ) {
-        let list = currency_pair_metadata_by_currency_code
+        let list = symbol_by_currency_code
             .entry(currency_code)
             .or_default();
-        let direction = match currency_code == currency_pair_metadata.base_currency_code() {
+        let direction = match currency_code == symbol.base_currency_code() {
             true => RebaseDirection::ToQuote,
             false => RebaseDirection::ToBase,
         };
         list.push(RebasePriceStep::new(
             exchange_id,
-            currency_pair_metadata,
+            symbol,
             direction,
         ));
     }
@@ -448,7 +448,7 @@ pub mod test {
                 currency_pair_metadata::Precision,
                 test_helper::{
                     get_test_exchange_by_currency_codes,
-                    get_test_exchange_with_currency_pair_metadata,
+                    get_test_exchange_with_symbol,
                 },
             },
         },
@@ -477,7 +477,7 @@ pub mod test {
         }
     }
 
-    fn currency_pair_metadata(
+    fn create_symbol(
         base: CurrencyCode,
         quote: CurrencyCode,
     ) -> Arc<CurrencyPairMetadata> {
@@ -560,15 +560,15 @@ pub mod test {
             }],
         )];
 
-        let currency_pair_metadata = currency_pair_metadata(base, quote);
+        let symbol = create_symbol(base, quote);
 
-        let currency_pair_metadata_cloned = currency_pair_metadata.clone();
+        let symbol_cloned = symbol.clone();
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_currency_pair_metadata().returning(
+        converter.expect_get_symbol().returning(
             move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
-                    get_test_exchange_with_currency_pair_metadata(
-                        currency_pair_metadata_cloned.clone(),
+                    get_test_exchange_with_symbol(
+                        symbol_cloned.clone(),
                     )
                 } else {
                     panic!(
@@ -577,7 +577,7 @@ pub mod test {
                     )
                 }
                 .0
-                .get_currency_pair_metadata(currency_pair)
+                .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
             },
         );
@@ -594,7 +594,7 @@ pub mod test {
             base,
             vec![RebasePriceStep::new(
                 PriceSourceServiceTestBase::exchange_id(),
-                currency_pair_metadata,
+                symbol,
                 RebaseDirection::ToBase,
             )],
         );
@@ -633,22 +633,22 @@ pub mod test {
             ],
         )];
 
-        let currency_pair_metadata_1 = currency_pair_metadata(first_currency, second_currency);
-        let currency_pair_metadata_2 = currency_pair_metadata(third_currency, fourth_currency);
+        let symbol_1 = create_symbol(first_currency, second_currency);
+        let symbol_2 = create_symbol(third_currency, fourth_currency);
 
-        let currency_pair_metadata_1_cloned = currency_pair_metadata_1.clone();
-        let currency_pair_metadata_2_cloned = currency_pair_metadata_2.clone();
+        let symbol_1_cloned = symbol_1.clone();
+        let symbol_2_cloned = symbol_2.clone();
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_currency_pair_metadata().returning(
+        converter.expect_get_symbol().returning(
             move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
-                    get_test_exchange_with_currency_pair_metadata(
-                        currency_pair_metadata_1_cloned.clone(),
+                    get_test_exchange_with_symbol(
+                        symbol_1_cloned.clone(),
                     )
                 } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
                 {
-                    get_test_exchange_with_currency_pair_metadata(
-                        currency_pair_metadata_2_cloned.clone(),
+                    get_test_exchange_with_symbol(
+                        symbol_2_cloned.clone(),
                     )
                 } else {
                     panic!(
@@ -657,7 +657,7 @@ pub mod test {
                     )
                 }
                 .0
-                .get_currency_pair_metadata(currency_pair)
+                .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
             },
         );
@@ -675,12 +675,12 @@ pub mod test {
             vec![
                 RebasePriceStep::new(
                     PriceSourceServiceTestBase::exchange_id(),
-                    currency_pair_metadata_1,
+                    symbol_1,
                     first_pair_direction,
                 ),
                 RebasePriceStep::new(
                     PriceSourceServiceTestBase::exchange_id(),
-                    currency_pair_metadata_2,
+                    symbol_2,
                     second_pair_direction,
                 ),
             ],
@@ -718,29 +718,29 @@ pub mod test {
             ],
         )];
 
-        let currency_pair_metadata_1 = currency_pair_metadata(btc, eos);
-        let currency_pair_metadata_2 = currency_pair_metadata(btc, usdt);
-        let currency_pair_metadata_3 = currency_pair_metadata(karma, eos);
+        let symbol_1 = create_symbol(btc, eos);
+        let symbol_2 = create_symbol(btc, usdt);
+        let symbol_3 = create_symbol(karma, eos);
 
-        let currency_pair_metadata_1_cloned = currency_pair_metadata_1.clone();
-        let currency_pair_metadata_2_cloned = currency_pair_metadata_2.clone();
-        let currency_pair_metadata_3_cloned = currency_pair_metadata_3.clone();
+        let symbol_1_cloned = symbol_1.clone();
+        let symbol_2_cloned = symbol_2.clone();
+        let symbol_3_cloned = symbol_3.clone();
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_currency_pair_metadata().returning(
+        converter.expect_get_symbol().returning(
             move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
-                    get_test_exchange_with_currency_pair_metadata(
-                        currency_pair_metadata_1_cloned.clone(),
+                    get_test_exchange_with_symbol(
+                        symbol_1_cloned.clone(),
                     )
                 } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_3()
                 {
-                    get_test_exchange_with_currency_pair_metadata(
-                        currency_pair_metadata_2_cloned.clone(),
+                    get_test_exchange_with_symbol(
+                        symbol_2_cloned.clone(),
                     )
                 } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
                 {
-                    get_test_exchange_with_currency_pair_metadata(
-                        currency_pair_metadata_3_cloned.clone(),
+                    get_test_exchange_with_symbol(
+                        symbol_3_cloned.clone(),
                     )
                 } else {
                     panic!(
@@ -749,7 +749,7 @@ pub mod test {
                     )
                 }
                 .0
-                .get_currency_pair_metadata(currency_pair)
+                .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
             },
         );
@@ -767,17 +767,17 @@ pub mod test {
             vec![
                 RebasePriceStep::new(
                     PriceSourceServiceTestBase::exchange_id(),
-                    currency_pair_metadata_3,
+                    symbol_3,
                     RebaseDirection::ToQuote,
                 ),
                 RebasePriceStep::new(
                     PriceSourceServiceTestBase::exchange_id(),
-                    currency_pair_metadata_1,
+                    symbol_1,
                     RebaseDirection::ToBase,
                 ),
                 RebasePriceStep::new(
                     PriceSourceServiceTestBase::exchange_id(),
-                    currency_pair_metadata_2,
+                    symbol_2,
                     RebaseDirection::ToQuote,
                 ),
             ],
@@ -817,7 +817,7 @@ pub mod test {
         )];
 
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_currency_pair_metadata().returning(
+        converter.expect_get_symbol().returning(
             move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), eos.as_str())
@@ -834,7 +834,7 @@ pub mod test {
                     )
                 }
                 .0
-                .get_currency_pair_metadata(currency_pair)
+                .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
             },
         );
@@ -873,7 +873,7 @@ pub mod test {
         )];
 
         let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_currency_pair_metadata().returning(
+        converter.expect_get_symbol().returning(
             move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), eos.as_str())
@@ -887,7 +887,7 @@ pub mod test {
                     )
                 }
                 .0
-                .get_currency_pair_metadata(currency_pair)
+                .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
             },
         );

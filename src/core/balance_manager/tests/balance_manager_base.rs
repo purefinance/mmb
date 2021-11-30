@@ -34,7 +34,7 @@ pub struct BalanceManagerBase {
     pub configuration_descriptor: ConfigurationDescriptor,
     pub balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     pub seconds_offset_in_mock: Arc<Mutex<u32>>,
-    currency_pair_metadata: Option<Arc<CurrencyPairMetadata>>,
+    symbol: Option<Arc<CurrencyPairMetadata>>,
 
     mock_object: time_manager::__now::Context,
     mock_locker: ReentrantMutexGuard<'static, ()>,
@@ -136,7 +136,7 @@ impl BalanceManagerBase {
                     .into(),
             ),
             seconds_offset_in_mock,
-            currency_pair_metadata: None,
+            symbol: None,
             balance_manager: None,
             mock_object,
             mock_locker,
@@ -145,8 +145,8 @@ impl BalanceManagerBase {
 }
 
 impl BalanceManagerBase {
-    pub fn currency_pair_metadata(&self) -> Arc<CurrencyPairMetadata> {
-        match &self.currency_pair_metadata {
+    pub fn symbol(&self) -> Arc<CurrencyPairMetadata> {
+        match &self.symbol {
             Some(res) => res.clone(),
             None => panic!("should be non None here"),
         }
@@ -163,8 +163,8 @@ impl BalanceManagerBase {
         self.balance_manager = Some(input);
     }
 
-    pub fn set_currency_pair_metadata(&mut self, input: Arc<CurrencyPairMetadata>) {
-        self.currency_pair_metadata = Some(input);
+    pub fn set_symbol(&mut self, input: Arc<CurrencyPairMetadata>) {
+        self.symbol = Some(input);
     }
 
     pub fn create_balance_request(&self, currency_code: CurrencyCode) -> BalanceRequest {
@@ -185,7 +185,7 @@ impl BalanceManagerBase {
         ReserveParameters::new(
             self.configuration_descriptor,
             self.exchange_account_id_1,
-            self.currency_pair_metadata(),
+            self.symbol(),
             order_side,
             price,
             amount,
@@ -196,7 +196,7 @@ impl BalanceManagerBase {
         self.balance_manager().get_balance_by_side(
             self.configuration_descriptor,
             self.exchange_account_id_1,
-            self.currency_pair_metadata(),
+            self.symbol(),
             side,
             price,
         )
@@ -210,7 +210,7 @@ impl BalanceManagerBase {
         self.balance_manager().get_balance_by_currency_code(
             self.configuration_descriptor,
             self.exchange_account_id_1,
-            self.currency_pair_metadata(),
+            self.symbol(),
             currency_code,
             price,
         )
@@ -225,7 +225,7 @@ impl BalanceManagerBase {
         balance_manager.get_balance_by_currency_code(
             self.configuration_descriptor,
             self.exchange_account_id_1,
-            self.currency_pair_metadata(),
+            self.symbol(),
             currency_code,
             price,
         )
@@ -250,7 +250,7 @@ impl BalanceManagerBase {
                 ClientOrderId::new(format!("order{}", self.order_index).into()),
                 time_manager::now(),
                 self.exchange_account_id_1,
-                self.currency_pair_metadata().currency_pair(),
+                self.symbol().currency_pair(),
                 OrderType::Limit,
                 order_side,
                 amount,

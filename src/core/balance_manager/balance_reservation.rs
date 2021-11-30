@@ -19,7 +19,7 @@ use rust_decimal_macros::dec;
 pub struct BalanceReservation {
     pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_account_id: ExchangeAccountId,
-    pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    pub symbol: Arc<CurrencyPairMetadata>,
     pub order_side: OrderSide,
     pub price: Price,
     pub amount: Amount,
@@ -39,7 +39,7 @@ impl BalanceReservation {
     pub fn new(
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<CurrencyPairMetadata>,
         order_side: OrderSide,
         price: Price,
         amount: Amount,
@@ -50,7 +50,7 @@ impl BalanceReservation {
         Self {
             configuration_descriptor,
             exchange_account_id,
-            currency_pair_metadata,
+            symbol,
             order_side,
             price,
             amount,
@@ -75,18 +75,17 @@ impl BalanceReservation {
     }
 
     pub fn is_amount_within_symbol_margin_error(&self, amount: Amount) -> bool {
-        amount.abs() <= self.currency_pair_metadata.get_amount_tick() * dec!(0.01)
+        amount.abs() <= self.symbol.get_amount_tick() * dec!(0.01)
     }
 
     pub(crate) fn convert_in_reservation_currency(
         &self,
         amount_in_current_currency: Amount,
     ) -> Amount {
-        self.currency_pair_metadata
-            .convert_amount_from_amount_currency_code(
-                self.reservation_currency_code,
-                amount_in_current_currency,
-                self.price,
-            )
+        self.symbol.convert_amount_from_amount_currency_code(
+            self.reservation_currency_code,
+            amount_in_current_currency,
+            self.price,
+        )
     }
 }

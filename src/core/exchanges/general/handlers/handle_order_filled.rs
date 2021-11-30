@@ -226,14 +226,14 @@ impl Exchange {
 
     fn get_last_fill_data(
         event_data: &mut FillEventData,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         order_fills: &Vec<OrderFill>,
         order_filled_amount: Amount,
         order_ref: &OrderRef,
     ) -> Result<Option<(Price, Amount, Price)>> {
         let mut last_fill_amount = event_data.fill_amount;
         let mut last_fill_price = event_data.fill_price;
-        let mut last_fill_cost = if !currency_pair_metadata.is_derivative() {
+        let mut last_fill_cost = if !symbol.is_derivative() {
             last_fill_amount * last_fill_price
         } else {
             last_fill_amount / last_fill_price
@@ -246,7 +246,7 @@ impl Exchange {
                     let (price, amount, cost) = Self::calculate_last_fill_data(
                         last_fill_amount,
                         order_filled_amount,
-                        &currency_pair_metadata,
+                        &symbol,
                         cost_diff,
                     )?;
                     last_fill_price = price;
@@ -295,17 +295,17 @@ impl Exchange {
     fn calculate_last_fill_data(
         last_fill_amount: Amount,
         order_filled_amount: Amount,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         cost_diff: Price,
     ) -> Result<(Price, Amount, Price)> {
         let amount_diff = last_fill_amount - order_filled_amount;
-        let res_fill_price = if !currency_pair_metadata.is_derivative() {
+        let res_fill_price = if !symbol.is_derivative() {
             cost_diff / amount_diff
         } else {
             amount_diff / cost_diff
         };
         let last_fill_price =
-            currency_pair_metadata.price_round(res_fill_price, Round::ToNearest)?;
+            symbol.price_round(res_fill_price, Round::ToNearest)?;
 
         let last_fill_amount = amount_diff;
         let last_fill_cost = cost_diff;
@@ -372,7 +372,7 @@ impl Exchange {
         last_fill_amount: Amount,
         last_fill_price: Price,
         commission_currency_code: CurrencyCode,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
     ) -> Result<Amount> {
         match event_data_commission_amount {
             Some(commission_amount) => Ok(commission_amount.clone()),
@@ -382,7 +382,7 @@ impl Exchange {
                     None => expected_commission_rate,
                 };
 
-                let last_fill_amount_in_currency_code = currency_pair_metadata
+                let last_fill_amount_in_currency_code = symbol
                     .convert_amount_from_amount_currency_code(
                         commission_currency_code,
                         last_fill_amount,
@@ -411,17 +411,17 @@ impl Exchange {
     fn update_commission_for_bnb_case(
         &self,
         commission_currency_code: CurrencyCode,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         commission_amount: Amount,
         converted_commission_amount: &mut Amount,
         converted_commission_currency_code: &mut CurrencyCode,
     ) -> Result<()> {
-        if commission_currency_code != currency_pair_metadata.base_currency_code()
-            && commission_currency_code != currency_pair_metadata.quote_currency_code()
+        if commission_currency_code != symbol.base_currency_code()
+            && commission_currency_code != symbol.quote_currency_code()
         {
             let mut currency_pair = CurrencyPair::from_codes(
                 commission_currency_code,
-                currency_pair_metadata.quote_currency_code(),
+                symbol.quote_currency_code(),
             );
             match self.order_book_top.get(&currency_pair) {
                 Some(top_prices) => {
@@ -432,11 +432,11 @@ impl Exchange {
                     let price_bnb_quote = bid.price;
                     *converted_commission_amount = commission_amount * price_bnb_quote;
                     *converted_commission_currency_code =
-                        currency_pair_metadata.quote_currency_code();
+                        symbol.quote_currency_code();
                 }
                 None => {
                     currency_pair = CurrencyPair::from_codes(
-                        currency_pair_metadata.quote_currency_code(),
+                        symbol.quote_currency_code(),
                         commission_currency_code,
                     );
 
@@ -449,7 +449,7 @@ impl Exchange {
                             let price_quote_bnb = ask.price;
                             *converted_commission_amount = commission_amount / price_quote_bnb;
                             *converted_commission_currency_code =
-                                currency_pair_metadata.quote_currency_code();
+                                symbol.quote_currency_code();
                         }
                         None => log::error!(
                             "Top bids and asks for {} and currency pair {:?} do not exist",
@@ -534,7 +534,7 @@ impl Exchange {
         trade_id: &Option<TradeId>,
         is_diff: bool,
         fill_type: OrderFillType,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         order_ref: &OrderRef,
         converted_commission_currency_code: CurrencyCode,
         last_fill_amount: Amount,
@@ -546,7 +546,7 @@ impl Exchange {
         commission_currency_code: CurrencyCode,
         converted_commission_amount: Amount,
     ) -> Result<OrderFill> {
-        let last_fill_amount_in_converted_commission_currency_code = currency_pair_metadata
+        let last_fill_amount_in_converted_commission_currency_code = symbol
             .convert_amount_from_amount_currency_code(
                 converted_commission_currency_code,
                 last_fill_amount,
@@ -559,7 +559,7 @@ impl Exchange {
         let referral_reward_amount = commission_amount * referral_reward.percent_to_rate();
 
         let rounded_fill_price =
-            currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;
+            symbol.price_round(last_fill_price, Round::ToNearest)?;
 
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
@@ -605,10 +605,10 @@ impl Exchange {
             return Ok(());
         }
 
-        let currency_pair_metadata = self.get_currency_pair_metadata(order_ref.currency_pair())?;
+        let symbol = self.get_symbol(order_ref.currency_pair())?;
         let (last_fill_price, last_fill_amount, last_fill_cost) = match Self::get_last_fill_data(
             &mut event_data,
-            &currency_pair_metadata,
+            &symbol,
             &order_fills,
             order_filled_amount,
             order_ref,
@@ -636,7 +636,7 @@ impl Exchange {
         );
 
         let commission_currency_code = event_data.commission_currency_code.unwrap_or_else(|| {
-            currency_pair_metadata.get_commission_currency_code(order_ref.side())
+            symbol.get_commission_currency_code(order_ref.side())
         });
 
         let order_role = Self::get_order_role(event_data, order_ref)?;
@@ -650,7 +650,7 @@ impl Exchange {
             last_fill_amount,
             last_fill_price,
             commission_currency_code,
-            &currency_pair_metadata,
+            &symbol,
         )?;
 
         let mut converted_commission_currency_code = commission_currency_code;
@@ -658,7 +658,7 @@ impl Exchange {
 
         self.update_commission_for_bnb_case(
             commission_currency_code,
-            &currency_pair_metadata,
+            &symbol,
             commission_amount,
             &mut converted_commission_amount,
             &mut converted_commission_currency_code,
@@ -668,7 +668,7 @@ impl Exchange {
             &event_data.trade_id,
             event_data.is_diff,
             event_data.fill_type,
-            &currency_pair_metadata,
+            &symbol,
             order_ref,
             converted_commission_currency_code,
             last_fill_amount,
@@ -2854,7 +2854,7 @@ mod test {
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let commission_currency_code = CurrencyCode::new("PHB".into());
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let event_data_commission_amount = dec!(6.3);
 
             let commission_amount = Exchange::get_commission_amount(
@@ -2864,7 +2864,7 @@ mod test {
                 last_fill_amount,
                 last_fill_price,
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
             )
             .context("Unable to get commission_amount")?;
 
@@ -2885,7 +2885,7 @@ mod test {
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let commission_currency_code = CurrencyCode::new("PHB".into());
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let commission_amount = Exchange::get_commission_amount(
                 None,
                 Some(commission_rate),
@@ -2893,7 +2893,7 @@ mod test {
                 last_fill_amount,
                 last_fill_price,
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
             )
             .context("Unable to get commission_amount")?;
 
@@ -2930,9 +2930,9 @@ mod test {
 
             let trade_id = Some(trade_id_from_str("test trade_id"));
             let is_diff = true;
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commission_currency_code(order_side);
+                symbol.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);
@@ -2946,7 +2946,7 @@ mod test {
                     &trade_id,
                     is_diff,
                     OrderFillType::Liquidation,
-                    &currency_pair_metadata,
+                    &symbol,
                     &order_ref,
                     converted_commission_currency_code,
                     last_fill_amount,
@@ -2991,9 +2991,9 @@ mod test {
 
             let trade_id = Some(trade_id_from_str("test trade_id"));
             let is_diff = true;
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commission_currency_code(order_side);
+                symbol.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);
@@ -3007,7 +3007,7 @@ mod test {
                     &trade_id,
                     is_diff,
                     OrderFillType::Liquidation,
-                    &currency_pair_metadata,
+                    &symbol,
                     &order_ref,
                     converted_commission_currency_code,
                     last_fill_amount,
@@ -3051,9 +3051,9 @@ mod test {
 
             let trade_id = Some(trade_id_from_str("test trade_id"));
             let is_diff = true;
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commission_currency_code(order_side);
+                symbol.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);
@@ -3067,7 +3067,7 @@ mod test {
                     &trade_id,
                     is_diff,
                     OrderFillType::Liquidation,
-                    &currency_pair_metadata,
+                    &symbol,
                     &order_ref,
                     converted_commission_currency_code,
                     last_fill_amount,
@@ -3229,7 +3229,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange
+            let symbol = exchange
                 .symbols
                 .iter()
                 .next()
@@ -3242,7 +3242,7 @@ mod test {
 
             let currency_pair = CurrencyPair::from_codes(
                 commission_currency_code,
-                currency_pair_metadata.quote_currency_code,
+                symbol.quote_currency_code,
             );
             let order_book_top = OrderBookTop {
                 ask: None,
@@ -3257,7 +3257,7 @@ mod test {
 
             exchange.update_commission_for_bnb_case(
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,
@@ -3277,7 +3277,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange
+            let symbol = exchange
                 .symbols
                 .iter()
                 .next()
@@ -3302,7 +3302,7 @@ mod test {
 
             exchange.update_commission_for_bnb_case(
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,
@@ -3322,7 +3322,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange
+            let symbol = exchange
                 .symbols
                 .iter()
                 .next()
@@ -3335,7 +3335,7 @@ mod test {
 
             exchange.update_commission_for_bnb_case(
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,

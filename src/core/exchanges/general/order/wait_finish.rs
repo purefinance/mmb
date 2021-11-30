@@ -304,9 +304,9 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         let currency_pair = order.currency_pair();
-        let currency_pair_metadata = self.symbols.get(&currency_pair).with_context(|| {
+        let symbol = self.symbols.get(&currency_pair).with_context(|| {
             format!(
-                "No such currency_pair_metadata for given currency_pair {}",
+                "No such symbol for given currency_pair {}",
                 currency_pair,
             )
         })?;
@@ -345,7 +345,7 @@ impl Exchange {
             let result = self
                 .check_order_fills_using_request_type(
                     order,
-                    &currency_pair_metadata,
+                    &symbol,
                     request_type_to_use,
                     pre_reservation_group_id,
                     cancellation_token.clone(),
@@ -381,7 +381,7 @@ impl Exchange {
     pub(crate) async fn check_order_fills_using_request_type(
         &self,
         order: &OrderRef,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
@@ -403,7 +403,7 @@ impl Exchange {
 
         match request_type {
             RequestType::GetOrderTrades => {
-                let order_trades = self.get_order_trades(currency_pair_metadata, order).await?;
+                let order_trades = self.get_order_trades(symbol, order).await?;
 
                 if let RequestResult::Success(ref order_trades) = order_trades {
                     for order_trade in order_trades {

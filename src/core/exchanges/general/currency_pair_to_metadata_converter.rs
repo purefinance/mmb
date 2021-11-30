@@ -21,7 +21,7 @@ impl CurrencyPairToMetadataConverter {
         Arc::new(Self { exchanges_by_id })
     }
 
-    pub(crate) fn get_currency_pair_metadata(
+    pub(crate) fn get_symbol(
         &self,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
@@ -31,12 +31,12 @@ impl CurrencyPairToMetadataConverter {
             .get(&exchange_account_id)
             .with_expect(|| {
                 format!(
-                    "get_currency_pair_metadata failed to get exchange by id: {}",
+                    "get_symbol failed to get exchange by id: {}",
                     exchange_account_id
                 )
             });
         exchange
-            .get_currency_pair_metadata(currency_pair)
+            .get_symbol(currency_pair)
             .expect("failed to get currency pair")
     }
 

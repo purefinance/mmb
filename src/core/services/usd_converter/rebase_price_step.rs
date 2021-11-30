@@ -13,19 +13,19 @@ pub enum RebaseDirection {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RebasePriceStep {
     pub exchange_id: ExchangeId,
-    pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    pub symbol: Arc<CurrencyPairMetadata>,
     pub direction: RebaseDirection,
 }
 
 impl RebasePriceStep {
     pub fn new(
         exchange_id: ExchangeId,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<CurrencyPairMetadata>,
         direction: RebaseDirection,
     ) -> Self {
         Self {
             exchange_id,
-            currency_pair_metadata,
+            symbol,
             direction,
         }
     }

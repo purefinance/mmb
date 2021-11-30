@@ -58,13 +58,13 @@ impl OrderTrade {
 impl Exchange {
     pub async fn get_order_trades(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         let fills_type = &self.features.rest_fills_features.fills_type;
         match fills_type {
             RestFillsType::MyTrades => {
-                self.get_my_trades_with_filter(currency_pair_metadata, order)
+                self.get_my_trades_with_filter(symbol, order)
                     .await
             }
             _ => bail!("Fills type {:?} is not supported", fills_type),
@@ -73,10 +73,10 @@ impl Exchange {
 
     async fn get_my_trades_with_filter(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        let my_trades = self.get_my_trades(currency_pair_metadata, None).await?;
+        let my_trades = self.get_my_trades(symbol, None).await?;
         match my_trades {
             RequestResult::Error(_) => Ok(my_trades),
             RequestResult::Success(my_trades) => {
@@ -96,13 +96,13 @@ impl Exchange {
 
     pub async fn get_my_trades(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         last_date_time: Option<DateTime>,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         // TODO Add metric UseTimeMetric(RequestType::GetMyTrades)
         let response = self
             .exchange_client
-            .request_my_trades(currency_pair_metadata, last_date_time)
+            .request_my_trades(symbol, last_date_time)
             .await?;
 
         match self.get_rest_error(&response) {

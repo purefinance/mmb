@@ -11,7 +11,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 pub struct ReserveParameters {
     pub(crate) configuration_descriptor: ConfigurationDescriptor,
     pub(crate) exchange_account_id: ExchangeAccountId,
-    pub(crate) currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    pub(crate) symbol: Arc<CurrencyPairMetadata>,
     pub(crate) order_side: OrderSide,
     pub(crate) price: Price,
     pub(crate) amount: Amount,
@@ -21,7 +21,7 @@ impl ReserveParameters {
     pub fn new(
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<CurrencyPairMetadata>,
         order_side: OrderSide,
         price: Price,
         amount: Amount,
@@ -29,7 +29,7 @@ impl ReserveParameters {
         Self {
             configuration_descriptor,
             exchange_account_id,
-            currency_pair_metadata,
+            symbol,
             order_side,
             price,
             amount,
@@ -40,7 +40,7 @@ impl ReserveParameters {
         ReserveParameters::new(
             reservation.configuration_descriptor.clone(),
             reservation.exchange_account_id,
-            reservation.currency_pair_metadata.clone(),
+            reservation.symbol.clone(),
             reservation.order_side,
             reservation.price,
             amount,
@@ -54,7 +54,7 @@ impl ReserveParameters {
         Self {
             configuration_descriptor: reservation.configuration_descriptor,
             exchange_account_id: reservation.exchange_account_id,
-            currency_pair_metadata: reservation.currency_pair_metadata,
+            symbol: reservation.symbol,
             order_side: reservation.order_side,
             price,
             amount,

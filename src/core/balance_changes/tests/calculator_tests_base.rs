@@ -170,7 +170,7 @@ pub mod tests {
             let symbol = Arc::new(symbol);
 
             currency_pair_to_symbol_converter
-                .expect_get_currency_pair_metadata()
+                .expect_get_symbol()
                 .returning(move |_, _| symbol.clone());
 
             currency_pair_to_symbol_converter

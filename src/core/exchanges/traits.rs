@@ -54,7 +54,7 @@ pub trait ExchangeClient: Support {
 
     async fn request_my_trades(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome>;
 
@@ -127,10 +127,10 @@ pub trait Support: Send + Sync {
 
     fn get_balance_reservation_currency_code(
         &self,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<CurrencyPairMetadata>,
         side: OrderSide,
     ) -> CurrencyCode {
-        currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
+        symbol.get_trade_code(side, BeforeAfter::Before)
     }
 
     fn parse_get_my_trades(

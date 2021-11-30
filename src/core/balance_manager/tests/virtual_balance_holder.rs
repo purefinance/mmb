@@ -16,7 +16,7 @@ struct VirtualBalanceHolderTests {
     virtual_balance_holder: VirtualBalanceHolder,
     pub exchange_account_id: ExchangeAccountId,
     exchange: Arc<Exchange>,
-    pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    pub symbol: Arc<CurrencyPairMetadata>,
     configuration_descriptor: ConfigurationDescriptor,
 }
 
@@ -50,8 +50,8 @@ impl VirtualBalanceHolderTests {
             virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),
             exchange_account_id,
             exchange: tmp_exchange.clone(),
-            currency_pair_metadata: tmp_exchange
-                .get_currency_pair_metadata(VirtualBalanceHolderTests::currency_pair())
+            symbol: tmp_exchange
+                .get_symbol(VirtualBalanceHolderTests::currency_pair())
                 .expect("in test"),
             configuration_descriptor: ConfigurationDescriptor::new(
                 "service".into(),
@@ -110,7 +110,7 @@ mod tests {
         assert_eq!(
             test_obj.virtual_balance_holder.get_virtual_balance(
                 &balance_request,
-                test_obj.currency_pair_metadata.clone(),
+                test_obj.symbol.clone(),
                 None,
                 &mut None,
             ),
@@ -181,7 +181,7 @@ mod tests {
         assert_eq!(
             test_obj.virtual_balance_holder.get_exchange_balance(
                 test_obj.exchange_account_id,
-                test_obj.currency_pair_metadata,
+                test_obj.symbol,
                 btc,
                 None
             ),

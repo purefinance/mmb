@@ -391,7 +391,7 @@ impl PartialEq for CurrencyPairMetadata {
 }
 
 impl Exchange {
-    pub fn get_currency_pair_metadata(
+    pub fn get_symbol(
         &self,
         currency_pair: CurrencyPair,
     ) -> Result<Arc<CurrencyPairMetadata>> {
@@ -420,7 +420,7 @@ mod test {
         let is_derivative = false;
         let balance_currency_code = CurrencyCode::new("ETH".into());
 
-        let currency_pair_metadata = CurrencyPairMetadata::new(
+        let symbol = CurrencyPairMetadata::new(
             false,
             is_derivative,
             base_currency.into(),
@@ -438,7 +438,7 @@ mod test {
             Precision::ByTick { tick: dec!(0) },
         );
 
-        let gotten = currency_pair_metadata.get_commission_currency_code(OrderSide::Buy);
+        let gotten = symbol.get_commission_currency_code(OrderSide::Buy);
         assert_eq!(gotten, balance_currency_code);
     }
 
@@ -555,7 +555,7 @@ mod test {
 
         let base_code = CurrencyCode::new(base_currency.into());
         let quote_code = CurrencyCode::new(quote_currency.into());
-        let currency_pair_metadata = CurrencyPairMetadata::new(
+        let symbol = CurrencyPairMetadata::new(
             false,
             is_derivative,
             base_currency.into(),
@@ -574,19 +574,19 @@ mod test {
         );
 
         assert_eq!(
-            currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::After),
+            symbol.get_trade_code(OrderSide::Buy, BeforeAfter::After),
             base_code
         );
         assert_eq!(
-            currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::Before),
+            symbol.get_trade_code(OrderSide::Buy, BeforeAfter::Before),
             quote_code
         );
         assert_eq!(
-            currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::After),
+            symbol.get_trade_code(OrderSide::Sell, BeforeAfter::After),
             quote_code
         );
         assert_eq!(
-            currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::Before),
+            symbol.get_trade_code(OrderSide::Sell, BeforeAfter::Before),
             base_code
         );
     }

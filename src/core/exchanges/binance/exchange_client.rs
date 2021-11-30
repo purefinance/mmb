@@ -165,11 +165,11 @@ impl ExchangeClient for Binance {
 
     async fn request_my_trades(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &CurrencyPairMetadata,
         _last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome> {
         let specific_currency_pair =
-            self.get_specific_currency_pair(currency_pair_metadata.currency_pair());
+            self.get_specific_currency_pair(symbol.currency_pair());
         let mut http_params = vec![(
             "symbol".to_owned(),
             specific_currency_pair.as_str().to_owned(),

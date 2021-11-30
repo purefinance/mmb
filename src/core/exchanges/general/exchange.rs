@@ -575,11 +575,11 @@ impl Exchange {
 
     pub fn get_balance_reservation_currency_code(
         &self,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<CurrencyPairMetadata>,
         side: OrderSide,
     ) -> CurrencyCode {
         self.exchange_client
-            .get_balance_reservation_currency_code(currency_pair_metadata, side)
+            .get_balance_reservation_currency_code(symbol, side)
     }
 
     pub async fn close_position(

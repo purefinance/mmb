@@ -119,7 +119,7 @@ impl Service for DispositionExecutorService {
 struct DispositionExecutor {
     engine_ctx: Arc<EngineContext>,
     exchange_account_id: ExchangeAccountId,
-    currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    symbol: Arc<CurrencyPairMetadata>,
     max_amount: Amount,
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     local_snapshots_service: LocalSnapshotsService,
@@ -143,11 +143,11 @@ impl DispositionExecutor {
         cancellation_token: CancellationToken,
         statistics: Arc<StatisticService>,
     ) -> Self {
-        let currency_pair_metadata = engine_ctx
+        let symbol = engine_ctx
             .exchanges
             .get(&exchange_account_id)
             .expect("Target exchange should exists")
-            .get_currency_pair_metadata(currency_pair)
+            .get_symbol(currency_pair)
             .expect("Currency pair metadata should exists for target trading place");
 
         DispositionExecutor {
@@ -155,7 +155,7 @@ impl DispositionExecutor {
             events_receiver,
             local_snapshots_service,
             exchange_account_id,
-            currency_pair_metadata,
+            symbol,
             max_amount,
             orders_state: OrdersState::new(),
             strategy,
@@ -626,7 +626,7 @@ impl DispositionExecutor {
             new_disposition,
             new_order_amount,
             true,
-            &self.currency_pair_metadata,
+            &self.symbol,
         ) {
             return log_trace(
                 format!("Finished `try_create_order` by reason: {}", reason),
@@ -655,7 +655,7 @@ impl DispositionExecutor {
         let target_reserve_parameters = ReserveParameters::new(
             self.strategy.configuration_descriptor(),
             self.exchange_account_id,
-            self.currency_pair_metadata.clone(),
+            self.symbol.clone(),
             new_disposition.side(),
             new_disposition.price(),
             new_order_amount,
@@ -735,7 +735,7 @@ impl DispositionExecutor {
             new_client_order_id.clone(),
             now,
             self.exchange_account_id,
-            self.currency_pair_metadata.currency_pair(),
+            self.symbol.currency_pair(),
             OrderType::Limit,
             new_disposition.side(),
             new_order_amount,
