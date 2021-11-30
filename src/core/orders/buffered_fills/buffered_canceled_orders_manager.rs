@@ -19,10 +19,9 @@ impl BufferedCanceledOrdersManager {
         exchange_account_id: ExchangeAccountId,
         exchange_order_id: ExchangeOrderId,
     ) {
-        self.buffered_orders_by_exchange_order_id
-            .entry(exchange_order_id)
-            .and_modify(|v| *v = exchange_account_id)
-            .or_insert(exchange_account_id);
+        let _ = self
+            .buffered_orders_by_exchange_order_id
+            .insert(exchange_order_id, exchange_account_id);
     }
 
     pub fn is_order_buffered(&self, exchange_order_id: &ExchangeOrderId) -> bool {

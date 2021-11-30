@@ -9,14 +9,13 @@ use crate::core::{
 use super::buffered_fill::BufferedFill;
 
 pub struct BufferedFillsManager {
-    buffered_fills_by_exchange_order_id: HashMap<ExchangeOrderId, Vec<BufferedFill>>,
+    buffered_fills: HashMap<ExchangeOrderId, Vec<BufferedFill>>,
 }
 
 impl BufferedFillsManager {
     pub fn new() -> Self {
         Self {
-            buffered_fills_by_exchange_order_id: HashMap::<ExchangeOrderId, Vec<BufferedFill>>::new(
-            ),
+            buffered_fills: HashMap::<ExchangeOrderId, Vec<BufferedFill>>::new(),
         }
     }
 
@@ -46,7 +45,7 @@ impl BufferedFillsManager {
         );
 
         let buffered_fill_vec = self
-            .buffered_fills_by_exchange_order_id
+            .buffered_fills
             .entry(event_date.exchange_order_id.clone())
             .or_default();
 
@@ -67,19 +66,16 @@ impl BufferedFillsManager {
         );
     }
 
-    pub fn get_fills(&self, exchange_order_id: &ExchangeOrderId) -> Option<Vec<BufferedFill>> {
-        self.buffered_fills_by_exchange_order_id
-            .get(exchange_order_id)
-            .cloned()
+    pub fn get_fills(&self, exchange_order_id: &ExchangeOrderId) -> Option<&Vec<BufferedFill>> {
+        self.buffered_fills.get(exchange_order_id)
     }
 
-    pub fn get_fills_expected(&self, exchange_order_id: &ExchangeOrderId) -> Vec<BufferedFill> {
+    pub fn get_fills_expected(&self, exchange_order_id: &ExchangeOrderId) -> &Vec<BufferedFill> {
         self.get_fills(exchange_order_id)
             .with_expect(|| format!("failed to get buffered fills for {}", exchange_order_id))
     }
 
     pub fn remove_fills(&mut self, exchange_order_id: &ExchangeOrderId) {
-        self.buffered_fills_by_exchange_order_id
-            .remove(exchange_order_id);
+        self.buffered_fills.remove(exchange_order_id);
     }
 }

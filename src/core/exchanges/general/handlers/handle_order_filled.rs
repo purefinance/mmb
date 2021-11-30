@@ -852,7 +852,7 @@ mod test {
     };
 
     fn trade_id_from_str(str: &str) -> TradeId {
-        TradeId::from(json!(str))
+        json!(str).into()
     }
 
     mod liquidation {

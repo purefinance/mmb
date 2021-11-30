@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
@@ -379,6 +380,13 @@ impl Binance {
                 .as_str()
                 .ok_or(anyhow!("Unable to parse last filled amount"))?,
         );
+        let fill_date: DateTime = (UNIX_EPOCH
+            + Duration::from_millis(
+                json_response["T"]
+                    .as_u64()
+                    .ok_or(anyhow!("Unable to parse transaction time"))?,
+            ))
+        .into();
 
         let fill_type = Self::get_fill_type(execution_type)?;
         let order_role = if is_maker {
@@ -404,7 +412,7 @@ impl Binance {
             trade_currency_pair: None,
             order_side: Some(order_side),
             order_amount: None,
-            fill_date: None,
+            fill_date: Some(fill_date),
         };
 
         Ok(event_data)

@@ -4,10 +4,11 @@ use crate::core::{
     exchanges::{
         common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
         events::TradeId,
+        general::handlers::handle_order_filled::FillEventData,
     },
     orders::{
         fill::{EventSourceType, OrderFillType},
-        order::{ExchangeOrderId, OrderRole, OrderSide},
+        order::{ClientOrderId, ExchangeOrderId, OrderRole, OrderSide},
     },
     DateTime,
 };
@@ -26,7 +27,7 @@ pub struct BufferedFill {
     pub commission_rate: Option<Decimal>,
     pub commission_amount: Option<Amount>,
     pub side: Option<OrderSide>,
-    pub order_fill_type: OrderFillType,
+    pub fill_type: OrderFillType,
     pub trade_currency_pair: CurrencyPair,
     pub fill_date: Option<DateTime>,
     pub event_source_type: EventSourceType,
@@ -46,7 +47,7 @@ impl BufferedFill {
         commission_rate: Option<Decimal>,
         commission_amount: Option<Amount>,
         side: Option<OrderSide>,
-        order_fill_type: OrderFillType,
+        fill_type: OrderFillType,
         trade_currency_pair: CurrencyPair,
         fill_date: Option<DateTime>,
         event_source_type: EventSourceType,
@@ -64,10 +65,36 @@ impl BufferedFill {
             commission_rate,
             commission_amount,
             side,
-            order_fill_type,
+            fill_type,
             trade_currency_pair,
             fill_date,
             event_source_type,
+        }
+    }
+
+    pub fn to_fill_event_data(
+        &self,
+        order_amount: Option<Decimal>,
+        client_order_id: ClientOrderId,
+    ) -> FillEventData {
+        FillEventData {
+            source_type: self.event_source_type,
+            trade_id: Some(self.trade_id.clone()),
+            client_order_id: Some(client_order_id),
+            exchange_order_id: self.exchange_order_id.clone(),
+            fill_price: self.fill_price,
+            fill_amount: self.fill_amount,
+            is_diff: self.is_diff,
+            total_filled_amount: self.total_filled_amount,
+            order_role: self.order_role,
+            commission_currency_code: Some(self.commission_currency_code),
+            commission_rate: self.commission_rate,
+            commission_amount: self.commission_amount,
+            fill_type: self.fill_type,
+            trade_currency_pair: Some(self.trade_currency_pair),
+            order_side: self.side,
+            order_amount,
+            fill_date: self.fill_date,
         }
     }
 }
