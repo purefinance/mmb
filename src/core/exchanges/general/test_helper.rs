@@ -5,10 +5,7 @@ use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 
-use super::{
-    symbol::Symbol, symbol::Precision,
-    exchange::Exchange,
-};
+use super::{exchange::Exchange, symbol::Precision, symbol::Symbol};
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::*;
@@ -83,10 +80,7 @@ pub(crate) fn get_test_exchange_with_symbol(
     symbol: Arc<Symbol>,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
-    get_test_exchange_with_symbol_and_id(
-        symbol,
-        exchange_account_id,
-    )
+    get_test_exchange_with_symbol_and_id(symbol, exchange_account_id)
 }
 pub(crate) fn get_test_exchange_with_symbol_and_id(
     symbol: Arc<Symbol>,
@@ -139,18 +133,12 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
     exchange
         .leverage_by_currency_pair
         .insert(symbol.currency_pair(), dec!(1));
-    exchange
-        .currencies
-        .lock()
-        .push(symbol.base_currency_code());
+    exchange.currencies.lock().push(symbol.base_currency_code());
     exchange
         .currencies
         .lock()
         .push(symbol.quote_currency_code());
-    exchange.symbols.insert(
-        symbol.currency_pair(),
-        symbol,
-    );
+    exchange.symbols.insert(symbol.currency_pair(), symbol);
 
     (exchange, rx)
 }

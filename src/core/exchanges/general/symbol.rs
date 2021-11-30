@@ -391,10 +391,7 @@ impl PartialEq for Symbol {
 }
 
 impl Exchange {
-    pub fn get_symbol(
-        &self,
-        currency_pair: CurrencyPair,
-    ) -> Result<Arc<Symbol>> {
+    pub fn get_symbol(&self, currency_pair: CurrencyPair) -> Result<Arc<Symbol>> {
         self.symbols
             .get(&currency_pair)
             .with_context(|| {

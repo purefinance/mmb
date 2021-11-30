@@ -8,7 +8,7 @@ use crate::core::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId
 use crate::core::infrastructure::WithExpect;
 use crate::core::settings::CurrencyPairSetting;
 
-use super::{symbol::Symbol, exchange::Exchange};
+use super::{exchange::Exchange, symbol::Symbol};
 
 impl Exchange {
     pub async fn build_metadata(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {
@@ -107,9 +107,7 @@ impl Exchange {
     }
 }
 
-fn get_supported_currencies(
-    symbols: &[Arc<Symbol>],
-) -> DashMap<CurrencyCode, CurrencyId> {
+fn get_supported_currencies(symbols: &[Arc<Symbol>]) -> DashMap<CurrencyCode, CurrencyId> {
     symbols
         .iter()
         .flat_map(|s| {

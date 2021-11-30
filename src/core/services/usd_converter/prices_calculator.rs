@@ -31,10 +31,7 @@ fn calculate_amount_for_chain(
     let mut rebase_price = dec!(1);
 
     for step in &price_source_chain.rebase_price_steps {
-        let trade_place = TradePlace::new(
-            step.exchange_id,
-            step.symbol.currency_pair(),
-        );
+        let trade_place = TradePlace::new(step.exchange_id, step.symbol.currency_pair());
         let calculated_price = (calculate_price)(trade_place)?;
 
         match step.direction {
@@ -126,8 +123,9 @@ mod test {
         )];
 
         let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_symbol().returning(
-            move |exchange_account_id, currency_pair| {
+        converter
+            .expect_get_symbol()
+            .returning(move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, "USDT", "BTC")
                 } else {
@@ -139,8 +137,7 @@ mod test {
                 .0
                 .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
-            },
-        );
+            });
 
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             &price_source_settings,
@@ -280,8 +277,9 @@ mod test {
         )];
 
         let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_symbol().returning(
-            move |exchange_account_id, currency_pair| {
+        converter
+            .expect_get_symbol()
+            .returning(move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, "USDT", "BTC")
                 } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
@@ -296,8 +294,7 @@ mod test {
                 .0
                 .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
-            },
-        );
+            });
 
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             &price_source_settings,

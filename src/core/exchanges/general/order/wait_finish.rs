@@ -9,11 +9,11 @@ use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::common::ToStdExpected;
 use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
-use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::exchanges::general::features::RestFillsType;
 use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::general::request_type::RequestType;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::infrastructure::spawn_future_timed;
 use crate::core::nothing_to_do;
@@ -305,10 +305,7 @@ impl Exchange {
     ) -> Result<()> {
         let currency_pair = order.currency_pair();
         let symbol = self.symbols.get(&currency_pair).with_context(|| {
-            format!(
-                "No such symbol for given currency_pair {}",
-                currency_pair,
-            )
+            format!("No such symbol for given currency_pair {}", currency_pair,)
         })?;
 
         let rest_fills_type = &self.features.rest_fills_features.fills_type;

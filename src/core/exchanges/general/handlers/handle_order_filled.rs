@@ -15,7 +15,7 @@ use crate::core::{
         common::Price,
         events::{AllowedEventSourceType, TradeId},
         general::commission::Percent,
-        general::symbol::{CurrencyPairMetadata, Round},
+        general::symbol::{Symbol, Round},
         general::exchange::Exchange,
     },
     math::ConvertPercentToRate,
@@ -303,8 +303,7 @@ impl Exchange {
         } else {
             amount_diff / cost_diff
         };
-        let last_fill_price =
-            symbol.price_round(res_fill_price, Round::ToNearest)?;
+        let last_fill_price = symbol.price_round(res_fill_price, Round::ToNearest)?;
 
         let last_fill_amount = amount_diff;
         let last_fill_cost = cost_diff;
@@ -418,10 +417,8 @@ impl Exchange {
         if commission_currency_code != symbol.base_currency_code()
             && commission_currency_code != symbol.quote_currency_code()
         {
-            let mut currency_pair = CurrencyPair::from_codes(
-                commission_currency_code,
-                symbol.quote_currency_code(),
-            );
+            let mut currency_pair =
+                CurrencyPair::from_codes(commission_currency_code, symbol.quote_currency_code());
             match self.order_book_top.get(&currency_pair) {
                 Some(top_prices) => {
                     let bid = top_prices
@@ -430,8 +427,7 @@ impl Exchange {
                         .context("There are no top bid in order book")?;
                     let price_bnb_quote = bid.price;
                     *converted_commission_amount = commission_amount * price_bnb_quote;
-                    *converted_commission_currency_code =
-                        symbol.quote_currency_code();
+                    *converted_commission_currency_code = symbol.quote_currency_code();
                 }
                 None => {
                     currency_pair = CurrencyPair::from_codes(
@@ -447,8 +443,7 @@ impl Exchange {
                                 .context("There are no top ask in order book")?;
                             let price_quote_bnb = ask.price;
                             *converted_commission_amount = commission_amount / price_quote_bnb;
-                            *converted_commission_currency_code =
-                                symbol.quote_currency_code();
+                            *converted_commission_currency_code = symbol.quote_currency_code();
                         }
                         None => log::error!(
                             "Top bids and asks for {} and currency pair {:?} do not exist",
@@ -557,8 +552,7 @@ impl Exchange {
         let referral_reward = self.commission.get_commission(order_role).referral_reward;
         let referral_reward_amount = commission_amount * referral_reward.percent_to_rate();
 
-        let rounded_fill_price =
-            symbol.price_round(last_fill_price, Round::ToNearest)?;
+        let rounded_fill_price = symbol.price_round(last_fill_price, Round::ToNearest)?;
 
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
@@ -634,9 +628,9 @@ impl Exchange {
             last_fill_amount
         );
 
-        let commission_currency_code = event_data.commission_currency_code.unwrap_or_else(|| {
-            symbol.get_commission_currency_code(order_ref.side())
-        });
+        let commission_currency_code = event_data
+            .commission_currency_code
+            .unwrap_or_else(|| symbol.get_commission_currency_code(order_ref.side()));
 
         let order_role = Self::get_order_role(event_data, order_ref)?;
 
@@ -3239,10 +3233,8 @@ mod test {
             let mut converted_commission_amount = dec!(4.5);
             let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
 
-            let currency_pair = CurrencyPair::from_codes(
-                commission_currency_code,
-                symbol.quote_currency_code,
-            );
+            let currency_pair =
+                CurrencyPair::from_codes(commission_currency_code, symbol.quote_currency_code);
             let order_book_top = OrderBookTop {
                 ask: None,
                 bid: Some(PriceLevel {

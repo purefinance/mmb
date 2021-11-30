@@ -32,8 +32,8 @@ pub mod tests {
             exchanges::{
                 common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
                 general::{
-                    symbol::{Symbol, Precision},
                     exchange::Exchange,
+                    symbol::{Precision, Symbol},
                     test_helper::get_test_exchange_by_currency_codes,
                 },
             },

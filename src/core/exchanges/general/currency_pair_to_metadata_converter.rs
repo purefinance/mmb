@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use crate::core::exchanges::common::CurrencyPair;
 use crate::core::exchanges::common::ExchangeAccountId;
-use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::Exchange;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::infrastructure::WithExpect;
 
 #[derive(Clone)]

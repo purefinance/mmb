@@ -16,9 +16,9 @@ use crate::core::{
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
-            symbol::{Symbol, Precision},
             currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
             exchange::Exchange,
+            symbol::{Precision, Symbol},
             test_helper::get_test_exchange_with_symbol_and_id,
         },
     },
@@ -46,10 +46,8 @@ impl BalanceManagerOrdinal {
         (symbol, balance_manager)
     }
 
-    fn create_balance_manager_ctor_parameters() -> (
-        Arc<Symbol>,
-        HashMap<ExchangeAccountId, Arc<Exchange>>,
-    ) {
+    fn create_balance_manager_ctor_parameters(
+    ) -> (Arc<Symbol>, HashMap<ExchangeAccountId, Arc<Exchange>>) {
         let base = BalanceManagerBase::eth();
         let quote = BalanceManagerBase::btc();
         let symbol = Arc::from(Symbol::new(
@@ -89,8 +87,7 @@ impl BalanceManagerOrdinal {
     }
 
     fn new() -> Self {
-        let (symbol, balance_manager) =
-            BalanceManagerOrdinal::create_balance_manager();
+        let (symbol, balance_manager) = BalanceManagerOrdinal::create_balance_manager();
         let mut balance_manager_base = BalanceManagerBase::new();
         balance_manager_base.set_balance_manager(balance_manager);
         balance_manager_base.set_symbol(symbol);
@@ -161,10 +158,8 @@ mod tests {
     use crate::core::balance_manager::balance_manager::BalanceManager;
     use crate::core::balance_manager::position_change::PositionChange;
     use crate::core::exchanges::common::{Amount, CurrencyCode, Price, TradePlaceAccount};
-    use crate::core::exchanges::general::symbol::{
-        Symbol, Precision,
-    };
     use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+    use crate::core::exchanges::general::symbol::{Precision, Symbol};
     use crate::core::logger::init_logger;
     use crate::core::misc::reserve_parameters::ReserveParameters;
     use crate::core::orders::order::{
@@ -262,10 +257,7 @@ mod tests {
                 .balance_manager_base
                 .configuration_descriptor
                 .clone();
-            let symbol = test_object
-                .balance_manager_base
-                .symbol()
-                .clone();
+            let symbol = test_object.balance_manager_base.symbol().clone();
 
             test_object.balance_manager().set_target_amount_limit(
                 configuration_descriptor.clone(),
@@ -416,10 +408,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 side,
                 dec!(1),
             ),
@@ -453,10 +442,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 side,
                 dec!(1),
             ),
@@ -2426,10 +2412,7 @@ mod tests {
                 .balance_manager_base
                 .exchange_account_id_2
                 .clone(),
-            test_object
-                .balance_manager_base
-                .symbol()
-                .clone(),
+            test_object.balance_manager_base.symbol().clone(),
             OrderSide::Sell,
             dec!(0.2),
             dec!(5),
@@ -4408,10 +4391,7 @@ mod tests {
             position_by_fill_amount
                 .get(
                     test_object.balance_manager_base.exchange_account_id_1,
-                    test_object
-                        .balance_manager_base
-                        .symbol()
-                        .currency_pair(),
+                    test_object.balance_manager_base.symbol().currency_pair(),
                 )
                 .expect("in test"),
             -fill_amount
@@ -4424,10 +4404,7 @@ mod tests {
             test_object.balance_manager().get_balance_by_side(
                 configuration_descriptor.clone(),
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 OrderSide::Buy,
                 fill_price
             ),
@@ -5041,10 +5018,7 @@ mod tests {
 
         let trade_place = TradePlaceAccount::new(
             exchange_account_id,
-            test_object
-                .balance_manager_base
-                .symbol()
-                .currency_pair(),
+            test_object.balance_manager_base.symbol().currency_pair(),
         );
 
         assert!(test_object
@@ -5263,10 +5237,7 @@ mod tests {
     fn check_position(test_object: &BalanceManagerOrdinal, position: Decimal) {
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
-        let currency_pair = test_object
-            .balance_manager_base
-            .symbol()
-            .currency_pair();
+        let currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         let amount_position = test_object.balance_manager().get_position(
             exchange_account_id,
             currency_pair,

@@ -15,9 +15,9 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
 use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::request_type::RequestType;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::explanation::{Explanation, WithExplanation};
 use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
@@ -622,12 +622,9 @@ impl DispositionExecutor {
             explanation,
         );
 
-        if let Err(reason) = is_enough_amount_and_cost(
-            new_disposition,
-            new_order_amount,
-            true,
-            &self.symbol,
-        ) {
+        if let Err(reason) =
+            is_enough_amount_and_cost(new_disposition, new_order_amount, true, &self.symbol)
+        {
             return log_trace(
                 format!("Finished `try_create_order` by reason: {}", reason),
                 explanation,

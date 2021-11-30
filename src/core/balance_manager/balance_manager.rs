@@ -8,8 +8,8 @@ use crate::core::balances::balance_reservation_manager::BalanceReservationManage
 use crate::core::exchanges::common::{Amount, Price};
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
-use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::explanation::Explanation;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::misc::derivative_position::DerivativePosition;
@@ -213,17 +213,16 @@ impl BalanceManager {
                 .balance_reservation_manager
                 .exchanges_by_id()
                 .get(&exchange_account_id)
-                .with_context(|| format!(
+                .with_context(|| {
+                    format!(
                         "symbol not found for exchange with account id {:?} and currency pair {}",
-                        exchange_account_id,
-                        currency_pair,
+                        exchange_account_id, currency_pair,
                     )
-                )?
+                })?
                 .get_symbol(currency_pair)?;
 
             if symbol.is_derivative {
-                position_info_by_symbol
-                    .insert(symbol.clone(), position_info);
+                position_info_by_symbol.insert(symbol.clone(), position_info);
             }
         }
 
@@ -248,10 +247,7 @@ impl BalanceManager {
                     .with_context(|| {
                         "Failed to get fill_positions while restoring fill amount positions"
                     })?;
-            let symbols = position_info_by_symbol
-                .keys()
-                .cloned()
-                .collect_vec();
+            let symbols = position_info_by_symbol.keys().cloned().collect_vec();
 
             let expected_positions_by_currency_pair: HashMap<CurrencyPair, Decimal> =
                 position_info_by_symbol
@@ -259,18 +255,17 @@ impl BalanceManager {
                     .map(|(k, v)| (k.currency_pair(), v.position))
                     .collect();
 
-            let actual_positions_by_currency_pair: HashMap<CurrencyPair, Decimal> =
-                symbols
-                    .iter()
-                    .map(|x| {
-                        (
-                            x.currency_pair(),
-                            fill_positions
-                                .get(exchange_account_id, x.currency_pair())
-                                .unwrap_or(dec!(0)),
-                        )
-                    })
-                    .collect();
+            let actual_positions_by_currency_pair: HashMap<CurrencyPair, Decimal> = symbols
+                .iter()
+                .map(|x| {
+                    (
+                        x.currency_pair(),
+                        fill_positions
+                            .get(exchange_account_id, x.currency_pair())
+                            .unwrap_or(dec!(0)),
+                    )
+                })
+                .collect();
 
             let currency_pairs_with_diffs = symbols
                 .iter()
@@ -875,12 +870,7 @@ impl BalanceManager {
     ) -> Option<Amount> {
         self.balance_reservation_manager
             .virtual_balance_holder
-            .get_exchange_balance(
-                exchange_account_id,
-                symbol.clone(),
-                currency_code,
-                None,
-            )
+            .get_exchange_balance(exchange_account_id, symbol.clone(), currency_code, None)
     }
 
     pub fn get_all_virtual_balance_diffs(&self) -> &ServiceValueTree {
@@ -909,19 +899,16 @@ impl BalanceManager {
                 explanation,
             ) {
             Some(balance) => {
-                let currency_code =
-                    symbol.get_trade_code(side, BeforeAfter::Before);
+                let currency_code = symbol.get_trade_code(side, BeforeAfter::Before);
                 let balance_in_amount_currency_code = symbol
                     .convert_amount_into_amount_currency_code(
                         currency_code,
                         balance,
                         price_quote_to_base,
                     );
-                Some(
-                    symbol.round_to_remove_amount_precision_error_expected(
-                        balance_in_amount_currency_code,
-                    ),
-                )
+                Some(symbol.round_to_remove_amount_precision_error_expected(
+                    balance_in_amount_currency_code,
+                ))
             }
             None => {
                 log::warn!(

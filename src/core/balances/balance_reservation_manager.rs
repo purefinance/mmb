@@ -21,9 +21,9 @@ use crate::core::balances::{
 use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
-use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
 use crate::core::exchanges::general::exchange::Exchange;
+use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::core::infrastructure::WithExpect;
 use crate::core::misc::reserve_parameters::ReserveParameters;
@@ -355,12 +355,8 @@ impl BalanceReservationManager {
             symbol.currency_pair(),
             currency_code,
         );
-        self.virtual_balance_holder.get_virtual_balance(
-            &request,
-            symbol,
-            Some(price),
-            &mut None,
-        )
+        self.virtual_balance_holder
+            .get_virtual_balance(&request, symbol, Some(price), &mut None)
     }
 
     pub fn try_get_available_balance(
@@ -397,8 +393,7 @@ impl BalanceReservationManager {
 
         let mut balance_in_currency_code = balance_in_currency_code?;
 
-        let leverage =
-            self.get_leverage(exchange_account_id, symbol.currency_pair());
+        let leverage = self.get_leverage(exchange_account_id, symbol.currency_pair());
 
         explanation.with_reason(|| format!("leverage = {:?}", leverage));
 
@@ -520,11 +515,7 @@ impl BalanceReservationManager {
         symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> Decimal {
-        let position = self.get_position_in_amount_currency_code(
-            exchange_account_id,
-            symbol,
-            side,
-        );
+        let position = self.get_position_in_amount_currency_code(exchange_account_id, symbol, side);
 
         let taken_amount = self
             .balance_reservation_storage
@@ -610,12 +601,11 @@ impl BalanceReservationManager {
             )
         });
 
-        let balance_in_amount_currency = symbol
-            .convert_amount_into_amount_currency_code(
-                request.currency_code,
-                balance_in_currency_code,
-                price,
-            );
+        let balance_in_amount_currency = symbol.convert_amount_into_amount_currency_code(
+            request.currency_code,
+            balance_in_currency_code,
+            price,
+        );
         explanation.with_reason(|| {
             format!(
                 "balance_in_amount_currency with leverage and multiplier: {}",
@@ -632,12 +622,11 @@ impl BalanceReservationManager {
             )
         });
 
-        let mut limited_balance_in_currency_code = symbol
-            .convert_amount_from_amount_currency_code(
-                request.currency_code,
-                limited_balance_in_amount_currency,
-                price,
-            );
+        let mut limited_balance_in_currency_code = symbol.convert_amount_from_amount_currency_code(
+            request.currency_code,
+            limited_balance_in_amount_currency,
+            price,
+        );
         explanation.with_reason(|| {
             format!(
                 "limited_balance_in_currency_code: {}",
@@ -671,10 +660,7 @@ impl BalanceReservationManager {
         dec!(0).max(limited_balance_in_currency_code)
     }
 
-    fn get_untouchable_amount(
-        symbol: Arc<Symbol>,
-        amount: Amount,
-    ) -> Amount {
+    fn get_untouchable_amount(symbol: Arc<Symbol>, amount: Amount) -> Amount {
         // We want to keep the trading engine from reserving all the balance for derivatives as so far we don't take into account
         // many derivative nuances (commissions, funding, probably something else
         match symbol.is_derivative {
@@ -716,11 +702,7 @@ impl BalanceReservationManager {
             .amount_limits_in_amount_currency
             .get_by_balance_request(&request);
 
-        let position = self.get_position(
-            exchange_account_id,
-            symbol.currency_pair(),
-            side,
-        );
+        let position = self.get_position(exchange_account_id, symbol.currency_pair(), side);
 
         BalancePositionModel {
             position,
@@ -980,16 +962,15 @@ impl BalanceReservationManager {
         );
 
         if !symbol.is_derivative {
-            self.virtual_balance_holder
-                .add_balance_by_symbol(
-                    &request,
-                    symbol.clone(),
-                    -fill_amount,
-                    price,
-                );
+            self.virtual_balance_holder.add_balance_by_symbol(
+                &request,
+                symbol.clone(),
+                -fill_amount,
+                price,
+            );
 
-            change_amount_in_currency = symbol
-                .convert_amount_from_amount_currency_code(currency_code, fill_amount, price);
+            change_amount_in_currency =
+                symbol.convert_amount_from_amount_currency_code(currency_code, fill_amount, price);
         }
         if symbol.amount_currency_code == currency_code {
             let mut position_change = fill_amount;
@@ -1006,29 +987,24 @@ impl BalanceReservationManager {
                     (free_amount, (free_amount - move_amount).abs())
                 };
 
-                let leverage =
-                    self.get_leverage(exchange_account_id, symbol.currency_pair());
+                let leverage = self.get_leverage(exchange_account_id, symbol.currency_pair());
                 let diff_in_amount_currency =
                     (add_amount - sub_amount) / leverage * symbol.amount_multiplier;
-                self.virtual_balance_holder
-                    .add_balance_by_symbol(
-                        &request,
-                        symbol.clone(),
-                        diff_in_amount_currency,
-                        price,
-                    );
+                self.virtual_balance_holder.add_balance_by_symbol(
+                    &request,
+                    symbol.clone(),
+                    diff_in_amount_currency,
+                    price,
+                );
 
-                change_amount_in_currency = symbol
-                    .convert_amount_from_amount_currency_code(
-                        currency_code,
-                        diff_in_amount_currency,
-                        price,
-                    );
+                change_amount_in_currency = symbol.convert_amount_from_amount_currency_code(
+                    currency_code,
+                    diff_in_amount_currency,
+                    price,
+                );
 
                 // reversed derivative
-                if symbol.amount_currency_code
-                    == symbol.base_currency_code()
-                {
+                if symbol.amount_currency_code == symbol.base_currency_code() {
                     position_change.inverse_sign();
                 }
             }
@@ -1126,11 +1102,8 @@ impl BalanceReservationManager {
         exchange_account_id: ExchangeAccountId,
         symbol: Arc<Symbol>,
     ) {
-        let leverage =
-            self.get_leverage(exchange_account_id, symbol.currency_pair());
-        if !symbol.is_derivative
-            || symbol.balance_currency_code == Some(commission_currency_code)
-        {
+        let leverage = self.get_leverage(exchange_account_id, symbol.currency_pair());
+        if !symbol.is_derivative || symbol.balance_currency_code == Some(commission_currency_code) {
             let request = BalanceRequest::new(
                 configuration_descriptor.clone(),
                 exchange_account_id,
@@ -1147,20 +1120,18 @@ impl BalanceReservationManager {
                 symbol.currency_pair(),
                 converted_commission_currency_code,
             );
-            let commission_in_amount_currency = symbol
-                .convert_amount_into_amount_currency_code(
-                    converted_commission_currency_code,
-                    converted_commission_amount,
-                    price,
-                );
+            let commission_in_amount_currency = symbol.convert_amount_into_amount_currency_code(
+                converted_commission_currency_code,
+                converted_commission_amount,
+                price,
+            );
             let res_commission_amount_in_amount_currency = commission_in_amount_currency / leverage;
-            self.virtual_balance_holder
-                .add_balance_by_symbol(
-                    &request,
-                    symbol.clone(),
-                    -res_commission_amount_in_amount_currency,
-                    price,
-                );
+            self.virtual_balance_holder.add_balance_by_symbol(
+                &request,
+                symbol.clone(),
+                -res_commission_amount_in_amount_currency,
+                price,
+            );
         }
     }
 
@@ -1432,13 +1403,12 @@ impl BalanceReservationManager {
         let buff_price = reservation.price;
         let buff_symbol = reservation.symbol.clone();
 
-        self.virtual_balance_holder
-            .add_balance_by_symbol(
-                &balance_request,
-                buff_symbol,
-                -cost_diff,
-                buff_price,
-            );
+        self.virtual_balance_holder.add_balance_by_symbol(
+            &balance_request,
+            buff_symbol,
+            -cost_diff,
+            buff_price,
+        );
         let reservation = self.get_mut_reservation_expected(reservation_id);
 
         reservation.cost += cost_diff;
@@ -1672,22 +1642,21 @@ impl BalanceReservationManager {
             .exchanges_by_id()
             .get(&reserve_parameters.exchange_account_id)
             .expect("failed to get exchange")
-            .get_balance_reservation_currency_code(
-                symbol.clone(),
-                reserve_parameters.order_side,
-            );
+            .get_balance_reservation_currency_code(symbol.clone(), reserve_parameters.order_side);
 
-        let amount_in_reservation_currency_code = symbol
-            .convert_amount_from_amount_currency_code(reservation_currency_code, amount, price);
+        let amount_in_reservation_currency_code = symbol.convert_amount_from_amount_currency_code(
+            reservation_currency_code,
+            amount,
+            price,
+        );
 
         let (cost_in_amount_currency_code, taken_free_amount) =
             self.calculate_reservation_cost(reserve_parameters);
-        let cost_in_reservation_currency_code = symbol
-            .convert_amount_from_amount_currency_code(
-                reservation_currency_code,
-                cost_in_amount_currency_code,
-                price,
-            );
+        let cost_in_reservation_currency_code = symbol.convert_amount_from_amount_currency_code(
+            reservation_currency_code,
+            cost_in_amount_currency_code,
+            price,
+        );
 
         explanation.with_reason(|| {
             format!(
@@ -1730,8 +1699,7 @@ impl BalanceReservationManager {
         );
 
         (
-            amount_to_pay_for * reserve_parameters.symbol.amount_multiplier
-                / leverage,
+            amount_to_pay_for * reserve_parameters.symbol.amount_multiplier / leverage,
             taken_free_amount,
         )
     }
@@ -1763,9 +1731,8 @@ impl BalanceReservationManager {
             .sum();
 
         let new_raw_rest_amount = reservation.amount - approved_sum;
-        let new_rest_amount_in_reservation_currency = reservation
-            .symbol
-            .convert_amount_from_amount_currency_code(
+        let new_rest_amount_in_reservation_currency =
+            reservation.symbol.convert_amount_from_amount_currency_code(
                 reservation.reservation_currency_code,
                 new_raw_rest_amount,
                 new_price,
@@ -1816,13 +1783,11 @@ impl BalanceReservationManager {
         let reservation = self.get_mut_reservation_expected(reservation_id);
         reservation.price = new_price;
 
-        let reservation_amount_diff = reservation
-            .symbol
-            .convert_amount_into_amount_currency_code(
-                reservation.reservation_currency_code,
-                reservation_amount_diff_in_reservation_currency,
-                reservation.price,
-            );
+        let reservation_amount_diff = reservation.symbol.convert_amount_into_amount_currency_code(
+            reservation.reservation_currency_code,
+            reservation_amount_diff_in_reservation_currency,
+            reservation.price,
+        );
 
         reservation.unreserved_amount -= reservation_amount_diff; // it will be compensated later
 
@@ -1894,10 +1859,7 @@ impl BalanceReservationManager {
         symbol: Arc<Symbol>,
         limit: Amount,
     ) {
-        for currency_code in [
-            symbol.base_currency_code,
-            symbol.quote_currency_code(),
-        ] {
+        for currency_code in [symbol.base_currency_code, symbol.quote_currency_code()] {
             let request = BalanceRequest::new(
                 configuration_descriptor.clone(),
                 exchange_account_id,

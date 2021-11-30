@@ -1,7 +1,7 @@
 use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeError, Price};
 use crate::core::exchanges::events::TradeId;
-use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::general::exchange::RequestResult;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::{ExchangeOrderId, OrderRole};
 use crate::core::DateTime;
@@ -63,10 +63,7 @@ impl Exchange {
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         let fills_type = &self.features.rest_fills_features.fills_type;
         match fills_type {
-            RestFillsType::MyTrades => {
-                self.get_my_trades_with_filter(symbol, order)
-                    .await
-            }
+            RestFillsType::MyTrades => self.get_my_trades_with_filter(symbol, order).await,
             _ => bail!("Fills type {:?} is not supported", fills_type),
         }
     }

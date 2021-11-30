@@ -12,8 +12,8 @@ use serde_json::Value;
 use tokio::sync::{broadcast, oneshot};
 
 use super::commission::Commission;
-use super::symbol::Symbol;
 use super::polling_timeout_manager::PollingTimeoutManager;
+use super::symbol::Symbol;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
 #[cfg(debug_assertions)]
 use crate::core::exchanges::common::SpecificCurrencyPair;

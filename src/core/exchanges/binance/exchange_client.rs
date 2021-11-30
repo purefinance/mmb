@@ -168,8 +168,7 @@ impl ExchangeClient for Binance {
         symbol: &Symbol,
         _last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome> {
-        let specific_currency_pair =
-            self.get_specific_currency_pair(symbol.currency_pair());
+        let specific_currency_pair = self.get_specific_currency_pair(symbol.currency_pair());
         let mut http_params = vec![(
             "symbol".to_owned(),
             specific_currency_pair.as_str().to_owned(),

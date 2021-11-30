@@ -36,10 +36,7 @@ impl BalanceChangesCalculator {
     ) -> BalanceChangesCalculatorResult {
         let symbol = self
             .currency_pair_to_symbol_converter
-            .get_symbol(
-                order.header.exchange_account_id,
-                order.header.currency_pair,
-            );
+            .get_symbol(order.header.exchange_account_id, order.header.currency_pair);
 
         self.get_balance_changes_calculator_results(
             configuration_descriptor,

@@ -14,9 +14,9 @@ use crate::core::{
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
-            symbol::{Symbol, Precision},
             currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
             exchange::Exchange,
+            symbol::{Precision, Symbol},
             test_helper::get_test_exchange_with_symbol_and_id,
         },
     },
@@ -73,10 +73,7 @@ impl BalanceManagerDerivative {
 
     fn create_balance_manager_ctor_parameters(
         is_reversed: bool,
-    ) -> (
-        Arc<Symbol>,
-        HashMap<ExchangeAccountId, Arc<Exchange>>,
-    ) {
+    ) -> (Arc<Symbol>, HashMap<ExchangeAccountId, Arc<Exchange>>) {
         let base_currency_code = BalanceManagerBase::eth();
         let quote_currency_code = BalanceManagerBase::btc();
 
@@ -359,10 +356,7 @@ mod tests {
                 .balance_manager_base
                 .configuration_descriptor
                 .clone();
-            let symbol = test_object
-                .balance_manager_base
-                .symbol()
-                .clone();
+            let symbol = test_object.balance_manager_base.symbol().clone();
 
             test_object.balance_manager().set_target_amount_limit(
                 configuration_descriptor,
@@ -385,10 +379,7 @@ mod tests {
 
         let balance_map = hashmap![currency_code => amount];
         if let Some(symbol_currency_pair_amount) = symbol_currency_pair_amount {
-            let symbol_currency_pair = test_object
-                .balance_manager_base
-                .symbol()
-                .currency_pair();
+            let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
             BalanceManagerBase::update_balance_with_positions(
                 &mut *test_object.balance_manager(),
                 exchange_account_id,
@@ -615,10 +606,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 order_side,
             ),
             expected_position
@@ -929,10 +917,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Sell
             ),
             dec!(-1)
@@ -1048,10 +1033,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Sell
             ),
             -amount
@@ -1165,10 +1147,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Buy
             ),
             dec!(-1)
@@ -1284,10 +1263,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Buy
             ),
             -amount
@@ -1385,10 +1361,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Buy
             ),
             dec!(1)
@@ -1550,10 +1523,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Buy
             ),
             amount
@@ -1714,10 +1684,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Buy
             ),
             dec!(-1)
@@ -1881,10 +1848,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Buy
             ),
             -amount
@@ -2417,10 +2381,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_position(
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .currency_pair(),
+                test_object.balance_manager_base.symbol().currency_pair(),
                 OrderSide::Buy,
             ),
             dec!(1)
@@ -2511,10 +2472,7 @@ mod tests {
                 .balance_manager()
                 .get_exchange_balance(
                     exchange_account_id,
-                    test_object
-                        .balance_manager_base
-                        .symbol()
-                        .clone(),
+                    test_object.balance_manager_base.symbol().clone(),
                     BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
@@ -2538,10 +2496,7 @@ mod tests {
                 .balance_manager()
                 .get_exchange_balance(
                     exchange_account_id,
-                    test_object
-                        .balance_manager_base
-                        .symbol()
-                        .clone(),
+                    test_object.balance_manager_base.symbol().clone(),
                     BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
@@ -2584,20 +2539,14 @@ mod tests {
                 .balance_manager()
                 .get_exchange_balance(
                     exchange_account_id,
-                    test_object
-                        .balance_manager_base
-                        .symbol()
-                        .clone(),
+                    test_object.balance_manager_base.symbol().clone(),
                     BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
             dec!(25)
         );
 
-        let symbol_currency_pair = test_object
-            .balance_manager_base
-            .symbol()
-            .currency_pair();
+        let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             &mut *test_object.balance_manager(),
             exchange_account_id,
@@ -2616,10 +2565,7 @@ mod tests {
                 .balance_manager()
                 .get_exchange_balance(
                     exchange_account_id,
-                    test_object
-                        .balance_manager_base
-                        .symbol()
-                        .clone(),
+                    test_object.balance_manager_base.symbol().clone(),
                     BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
@@ -2643,18 +2589,12 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         let original_balance = dec!(9);
         let position = dec!(1);
 
-        let symbol_currency_pair = test_object
-            .balance_manager_base
-            .symbol()
-            .currency_pair();
+        let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             &mut *test_object.balance_manager(),
             exchange_account_id,
@@ -2724,10 +2664,7 @@ mod tests {
         let original_balance = dec!(9) / price;
         let position = dec!(1) / price;
 
-        let symbol_currency_pair = test_object
-            .balance_manager_base
-            .symbol()
-            .currency_pair();
+        let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             &mut *test_object.balance_manager(),
             exchange_account_id,
@@ -2806,18 +2743,12 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         let original_balance = dec!(9);
         let position = dec!(1);
 
-        let symbol_currency_pair = test_object
-            .balance_manager_base
-            .symbol()
-            .currency_pair();
+        let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             &mut *test_object.balance_manager(),
             exchange_account_id,
@@ -2887,10 +2818,7 @@ mod tests {
         let original_balance = dec!(9) / price;
         let position = dec!(1) / price;
 
-        let symbol_currency_pair = test_object
-            .balance_manager_base
-            .symbol()
-            .currency_pair();
+        let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             &mut *test_object.balance_manager(),
             exchange_account_id,
@@ -2983,10 +2911,7 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         BalanceManagerBase::update_balance(
             &mut *test_object.balance_manager(),
@@ -3131,10 +3056,7 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         BalanceManagerBase::update_balance(
             &mut *test_object.balance_manager(),
@@ -3277,10 +3199,7 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         BalanceManagerBase::update_balance(
             &mut *test_object.balance_manager(),
@@ -3451,10 +3370,7 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         BalanceManagerBase::update_balance(
             &mut *test_object.balance_manager(),
@@ -3609,10 +3525,7 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Sell,
@@ -3670,10 +3583,7 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Sell,
@@ -3740,10 +3650,7 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Sell,
@@ -3805,10 +3712,7 @@ mod tests {
             .get_mut(&exchange_account_id)
             .expect("in test")
             .leverage_by_currency_pair
-            .insert(
-                symbol.currency_pair(),
-                BalanceManagerDerivative::leverage(),
-            );
+            .insert(symbol.currency_pair(), BalanceManagerDerivative::leverage());
 
         let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
             OrderSide::Sell,
@@ -3937,10 +3841,7 @@ mod tests {
                     .clone(),
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -3957,10 +3858,7 @@ mod tests {
                     .clone(),
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4003,10 +3901,7 @@ mod tests {
                     .clone(),
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4026,10 +3921,7 @@ mod tests {
                     .clone(),
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4075,10 +3967,7 @@ mod tests {
                     .clone(),
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4095,10 +3984,7 @@ mod tests {
                     .clone(),
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4141,10 +4027,7 @@ mod tests {
                     .clone(),
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4164,10 +4047,7 @@ mod tests {
                     .clone(),
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4213,10 +4093,7 @@ mod tests {
                     .clone(),
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4236,10 +4113,7 @@ mod tests {
                     .clone(),
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4288,10 +4162,7 @@ mod tests {
                     .clone(),
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4318,10 +4189,7 @@ mod tests {
                     .clone(),
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4369,10 +4237,7 @@ mod tests {
                     .clone(),
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4392,10 +4257,7 @@ mod tests {
                     .clone(),
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4443,10 +4305,7 @@ mod tests {
                     .clone(),
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4467,10 +4326,7 @@ mod tests {
                     .clone(),
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object
-                    .balance_manager_base
-                    .symbol()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4564,10 +4420,7 @@ mod tests {
             .balance_manager_base
             .exchange_account_id_2
             .clone();
-        let symbol_currency_pair = test_object
-            .balance_manager_base
-            .symbol()
-            .currency_pair();
+        let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             &mut *test_object.balance_manager(),
             exchange_account_id_2,
@@ -4613,10 +4466,7 @@ mod tests {
         );
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
-        let symbol_currency_pair = test_object
-            .balance_manager_base
-            .symbol()
-            .currency_pair();
+        let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
 
         let positions = test_object
             .balance_manager()
