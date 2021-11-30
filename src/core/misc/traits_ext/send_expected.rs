@@ -23,30 +23,12 @@ where
     }
 }
 
-pub trait TrySendExpected<T>
-where
-    T: Send + std::fmt::Debug,
-{
-    fn try_send_expected(&self, value: T);
-}
-
-impl<T> TrySendExpected<T> for mpsc::Sender<T>
-where
-    T: Send + std::fmt::Debug,
-{
-    fn try_send_expected(&self, value: T) {
-        let _ = self
-            .try_send(value)
-            .with_expect(|| format!("{}", UNABLE_TO_SEND));
-    }
-}
-
 #[async_trait]
 pub trait SendExpectedAsync<T>
 where
     T: Send + std::fmt::Debug,
 {
-    async fn send_expected(&self, value: T);
+    async fn send_expected_async(&self, value: T);
 }
 
 #[async_trait]
@@ -54,7 +36,7 @@ impl<T> SendExpectedAsync<T> for mpsc::Sender<T>
 where
     T: Send + std::fmt::Debug,
 {
-    async fn send_expected(&self, value: T) {
+    async fn send_expected_async(&self, value: T) {
         let _ = self
             .send(value)
             .await
@@ -76,6 +58,17 @@ where
     fn send_expected(&self, value: T) {
         let _ = self
             .send(value)
+            .with_expect(|| format!("{}", UNABLE_TO_SEND));
+    }
+}
+
+impl<T> SendExpectedByRef<T> for mpsc::Sender<T>
+where
+    T: Send + std::fmt::Debug,
+{
+    fn send_expected(&self, value: T) {
+        let _ = self
+            .try_send(value)
             .with_expect(|| format!("{}", UNABLE_TO_SEND));
     }
 }
