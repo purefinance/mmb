@@ -63,15 +63,15 @@ impl InternalEventsLoop {
 
                     match order_event.event_type {
                         OrderEventType::CreateOrderSucceeded => {
-                            exchange.create_order_task(&order_event.order);
+                            exchange.order_created_notify(&order_event.order);
                         }
                         OrderEventType::CreateOrderFailed => {
-                            exchange.create_order_task(&order_event.order);
-                            exchange.finish_order_future(&order_event.order);
+                            exchange.order_created_notify(&order_event.order);
+                            exchange.order_finished_notify(&order_event.order);
                         }
                         OrderEventType::CancelOrderSucceeded
                         | OrderEventType::OrderCompleted { cloned_order: _ } => {
-                            exchange.finish_order_future(&order_event.order);
+                            exchange.order_finished_notify(&order_event.order);
                         }
                         _ => nothing_to_do(),
                     }
