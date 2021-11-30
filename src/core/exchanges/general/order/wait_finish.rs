@@ -500,7 +500,7 @@ impl Exchange {
             trade_currency_pair: None,
             order_side: None,
             order_amount: None,
-            fill_date: None,
+            fill_date: Some(order_trade.datetime),
         };
 
         self.handle_order_filled(event_data)
