@@ -30,7 +30,7 @@ type String16 = SmallString<[u8; 16]>;
 pub struct ExchangeIdParseError(String);
 
 // unique user ID on the exchange
-#[derive(Debug, Clone, Copy, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub struct ExchangeAccountId {
     pub exchange_id: ExchangeId,
 
@@ -124,6 +124,12 @@ impl Serialize for ExchangeAccountId {
 }
 
 impl Display for ExchangeAccountId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}_{}", self.exchange_id.as_str(), self.account_number)
+    }
+}
+
+impl Debug for ExchangeAccountId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}_{}", self.exchange_id.as_str(), self.account_number)
     }
