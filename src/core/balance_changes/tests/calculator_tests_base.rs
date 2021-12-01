@@ -10,7 +10,7 @@ pub mod tests {
     use uuid::Uuid;
 
     #[double]
-    use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+    use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
     #[double]
     use crate::core::misc::time::time_manager;
     #[double]
@@ -56,7 +56,7 @@ pub mod tests {
         pub exchange_1: Arc<Exchange>,
         pub exchange_2: Arc<Exchange>,
         pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        pub currency_pair_to_symbol_converter: Arc<CurrencyPairToMetadataConverter>,
+        pub currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         balance_changes: Vec<BalanceChangesCalculatorResult>,
         balance_changes_calculator: BalanceChangesCalculator,
         profit_loss_balance_changes: Vec<ProfitLossBalanceChange>,
@@ -134,11 +134,11 @@ pub mod tests {
             is_derivative: bool,
             is_reversed: bool,
         ) -> (
-            CurrencyPairToMetadataConverter,
+            CurrencyPairToSymbolConverter,
             ReentrantMutexGuard<'static, ()>,
         ) {
             let (mut currency_pair_to_symbol_converter, cp_to_symbol_locker) =
-                CurrencyPairToMetadataConverter::init_mock();
+                CurrencyPairToSymbolConverter::init_mock();
 
             let (amount_currency_code, balance_currency_code) = match (is_derivative, is_reversed) {
                 (true, true) => (Self::base(), Some(Self::quote())),

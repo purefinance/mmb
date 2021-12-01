@@ -14,7 +14,7 @@ use crate::core::{
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
-            currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
+            currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter,
             exchange::Exchange,
             symbol::{Precision, Symbol},
             test_helper::get_test_exchange_with_symbol_and_id,
@@ -64,10 +64,10 @@ impl BalanceManagerDerivative {
     ) {
         let (symbol, exchanges_by_id) =
             BalanceManagerDerivative::create_balance_manager_ctor_parameters(is_reversed);
-        let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id.clone());
+        let currency_pair_to_symbol_converter =
+            CurrencyPairToSymbolConverter::new(exchanges_by_id.clone());
 
-        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
         (symbol, balance_manager, exchanges_by_id)
     }
 

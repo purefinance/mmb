@@ -8,7 +8,7 @@ use crate::core::balances::balance_reservation_manager::BalanceReservationManage
 use crate::core::exchanges::common::{Amount, Price};
 use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
 use crate::core::exchanges::events::ExchangeBalancesAndPositions;
-use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::explanation::Explanation;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
@@ -47,12 +47,12 @@ pub struct BalanceManager {
 
 impl BalanceManager {
     pub fn new(
-        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),
             balance_reservation_manager: BalanceReservationManager::new(
-                currency_pair_to_metadata_converter,
+                currency_pair_to_symbol_converter,
             ),
             last_order_fills: HashMap::new(),
             balance_changes_service: None,
@@ -269,8 +269,8 @@ impl BalanceManager {
 
             let currency_pairs_with_diffs = symbols
                 .iter()
-                .filter(|metadata| {
-                    let currency_pair = &metadata.currency_pair();
+                .filter(|symbol| {
+                    let currency_pair = &symbol.currency_pair();
                     let expected_position = expected_positions_by_currency_pair.get(currency_pair);
                     let actual_position = actual_positions_by_currency_pair.get(currency_pair);
                     expected_position != actual_position
@@ -450,7 +450,7 @@ impl BalanceManager {
         let this_locked = this.lock();
         let balances = this_locked.get_balances();
         let exchanges_by_id = this_locked.balance_reservation_manager.exchanges_by_id();
-        let new_balance_manager = Self::new(CurrencyPairToMetadataConverter::new(
+        let new_balance_manager = Self::new(CurrencyPairToSymbolConverter::new(
             exchanges_by_id.clone(),
         ));
         drop(this_locked);
@@ -575,7 +575,7 @@ impl BalanceManager {
         let exchange_account_id = order_snapshot.header.exchange_account_id;
         let symbol = self
             .balance_reservation_manager
-            .currency_pair_to_metadata_converter
+            .currency_pair_to_symbol_converter
             .get_symbol(exchange_account_id, order_snapshot.header.currency_pair);
         self.handle_order_fill(
             configuration_descriptor.clone(),

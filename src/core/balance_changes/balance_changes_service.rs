@@ -5,7 +5,7 @@ use mockall_double::double;
 use tokio::sync::mpsc;
 
 #[double]
-use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 #[double]
 use crate::core::misc::time::time_manager;
 #[double]
@@ -73,7 +73,7 @@ pub struct BalanceChangesService {
 
 impl BalanceChangesService {
     pub fn new(
-        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         profit_loss_stopper_service: Arc<ProfitLossStopperService>,
         usd_converter: UsdConverter,
         application_manager: Arc<ApplicationManager>,
@@ -94,7 +94,7 @@ impl BalanceChangesService {
             balance_changes_accumulators,
             profit_loss_stopper_service,
             balance_changes_calculator: BalanceChangesCalculator::new(
-                currency_pair_to_metadata_converter,
+                currency_pair_to_symbol_converter,
             ),
             application_manager: application_manager.clone(),
         });

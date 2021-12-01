@@ -11,12 +11,12 @@ use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::infrastructure::WithExpect;
 
 #[derive(Clone)]
-pub struct CurrencyPairToMetadataConverter {
+pub struct CurrencyPairToSymbolConverter {
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 }
 
 #[cfg_attr(test, automock)]
-impl CurrencyPairToMetadataConverter {
+impl CurrencyPairToSymbolConverter {
     pub fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Arc<Self> {
         Arc::new(Self { exchanges_by_id })
     }
@@ -46,4 +46,4 @@ impl CurrencyPairToMetadataConverter {
 }
 
 #[cfg(test)]
-crate::impl_mock_initializer!(MockCurrencyPairToMetadataConverter);
+crate::impl_mock_initializer!(MockCurrencyPairToSymbolConverter);

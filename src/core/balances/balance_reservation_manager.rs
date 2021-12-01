@@ -21,7 +21,7 @@ use crate::core::balances::{
 use crate::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
-use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
@@ -48,7 +48,7 @@ pub(super) struct CanReserveResult {
 
 #[derive(Clone)]
 pub(crate) struct BalanceReservationManager {
-    pub currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+    pub currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
     reserved_amount_in_amount_currency: ServiceValueTree,
     amount_limits_in_amount_currency: ServiceValueTree,
 
@@ -62,15 +62,15 @@ pub(crate) struct BalanceReservationManager {
 }
 
 impl BalanceReservationManager {
-    pub fn new(currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>) -> Self {
+    pub fn new(currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>) -> Self {
         Self {
-            currency_pair_to_metadata_converter: currency_pair_to_metadata_converter.clone(),
+            currency_pair_to_symbol_converter: currency_pair_to_symbol_converter.clone(),
             reserved_amount_in_amount_currency: ServiceValueTree::new(),
             amount_limits_in_amount_currency: ServiceValueTree::new(),
             position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount::new(),
             reservation_id: ReservationId::generate(),
             virtual_balance_holder: VirtualBalanceHolder::new(
-                currency_pair_to_metadata_converter
+                currency_pair_to_symbol_converter
                     .exchanges_by_id()
                     .clone(),
             ),
@@ -80,7 +80,7 @@ impl BalanceReservationManager {
     }
 
     pub fn exchanges_by_id(&self) -> &HashMap<ExchangeAccountId, Arc<Exchange>> {
-        &self.currency_pair_to_metadata_converter.exchanges_by_id()
+        &self.currency_pair_to_symbol_converter.exchanges_by_id()
     }
 
     pub fn update_reserved_balances(
@@ -717,7 +717,7 @@ impl BalanceReservationManager {
         side: OrderSide,
     ) -> Decimal {
         let symbol = self
-            .currency_pair_to_metadata_converter
+            .currency_pair_to_symbol_converter
             .get_symbol(exchange_account_id, currency_pair);
 
         let currency_code = symbol.get_trade_code(side, BeforeAfter::Before);

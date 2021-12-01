@@ -16,7 +16,7 @@ use crate::core::{
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
-            currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
+            currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter,
             exchange::Exchange,
             symbol::{Precision, Symbol},
             test_helper::get_test_exchange_with_symbol_and_id,
@@ -39,10 +39,10 @@ impl BalanceManagerOrdinal {
     fn create_balance_manager() -> (Arc<Symbol>, Arc<Mutex<BalanceManager>>) {
         let (symbol, exchanges_by_id) =
             BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
-        let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id);
+        let currency_pair_to_symbol_converter =
+            CurrencyPairToSymbolConverter::new(exchanges_by_id);
 
-        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
         (symbol, balance_manager)
     }
 
@@ -158,7 +158,7 @@ mod tests {
     use crate::core::balance_manager::balance_manager::BalanceManager;
     use crate::core::balance_manager::position_change::PositionChange;
     use crate::core::exchanges::common::{Amount, CurrencyCode, Price, TradePlaceAccount};
-    use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+    use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
     use crate::core::exchanges::general::symbol::{Precision, Symbol};
     use crate::core::logger::init_logger;
     use crate::core::misc::reserve_parameters::ReserveParameters;
@@ -4425,10 +4425,10 @@ mod tests {
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0));
         let (_, exchanges_by_id) = BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
 
-        let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id);
+        let currency_pair_to_symbol_converter =
+            CurrencyPairToSymbolConverter::new(exchanges_by_id);
 
-        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter.clone());
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter.clone());
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
@@ -4468,7 +4468,7 @@ mod tests {
 
         test_object
             .balance_manager_base
-            .set_balance_manager(BalanceManager::new(currency_pair_to_metadata_converter));
+            .set_balance_manager(BalanceManager::new(currency_pair_to_symbol_converter));
 
         test_object
             .balance_manager()

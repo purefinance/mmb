@@ -5,7 +5,7 @@ use std::{
 };
 
 #[double]
-use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
 use crate::core::{
     exchanges::{
@@ -37,7 +37,7 @@ use super::{
 };
 
 pub struct PriceSourceEventLoop {
-    currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+    currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
     price_sources_saver: PriceSourcesSaver,
     all_trade_places: HashSet<TradePlace>,
     local_snapshot_service: LocalSnapshotsService,
@@ -48,7 +48,7 @@ pub struct PriceSourceEventLoop {
 
 impl PriceSourceEventLoop {
     pub async fn run(
-        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         price_source_chains: Vec<PriceSourceChain>,
         price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
@@ -57,7 +57,7 @@ impl PriceSourceEventLoop {
     ) {
         let run_action = async move {
             let mut this = Self {
-                currency_pair_to_metadata_converter,
+                currency_pair_to_symbol_converter,
                 price_sources_saver,
                 all_trade_places: Self::map_to_used_trade_places(price_source_chains),
                 local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
@@ -155,13 +155,13 @@ pub struct PriceSourceService {
 
 impl PriceSourceService {
     pub fn new(
-        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         price_source_settings: &Vec<CurrencyPriceSourceSettings>,
         price_sources_loader: PriceSourcesLoader,
     ) -> Arc<Self> {
         let price_source_chains = Self::prepare_price_source_chains(
             price_source_settings,
-            currency_pair_to_metadata_converter.clone(),
+            currency_pair_to_symbol_converter.clone(),
         );
         let (tx_main, convert_currency_notification_receiver) = mpsc::channel(20_000);
 
@@ -184,13 +184,13 @@ impl PriceSourceService {
     }
     pub async fn start(
         self: Arc<Self>,
-        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
         cancellation_token: CancellationToken,
     ) {
         PriceSourceEventLoop::run(
-            currency_pair_to_metadata_converter,
+            currency_pair_to_symbol_converter,
             self.price_source_chains.values().cloned().collect_vec(),
             price_sources_saver,
             rx_core,
@@ -207,7 +207,7 @@ impl PriceSourceService {
 
     pub fn prepare_price_source_chains(
         price_source_settings: &Vec<CurrencyPriceSourceSettings>,
-        currency_pair_to_metadata_converter: Arc<CurrencyPairToMetadataConverter>,
+        currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
     ) -> Vec<PriceSourceChain> {
         if price_source_settings.is_empty() {
             panic!("price_source_settings shouldn't be empty");
@@ -226,7 +226,7 @@ impl PriceSourceService {
 
                 let mut symbol_by_currency_code = HashMap::new();
                 for pair in &setting.exchange_id_currency_pair_settings {
-                    let metadata = currency_pair_to_metadata_converter
+                    let metadata = currency_pair_to_symbol_converter
                         .get_symbol(pair.exchange_account_id, pair.currency_pair);
                     Self::add_symbol_to_hashmap(
                         metadata.quote_currency_code(),
@@ -488,7 +488,7 @@ pub mod test {
         let usdt = "USDT".into();
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(usdt, usdt, Vec::new())];
 
-        let (converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (converter, _locker) = CurrencyPairToSymbolConverter::init_mock();
 
         // Act
         let actual = PriceSourceService::prepare_price_source_chains(
@@ -514,7 +514,7 @@ pub mod test {
             }],
         )];
 
-        let (converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (converter, _locker) = CurrencyPairToSymbolConverter::init_mock();
 
         // Act
         let actual = PriceSourceService::prepare_price_source_chains(
@@ -546,7 +546,7 @@ pub mod test {
         let symbol = create_symbol(base, quote);
 
         let symbol_cloned = symbol.clone();
-        let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (mut converter, _locker) = CurrencyPairToSymbolConverter::init_mock();
         converter
             .expect_get_symbol()
             .returning(move |exchange_account_id, currency_pair| {
@@ -554,7 +554,7 @@ pub mod test {
                     get_test_exchange_with_symbol(symbol_cloned.clone())
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }
@@ -619,7 +619,7 @@ pub mod test {
 
         let symbol_1_cloned = symbol_1.clone();
         let symbol_2_cloned = symbol_2.clone();
-        let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (mut converter, _locker) = CurrencyPairToSymbolConverter::init_mock();
         converter
             .expect_get_symbol()
             .returning(move |exchange_account_id, currency_pair| {
@@ -630,7 +630,7 @@ pub mod test {
                     get_test_exchange_with_symbol(symbol_2_cloned.clone())
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }
@@ -702,7 +702,7 @@ pub mod test {
         let symbol_1_cloned = symbol_1.clone();
         let symbol_2_cloned = symbol_2.clone();
         let symbol_3_cloned = symbol_3.clone();
-        let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (mut converter, _locker) = CurrencyPairToSymbolConverter::init_mock();
         converter
             .expect_get_symbol()
             .returning(move |exchange_account_id, currency_pair| {
@@ -716,7 +716,7 @@ pub mod test {
                     get_test_exchange_with_symbol(symbol_3_cloned.clone())
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }
@@ -787,7 +787,7 @@ pub mod test {
             ],
         )];
 
-        let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (mut converter, _locker) = CurrencyPairToSymbolConverter::init_mock();
         converter
             .expect_get_symbol()
             .returning(move |exchange_account_id, currency_pair| {
@@ -801,7 +801,7 @@ pub mod test {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), usdt.as_str())
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }
@@ -843,7 +843,7 @@ pub mod test {
             ],
         )];
 
-        let (mut converter, _locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (mut converter, _locker) = CurrencyPairToSymbolConverter::init_mock();
         converter
             .expect_get_symbol()
             .returning(move |exchange_account_id, currency_pair| {
@@ -854,7 +854,7 @@ pub mod test {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), usdt.as_str())
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }

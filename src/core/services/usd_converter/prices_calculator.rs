@@ -85,7 +85,7 @@ mod test {
     use parking_lot::ReentrantMutexGuard;
 
     #[double]
-    use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+    use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
     use crate::order_book_data;
     use crate::{
@@ -122,7 +122,7 @@ mod test {
             }],
         )];
 
-        let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (mut converter, locker) = CurrencyPairToSymbolConverter::init_mock();
         converter
             .expect_get_symbol()
             .returning(move |exchange_account_id, currency_pair| {
@@ -130,7 +130,7 @@ mod test {
                     get_test_exchange_by_currency_codes(false, "USDT", "BTC")
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }
@@ -276,7 +276,7 @@ mod test {
             ],
         )];
 
-        let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
+        let (mut converter, locker) = CurrencyPairToSymbolConverter::init_mock();
         converter
             .expect_get_symbol()
             .returning(move |exchange_account_id, currency_pair| {
@@ -287,7 +287,7 @@ mod test {
                     get_test_exchange_by_currency_codes(false, "BTC", "EOS")
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }

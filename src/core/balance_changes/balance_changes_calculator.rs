@@ -3,7 +3,7 @@ use mockall_double::double;
 use std::sync::Arc;
 
 #[double]
-use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
 use crate::core::{
     balance_manager::balance_request::BalanceRequest,
@@ -19,10 +19,10 @@ use crate::core::{
 use super::balance_change_calculator_result::BalanceChangesCalculatorResult;
 
 pub(crate) struct BalanceChangesCalculator {
-    currency_pair_to_symbol_converter: Arc<CurrencyPairToMetadataConverter>,
+    currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
 }
 impl BalanceChangesCalculator {
-    pub fn new(currency_pair_to_symbol_converter: Arc<CurrencyPairToMetadataConverter>) -> Self {
+    pub fn new(currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>) -> Self {
         Self {
             currency_pair_to_symbol_converter,
         }

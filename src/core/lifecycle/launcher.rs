@@ -1,7 +1,7 @@
 use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
-use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::exchange_creation::create_exchange;
 use crate::core::exchanges::general::exchange_creation::create_timeout_manager;
@@ -114,10 +114,10 @@ where
     let exchanges_hashmap: HashMap<ExchangeAccountId, Arc<Exchange>> =
         exchanges_map.clone().into_iter().collect();
 
-    let currency_pair_to_metadata_converter =
-        CurrencyPairToMetadataConverter::new(exchanges_hashmap);
+    let currency_pair_to_symbol_converter =
+        CurrencyPairToSymbolConverter::new(exchanges_hashmap);
 
-    let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
+    let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
 
     BalanceManager::update_balances_for_exchanges(
         balance_manager.clone(),
