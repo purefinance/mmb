@@ -3,7 +3,7 @@ pub mod currency_pair_to_symbol_converter;
 pub mod engine_api;
 pub mod exchange;
 pub mod exchange_creation;
-pub mod exchange_metadata;
+pub mod exchange_symbol;
 pub mod features;
 pub mod handlers;
 pub mod order;

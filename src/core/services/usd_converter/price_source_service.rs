@@ -226,18 +226,18 @@ impl PriceSourceService {
 
                 let mut symbol_by_currency_code = HashMap::new();
                 for pair in &setting.exchange_id_currency_pair_settings {
-                    let metadata = currency_pair_to_symbol_converter
+                    let symbol = currency_pair_to_symbol_converter
                         .get_symbol(pair.exchange_account_id, pair.currency_pair);
                     Self::add_symbol_to_hashmap(
-                        metadata.quote_currency_code(),
+                        symbol.quote_currency_code(),
                         pair.exchange_account_id.exchange_id,
-                        metadata.clone(),
+                        symbol.clone(),
                         &mut symbol_by_currency_code,
                     );
                     Self::add_symbol_to_hashmap(
-                        metadata.base_currency_code(),
+                        symbol.base_currency_code(),
                         pair.exchange_account_id.exchange_id,
-                        metadata.clone(),
+                        symbol.clone(),
                         &mut symbol_by_currency_code,
                     );
                 }
@@ -278,7 +278,7 @@ impl PriceSourceService {
                     if current_currency_code == setting.end_currency_code {
                         break;
                     }
-                    let step_metadata = step.symbol.clone();
+                    let step_symbol = step.symbol.clone();
                     symbol_by_currency_code
                         .get_mut(&current_currency_code)
                         .with_expect(||
@@ -290,7 +290,7 @@ impl PriceSourceService {
                                 ),
                             ),
                         )
-                        .retain(|x| x.symbol != step_metadata);
+                        .retain(|x| x.symbol != step_symbol);
                 }
                 PriceSourceChain::new(
                     setting.start_currency_code,

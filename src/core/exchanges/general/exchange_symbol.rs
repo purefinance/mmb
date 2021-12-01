@@ -11,15 +11,15 @@ use crate::core::settings::CurrencyPairSetting;
 use super::{exchange::Exchange, symbol::Symbol};
 
 impl Exchange {
-    pub async fn build_metadata(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {
-        let exchange_symbols = &self.request_metadata_with_retries().await;
+    pub async fn build_symbol(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {
+        let exchange_symbols = &self.request_symbol_with_retries().await;
 
         let supported_currencies = get_supported_currencies(exchange_symbols);
         self.setup_supported_currencies(supported_currencies);
 
-        for metadata in exchange_symbols {
+        for symbol in exchange_symbols {
             self.leverage_by_currency_pair
-                .insert(metadata.currency_pair(), dec!(1));
+                .insert(symbol.currency_pair(), dec!(1));
         }
 
         let currency_pairs = currency_pair_settings.as_ref().with_expect(|| {
@@ -36,15 +36,15 @@ impl Exchange {
         ));
     }
 
-    async fn request_metadata_with_retries(&self) -> Vec<Arc<Symbol>> {
+    async fn request_symbol_with_retries(&self) -> Vec<Arc<Symbol>> {
         const MAX_RETRIES: u8 = 5;
         let mut retry = 0;
         loop {
-            match self.build_metadata_core().await {
+            match self.build_symbol_core().await {
                 Ok(result_symbols) => return result_symbols,
                 Err(error) => {
                     let error_message = format!(
-                        "Unable to get metadata for {}: {:?}",
+                        "Unable to get symbol for {}: {:?}",
                         self.exchange_account_id, error
                     );
 
@@ -60,14 +60,14 @@ impl Exchange {
         }
     }
 
-    async fn build_metadata_core(&self) -> Result<Vec<Arc<Symbol>>> {
-        let response = &self.exchange_client.request_metadata().await?;
+    async fn build_symbol_core(&self) -> Result<Vec<Arc<Symbol>>> {
+        let response = &self.exchange_client.request_symbol().await?;
 
         if let Some(error) = self.get_rest_error(response) {
-            Err(error).context("Rest error appeared during request request_metadata")?;
+            Err(error).context("Rest error appeared during request request_symbol")?;
         }
 
-        match self.exchange_client.parse_metadata(response) {
+        match self.exchange_client.parse_symbol(response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
                 self.handle_parse_error(error, response, "".into(), None)?;
@@ -135,20 +135,20 @@ fn get_matched_currency_pair(
     exchange_symbols: &[Arc<Symbol>],
     exchange_account_id: ExchangeAccountId,
 ) -> Option<Arc<Symbol>> {
-    // currency pair metadata and currency pairs from settings should match 1 to 1
+    // currency pair symbol and currency pairs from settings should match 1 to 1
     let settings_currency_pair = currency_pair_setting.currency_pair.as_deref();
-    let filtered_metadata = exchange_symbols
+    let filtered_symbol = exchange_symbols
         .iter()
-        .filter(|metadata| {
-            return Some(metadata.currency_pair().as_str()) == settings_currency_pair
-                || metadata.base_currency_code == currency_pair_setting.base
-                    && metadata.quote_currency_code == currency_pair_setting.quote;
+        .filter(|symbol| {
+            return Some(symbol.currency_pair().as_str()) == settings_currency_pair
+                || symbol.base_currency_code == currency_pair_setting.base
+                    && symbol.quote_currency_code == currency_pair_setting.quote;
         })
         .take(2)
         .cloned()
         .collect_vec();
 
-    match filtered_metadata.as_slice() {
+    match filtered_symbol.as_slice() {
         [] => {
             log::error!(
                 "Unsupported symbol {:?} on exchange {}",
@@ -156,13 +156,13 @@ fn get_matched_currency_pair(
                 exchange_account_id
             );
         }
-        [metadata] => return Some(metadata.clone()),
+        [symbol] => return Some(symbol.clone()),
         _ => {
             log::error!(
                     "Found more then 1 symbol for currency pair {:?} on exchange {}. Found symbols: {:?}",
                     currency_pair_setting,
                     exchange_account_id,
-                    filtered_metadata
+                    filtered_symbol
                 );
         }
     };

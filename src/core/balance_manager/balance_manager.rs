@@ -450,9 +450,8 @@ impl BalanceManager {
         let this_locked = this.lock();
         let balances = this_locked.get_balances();
         let exchanges_by_id = this_locked.balance_reservation_manager.exchanges_by_id();
-        let new_balance_manager = Self::new(CurrencyPairToSymbolConverter::new(
-            exchanges_by_id.clone(),
-        ));
+        let new_balance_manager =
+            Self::new(CurrencyPairToSymbolConverter::new(exchanges_by_id.clone()));
         drop(this_locked);
 
         let mut new_bm_lock = new_balance_manager.lock();

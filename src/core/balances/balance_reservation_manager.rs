@@ -70,9 +70,7 @@ impl BalanceReservationManager {
             position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount::new(),
             reservation_id: ReservationId::generate(),
             virtual_balance_holder: VirtualBalanceHolder::new(
-                currency_pair_to_symbol_converter
-                    .exchanges_by_id()
-                    .clone(),
+                currency_pair_to_symbol_converter.exchanges_by_id().clone(),
             ),
             balance_reservation_storage: BalanceReservationStorage::new(),
             is_call_from_clone: false,

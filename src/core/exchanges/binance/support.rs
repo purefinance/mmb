@@ -304,13 +304,13 @@ impl Support for Binance {
         Ok(unified_order)
     }
 
-    fn parse_metadata(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
+    fn parse_symbol(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
         let deserialized: Value = serde_json::from_str(&response.content)
             .context("Unable to deserialize response from Binance")?;
         let symbols = deserialized
             .get("symbols")
             .and_then(|symbols| symbols.as_array())
-            .ok_or(anyhow!("Unable to get symbols metadata array from Binance"))?;
+            .ok_or(anyhow!("Unable to get symbols array from Binance"))?;
 
         let mut result = Vec::new();
         for symbol in symbols {

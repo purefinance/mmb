@@ -114,8 +114,7 @@ where
     let exchanges_hashmap: HashMap<ExchangeAccountId, Arc<Exchange>> =
         exchanges_map.clone().into_iter().collect();
 
-    let currency_pair_to_symbol_converter =
-        CurrencyPairToSymbolConverter::new(exchanges_hashmap);
+    let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_hashmap);
 
     let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
 

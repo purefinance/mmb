@@ -148,7 +148,7 @@ impl DispositionExecutor {
             .get(&exchange_account_id)
             .expect("Target exchange should exists")
             .get_symbol(currency_pair)
-            .expect("Currency pair metadata should exists for target trading place");
+            .expect("Currency pair symbol should exists for target trading place");
 
         DispositionExecutor {
             engine_ctx,

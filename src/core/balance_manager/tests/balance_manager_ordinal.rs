@@ -39,8 +39,7 @@ impl BalanceManagerOrdinal {
     fn create_balance_manager() -> (Arc<Symbol>, Arc<Mutex<BalanceManager>>) {
         let (symbol, exchanges_by_id) =
             BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
-        let currency_pair_to_symbol_converter =
-            CurrencyPairToSymbolConverter::new(exchanges_by_id);
+        let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_by_id);
 
         let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
         (symbol, balance_manager)
@@ -4425,8 +4424,7 @@ mod tests {
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0));
         let (_, exchanges_by_id) = BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
 
-        let currency_pair_to_symbol_converter =
-            CurrencyPairToSymbolConverter::new(exchanges_by_id);
+        let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_by_id);
 
         let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter.clone());
 

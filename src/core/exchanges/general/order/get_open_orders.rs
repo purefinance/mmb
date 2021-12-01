@@ -97,7 +97,7 @@ impl Exchange {
             }
 
             OpenOrdersType::OneCurrencyPair => {
-                // TODO other actions here have to be written after build_metadata() implementation
+                // TODO other actions here have to be written after build_symbol() implementation
                 let responses = futures::future::join_all(
                     self.symbols
                         .iter()

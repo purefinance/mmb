@@ -103,7 +103,7 @@ impl BinanceBuilder {
             commission,
         );
         exchange.clone().connect().await;
-        exchange.build_metadata(&settings.currency_pairs).await;
+        exchange.build_symbol(&settings.currency_pairs).await;
 
         let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(
             hashmap![ exchange_account_id => exchange.clone()  ],
