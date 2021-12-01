@@ -67,7 +67,7 @@ pub async fn create_exchange(
         Commission::default(),
     );
 
-    exchange.build_symbol(&user_settings.currency_pairs).await;
+    exchange.build_symbols(&user_settings.currency_pairs).await;
 
     exchange.clone().connect().await;
 

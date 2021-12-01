@@ -304,7 +304,7 @@ impl Support for Binance {
         Ok(unified_order)
     }
 
-    fn parse_symbol(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
+    fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
         let deserialized: Value = serde_json::from_str(&response.content)
             .context("Unable to deserialize response from Binance")?;
         let symbols = deserialized

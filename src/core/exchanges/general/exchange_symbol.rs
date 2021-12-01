@@ -11,8 +11,8 @@ use crate::core::settings::CurrencyPairSetting;
 use super::{exchange::Exchange, symbol::Symbol};
 
 impl Exchange {
-    pub async fn build_symbol(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {
-        let exchange_symbols = &self.request_symbol_with_retries().await;
+    pub async fn build_symbols(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {
+        let exchange_symbols = &self.request_symbols_with_retries().await;
 
         let supported_currencies = get_supported_currencies(exchange_symbols);
         self.setup_supported_currencies(supported_currencies);
@@ -36,11 +36,11 @@ impl Exchange {
         ));
     }
 
-    async fn request_symbol_with_retries(&self) -> Vec<Arc<Symbol>> {
+    async fn request_symbols_with_retries(&self) -> Vec<Arc<Symbol>> {
         const MAX_RETRIES: u8 = 5;
         let mut retry = 0;
         loop {
-            match self.build_symbol_core().await {
+            match self.build_all_symbols_core().await {
                 Ok(result_symbols) => return result_symbols,
                 Err(error) => {
                     let error_message = format!(
@@ -60,14 +60,14 @@ impl Exchange {
         }
     }
 
-    async fn build_symbol_core(&self) -> Result<Vec<Arc<Symbol>>> {
-        let response = &self.exchange_client.request_symbol().await?;
+    async fn build_all_symbols_core(&self) -> Result<Vec<Arc<Symbol>>> {
+        let response = &self.exchange_client.request_all_symbols().await?;
 
         if let Some(error) = self.get_rest_error(response) {
             Err(error).context("Rest error appeared during request request_symbol")?;
         }
 
-        match self.exchange_client.parse_symbol(response) {
+        match self.exchange_client.parse_all_symbols(response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
                 self.handle_parse_error(error, response, "".into(), None)?;

@@ -35,7 +35,7 @@ use awc::http::Uri;
 // Implementation of rest API client
 #[async_trait]
 pub trait ExchangeClient: Support {
-    async fn request_symbol(&self) -> Result<RestRequestOutcome>;
+    async fn request_all_symbols(&self) -> Result<RestRequestOutcome>;
 
     async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome>;
 
@@ -120,7 +120,7 @@ pub trait Support: Send + Sync {
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;
     fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo>;
-    fn parse_symbol(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>>;
+    fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>>;
 
     fn get_balance_reservation_currency_code(
         &self,

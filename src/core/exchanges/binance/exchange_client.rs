@@ -14,7 +14,7 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl ExchangeClient for Binance {
-    async fn request_symbol(&self) -> Result<RestRequestOutcome> {
+    async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
         // In current versions works only with Spot market
         let url_path = "/api/v3/exchangeInfo";
         let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
