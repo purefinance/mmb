@@ -46,6 +46,7 @@ pub enum Precision {
     ByMantissa { precision: i8 },
 }
 
+/// Metadata for a currency pair
 #[derive(Debug, Clone, Hash, Eq)]
 pub struct Symbol {
     pub is_active: bool,
