@@ -56,7 +56,7 @@ impl FromStr for ExchangeAccountId {
     type Err = ExchangeIdParseError;
 
     fn from_str(text: &str) -> std::result::Result<Self, Self::Err> {
-        let regex = Regex::new(r"(^[A-Za-z]+)_(\d+$)")
+        let regex = Regex::new(r"(^[A-Za-z0-9\-\.]+)_(\d+$)")
             .map_err(|err| ExchangeIdParseError(err.to_string()))?;
 
         let captures = regex
@@ -565,10 +565,13 @@ mod tests {
 
         #[test]
         pub fn correct() {
-            let exchange_account_id = "Binance_0".parse::<ExchangeAccountId>();
+            let exchange_account_id = "Binance.test-hello-world111_0".parse::<ExchangeAccountId>();
             assert_eq!(
                 exchange_account_id,
-                Ok(ExchangeAccountId::new("Binance".into(), 0))
+                Ok(ExchangeAccountId::new(
+                    "Binance.test-hello-world111".into(),
+                    0
+                ))
             );
         }
 
