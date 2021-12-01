@@ -70,7 +70,7 @@ impl InternalEventsLoop {
                             exchange.order_finished_notify(&order_event.order);
                         }
                         OrderEventType::CancelOrderSucceeded
-                        | OrderEventType::OrderCompleted { cloned_order: _ } => {
+                        | OrderEventType::OrderCompleted { .. } => {
                             exchange.order_finished_notify(&order_event.order);
                         }
                         _ => nothing_to_do(),
