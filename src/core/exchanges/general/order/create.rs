@@ -3,7 +3,6 @@ use chrono::Utc;
 use tokio::sync::oneshot;
 
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
-use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::orders::event::OrderEventType;
 use crate::core::{
@@ -410,24 +409,9 @@ impl Exchange {
                     );
 
                     for buffered_fill in buffered_fills {
-                        self.handle_order_filled(FillEventData {
-                            source_type: buffered_fill.event_source_type,
-                            trade_id: Some(buffered_fill.trade_id),
-                            client_order_id: Some(client_order_id.clone()),
-                            exchange_order_id: buffered_fill.exchange_order_id,
-                            fill_price: buffered_fill.fill_price,
-                            fill_amount: buffered_fill.fill_amount,
-                            is_diff: buffered_fill.is_diff,
-                            total_filled_amount: buffered_fill.total_filled_amount,
-                            order_role: buffered_fill.order_role,
-                            commission_currency_code: Some(buffered_fill.commission_currency_code),
-                            commission_rate: buffered_fill.commission_rate,
-                            commission_amount: buffered_fill.commission_amount,
-                            fill_type: buffered_fill.order_fill_type,
-                            trade_currency_pair: Some(buffered_fill.trade_currency_pair),
-                            order_side: buffered_fill.side,
-                            order_amount: None,
-                        })?;
+                        self.handle_order_filled(
+                            buffered_fill.to_fill_event_data(None, client_order_id.clone()),
+                        )?;
                     }
 
                     buffered_fills_manager.remove_fills(exchange_order_id);

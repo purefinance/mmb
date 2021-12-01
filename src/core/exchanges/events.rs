@@ -108,13 +108,14 @@ impl From<Value> for TradeId {
 
 impl PartialEq for TradeId {
     fn eq(&self, other: &TradeId) -> bool {
+        let panic_msg = "TradeId formats don't match";
         match self {
             TradeId::Number(this) => match other {
                 TradeId::Number(other) => this == other,
-                TradeId::String(other) => &this.to_string().into_boxed_str() == other,
+                TradeId::String(_) => panic!("{}", panic_msg),
             },
             TradeId::String(this) => match other {
-                TradeId::Number(other) => &other.to_string().into_boxed_str() == this,
+                TradeId::Number(_) => panic!("{}", panic_msg),
                 TradeId::String(other) => this == other,
             },
         }

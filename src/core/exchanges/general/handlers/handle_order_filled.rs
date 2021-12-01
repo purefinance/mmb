@@ -34,6 +34,7 @@ use crate::core::{
         order::{ClientOrderFillId, OrderRole},
         pool::OrderRef,
     },
+    DateTime,
 };
 
 type ArgsToLog = (
@@ -63,6 +64,7 @@ pub struct FillEventData {
     pub trade_currency_pair: Option<CurrencyPair>,
     pub order_side: Option<OrderSide>,
     pub order_amount: Option<Amount>,
+    pub fill_date: Option<DateTime>,
 }
 
 impl Exchange {
@@ -114,17 +116,15 @@ impl Exchange {
 
                 log::info!("Received a fill for not existing order {:?}", &args_to_log);
 
-                let source_type = event_data.source_type.clone();
+                let source_type = event_data.source_type;
                 let exchange_order_id = event_data.exchange_order_id.clone();
-                let client_or_order_id_opt = event_data.client_order_id.clone();
+                let client_or_order_id = event_data.client_order_id.clone();
 
-                self.buffered_fills_manager.lock().add_fill(
-                    self.exchange_account_id,
-                    event_data,
-                    None,
-                );
+                self.buffered_fills_manager
+                    .lock()
+                    .add_fill(self.exchange_account_id, event_data);
 
-                if let Some(client_order_id) = client_or_order_id_opt {
+                if let Some(client_order_id) = client_or_order_id {
                     self.raise_order_created(&client_order_id, &exchange_order_id, source_type);
                 }
 
@@ -852,8 +852,7 @@ mod test {
     };
 
     fn trade_id_from_str(str: &str) -> TradeId {
-        let json = json!({ "t": str });
-        TradeId::from(json["t"].clone())
+        json!(str).into()
     }
 
     mod liquidation {
@@ -878,6 +877,7 @@ mod test {
                 trade_currency_pair: None,
                 order_side: None,
                 order_amount: None,
+                fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -911,6 +911,7 @@ mod test {
                 trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: None,
                 order_amount: None,
+                fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -944,6 +945,7 @@ mod test {
                 trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: None,
+                fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -977,6 +979,7 @@ mod test {
                 trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: None,
+                fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -1017,6 +1020,7 @@ mod test {
                 trade_currency_pair: Some(currency_pair),
                 order_side: Some(order_side),
                 order_amount: Some(order_amount),
+                fill_date: None,
             };
 
             let (exchange, _event_received) = get_test_exchange(false);
@@ -1063,6 +1067,7 @@ mod test {
                 trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: Some(dec!(0)),
+                fill_date: None,
             };
 
             let (exchange, _event_receiver) = get_test_exchange(false);
@@ -1107,6 +1112,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1184,6 +1190,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1261,6 +1268,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1338,6 +1346,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1414,6 +1423,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1472,6 +1482,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1531,6 +1542,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1630,6 +1642,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1653,6 +1666,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1745,6 +1759,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1768,6 +1783,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1858,6 +1874,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1881,6 +1898,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1977,6 +1995,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -2000,6 +2019,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -2094,6 +2114,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -2117,6 +2138,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -2161,6 +2183,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2217,6 +2240,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2277,6 +2301,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2339,6 +2364,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2398,6 +2424,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2459,6 +2486,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2523,6 +2551,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2596,6 +2625,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2659,6 +2689,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2718,6 +2749,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2777,6 +2809,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -3363,6 +3396,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
@@ -3392,6 +3426,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
@@ -3421,6 +3456,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {

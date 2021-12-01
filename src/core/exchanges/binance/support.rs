@@ -149,7 +149,8 @@ impl Support for Binance {
     }
 
     fn on_websocket_message(&self, msg: &str) -> Result<()> {
-        let data: Value = serde_json::from_str(msg).context("Unable to parse websocket message")?;
+        let mut data: Value =
+            serde_json::from_str(msg).context("Unable to parse websocket message")?;
         // Public stream
         if let Some(stream) = data.get("stream") {
             let stream = stream
@@ -181,8 +182,9 @@ impl Support for Binance {
             .ok_or(anyhow!("Unable to parse event_type"))?;
         if event_type == "executionReport" {
             self.handle_order_fill(msg, data)?;
-        } else if false {
-            // TODO something about ORDER_TRADE_UPDATE? There are no info about it in Binance docs
+        } else if event_type == "ORDER_TRADE_UPDATE" {
+            let json_response = data["o"].take();
+            self.handle_order_fill(msg, json_response)?;
         } else {
             self.log_unknown_message(self.id, msg);
         }
