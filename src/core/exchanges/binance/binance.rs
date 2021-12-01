@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
@@ -35,6 +34,7 @@ use crate::core::exchanges::{
 };
 use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
 use crate::core::infrastructure::WithExpect;
+use crate::core::misc::time::u64_to_date_time;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
@@ -380,13 +380,11 @@ impl Binance {
                 .as_str()
                 .ok_or(anyhow!("Unable to parse last filled amount"))?,
         );
-        let fill_date: DateTime = (UNIX_EPOCH
-            + Duration::from_millis(
-                json_response["E"]
-                    .as_u64()
-                    .ok_or(anyhow!("Unable to parse transaction time"))?,
-            ))
-        .into();
+        let fill_date: DateTime = u64_to_date_time(
+            json_response["E"]
+                .as_u64()
+                .ok_or(anyhow!("Unable to parse transaction time"))?,
+        );
 
         let fill_type = Self::get_fill_type(execution_type)?;
         let order_role = if is_maker {
