@@ -10,6 +10,7 @@ use crate::core::{
     misc::service_value_tree::ServiceValueTree,
 };
 
+#[derive(Debug)]
 pub(crate) struct BalanceChangesCalculatorResult {
     balance_changes: ServiceValueTree,
     currency_code: CurrencyCode,
