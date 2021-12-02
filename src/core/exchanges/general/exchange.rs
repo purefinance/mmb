@@ -30,6 +30,7 @@ use crate::core::exchanges::timeouts::requests_timeout_manager_factory::RequestT
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::misc::derivative_position::DerivativePosition;
 use crate::core::misc::time::time_manager;
+use crate::core::misc::traits_ext::send_expected::SendExpectedByRef;
 use crate::core::orders::buffered_fills::buffered_canceled_orders_manager::BufferedCanceledOrdersManager;
 use crate::core::orders::buffered_fills::buffered_fills_manager::BufferedFillsManager;
 use crate::core::orders::event::OrderEventType;
@@ -807,13 +808,10 @@ impl Exchange {
         balances_and_positions: ExchangeBalancesAndPositions,
     ) -> ExchangeBalancesAndPositions {
         self.events_channel
-            .send(ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
+            .send_expected(ExchangeEvent::BalanceUpdate(BalanceUpdateEvent {
                 exchange_account_id: self.exchange_account_id,
                 balances_and_positions: balances_and_positions.clone(),
-            }))
-            .expect(
-                "Exchange::get_balance: Unable to send event. Probably receiver is already dropped",
-            );
+            }));
 
         if let Some(positions) = &balances_and_positions.positions {
             for position_info in positions {
@@ -901,10 +899,7 @@ impl Exchange {
         );
 
         self.events_channel
-            .send(ExchangeEvent::LiquidationPrice(event))
-            .expect(
-                "Exchange::handle_liquidation_price: Unable to send event. Probably receiver is already dropped",
-            );
+            .send_expected(ExchangeEvent::LiquidationPrice(event));
 
         // TODO: fix it when DataRecorder will be implemented
         // if (exchange.IsRecordingMarketData)
