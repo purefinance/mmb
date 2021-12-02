@@ -31,6 +31,8 @@ use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::misc::derivative_position::DerivativePosition;
 use crate::core::misc::time::time_manager;
 use crate::core::misc::traits_ext::send_expected::SendExpectedByRef;
+use crate::core::orders::buffered_fills::buffered_canceled_orders_manager::BufferedCanceledOrdersManager;
+use crate::core::orders::buffered_fills::buffered_fills_manager::BufferedFillsManager;
 use crate::core::orders::event::OrderEventType;
 use crate::core::orders::order::{OrderHeader, OrderSide};
 use crate::core::orders::pool::OrdersPool;
@@ -114,6 +116,8 @@ pub struct Exchange {
     pub(super) last_trades: DashMap<TradePlace, Trade>,
     pub(super) timeout_manager: Arc<TimeoutManager>,
     pub(super) balance_manager: Mutex<Option<Weak<Mutex<BalanceManager>>>>,
+    pub(super) buffered_fills_manager: Mutex<BufferedFillsManager>,
+    pub(super) buffered_canceled_orders_manager: Mutex<BufferedCanceledOrdersManager>,
     // It allows to send and receive notification about event in websocket channel
     // Websocket event is main source detecting order creation result
     // Rest response using only for unsuccessful operations as error
@@ -176,6 +180,8 @@ impl Exchange {
             last_trades_update_time: DashMap::new(),
             last_trades: DashMap::new(),
             balance_manager: Mutex::new(None),
+            buffered_fills_manager: Mutex::new(BufferedFillsManager::new()),
+            buffered_canceled_orders_manager: Mutex::new(BufferedCanceledOrdersManager::new()),
         });
 
         exchange.clone().setup_connectivity_manager();

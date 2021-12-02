@@ -1,5 +1,5 @@
 use crate::core::{
-    exchanges::common::CurrencyCode,
+    exchanges::{common::CurrencyCode, events::TradeId},
     orders::order::{OrderFillRole, OrderSide},
     DateTime,
 };
@@ -31,7 +31,7 @@ pub struct OrderFill {
     receive_time: DateTime,
     fill_type: OrderFillType,
 
-    trade_id: Option<String>,
+    trade_id: Option<TradeId>,
     price: Decimal,
     amount: Decimal,
     cost: Decimal,
@@ -58,7 +58,7 @@ impl OrderFill {
         client_order_fill_id: Option<ClientOrderFillId>,
         receive_time: DateTime,
         fill_type: OrderFillType,
-        trade_id: Option<String>,
+        trade_id: Option<TradeId>,
         price: Decimal,
         amount: Decimal,
         cost: Decimal,
@@ -104,7 +104,7 @@ impl OrderFill {
     pub fn fill_type(&self) -> OrderFillType {
         self.fill_type
     }
-    pub fn trade_id(&self) -> Option<&String> {
+    pub fn trade_id(&self) -> Option<&TradeId> {
         self.trade_id.as_ref()
     }
     pub fn price(&self) -> Decimal {

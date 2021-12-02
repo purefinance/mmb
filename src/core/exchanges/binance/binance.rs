@@ -34,6 +34,7 @@ use crate::core::exchanges::{
 };
 use crate::core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
 use crate::core::infrastructure::WithExpect;
+use crate::core::misc::time::u64_to_date_time;
 use crate::core::orders::fill::EventSourceType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
@@ -352,7 +353,7 @@ impl Binance {
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,
     ) -> Result<FillEventData> {
-        let trade_id = json_response["t"].to_string().trim_matches('"').to_owned();
+        let trade_id = json_response["t"].clone().into();
         let last_filled_price = json_response["L"]
             .as_str()
             .ok_or(anyhow!("Unable to parse last filled price"))?;
@@ -379,6 +380,11 @@ impl Binance {
                 .as_str()
                 .ok_or(anyhow!("Unable to parse last filled amount"))?,
         );
+        let fill_date: DateTime = u64_to_date_time(
+            json_response["E"]
+                .as_u64()
+                .ok_or(anyhow!("Unable to parse transaction time"))?,
+        );
 
         let fill_type = Self::get_fill_type(execution_type)?;
         let order_role = if is_maker {
@@ -404,6 +410,7 @@ impl Binance {
             trade_currency_pair: None,
             order_side: Some(order_side),
             order_amount: None,
+            fill_date: Some(fill_date),
         };
 
         Ok(event_data)
