@@ -75,7 +75,7 @@ async fn before_engine_context_init<'a, StrategySettings>(
     oneshot::Receiver<()>,
 )>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'static> + Serialize,
 {
     init_logger();
 
@@ -177,7 +177,7 @@ where
         create_statistic_event_handler(exchange_events, statistic_service.clone());
     let control_panel = ControlPanel::new(
         "127.0.0.1:8080",
-        toml::Value::try_from(settings.clone())?.to_string(),
+        toml_edit::ser::to_string(&settings)?,
         engine_context.application_manager.clone(),
         statistic_service.clone(),
     );
@@ -254,7 +254,7 @@ pub async fn launch_trading_engine<'a, StrategySettings>(
     ) -> Box<dyn DispositionStrategy + 'static>,
 ) -> Result<TradingEngine>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'static> + Serialize,
 {
     let action_outcome = AssertUnwindSafe(before_engine_context_init(
         build_settings,
