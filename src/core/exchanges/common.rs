@@ -98,7 +98,7 @@ impl<'de> Visitor<'de> for ExchangeAccountIdVisitor {
         v.parse().map_err(|_| {
             de::Error::invalid_value(
                 de::Unexpected::Str(v),
-                &"ExchangeAccountId as a string with account number on the tail that si separated by a '_' character",
+                &"ExchangeAccountId as a string with account number on the tail that separated by a '_' character",
             )
         })
     }
