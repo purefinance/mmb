@@ -15,8 +15,8 @@ use crate::core::{
         common::Price,
         events::{AllowedEventSourceType, TradeId},
         general::commission::Percent,
-        general::symbol::{Symbol, Round},
         general::exchange::Exchange,
+        general::symbol::{Round, Symbol},
     },
     math::ConvertPercentToRate,
     orders::{
