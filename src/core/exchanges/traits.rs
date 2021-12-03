@@ -13,9 +13,9 @@ use super::{
     },
     common::{Amount, ClosedPosition, CurrencyId, Price},
     events::{ExchangeBalancesAndPositions, TradeId},
-    general::currency_pair_metadata::BeforeAfter,
     general::handlers::handle_order_filled::FillEventData,
-    general::{currency_pair_metadata::CurrencyPairMetadata, order::get_order_trades::OrderTrade},
+    general::symbol::BeforeAfter,
+    general::{order::get_order_trades::OrderTrade, symbol::Symbol},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::core::exchanges::events::ExchangeEvent;
@@ -35,7 +35,7 @@ use awc::http::Uri;
 // Implementation of rest API client
 #[async_trait]
 pub trait ExchangeClient: Support {
-    async fn request_metadata(&self) -> Result<RestRequestOutcome>;
+    async fn request_all_symbols(&self) -> Result<RestRequestOutcome>;
 
     async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome>;
 
@@ -54,7 +54,7 @@ pub trait ExchangeClient: Support {
 
     async fn request_my_trades(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome>;
 
@@ -120,17 +120,14 @@ pub trait Support: Send + Sync {
 
     fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;
     fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo>;
-    fn parse_metadata(
-        &self,
-        response: &RestRequestOutcome,
-    ) -> Result<Vec<Arc<CurrencyPairMetadata>>>;
+    fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>>;
 
     fn get_balance_reservation_currency_code(
         &self,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> CurrencyCode {
-        currency_pair_metadata.get_trade_code(side, BeforeAfter::Before)
+        symbol.get_trade_code(side, BeforeAfter::Before)
     }
 
     fn parse_get_my_trades(

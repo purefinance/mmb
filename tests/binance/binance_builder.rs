@@ -2,7 +2,7 @@ use anyhow::Result;
 use mmb_lib::core::balance_manager::balance_manager::BalanceManager;
 use mmb_lib::core::exchanges::common::*;
 use mmb_lib::core::exchanges::events::ExchangeEvent;
-use mmb_lib::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use mmb_lib::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use mmb_lib::core::exchanges::general::exchange::*;
 use mmb_lib::core::exchanges::general::features::*;
 use mmb_lib::core::exchanges::hosts::Hosts;
@@ -103,13 +103,13 @@ impl BinanceBuilder {
             commission,
         );
         exchange.clone().connect().await;
-        exchange.build_metadata(&settings.currency_pairs).await;
+        exchange.build_symbols(&settings.currency_pairs).await;
 
-        let currency_pair_to_metadata_converter = CurrencyPairToMetadataConverter::new(
+        let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(
             hashmap![ exchange_account_id => exchange.clone()  ],
         );
 
-        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
 
         exchange.setup_balance_manager(balance_manager);
 

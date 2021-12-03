@@ -3,11 +3,11 @@ use mockall_double::double;
 use std::sync::Arc;
 
 #[double]
-use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
 use crate::core::{
     balance_manager::balance_request::BalanceRequest,
-    exchanges::general::currency_pair_metadata::CurrencyPairMetadata,
+    exchanges::general::symbol::Symbol,
     misc::service_value_tree::ServiceValueTree,
     orders::{
         fill::OrderFill,
@@ -19,10 +19,10 @@ use crate::core::{
 use super::balance_change_calculator_result::BalanceChangesCalculatorResult;
 
 pub(crate) struct BalanceChangesCalculator {
-    currency_pair_to_symbol_converter: Arc<CurrencyPairToMetadataConverter>,
+    currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
 }
 impl BalanceChangesCalculator {
-    pub fn new(currency_pair_to_symbol_converter: Arc<CurrencyPairToMetadataConverter>) -> Self {
+    pub fn new(currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>) -> Self {
         Self {
             currency_pair_to_symbol_converter,
         }
@@ -36,10 +36,7 @@ impl BalanceChangesCalculator {
     ) -> BalanceChangesCalculatorResult {
         let symbol = self
             .currency_pair_to_symbol_converter
-            .get_currency_pair_metadata(
-                order.header.exchange_account_id,
-                order.header.currency_pair,
-            );
+            .get_symbol(order.header.exchange_account_id, order.header.currency_pair);
 
         self.get_balance_changes_calculator_results(
             configuration_descriptor,
@@ -54,7 +51,7 @@ impl BalanceChangesCalculator {
         configuration_descriptor: ConfigurationDescriptor,
         order: &OrderSnapshot,
         order_fill: &OrderFill,
-        symbol: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
     ) -> BalanceChangesCalculatorResult {
         let price = order_fill.price();
         let filled_amount = order_fill.amount() * symbol.amount_multiplier;

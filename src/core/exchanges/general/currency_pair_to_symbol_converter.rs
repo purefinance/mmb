@@ -6,37 +6,37 @@ use std::sync::Arc;
 
 use crate::core::exchanges::common::CurrencyPair;
 use crate::core::exchanges::common::ExchangeAccountId;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::Exchange;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::infrastructure::WithExpect;
 
 #[derive(Clone)]
-pub struct CurrencyPairToMetadataConverter {
+pub struct CurrencyPairToSymbolConverter {
     exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
 }
 
 #[cfg_attr(test, automock)]
-impl CurrencyPairToMetadataConverter {
+impl CurrencyPairToSymbolConverter {
     pub fn new(exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>) -> Arc<Self> {
         Arc::new(Self { exchanges_by_id })
     }
 
-    pub(crate) fn get_currency_pair_metadata(
+    pub(crate) fn get_symbol(
         &self,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
-    ) -> Arc<CurrencyPairMetadata> {
+    ) -> Arc<Symbol> {
         let exchange = self
             .exchanges_by_id
             .get(&exchange_account_id)
             .with_expect(|| {
                 format!(
-                    "get_currency_pair_metadata failed to get exchange by id: {}",
+                    "get_symbol failed to get exchange by id: {}",
                     exchange_account_id
                 )
             });
         exchange
-            .get_currency_pair_metadata(currency_pair)
+            .get_symbol(currency_pair)
             .expect("failed to get currency pair")
     }
 
@@ -46,4 +46,4 @@ impl CurrencyPairToMetadataConverter {
 }
 
 #[cfg(test)]
-crate::impl_mock_initializer!(MockCurrencyPairToMetadataConverter);
+crate::impl_mock_initializer!(MockCurrencyPairToSymbolConverter);

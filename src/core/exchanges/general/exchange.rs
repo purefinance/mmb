@@ -12,8 +12,8 @@ use serde_json::Value;
 use tokio::sync::{broadcast, oneshot};
 
 use super::commission::Commission;
-use super::currency_pair_metadata::CurrencyPairMetadata;
 use super::polling_timeout_manager::PollingTimeoutManager;
+use super::symbol::Symbol;
 use crate::core::connectivity::connectivity_manager::GetWSParamsCallback;
 #[cfg(debug_assertions)]
 use crate::core::exchanges::common::SpecificCurrencyPair;
@@ -95,7 +95,7 @@ pub(crate) struct OrderBookTop {
 
 pub struct Exchange {
     pub exchange_account_id: ExchangeAccountId,
-    pub symbols: DashMap<CurrencyPair, Arc<CurrencyPairMetadata>>,
+    pub symbols: DashMap<CurrencyPair, Arc<Symbol>>,
     /// Actualised orders data for active order and some late cached orders
     pub orders: Arc<OrdersPool>,
     pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
@@ -575,11 +575,11 @@ impl Exchange {
 
     pub fn get_balance_reservation_currency_code(
         &self,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> CurrencyCode {
         self.exchange_client
-            .get_balance_reservation_currency_code(currency_pair_metadata, side)
+            .get_balance_reservation_currency_code(symbol, side)
     }
 
     pub async fn close_position(

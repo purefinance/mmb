@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use crate::core::exchanges::{
-    common::ExchangeId, general::currency_pair_metadata::CurrencyPairMetadata,
-};
+use crate::core::exchanges::{common::ExchangeId, general::symbol::Symbol};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RebaseDirection {
@@ -13,19 +11,15 @@ pub enum RebaseDirection {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RebasePriceStep {
     pub exchange_id: ExchangeId,
-    pub currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    pub symbol: Arc<Symbol>,
     pub direction: RebaseDirection,
 }
 
 impl RebasePriceStep {
-    pub fn new(
-        exchange_id: ExchangeId,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
-        direction: RebaseDirection,
-    ) -> Self {
+    pub fn new(exchange_id: ExchangeId, symbol: Arc<Symbol>, direction: RebaseDirection) -> Self {
         Self {
             exchange_id,
-            currency_pair_metadata,
+            symbol,
             direction,
         }
     }

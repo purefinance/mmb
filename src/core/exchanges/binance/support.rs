@@ -23,8 +23,8 @@ use crate::core::exchanges::general::order::get_order_trades::OrderTrade;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
-    general::currency_pair_metadata::CurrencyPairMetadata,
-    general::handlers::handle_order_filled::FillEventData, traits::Support,
+    general::handlers::handle_order_filled::FillEventData, general::symbol::Symbol,
+    traits::Support,
 };
 use crate::core::order_book::event::{EventType, OrderBookEvent};
 use crate::core::order_book::order_book_data::OrderBookData;
@@ -33,8 +33,7 @@ use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
 use crate::core::DateTime;
 use crate::core::{
-    connectivity::connectivity_manager::WebSocketRole,
-    exchanges::general::currency_pair_metadata::Precision,
+    connectivity::connectivity_manager::WebSocketRole, exchanges::general::symbol::Precision,
 };
 use crate::core::{
     exchanges::common::{
@@ -305,16 +304,13 @@ impl Support for Binance {
         Ok(unified_order)
     }
 
-    fn parse_metadata(
-        &self,
-        response: &RestRequestOutcome,
-    ) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
+    fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
         let deserialized: Value = serde_json::from_str(&response.content)
             .context("Unable to deserialize response from Binance")?;
         let symbols = deserialized
             .get("symbols")
             .and_then(|symbols| symbols.as_array())
-            .ok_or(anyhow!("Unable to get symbols metadata array from Binance"))?;
+            .ok_or(anyhow!("Unable to get symbols array from Binance"))?;
 
         let mut result = Vec::new();
         for symbol in symbols {
@@ -394,7 +390,7 @@ impl Support for Binance {
                 ),
             };
 
-            let currency_pair_metadata = CurrencyPairMetadata::new(
+            let symbol = Symbol::new(
                 is_active,
                 is_derivative,
                 base_currency_id.as_str().into(),
@@ -412,7 +408,7 @@ impl Support for Binance {
                 amount_precision,
             );
 
-            result.push(Arc::new(currency_pair_metadata))
+            result.push(Arc::new(symbol))
         }
 
         Ok(result)

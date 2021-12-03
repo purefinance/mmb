@@ -31,10 +31,7 @@ fn calculate_amount_for_chain(
     let mut rebase_price = dec!(1);
 
     for step in &price_source_chain.rebase_price_steps {
-        let trade_place = TradePlace::new(
-            step.exchange_id,
-            step.currency_pair_metadata.currency_pair(),
-        );
+        let trade_place = TradePlace::new(step.exchange_id, step.symbol.currency_pair());
         let calculated_price = (calculate_price)(trade_place)?;
 
         match step.direction {
@@ -88,7 +85,7 @@ mod test {
     use parking_lot::ReentrantMutexGuard;
 
     #[double]
-    use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+    use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
     use crate::order_book_data;
     use crate::{
@@ -125,22 +122,22 @@ mod test {
             }],
         )];
 
-        let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_currency_pair_metadata().returning(
-            move |exchange_account_id, currency_pair| {
+        let (mut converter, locker) = CurrencyPairToSymbolConverter::init_mock();
+        converter
+            .expect_get_symbol()
+            .returning(move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, "USDT", "BTC")
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }
                 .0
-                .get_currency_pair_metadata(currency_pair)
+                .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
-            },
-        );
+            });
 
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             &price_source_settings,
@@ -279,9 +276,10 @@ mod test {
             ],
         )];
 
-        let (mut converter, locker) = CurrencyPairToMetadataConverter::init_mock();
-        converter.expect_get_currency_pair_metadata().returning(
-            move |exchange_account_id, currency_pair| {
+        let (mut converter, locker) = CurrencyPairToSymbolConverter::init_mock();
+        converter
+            .expect_get_symbol()
+            .returning(move |exchange_account_id, currency_pair| {
                 if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id() {
                     get_test_exchange_by_currency_codes(false, "USDT", "BTC")
                 } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
@@ -289,15 +287,14 @@ mod test {
                     get_test_exchange_by_currency_codes(false, "BTC", "EOS")
                 } else {
                     panic!(
-                        "Unknown exchange in CurrencyPairToMetadataConverter:{:?}",
+                        "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",
                         exchange_account_id
                     )
                 }
                 .0
-                .get_currency_pair_metadata(currency_pair)
+                .get_symbol(currency_pair)
                 .expect("failed to get currency pair")
-            },
-        );
+            });
 
         let price_source_chains = PriceSourceService::prepare_price_source_chains(
             &price_source_settings,

@@ -5,10 +5,7 @@ use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 
-use super::{
-    currency_pair_metadata::CurrencyPairMetadata, currency_pair_metadata::Precision,
-    exchange::Exchange,
-};
+use super::{exchange::Exchange, symbol::Precision, symbol::Symbol};
 use crate::core::exchanges::binance::binance::BinanceBuilder;
 use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::*;
@@ -41,7 +38,7 @@ pub(crate) fn get_test_exchange_by_currency_codes_and_amount_code(
     amount_currency_code: &str,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let price_tick = dec!(0.1);
-    let currency_pair_metadata = Arc::new(CurrencyPairMetadata::new(
+    let symbol = Arc::new(Symbol::new(
         false,
         is_derivative,
         base_currency_code.into(),
@@ -58,7 +55,7 @@ pub(crate) fn get_test_exchange_by_currency_codes_and_amount_code(
         Precision::ByTick { tick: price_tick },
         Precision::ByTick { tick: dec!(0) },
     ));
-    get_test_exchange_with_currency_pair_metadata(currency_pair_metadata)
+    get_test_exchange_with_symbol(symbol)
 }
 
 pub(crate) fn get_test_exchange_by_currency_codes(
@@ -79,17 +76,14 @@ pub(crate) fn get_test_exchange_by_currency_codes(
     )
 }
 
-pub(crate) fn get_test_exchange_with_currency_pair_metadata(
-    currency_pair_metadata: Arc<CurrencyPairMetadata>,
+pub(crate) fn get_test_exchange_with_symbol(
+    symbol: Arc<Symbol>,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
-    get_test_exchange_with_currency_pair_metadata_and_id(
-        currency_pair_metadata,
-        exchange_account_id,
-    )
+    get_test_exchange_with_symbol_and_id(symbol, exchange_account_id)
 }
-pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
-    currency_pair_metadata: Arc<CurrencyPairMetadata>,
+pub(crate) fn get_test_exchange_with_symbol_and_id(
+    symbol: Arc<Symbol>,
     exchange_account_id: ExchangeAccountId,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let settings = settings::ExchangeSettings::new_short(
@@ -138,19 +132,13 @@ pub(crate) fn get_test_exchange_with_currency_pair_metadata_and_id(
 
     exchange
         .leverage_by_currency_pair
-        .insert(currency_pair_metadata.currency_pair(), dec!(1));
+        .insert(symbol.currency_pair(), dec!(1));
+    exchange.currencies.lock().push(symbol.base_currency_code());
     exchange
         .currencies
         .lock()
-        .push(currency_pair_metadata.base_currency_code());
-    exchange
-        .currencies
-        .lock()
-        .push(currency_pair_metadata.quote_currency_code());
-    exchange.symbols.insert(
-        currency_pair_metadata.currency_pair(),
-        currency_pair_metadata,
-    );
+        .push(symbol.quote_currency_code());
+    exchange.symbols.insert(symbol.currency_pair(), symbol);
 
     (exchange, rx)
 }

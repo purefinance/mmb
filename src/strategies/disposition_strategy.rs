@@ -12,7 +12,7 @@ use crate::core::disposition_execution::{
 use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
-use crate::core::exchanges::general::currency_pair_metadata::Round;
+use crate::core::exchanges::general::symbol::Round;
 use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
 use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;

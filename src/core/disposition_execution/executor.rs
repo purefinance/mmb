@@ -15,9 +15,9 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
 };
 use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::request_type::RequestType;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::explanation::{Explanation, WithExplanation};
 use crate::core::infrastructure::WithExpect;
 use crate::core::lifecycle::cancellation_token::CancellationToken;
@@ -119,7 +119,7 @@ impl Service for DispositionExecutorService {
 struct DispositionExecutor {
     engine_ctx: Arc<EngineContext>,
     exchange_account_id: ExchangeAccountId,
-    currency_pair_metadata: Arc<CurrencyPairMetadata>,
+    symbol: Arc<Symbol>,
     max_amount: Amount,
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     local_snapshots_service: LocalSnapshotsService,
@@ -143,19 +143,19 @@ impl DispositionExecutor {
         cancellation_token: CancellationToken,
         statistics: Arc<StatisticService>,
     ) -> Self {
-        let currency_pair_metadata = engine_ctx
+        let symbol = engine_ctx
             .exchanges
             .get(&exchange_account_id)
             .expect("Target exchange should exists")
-            .get_currency_pair_metadata(currency_pair)
-            .expect("Currency pair metadata should exists for target trading place");
+            .get_symbol(currency_pair)
+            .expect("Currency pair symbol should exists for target trading place");
 
         DispositionExecutor {
             engine_ctx,
             events_receiver,
             local_snapshots_service,
             exchange_account_id,
-            currency_pair_metadata,
+            symbol,
             max_amount,
             orders_state: OrdersState::new(),
             strategy,
@@ -622,12 +622,9 @@ impl DispositionExecutor {
             explanation,
         );
 
-        if let Err(reason) = is_enough_amount_and_cost(
-            new_disposition,
-            new_order_amount,
-            true,
-            &self.currency_pair_metadata,
-        ) {
+        if let Err(reason) =
+            is_enough_amount_and_cost(new_disposition, new_order_amount, true, &self.symbol)
+        {
             return log_trace(
                 format!("Finished `try_create_order` by reason: {}", reason),
                 explanation,
@@ -655,7 +652,7 @@ impl DispositionExecutor {
         let target_reserve_parameters = ReserveParameters::new(
             self.strategy.configuration_descriptor(),
             self.exchange_account_id,
-            self.currency_pair_metadata.clone(),
+            self.symbol.clone(),
             new_disposition.side(),
             new_disposition.price(),
             new_order_amount,
@@ -735,7 +732,7 @@ impl DispositionExecutor {
             new_client_order_id.clone(),
             now,
             self.exchange_account_id,
-            self.currency_pair_metadata.currency_pair(),
+            self.symbol.currency_pair(),
             OrderType::Limit,
             new_disposition.side(),
             new_order_amount,

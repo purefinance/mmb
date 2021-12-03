@@ -8,18 +8,18 @@ use crate::core::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId
 use crate::core::infrastructure::WithExpect;
 use crate::core::settings::CurrencyPairSetting;
 
-use super::{currency_pair_metadata::CurrencyPairMetadata, exchange::Exchange};
+use super::{exchange::Exchange, symbol::Symbol};
 
 impl Exchange {
-    pub async fn build_metadata(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {
-        let exchange_symbols = &self.request_metadata_with_retries().await;
+    pub async fn build_symbols(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {
+        let exchange_symbols = &self.request_symbols_with_retries().await;
 
         let supported_currencies = get_supported_currencies(exchange_symbols);
         self.setup_supported_currencies(supported_currencies);
 
-        for metadata in exchange_symbols {
+        for symbol in exchange_symbols {
             self.leverage_by_currency_pair
-                .insert(metadata.currency_pair(), dec!(1));
+                .insert(symbol.currency_pair(), dec!(1));
         }
 
         let currency_pairs = currency_pair_settings.as_ref().with_expect(|| {
@@ -36,15 +36,15 @@ impl Exchange {
         ));
     }
 
-    async fn request_metadata_with_retries(&self) -> Vec<Arc<CurrencyPairMetadata>> {
+    async fn request_symbols_with_retries(&self) -> Vec<Arc<Symbol>> {
         const MAX_RETRIES: u8 = 5;
         let mut retry = 0;
         loop {
-            match self.build_metadata_core().await {
+            match self.build_all_symbols_core().await {
                 Ok(result_symbols) => return result_symbols,
                 Err(error) => {
                     let error_message = format!(
-                        "Unable to get metadata for {}: {:?}",
+                        "Unable to get symbol for {}: {:?}",
                         self.exchange_account_id, error
                     );
 
@@ -60,14 +60,14 @@ impl Exchange {
         }
     }
 
-    async fn build_metadata_core(&self) -> Result<Vec<Arc<CurrencyPairMetadata>>> {
-        let response = &self.exchange_client.request_metadata().await?;
+    async fn build_all_symbols_core(&self) -> Result<Vec<Arc<Symbol>>> {
+        let response = &self.exchange_client.request_all_symbols().await?;
 
         if let Some(error) = self.get_rest_error(response) {
-            Err(error).context("Rest error appeared during request request_metadata")?;
+            Err(error).context("Rest error appeared during request request_symbol")?;
         }
 
-        match self.exchange_client.parse_metadata(response) {
+        match self.exchange_client.parse_all_symbols(response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
                 self.handle_parse_error(error, response, "".into(), None)?;
@@ -84,7 +84,7 @@ impl Exchange {
         }
     }
 
-    fn setup_symbols(&self, symbols: Vec<Arc<CurrencyPairMetadata>>) {
+    fn setup_symbols(&self, symbols: Vec<Arc<Symbol>>) {
         let mut currencies = symbols
             .iter()
             .flat_map(|x| vec![x.base_currency_code, x.quote_currency_code])
@@ -107,9 +107,7 @@ impl Exchange {
     }
 }
 
-fn get_supported_currencies(
-    symbols: &[Arc<CurrencyPairMetadata>],
-) -> DashMap<CurrencyCode, CurrencyId> {
+fn get_supported_currencies(symbols: &[Arc<Symbol>]) -> DashMap<CurrencyCode, CurrencyId> {
     symbols
         .iter()
         .flat_map(|s| {
@@ -123,9 +121,9 @@ fn get_supported_currencies(
 
 fn get_symbols(
     currency_pairs: &[CurrencyPairSetting],
-    exchange_symbols: &[Arc<CurrencyPairMetadata>],
+    exchange_symbols: &[Arc<Symbol>],
     exchange_account_id: ExchangeAccountId,
-) -> Vec<Arc<CurrencyPairMetadata>> {
+) -> Vec<Arc<Symbol>> {
     currency_pairs
         .iter()
         .filter_map(|x| get_matched_currency_pair(x, exchange_symbols, exchange_account_id))
@@ -134,23 +132,23 @@ fn get_symbols(
 
 fn get_matched_currency_pair(
     currency_pair_setting: &CurrencyPairSetting,
-    exchange_symbols: &[Arc<CurrencyPairMetadata>],
+    exchange_symbols: &[Arc<Symbol>],
     exchange_account_id: ExchangeAccountId,
-) -> Option<Arc<CurrencyPairMetadata>> {
-    // currency pair metadata and currency pairs from settings should match 1 to 1
+) -> Option<Arc<Symbol>> {
+    // currency pair symbol and currency pairs from settings should match 1 to 1
     let settings_currency_pair = currency_pair_setting.currency_pair.as_deref();
-    let filtered_metadata = exchange_symbols
+    let filtered_symbol = exchange_symbols
         .iter()
-        .filter(|metadata| {
-            return Some(metadata.currency_pair().as_str()) == settings_currency_pair
-                || metadata.base_currency_code == currency_pair_setting.base
-                    && metadata.quote_currency_code == currency_pair_setting.quote;
+        .filter(|symbol| {
+            return Some(symbol.currency_pair().as_str()) == settings_currency_pair
+                || symbol.base_currency_code == currency_pair_setting.base
+                    && symbol.quote_currency_code == currency_pair_setting.quote;
         })
         .take(2)
         .cloned()
         .collect_vec();
 
-    match filtered_metadata.as_slice() {
+    match filtered_symbol.as_slice() {
         [] => {
             log::error!(
                 "Unsupported symbol {:?} on exchange {}",
@@ -158,13 +156,13 @@ fn get_matched_currency_pair(
                 exchange_account_id
             );
         }
-        [metadata] => return Some(metadata.clone()),
+        [symbol] => return Some(symbol.clone()),
         _ => {
             log::error!(
                     "Found more then 1 symbol for currency pair {:?} on exchange {}. Found symbols: {:?}",
                     currency_pair_setting,
                     exchange_account_id,
-                    filtered_metadata
+                    filtered_symbol
                 );
         }
     };

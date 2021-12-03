@@ -9,11 +9,11 @@ use tokio::sync::{broadcast, oneshot};
 
 use crate::core::exchanges::common::ToStdExpected;
 use crate::core::exchanges::common::{CurrencyCode, ExchangeErrorType};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::RequestResult;
 use crate::core::exchanges::general::features::RestFillsType;
 use crate::core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use crate::core::exchanges::general::request_type::RequestType;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::infrastructure::spawn_future_timed;
 use crate::core::nothing_to_do;
@@ -304,11 +304,8 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         let currency_pair = order.currency_pair();
-        let currency_pair_metadata = self.symbols.get(&currency_pair).with_context(|| {
-            format!(
-                "No such currency_pair_metadata for given currency_pair {}",
-                currency_pair,
-            )
+        let symbol = self.symbols.get(&currency_pair).with_context(|| {
+            format!("No such symbol for given currency_pair {}", currency_pair,)
         })?;
 
         let rest_fills_type = &self.features.rest_fills_features.fills_type;
@@ -345,7 +342,7 @@ impl Exchange {
             let result = self
                 .check_order_fills_using_request_type(
                     order,
-                    &currency_pair_metadata,
+                    &symbol,
                     request_type_to_use,
                     pre_reservation_group_id,
                     cancellation_token.clone(),
@@ -381,7 +378,7 @@ impl Exchange {
     pub(crate) async fn check_order_fills_using_request_type(
         &self,
         order: &OrderRef,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         request_type: RequestType,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
@@ -403,7 +400,7 @@ impl Exchange {
 
         match request_type {
             RequestType::GetOrderTrades => {
-                let order_trades = self.get_order_trades(currency_pair_metadata, order).await?;
+                let order_trades = self.get_order_trades(symbol, order).await?;
 
                 if let RequestResult::Success(ref order_trades) = order_trades {
                     for order_trade in order_trades {
