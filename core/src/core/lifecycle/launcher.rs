@@ -1,4 +1,5 @@
 use crate::core::balance_manager::balance_manager::BalanceManager;
+use crate::core::config::{load_pretty_settings, load_settings, CONFIG_PATH, CREDENTIALS_PATH};
 use crate::core::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
@@ -14,7 +15,7 @@ use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
-use crate::core::{config::load_settings, statistic_service::StatisticEventHandler};
+use crate::core::statistic_service::StatisticEventHandler;
 use crate::core::{
     disposition_execution::executor::DispositionExecutorService,
     infrastructure::{keep_application_manager, spawn_future},
@@ -177,7 +178,8 @@ where
         create_statistic_event_handler(exchange_events, statistic_service.clone());
     let control_panel = ControlPanel::new(
         "127.0.0.1:8080",
-        toml_edit::ser::to_string(&settings)?,
+        // Replace with to_pretty_string after fix issues toml_edit/#192
+        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH)?,
         engine_context.application_manager.clone(),
         statistic_service.clone(),
     );

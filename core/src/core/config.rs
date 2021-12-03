@@ -32,6 +32,17 @@ where
     parse_settings(&mut settings, &mut credentials)
 }
 
+pub fn load_pretty_settings(config_path: &str, credentials_path: &str) -> Result<String> {
+    let mut settings = String::new();
+    File::open(config_path)?.read_to_string(&mut settings)?;
+
+    let mut credentials = String::new();
+    File::open(credentials_path)?.read_to_string(&mut credentials)?;
+
+    let settings = parse_toml_settings(&settings, &credentials)?;
+    Ok(settings.to_string())
+}
+
 pub fn parse_settings<TSettings>(
     settings: &str,
     credentials: &str,
@@ -39,42 +50,9 @@ pub fn parse_settings<TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'static>,
 {
-    let mut settings: Document = settings.parse()?;
-
-    let exchanges = get_exchanges_mut(&mut settings).ok_or(anyhow!(
-        "Unable to get core.exchanges array from gotten settings"
-    ))?;
-
-    if !exchanges.is_empty() {
-        let credentials: Document = credentials.parse()?;
-        let credentials = credentials.as_table();
-
-        // Extract creds according to exchange_account_id and add it to every ExchangeSettings
-        for exchange in exchanges.iter_mut() {
-            let exchange_account_id = exchange
-                .get(EXCHANGE_ACCOUNT_ID)
-                .and_then(|v| v.as_str())
-                .ok_or(anyhow!(
-                    "Unable get exchange account id for Exchange in settings"
-                ))?;
-
-            let api_key = credentials
-                .get(exchange_account_id)
-                .and_then(|v| v.get(API_KEY))
-                .and_then(|v| v.as_str())
-                .ok_or(anyhow!("Unable get api_key for Exchange in settings"))?;
-            let secret_key = credentials
-                .get(exchange_account_id)
-                .and_then(|v| v.get(SECRET_KEY))
-                .and_then(|v| v.as_str())
-                .ok_or(anyhow!("Unable get secret_key for Exchange in settings"))?;
-
-            exchange.insert(API_KEY, value(api_key));
-            exchange.insert(SECRET_KEY, value(secret_key));
-        }
-    }
-
-    toml_edit::de::from_document(settings).context("Unable parse combined settings")
+    let settings = parse_toml_settings(settings, credentials)?;
+    toml_edit::de::from_document::<AppSettings<TSettings>>(settings)
+        .context("Unable parse combined settings")
 }
 
 pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) -> Result<()> {
@@ -111,6 +89,45 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
     main_config.write_all(&serialized_settings.to_string().as_bytes())?;
 
     Ok(())
+}
+
+fn parse_toml_settings(settings: &str, credentials: &str) -> Result<Document> {
+    let mut settings: Document = settings.parse()?;
+
+    let exchanges = get_exchanges_mut(&mut settings).ok_or(anyhow!(
+        "Unable to get core.exchanges array from gotten settings"
+    ))?;
+
+    if !exchanges.is_empty() {
+        let credentials: Document = credentials.parse()?;
+        let credentials = credentials.as_table();
+
+        // Extract creds according to exchange_account_id and add it to every ExchangeSettings
+        for exchange in exchanges.iter_mut() {
+            let exchange_account_id = exchange
+                .get(EXCHANGE_ACCOUNT_ID)
+                .and_then(|v| v.as_str())
+                .ok_or(anyhow!(
+                    "Unable get exchange account id for Exchange in settings"
+                ))?;
+
+            let api_key = credentials
+                .get(exchange_account_id)
+                .and_then(|v| v.get(API_KEY))
+                .and_then(|v| v.as_str())
+                .ok_or(anyhow!("Unable get api_key for Exchange in settings"))?;
+            let secret_key = credentials
+                .get(exchange_account_id)
+                .and_then(|v| v.get(SECRET_KEY))
+                .and_then(|v| v.as_str())
+                .ok_or(anyhow!("Unable get secret_key for Exchange in settings"))?;
+
+            exchange.insert(API_KEY, value(api_key));
+            exchange.insert(SECRET_KEY, value(secret_key));
+        }
+    }
+
+    Ok(settings)
 }
 
 fn get_credentials_data(exchange_settings: &Table) -> Option<(String, String, String)> {
