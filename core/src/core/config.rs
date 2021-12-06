@@ -108,19 +108,23 @@ fn parse_toml_settings(settings: &str, credentials: &str) -> Result<Document> {
                 .get(EXCHANGE_ACCOUNT_ID)
                 .and_then(|v| v.as_str())
                 .ok_or(anyhow!(
-                    "Unable get exchange account id for Exchange in settings"
+                    "Unable get the exchange account id for the Exchange from the settings"
                 ))?;
 
             let api_key = credentials
                 .get(exchange_account_id)
                 .and_then(|v| v.get(API_KEY))
                 .and_then(|v| v.as_str())
-                .ok_or(anyhow!("Unable get api_key for Exchange in settings"))?;
+                .ok_or(anyhow!(
+                    "Unable get the api_key for the Exchange from the settings"
+                ))?;
             let secret_key = credentials
                 .get(exchange_account_id)
                 .and_then(|v| v.get(SECRET_KEY))
                 .and_then(|v| v.as_str())
-                .ok_or(anyhow!("Unable get secret_key for Exchange in settings"))?;
+                .ok_or(anyhow!(
+                    "Unable get the secret_key for the Exchange from the settings"
+                ))?;
 
             exchange.insert(API_KEY, value(api_key));
             exchange.insert(SECRET_KEY, value(secret_key));
