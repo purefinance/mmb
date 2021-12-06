@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
 use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeAccountId, Price};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
 use crate::core::exchanges::general::exchange::Exchange;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::core::misc::service_value_tree::ServiceValueTree;
 
@@ -84,36 +84,34 @@ impl VirtualBalanceHolder {
         );
     }
 
-    pub fn add_balance_by_currency_pair_metadata(
+    pub fn add_balance_by_symbol(
         &mut self,
         request: &BalanceRequest,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         diff_in_amount_currency: Amount,
         price: Price,
     ) {
-        if !currency_pair_metadata.is_derivative {
-            let diff_in_request_currency = currency_pair_metadata
-                .convert_amount_from_amount_currency_code(
-                    request.currency_code,
-                    diff_in_amount_currency,
-                    price,
-                );
+        if !symbol.is_derivative {
+            let diff_in_request_currency = symbol.convert_amount_from_amount_currency_code(
+                request.currency_code,
+                diff_in_amount_currency,
+                price,
+            );
             self.add_balance(request, diff_in_request_currency);
         } else {
             let balance_currency_code_request = BalanceRequest::new(
                 request.configuration_descriptor.clone(),
                 request.exchange_account_id,
                 request.currency_pair,
-                currency_pair_metadata
+                symbol
                     .balance_currency_code
-                    .expect("currency_pair_metadata.balance_currency_code should be non None"),
+                    .expect("symbol.balance_currency_code should be non None"),
             );
-            let diff_in_balance_currency_code = currency_pair_metadata
-                .convert_amount_from_amount_currency_code(
-                    balance_currency_code_request.currency_code,
-                    diff_in_amount_currency,
-                    price,
-                );
+            let diff_in_balance_currency_code = symbol.convert_amount_from_amount_currency_code(
+                balance_currency_code_request.currency_code,
+                diff_in_amount_currency,
+                price,
+            );
             self.add_balance(
                 &balance_currency_code_request,
                 diff_in_balance_currency_code,
@@ -124,13 +122,13 @@ impl VirtualBalanceHolder {
     pub fn get_virtual_balance(
         &self,
         balance_request: &BalanceRequest,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         price: Option<Price>,
         explanation: &mut Option<Explanation>,
     ) -> Option<Amount> {
         let exchange_balance = self.get_exchange_balance(
             balance_request.exchange_account_id,
-            currency_pair_metadata.clone(),
+            symbol.clone(),
             balance_request.currency_code,
             price,
         )?;
@@ -142,7 +140,7 @@ impl VirtualBalanceHolder {
             )
         });
 
-        let current_balance_diff = if !currency_pair_metadata.is_derivative {
+        let current_balance_diff = if !symbol.is_derivative {
             self.balance_diff
                 .get_by_balance_request(balance_request)
                 .unwrap_or(dec!(0))
@@ -152,9 +150,9 @@ impl VirtualBalanceHolder {
                 balance_request.configuration_descriptor.clone(),
                 balance_request.exchange_account_id,
                 balance_request.currency_pair,
-                currency_pair_metadata
-                    .balance_currency_code
-                    .expect("failed to create BalanceRequest: currency_pair_metadata.balance_currency_code is None"),
+                symbol.balance_currency_code.expect(
+                    "failed to create BalanceRequest: symbol.balance_currency_code is None",
+                ),
             );
             let balance_currency_code_balance_diff = self
                 .balance_diff
@@ -168,12 +166,11 @@ impl VirtualBalanceHolder {
                 )
             });
 
-            let cur_balance_diff = currency_pair_metadata
-                .convert_amount_from_balance_currency_code(
-                    balance_request.currency_code,
-                    balance_currency_code_balance_diff,
-                    price,
-                );
+            let cur_balance_diff = symbol.convert_amount_from_balance_currency_code(
+                balance_request.currency_code,
+                balance_currency_code_balance_diff,
+                price,
+            );
 
             explanation.with_reason(|| {
                 format!(
@@ -190,13 +187,11 @@ impl VirtualBalanceHolder {
     pub fn get_exchange_balance(
         &self,
         exchange_account_id: ExchangeAccountId,
-        currency_pair_metadata: Arc<CurrencyPairMetadata>,
+        symbol: Arc<Symbol>,
         currency_code: CurrencyCode,
         price: Option<Price>,
     ) -> Option<Amount> {
-        if !currency_pair_metadata.is_derivative
-            || currency_pair_metadata.balance_currency_code == Some(currency_code)
-        {
+        if !symbol.is_derivative || symbol.balance_currency_code == Some(currency_code) {
             return self.get_raw_exchange_balance(exchange_account_id, currency_code);
         }
 
@@ -204,18 +199,16 @@ impl VirtualBalanceHolder {
 
         let balance_currency_code_balance = self.get_raw_exchange_balance(
             exchange_account_id,
-            currency_pair_metadata
+            symbol
                 .balance_currency_code
                 .expect("failed to get exchange balance: balance_currency_code should be non None"),
         )?;
 
-        Some(
-            currency_pair_metadata.convert_amount_from_balance_currency_code(
-                currency_code,
-                balance_currency_code_balance,
-                price,
-            ),
-        )
+        Some(symbol.convert_amount_from_balance_currency_code(
+            currency_code,
+            balance_currency_code_balance,
+            price,
+        ))
     }
 
     fn get_raw_exchange_balance(

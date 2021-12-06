@@ -1,6 +1,6 @@
 use super::binance::Binance;
 use crate::core::exchanges::common::{ActivePosition, Price};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::exchanges::rest_client;
 use crate::core::exchanges::traits::{ExchangeClient, Support};
 use crate::core::orders::order::*;
@@ -14,7 +14,7 @@ use async_trait::async_trait;
 
 #[async_trait]
 impl ExchangeClient for Binance {
-    async fn request_metadata(&self) -> Result<RestRequestOutcome> {
+    async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
         // In current versions works only with Spot market
         let url_path = "/api/v3/exchangeInfo";
         let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
@@ -165,11 +165,10 @@ impl ExchangeClient for Binance {
 
     async fn request_my_trades(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         _last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome> {
-        let specific_currency_pair =
-            self.get_specific_currency_pair(currency_pair_metadata.currency_pair());
+        let specific_currency_pair = self.get_specific_currency_pair(symbol.currency_pair());
         let mut http_params = vec![(
             "symbol".to_owned(),
             specific_currency_pair.as_str().to_owned(),

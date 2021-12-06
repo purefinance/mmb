@@ -19,7 +19,7 @@ async fn cancellation_waited_successfully() {
     let mut settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
 
     // Currency pair in settings are matter here because of need to check
-    // CurrencyPairMetadata in check_order_fills() inside wait_cancel_order()
+    // Symbol in check_order_fills() inside wait_cancel_order()
     settings.currency_pairs = Some(vec![CurrencyPairSetting {
         base: "cnd".into(),
         quote: "btc".into(),

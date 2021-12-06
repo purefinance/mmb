@@ -1,6 +1,7 @@
 use crate::core::exchanges::common::{Amount, CurrencyCode, ExchangeError, Price};
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::events::TradeId;
 use crate::core::exchanges::general::exchange::RequestResult;
+use crate::core::exchanges::general::symbol::Symbol;
 use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::{ExchangeOrderId, OrderRole};
 use crate::core::DateTime;
@@ -15,7 +16,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OrderTrade {
     pub exchange_order_id: ExchangeOrderId,
-    pub trade_id: String,
+    pub trade_id: TradeId,
     pub datetime: DateTime,
     pub price: Price,
     pub amount: Amount,
@@ -29,7 +30,7 @@ pub struct OrderTrade {
 impl OrderTrade {
     pub fn new(
         exchange_order_id: ExchangeOrderId,
-        trade_id: String,
+        trade_id: TradeId,
         datetime: DateTime,
         price: Price,
         amount: Amount,
@@ -57,25 +58,22 @@ impl OrderTrade {
 impl Exchange {
     pub async fn get_order_trades(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         let fills_type = &self.features.rest_fills_features.fills_type;
         match fills_type {
-            RestFillsType::MyTrades => {
-                self.get_my_trades_with_filter(currency_pair_metadata, order)
-                    .await
-            }
+            RestFillsType::MyTrades => self.get_my_trades_with_filter(symbol, order).await,
             _ => bail!("Fills type {:?} is not supported", fills_type),
         }
     }
 
     async fn get_my_trades_with_filter(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        let my_trades = self.get_my_trades(currency_pair_metadata, None).await?;
+        let my_trades = self.get_my_trades(symbol, None).await?;
         match my_trades {
             RequestResult::Error(_) => Ok(my_trades),
             RequestResult::Success(my_trades) => {
@@ -95,13 +93,13 @@ impl Exchange {
 
     pub async fn get_my_trades(
         &self,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         last_date_time: Option<DateTime>,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
         // TODO Add metric UseTimeMetric(RequestType::GetMyTrades)
         let response = self
             .exchange_client
-            .request_my_trades(currency_pair_metadata, last_date_time)
+            .request_my_trades(symbol, last_date_time)
             .await?;
 
         match self.get_rest_error(&response) {

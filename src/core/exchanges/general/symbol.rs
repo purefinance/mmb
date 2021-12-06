@@ -46,8 +46,9 @@ pub enum Precision {
     ByMantissa { precision: i8 },
 }
 
+/// Metadata for a currency pair
 #[derive(Debug, Clone, Hash, Eq)]
-pub struct CurrencyPairMetadata {
+pub struct Symbol {
     pub is_active: bool,
     pub is_derivative: bool,
     pub base_currency_id: CurrencyId,
@@ -67,7 +68,7 @@ pub struct CurrencyPairMetadata {
     pub amount_precision: Precision,
 }
 
-impl CurrencyPairMetadata {
+impl Symbol {
     pub fn base_currency_code(&self) -> CurrencyCode {
         self.base_currency_code
     }
@@ -384,17 +385,14 @@ impl CurrencyPairMetadata {
     }
 }
 
-impl PartialEq for CurrencyPairMetadata {
+impl PartialEq for Symbol {
     fn eq(&self, other: &Self) -> bool {
         self.currency_pair() == other.currency_pair()
     }
 }
 
 impl Exchange {
-    pub fn get_currency_pair_metadata(
-        &self,
-        currency_pair: CurrencyPair,
-    ) -> Result<Arc<CurrencyPairMetadata>> {
+    pub fn get_symbol(&self, currency_pair: CurrencyPair) -> Result<Arc<Symbol>> {
         self.symbols
             .get(&currency_pair)
             .with_context(|| {
@@ -420,7 +418,7 @@ mod test {
         let is_derivative = false;
         let balance_currency_code = CurrencyCode::new("ETH".into());
 
-        let currency_pair_metadata = CurrencyPairMetadata::new(
+        let symbol = Symbol::new(
             false,
             is_derivative,
             base_currency.into(),
@@ -438,7 +436,7 @@ mod test {
             Precision::ByTick { tick: dec!(0) },
         );
 
-        let gotten = currency_pair_metadata.get_commission_currency_code(OrderSide::Buy);
+        let gotten = symbol.get_commission_currency_code(OrderSide::Buy);
         assert_eq!(gotten, balance_currency_code);
     }
 
@@ -476,7 +474,7 @@ mod test {
         #[case] round_to: Round,
         #[case] expected: Decimal,
     ) -> Result<()> {
-        let rounded = CurrencyPairMetadata::round_by_mantissa(value, precision, round_to)?;
+        let rounded = Symbol::round_by_mantissa(value, precision, round_to)?;
 
         assert_eq!(rounded, expected);
 
@@ -495,7 +493,7 @@ mod test {
         #[case] precision: i8,
         #[case] round_to: Round,
     ) {
-        let rounded = CurrencyPairMetadata::round_by_mantissa(value, precision, round_to);
+        let rounded = Symbol::round_by_mantissa(value, precision, round_to);
 
         assert!(rounded.is_err());
     }
@@ -505,7 +503,7 @@ mod test {
         let value = dec!(123.456);
         let tick = dec!(-0.1);
 
-        let maybe_error = CurrencyPairMetadata::round_by_tick(value, tick, Round::Floor);
+        let maybe_error = Symbol::round_by_tick(value, tick, Round::Floor);
 
         match maybe_error {
             Ok(_) => assert!(false),
@@ -538,7 +536,7 @@ mod test {
         #[case] round_to: Round,
         #[case] expected: Decimal,
     ) -> Result<()> {
-        let rounded = CurrencyPairMetadata::round_by_tick(value, tick, round_to)?;
+        let rounded = Symbol::round_by_tick(value, tick, round_to)?;
 
         assert_eq!(rounded, expected);
 
@@ -555,7 +553,7 @@ mod test {
 
         let base_code = CurrencyCode::new(base_currency.into());
         let quote_code = CurrencyCode::new(quote_currency.into());
-        let currency_pair_metadata = CurrencyPairMetadata::new(
+        let symbol = Symbol::new(
             false,
             is_derivative,
             base_currency.into(),
@@ -574,19 +572,19 @@ mod test {
         );
 
         assert_eq!(
-            currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::After),
+            symbol.get_trade_code(OrderSide::Buy, BeforeAfter::After),
             base_code
         );
         assert_eq!(
-            currency_pair_metadata.get_trade_code(OrderSide::Buy, BeforeAfter::Before),
+            symbol.get_trade_code(OrderSide::Buy, BeforeAfter::Before),
             quote_code
         );
         assert_eq!(
-            currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::After),
+            symbol.get_trade_code(OrderSide::Sell, BeforeAfter::After),
             quote_code
         );
         assert_eq!(
-            currency_pair_metadata.get_trade_code(OrderSide::Sell, BeforeAfter::Before),
+            symbol.get_trade_code(OrderSide::Sell, BeforeAfter::Before),
             base_code
         );
     }

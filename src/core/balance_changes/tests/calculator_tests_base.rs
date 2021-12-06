@@ -10,7 +10,7 @@ pub mod tests {
     use uuid::Uuid;
 
     #[double]
-    use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+    use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
     #[double]
     use crate::core::misc::time::time_manager;
     #[double]
@@ -32,8 +32,8 @@ pub mod tests {
             exchanges::{
                 common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
                 general::{
-                    currency_pair_metadata::{CurrencyPairMetadata, Precision},
                     exchange::Exchange,
+                    symbol::{Precision, Symbol},
                     test_helper::get_test_exchange_by_currency_codes,
                 },
             },
@@ -56,7 +56,7 @@ pub mod tests {
         pub exchange_1: Arc<Exchange>,
         pub exchange_2: Arc<Exchange>,
         pub exchanges_by_id: HashMap<ExchangeAccountId, Arc<Exchange>>,
-        pub currency_pair_to_symbol_converter: Arc<CurrencyPairToMetadataConverter>,
+        pub currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         balance_changes: Vec<BalanceChangesCalculatorResult>,
         balance_changes_calculator: BalanceChangesCalculator,
         profit_loss_balance_changes: Vec<ProfitLossBalanceChange>,
@@ -134,11 +134,11 @@ pub mod tests {
             is_derivative: bool,
             is_reversed: bool,
         ) -> (
-            CurrencyPairToMetadataConverter,
+            CurrencyPairToSymbolConverter,
             ReentrantMutexGuard<'static, ()>,
         ) {
             let (mut currency_pair_to_symbol_converter, cp_to_symbol_locker) =
-                CurrencyPairToMetadataConverter::init_mock();
+                CurrencyPairToSymbolConverter::init_mock();
 
             let (amount_currency_code, balance_currency_code) = match (is_derivative, is_reversed) {
                 (true, true) => (Self::base(), Some(Self::quote())),
@@ -147,7 +147,7 @@ pub mod tests {
                 (false, false) => (Self::base(), None),
             };
 
-            let mut symbol = CurrencyPairMetadata::new(
+            let mut symbol = Symbol::new(
                 false,
                 is_derivative,
                 Self::base().as_str().into(),
@@ -170,7 +170,7 @@ pub mod tests {
             let symbol = Arc::new(symbol);
 
             currency_pair_to_symbol_converter
-                .expect_get_currency_pair_metadata()
+                .expect_get_symbol()
                 .returning(move |_, _| symbol.clone());
 
             currency_pair_to_symbol_converter
@@ -396,10 +396,10 @@ pub mod tests {
             base: CurrencyCode,
             quote: CurrencyCode,
             is_derivative: bool,
-        ) -> Arc<CurrencyPairMetadata> {
+        ) -> Arc<Symbol> {
             let amount = if is_derivative { quote } else { base };
 
-            Arc::new(CurrencyPairMetadata::new(
+            Arc::new(Symbol::new(
                 false,
                 is_derivative,
                 base.as_str().into(),

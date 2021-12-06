@@ -8,10 +8,15 @@ use uuid::Uuid;
 
 use crate::core::{
     exchanges::{
-        common::Amount, common::CurrencyCode, common::CurrencyPair, common::ExchangeAccountId,
-        common::Price, events::AllowedEventSourceType, general::commission::Percent,
-        general::currency_pair_metadata::CurrencyPairMetadata,
-        general::currency_pair_metadata::Round, general::exchange::Exchange,
+        common::Amount,
+        common::CurrencyCode,
+        common::CurrencyPair,
+        common::ExchangeAccountId,
+        common::Price,
+        events::{AllowedEventSourceType, TradeId},
+        general::commission::Percent,
+        general::exchange::Exchange,
+        general::symbol::{Round, Symbol},
     },
     math::ConvertPercentToRate,
     orders::{
@@ -28,11 +33,12 @@ use crate::core::{
         order::{ClientOrderFillId, OrderRole},
         pool::OrderRef,
     },
+    DateTime,
 };
 
 type ArgsToLog = (
     ExchangeAccountId,
-    Option<String>,
+    Option<TradeId>,
     Option<ClientOrderId>,
     ExchangeOrderId,
     AllowedEventSourceType,
@@ -42,7 +48,7 @@ type ArgsToLog = (
 #[derive(Debug, Clone)]
 pub struct FillEventData {
     pub source_type: EventSourceType,
-    pub trade_id: Option<String>,
+    pub trade_id: Option<TradeId>,
     pub client_order_id: Option<ClientOrderId>,
     pub exchange_order_id: ExchangeOrderId,
     pub fill_price: Price,
@@ -57,6 +63,7 @@ pub struct FillEventData {
     pub trade_currency_pair: Option<CurrencyPair>,
     pub order_side: Option<OrderSide>,
     pub order_amount: Option<Amount>,
+    pub fill_date: Option<DateTime>,
 }
 
 impl Exchange {
@@ -107,16 +114,27 @@ impl Exchange {
                 }
 
                 log::info!("Received a fill for not existing order {:?}", &args_to_log);
-                // TODO BufferedFillsManager.add_fill()
 
-                unimplemented!("First need to implement BufferedFillsManager");
+                let source_type = event_data.source_type;
+                let exchange_order_id = event_data.exchange_order_id.clone();
+                let client_or_order_id = event_data.client_order_id.clone();
+
+                self.buffered_fills_manager
+                    .lock()
+                    .add_fill(self.exchange_account_id, event_data);
+
+                if let Some(client_order_id) = client_or_order_id {
+                    self.raise_order_created(&client_order_id, &exchange_order_id, source_type);
+                }
+
+                Ok(())
             }
             Some(order_ref) => self.try_to_create_and_add_order_fill(&mut event_data, &order_ref),
         }
     }
 
     fn was_trade_already_received(
-        trade_id: &Option<String>,
+        trade_id: &Option<TradeId>,
         order_fills: &Vec<OrderFill>,
         order_ref: &OrderRef,
     ) -> bool {
@@ -207,14 +225,14 @@ impl Exchange {
 
     fn get_last_fill_data(
         event_data: &mut FillEventData,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         order_fills: &Vec<OrderFill>,
         order_filled_amount: Amount,
         order_ref: &OrderRef,
     ) -> Result<Option<(Price, Amount, Price)>> {
         let mut last_fill_amount = event_data.fill_amount;
         let mut last_fill_price = event_data.fill_price;
-        let mut last_fill_cost = if !currency_pair_metadata.is_derivative() {
+        let mut last_fill_cost = if !symbol.is_derivative() {
             last_fill_amount * last_fill_price
         } else {
             last_fill_amount / last_fill_price
@@ -227,7 +245,7 @@ impl Exchange {
                     let (price, amount, cost) = Self::calculate_last_fill_data(
                         last_fill_amount,
                         order_filled_amount,
-                        &currency_pair_metadata,
+                        &symbol,
                         cost_diff,
                     )?;
                     last_fill_price = price;
@@ -276,17 +294,16 @@ impl Exchange {
     fn calculate_last_fill_data(
         last_fill_amount: Amount,
         order_filled_amount: Amount,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         cost_diff: Price,
     ) -> Result<(Price, Amount, Price)> {
         let amount_diff = last_fill_amount - order_filled_amount;
-        let res_fill_price = if !currency_pair_metadata.is_derivative() {
+        let res_fill_price = if !symbol.is_derivative() {
             cost_diff / amount_diff
         } else {
             amount_diff / cost_diff
         };
-        let last_fill_price =
-            currency_pair_metadata.price_round(res_fill_price, Round::ToNearest)?;
+        let last_fill_price = symbol.price_round(res_fill_price, Round::ToNearest)?;
 
         let last_fill_amount = amount_diff;
         let last_fill_cost = cost_diff;
@@ -353,7 +370,7 @@ impl Exchange {
         last_fill_amount: Amount,
         last_fill_price: Price,
         commission_currency_code: CurrencyCode,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
     ) -> Result<Amount> {
         match event_data_commission_amount {
             Some(commission_amount) => Ok(commission_amount.clone()),
@@ -363,7 +380,7 @@ impl Exchange {
                     None => expected_commission_rate,
                 };
 
-                let last_fill_amount_in_currency_code = currency_pair_metadata
+                let last_fill_amount_in_currency_code = symbol
                     .convert_amount_from_amount_currency_code(
                         commission_currency_code,
                         last_fill_amount,
@@ -392,18 +409,16 @@ impl Exchange {
     fn update_commission_for_bnb_case(
         &self,
         commission_currency_code: CurrencyCode,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         commission_amount: Amount,
         converted_commission_amount: &mut Amount,
         converted_commission_currency_code: &mut CurrencyCode,
     ) -> Result<()> {
-        if commission_currency_code != currency_pair_metadata.base_currency_code()
-            && commission_currency_code != currency_pair_metadata.quote_currency_code()
+        if commission_currency_code != symbol.base_currency_code()
+            && commission_currency_code != symbol.quote_currency_code()
         {
-            let mut currency_pair = CurrencyPair::from_codes(
-                commission_currency_code,
-                currency_pair_metadata.quote_currency_code(),
-            );
+            let mut currency_pair =
+                CurrencyPair::from_codes(commission_currency_code, symbol.quote_currency_code());
             match self.order_book_top.get(&currency_pair) {
                 Some(top_prices) => {
                     let bid = top_prices
@@ -412,12 +427,11 @@ impl Exchange {
                         .context("There are no top bid in order book")?;
                     let price_bnb_quote = bid.price;
                     *converted_commission_amount = commission_amount * price_bnb_quote;
-                    *converted_commission_currency_code =
-                        currency_pair_metadata.quote_currency_code();
+                    *converted_commission_currency_code = symbol.quote_currency_code();
                 }
                 None => {
                     currency_pair = CurrencyPair::from_codes(
-                        currency_pair_metadata.quote_currency_code(),
+                        symbol.quote_currency_code(),
                         commission_currency_code,
                     );
 
@@ -429,8 +443,7 @@ impl Exchange {
                                 .context("There are no top ask in order book")?;
                             let price_quote_bnb = ask.price;
                             *converted_commission_amount = commission_amount / price_quote_bnb;
-                            *converted_commission_currency_code =
-                                currency_pair_metadata.quote_currency_code();
+                            *converted_commission_currency_code = symbol.quote_currency_code();
                         }
                         None => log::error!(
                             "Top bids and asks for {} and currency pair {:?} do not exist",
@@ -512,10 +525,10 @@ impl Exchange {
 
     fn add_fill(
         &self,
-        trade_id: &Option<String>,
+        trade_id: &Option<TradeId>,
         is_diff: bool,
         fill_type: OrderFillType,
-        currency_pair_metadata: &CurrencyPairMetadata,
+        symbol: &Symbol,
         order_ref: &OrderRef,
         converted_commission_currency_code: CurrencyCode,
         last_fill_amount: Amount,
@@ -527,7 +540,7 @@ impl Exchange {
         commission_currency_code: CurrencyCode,
         converted_commission_amount: Amount,
     ) -> Result<OrderFill> {
-        let last_fill_amount_in_converted_commission_currency_code = currency_pair_metadata
+        let last_fill_amount_in_converted_commission_currency_code = symbol
             .convert_amount_from_amount_currency_code(
                 converted_commission_currency_code,
                 last_fill_amount,
@@ -539,8 +552,7 @@ impl Exchange {
         let referral_reward = self.commission.get_commission(order_role).referral_reward;
         let referral_reward_amount = commission_amount * referral_reward.percent_to_rate();
 
-        let rounded_fill_price =
-            currency_pair_metadata.price_round(last_fill_price, Round::ToNearest)?;
+        let rounded_fill_price = symbol.price_round(last_fill_price, Round::ToNearest)?;
 
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
@@ -586,10 +598,10 @@ impl Exchange {
             return Ok(());
         }
 
-        let currency_pair_metadata = self.get_currency_pair_metadata(order_ref.currency_pair())?;
+        let symbol = self.get_symbol(order_ref.currency_pair())?;
         let (last_fill_price, last_fill_amount, last_fill_cost) = match Self::get_last_fill_data(
             &mut event_data,
-            &currency_pair_metadata,
+            &symbol,
             &order_fills,
             order_filled_amount,
             order_ref,
@@ -616,9 +628,9 @@ impl Exchange {
             last_fill_amount
         );
 
-        let commission_currency_code = event_data.commission_currency_code.unwrap_or_else(|| {
-            currency_pair_metadata.get_commission_currency_code(order_ref.side())
-        });
+        let commission_currency_code = event_data
+            .commission_currency_code
+            .unwrap_or_else(|| symbol.get_commission_currency_code(order_ref.side()));
 
         let order_role = Self::get_order_role(event_data, order_ref)?;
 
@@ -631,7 +643,7 @@ impl Exchange {
             last_fill_amount,
             last_fill_price,
             commission_currency_code,
-            &currency_pair_metadata,
+            &symbol,
         )?;
 
         let mut converted_commission_currency_code = commission_currency_code;
@@ -639,7 +651,7 @@ impl Exchange {
 
         self.update_commission_for_bnb_case(
             commission_currency_code,
-            &currency_pair_metadata,
+            &symbol,
             commission_amount,
             &mut converted_commission_amount,
             &mut converted_commission_currency_code,
@@ -649,7 +661,7 @@ impl Exchange {
             &event_data.trade_id,
             event_data.is_diff,
             event_data.fill_type,
-            &currency_pair_metadata,
+            &symbol,
             order_ref,
             converted_commission_currency_code,
             last_fill_amount,
@@ -780,7 +792,7 @@ impl Exchange {
         template: &str,
         args_to_log: &(
             ExchangeAccountId,
-            Option<String>,
+            Option<TradeId>,
             Option<ClientOrderId>,
             ExchangeOrderId,
             AllowedEventSourceType,
@@ -817,6 +829,7 @@ impl Exchange {
 #[cfg(test)]
 mod test {
     use chrono::Utc;
+    use serde_json::json;
     use uuid::Uuid;
 
     use super::*;
@@ -831,6 +844,10 @@ mod test {
         orders::pool::OrdersPool,
     };
 
+    fn trade_id_from_str(str: &str) -> TradeId {
+        json!(str).into()
+    }
+
     mod liquidation {
         use super::*;
 
@@ -838,7 +855,7 @@ mod test {
         fn empty_currency_pair() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
-                trade_id: Some(String::new()),
+                trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: None,
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price: dec!(0),
@@ -853,6 +870,7 @@ mod test {
                 trade_currency_pair: None,
                 order_side: None,
                 order_amount: None,
+                fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -871,7 +889,7 @@ mod test {
         fn empty_order_side() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
-                trade_id: Some(String::new()),
+                trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: None,
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price: dec!(0),
@@ -886,6 +904,7 @@ mod test {
                 trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: None,
                 order_amount: None,
+                fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -904,7 +923,7 @@ mod test {
         fn not_empty_client_order_id() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
-                trade_id: Some(String::new()),
+                trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: Some(ClientOrderId::unique_id()),
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price: dec!(0),
@@ -919,6 +938,7 @@ mod test {
                 trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: None,
+                fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -937,7 +957,7 @@ mod test {
         fn not_empty_order_amount() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
-                trade_id: Some(String::new()),
+                trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: None,
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price: dec!(0),
@@ -952,6 +972,7 @@ mod test {
                 trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: None,
+                fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
@@ -977,7 +998,7 @@ mod test {
 
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
-                trade_id: Some(String::new()),
+                trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: None,
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price,
@@ -992,6 +1013,7 @@ mod test {
                 trade_currency_pair: Some(currency_pair),
                 order_side: Some(order_side),
                 order_amount: Some(order_amount),
+                fill_date: None,
             };
 
             let (exchange, _event_received) = get_test_exchange(false);
@@ -1023,7 +1045,7 @@ mod test {
         fn empty_exchange_order_id() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
-                trade_id: Some(String::new()),
+                trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: None,
                 exchange_order_id: ExchangeOrderId::new("".into()),
                 fill_price: dec!(0),
@@ -1038,6 +1060,7 @@ mod test {
                 trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
                 order_side: Some(OrderSide::Buy),
                 order_amount: Some(dec!(0)),
+                fill_date: None,
             };
 
             let (exchange, _event_receiver) = get_test_exchange(false);
@@ -1062,7 +1085,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
         let order_amount = dec!(1);
-        let trade_id = "test_trade_id".to_owned();
+        let trade_id = trade_id_from_str("test_trade_id");
         let fill_amount = dec!(0.2);
 
         let mut event_data = FillEventData {
@@ -1082,6 +1105,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1140,7 +1164,7 @@ mod test {
         let order_price = dec!(1);
         let fill_amount = dec!(0.2);
         let order_amount = dec!(1);
-        let trade_id = "test_trade_id".to_owned();
+        let trade_id = trade_id_from_str("test_trade_id");
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1159,6 +1183,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1180,7 +1205,7 @@ mod test {
             None,
             Utc::now(),
             OrderFillType::Liquidation,
-            Some("different_trade_id".to_owned()),
+            Some(trade_id_from_str("different_trade_id")),
             order_price,
             fill_amount,
             cost,
@@ -1217,7 +1242,7 @@ mod test {
         let order_price = dec!(1);
         let fill_amount = dec!(0.2);
         let order_amount = dec!(1);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1236,6 +1261,7 @@ mod test {
             trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1257,7 +1283,7 @@ mod test {
             None,
             Utc::now(),
             OrderFillType::Liquidation,
-            Some("different_trade_id".to_owned()),
+            Some(trade_id_from_str("different_trade_id")),
             order_price,
             fill_amount,
             cost,
@@ -1294,7 +1320,7 @@ mod test {
         let order_price = dec!(1);
         let fill_amount = dec!(0);
         let order_amount = dec!(1);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1313,6 +1339,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1334,7 +1361,7 @@ mod test {
             None,
             Utc::now(),
             OrderFillType::Liquidation,
-            Some("different_trade_id".to_owned()),
+            Some(trade_id_from_str("different_trade_id")),
             order_price,
             fill_amount,
             cost,
@@ -1370,7 +1397,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1389,6 +1416,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1428,7 +1456,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1447,6 +1475,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1486,7 +1515,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(1);
         let order_amount = dec!(1);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let fill_price = dec!(0.2);
 
         let mut event_data = FillEventData {
@@ -1506,6 +1535,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -1546,7 +1576,7 @@ mod test {
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
@@ -1605,6 +1635,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1613,7 +1644,7 @@ mod test {
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: Some("another_trade_id".to_owned()),
+            trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(0.3),
@@ -1628,6 +1659,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1660,7 +1692,7 @@ mod test {
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
@@ -1720,6 +1752,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1728,7 +1761,7 @@ mod test {
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: Some("another_trade_id".to_owned()),
+            trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(0.3),
@@ -1743,6 +1776,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1774,7 +1808,7 @@ mod test {
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
@@ -1833,6 +1867,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1841,7 +1876,7 @@ mod test {
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: Some("another_trade_id".to_owned()),
+            trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(3000),
@@ -1856,6 +1891,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1893,7 +1929,7 @@ mod test {
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
@@ -1952,6 +1988,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -1960,7 +1997,7 @@ mod test {
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: Some("another_trade_id".to_owned()),
+            trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(3000),
@@ -1975,6 +2012,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -2010,7 +2048,7 @@ mod test {
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
         let order_side = OrderSide::Buy;
         let order_price = dec!(0.2);
@@ -2069,6 +2107,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -2077,7 +2116,7 @@ mod test {
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: Some("another_trade_id".to_owned()),
+            trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(0.3),
@@ -2092,6 +2131,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         exchange
@@ -2117,7 +2157,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(1);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2136,6 +2176,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2173,7 +2214,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2192,6 +2233,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2233,7 +2275,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2252,6 +2294,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2295,7 +2338,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2314,6 +2357,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2353,7 +2397,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let commission_currency_code = CurrencyCode::new("BTC".into());
 
         let mut event_data = FillEventData {
@@ -2373,6 +2417,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2414,7 +2459,7 @@ mod test {
         let order_side = OrderSide::Buy;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let base_currency_code = CurrencyCode::new("PHB".into());
 
         let mut event_data = FillEventData {
@@ -2434,6 +2479,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2479,7 +2525,7 @@ mod test {
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2498,6 +2544,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2551,7 +2598,7 @@ mod test {
         let order_side = OrderSide::Sell;
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let commission_amount = dec!(0.001);
 
         let mut event_data = FillEventData {
@@ -2571,6 +2618,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2614,7 +2662,7 @@ mod test {
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
         let commission_rate = dec!(0.3) / dec!(100);
 
         let mut event_data = FillEventData {
@@ -2634,6 +2682,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2674,7 +2723,7 @@ mod test {
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2693,6 +2742,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2733,7 +2783,7 @@ mod test {
         let fill_price = dec!(0.8);
         let fill_amount = dec!(5);
         let order_amount = dec!(12);
-        let trade_id = Some("test_trade_id".to_owned());
+        let trade_id = Some(trade_id_from_str("test_trade_id"));
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2752,6 +2802,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(OrderSide::Buy),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         let mut order = OrderSnapshot::with_params(
@@ -2796,7 +2847,7 @@ mod test {
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let commission_currency_code = CurrencyCode::new("PHB".into());
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let event_data_commission_amount = dec!(6.3);
 
             let commission_amount = Exchange::get_commission_amount(
@@ -2806,7 +2857,7 @@ mod test {
                 last_fill_amount,
                 last_fill_price,
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
             )
             .context("Unable to get commission_amount")?;
 
@@ -2827,7 +2878,7 @@ mod test {
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let commission_currency_code = CurrencyCode::new("PHB".into());
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let commission_amount = Exchange::get_commission_amount(
                 None,
                 Some(commission_rate),
@@ -2835,7 +2886,7 @@ mod test {
                 last_fill_amount,
                 last_fill_price,
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
             )
             .context("Unable to get commission_amount")?;
 
@@ -2870,11 +2921,11 @@ mod test {
                 order_side,
             );
 
-            let trade_id = Some("test trade_id".to_owned());
+            let trade_id = Some(trade_id_from_str("test trade_id"));
             let is_diff = true;
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commission_currency_code(order_side);
+                symbol.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);
@@ -2888,7 +2939,7 @@ mod test {
                     &trade_id,
                     is_diff,
                     OrderFillType::Liquidation,
-                    &currency_pair_metadata,
+                    &symbol,
                     &order_ref,
                     converted_commission_currency_code,
                     last_fill_amount,
@@ -2931,11 +2982,11 @@ mod test {
                 order_side,
             );
 
-            let trade_id = Some("test trade_id".to_owned());
+            let trade_id = Some(trade_id_from_str("test trade_id"));
             let is_diff = true;
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commission_currency_code(order_side);
+                symbol.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);
@@ -2949,7 +3000,7 @@ mod test {
                     &trade_id,
                     is_diff,
                     OrderFillType::Liquidation,
-                    &currency_pair_metadata,
+                    &symbol,
                     &order_ref,
                     converted_commission_currency_code,
                     last_fill_amount,
@@ -2991,11 +3042,11 @@ mod test {
                 order_side,
             );
 
-            let trade_id = Some("test trade_id".to_owned());
+            let trade_id = Some(trade_id_from_str("test trade_id"));
             let is_diff = true;
-            let currency_pair_metadata = exchange.get_currency_pair_metadata(currency_pair)?;
+            let symbol = exchange.get_symbol(currency_pair)?;
             let converted_commission_currency_code =
-                currency_pair_metadata.get_commission_currency_code(order_side);
+                symbol.get_commission_currency_code(order_side);
             let last_fill_amount = dec!(5);
             let last_fill_price = dec!(0.8);
             let last_fill_cost = dec!(4.0);
@@ -3009,7 +3060,7 @@ mod test {
                     &trade_id,
                     is_diff,
                     OrderFillType::Liquidation,
-                    &currency_pair_metadata,
+                    &symbol,
                     &order_ref,
                     converted_commission_currency_code,
                     last_fill_amount,
@@ -3171,7 +3222,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange
+            let symbol = exchange
                 .symbols
                 .iter()
                 .next()
@@ -3182,10 +3233,8 @@ mod test {
             let mut converted_commission_amount = dec!(4.5);
             let mut converted_commission_currency_code = CurrencyCode::new("BTC".into());
 
-            let currency_pair = CurrencyPair::from_codes(
-                commission_currency_code,
-                currency_pair_metadata.quote_currency_code,
-            );
+            let currency_pair =
+                CurrencyPair::from_codes(commission_currency_code, symbol.quote_currency_code);
             let order_book_top = OrderBookTop {
                 ask: None,
                 bid: Some(PriceLevel {
@@ -3199,7 +3248,7 @@ mod test {
 
             exchange.update_commission_for_bnb_case(
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,
@@ -3219,7 +3268,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange
+            let symbol = exchange
                 .symbols
                 .iter()
                 .next()
@@ -3244,7 +3293,7 @@ mod test {
 
             exchange.update_commission_for_bnb_case(
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,
@@ -3264,7 +3313,7 @@ mod test {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
-            let currency_pair_metadata = exchange
+            let symbol = exchange
                 .symbols
                 .iter()
                 .next()
@@ -3277,7 +3326,7 @@ mod test {
 
             exchange.update_commission_for_bnb_case(
                 commission_currency_code,
-                &currency_pair_metadata,
+                &symbol,
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,
@@ -3323,7 +3372,7 @@ mod test {
 
         let mut event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: Some("first_trend_id".into()),
+            trade_id: Some(trade_id_from_str("first_trade_id")),
             client_order_id: Some(client_account_id.clone()),
             exchange_order_id: exchange_order_id.clone(),
             fill_price,
@@ -3338,6 +3387,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
@@ -3352,7 +3402,7 @@ mod test {
 
         let mut second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: Some("second_trade_id".into()),
+            trade_id: Some(trade_id_from_str("second_trade_id")),
             client_order_id: Some(client_account_id.clone()),
             exchange_order_id: exchange_order_id.clone(),
             fill_price,
@@ -3367,6 +3417,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
@@ -3381,7 +3432,7 @@ mod test {
 
         let mut second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
-            trade_id: Some("third_trade_id".into()),
+            trade_id: Some(trade_id_from_str("third_trade_id")),
             client_order_id: Some(client_account_id.clone()),
             exchange_order_id: exchange_order_id.clone(),
             fill_price,
@@ -3396,6 +3447,7 @@ mod test {
             trade_currency_pair: Some(currency_pair),
             order_side: Some(order_side),
             order_amount: Some(dec!(0)),
+            fill_date: None,
         };
 
         match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {

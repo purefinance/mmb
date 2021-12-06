@@ -16,10 +16,10 @@ use crate::core::{
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
-            currency_pair_metadata::{CurrencyPairMetadata, Precision},
-            currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter,
+            currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter,
             exchange::Exchange,
-            test_helper::get_test_exchange_with_currency_pair_metadata_and_id,
+            symbol::{Precision, Symbol},
+            test_helper::get_test_exchange_with_symbol_and_id,
         },
     },
     orders::{
@@ -36,23 +36,20 @@ pub struct BalanceManagerOrdinal {
 }
 
 impl BalanceManagerOrdinal {
-    fn create_balance_manager() -> (Arc<CurrencyPairMetadata>, Arc<Mutex<BalanceManager>>) {
-        let (currency_pair_metadata, exchanges_by_id) =
+    fn create_balance_manager() -> (Arc<Symbol>, Arc<Mutex<BalanceManager>>) {
+        let (symbol, exchanges_by_id) =
             BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
-        let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id);
+        let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_by_id);
 
-        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter);
-        (currency_pair_metadata, balance_manager)
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
+        (symbol, balance_manager)
     }
 
-    fn create_balance_manager_ctor_parameters() -> (
-        Arc<CurrencyPairMetadata>,
-        HashMap<ExchangeAccountId, Arc<Exchange>>,
-    ) {
+    fn create_balance_manager_ctor_parameters(
+    ) -> (Arc<Symbol>, HashMap<ExchangeAccountId, Arc<Exchange>>) {
         let base = BalanceManagerBase::eth();
         let quote = BalanceManagerBase::btc();
-        let currency_pair_metadata = Arc::from(CurrencyPairMetadata::new(
+        let symbol = Arc::from(Symbol::new(
             false,
             false,
             base.as_str().into(),
@@ -70,13 +67,13 @@ impl BalanceManagerOrdinal {
             Precision::ByTick { tick: dec!(0.001) },
         ));
 
-        let exchange_1 = get_test_exchange_with_currency_pair_metadata_and_id(
-            currency_pair_metadata.clone(),
+        let exchange_1 = get_test_exchange_with_symbol_and_id(
+            symbol.clone(),
             ExchangeAccountId::new(BalanceManagerBase::exchange_id().as_str().into(), 0),
         )
         .0;
-        let exchange_2 = get_test_exchange_with_currency_pair_metadata_and_id(
-            currency_pair_metadata.clone(),
+        let exchange_2 = get_test_exchange_with_symbol_and_id(
+            symbol.clone(),
             ExchangeAccountId::new(BalanceManagerBase::exchange_id().as_str().into(), 1),
         )
         .0;
@@ -85,15 +82,14 @@ impl BalanceManagerOrdinal {
             exchange_1.exchange_account_id => exchange_1,
             exchange_2.exchange_account_id => exchange_2
         ];
-        (currency_pair_metadata, res)
+        (symbol, res)
     }
 
     fn new() -> Self {
-        let (currency_pair_metadata, balance_manager) =
-            BalanceManagerOrdinal::create_balance_manager();
+        let (symbol, balance_manager) = BalanceManagerOrdinal::create_balance_manager();
         let mut balance_manager_base = BalanceManagerBase::new();
         balance_manager_base.set_balance_manager(balance_manager);
-        balance_manager_base.set_currency_pair_metadata(currency_pair_metadata);
+        balance_manager_base.set_symbol(symbol);
         let now = time_manager::now();
 
         Self {
@@ -161,10 +157,8 @@ mod tests {
     use crate::core::balance_manager::balance_manager::BalanceManager;
     use crate::core::balance_manager::position_change::PositionChange;
     use crate::core::exchanges::common::{Amount, CurrencyCode, Price, TradePlaceAccount};
-    use crate::core::exchanges::general::currency_pair_metadata::{
-        CurrencyPairMetadata, Precision,
-    };
-    use crate::core::exchanges::general::currency_pair_to_metadata_converter::CurrencyPairToMetadataConverter;
+    use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
+    use crate::core::exchanges::general::symbol::{Precision, Symbol};
     use crate::core::logger::init_logger;
     use crate::core::misc::reserve_parameters::ReserveParameters;
     use crate::core::orders::order::{
@@ -262,15 +256,12 @@ mod tests {
                 .balance_manager_base
                 .configuration_descriptor
                 .clone();
-            let currency_pair_metadata = test_object
-                .balance_manager_base
-                .currency_pair_metadata()
-                .clone();
+            let symbol = test_object.balance_manager_base.symbol().clone();
 
             test_object.balance_manager().set_target_amount_limit(
                 configuration_descriptor.clone(),
                 exchange_account_id,
-                currency_pair_metadata,
+                symbol,
                 limit,
             );
             let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
@@ -356,7 +347,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 btc
             ),
             Some(dec!(2))
@@ -365,7 +356,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 eth
             ),
             Some(dec!(1))
@@ -374,7 +365,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 bnb
             ),
             Some(dec!(7.5))
@@ -383,7 +374,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 eos
             ),
             None
@@ -403,7 +394,7 @@ mod tests {
                 .balance_manager()
                 .get_balance_reservation_currency_code(
                     exchange_account_id,
-                    test_object.balance_manager_base.currency_pair_metadata(),
+                    test_object.balance_manager_base.symbol(),
                     side,
                 ),
             BalanceManagerBase::btc()
@@ -416,10 +407,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .currency_pair_metadata()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 side,
                 dec!(1),
             ),
@@ -440,7 +428,7 @@ mod tests {
                 .balance_manager()
                 .get_balance_reservation_currency_code(
                     exchange_account_id,
-                    test_object.balance_manager_base.currency_pair_metadata(),
+                    test_object.balance_manager_base.symbol(),
                     side,
                 ),
             BalanceManagerBase::eth()
@@ -453,10 +441,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .currency_pair_metadata()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 side,
                 dec!(1),
             ),
@@ -614,8 +599,8 @@ mod tests {
             test_object.balance_manager_base.exchange_account_id_1
         );
         assert_eq!(
-            reservation.currency_pair_metadata,
-            test_object.balance_manager_base.currency_pair_metadata()
+            reservation.symbol,
+            test_object.balance_manager_base.symbol()
         );
         assert_eq!(reservation.order_side, OrderSide::Buy);
         assert_eq!(reservation.price, dec!(0.2));
@@ -676,8 +661,8 @@ mod tests {
             test_object.balance_manager_base.exchange_account_id_1
         );
         assert_eq!(
-            reservation.currency_pair_metadata,
-            test_object.balance_manager_base.currency_pair_metadata()
+            reservation.symbol,
+            test_object.balance_manager_base.symbol()
         );
         assert_eq!(reservation.order_side, OrderSide::Sell);
         assert_eq!(reservation.price, dec!(0.2));
@@ -931,8 +916,8 @@ mod tests {
             test_object.balance_manager_base.exchange_account_id_1
         );
         assert_eq!(
-            reservation.currency_pair_metadata,
-            test_object.balance_manager_base.currency_pair_metadata()
+            reservation.symbol,
+            test_object.balance_manager_base.symbol()
         );
         assert_eq!(reservation.order_side, OrderSide::Buy);
         assert_eq!(reservation.price, dec!(0.2));
@@ -948,8 +933,8 @@ mod tests {
             test_object.balance_manager_base.exchange_account_id_1
         );
         assert_eq!(
-            reservation.currency_pair_metadata,
-            test_object.balance_manager_base.currency_pair_metadata()
+            reservation.symbol,
+            test_object.balance_manager_base.symbol()
         );
         assert_eq!(reservation.order_side, OrderSide::Sell);
         assert_eq!(reservation.price, dec!(0.2));
@@ -1149,8 +1134,8 @@ mod tests {
             test_object.balance_manager_base.exchange_account_id_1
         );
         assert_eq!(
-            reservation.currency_pair_metadata,
-            test_object.balance_manager_base.currency_pair_metadata()
+            reservation.symbol,
+            test_object.balance_manager_base.symbol()
         );
         assert_eq!(reservation.order_side, OrderSide::Buy);
         assert_eq!(reservation.price, dec!(0.2));
@@ -1166,8 +1151,8 @@ mod tests {
             test_object.balance_manager_base.exchange_account_id_1
         );
         assert_eq!(
-            reservation.currency_pair_metadata,
-            test_object.balance_manager_base.currency_pair_metadata()
+            reservation.symbol,
+            test_object.balance_manager_base.symbol()
         );
         assert_eq!(reservation.order_side, OrderSide::Sell);
         assert_eq!(reservation.price, dec!(0.2));
@@ -1183,8 +1168,8 @@ mod tests {
             test_object.balance_manager_base.exchange_account_id_1
         );
         assert_eq!(
-            reservation.currency_pair_metadata,
-            test_object.balance_manager_base.currency_pair_metadata()
+            reservation.symbol,
+            test_object.balance_manager_base.symbol()
         );
         assert_eq!(reservation.order_side, OrderSide::Sell);
         assert_eq!(reservation.price, dec!(0.2));
@@ -1305,7 +1290,7 @@ mod tests {
         init_logger();
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let currency_pair_metadata = Arc::from(CurrencyPairMetadata::new(
+        let symbol = Arc::from(Symbol::new(
             false,
             false,
             BalanceManagerBase::eth().as_str().into(),
@@ -1332,7 +1317,7 @@ mod tests {
                 .balance_manager_base
                 .exchange_account_id_1
                 .clone(),
-            currency_pair_metadata.clone(),
+            symbol.clone(),
             OrderSide::Sell,
             dec!(0.2),
             dec!(1),
@@ -2426,10 +2411,7 @@ mod tests {
                 .balance_manager_base
                 .exchange_account_id_2
                 .clone(),
-            test_object
-                .balance_manager_base
-                .currency_pair_metadata()
-                .clone(),
+            test_object.balance_manager_base.symbol().clone(),
             OrderSide::Sell,
             dec!(0.2),
             dec!(5),
@@ -2484,7 +2466,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 ExchangeAccountId::new("unknown_id".into(), 0),
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 OrderSide::Buy,
                 dec!(1),
             ),
@@ -2504,7 +2486,7 @@ mod tests {
                     .configuration_descriptor
                     .clone(),
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 "not_existing_currency_code".into(),
                 dec!(1),
             ),
@@ -2562,7 +2544,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 eth
             ),
             Some(dec!(0.5))
@@ -2570,7 +2552,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 bnb
             ),
             Some(dec!(0.1))
@@ -2634,7 +2616,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 eth
             ),
             Some(dec!(0.5))
@@ -2642,7 +2624,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 bnb
             ),
             Some(dec!(0.1))
@@ -2709,7 +2691,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 eth
             ),
             Some(dec!(0.5))
@@ -2717,7 +2699,7 @@ mod tests {
         assert_eq!(
             test_object.balance_manager().get_exchange_balance(
                 exchange_account_id,
-                test_object.balance_manager_base.currency_pair_metadata(),
+                test_object.balance_manager_base.symbol(),
                 bnb
             ),
             Some(dec!(0.1))
@@ -4344,7 +4326,7 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager_base
-                .currency_pair_metadata()
+                .symbol()
                 .amount_currency_code,
             BalanceManagerBase::eth()
         );
@@ -4408,10 +4390,7 @@ mod tests {
             position_by_fill_amount
                 .get(
                     test_object.balance_manager_base.exchange_account_id_1,
-                    test_object
-                        .balance_manager_base
-                        .currency_pair_metadata()
-                        .currency_pair(),
+                    test_object.balance_manager_base.symbol().currency_pair(),
                 )
                 .expect("in test"),
             -fill_amount
@@ -4424,10 +4403,7 @@ mod tests {
             test_object.balance_manager().get_balance_by_side(
                 configuration_descriptor.clone(),
                 exchange_account_id,
-                test_object
-                    .balance_manager_base
-                    .currency_pair_metadata()
-                    .clone(),
+                test_object.balance_manager_base.symbol().clone(),
                 OrderSide::Buy,
                 fill_price
             ),
@@ -4448,10 +4424,9 @@ mod tests {
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0));
         let (_, exchanges_by_id) = BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
 
-        let currency_pair_to_metadata_converter =
-            CurrencyPairToMetadataConverter::new(exchanges_by_id);
+        let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_by_id);
 
-        let balance_manager = BalanceManager::new(currency_pair_to_metadata_converter.clone());
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter.clone());
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
@@ -4491,7 +4466,7 @@ mod tests {
 
         test_object
             .balance_manager_base
-            .set_balance_manager(BalanceManager::new(currency_pair_to_metadata_converter));
+            .set_balance_manager(BalanceManager::new(currency_pair_to_symbol_converter));
 
         test_object
             .balance_manager()
@@ -5041,10 +5016,7 @@ mod tests {
 
         let trade_place = TradePlaceAccount::new(
             exchange_account_id,
-            test_object
-                .balance_manager_base
-                .currency_pair_metadata()
-                .currency_pair(),
+            test_object.balance_manager_base.symbol().currency_pair(),
         );
 
         assert!(test_object
@@ -5263,10 +5235,7 @@ mod tests {
     fn check_position(test_object: &BalanceManagerOrdinal, position: Decimal) {
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
-        let currency_pair = test_object
-            .balance_manager_base
-            .currency_pair_metadata()
-            .currency_pair();
+        let currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         let amount_position = test_object.balance_manager().get_position(
             exchange_account_id,
             currency_pair,

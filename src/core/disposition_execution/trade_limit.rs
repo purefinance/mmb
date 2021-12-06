@@ -1,14 +1,14 @@
 use crate::core::disposition_execution::TradeDisposition;
 use crate::core::exchanges::common::Amount;
-use crate::core::exchanges::general::currency_pair_metadata::CurrencyPairMetadata;
+use crate::core::exchanges::general::symbol::Symbol;
 
 pub fn is_enough_amount_and_cost(
     disposition: &TradeDisposition,
     amount: Amount,
     need_log: bool,
-    currency_pair_metadata: &CurrencyPairMetadata,
+    symbol: &Symbol,
 ) -> Result<(), String> {
-    let min_amount = currency_pair_metadata
+    let min_amount = symbol
         .get_min_amount(disposition.price())
         .expect("We can't trade if we can't calculate min amount for order");
 
@@ -21,7 +21,7 @@ pub fn is_enough_amount_and_cost(
         disposition.exchange_account_id(),
         amount,
         min_amount,
-        currency_pair_metadata.amount_currency_code
+        symbol.amount_currency_code
     );
 
     if need_log {

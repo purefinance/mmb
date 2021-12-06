@@ -34,7 +34,7 @@ impl BalanceRequest {
         BalanceRequest::new(
             reservation.configuration_descriptor,
             reservation.exchange_account_id,
-            reservation.currency_pair_metadata.currency_pair(),
+            reservation.symbol.currency_pair(),
             reservation.reservation_currency_code,
         )
     }

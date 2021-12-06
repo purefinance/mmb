@@ -375,9 +375,9 @@ impl Exchange {
                     .cache_by_exchange_id
                     .insert(exchange_order_id.clone(), order_ref.clone());
 
+                let header = order_ref.fn_ref(|x| x.header.clone());
+                let client_order_id = header.client_order_id.clone();
                 if order_ref.order_type() != OrderType::Liquidation {
-                    let header = order_ref.fn_ref(|x| x.header.clone());
-                    let client_order_id = header.client_order_id.clone();
                     match header.reservation_id {
                         None => {
                             log::warn!("Created order {} without reservation_id", client_order_id)
@@ -398,8 +398,36 @@ impl Exchange {
 
                 self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderSucceeded)?;
 
-                // TODO if BufferedFillsManager.TryGetFills(...)
-                // TODO if BufferedCanceledOrdersManager.TryGetOrder(...)
+                let mut buffered_fills_manager = self.buffered_fills_manager.lock();
+                if let Some(buffered_fills) = buffered_fills_manager.get_fills(&exchange_order_id) {
+                    log::trace!(
+                        "Found buffered fills for an order {} {} {} {:?}",
+                        self.exchange_account_id,
+                        client_order_id,
+                        exchange_order_id,
+                        buffered_fills
+                    );
+
+                    for buffered_fill in buffered_fills {
+                        self.handle_order_filled(
+                            buffered_fill.to_fill_event_data(None, client_order_id.clone()),
+                        )?;
+                    }
+
+                    buffered_fills_manager.remove_fills(exchange_order_id);
+                }
+
+                let mut buffered_canceled_orders_manager =
+                    self.buffered_canceled_orders_manager.lock();
+                if buffered_canceled_orders_manager.is_order_buffered(&exchange_order_id) {
+                    self.handle_cancel_order_succeeded(
+                        Some(&client_order_id),
+                        &exchange_order_id,
+                        None,
+                        source_type.clone(),
+                    )?;
+                    buffered_canceled_orders_manager.remove_order(&exchange_order_id);
+                }
 
                 // TODO DataRecorder.Save(order); Do we really need it here?
                 // Cause it's already performed in handle_create_order_succeeded
