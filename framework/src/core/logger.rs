@@ -39,7 +39,7 @@ pub fn init_logger() {
                             .write(true)
                             .create(true)
                             .truncate(true)
-                            .open("log.txt")
+                            .open("../../../log.txt")
                             .expect("Unable to open log file"),
                     ),
             )
