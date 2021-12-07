@@ -1,3 +1,4 @@
+use std::fs::read_to_string;
 use std::{collections::HashMap, io::Write};
 use std::{fmt::Debug, fs::File};
 
@@ -7,7 +8,6 @@ use crate::{
 };
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
-use std::io::Read;
 use toml_edit::{value, ArrayOfTables, Document, Table};
 
 pub static EXCHANGE_ACCOUNT_ID: &str = "exchange_account_id";
@@ -23,24 +23,18 @@ pub fn load_settings<TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'static>,
 {
-    let mut settings = String::new();
-    File::open(config_path)?.read_to_string(&mut settings)?;
-
-    let mut credentials = String::new();
-    File::open(credentials_path)?.read_to_string(&mut credentials)?;
+    let mut settings = read_to_string(config_path)?;
+    let mut credentials = read_to_string(credentials_path)?;
 
     parse_settings(&mut settings, &mut credentials)
 }
 
-pub fn load_pretty_settings(config_path: &str, credentials_path: &str) -> Result<String> {
-    let mut settings = String::new();
-    File::open(config_path)?.read_to_string(&mut settings)?;
+pub fn load_pretty_settings(config_path: &str, credentials_path: &str) -> String {
+    let settings = read_to_string(&config_path).expect("Failed to read config file");
+    let credentials = read_to_string(&credentials_path).expect("Failed to read credentials file");
 
-    let mut credentials = String::new();
-    File::open(credentials_path)?.read_to_string(&mut credentials)?;
-
-    let settings = parse_toml_settings(&settings, &credentials)?;
-    Ok(settings.to_string())
+    let settings = parse_toml_settings(&settings, &credentials).expect("Failed to parse toml file");
+    settings.to_string()
 }
 
 pub fn parse_settings<TSettings>(

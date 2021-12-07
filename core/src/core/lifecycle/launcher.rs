@@ -179,7 +179,7 @@ where
     let control_panel = ControlPanel::new(
         "127.0.0.1:8080",
         // Replace with to_pretty_string after fix issues toml_edit/#192
-        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH)?,
+        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
         engine_context.application_manager.clone(),
         statistic_service.clone(),
     );
