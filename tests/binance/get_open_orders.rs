@@ -16,7 +16,7 @@ use rust_decimal_macros::dec;
 async fn open_orders_exists() {
     init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
@@ -88,7 +88,7 @@ async fn open_orders_exists() {
 async fn get_open_orders_for_each_currency_pair_separately() {
     init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
     let mut settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
 

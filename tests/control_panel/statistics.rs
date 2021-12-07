@@ -6,6 +6,7 @@ use mmb_lib::core::disposition_execution::{PriceSlot, TradingContext};
 use mmb_lib::core::exchanges::binance::binance::Binance;
 use mmb_lib::core::explanation::Explanation;
 use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_lib::core::logger::init_logger;
 use mmb_lib::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_lib::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_lib::core::settings::BaseStrategySettings;
@@ -37,7 +38,7 @@ pub struct TestStrategySettings {}
 
 impl BaseStrategySettings for TestStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
-        "Binance0".parse().expect("for testing")
+        "Binance_0".parse().expect("for testing")
     }
 
     fn currency_pair(&self) -> CurrencyPair {
@@ -155,7 +156,7 @@ async fn orders_cancelled() {
     )
     .expect("in test");
 
-    let exchange_statistics = &statistics["trade_place_stats"]["Binance0|cnd/btc"];
+    let exchange_statistics = &statistics["trade_place_stats"]["Binance_0|cnd/btc"];
     let opened_orders_count = exchange_statistics["opened_orders_count"]
         .as_u64()
         .expect("in test");

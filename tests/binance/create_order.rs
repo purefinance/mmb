@@ -16,7 +16,7 @@ use crate::core::order::OrderProxy;
 async fn create_successfully() {
     init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let mut binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
@@ -78,7 +78,7 @@ async fn create_successfully() {
 async fn should_fail() {
     init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),

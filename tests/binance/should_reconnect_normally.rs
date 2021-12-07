@@ -22,7 +22,7 @@ pub async fn should_connect_and_reconnect_normally() {
 
     let (finish_sender, finish_receiver) = oneshot::channel::<()>();
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),

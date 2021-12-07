@@ -19,7 +19,7 @@ pub struct ExampleStrategySettings {
 
 impl BaseStrategySettings for ExampleStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
-        "Binance0"
+        "Binance_0"
             .parse()
             .expect("Binance should be specified for example strategy")
     }

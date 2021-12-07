@@ -20,7 +20,7 @@ use super::binance_builder::BinanceBuilder;
 async fn get_balance_successfully() {
     init_logger();
 
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
