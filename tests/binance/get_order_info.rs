@@ -14,7 +14,7 @@ use crate::core::order::OrderProxy;
 #[actix_rt::test]
 async fn get_order_info() {
     init_logger();
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),

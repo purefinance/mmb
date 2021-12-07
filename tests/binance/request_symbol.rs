@@ -7,8 +7,8 @@ use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
 use crate::binance::binance_builder::BinanceBuilder;
 
 #[actix_rt::test]
-async fn request_symbol() {
-    let exchange_account_id: ExchangeAccountId = "Binance0".parse().expect("in test");
+async fn request_metadata() {
+    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     // build_symbol is called in try_new, so if it's doesn't panicked symbol fetched successfully
     let _ = BinanceBuilder::try_new(
         exchange_account_id,

@@ -31,7 +31,7 @@ pub struct TestStrategySettings {}
 
 impl BaseStrategySettings for TestStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId {
-        "Binance0".parse().expect("for testing")
+        "Binance_0".parse().expect("for testing")
     }
 
     fn currency_pair(&self) -> CurrencyPair {
