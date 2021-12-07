@@ -1,62 +1,101 @@
-use actix_web::{error, get, post, web, Error, HttpResponse, Responder};
+use jsonrpc_core::Params;
+use jsonrpc_core::Result;
+use jsonrpc_core::Value;
+use parking_lot::Mutex;
+use serde::Deserialize;
+use shared::rest_api::server_side_error;
+use shared::rest_api::Rpc;
+
 use std::sync::{mpsc::Sender, Arc};
 
 use crate::core::{
     config::save_settings, config::CONFIG_PATH, config::CREDENTIALS_PATH,
     lifecycle::application_manager::ApplicationManager, statistic_service::StatisticService,
 };
+use shared::rest_api::ErrorCode;
 
-// New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
-
-#[get("/health")]
-pub(super) async fn health() -> impl Responder {
-    HttpResponse::Ok().body("Bot is working")
+pub struct RpcImpl {
+    application_manager: Arc<ApplicationManager>,
+    statistics: Arc<StatisticService>,
+    server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
+    engine_settings: String,
 }
 
-#[post("/stop")]
-pub(super) async fn stop(server_stopper_tx: web::Data<Sender<()>>) -> impl Responder {
-    if let Err(error) = server_stopper_tx.send(()) {
-        log::error!("Unable to send signal to stop actix server: {}", error);
+impl RpcImpl {
+    pub fn new(
+        application_manager: Arc<ApplicationManager>,
+        statistics: Arc<StatisticService>,
+        server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
+        engine_settings: String,
+    ) -> Self {
+        Self {
+            application_manager,
+            statistics,
+            server_stopper_tx,
+            engine_settings,
+        }
+    }
+}
+
+impl Rpc for RpcImpl {
+    fn health(&self) -> Result<Value> {
+        Ok("Bot is working".into())
     }
 
-    HttpResponse::Ok().body("ControlPanel turned off")
-}
+    fn stop(&self) -> Result<Value> {
+        let error_message = "Unable to send signal to stop ipc server";
+        let server_stopper_tx = self.server_stopper_tx.lock().take().ok_or_else(|| {
+            let reason = "server_stopper_tx shouldn't be None";
+            log::error!("{}: {}", error_message, reason);
+            server_side_error(ErrorCode::UnableToSendSignal)
+        })?;
 
-#[get("/config")]
-pub(super) async fn get_config(engine_settings: web::Data<String>) -> impl Responder {
-    HttpResponse::Ok().body(engine_settings.get_ref())
-}
+        server_stopper_tx.send(()).map_err(|reason| {
+            log::error!("{}: {}", error_message, reason);
+            server_side_error(ErrorCode::UnableToSendSignal)
+        })?;
 
-#[post("/config")]
-pub(super) async fn set_config(
-    body: web::Bytes,
-    application_manager: web::Data<Arc<ApplicationManager>>,
-) -> Result<HttpResponse, Error> {
-    let settings = std::str::from_utf8(&body)?;
+        Ok(Value::String("ControlPanel turned off".into()))
+    }
 
-    save_settings(settings, CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
-        let error_message = format!(
-            "Error while trying save new config in set_config endpoint: {}",
-            err.to_string()
-        );
-        log::warn!("{}", error_message);
+    fn get_config(&self) -> Result<Value> {
+        Ok(Value::String(self.engine_settings.clone()))
+    }
 
-        error::ErrorBadRequest(error_message)
-    })?;
+    fn set_config(&self, params: Params) -> Result<Value> {
+        #[derive(Deserialize)]
+        struct Data {
+            settings: String,
+        }
 
-    application_manager
-        .get_ref()
-        .clone()
-        .spawn_graceful_shutdown("Engine stopped cause config updating".to_owned());
+        let data: Data = params.parse()?;
 
-    Ok(HttpResponse::Ok().body("Config was successfully updated. Trading engine stopped"))
-}
+        save_settings(data.settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
+            log::warn!(
+                "Error while trying save new config in set_config endpoint: {}",
+                err.to_string()
+            );
+            server_side_error(ErrorCode::FailedToSaveNewConfig)
+        })?;
 
-#[get("/stats")]
-pub(super) async fn stats(
-    statistics: web::Data<Arc<StatisticService>>,
-) -> Result<HttpResponse, Error> {
-    let json_statistic = serde_json::to_string(&statistics.statistic_service_state)?;
+        self.application_manager
+            .clone()
+            .spawn_graceful_shutdown("Engine stopped cause config updating".to_owned());
 
-    Ok(HttpResponse::Ok().body(&json_statistic))
+        Ok("Config was successfully updated. Trading engine stopped".into())
+    }
+
+    fn stats(&self) -> Result<Value> {
+        let json_statistic = serde_json::to_string(&self.statistics.statistic_service_state)
+            .map_err(|err| {
+                log::warn!(
+                    "Failed to convert {:?} to string: {}",
+                    self.statistics,
+                    err.to_string()
+                );
+                server_side_error(ErrorCode::FailedToSaveNewConfig)
+            })?;
+
+        Ok(Value::String(json_statistic))
+    }
 }

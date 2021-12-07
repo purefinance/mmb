@@ -175,12 +175,7 @@ where
     let statistic_service = StatisticService::new();
     let statistic_event_handler =
         create_statistic_event_handler(exchange_events, statistic_service.clone());
-    let control_panel = ControlPanel::new(
-        "127.0.0.1:8080",
-        toml::Value::try_from(settings.clone())?.to_string(),
-        engine_context.application_manager.clone(),
-        statistic_service.clone(),
-    );
+    let control_panel = ControlPanel::new();
     engine_context
         .shutdown_service
         .register_service(control_panel.clone());
@@ -195,7 +190,11 @@ where
         let _ = spawn_future("internal_events_loop start", true, action.boxed());
     }
 
-    if let Err(error) = control_panel.clone().start() {
+    if let Err(error) = control_panel.clone().start(
+        toml::Value::try_from(settings.clone())?.to_string(),
+        engine_context.application_manager.clone(),
+        statistic_service.clone(),
+    ) {
         log::error!("Unable to start rest api: {}", error);
     }
 
