@@ -9,6 +9,7 @@ edition = "2018"
 [workspace]
 members = [
     "src/shared",
+    "src/rest_api_rpc",
 ]
 
 [dependencies]

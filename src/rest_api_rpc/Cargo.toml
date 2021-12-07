@@ -1,0 +1,16 @@
+[package]
+name = "rest_api_rpc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+jsonrpc-core-client = { version = "18.0.0", features = ["ipc"] }
+jsonrpc-core = "18.0.0"
+jsonrpc-derive = "18.0.0"
+actix-web = { version = "4.0.0-beta.10" }
+
+[lib]
+name = "shared_lib"
+path = "../shared/lib.rs"
