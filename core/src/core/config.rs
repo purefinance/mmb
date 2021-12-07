@@ -7,7 +7,7 @@ use crate::{
     hashmap,
 };
 use anyhow::{anyhow, Context, Result};
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 use toml_edit::{value, ArrayOfTables, Document, Table};
 
 pub static EXCHANGE_ACCOUNT_ID: &str = "exchange_account_id";
@@ -21,7 +21,7 @@ pub fn load_settings<TSettings>(
     credentials_path: &str,
 ) -> Result<AppSettings<TSettings>>
 where
-    TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'static>,
+    TSettings: BaseStrategySettings + Clone + Debug + DeserializeOwned,
 {
     let mut settings = read_to_string(config_path)?;
     let mut credentials = read_to_string(credentials_path)?;
@@ -42,7 +42,7 @@ pub fn parse_settings<TSettings>(
     credentials: &str,
 ) -> Result<AppSettings<TSettings>>
 where
-    TSettings: BaseStrategySettings + Clone + Debug + Deserialize<'static>,
+    TSettings: BaseStrategySettings + Clone + Debug + DeserializeOwned,
 {
     let settings = parse_toml_settings(settings, credentials)?;
     toml_edit::de::from_document::<AppSettings<TSettings>>(settings)

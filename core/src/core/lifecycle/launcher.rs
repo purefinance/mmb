@@ -30,6 +30,7 @@ use anyhow::{anyhow, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
@@ -64,7 +65,7 @@ where
     Load(String, String),
 }
 
-async fn before_engine_context_init<'a, StrategySettings>(
+async fn before_engine_context_init<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
 ) -> Result<(
@@ -76,7 +77,7 @@ async fn before_engine_context_init<'a, StrategySettings>(
     oneshot::Receiver<()>,
 )>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'static> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
     init_logger();
 
@@ -198,7 +199,7 @@ where
     }
 
     if let Err(error) = control_panel.clone().start() {
-        log::error!("Unable to start rest api: {}", error);
+        log::warn!("Unable to start rest api: {}", error);
     }
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
@@ -247,7 +248,7 @@ pub(crate) fn unwrap_or_handle_panic<T>(
     })
 }
 
-pub async fn launch_trading_engine<'a, StrategySettings>(
+pub async fn launch_trading_engine<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
     build_strategy: impl Fn(
@@ -256,7 +257,7 @@ pub async fn launch_trading_engine<'a, StrategySettings>(
     ) -> Box<dyn DispositionStrategy + 'static>,
 ) -> Result<TradingEngine>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'static> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
     let action_outcome = AssertUnwindSafe(before_engine_context_init(
         build_settings,
