@@ -1,5 +1,5 @@
 [workspace]
 members = [
     "framework",
-    "strategies"
+    "example"
 ]

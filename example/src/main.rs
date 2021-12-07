@@ -7,7 +7,7 @@ use mmb_lib::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
 use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_lib::core::settings::{BaseStrategySettings, CurrencyPairSetting};
 
-use strategies::strategies::disposition_strategy::ExampleStrategy;
+use strategies::strategies::example_strategy::ExampleStrategy;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {
