@@ -164,7 +164,7 @@ fn run_services<'a, StrategySettings>(
         Arc<EngineContext>,
     ) -> Box<dyn DispositionStrategy + 'static>,
     finish_graceful_shutdown_rx: oneshot::Receiver<()>,
-) -> Result<TradingEngine>
+) -> TradingEngine
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
@@ -214,10 +214,7 @@ where
         .register_service(disposition_executor_service);
 
     log::info!("TradingEngine started");
-    Ok(TradingEngine::new(
-        engine_context.clone(),
-        finish_graceful_shutdown_rx,
-    ))
+    TradingEngine::new(engine_context.clone(), finish_graceful_shutdown_rx)
 }
 
 pub(crate) fn handle_panic(
@@ -306,7 +303,7 @@ where
         action_outcome,
         message_template,
         Some(engine_context.application_manager.clone()),
-    )?
+    )
 }
 
 fn create_disposition_executor_service(
