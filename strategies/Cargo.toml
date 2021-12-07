@@ -1,0 +1,18 @@
+[package]
+name = "strategies"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+itertools = "0.10"
+actix-web = { version = "=4.0.0-beta.12", features = ["rustls"]}
+anyhow = "1"
+
+rust_decimal = { version = "1" , features = ["maths"]}
+rust_decimal_macros = "1"
+
+serde = { version = "1", features = ["derive", "rc"]}
+
+mmb = { path = "../framework" }
