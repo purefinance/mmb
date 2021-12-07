@@ -25,7 +25,7 @@ pub fn init_logger() {
                 fern::Dispatch::new()
                     .level(LevelFilter::Warn)
                     .level_for("mmb", LevelFilter::Warn)
-                    .level_for("mmb_lib", LevelFilter::Warn)
+                    .level_for("mmb_core", LevelFilter::Warn)
                     .chain(std::io::stdout()),
             )
             .chain(
@@ -39,7 +39,7 @@ pub fn init_logger() {
                             .write(true)
                             .create(true)
                             .truncate(true)
-                            .open("log.txt")
+                            .open("../../../log.txt")
                             .expect("Unable to open log file"),
                     ),
             )

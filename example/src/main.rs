@@ -1,14 +1,13 @@
 use anyhow::Result;
-use mmb_lib::core::settings::{BaseStrategySettings, CurrencyPairSetting};
-use mmb_lib::core::{
-    config::CONFIG_PATH,
-    config::CREDENTIALS_PATH,
-    exchanges::common::{Amount, CurrencyPair, ExchangeAccountId},
-    lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
-};
-use mmb_lib::strategies::disposition_strategy::ExampleStrategy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+
+use mmb_core::core::config::{CONFIG_PATH, CREDENTIALS_PATH};
+use mmb_core::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
+use mmb_core::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
+use mmb_core::core::settings::{BaseStrategySettings, CurrencyPairSetting};
+
+use example::strategies::example_strategy::ExampleStrategy;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {

@@ -644,6 +644,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "example"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "itertools",
+ "mmb_core",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+]
+
+[[package]]
 name = "fern"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1115,7 +1128,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mmb"
+name = "mmb_core"
 version = "0.1.0"
 dependencies = [
  "actix",
