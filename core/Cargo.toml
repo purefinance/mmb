@@ -1,5 +1,5 @@
 [package]
-name = "mmb"
+name = "mmb_core"
 version = "0.1.0"
 authors = ["Evgeny Khudoba <evgeny.khudoba@yandex.ru>"]
 edition = "2018"
@@ -70,8 +70,3 @@ actix-rt = "2"
 pretty_assertions = "1"
 rstest = "0.10"
 mockall = "0.10.2"
-
-[lib]
-name = "mmb_lib"
-path = "src/lib.rs"
-

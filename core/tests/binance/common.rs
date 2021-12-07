@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use mmb_lib::core::exchanges::hosts::Hosts;
-use mmb_lib::{
+use mmb_core::core::exchanges::hosts::Hosts;
+use mmb_core::{
     core::exchanges::common::ExchangeId,
     core::exchanges::{
         common::ExchangeAccountId,

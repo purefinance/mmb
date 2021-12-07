@@ -1,9 +1,9 @@
 use anyhow::Result;
 use futures::Future;
 use log::info;
-use mmb_lib::core::exchanges::general::features::*;
-use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
-use mmb_lib::core::{
+use mmb_core::core::exchanges::general::features::*;
+use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_core::core::{
     connectivity::connectivity_manager::ConnectivityManager,
     connectivity::websocket_actor::WebSocketParams, exchanges::common::ExchangeAccountId,
     exchanges::events::AllowedEventSourceType, exchanges::general::commission::Commission,

@@ -1,12 +1,12 @@
 pub use std::collections::HashMap;
 
-use mmb_lib::core::exchanges::common::*;
-use mmb_lib::core::exchanges::events::AllowedEventSourceType;
-use mmb_lib::core::exchanges::general::commission::Commission;
-use mmb_lib::core::exchanges::general::features::*;
-use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
-use mmb_lib::core::logger::init_logger;
-use mmb_lib::core::orders::order::*;
+use mmb_core::core::exchanges::common::*;
+use mmb_core::core::exchanges::events::AllowedEventSourceType;
+use mmb_core::core::exchanges::general::commission::Commission;
+use mmb_core::core::exchanges::general::features::*;
+use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_core::core::logger::init_logger;
+use mmb_core::core::orders::order::*;
 
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::OrderProxy;

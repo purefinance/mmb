@@ -15,4 +15,4 @@ rust_decimal_macros = "1"
 
 serde = { version = "1", features = ["derive", "rc"]}
 
-mmb = { path = "../framework" }
+mmb_core = { path = "../core" }

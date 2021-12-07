@@ -2,10 +2,10 @@ use anyhow::Result;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use mmb_lib::core::config::{CONFIG_PATH, CREDENTIALS_PATH};
-use mmb_lib::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
-use mmb_lib::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
-use mmb_lib::core::settings::{BaseStrategySettings, CurrencyPairSetting};
+use mmb_core::core::config::{CONFIG_PATH, CREDENTIALS_PATH};
+use mmb_core::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
+use mmb_core::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
+use mmb_core::core::settings::{BaseStrategySettings, CurrencyPairSetting};
 
 use strategies::strategies::example_strategy::ExampleStrategy;
 
