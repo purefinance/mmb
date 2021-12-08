@@ -487,6 +487,14 @@ pub trait WithExpect<T> {
 
     /// Unwrap the value or panic with additional context that is evaluated lazily
     /// The performance version. Double memory is not allocated for formatting
+    ///
+    /// # Examples
+    ///```should_panic
+    /// use mmb_core::core::infrastructure::WithExpect;
+    ///
+    /// let result: Result<(), ()> = Err(());
+    /// result.with_expect_args(|f| f(&format_args!("Error {}", "Message")));
+    /// ```
     fn with_expect_args(self, f: impl FnOnce(&dyn Fn(&Arguments))) -> T;
 }
 
