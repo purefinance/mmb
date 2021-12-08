@@ -1,8 +1,8 @@
 use mmb::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
-use mmb_lib::core as mmb;
-use mmb_lib::core::exchanges::common::*;
-use mmb_lib::core::exchanges::general::features::*;
-use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_core::core as mmb;
+use mmb_core::core::exchanges::common::*;
+use mmb_core::core::exchanges::general::features::*;
+use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
 
 use crate::binance::binance_builder::BinanceBuilder;
 

@@ -5,42 +5,23 @@ use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-use crate::core::balance_manager::balance_manager::BalanceManager;
-use crate::core::disposition_execution::{
+use mmb_core::core::balance_manager::balance_manager::BalanceManager;
+use mmb_core::core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
-use crate::core::exchanges::common::{
+use mmb_core::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
-use crate::core::exchanges::general::symbol::Round;
-use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
-use crate::core::infrastructure::WithExpect;
-use crate::core::lifecycle::cancellation_token::CancellationToken;
-use crate::core::lifecycle::trading_engine::EngineContext;
-use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
-use crate::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
-use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use crate::core::DateTime;
-
-pub trait DispositionStrategy: Send + Sync + 'static {
-    fn calculate_trading_context(
-        &mut self,
-        max_amount: Decimal,
-        now: DateTime,
-        local_snapshots_service: &LocalSnapshotsService,
-        explanation: &mut Explanation,
-    ) -> Option<TradingContext>;
-
-    fn handle_order_fill(
-        &self,
-        cloned_order: &Arc<OrderSnapshot>,
-        price_slot: &PriceSlot,
-        target_eai: ExchangeAccountId,
-        cancellation_token: CancellationToken,
-    ) -> Result<()>;
-
-    fn configuration_descriptor(&self) -> ConfigurationDescriptor;
-}
+use mmb_core::core::exchanges::general::symbol::Round;
+use mmb_core::core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
+use mmb_core::core::infrastructure::WithExpect;
+use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_core::core::lifecycle::trading_engine::EngineContext;
+use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
+use mmb_core::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
+use mmb_core::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use mmb_core::core::DateTime;
+use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 
 pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,

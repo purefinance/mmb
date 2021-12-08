@@ -32,9 +32,9 @@ pub mod strategies;
 /// use smallstr::SmallString;
 /// use serde::{Deserialize, Serialize};
 ///
-/// use mmb_lib::impl_str_id;
-/// use mmb_lib::core::infrastructure::WithExpect;
-/// use mmb_lib::core::utils::get_atomic_current_secs;
+/// use mmb_core::impl_str_id;
+/// use mmb_core::core::infrastructure::WithExpect;
+/// use mmb_core::core::utils::get_atomic_current_secs;
 ///
 /// struct Example{};
 ///
@@ -98,9 +98,9 @@ macro_rules! impl_str_id {
 /// use once_cell::sync::Lazy;
 /// use serde::{Deserialize, Serialize};
 ///
-/// use mmb_lib::impl_u64_id;
-/// use mmb_lib::core::infrastructure::WithExpect;
-/// use mmb_lib::core::utils::get_atomic_current_secs;
+/// use mmb_core::impl_u64_id;
+/// use mmb_core::core::infrastructure::WithExpect;
+/// use mmb_core::core::utils::get_atomic_current_secs;
 ///
 /// struct Example{};
 ///
@@ -170,7 +170,7 @@ pub(crate) static MOCK_MUTEX: once_cell::sync::Lazy<ReentrantMutex<()>> =
 ///     }
 /// }
 ///
-/// mmb_lib::impl_mock_initializer!(MockExample);
+/// mmb_core::impl_mock_initializer!(MockExample);
 ///
 /// #[cfg(test)]
 /// mod test {

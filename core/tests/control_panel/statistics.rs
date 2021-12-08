@@ -1,26 +1,26 @@
 #![cfg(test)]
 use futures::FutureExt;
 use hyper::Uri;
-use mmb_lib::core::config::parse_settings;
-use mmb_lib::core::disposition_execution::{PriceSlot, TradingContext};
-use mmb_lib::core::exchanges::binance::binance::Binance;
-use mmb_lib::core::explanation::Explanation;
-use mmb_lib::core::lifecycle::cancellation_token::CancellationToken;
-use mmb_lib::core::logger::init_logger;
-use mmb_lib::core::order_book::local_snapshot_service::LocalSnapshotsService;
-use mmb_lib::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use mmb_lib::core::settings::BaseStrategySettings;
-use mmb_lib::core::{
+use mmb_core::core::config::parse_settings;
+use mmb_core::core::disposition_execution::{PriceSlot, TradingContext};
+use mmb_core::core::exchanges::binance::binance::Binance;
+use mmb_core::core::explanation::Explanation;
+use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_core::core::logger::init_logger;
+use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
+use mmb_core::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use mmb_core::core::settings::BaseStrategySettings;
+use mmb_core::core::{
     exchanges::common::Amount,
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
     DateTime,
 };
-use mmb_lib::core::{
+use mmb_core::core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
     infrastructure::spawn_future,
 };
-use mmb_lib::core::{exchanges::rest_client::RestClient, orders::order::OrderSnapshot};
-use mmb_lib::strategies::disposition_strategy::DispositionStrategy;
+use mmb_core::core::{exchanges::rest_client::RestClient, orders::order::OrderSnapshot};
+use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};

@@ -274,7 +274,7 @@ impl From<&str> for CurrencyCode {
     }
 }
 
-// Unified format currency pair for this framework
+// Unified format currency pair for this mmb
 impl_table_type_raw!(CurrencyPair, 16);
 
 impl CurrencyPair {
