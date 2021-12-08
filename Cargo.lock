@@ -1795,13 +1795,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "rest_api_rpc"
+name = "rest_api"
 version = "0.1.0"
 dependencies = [
  "actix-web",
  "jsonrpc-core",
  "jsonrpc-core-client",
  "jsonrpc-derive",
+ "shared",
 ]
 
 [[package]]

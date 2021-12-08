@@ -1,5 +1,5 @@
 [package]
-name = "rest_api_rpc"
+name = "rest_api"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,7 +10,11 @@ jsonrpc-core-client = { version = "18.0.0", features = ["ipc"] }
 jsonrpc-core = "18.0.0"
 jsonrpc-derive = "18.0.0"
 actix-web = { version = "4.0.0-beta.10" }
+shared = { path = "../shared" }
 
-[lib]
-name = "shared_lib"
-path = "../shared/lib.rs"
+
+[[bin]]
+name = "rest_api"
+path = "main.rs"
+test = false
+bench = false

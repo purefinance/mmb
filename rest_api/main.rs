@@ -1,5 +1,5 @@
 use jsonrpc_core_client::transports::ipc;
-use shared_lib::rest_api::gen_client;
+use shared::rest_api::gen_client;
 
 async fn foo() {
     let p = std::path::Path::new("/tmp/mmb.ipc");
