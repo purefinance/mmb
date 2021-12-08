@@ -16,6 +16,7 @@ use actix_web::web::Data;
 
 pub(crate) struct ControlPanel {
     address: String,
+    /// For the settings to be applied, the trading engine must be restarted after changing the config
     engine_settings: String,
     application_manager: Arc<ApplicationManager>,
     server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
