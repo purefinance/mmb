@@ -198,9 +198,10 @@ where
         let _ = spawn_future("internal_events_loop start", true, action.boxed());
     }
 
-    if let Err(error) = control_panel.clone().start() {
-        log::warn!("Unable to start rest api: {}", error);
-    }
+    control_panel
+        .clone()
+        .start()
+        .expect("Unable to start rest api");
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
     let disposition_executor_service = create_disposition_executor_service(
