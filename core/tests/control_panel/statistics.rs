@@ -6,7 +6,6 @@ use mmb_core::core::disposition_execution::{PriceSlot, TradingContext};
 use mmb_core::core::exchanges::binance::binance::Binance;
 use mmb_core::core::explanation::Explanation;
 use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
-use mmb_core::core::logger::init_logger;
 use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::core::settings::BaseStrategySettings;
