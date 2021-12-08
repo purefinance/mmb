@@ -484,6 +484,10 @@ pub trait WithExpect<T> {
     fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
     where
         C: Display + Send + Sync + 'static;
+
+    /// Unwrap the value or panic with additional context that is evaluated lazily
+    /// The performance version. Double memory is not allocated for formatting
+    fn with_expect_args(self, f: impl FnOnce(&dyn Fn(&Arguments))) -> T;
 }
 
 impl<T> WithExpect<T> for Option<T> {
@@ -492,6 +496,13 @@ impl<T> WithExpect<T> for Option<T> {
         C: Display + Send + 'static,
     {
         self.unwrap_or_else(|| panic!("{}", f()))
+    }
+
+    fn with_expect_args(self, f: impl FnOnce(&dyn Fn(&Arguments))) -> T {
+        self.unwrap_or_else(|| {
+            f(&|args| panic!("{}", args));
+            unreachable!()
+        })
     }
 }
 
@@ -508,32 +519,12 @@ where
             Err(e) => panic!("{}: {:?}", f(), e),
         }
     }
-}
 
-pub trait WithExpectArgs<T> {
-    /// Unwrap the value or panic with additional context that is evaluated lazily
-    /// The performance version. Double memory is not allocated for formatting
-    fn with_expect_args(self, f: impl FnOnce(Box<dyn FnOnce(&Arguments)>)) -> T;
-}
-
-impl<T> WithExpectArgs<T> for Option<T> {
-    fn with_expect_args(self, f: impl FnOnce(Box<dyn FnOnce(&Arguments)>)) -> T {
-        self.unwrap_or_else(|| {
-            f(Box::new(|args| panic!("{}", args)));
-            unreachable!()
-        })
-    }
-}
-
-impl<T, E> WithExpectArgs<T> for std::result::Result<T, E>
-where
-    E: Debug + 'static,
-{
-    fn with_expect_args(self, f: impl FnOnce(Box<dyn FnOnce(&Arguments)>)) -> T {
+    fn with_expect_args(self, f: impl FnOnce(&dyn Fn(&Arguments))) -> T {
         match self {
             Ok(v) => v,
             Err(e) => {
-                f(Box::new(move |args| panic!("{}: {:?}", args, e)));
+                f(&|args| panic!("{}: {:?}", args, e));
                 unreachable!()
             }
         }

@@ -24,7 +24,7 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 use crate::core::DateTime;
 use crate::core::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
 
-use crate::core::infrastructure::WithExpectArgs;
+use crate::core::infrastructure::WithExpect;
 use anyhow::{bail, Context, Result};
 use futures::future::join_all;
 use itertools::Itertools;
