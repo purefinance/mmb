@@ -1,12 +1,11 @@
 use jsonrpc_core::Params;
 use jsonrpc_core::Result;
 use jsonrpc_core::Value;
-use parking_lot::Mutex;
 use serde::Deserialize;
 use shared::rest_api::server_side_error;
 use shared::rest_api::Rpc;
 
-use std::sync::{mpsc::Sender, Arc};
+use std::sync::Arc;
 
 use crate::core::{
     config::save_settings, config::CONFIG_PATH, config::CREDENTIALS_PATH,
@@ -17,7 +16,6 @@ use shared::rest_api::ErrorCode;
 pub struct RpcImpl {
     application_manager: Arc<ApplicationManager>,
     statistics: Arc<StatisticService>,
-    server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
     engine_settings: String,
 }
 
@@ -25,13 +23,11 @@ impl RpcImpl {
     pub fn new(
         application_manager: Arc<ApplicationManager>,
         statistics: Arc<StatisticService>,
-        server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
         engine_settings: String,
     ) -> Self {
         Self {
             application_manager,
             statistics,
-            server_stopper_tx,
             engine_settings,
         }
     }
@@ -43,17 +39,8 @@ impl Rpc for RpcImpl {
     }
 
     fn stop(&self) -> Result<Value> {
-        let error_message = "Unable to send signal to stop ipc server";
-        let server_stopper_tx = self.server_stopper_tx.lock().take().ok_or_else(|| {
-            let reason = "server_stopper_tx shouldn't be None";
-            log::error!("{}: {}", error_message, reason);
-            server_side_error(ErrorCode::UnableToSendSignal)
-        })?;
-
-        server_stopper_tx.send(()).map_err(|reason| {
-            log::error!("{}: {}", error_message, reason);
-            server_side_error(ErrorCode::UnableToSendSignal)
-        })?;
+        self.application_manager
+            .request_graceful_shutdown("Stop signal from control_panel".into());
 
         Ok(Value::String("ControlPanel turned off".into()))
     }
@@ -79,8 +66,7 @@ impl Rpc for RpcImpl {
         })?;
 
         self.application_manager
-            .clone()
-            .spawn_graceful_shutdown("Engine stopped cause config updating".to_owned());
+            .request_graceful_shutdown("Engine stopped cause config updating".into());
 
         Ok("Config was successfully updated. Trading engine stopped".into())
     }

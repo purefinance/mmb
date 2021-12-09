@@ -1,7 +1,7 @@
 [workspace]
 members = [
+    "control_panel",
     "core",
     "example",
-    "rest_api",
     "shared"
 ]

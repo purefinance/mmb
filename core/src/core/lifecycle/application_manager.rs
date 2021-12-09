@@ -1,22 +1,34 @@
-use super::cancellation_token::CancellationToken;
-use crate::core::lifecycle::trading_engine::EngineContext;
-use crate::core::nothing_to_do;
 use futures::{Future, FutureExt};
-use std::panic;
-use std::sync::{Arc, Weak};
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::task::JoinHandle;
+
+use std::panic;
+use std::sync::{mpsc, Arc, Weak};
+
+use crate::core::lifecycle::trading_engine::EngineContext;
+use crate::core::misc::traits_ext::send_expected::SendExpectedByRef;
+use crate::core::nothing_to_do;
+
+use super::cancellation_token::CancellationToken;
 
 pub struct ApplicationManager {
     cancellation_token: CancellationToken,
     engine_context: Mutex<Option<Weak<EngineContext>>>,
+
+    graceful_shutdown_sender: Arc<parking_lot::Mutex<mpsc::Sender<String>>>,
+    pub graceful_shutdown_receiver: Arc<parking_lot::Mutex<mpsc::Receiver<String>>>,
 }
 
 impl ApplicationManager {
     pub fn new(cancellation_token: CancellationToken) -> Arc<Self> {
+        let (graceful_shutdown_sender, graceful_shutdown_receiver) = mpsc::channel();
         Arc::new(Self {
             cancellation_token,
             engine_context: Mutex::new(None),
+            graceful_shutdown_sender: Arc::new(parking_lot::Mutex::new(graceful_shutdown_sender)),
+            graceful_shutdown_receiver: Arc::new(parking_lot::Mutex::new(
+                graceful_shutdown_receiver,
+            )),
         })
     }
 
@@ -69,6 +81,10 @@ impl ApplicationManager {
             None => nothing_to_do(),
             Some(fut) => fut.await,
         }
+    }
+
+    pub fn request_graceful_shutdown(&self, reason: String) {
+        self.graceful_shutdown_sender.lock().send_expected(reason);
     }
 }
 
