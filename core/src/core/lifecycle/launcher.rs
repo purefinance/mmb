@@ -1,4 +1,5 @@
 use crate::core::balance_manager::balance_manager::BalanceManager;
+use crate::core::config::{load_pretty_settings, load_settings, CONFIG_PATH, CREDENTIALS_PATH};
 use crate::core::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
@@ -14,7 +15,7 @@ use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::logger::init_logger;
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
-use crate::core::{config::load_settings, statistic_service::StatisticEventHandler};
+use crate::core::statistic_service::StatisticEventHandler;
 use crate::core::{
     disposition_execution::executor::DispositionExecutorService,
     infrastructure::{keep_application_manager, spawn_future},
@@ -29,6 +30,7 @@ use anyhow::{anyhow, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
@@ -63,7 +65,7 @@ where
     Load(String, String),
 }
 
-async fn before_engine_context_init<'a, StrategySettings>(
+async fn before_engine_context_init<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
 ) -> Result<(
@@ -75,7 +77,7 @@ async fn before_engine_context_init<'a, StrategySettings>(
     oneshot::Receiver<()>,
 )>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
     init_logger();
 
@@ -162,7 +164,7 @@ fn run_services<'a, StrategySettings>(
         Arc<EngineContext>,
     ) -> Box<dyn DispositionStrategy + 'static>,
     finish_graceful_shutdown_rx: oneshot::Receiver<()>,
-) -> Result<TradingEngine>
+) -> TradingEngine
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
@@ -191,7 +193,7 @@ where
     }
 
     if let Err(error) = control_panel.clone().start(
-        toml::Value::try_from(settings.clone())?.to_string(),
+        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
         engine_context.application_manager.clone(),
         statistic_service.clone(),
     ) {
@@ -210,10 +212,7 @@ where
         .register_service(disposition_executor_service);
 
     log::info!("TradingEngine started");
-    Ok(TradingEngine::new(
-        engine_context.clone(),
-        finish_graceful_shutdown_rx,
-    ))
+    TradingEngine::new(engine_context.clone(), finish_graceful_shutdown_rx)
 }
 
 pub(crate) fn handle_panic(
@@ -244,7 +243,7 @@ pub(crate) fn unwrap_or_handle_panic<T>(
     })
 }
 
-pub async fn launch_trading_engine<'a, StrategySettings>(
+pub async fn launch_trading_engine<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
     build_strategy: impl Fn(
@@ -253,7 +252,7 @@ pub async fn launch_trading_engine<'a, StrategySettings>(
     ) -> Box<dyn DispositionStrategy + 'static>,
 ) -> Result<TradingEngine>
 where
-    StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
+    StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
     let action_outcome = AssertUnwindSafe(before_engine_context_init(
         build_settings,
@@ -319,7 +318,7 @@ where
         action_outcome,
         message_template,
         Some(engine_context.application_manager.clone()),
-    )?
+    )
 }
 
 fn create_disposition_executor_service(

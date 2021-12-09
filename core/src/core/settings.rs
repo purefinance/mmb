@@ -7,6 +7,9 @@ pub trait BaseStrategySettings {
     fn max_amount(&self) -> Amount;
 }
 
+/// Application settings
+/// Attention! After changing in runtime, you need to save the settings. See issue #146
+/// For the settings to be applied, the trading engine must be restarted after changing the config
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct AppSettings<StrategySettings>
 where
