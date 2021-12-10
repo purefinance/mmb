@@ -2,8 +2,6 @@ use std::panic::AssertUnwindSafe;
 
 use control_panel::ControlPanel;
 use futures::FutureExt;
-use jsonrpc_core_client::transports::ipc;
-use shared::rest_api::{gen_client, IPC_ADDRESS};
 use tokio::signal;
 
 mod control_panel;
