@@ -6,7 +6,6 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
 anyhow = "1"
 
 actix-web = { version = "4.0.0-beta.10" }
@@ -17,6 +16,8 @@ futures = "0.3"
 jsonrpc-core-client = { version = "18.0.0", features = ["ipc"] }
 jsonrpc-core = "18.0.0"
 jsonrpc-derive = "18.0.0"
+
+log = "0.4"
 
 parking_lot = { version = "0.11", features = ["serde"]}
 

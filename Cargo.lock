@@ -491,6 +491,7 @@ dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
  "jsonrpc-derive",
+ "log",
  "parking_lot",
  "shared",
  "tokio",

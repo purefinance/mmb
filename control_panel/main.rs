@@ -9,12 +9,6 @@ use tokio::signal;
 mod control_panel;
 mod endpoints;
 
-pub async fn connect() -> gen_client::Client {
-    ipc::connect::<_, gen_client::Client>(IPC_ADDRESS)
-        .await
-        .expect("Failed to connect to the IPC socket")
-}
-
 async fn control_panel_run() {
     let control_panel = ControlPanel::new("127.0.0.1:8080").await;
 
@@ -27,8 +21,7 @@ async fn control_panel_run() {
 
     signal::ctrl_c().await.expect("failed to listen for event");
 
-    // log::info!("Ctrl-C signal was received so control_panel will be stopped");
-    println!("Ctrl-C signal was received so control_panel will be stopped");
+    log::info!("Ctrl-C signal was received so control_panel will be stopped");
 
     control_panel
         .stop()
@@ -37,21 +30,21 @@ async fn control_panel_run() {
         .expect("Failed to get work finished message")
         .expect("Failed to stop control panel");
 
-    // log::info!("Ctrl-C signal was received so control_panel will be stopped");
-    println!("Control panel stopped successfully");
+    log::info!("Ctrl-C signal was received so control_panel will be stopped");
 }
 
 #[actix_web::main]
 async fn main() {
+    // TODO: fix me when it will be in lib crate
+    // init_logger();
+
     AssertUnwindSafe(control_panel_run())
         .catch_unwind()
         .await
         .map_err(
             |panic| match panic.as_ref().downcast_ref::<String>().clone() {
-                Some(panic_message) => println!("panic happened: {}", panic_message),
-                None => println!("panic happened without readable message",),
-                // Some(panic_message) => log::error!("panic happened: {}", panic_message),
-                // None => log::error!("panic happened without readable message"),
+                Some(panic_message) => log::error!("panic happened: {}", panic_message),
+                None => log::error!("panic happened without readable message"),
             },
         )
         .expect("Failed to handle panic in control_panel_run");

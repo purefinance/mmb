@@ -35,7 +35,7 @@ impl RpcImpl {
 
 impl Rpc for RpcImpl {
     fn health(&self) -> Result<Value> {
-        Ok("Bot is working".into())
+        Ok("Engine is working".into())
     }
 
     fn stop(&self) -> Result<Value> {

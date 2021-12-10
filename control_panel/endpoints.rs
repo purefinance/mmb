@@ -18,8 +18,9 @@ pub(super) async fn stop(
     client: web::Data<Arc<gen_client::Client>>,
 ) -> impl Responder {
     if let Err(error) = server_stopper_tx.send(()) {
-        println!("Unable to send signal to stop actix server: {}", error);
-        // log::error!("Unable to send signal to stop actix server: {}", error);
+        let err_message = format!("Unable to send signal to stop actix server: {}", error);
+        log::error!("{}", err_message);
+        return HttpResponse::InternalServerError().body(err_message);
     }
 
     send_request(client.stop()).await
