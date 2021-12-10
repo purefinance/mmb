@@ -75,3 +75,4 @@ actix-rt = "2"
 pretty_assertions = "1"
 rstest = "0.10"
 mockall = "0.10.2"
+jsonrpc-core-client = { version = "18.0.0", features = ["ipc"] }

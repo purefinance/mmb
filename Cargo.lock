@@ -1349,6 +1349,7 @@ dependencies = [
  "hyper-tls",
  "itertools",
  "jsonrpc-core",
+ "jsonrpc-core-client",
  "jsonrpc-ipc-server",
  "libc",
  "log",
