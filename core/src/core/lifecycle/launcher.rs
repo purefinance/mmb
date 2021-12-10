@@ -272,29 +272,11 @@ where
     ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
 
     let cloned_application_manager = engine_context.application_manager.clone();
-    let wait_graceful_shutdown = async move {
-        let reason = cloned_application_manager
-            .graceful_shutdown_receiver
-            .lock()
-            .recv()
-            .unwrap_or("Failed to read message from chanel".into());
-
-        cloned_application_manager.spawn_graceful_shutdown(reason);
-
-        Ok(())
-    };
-    let _ = spawn_future(
-        "Start ApplicationManager shutdown caller",
-        true,
-        wait_graceful_shutdown.boxed(),
-    );
-
-    let cloned_application_manager = engine_context.application_manager.clone();
     let action = async move {
         signal::ctrl_c().await.expect("failed to listen for event");
 
         log::info!("Ctrl-C signal was received so graceful_shutdown started");
-        cloned_application_manager.request_graceful_shutdown("Ctrl-C signal was received".into());
+        cloned_application_manager.spawn_graceful_shutdown("Ctrl-C signal was received".to_owned());
 
         Ok(())
     };

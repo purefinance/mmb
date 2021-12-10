@@ -1,8 +1,8 @@
 use anyhow::Result;
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_ipc_server::{CloseHandle, Server, ServerBuilder};
+use mmb_rpc::rest_api::{MmbRpc, IPC_ADDRESS};
 use parking_lot::Mutex;
-use shared::rest_api::{Rpc, IPC_ADDRESS};
 use tokio::sync::oneshot;
 
 use std::{sync::Arc, thread};

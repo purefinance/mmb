@@ -3,5 +3,5 @@ members = [
     "control_panel",
     "core",
     "example",
-    "shared"
+    "mmb_rpc"
 ]
