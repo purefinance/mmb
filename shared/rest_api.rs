@@ -29,5 +29,11 @@ pub enum ErrorCode {
 }
 
 pub fn server_side_error(code: ErrorCode) -> Error {
+    let reason = match code {
+        ErrorCode::StopperIsNone => "Server stopper is none",
+        ErrorCode::UnableToSendSignal => "Unable to send signal",
+        ErrorCode::FailedToSaveNewConfig => "Failed to save new config",
+    };
+    log::error!("Rest API error: {}", reason);
     Error::new(jsonrpc_core::ErrorCode::ServerError(code as i64))
 }
