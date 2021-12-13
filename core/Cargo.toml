@@ -32,10 +32,7 @@ jsonrpc-ipc-server = "18.0.0"
 actix = "0.12"
 actix-codec = "0.4"
 actix-http = "=3.0.0-beta.13"
-actix-server = "=2.0.0-beta.9"
-actix-tls = "=3.0.0-beta.9"
 actix-web-actors = "=4.0.0-beta.7"
-actix-web-codegen = "=0.5.0-beta.5"
 actix-web = { version = "=4.0.0-beta.12", features = ["rustls"]}
 awc = { version = "=3.0.0-beta.11", features = ["rustls"]}
 
