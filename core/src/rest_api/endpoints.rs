@@ -39,10 +39,13 @@ impl MmbRpc for RpcImpl {
     }
 
     fn stop(&self) -> Result<Value> {
-        self.application_manager
-            .request_graceful_shutdown("Stop signal from control_panel".into());
+        // self.application_manager
+        //     .spawn_graceful_shutdown("Stop signal from control_panel".into());
 
-        Ok(Value::String("ControlPanel turned off".into()))
+        // Ok(Value::String("ControlPanel turned off".into()))
+
+        // TODO: fix it after actors removing
+        Ok("Set config isn't implemented".into())
     }
 
     fn get_config(&self) -> Result<Value> {
@@ -50,25 +53,28 @@ impl MmbRpc for RpcImpl {
     }
 
     fn set_config(&self, params: Params) -> Result<Value> {
-        #[derive(Deserialize)]
-        struct Data {
-            settings: String,
-        }
+        // #[derive(Deserialize)]
+        // struct Data {
+        //     settings: String,
+        // }
 
-        let data: Data = params.parse()?;
+        // let data: Data = params.parse()?;
 
-        save_settings(data.settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
-            log::warn!(
-                "Error while trying save new config in set_config endpoint: {}",
-                err.to_string()
-            );
-            server_side_error(ErrorCode::FailedToSaveNewConfig)
-        })?;
+        // save_settings(data.settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
+        //     log::warn!(
+        //         "Error while trying save new config in set_config endpoint: {}",
+        //         err.to_string()
+        //     );
+        //     server_side_error(ErrorCode::FailedToSaveNewConfig)
+        // })?;
 
-        self.application_manager
-            .request_graceful_shutdown("Engine stopped cause config updating".into());
+        // self.application_manager
+        //     .spawn_graceful_shutdown("Engine stopped cause config updating".into());
 
-        Ok("Config was successfully updated. Trading engine stopped".into())
+        // Ok("Config was successfully updated. Trading engine stopped".into())
+
+        // TODO: fix it after actors removing
+        Ok("Set config isn't implemented".into())
     }
 
     fn stats(&self) -> Result<Value> {
