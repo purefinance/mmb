@@ -1,5 +1,6 @@
 #![cfg(test)]
 use futures::FutureExt;
+use jsonrpc_core::Value;
 use jsonrpc_core_client::transports::ipc;
 use mmb_core::core::config::parse_settings;
 use mmb_core::core::disposition_execution::{PriceSlot, TradingContext};
@@ -24,6 +25,7 @@ use mmb_rpc::rest_api::{gen_client, IPC_ADDRESS};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -50,7 +52,6 @@ impl BaseStrategySettings for TestStrategySettings {
 }
 
 #[actix_rt::test]
-#[ignore]
 async fn orders_cancelled() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
     struct TestStrategy;
@@ -143,7 +144,15 @@ async fn orders_cancelled() {
         .await
         .expect("Failed to connect to the IPC socket");
 
-    let statistics = rest_client.stats().await.expect("failed to get stats");
+    let statistics = Value::from_str(
+        rest_client
+            .stats()
+            .await
+            .expect("failed to get stats")
+            .as_str()
+            .expect("failed to convert answer to str"),
+    )
+    .expect("failed to conver answer to Value");
 
     let exchange_statistics = &statistics["trade_place_stats"]["Binance_0|cnd/btc"];
     let opened_orders_count = exchange_statistics["opened_orders_count"]
