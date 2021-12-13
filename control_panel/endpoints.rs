@@ -2,20 +2,20 @@ use actix_web::{get, post, web, HttpResponse, Responder};
 use futures::Future;
 use jsonrpc_core::{Params, Value};
 use jsonrpc_core_client::RpcError;
-use shared::rest_api::gen_client;
+use mmb_rpc::rest_api::MmbRpcClient;
 use std::sync::{mpsc::Sender, Arc};
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
 
 #[get("/health")]
-pub(super) async fn health(client: web::Data<Arc<gen_client::Client>>) -> impl Responder {
+pub(super) async fn health(client: web::Data<Arc<MmbRpcClient>>) -> impl Responder {
     send_request(client.health()).await
 }
 
 #[post("/stop")]
 pub(super) async fn stop(
     server_stopper_tx: web::Data<Sender<()>>,
-    client: web::Data<Arc<gen_client::Client>>,
+    client: web::Data<Arc<MmbRpcClient>>,
 ) -> impl Responder {
     if let Err(error) = server_stopper_tx.send(()) {
         let err_message = format!("Unable to send signal to stop actix server: {}", error);
@@ -27,14 +27,14 @@ pub(super) async fn stop(
 }
 
 #[get("/config")]
-pub(super) async fn get_config(client: web::Data<Arc<gen_client::Client>>) -> impl Responder {
+pub(super) async fn get_config(client: web::Data<Arc<MmbRpcClient>>) -> impl Responder {
     send_request(client.get_config()).await
 }
 
 #[post("/config")]
 pub(super) async fn set_config(
     body: web::Bytes,
-    client: web::Data<Arc<gen_client::Client>>,
+    client: web::Data<Arc<MmbRpcClient>>,
 ) -> impl Responder {
     let settings = match String::from_utf8((&body).to_vec()) {
         Ok(settings) => settings,
@@ -53,7 +53,7 @@ pub(super) async fn set_config(
 }
 
 #[get("/stats")]
-pub(super) async fn stats(client: web::Data<Arc<gen_client::Client>>) -> impl Responder {
+pub(super) async fn stats(client: web::Data<Arc<MmbRpcClient>>) -> impl Responder {
     send_request(client.stats()).await
 }
 

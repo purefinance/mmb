@@ -1,9 +1,9 @@
 use jsonrpc_core::Params;
 use jsonrpc_core::Result;
 use jsonrpc_core::Value;
+use mmb_rpc::rest_api::server_side_error;
+use mmb_rpc::rest_api::MmbRpc;
 use serde::Deserialize;
-use shared::rest_api::server_side_error;
-use shared::rest_api::Rpc;
 
 use std::sync::Arc;
 
@@ -11,7 +11,7 @@ use crate::core::{
     config::save_settings, config::CONFIG_PATH, config::CREDENTIALS_PATH,
     lifecycle::application_manager::ApplicationManager, statistic_service::StatisticService,
 };
-use shared::rest_api::ErrorCode;
+use mmb_rpc::rest_api::ErrorCode;
 
 pub struct RpcImpl {
     application_manager: Arc<ApplicationManager>,
@@ -33,7 +33,7 @@ impl RpcImpl {
     }
 }
 
-impl Rpc for RpcImpl {
+impl MmbRpc for RpcImpl {
     fn health(&self) -> Result<Value> {
         Ok("Engine is working".into())
     }

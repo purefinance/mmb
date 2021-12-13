@@ -1,11 +1,11 @@
 use jsonrpc_core::{Error, Params, Result, Value};
 use jsonrpc_derive::rpc;
 
-pub static IPC_ADDRESS: &str = "/tmp/mmb.ipc"; // TODO: get this path from .toml file
+pub static IPC_ADDRESS: &str = "/tmp/mmb.ipc";
 
 /// Rpc trait
 #[rpc]
-pub trait Rpc {
+pub trait MmbRpc {
     #[rpc(name = "health")]
     fn health(&self) -> Result<Value>;
 

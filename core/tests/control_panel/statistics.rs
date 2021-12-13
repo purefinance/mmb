@@ -20,10 +20,10 @@ use mmb_core::core::{
     infrastructure::spawn_future,
 };
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
+use mmb_rpc::rest_api::{gen_client, IPC_ADDRESS};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use shared::rest_api::{gen_client, IPC_ADDRESS};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;

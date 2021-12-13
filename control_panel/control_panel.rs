@@ -2,11 +2,10 @@ use actix_server::ServerHandle;
 use anyhow::Result;
 use futures::executor;
 use jsonrpc_core_client::transports::ipc;
+use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use parking_lot::Mutex;
-use shared::rest_api::{gen_client, IPC_ADDRESS};
 use std::{
     sync::mpsc,
-    sync::mpsc::Sender,
     sync::Arc,
     thread::{self, JoinHandle},
 };
@@ -19,8 +18,8 @@ use actix_web::web::Data;
 
 pub(crate) struct ControlPanel {
     address: String,
-    client: Arc<gen_client::Client>,
-    server_stopper_tx: Arc<Mutex<Option<Sender<()>>>>,
+    client: Arc<MmbRpcClient>,
+    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     work_finished_sender: Arc<Mutex<Option<oneshot::Sender<Result<()>>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
 }
@@ -28,7 +27,7 @@ pub(crate) struct ControlPanel {
 impl ControlPanel {
     pub(crate) async fn new(address: &str) -> Arc<Self> {
         let (work_finished_sender, work_finished_receiver) = oneshot::channel();
-        let client = Arc::new(Self::build_client().await);
+        let client = Arc::new(Self::build_rpc_client().await);
 
         Arc::new(Self {
             address: address.to_owned(),
@@ -39,8 +38,8 @@ impl ControlPanel {
         })
     }
 
-    pub async fn build_client() -> gen_client::Client {
-        ipc::connect::<_, gen_client::Client>(IPC_ADDRESS)
+    pub async fn build_rpc_client() -> MmbRpcClient {
+        ipc::connect::<_, MmbRpcClient>(IPC_ADDRESS)
             .await
             .expect("Failed to connect to the IPC socket")
     }
