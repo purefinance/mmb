@@ -3,18 +3,16 @@ use jsonrpc_core::Result;
 use jsonrpc_core::Value;
 use mmb_rpc::rest_api::server_side_error;
 use mmb_rpc::rest_api::MmbRpc;
-use serde::Deserialize;
 
 use std::sync::Arc;
 
 use crate::core::{
-    config::save_settings, config::CONFIG_PATH, config::CREDENTIALS_PATH,
     lifecycle::application_manager::ApplicationManager, statistic_service::StatisticService,
 };
 use mmb_rpc::rest_api::ErrorCode;
 
 pub struct RpcImpl {
-    application_manager: Arc<ApplicationManager>,
+    _application_manager: Arc<ApplicationManager>,
     statistics: Arc<StatisticService>,
     engine_settings: String,
 }
@@ -26,7 +24,7 @@ impl RpcImpl {
         engine_settings: String,
     ) -> Self {
         Self {
-            application_manager,
+            _application_manager: application_manager,
             statistics,
             engine_settings,
         }
@@ -52,7 +50,7 @@ impl MmbRpc for RpcImpl {
         Ok(Value::String(self.engine_settings.clone()))
     }
 
-    fn set_config(&self, params: Params) -> Result<Value> {
+    fn set_config(&self, _params: Params) -> Result<Value> {
         // #[derive(Deserialize)]
         // struct Data {
         //     settings: String,
