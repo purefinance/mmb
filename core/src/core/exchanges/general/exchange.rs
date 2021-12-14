@@ -52,7 +52,9 @@ use crate::core::{nothing_to_do, DateTime};
 
 use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::{
-    connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
+    connectivity::{
+        connectivity_manager::ConnectivityManager, websocket_connection::WebSocketParams,
+    },
     orders::order::ClientOrderId,
 };
 use crate::core::{
