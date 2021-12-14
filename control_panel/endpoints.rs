@@ -30,7 +30,7 @@ pub(super) async fn set_config(
         Ok(settings) => settings,
         Err(err) => {
             return HttpResponse::BadRequest().body(format!(
-                "Failed to convert input settings({:?}) to str: {}",
+                "Failed to convert input settings({:?}) to utf8 string: {}",
                 body,
                 err.to_string(),
             ))
