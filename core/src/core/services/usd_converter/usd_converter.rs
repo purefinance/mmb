@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
+use mmb_utils::cancellation_token::CancellationToken;
 #[cfg(test)]
 use mockall::automock;
 
-use crate::core::{
-    exchanges::common::{Amount, CurrencyCode},
-    lifecycle::cancellation_token::CancellationToken,
-};
+use crate::core::exchanges::common::{Amount, CurrencyCode};
 
 use super::{
     denominator_usd_converter::DenominatorUsdConverter, price_source_service::PriceSourceService,

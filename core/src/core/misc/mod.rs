@@ -6,4 +6,3 @@ pub mod reserve_parameters;
 pub(crate) mod service_value_tree;
 pub(crate) mod time;
 pub mod traits;
-pub(crate) mod traits_ext;

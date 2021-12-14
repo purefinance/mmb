@@ -1,10 +1,10 @@
 use crate::core::exchanges::common::{CurrencyPair, RestRequestOutcome};
 use crate::core::exchanges::general::request_type::RequestType;
-use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::orders::order::{
     ClientOrderId, OrderExecutionType, OrderHeader, OrderInfo, OrderSimpleProps, OrderSnapshot,
     OrderType,
 };
+use mmb_utils::cancellation_token::CancellationToken;
 
 use crate::core::{
     exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType,

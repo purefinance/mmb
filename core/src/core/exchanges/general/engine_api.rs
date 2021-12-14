@@ -2,12 +2,11 @@ use std::sync::Arc;
 
 use futures::future::join_all;
 use itertools::Itertools;
+use mmb_utils::cancellation_token::CancellationToken;
 #[cfg(test)]
 use mockall::automock;
 
-use crate::core::{
-    exchanges::common::ClosedPosition, lifecycle::cancellation_token::CancellationToken,
-};
+use crate::core::exchanges::common::ClosedPosition;
 
 use super::exchange::Exchange;
 

@@ -1,5 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
+use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::{nothing_to_do, OPERATION_CANCELED_MSG};
 use tokio::sync::oneshot;
 
 use crate::core::exchanges::general::exchange::RequestResult::{Error, Success};
@@ -11,7 +13,6 @@ use crate::core::{
     exchanges::common::ExchangeErrorType,
     exchanges::general::exchange::Exchange,
     exchanges::general::exchange::RequestResult,
-    lifecycle::cancellation_token::CancellationToken,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
     orders::order::OrderStatus,
@@ -19,7 +20,6 @@ use crate::core::{
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
-use crate::core::{nothing_to_do, OPERATION_CANCELED_MSG};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CreateOrderResult {

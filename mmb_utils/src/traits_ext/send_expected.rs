@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use crate::core::infrastructure::WithExpect;
+use crate::infrastructure::WithExpect;
 
 static UNABLE_TO_SEND: &'static str = "Unable to send event";
 

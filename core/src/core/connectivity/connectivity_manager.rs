@@ -1,5 +1,3 @@
-use crate::core::lifecycle::cancellation_token::CancellationToken;
-use crate::core::misc::traits_ext::send_expected::SendExpectedByRef;
 use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
@@ -7,10 +5,14 @@ use crate::core::{
     },
     exchanges::common::ExchangeAccountId,
 };
+
 use actix::Addr;
 use anyhow::Result;
 use futures::Future;
 use log::log;
+use mmb_utils::{
+    cancellation_token::CancellationToken, traits_ext::send_expected::SendExpectedByRef,
+};
 use parking_lot::Mutex;
 use std::pin::Pin;
 use std::{

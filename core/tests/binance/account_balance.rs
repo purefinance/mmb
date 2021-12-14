@@ -10,9 +10,9 @@ use mmb_core::core::{
             },
         },
     },
-    lifecycle::cancellation_token::CancellationToken,
     logger::init_logger,
 };
+use mmb_utils::cancellation_token::CancellationToken;
 
 use super::binance_builder::BinanceBuilder;
 

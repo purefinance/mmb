@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 
+use mmb_utils::cancellation_token::CancellationToken;
+
 use crate::core::{
-    exchanges::common::TradePlace, lifecycle::cancellation_token::CancellationToken,
-    misc::price_by_order_side::PriceByOrderSide, DateTime,
+    exchanges::common::TradePlace, misc::price_by_order_side::PriceByOrderSide, DateTime,
 };
 
 pub struct PriceSourcesLoader {

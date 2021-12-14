@@ -15,13 +15,13 @@ use mmb_core::core::exchanges::common::{
 use mmb_core::core::exchanges::general::symbol::Round;
 use mmb_core::core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
 use mmb_core::core::infrastructure::WithExpect;
-use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_core::core::lifecycle::trading_engine::EngineContext;
 use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
 use mmb_core::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::core::DateTime;
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
+use mmb_utils::cancellation_token::CancellationToken;
 
 pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,

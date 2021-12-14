@@ -1,9 +1,9 @@
 use chrono::{Duration, Utc};
+use mmb_utils::cancellation_token::CancellationToken;
 
 use crate::core::exchanges::common::ToStdExpected;
 use crate::core::{
-    exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
-    lifecycle::cancellation_token::CancellationToken, DateTime,
+    exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments, DateTime,
 };
 
 pub(crate) struct PollingTimeoutManager {

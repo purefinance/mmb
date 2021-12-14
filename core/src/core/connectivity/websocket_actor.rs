@@ -1,6 +1,5 @@
 use crate::core::connectivity::connectivity_manager::{ConnectivityManagerNotifier, WebSocketRole};
 use crate::core::exchanges::common::ExchangeAccountId;
-use crate::core::nothing_to_do;
 use actix::io::{SinkWrite, WriteHandler};
 use actix::{Actor, ActorContext, Addr, AsyncContext, Context, Handler, Message, StreamHandler};
 use actix_codec::Framed;
@@ -17,6 +16,7 @@ use awc::{
 };
 use bytes::Bytes;
 use futures::stream::{SplitSink, StreamExt};
+use mmb_utils::nothing_to_do;
 use std::time::{Duration, Instant};
 
 /// Time interval between heartbeat pings are sent

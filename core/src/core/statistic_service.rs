@@ -1,9 +1,7 @@
-use super::{
-    nothing_to_do,
-    orders::{event::OrderEventType, order::ClientOrderId},
-};
+use super::orders::{event::OrderEventType, order::ClientOrderId};
 use anyhow::{Context, Result};
 use futures::FutureExt;
+use mmb_utils::nothing_to_do;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 

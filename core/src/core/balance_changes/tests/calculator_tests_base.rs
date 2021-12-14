@@ -3,6 +3,7 @@ pub mod tests {
 
     use std::{collections::HashMap, sync::Arc};
 
+    use mmb_utils::cancellation_token::CancellationToken;
     use mockall_double::double;
     use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal::Decimal;
@@ -37,7 +38,6 @@ pub mod tests {
                     test_helper::get_test_exchange_by_currency_codes,
                 },
             },
-            lifecycle::cancellation_token::CancellationToken,
             orders::{
                 fill::{OrderFill, OrderFillType},
                 order::{

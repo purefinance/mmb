@@ -491,7 +491,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::lifecycle::cancellation_token::CancellationToken;
+    use mmb_utils::cancellation_token::CancellationToken;
 
     #[test]
     fn generate_signature() {

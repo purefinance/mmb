@@ -1,18 +1,15 @@
-use anyhow::{bail, Result};
 use futures::future::BoxFuture;
-use futures::Future;
-use futures::FutureExt;
-use log::log;
+use mmb_utils::infrastructure::CustomSpawnFuture;
+use mmb_utils::infrastructure::FutureOutcome;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::fmt::{Debug, Display};
 use std::panic;
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::{pin::Pin, time::Duration};
 use tokio::task::JoinHandle;
-use uuid::Uuid;
 
 use super::lifecycle::application_manager::ApplicationManager;
-use crate::core::OPERATION_CANCELED_MSG;
 
 static APPLICATION_MANAGER: OnceCell<Mutex<Option<Arc<ApplicationManager>>>> = OnceCell::new();
 
@@ -29,54 +26,6 @@ pub(crate) fn unset_application_manager() {
     };
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct FutureOutcome {
-    name: String,
-    id: Uuid,
-    completion_reason: CompletionReason,
-}
-
-impl FutureOutcome {
-    pub fn new(name: String, id: Uuid, completion_reason: CompletionReason) -> Self {
-        Self {
-            name,
-            id,
-            completion_reason,
-        }
-    }
-
-    pub fn into_result(&self) -> Result<()> {
-        match self.completion_reason {
-            CompletionReason::Error => {
-                bail!("Future {} with id {} returned error", self.name, self.id)
-            }
-            CompletionReason::Panicked => {
-                bail!("Future {} with id {} panicked", self.name, self.id)
-            }
-            CompletionReason::TimeExpired => bail!(
-                "Time is up for future {} with id {} execution",
-                self.name,
-                self.id
-            ),
-            CompletionReason::Canceled => {
-                bail!("Future {} with id {} canceled", self.name, self.id)
-            }
-            CompletionReason::CompletedSuccessfully => Ok(()),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum CompletionReason {
-    CompletedSuccessfully,
-    Canceled,
-    Error,
-    Panicked,
-    TimeExpired,
-}
-
-pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
-
 /// Spawn future with timer. Error will be logged if times up before action completed
 /// Other nuances are the same as spawn_future()
 pub fn spawn_future_timed(
@@ -85,23 +34,13 @@ pub fn spawn_future_timed(
     duration: Duration,
     action: Pin<CustomSpawnFuture>,
 ) -> JoinHandle<FutureOutcome> {
-    let action_name = action_name.to_owned();
-    let future_id = Uuid::new_v4();
-    let action = handle_action_outcome(action_name.clone(), future_id, is_critical, action);
-
-    log::info!("Future {} with id {} started", action_name, future_id);
-
-    tokio::spawn(async move {
-        tokio::select! {
-            _ = tokio::time::sleep(duration) => {
-                log::error!("Time in form of {:?} is over, but future {} is not completed yet", duration, action_name);
-                FutureOutcome::new(action_name, future_id, CompletionReason::TimeExpired)
-            }
-            action_outcome = action => {
-                action_outcome
-            }
-        }
-    })
+    mmb_utils::infrastructure::spawn_future_timed(
+        action_name,
+        is_critical,
+        duration,
+        action,
+        spawn_graceful_shutdown,
+    )
 }
 
 /// Spawn future with logging and error, panic and cancellation handling
@@ -111,89 +50,15 @@ pub fn spawn_future(
     is_critical: bool,
     action: Pin<CustomSpawnFuture>,
 ) -> JoinHandle<FutureOutcome> {
-    let action_name = action_name.to_owned();
-    let future_id = Uuid::new_v4();
-
-    log::info!("Future {} with id {} started", action_name, future_id);
-
-    tokio::spawn(handle_action_outcome(
+    mmb_utils::infrastructure::spawn_future(
         action_name,
-        future_id,
         is_critical,
         action,
-    ))
+        spawn_graceful_shutdown,
+    )
 }
 
-async fn handle_action_outcome(
-    action_name: String,
-    future_id: Uuid,
-    is_critical: bool,
-    action: Pin<CustomSpawnFuture>,
-) -> FutureOutcome {
-    let log_template = format!("Future {}, with id {}", action_name, future_id);
-    let action_outcome = panic::AssertUnwindSafe(action).catch_unwind().await;
-
-    match action_outcome {
-        Ok(future_outcome) => match future_outcome {
-            Ok(()) => {
-                log::trace!("{} successfully completed", log_template);
-
-                FutureOutcome::new(
-                    action_name,
-                    future_id,
-                    CompletionReason::CompletedSuccessfully,
-                )
-            }
-            Err(error) => {
-                if error.to_string() == OPERATION_CANCELED_MSG {
-                    log::trace!("{} was cancelled via Result<()>", log_template);
-
-                    return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
-                }
-
-                log::error!("{} returned error: {:?}", log_template, error);
-                return FutureOutcome::new(action_name, future_id, CompletionReason::Error);
-            }
-        },
-        Err(panic) => match panic.as_ref().downcast_ref::<String>() {
-            Some(error_msg) => {
-                if error_msg == OPERATION_CANCELED_MSG {
-                    let log_level = if is_critical {
-                        log::Level::Error
-                    } else {
-                        log::Level::Trace
-                    };
-                    log!(log_level, "{} was cancelled via panic", log_template);
-
-                    if !is_critical {
-                        return FutureOutcome::new(
-                            action_name,
-                            future_id,
-                            CompletionReason::Canceled,
-                        );
-                    }
-                }
-
-                let error_message = format!("{} panicked with error: {}", log_template, error_msg);
-                log::error!("{}", error_message);
-
-                spawn_graceful_shutdown(&log_template, &error_message);
-
-                FutureOutcome::new(action_name, future_id, CompletionReason::Panicked)
-            }
-            None => {
-                let error_message = format!("{} panicked with non string error", log_template);
-                log::error!("{}", error_message);
-
-                spawn_graceful_shutdown(&log_template, &error_message);
-
-                FutureOutcome::new(action_name, future_id, CompletionReason::Panicked)
-            }
-        },
-    }
-}
-
-fn spawn_graceful_shutdown(log_template: &str, error_message: &str) {
+fn spawn_graceful_shutdown(log_template: String, error_message: String) {
     match APPLICATION_MANAGER.get() {
         Some(application_manager) => {
             match &*application_manager.lock() {
@@ -218,100 +83,23 @@ pub fn spawn_by_timer(
     period: Duration,
     is_critical: bool,
 ) -> JoinHandle<FutureOutcome> {
-    spawn_future(
+    mmb_utils::infrastructure::spawn_by_timer(
+        callback,
         name,
+        delay,
+        period,
         is_critical,
-        async move {
-            tokio::time::sleep(delay).await;
-            loop {
-                (callback)().await;
-                tokio::time::sleep(period).await;
-            }
-        }
-        .boxed(),
+        spawn_graceful_shutdown,
     )
 }
 
 #[cfg(test)]
 mod test {
-    use crate::core::lifecycle::cancellation_token::CancellationToken;
+    use mmb_utils::{cancellation_token::CancellationToken, OPERATION_CANCELED_MSG};
 
     use super::*;
-    use anyhow::{bail, Result};
+    use anyhow::Result;
     use futures::FutureExt;
-
-    #[tokio::test]
-    async fn future_completed_successfully() -> Result<()> {
-        // Arrange
-        let action = async { Ok(()) };
-
-        // Act
-        let future_outcome = spawn_future("test_action_name", true, action.boxed()).await?;
-
-        // Assert
-        assert_eq!(
-            future_outcome.completion_reason,
-            CompletionReason::CompletedSuccessfully
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn future_canceled_via_result() -> Result<()> {
-        // Arrange
-        let action = async { bail!("{}", OPERATION_CANCELED_MSG) };
-
-        // Act
-        let future_outcome = spawn_future("test_action_name", true, action.boxed()).await?;
-
-        // Assert
-        assert_eq!(future_outcome.completion_reason, CompletionReason::Canceled);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn future_error() -> Result<()> {
-        // Arrange
-        let action = async { bail!("Some error") };
-
-        // Act
-        let future_outcome = spawn_future("test_action_name", true, action.boxed()).await?;
-
-        // Assert
-        assert_eq!(future_outcome.completion_reason, CompletionReason::Error);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn non_critical_future_canceled_via_panic() -> Result<()> {
-        // Arrange
-        let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
-
-        // Act
-        let future_outcome = spawn_future("test_action_name", false, action.boxed()).await?;
-
-        // Assert
-        assert_eq!(future_outcome.completion_reason, CompletionReason::Canceled);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn critical_future_canceled_via_panic() -> Result<()> {
-        // Arrange
-        let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
-
-        // Act
-        let future_outcome = spawn_future("test_action_name", true, action.boxed()).await?;
-
-        // Assert
-        assert_eq!(future_outcome.completion_reason, CompletionReason::Panicked);
-
-        Ok(())
-    }
 
     #[tokio::test]
     async fn panic_with_application_manager() -> Result<()> {
@@ -325,156 +113,13 @@ mod test {
         let future_outcome = spawn_future("test_action_name", true, action.boxed()).await?;
 
         // Assert
-        assert_eq!(future_outcome.completion_reason, CompletionReason::Panicked);
+        assert!(future_outcome
+            .into_result()
+            .expect_err("in test")
+            .to_string()
+            .contains("panicked"));
 
         Ok(())
-    }
-
-    #[tokio::test]
-    async fn future_aborted() {
-        // Arrange
-        let test_value = Arc::new(Mutex::new(false));
-        let test_to_future = test_value.clone();
-        let action = async move {
-            tokio::time::sleep(Duration::from_millis(200)).await;
-            *test_to_future.lock() = true;
-
-            Ok(())
-        };
-
-        // Act
-        let future_outcome = spawn_future("test_action_name", true, action.boxed());
-        future_outcome.abort();
-
-        // Assert
-        assert_eq!(*test_value.lock(), false);
-    }
-
-    mod with_timer {
-        use super::*;
-
-        #[tokio::test]
-        async fn time_is_over() -> Result<()> {
-            // Arrange
-            let action = async {
-                tokio::time::sleep(Duration::from_millis(200)).await;
-                Ok(())
-            };
-
-            // Act
-            let future_outcome = spawn_future_timed(
-                "test_action_name",
-                true,
-                Duration::from_secs(0),
-                action.boxed(),
-            )
-            .await?;
-
-            // Assert
-            assert_eq!(
-                future_outcome.completion_reason,
-                CompletionReason::TimeExpired
-            );
-
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn error_in_action() -> Result<()> {
-            // Arrange
-            let action = async { bail!("Some error for test") };
-
-            // Act
-            let future_outcome = spawn_future_timed(
-                "test_action_name",
-                true,
-                Duration::from_millis(200),
-                action.boxed(),
-            )
-            .await?;
-
-            // Assert
-            assert_eq!(future_outcome.completion_reason, CompletionReason::Error);
-
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn action_completed_in_time() -> Result<()> {
-            // Arrange
-            let action = async { Ok(()) };
-
-            // Act
-            let future_outcome = spawn_future_timed(
-                "test_action_name",
-                true,
-                Duration::from_millis(200),
-                action.boxed(),
-            )
-            .await?;
-
-            // Assert
-            assert_eq!(
-                future_outcome.completion_reason,
-                CompletionReason::CompletedSuccessfully
-            );
-
-            Ok(())
-        }
-
-        #[tokio::test]
-        async fn timed_future_aborted() {
-            // Arrange
-            let test_value = Arc::new(Mutex::new(false));
-            let test_to_future = test_value.clone();
-            let action = async move {
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                *test_to_future.lock() = true;
-
-                Ok(())
-            };
-
-            // Act
-            let future_outcome = spawn_future_timed(
-                "test_action_name",
-                true,
-                Duration::from_millis(200),
-                action.boxed(),
-            );
-            future_outcome.abort();
-            tokio::time::sleep(Duration::from_millis(500)).await;
-
-            // Assert
-            assert_eq!(*test_value.lock(), false);
-        }
-
-        #[tokio::test]
-        async fn repetable_action() {
-            let counter = Arc::new(Mutex::new(0u64));
-            let duration = 200;
-            let repeats_count = 5;
-            let future_outcome = {
-                async fn future(counter: Arc<Mutex<u64>>) {
-                    *counter.lock() += 1;
-                }
-
-                let counter = counter.clone();
-                spawn_by_timer(
-                    move || (future)(counter.clone()).boxed(),
-                    "spawn_repeatable".into(),
-                    Duration::ZERO,
-                    Duration::from_millis(duration),
-                    true,
-                )
-            };
-
-            tokio::time::sleep(Duration::from_millis(repeats_count * duration)).await;
-            assert_eq!(*counter.lock(), repeats_count);
-
-            future_outcome.abort();
-            tokio::time::sleep(Duration::from_millis(repeats_count / 2)).await;
-            assert_eq!(*counter.lock(), repeats_count);
-        }
     }
 }
 
@@ -495,7 +140,7 @@ impl<T> WithExpect<T> for Option<T> {
     }
 }
 
-impl<T, E> WithExpect<T> for std::result::Result<T, E>
+impl<T, E> WithExpect<T> for Result<T, E>
 where
     E: Debug,
 {

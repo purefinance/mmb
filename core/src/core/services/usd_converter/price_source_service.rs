@@ -14,8 +14,7 @@ use crate::core::{
         general::symbol::Symbol,
     },
     infrastructure::{spawn_future, WithExpect},
-    lifecycle::cancellation_token::CancellationToken,
-    misc::{price_by_order_side::PriceByOrderSide, traits_ext::send_expected::SendExpected},
+    misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
     services::usd_converter::{prices_calculator, rebase_price_step::RebaseDirection},
     settings::CurrencyPriceSourceSettings,
@@ -25,6 +24,7 @@ use crate::core::{
 use anyhow::{bail, Context, Result};
 use futures::FutureExt;
 use itertools::Itertools;
+use mmb_utils::{cancellation_token::CancellationToken, traits_ext::send_expected::SendExpected};
 use mockall_double::double;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;

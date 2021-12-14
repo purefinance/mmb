@@ -687,6 +687,7 @@ dependencies = [
  "anyhow",
  "itertools",
  "mmb_core",
+ "mmb_utils",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
@@ -1351,6 +1352,7 @@ dependencies = [
  "libc",
  "log",
  "mmb_rpc",
+ "mmb_utils",
  "mockall",
  "mockall_double",
  "once_cell",
@@ -1382,6 +1384,22 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "log",
+]
+
+[[package]]
+name = "mmb_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "futures 0.3.18",
+ "log",
+ "once_cell",
+ "parking_lot",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

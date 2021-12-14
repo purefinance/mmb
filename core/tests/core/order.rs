@@ -2,10 +2,11 @@ use mmb_core::core::exchanges::common::{Amount, Price};
 use mmb_core::core::exchanges::common::{CurrencyPair, ExchangeAccountId};
 use mmb_core::core::exchanges::general::exchange::Exchange;
 use mmb_core::core::exchanges::general::exchange::RequestResult;
-use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_core::core::orders::order::*;
 use mmb_core::core::orders::pool::OrderRef;
 use mmb_core::core::DateTime;
+
+use mmb_utils::cancellation_token::CancellationToken;
 
 use anyhow::Result;
 use chrono::Utc;
