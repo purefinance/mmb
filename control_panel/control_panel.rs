@@ -18,7 +18,7 @@ use actix_web::web::Data;
 
 pub(crate) struct ControlPanel {
     address: String,
-    client: Arc<Mutex<MmbRpcClient>>,
+    client: Arc<Mutex<Option<MmbRpcClient>>>,
     server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     work_finished_sender: Arc<Mutex<Option<oneshot::Sender<Result<()>>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
@@ -38,10 +38,11 @@ impl ControlPanel {
         })
     }
 
-    pub async fn build_rpc_client() -> MmbRpcClient {
+    pub async fn build_rpc_client() -> Option<MmbRpcClient> {
         ipc::connect::<_, MmbRpcClient>(IPC_ADDRESS)
             .await
-            .expect("Failed to connect to the IPC socket")
+            .map_err(|err| log::warn! {"Failed to connect to IPC server: {}", err.to_string()})
+            .ok()
     }
 
     /// Returned receiver will take a message when shutdown are completed

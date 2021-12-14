@@ -3,11 +3,14 @@ use jsonrpc_core::{Params, Value};
 use jsonrpc_core_client::RpcError;
 use mmb_rpc::rest_api::MmbRpcClient;
 use parking_lot::Mutex;
-use std::sync::{mpsc::Sender, Arc};
+use std::{
+    sync::{mpsc::Sender, Arc},
+    time::Duration,
+};
 
 use crate::control_panel::ControlPanel;
 
-type WebMmbRpcClient = web::Data<Arc<Mutex<MmbRpcClient>>>;
+type WebMmbRpcClient = web::Data<Arc<Mutex<Option<MmbRpcClient>>>>;
 
 #[derive(Clone, Copy)]
 enum Request {
@@ -82,21 +85,20 @@ fn handle_rpc_error(error: RpcError) -> HttpResponse {
 }
 
 async fn send_request_core(
-    client: WebMmbRpcClient,
+    client: &MmbRpcClient,
     request: Request,
     params: Option<Params>,
 ) -> Result<Value, RpcError> {
     match request {
-        Request::Health => client.lock().health().await,
-        Request::Stop => client.lock().stop().await,
-        Request::GetConfig => client.lock().get_config().await,
+        Request::Health => client.health().await,
+        Request::Stop => client.stop().await,
+        Request::GetConfig => client.get_config().await,
         Request::SetConfig => {
             client
-                .lock()
                 .set_config(params.expect("Params shouldn't be None"))
                 .await
         }
-        Request::Stats => client.lock().stats().await,
+        Request::Stats => client.stats().await,
     }
 }
 
@@ -122,16 +124,22 @@ async fn send_request_with_params(
     loop {
         log::info!("Trying to send request attempt {}...", try_counter);
 
-        match send_request_core(client.clone(), request, params.clone()).await {
-            Ok(response) => return HttpResponse::Ok().body(response.to_string()),
-            Err(err) => {
-                if try_counter > 2 {
+        if let Some(client) = &*client.lock() {
+            match send_request_core(client, request, params.clone()).await {
+                Ok(response) => return HttpResponse::Ok().body(response.to_string()),
+                Err(err) => {
                     return handle_rpc_error(err);
                 }
-                try_reconnect(client.clone(), try_counter).await;
             }
         }
 
+        try_reconnect(client.clone(), try_counter).await;
+
+        if try_counter > 2 {
+            return HttpResponse::RequestTimeout().body("Request Timeout");
+        }
+
+        std::thread::sleep(Duration::from_secs(3));
         try_counter += 1;
     }
 }
