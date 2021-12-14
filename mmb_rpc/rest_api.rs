@@ -3,7 +3,6 @@ use jsonrpc_derive::rpc;
 
 pub static IPC_ADDRESS: &str = "/tmp/mmb.ipc";
 
-/// Rpc trait
 #[rpc]
 pub trait MmbRpc {
     #[rpc(name = "health")]
