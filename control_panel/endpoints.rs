@@ -1,9 +1,8 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use futures::Future;
-use jsonrpc_core::{Params, Value};
 use jsonrpc_core_client::RpcError;
 use mmb_rpc::rest_api::MmbRpcClient;
-use std::sync::{mpsc::Sender, Arc};
+use std::sync::Arc;
 
 // New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
 
@@ -13,16 +12,7 @@ pub(super) async fn health(client: web::Data<Arc<MmbRpcClient>>) -> impl Respond
 }
 
 #[post("/stop")]
-pub(super) async fn stop(
-    server_stopper_tx: web::Data<Sender<()>>,
-    client: web::Data<Arc<MmbRpcClient>>,
-) -> impl Responder {
-    if let Err(error) = server_stopper_tx.send(()) {
-        let err_message = format!("Unable to send signal to stop actix server: {}", error);
-        log::error!("{}", err_message);
-        return HttpResponse::InternalServerError().body(err_message);
-    }
-
+pub(super) async fn stop(client: web::Data<Arc<MmbRpcClient>>) -> impl Responder {
     send_request(client.stop()).await
 }
 
@@ -46,8 +36,6 @@ pub(super) async fn set_config(
             ))
         }
     };
-
-    let settings = Params::Array(vec![Value::String(settings)]);
 
     send_request(client.set_config(settings)).await
 }
@@ -73,9 +61,9 @@ fn handle_rpc_error(error: RpcError) -> HttpResponse {
     }
 }
 
-async fn send_request(request: impl Future<Output = Result<Value, RpcError>>) -> HttpResponse {
+async fn send_request(request: impl Future<Output = Result<String, RpcError>>) -> HttpResponse {
     match request.await {
-        Ok(response) => HttpResponse::Ok().body(response.to_string()),
+        Ok(response) => HttpResponse::Ok().body(response),
         Err(err) => handle_rpc_error(err),
     }
 }

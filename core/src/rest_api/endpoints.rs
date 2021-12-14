@@ -1,6 +1,4 @@
-use jsonrpc_core::Params;
 use jsonrpc_core::Result;
-use jsonrpc_core::Value;
 use mmb_rpc::rest_api::server_side_error;
 use mmb_rpc::rest_api::MmbRpc;
 
@@ -32,11 +30,11 @@ impl RpcImpl {
 }
 
 impl MmbRpc for RpcImpl {
-    fn health(&self) -> Result<Value> {
+    fn health(&self) -> Result<String> {
         Ok("Engine is working".into())
     }
 
-    fn stop(&self) -> Result<Value> {
+    fn stop(&self) -> Result<String> {
         // self.application_manager
         //     .spawn_graceful_shutdown("Stop signal from control_panel".into());
 
@@ -46,11 +44,11 @@ impl MmbRpc for RpcImpl {
         Ok("Set config isn't implemented".into())
     }
 
-    fn get_config(&self) -> Result<Value> {
-        Ok(Value::String(self.engine_settings.clone()))
+    fn get_config(&self) -> Result<String> {
+        Ok(self.engine_settings.clone())
     }
 
-    fn set_config(&self, _params: Params) -> Result<Value> {
+    fn set_config(&self, _params: String) -> Result<String> {
         // #[derive(Deserialize)]
         // struct Data {
         //     settings: String,
@@ -75,7 +73,7 @@ impl MmbRpc for RpcImpl {
         Ok("Set config isn't implemented".into())
     }
 
-    fn stats(&self) -> Result<Value> {
+    fn stats(&self) -> Result<String> {
         let json_statistic = serde_json::to_string(&self.statistics.statistic_service_state)
             .map_err(|err| {
                 log::warn!(
@@ -86,6 +84,6 @@ impl MmbRpc for RpcImpl {
                 server_side_error(ErrorCode::FailedToSaveNewConfig)
             })?;
 
-        Ok(Value::String(json_statistic))
+        Ok(json_statistic)
     }
 }

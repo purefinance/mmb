@@ -21,7 +21,7 @@ use mmb_core::core::{
     infrastructure::spawn_future,
 };
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
-use mmb_rpc::rest_api::{gen_client, IPC_ADDRESS};
+use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -140,7 +140,7 @@ async fn orders_cancelled() {
     let _ = order
         .cancel_order_or_fail(&created_order, exchange.clone())
         .await;
-    let rest_client = ipc::connect::<_, gen_client::Client>(IPC_ADDRESS)
+    let rest_client = ipc::connect::<_, MmbRpcClient>(IPC_ADDRESS)
         .await
         .expect("Failed to connect to the IPC socket");
 
@@ -149,8 +149,7 @@ async fn orders_cancelled() {
             .stats()
             .await
             .expect("failed to get stats")
-            .as_str()
-            .expect("failed to convert answer to str"),
+            .as_str(),
     )
     .expect("failed to conver answer to Value");
 

@@ -65,7 +65,6 @@ impl ControlPanel {
 
         let server = HttpServer::new(move || {
             App::new()
-                .app_data(Data::new(server_stopper_tx.clone()))
                 .app_data(Data::new(client.clone()))
                 .service(endpoints::health)
                 .service(endpoints::stop)
