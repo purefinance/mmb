@@ -18,7 +18,7 @@ use actix_web::web::Data;
 
 pub(crate) struct ControlPanel {
     address: String,
-    client: Arc<MmbRpcClient>,
+    client: Arc<Mutex<MmbRpcClient>>,
     server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     work_finished_sender: Arc<Mutex<Option<oneshot::Sender<Result<()>>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
@@ -27,7 +27,7 @@ pub(crate) struct ControlPanel {
 impl ControlPanel {
     pub(crate) async fn new(address: &str) -> Arc<Self> {
         let (work_finished_sender, work_finished_receiver) = oneshot::channel();
-        let client = Arc::new(Self::build_rpc_client().await);
+        let client = Arc::new(Mutex::new(Self::build_rpc_client().await));
 
         Arc::new(Self {
             address: address.to_owned(),
