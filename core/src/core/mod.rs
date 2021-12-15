@@ -9,7 +9,6 @@ pub mod misc;
 pub mod orders;
 pub mod service_configuration;
 pub mod statistic_service;
-pub mod utils;
 
 pub mod config;
 pub mod disposition_execution;

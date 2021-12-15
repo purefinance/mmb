@@ -9,6 +9,7 @@ use chrono::Utc;
 use enum_map::Enum;
 use itertools::Itertools;
 use mmb_utils::DateTime;
+use mmb_utils::{impl_str_id, impl_u64_id, time::get_atomic_current_secs};
 use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -19,8 +20,6 @@ use crate::core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price,
 };
 use crate::core::orders::fill::{EventSourceType, OrderFill};
-use crate::core::utils::get_atomic_current_secs;
-use crate::{impl_str_id, impl_u64_id};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash, Enum)]
 pub enum OrderSide {

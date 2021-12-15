@@ -1402,6 +1402,8 @@ dependencies = [
  "paste",
  "rust_decimal",
  "rust_decimal_macros",
+ "serde",
+ "smallstr",
  "tokio",
  "uuid",
 ]
