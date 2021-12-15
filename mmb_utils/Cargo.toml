@@ -33,5 +33,5 @@ tokio = { version = "1", features = ["macros", "time", "sync", "rt", "signal"]}
 
 uuid = { version = "0.8", features = ["serde", "v4"]}
 
-# [dev-dependencies]
+[dev-dependencies]
 mockall = "0.10.2"
