@@ -1338,7 +1338,6 @@ dependencies = [
  "crypto-mac",
  "dashmap",
  "enum-map",
- "fern",
  "form_urlencoded",
  "futures 0.3.18",
  "hex",
