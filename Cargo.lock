@@ -1399,6 +1399,7 @@ dependencies = [
  "mockall_double",
  "once_cell",
  "parking_lot",
+ "paste",
  "rust_decimal",
  "rust_decimal_macros",
  "tokio",

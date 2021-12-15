@@ -153,8 +153,8 @@ macro_rules! impl_table_type_raw {
 
         paste::paste! {
             #[allow(unused_qualifications)]
-            static [<SHARED_ $ty:snake:upper>]: once_cell::sync::Lazy<crate::core::utils::[<AppendTable $bits>]>
-                = once_cell::sync::Lazy::new(|| crate::core::utils::[<AppendTable $bits>]::new() );
+            static [<SHARED_ $ty:snake:upper>]: once_cell::sync::Lazy<mmb_utils::table_types::[<AppendTable $bits>]>
+                = once_cell::sync::Lazy::new(|| mmb_utils::table_types::[<AppendTable $bits>]::new() );
         }
 
         impl $ty {
