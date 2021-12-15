@@ -1,13 +1,6 @@
 use std::sync::atomic::AtomicU64;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-pub(crate) fn get_current_milliseconds() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Unable to get time since unix epoch started")
-        .as_millis()
-}
-
 /// Function should be used for initialization of unique IDs based on incrementing AtomicU64 counter.
 /// Returned value initialized with current UNIX time.
 /// # Example:
