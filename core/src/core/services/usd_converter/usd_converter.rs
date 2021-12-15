@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use mmb_utils::cancellation_token::CancellationToken;
+#[cfg(test)]
+use crate::MOCK_MUTEX;
+use mmb_utils::{cancellation_token::CancellationToken, impl_mock_initializer};
 #[cfg(test)]
 use mockall::automock;
 
@@ -78,4 +80,4 @@ impl UsdConverter {
     }
 }
 
-crate::impl_mock_initializer!(MockUsdConverter);
+impl_mock_initializer!(MockUsdConverter);

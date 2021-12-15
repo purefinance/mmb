@@ -1,4 +1,7 @@
 #[cfg(test)]
+use crate::MOCK_MUTEX;
+use mmb_utils::impl_mock_initializer;
+#[cfg(test)]
 use mockall::automock;
 
 use std::collections::HashMap;
@@ -45,5 +48,4 @@ impl CurrencyPairToSymbolConverter {
     }
 }
 
-#[cfg(test)]
-crate::impl_mock_initializer!(MockCurrencyPairToSymbolConverter);
+impl_mock_initializer!(MockCurrencyPairToSymbolConverter);

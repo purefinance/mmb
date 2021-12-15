@@ -132,6 +132,7 @@ mod test {
     use std::sync::Arc;
 
     use chrono::Duration;
+    use mmb_utils::DateTime;
     use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal_macros::dec;
 
@@ -150,7 +151,6 @@ mod test {
         logger::init_logger,
         misc::time,
         orders::order::ClientOrderFillId,
-        DateTime,
     };
 
     use super::ProfitLossStopper;

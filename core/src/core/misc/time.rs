@@ -1,9 +1,5 @@
-use std::time::{Duration, UNIX_EPOCH};
-
 #[cfg(test)]
 use mockall::automock;
-
-use crate::core::DateTime;
 
 /// If you'll use this mod in some tests, mocks object should be created.
 /// Automock doesn't support default implementation.
@@ -12,16 +8,12 @@ use crate::core::DateTime;
 #[cfg_attr(test, automock)]
 pub(crate) mod time_manager {
 
-    use super::*;
+    use mmb_utils::DateTime;
 
     /// Return current date in UTC
     pub(crate) fn now() -> DateTime {
         chrono::Utc::now()
     }
-}
-
-pub(crate) fn u64_to_date_time(src: u64) -> DateTime {
-    (UNIX_EPOCH + Duration::from_millis(src)).into()
 }
 
 #[cfg(test)]

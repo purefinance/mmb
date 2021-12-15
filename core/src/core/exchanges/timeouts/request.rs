@@ -1,5 +1,7 @@
+use mmb_utils::DateTime;
+
+use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
-use crate::core::{exchanges::general::request_type::RequestType, DateTime};
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Request {

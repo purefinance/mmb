@@ -11,7 +11,6 @@ use mmb_core::core::settings::BaseStrategySettings;
 use mmb_core::core::{
     exchanges::common::Amount,
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
-    DateTime,
 };
 use mmb_core::core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
@@ -19,6 +18,7 @@ use mmb_core::core::{
 };
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};

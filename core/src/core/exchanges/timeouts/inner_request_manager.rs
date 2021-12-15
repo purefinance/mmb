@@ -7,10 +7,11 @@ use super::{
 };
 use crate::core::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::core::{
-    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType, DateTime,
+    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType,
 };
 use anyhow::{anyhow, bail, Result};
 use chrono::Duration;
+use mmb_utils::DateTime;
 
 pub(super) struct InnerRequestsTimeoutManager {
     pub(super) requests_per_period: usize,

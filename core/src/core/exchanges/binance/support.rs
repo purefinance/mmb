@@ -11,6 +11,7 @@ use awc::http::Uri;
 use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
+use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -31,7 +32,6 @@ use crate::core::order_book::order_book_data::OrderBookData;
 use crate::core::orders::fill::OrderFillType;
 use crate::core::orders::order::*;
 use crate::core::settings::ExchangeSettings;
-use crate::core::DateTime;
 use crate::core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::general::symbol::Precision,
 };

@@ -1,6 +1,7 @@
+use mmb_utils::DateTime;
+
 use crate::core::exchanges::common::*;
 use crate::core::order_book::order_book_data::OrderBookData;
-use crate::core::DateTime;
 use std::sync::Arc;
 
 /// Possible variants of OrderBookEvent

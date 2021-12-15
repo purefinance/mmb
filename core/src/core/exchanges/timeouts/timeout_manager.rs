@@ -3,6 +3,7 @@ use futures::future::Either;
 use futures::FutureExt;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::{CompletionReason, FutureOutcome};
+use mmb_utils::DateTime;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
@@ -17,7 +18,6 @@ use crate::core::exchanges::general::request_type::RequestType;
 use crate::core::exchanges::timeouts::requests_timeout_manager::{
     RequestGroupId, RequestsTimeoutManager,
 };
-use crate::core::DateTime;
 
 pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send>;
 

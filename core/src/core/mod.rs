@@ -1,5 +1,3 @@
-use chrono::Utc;
-
 pub(crate) mod balance_changes;
 pub mod balance_manager;
 mod balances;
@@ -22,5 +20,3 @@ pub mod order_book;
 pub(crate) mod services;
 pub mod settings;
 pub mod text;
-
-pub type DateTime = chrono::DateTime<Utc>;
