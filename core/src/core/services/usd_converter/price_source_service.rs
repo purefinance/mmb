@@ -13,7 +13,7 @@ use crate::core::{
         events::ExchangeEvent,
         general::symbol::Symbol,
     },
-    infrastructure::{spawn_future, WithExpect},
+    infrastructure::spawn_future,
     misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
     services::usd_converter::{prices_calculator, rebase_price_step::RebaseDirection},
@@ -23,6 +23,7 @@ use crate::core::{
 use anyhow::{bail, Context, Result};
 use futures::FutureExt;
 use itertools::Itertools;
+use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{
     cancellation_token::CancellationToken, traits_ext::send_expected::SendExpected, DateTime,
 };

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use mmb_utils::infrastructure::WithExpect;
 
 use mmb_core::core::exchanges::hosts::Hosts;
 use mmb_core::{
@@ -15,7 +16,6 @@ use mmb_core::{
             common::SpecificCurrencyPair,
             rest_client::{self, RestClient},
         },
-        infrastructure::WithExpect,
         lifecycle::launcher::EngineBuildConfig,
     },
     hashmap,

@@ -3,7 +3,6 @@ use mmb_utils::infrastructure::CustomSpawnFuture;
 use mmb_utils::infrastructure::FutureOutcome;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use std::fmt::{Debug, Display};
 use std::panic;
 use std::sync::Arc;
 use std::{pin::Pin, time::Duration};
@@ -120,37 +119,5 @@ mod test {
             .contains("panicked"));
 
         Ok(())
-    }
-}
-
-pub trait WithExpect<T> {
-    /// Unwrap the value or panic with additional context that is evaluated lazily
-    /// only for None variant
-    fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
-    where
-        C: Display + Send + Sync + 'static;
-}
-
-impl<T> WithExpect<T> for Option<T> {
-    fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
-    where
-        C: Display + Send + Sync + 'static,
-    {
-        self.unwrap_or_else(|| panic!("{}", f()))
-    }
-}
-
-impl<T, E> WithExpect<T> for Result<T, E>
-where
-    E: Debug,
-{
-    fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
-    where
-        C: Display + Send + Sync + 'static,
-    {
-        match self {
-            Ok(v) => v,
-            Err(e) => panic!("{}: {:?}", f(), e),
-        }
     }
 }

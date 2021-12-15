@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use itertools::Itertools;
+use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -15,7 +16,6 @@ use mmb_core::core::exchanges::common::{
 };
 use mmb_core::core::exchanges::general::symbol::Round;
 use mmb_core::core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
-use mmb_core::core::infrastructure::WithExpect;
 use mmb_core::core::lifecycle::trading_engine::EngineContext;
 use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};

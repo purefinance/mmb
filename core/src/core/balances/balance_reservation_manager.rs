@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
+use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::traits_ext::decimal_inverse_sign::DecimalInverseSign;
 use mmb_utils::DateTime;
 use mockall_double::double;
@@ -27,7 +28,6 @@ use crate::core::exchanges::general::currency_pair_to_symbol_converter::Currency
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::core::explanation::{Explanation, OptionExplanationAddReasonExt};
-use crate::core::infrastructure::WithExpect;
 use crate::core::misc::reserve_parameters::ReserveParameters;
 use crate::core::misc::service_value_tree::ServiceValueTree;
 #[double]

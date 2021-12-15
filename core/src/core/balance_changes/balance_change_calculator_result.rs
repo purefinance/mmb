@@ -4,12 +4,11 @@ use mockall_double::double;
 use crate::core::services::usd_converter::usd_converter::UsdConverter;
 use crate::core::{
     exchanges::common::{Amount, CurrencyCode, ExchangeId, Price},
-    infrastructure::WithExpect,
     misc::service_value_tree::ServiceValueTree,
 };
 
 use mmb_utils::cancellation_token::CancellationToken;
-
+use mmb_utils::infrastructure::WithExpect;
 #[derive(Debug)]
 pub(crate) struct BalanceChangesCalculatorResult {
     balance_changes: ServiceValueTree,

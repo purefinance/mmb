@@ -1,8 +1,9 @@
 use crate::core::exchanges::common::*;
-use crate::core::infrastructure::WithExpect;
 use crate::core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use crate::core::order_book::*;
 use std::collections::HashMap;
+
+use mmb_utils::infrastructure::WithExpect;
 
 /// Produce and actualize current logical state of order book snapshot according to logical time of handled order book events
 pub struct LocalSnapshotsService {

@@ -33,7 +33,7 @@ pub mod strategies;
 /// use serde::{Deserialize, Serialize};
 ///
 /// use mmb_core::impl_str_id;
-/// use mmb_core::core::infrastructure::WithExpect;
+/// use mmb_utils::infrastructure::WithExpect;
 /// use mmb_core::core::utils::get_atomic_current_secs;
 ///
 /// struct Example{};
@@ -99,7 +99,7 @@ macro_rules! impl_str_id {
 /// use serde::{Deserialize, Serialize};
 ///
 /// use mmb_core::impl_u64_id;
-/// use mmb_core::core::infrastructure::WithExpect;
+/// use mmb_utils::infrastructure::WithExpect;
 /// use mmb_core::core::utils::get_atomic_current_secs;
 ///
 /// struct Example{};
