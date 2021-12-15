@@ -1393,6 +1393,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "fern",
  "futures 0.3.18",
  "log",
  "mockall",

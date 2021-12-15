@@ -3,6 +3,7 @@ use chrono::Utc;
 pub mod cancellation_token;
 pub mod impl_id;
 pub mod infrastructure;
+pub mod logger;
 pub mod mocks;
 pub mod table_types;
 pub mod time;

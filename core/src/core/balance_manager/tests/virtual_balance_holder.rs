@@ -89,11 +89,11 @@ impl VirtualBalanceHolderTests {
 mod tests {
     use std::collections::HashMap;
 
+    use mmb_utils::logger::init_logger;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
     use crate::core::balance_manager::balance_request::BalanceRequest;
-    use crate::core::logger::init_logger;
     use crate::hashmap;
 
     use super::VirtualBalanceHolderTests;

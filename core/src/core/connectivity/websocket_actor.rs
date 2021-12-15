@@ -273,7 +273,7 @@ impl WriteHandler<WsProtocolError> for WebSocketActor {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::logger::init_logger;
+    use mmb_utils::logger::init_logger;
 
     // TODO It is not UNIT test
     #[actix_rt::test]

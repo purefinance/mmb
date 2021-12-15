@@ -11,6 +11,7 @@ async-trait = "0.1"
 
 chrono = { version = "0.4", features = ["serde"]}
 
+fern = "0.6"
 futures = "0.3"
 
 log = "0.4"

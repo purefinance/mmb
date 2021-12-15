@@ -269,9 +269,9 @@ mod test {
     use super::*;
 
     use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-    use crate::core::logger::init_logger;
     use crate::hashmap;
 
+    use mmb_utils::logger::init_logger;
     use rust_decimal_macros::dec;
 
     use std::collections::HashMap;

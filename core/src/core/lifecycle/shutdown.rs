@@ -181,7 +181,7 @@ impl ShutdownService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::logger::init_logger;
+    use mmb_utils::logger::init_logger;
     use tokio::sync::oneshot::Receiver;
 
     #[actix_rt::test]

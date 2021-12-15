@@ -149,6 +149,7 @@ mod tests {
     use std::time::Duration;
 
     use chrono::Utc;
+    use mmb_utils::logger::init_logger;
     use parking_lot::{Mutex, RwLock};
     use rstest::rstest;
     use rust_decimal::Decimal;
@@ -159,7 +160,6 @@ mod tests {
     use crate::core::exchanges::common::{Amount, CurrencyCode, Price, TradePlaceAccount};
     use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
     use crate::core::exchanges::general::symbol::{Precision, Symbol};
-    use crate::core::logger::init_logger;
     use crate::core::misc::reserve_parameters::ReserveParameters;
     use crate::core::orders::order::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
