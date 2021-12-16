@@ -534,7 +534,7 @@ impl Exchange {
                 self.exchange_account_id
             );
 
-            self.finish_order_future(order);
+            self.order_finished_notify(order);
 
             return Ok(());
         }
@@ -548,7 +548,7 @@ impl Exchange {
         Ok(())
     }
 
-    fn finish_order_future(&self, order: &OrderRef) {
+    pub fn order_finished_notify(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_finish_events.remove(&order.client_order_id()) {
             let _ = tx.send(());
         }
