@@ -1,6 +1,6 @@
 [strategy]
-spread = 1000
-currency_pair = { base = "btc", quote = "usdt" }
+spread = 3
+currency_pair = { base = "eos", quote = "btc" }
 max_amount = 3
 
 [[core.exchanges]]

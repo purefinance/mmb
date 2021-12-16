@@ -1,11 +1,14 @@
-use super::cancellation_token::CancellationToken;
-use crate::core::lifecycle::trading_engine::EngineContext;
-use crate::core::nothing_to_do;
 use futures::{Future, FutureExt};
-use std::panic;
-use std::sync::{Arc, Weak};
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::task::JoinHandle;
+
+use std::panic;
+use std::sync::{Arc, Weak};
+
+use crate::core::lifecycle::trading_engine::EngineContext;
+use crate::core::nothing_to_do;
+
+use super::cancellation_token::CancellationToken;
 
 pub struct ApplicationManager {
     cancellation_token: CancellationToken,
@@ -77,7 +80,7 @@ pub fn start_graceful_shutdown_inner(
     reason: &str,
 ) -> Option<impl Future<Output = ()> + 'static> {
     let engine_context = engine_context_guard.as_ref().or_else(|| {
-       log::error!("Tried to request graceful shutdown with reason '{}', but 'engine_context' is not specified", reason);
+        log::error!("Tried to request graceful shutdown with reason '{}', but 'engine_context' is not specified", reason);
         None
     })?;
 

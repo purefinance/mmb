@@ -177,13 +177,7 @@ where
     let statistic_service = StatisticService::new();
     let statistic_event_handler =
         create_statistic_event_handler(exchange_events, statistic_service.clone());
-    let control_panel = ControlPanel::new(
-        "127.0.0.1:8080",
-        // Replace with to_pretty_string after fix issues toml_edit/#192
-        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
-        engine_context.application_manager.clone(),
-        statistic_service.clone(),
-    );
+    let control_panel = ControlPanel::new();
     engine_context
         .shutdown_service
         .register_service(control_panel.clone());
@@ -198,10 +192,13 @@ where
         let _ = spawn_future("internal_events_loop start", true, action.boxed());
     }
 
-    control_panel
-        .clone()
-        .start()
-        .expect("Unable to start rest api");
+    if let Err(error) = control_panel.clone().start(
+        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
+        engine_context.application_manager.clone(),
+        statistic_service.clone(),
+    ) {
+        log::error!("Unable to start rest api: {}", error);
+    }
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
     let disposition_executor_service = create_disposition_executor_service(
@@ -275,7 +272,6 @@ where
     ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
 
     let cloned_application_manager = engine_context.application_manager.clone();
-
     let action = async move {
         signal::ctrl_c().await.expect("failed to listen for event");
 

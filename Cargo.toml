@@ -1,5 +1,7 @@
 [workspace]
 members = [
+    "control_panel",
     "core",
-    "example"
+    "example",
+    "mmb_rpc"
 ]

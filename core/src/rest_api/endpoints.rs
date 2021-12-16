@@ -1,62 +1,89 @@
-use actix_web::{error, get, post, web, Error, HttpResponse, Responder};
-use std::sync::{mpsc::Sender, Arc};
+use jsonrpc_core::Result;
+use mmb_rpc::rest_api::server_side_error;
+use mmb_rpc::rest_api::MmbRpc;
+
+use std::sync::Arc;
 
 use crate::core::{
-    config::save_settings, config::CONFIG_PATH, config::CREDENTIALS_PATH,
     lifecycle::application_manager::ApplicationManager, statistic_service::StatisticService,
 };
+use mmb_rpc::rest_api::ErrorCode;
 
-// New endpoints have to be added as a service for actix server. Look at super::control_panel::start_server()
-
-#[get("/health")]
-pub(super) async fn health() -> impl Responder {
-    HttpResponse::Ok().body("Bot is working")
+pub struct RpcImpl {
+    _application_manager: Arc<ApplicationManager>,
+    statistics: Arc<StatisticService>,
+    engine_settings: String,
 }
 
-#[post("/stop")]
-pub(super) async fn stop(server_stopper_tx: web::Data<Sender<()>>) -> impl Responder {
-    if let Err(error) = server_stopper_tx.send(()) {
-        log::error!("Unable to send signal to stop actix server: {}", error);
+impl RpcImpl {
+    pub fn new(
+        application_manager: Arc<ApplicationManager>,
+        statistics: Arc<StatisticService>,
+        engine_settings: String,
+    ) -> Self {
+        Self {
+            _application_manager: application_manager,
+            statistics,
+            engine_settings,
+        }
+    }
+}
+
+impl MmbRpc for RpcImpl {
+    fn health(&self) -> Result<String> {
+        Ok("Engine is working".into())
     }
 
-    HttpResponse::Ok().body("ControlPanel turned off")
-}
+    fn stop(&self) -> Result<String> {
+        // self.application_manager
+        //     .spawn_graceful_shutdown("Stop signal from control_panel".into());
 
-#[get("/config")]
-pub(super) async fn get_config(engine_settings: web::Data<String>) -> impl Responder {
-    HttpResponse::Ok().body(engine_settings.get_ref())
-}
+        // Ok(Value::String("ControlPanel turned off".into()))
 
-#[post("/config")]
-pub(super) async fn set_config(
-    body: web::Bytes,
-    application_manager: web::Data<Arc<ApplicationManager>>,
-) -> Result<HttpResponse, Error> {
-    let settings = std::str::from_utf8(&body)?;
+        // TODO: fix it after actors removing
+        Ok("Set config isn't implemented".into())
+    }
 
-    save_settings(settings, CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
-        let error_message = format!(
-            "Error while trying save new config in set_config endpoint: {}",
-            err.to_string()
-        );
-        log::warn!("{}", error_message);
+    fn get_config(&self) -> Result<String> {
+        Ok(self.engine_settings.clone())
+    }
 
-        error::ErrorBadRequest(error_message)
-    })?;
+    fn set_config(&self, _params: String) -> Result<String> {
+        // #[derive(Deserialize)]
+        // struct Data {
+        //     settings: String,
+        // }
 
-    application_manager
-        .get_ref()
-        .clone()
-        .spawn_graceful_shutdown("Engine stopped cause config updating".to_owned());
+        // let data: Data = params.parse()?;
 
-    Ok(HttpResponse::Ok().body("Config was successfully updated. Trading engine stopped"))
-}
+        // save_settings(data.settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
+        //     log::warn!(
+        //         "Error while trying save new config in set_config endpoint: {}",
+        //         err.to_string()
+        //     );
+        //     server_side_error(ErrorCode::FailedToSaveNewConfig)
+        // })?;
 
-#[get("/stats")]
-pub(super) async fn stats(
-    statistics: web::Data<Arc<StatisticService>>,
-) -> Result<HttpResponse, Error> {
-    let json_statistic = serde_json::to_string(&statistics.statistic_service_state)?;
+        // self.application_manager
+        //     .spawn_graceful_shutdown("Engine stopped cause config updating".into());
 
-    Ok(HttpResponse::Ok().body(&json_statistic))
+        // Ok("Config was successfully updated. Trading engine stopped".into())
+
+        // TODO: fix it after actors removing
+        Ok("Set config isn't implemented".into())
+    }
+
+    fn stats(&self) -> Result<String> {
+        let json_statistic = serde_json::to_string(&self.statistics.statistic_service_state)
+            .map_err(|err| {
+                log::warn!(
+                    "Failed to convert {:?} to string: {}",
+                    self.statistics,
+                    err.to_string()
+                );
+                server_side_error(ErrorCode::FailedToSaveNewConfig)
+            })?;
+
+        Ok(json_statistic)
+    }
 }

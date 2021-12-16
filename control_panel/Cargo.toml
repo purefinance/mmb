@@ -1,0 +1,33 @@
+[package]
+name = "control_panel"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+
+actix-web = { version = "4.0.0-beta.10" }
+actix-server = "=2.0.0-beta.9"
+
+futures = "0.3"
+
+jsonrpc-core-client = { version = "18.0.0", features = ["ipc"] }
+jsonrpc-core = "18.0.0"
+jsonrpc-derive = "18.0.0"
+
+log = "0.4"
+
+parking_lot = { version = "0.11", features = ["serde"]}
+
+mmb_rpc = { path = "../mmb_rpc" }
+
+tokio = { version = "1", features = ["macros", "time", "sync", "rt", "signal"]}
+
+
+[[bin]]
+name = "control_panel"
+path = "main.rs"
+test = false
+bench = false

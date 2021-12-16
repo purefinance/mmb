@@ -1,12 +1,14 @@
 #![cfg(test)]
 use futures::FutureExt;
-use hyper::Uri;
+use jsonrpc_core::Value;
+use jsonrpc_core_client::transports::ipc;
 use mmb_core::core::config::parse_settings;
 use mmb_core::core::disposition_execution::{PriceSlot, TradingContext};
 use mmb_core::core::exchanges::binance::binance::Binance;
 use mmb_core::core::explanation::Explanation;
 use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
+use mmb_core::core::orders::order::OrderSnapshot;
 use mmb_core::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::core::settings::BaseStrategySettings;
 use mmb_core::core::{
@@ -18,12 +20,12 @@ use mmb_core::core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
     infrastructure::spawn_future,
 };
-use mmb_core::core::{exchanges::rest_client::RestClient, orders::order::OrderSnapshot};
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
+use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -52,7 +54,6 @@ impl BaseStrategySettings for TestStrategySettings {
 #[actix_rt::test]
 async fn orders_cancelled() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
-
     struct TestStrategy;
 
     impl DispositionStrategy for TestStrategy {
@@ -139,21 +140,18 @@ async fn orders_cancelled() {
     let _ = order
         .cancel_order_or_fail(&created_order, exchange.clone())
         .await;
+    let rest_client = ipc::connect::<_, MmbRpcClient>(IPC_ADDRESS)
+        .await
+        .expect("Failed to connect to the IPC socket");
 
-    let rest_client = RestClient::new();
-    let statistics: Value = serde_json::from_str(
-        &rest_client
-            .get(
-                "http://127.0.0.1:8080/stats"
-                    .parse::<Uri>()
-                    .expect("in test"),
-                &api_key,
-            )
+    let statistics = Value::from_str(
+        rest_client
+            .stats()
             .await
-            .expect("in test")
-            .content,
+            .expect("failed to get stats")
+            .as_str(),
     )
-    .expect("in test");
+    .expect("failed to conver answer to Value");
 
     let exchange_statistics = &statistics["trade_place_stats"]["Binance_0|cnd/btc"];
     let opened_orders_count = exchange_statistics["opened_orders_count"]

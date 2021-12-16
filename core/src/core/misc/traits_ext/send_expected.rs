@@ -68,3 +68,13 @@ where
             .with_expect(|| format!("{}", UNABLE_TO_SEND));
     }
 }
+
+impl<T> SendExpectedByRef<T> for std::sync::mpsc::Sender<T>
+where
+    T: Send + std::fmt::Debug,
+{
+    fn send_expected(&self, value: T) {
+        self.send(value)
+            .with_expect(|| format!("{}", UNABLE_TO_SEND));
+    }
+}

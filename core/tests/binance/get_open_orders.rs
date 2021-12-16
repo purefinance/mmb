@@ -148,7 +148,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         binance_builder.default_price,
     );
     second_order_proxy.currency_pair = CurrencyPair::from_codes("cnd".into(), "btc".into());
-    second_order_proxy.amount = dec!(10000);
+    second_order_proxy.amount = dec!(1000);
 
     second_order_proxy
         .create_order(binance_builder.exchange.clone())
