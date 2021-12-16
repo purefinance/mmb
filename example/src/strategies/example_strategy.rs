@@ -93,11 +93,11 @@ impl ExampleStrategy {
 
             match side {
                 OrderSide::Sell => {
-                    let price = order_book_middle + (current_spread * dec!(0.5));
+                    let price = order_book_middle + (self.spread * dec!(0.5));
                     symbol.price_round(price, Round::Ceiling).ok()?
                 }
                 OrderSide::Buy => {
-                    let price = order_book_middle - (current_spread * dec!(0.5));
+                    let price = order_book_middle - (self.spread * dec!(0.5));
                     symbol.price_round(price, Round::Floor).ok()?
                 }
             }

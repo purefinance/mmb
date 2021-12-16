@@ -1,12 +1,8 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
-use jsonrpc_core::{Params, Value};
 use jsonrpc_core_client::RpcError;
 use mmb_rpc::rest_api::MmbRpcClient;
 use parking_lot::Mutex;
-use std::{
-    sync::{mpsc::Sender, Arc},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use crate::control_panel::ControlPanel;
 
@@ -29,16 +25,7 @@ pub(super) async fn health(client: WebMmbRpcClient) -> impl Responder {
 }
 
 #[post("/stop")]
-pub(super) async fn stop(
-    server_stopper_tx: web::Data<Sender<()>>,
-    client: WebMmbRpcClient,
-) -> impl Responder {
-    if let Err(error) = server_stopper_tx.send(()) {
-        let err_message = format!("Unable to send signal to stop actix server: {}", error);
-        log::error!("{}", err_message);
-        return HttpResponse::InternalServerError().body(err_message);
-    }
-
+pub(super) async fn stop(client: WebMmbRpcClient) -> impl Responder {
     send_request(client, Request::Stop).await
 }
 
@@ -49,18 +36,18 @@ pub(super) async fn get_config(client: WebMmbRpcClient) -> impl Responder {
 
 #[post("/config")]
 pub(super) async fn set_config(body: web::Bytes, client: WebMmbRpcClient) -> impl Responder {
-    let params = match String::from_utf8((&body).to_vec()) {
-        Ok(settings) => Some(Params::Array(vec![Value::String(settings)])),
+    let settings = match String::from_utf8((&body).to_vec()) {
+        Ok(settings) => Some(settings),
         Err(err) => {
             return HttpResponse::BadRequest().body(format!(
-                "Failed to convert input settings({:?}) to str: {}",
+                "Failed to convert input settings({:?}) to utf8 string: {}",
                 body,
                 err.to_string(),
             ))
         }
     };
 
-    send_request_with_params(client, Request::SetConfig, params).await
+    send_request_with_params(client, Request::SetConfig, settings).await
 }
 
 #[get("/stats")]
@@ -87,8 +74,8 @@ fn handle_rpc_error(error: RpcError) -> HttpResponse {
 async fn send_request_core(
     client: &MmbRpcClient,
     request: Request,
-    params: Option<Params>,
-) -> Result<Value, RpcError> {
+    params: Option<String>,
+) -> Result<String, RpcError> {
     match request {
         Request::Health => client.health().await,
         Request::Stop => client.stop().await,
@@ -109,7 +96,7 @@ async fn send_request(client: WebMmbRpcClient, request: Request) -> HttpResponse
 async fn send_request_with_params(
     client: WebMmbRpcClient,
     request: Request,
-    params: Option<Params>,
+    params: Option<String>,
 ) -> HttpResponse {
     let mut try_counter = 1;
 

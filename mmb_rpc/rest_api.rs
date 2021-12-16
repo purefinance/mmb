@@ -1,4 +1,4 @@
-use jsonrpc_core::{Error, Params, Result, Value};
+use jsonrpc_core::{Error, Result};
 use jsonrpc_derive::rpc;
 
 pub static IPC_ADDRESS: &str = "/tmp/mmb.ipc";
@@ -7,19 +7,19 @@ pub static IPC_ADDRESS: &str = "/tmp/mmb.ipc";
 #[rpc]
 pub trait MmbRpc {
     #[rpc(name = "health")]
-    fn health(&self) -> Result<Value>;
+    fn health(&self) -> Result<String>;
 
     #[rpc(name = "stop")]
-    fn stop(&self) -> Result<Value>;
+    fn stop(&self) -> Result<String>;
 
     #[rpc(name = "get_config")]
-    fn get_config(&self) -> Result<Value>;
+    fn get_config(&self) -> Result<String>;
 
     #[rpc(name = "set_config")]
-    fn set_config(&self, params: Params) -> Result<Value>;
+    fn set_config(&self, params: String) -> Result<String>;
 
     #[rpc(name = "stats")]
-    fn stats(&self) -> Result<Value>;
+    fn stats(&self) -> Result<String>;
 }
 
 pub enum ErrorCode {
