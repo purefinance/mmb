@@ -468,7 +468,7 @@ impl Exchange {
                 order.exchange_order_id(),
                 self.exchange_account_id);
 
-            self.create_order_task(order);
+            self.order_created_notify(order);
 
             return Ok(());
         }
@@ -481,7 +481,7 @@ impl Exchange {
         Ok(())
     }
 
-    fn create_order_task(&self, order: &OrderRef) {
+    pub fn order_created_notify(&self, order: &OrderRef) {
         if let Some((_, tx)) = self.orders_created_events.remove(&order.client_order_id()) {
             let _ = tx.send(());
         }

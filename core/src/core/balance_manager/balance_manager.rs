@@ -556,11 +556,12 @@ impl BalanceManager {
         configuration_descriptor: ConfigurationDescriptor,
         order_snapshot: &OrderSnapshot,
     ) {
-        let order_fill = order_snapshot
-            .fills
-            .fills
-            .last()
-            .with_expect(|| format!("failed to get fills from order {:?}", order_snapshot));
+        let order_fill = order_snapshot.fills.fills.last().with_expect_args(|f| {
+            f(&format_args!(
+                "failed to get fills from order {:?}",
+                order_snapshot
+            ))
+        });
 
         self.order_was_filled_with_fill(configuration_descriptor, order_snapshot, order_fill)
     }
@@ -761,11 +762,11 @@ impl BalanceManager {
     ) {
         self.balance_reservation_manager
             .approve_reservation(reservation_id, client_order_id, amount)
-            .with_expect(|| {
-                format!(
+            .with_expect_args(|f| {
+                f(&format_args!(
                     "failed to approve reservation {} {} {} ",
                     reservation_id, client_order_id, amount,
-                )
+                ))
             });
 
         self.save_balances();
@@ -1031,8 +1032,11 @@ impl BalanceManager {
                     let balances_and_positions = exchange
                         .get_balance(cancellation_token.clone())
                         .await
-                        .with_expect(|| {
-                            format!("failed to get balance for {}", exchange.exchange_account_id)
+                        .with_expect_args(|f| {
+                            f(&format_args!(
+                                "failed to get balance for {}",
+                                exchange.exchange_account_id
+                            ))
                         });
 
                     this.lock()

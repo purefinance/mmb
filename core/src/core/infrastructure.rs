@@ -5,7 +5,7 @@ use futures::FutureExt;
 use log::log;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use std::fmt::{Debug, Display};
+use std::fmt::{Arguments, Debug, Display};
 use std::panic;
 use std::{pin::Pin, sync::Arc, time::Duration};
 use tokio::task::JoinHandle;
@@ -484,14 +484,33 @@ pub trait WithExpect<T> {
     fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
     where
         C: Display + Send + Sync + 'static;
+
+    /// Unwrap the value or panic with additional context that is evaluated lazily
+    /// The performance version. Double memory is not allocated for formatting
+    ///
+    /// # Examples
+    ///```should_panic
+    /// use mmb_core::core::infrastructure::WithExpect;
+    ///
+    /// let result: Result<(), ()> = Err(());
+    /// result.with_expect_args(|f| f(&format_args!("Error {}", "Message")));
+    /// ```
+    fn with_expect_args(self, f: impl FnOnce(&dyn Fn(&Arguments))) -> T;
 }
 
 impl<T> WithExpect<T> for Option<T> {
     fn with_expect<C>(self, f: impl FnOnce() -> C) -> T
     where
-        C: Display + Send + Sync + 'static,
+        C: Display + Send + 'static,
     {
         self.unwrap_or_else(|| panic!("{}", f()))
+    }
+
+    fn with_expect_args(self, f: impl FnOnce(&dyn Fn(&Arguments))) -> T {
+        self.unwrap_or_else(|| {
+            f(&|args| panic!("{}", args));
+            unreachable!()
+        })
     }
 }
 
@@ -506,6 +525,16 @@ where
         match self {
             Ok(v) => v,
             Err(e) => panic!("{}: {:?}", f(), e),
+        }
+    }
+
+    fn with_expect_args(self, f: impl FnOnce(&dyn Fn(&Arguments))) -> T {
+        match self {
+            Ok(v) => v,
+            Err(e) => {
+                f(&|args| panic!("{}: {:?}", args, e));
+                unreachable!()
+            }
         }
     }
 }
