@@ -81,26 +81,24 @@ mod test {
     use std::sync::Arc;
 
     use chrono::Utc;
+    use mmb_utils::hashmap;
     use mockall_double::double;
     use parking_lot::ReentrantMutexGuard;
 
     #[double]
     use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
-    use crate::order_book_data;
-    use crate::{
-        core::{
-            exchanges::{
-                common::CurrencyPair, general::test_helper::get_test_exchange_by_currency_codes,
-            },
-            services::usd_converter::{
-                price_source_chain::PriceSourceChain,
-                price_source_service::{test::PriceSourceServiceTestBase, PriceSourceService},
-            },
-            settings::{CurrencyPriceSourceSettings, ExchangeIdCurrencyPairSettings},
+    use crate::core::{
+        exchanges::{
+            common::CurrencyPair, general::test_helper::get_test_exchange_by_currency_codes,
         },
-        hashmap,
+        services::usd_converter::{
+            price_source_chain::PriceSourceChain,
+            price_source_service::{test::PriceSourceServiceTestBase, PriceSourceService},
+        },
+        settings::{CurrencyPriceSourceSettings, ExchangeIdCurrencyPairSettings},
     };
+    use crate::order_book_data;
 
     use super::*;
 

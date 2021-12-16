@@ -4,6 +4,7 @@ pub mod tests {
     use std::{collections::HashMap, sync::Arc};
 
     use mmb_utils::cancellation_token::CancellationToken;
+    use mmb_utils::hashmap;
     use mockall_double::double;
     use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal::Decimal;
@@ -21,33 +22,29 @@ pub mod tests {
     use crate::core::service_configuration::configuration_descriptor::{
         ServiceConfigurationKey, ServiceName,
     };
-    use crate::{
-        core::{
-            balance_changes::{
-                balance_change_calculator_result::BalanceChangesCalculatorResult,
-                balance_changes_calculator::BalanceChangesCalculator,
-                profit_balance_changes_calculator,
-                profit_loss_balance_change::ProfitLossBalanceChange,
-            },
-            balance_manager::balance_request::BalanceRequest,
-            exchanges::{
-                common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
-                general::{
-                    exchange::Exchange,
-                    symbol::{Precision, Symbol},
-                    test_helper::get_test_exchange_by_currency_codes,
-                },
-            },
-            orders::{
-                fill::{OrderFill, OrderFillType},
-                order::{
-                    ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
-                    OrderType,
-                },
-            },
-            service_configuration::configuration_descriptor::ConfigurationDescriptor,
+    use crate::core::{
+        balance_changes::{
+            balance_change_calculator_result::BalanceChangesCalculatorResult,
+            balance_changes_calculator::BalanceChangesCalculator,
+            profit_balance_changes_calculator, profit_loss_balance_change::ProfitLossBalanceChange,
         },
-        hashmap,
+        balance_manager::balance_request::BalanceRequest,
+        exchanges::{
+            common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
+            general::{
+                exchange::Exchange,
+                symbol::{Precision, Symbol},
+                test_helper::get_test_exchange_by_currency_codes,
+            },
+        },
+        orders::{
+            fill::{OrderFill, OrderFillType},
+            order::{
+                ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
+                OrderType,
+            },
+        },
+        service_configuration::configuration_descriptor::ConfigurationDescriptor,
     };
 
     pub struct BalanceChangesCalculatorTestsBase {

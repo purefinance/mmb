@@ -5,8 +5,8 @@ use crate::core::exchanges::common::{Amount, CurrencyCode, CurrencyPair, Exchang
 use crate::core::service_configuration::configuration_descriptor::{
     ConfigurationDescriptor, ServiceConfigurationKey, ServiceName,
 };
-use crate::hashmap;
 
+use mmb_utils::hashmap;
 use rust_decimal_macros::dec;
 
 pub(crate) type ConfigurationKeyByServiceName =
@@ -269,8 +269,8 @@ mod test {
     use super::*;
 
     use crate::core::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-    use crate::hashmap;
 
+    use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger;
     use rust_decimal_macros::dec;
 

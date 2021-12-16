@@ -21,7 +21,6 @@ use crate::core::{
 use crate::core::{
     exchanges::binance::binance::BinanceBuilder, statistic_service::StatisticService,
 };
-use crate::hashmap;
 use crate::rest_api::control_panel::ControlPanel;
 use crate::strategies::disposition_strategy::DispositionStrategy;
 use anyhow::{anyhow, Result};
@@ -29,6 +28,7 @@ use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::hashmap;
 use mmb_utils::logger::init_logger;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};

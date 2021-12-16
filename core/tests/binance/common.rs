@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 
 use mmb_core::core::exchanges::hosts::Hosts;
@@ -18,7 +19,6 @@ use mmb_core::{
         },
         lifecycle::launcher::EngineBuildConfig,
     },
-    hashmap,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

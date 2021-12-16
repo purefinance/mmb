@@ -19,24 +19,6 @@ pub mod core;
 pub mod rest_api;
 pub mod strategies;
 
-#[macro_export]
-macro_rules! hashmap {
-    ($( $key: expr => $val: expr ),*) => {{
-         let mut map = ::std::collections::HashMap::new();
-         $( map.insert($key, $val); )*
-         map
-    }}
-}
-
-#[macro_export]
-macro_rules! dashmap {
-    ($( $key: expr => $val: expr ),*) => {{
-         let map = dashmap::DashMap::new();
-         $( map.insert($key, $val); )*
-         map
-    }}
-}
-
 #[cfg(test)]
 use parking_lot::ReentrantMutex;
 

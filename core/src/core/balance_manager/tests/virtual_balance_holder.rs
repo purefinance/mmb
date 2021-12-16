@@ -1,3 +1,5 @@
+use mmb_utils::hashmap;
+
 use std::sync::Arc;
 
 use crate::core::balance_manager::balance_request::BalanceRequest;
@@ -10,7 +12,6 @@ use crate::core::exchanges::{
     general::{exchange::Exchange, test_helper::get_test_exchange_by_currency_codes},
 };
 use crate::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use crate::hashmap;
 
 struct VirtualBalanceHolderTests {
     virtual_balance_holder: VirtualBalanceHolder,
@@ -89,12 +90,12 @@ impl VirtualBalanceHolderTests {
 mod tests {
     use std::collections::HashMap;
 
+    use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
     use crate::core::balance_manager::balance_request::BalanceRequest;
-    use crate::hashmap;
 
     use super::VirtualBalanceHolderTests;
 

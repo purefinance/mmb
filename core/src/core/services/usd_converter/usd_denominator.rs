@@ -2,17 +2,15 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use futures::FutureExt;
 use itertools::Itertools;
+use mmb_utils::hashmap;
 use parking_lot::Mutex;
 
-use crate::{
-    core::{
-        exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
-        infrastructure::spawn_by_timer,
-        lifecycle::application_manager::ApplicationManager,
-        misc::traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
-        services::market_prices::market_currency_code_price::MarketCurrencyCodePrice,
-    },
-    hashmap,
+use crate::core::{
+    exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
+    infrastructure::spawn_by_timer,
+    lifecycle::application_manager::ApplicationManager,
+    misc::traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
+    services::market_prices::market_currency_code_price::MarketCurrencyCodePrice,
 };
 
 pub struct UsdDenominator {

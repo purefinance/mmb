@@ -33,3 +33,21 @@ pub fn nothing_to_do() {}
 pub static OPERATION_CANCELED_MSG: &str = "Operation cancelled";
 
 pub type DateTime = chrono::DateTime<Utc>;
+
+#[macro_export]
+macro_rules! hashmap {
+    ($( $key: expr => $val: expr ),*) => {{
+         let mut map = ::std::collections::HashMap::new();
+         $( map.insert($key, $val); )*
+         map
+    }}
+}
+
+#[macro_export]
+macro_rules! dashmap {
+    ($( $key: expr => $val: expr ),*) => {{
+         let map = dashmap::DashMap::new();
+         $( map.insert($key, $val); )*
+         map
+    }}
+}

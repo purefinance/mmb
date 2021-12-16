@@ -2,6 +2,7 @@
 mod tests {
     use std::collections::HashMap;
 
+    use mmb_utils::hashmap;
     use mockall_double::double;
     use parking_lot::ReentrantMutexGuard;
     use rstest::rstest;
@@ -10,13 +11,10 @@ mod tests {
 
     #[double]
     use crate::core::services::usd_converter::usd_converter::UsdConverter;
-    use crate::{
-        core::{
-            balance_changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase,
-            exchanges::common::{CurrencyCode, Price},
-            orders::order::OrderSide,
-        },
-        hashmap,
+    use crate::core::{
+        balance_changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase,
+        exchanges::common::{CurrencyCode, Price},
+        orders::order::OrderSide,
     };
 
     type TestBase = BalanceChangesCalculatorTestsBase;

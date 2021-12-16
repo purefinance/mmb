@@ -1,3 +1,4 @@
+use mmb_utils::hashmap;
 use mmb_utils::DateTime;
 use mockall_double::double;
 use parking_lot::Mutex;
@@ -28,7 +29,6 @@ use crate::core::{
         order::OrderFillRole,
     },
 };
-use crate::hashmap;
 
 pub struct BalanceManagerOrdinal {
     pub balance_manager_base: BalanceManagerBase,
@@ -149,6 +149,7 @@ mod tests {
     use std::time::Duration;
 
     use chrono::Utc;
+    use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger;
     use parking_lot::{Mutex, RwLock};
     use rstest::rstest;
@@ -169,7 +170,6 @@ mod tests {
         balance_manager::tests::balance_manager_base::BalanceManagerBase,
         exchanges::common::ExchangeAccountId,
     };
-    use crate::hashmap;
 
     use super::BalanceManagerOrdinal;
 
