@@ -1,5 +1,20 @@
-use chrono::Utc;
+#![deny(
+    non_shorthand_field_patterns,
+    no_mangle_generic_items,
+    overflowing_literals,
+    path_statements,
+    unused_allocation,
+    unused_comparisons,
+    unused_parens,
+    while_true,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_must_use
+)]
 
+#[allow(dead_code)]
 pub mod cancellation_token;
 pub mod impl_id;
 pub mod impl_mocks;
@@ -8,6 +23,8 @@ pub mod infrastructure;
 pub mod logger;
 pub mod time;
 pub mod traits_ext;
+
+use chrono::Utc;
 
 /// Just for marking explicitly: no action to do here and it is not forgotten execution branch
 #[inline(always)]

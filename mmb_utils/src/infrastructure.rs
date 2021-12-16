@@ -464,7 +464,7 @@ pub trait WithExpect<T> {
     ///
     /// # Examples
     ///```should_panic
-    /// use mmb_core::core::infrastructure::WithExpect;
+    /// use mmb_utils::infrastructure::WithExpect;
     ///
     /// let result: Result<(), ()> = Err(());
     /// result.with_expect_args(|f| f(&format_args!("Error {}", "Message")));
