@@ -1,15 +1,17 @@
 use crate::core::connectivity::connectivity_manager::{ConnectivityManagerNotifier, WebSocketRole};
 use crate::core::exchanges::common::ExchangeAccountId;
-use crate::core::nothing_to_do;
 
-use anyhow::{anyhow, Context as AnyhowContext, Result};
+use crate::core::infrastructure::spawn_future;
+use anyhow::{Context as AnyhowContext, Result};
+use futures::stream::{SplitSink, SplitStream};
+use futures::{FutureExt, SinkExt, StreamExt};
 use parking_lot::Mutex;
-use std::net::TcpStream;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tokio::net::TcpStream;
 use tokio::time;
-use tungstenite::stream::MaybeTlsStream;
-use tungstenite::{connect, Error, Message, WebSocket};
+use tokio_tungstenite::tungstenite::{Error, Message};
+use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use url::Url;
 
 /// Time interval between heartbeat pings are sent
@@ -31,25 +33,44 @@ impl WebSocketParams {
     }
 }
 
-pub type WebSocketStream = WebSocket<MaybeTlsStream<TcpStream>>;
+pub type WebSocketWriter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
+pub type WebSocketReader = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
 
 pub struct WebSocketConnection {
     exchange_account_id: ExchangeAccountId,
     role: WebSocketRole,
-    stream: WebSocketStream,
-    last_heartbeat_time: Instant,
+    writer: tokio::sync::Mutex<WebSocketWriter>,
+    last_heartbeat_time: Mutex<Instant>,
     connectivity_manager_notifier: ConnectivityManagerNotifier,
+    is_connected: Mutex<bool>,
 }
 
 impl WebSocketConnection {
+    pub fn new(
+        exchange_account_id: ExchangeAccountId,
+        role: WebSocketRole,
+        writer: WebSocketWriter,
+        connectivity_manager_notifier: ConnectivityManagerNotifier,
+        is_connected: bool,
+    ) -> Self {
+        Self {
+            exchange_account_id,
+            role,
+            writer: tokio::sync::Mutex::new(writer),
+            last_heartbeat_time: Mutex::new(Instant::now()),
+            connectivity_manager_notifier,
+            is_connected: Mutex::new(is_connected),
+        }
+    }
+
     pub async fn open_connection(
         exchange_account_id: ExchangeAccountId,
         role: WebSocketRole,
         params: WebSocketParams,
         connectivity_manager_notifier: ConnectivityManagerNotifier,
-    ) -> Result<Arc<Mutex<Self>>> {
-        let (ws_stream, response) = connect(params.url)
-            .map_err(|e| anyhow!("{:?}", e))
+    ) -> Result<Arc<Self>> {
+        let (ws_stream, response) = connect_async(params.url)
+            .await
             .context("Error occurred during websocket connect")?;
 
         log::trace!(
@@ -59,120 +80,141 @@ impl WebSocketConnection {
             response.status()
         );
 
-        let ws = Arc::new(Mutex::new(WebSocketConnection::new(
+        let (writer, reader) = ws_stream.split();
+
+        let ws = Arc::new(WebSocketConnection::new(
             exchange_account_id,
             role,
-            ws_stream,
+            writer,
             connectivity_manager_notifier,
-        )));
+            true,
+        ));
 
-        tokio::spawn(Self::read_message_from_websocket(ws.clone()));
-        tokio::spawn(Self::heartbeat(ws.clone()));
+        spawn_future(
+            "Run read message from websocket",
+            false,
+            Self::read_message_from_websocket(ws.clone(), reader).boxed(),
+        );
+
+        spawn_future(
+            "Run heartbeat for websocket",
+            false,
+            Self::heartbeat(ws.clone()).boxed(),
+        );
 
         Ok(ws)
     }
 
-    pub fn send_string(&mut self, text: &str) -> std::result::Result<(), Error> {
+    pub async fn send_string(&self, text: &str) -> std::result::Result<(), Error> {
         log::info!(
             "WebsocketActor {} {:?} send msg: {}",
             self.exchange_account_id,
             self.role,
             text
         );
-        self.send(Message::Text(text.to_owned()))
+        self.send(Message::Text(text.to_owned())).await
     }
 
-    pub fn send_force_close(&mut self) -> std::result::Result<(), Error> {
+    pub async fn send_force_close(&self) -> std::result::Result<(), Error> {
         log::info!(
             "WebsocketActor {} {:?} received ForceClose message",
             self.exchange_account_id,
             self.role,
         );
-        self.send(Message::Close(None))
+        self.send(Message::Close(None)).await
     }
 
-    fn send(&mut self, msg: Message) -> std::result::Result<(), Error> {
-        self.stream.write_message(msg)
+    pub fn is_connected(&self) -> bool {
+        *self.is_connected.lock()
     }
 
-    fn send_pong(&mut self, msg: Vec<u8>) {
-        let send_result = self.send(Message::Pong(msg));
-        match send_result {
-            Ok(_) => nothing_to_do(),
-            Err(err) => log::error!(
-                "Websocket {} {:?} can't send pong message '{:?}'",
+    async fn send(&self, msg: Message) -> std::result::Result<(), Error> {
+        let mut writer = self.writer.lock().await;
+        writer.send(msg).await
+    }
+
+    async fn send_pong(&self, msg: Vec<u8>) {
+        let send_result = self.send(Message::Pong(msg)).await;
+        if let Err(err) = send_result {
+            log::error!(
+                "Websocket {} {:?} can't send pong message '{}'",
                 self.exchange_account_id,
                 self.role,
-                err
-            ),
+                err.to_string()
+            )
         }
     }
 
-    async fn read_message_from_websocket(this: Arc<Mutex<WebSocketConnection>>) {
-        loop {
-            let message = this.lock().stream.read_message();
-            match message {
-                Ok(message) => this.lock().handle_websocket_message(message),
-                Err(err) => {
-                    log::error!("{}", err.to_string());
-                    println!("Error {:?}", err);
-                    this.lock().close_websocket();
-                    break;
+    async fn read_message_from_websocket(
+        this: Arc<WebSocketConnection>,
+        reader: WebSocketReader,
+    ) -> Result<()> {
+        reader
+            .for_each(|msg| async {
+                match msg {
+                    Ok(msg) => this.handle_websocket_message(msg).await,
+                    Err(err) => {
+                        log::error!("Websocket received wrong message {}", err.to_string());
+                        this.close_websocket().await
+                    }
                 }
-            };
-        }
+            })
+            .await;
+
+        Ok(())
     }
 
-    async fn heartbeat(this: Arc<Mutex<WebSocketConnection>>) {
-        let exchange_account_id = this.lock().exchange_account_id;
-        let role = this.lock().role;
+    async fn heartbeat(this: Arc<WebSocketConnection>) -> Result<()> {
         let mut heartbeat_interval = time::interval(HEARTBEAT_INTERVAL);
-
         loop {
-            heartbeat_interval.tick().await;
-
-            if Instant::now().duration_since(this.lock().last_heartbeat_time)
-                > HEARTBEAT_FAIL_TIMEOUT
-            {
+            let last_heartbeat_time = *this.last_heartbeat_time.lock();
+            if Instant::now().duration_since(last_heartbeat_time) > HEARTBEAT_FAIL_TIMEOUT {
                 log::trace!(
                     "Websocket {} {:?} heartbeat failed, disconnecting!",
-                    exchange_account_id,
-                    role,
+                    this.exchange_account_id,
+                    this.role,
                 );
-                this.lock().close_websocket();
+                this.close_websocket().await;
                 break;
             }
 
-            if let Err(err) = this.lock().send(Message::Ping(PING_MESSAGE.to_vec())) {
+            let sending_result = this.send(Message::Ping(PING_MESSAGE.to_vec())).await;
+            if let Err(err) = sending_result {
+                this.close_websocket().await;
                 log::error!(
-                    "Websocket {} {:?} can't send ping message '{:?}'",
-                    exchange_account_id,
-                    role,
-                    err
-                );
-                this.lock().close_websocket();
-                break;
+                    "Websocket {} {:?} can't send ping message {}",
+                    this.exchange_account_id,
+                    this.role,
+                    err.to_string()
+                )
             }
+
+            heartbeat_interval.tick().await;
         }
+
+        Ok(())
     }
 
-    fn handle_websocket_message(&mut self, msg: Message) {
+    async fn handle_websocket_message(&self, msg: Message) {
         match msg {
-            Message::Text(ref text) => self.connectivity_manager_notifier.message_received(text),
+            Message::Text(ref text) => {
+                // println!("{:?}", text);
+                self.connectivity_manager_notifier.message_received(text)
+            }
             Message::Binary(bytes) => log::trace!(
                 "Websocket {} {:?} got binary message: {:x?}",
                 self.exchange_account_id,
                 self.role,
                 bytes
             ),
-            Message::Ping(msg) => self.send_pong(msg),
+            Message::Ping(msg) => self.send_pong(msg).await,
             Message::Pong(msg) => {
                 if &msg[..] == PING_MESSAGE {
-                    self.last_heartbeat_time = Instant::now();
+                    *self.last_heartbeat_time.lock() = Instant::now();
                 } else {
                     log::error!("Websocket {} {:?} received wrong pong message: {}. We are sending message '{}' only",
                         self.exchange_account_id,
-                        self.role,String::from_utf8_lossy(&msg),
+                        self.role, String::from_utf8_lossy(&msg),
                         String::from_utf8_lossy(PING_MESSAGE));
                 }
             }
@@ -186,29 +228,15 @@ impl WebSocketConnection {
                         .map(|x| x.reason.to_string())
                         .unwrap_or("None".to_string())
                 );
-                self.close_websocket();
+                self.close_websocket().await;
             }
         }
     }
 
-    fn close_websocket(&mut self) {
+    async fn close_websocket(&self) {
+        *self.is_connected.lock() = false;
         self.connectivity_manager_notifier
             .notify_websocket_connection_closed(self.exchange_account_id);
-        let _ = self.stream.close(None);
-    }
-
-    fn new(
-        exchange_account_id: ExchangeAccountId,
-        role: WebSocketRole,
-        stream: WebSocketStream,
-        connectivity_manager_notifier: ConnectivityManagerNotifier,
-    ) -> Self {
-        Self {
-            exchange_account_id,
-            role,
-            stream,
-            last_heartbeat_time: Instant::now(),
-            connectivity_manager_notifier,
-        }
+        let _ = self.writer.lock().await.close().await;
     }
 }

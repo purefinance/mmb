@@ -48,7 +48,7 @@ enum WebSocketState {
         cancel_websocket_connecting: CancellationToken,
     },
     Connected {
-        websocket: Arc<Mutex<WebSocketConnection>>,
+        websocket: Arc<WebSocketConnection>,
         finished_sender: broadcast::Sender<()>,
     },
 }
@@ -184,13 +184,14 @@ impl ConnectivityManager {
                 finished_sender.subscribe()
             }
             WebSocketState::Connected {
-                websocket: websocket_actor,
+                websocket,
                 finished_sender,
             } => {
-                let result = websocket_actor.lock().send_force_close();
-                match result {
-                    Ok(_) => finished_sender.subscribe(),
-                    Err(_) => return,
+                if websocket.is_connected() {
+                    let _ = websocket.send_force_close().await;
+                    finished_sender.subscribe()
+                } else {
+                    return;
                 }
             }
         };
@@ -201,21 +202,18 @@ impl ConnectivityManager {
     }
 
     pub async fn send(&self, role: WebSocketRole, message: &str) {
-        if let WebSocketState::Connected {
-            websocket: ref websocket_actor,
-            ..
-        } = self
+        if let WebSocketState::Connected { ref websocket, .. } = self
             .websockets
             .get_websocket_state(role)
             .lock()
             .borrow()
             .state
         {
-            let sending_result = websocket_actor.lock().send_string(message);
+            let sending_result = websocket.send_string(message).await;
             if let Err(ref err) = sending_result {
                 log::error!(
-                    "Error {:?} happened when sending to websocket {} message: {}",
-                    err,
+                    "Error {} happened when sending to websocket {} message: {}",
+                    err.to_string(),
                     self.exchange_account_id,
                     message
                 )
@@ -287,7 +285,7 @@ impl ConnectivityManager {
 
                     let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(self));
 
-                    let websocket_actor = WebSocketConnection::open_connection(
+                    let websocket = WebSocketConnection::open_connection(
                         self.exchange_account_id,
                         role,
                         params.clone(),
@@ -295,11 +293,11 @@ impl ConnectivityManager {
                     )
                     .await;
 
-                    match websocket_actor {
-                        Ok(websocket_actor) => {
+                    match websocket {
+                        Ok(websocket) => {
                             websocket_connectivity.lock().deref_mut().state =
                                 WebSocketState::Connected {
-                                    websocket: websocket_actor,
+                                    websocket: websocket,
                                     finished_sender: finished_sender.clone(),
                                 };
 
@@ -312,12 +310,10 @@ impl ConnectivityManager {
                             }
 
                             if cancel_websocket_connecting.is_cancellation_requested() {
-                                if let WebSocketState::Connected {
-                                    websocket: websocket_actor,
-                                    ..
-                                } = &websocket_connectivity.lock().borrow().state
+                                if let WebSocketState::Connected { websocket, .. } =
+                                    &websocket_connectivity.lock().borrow().state
                                 {
-                                    let _ = websocket_actor.lock().send_force_close();
+                                    let _ = websocket.send_force_close();
                                 }
                             }
 

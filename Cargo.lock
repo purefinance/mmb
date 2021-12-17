@@ -1375,8 +1375,8 @@ dependencies = [
  "smallstr",
  "thiserror",
  "tokio",
+ "tokio-tungstenite",
  "toml_edit",
- "tungstenite",
  "url",
  "uuid",
 ]
@@ -2389,6 +2389,20 @@ dependencies = [
  "rustls",
  "tokio",
  "webpki",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e80b39df6afcc12cdf752398ade96a6b9e99c903dfdc36e53ad10b9c366bca72"
+dependencies = [
+ "futures-util",
+ "log",
+ "native-tls",
+ "tokio",
+ "tokio-native-tls",
+ "tungstenite",
 ]
 
 [[package]]
