@@ -1,6 +1,5 @@
 use actix_web::{get, post, web, HttpResponse, Responder};
 use futures::FutureExt;
-use mmb_rpc::rest_api::MmbRpcClient;
 
 use crate::control_panel::{send_request, WebMmbRpcClient};
 
@@ -8,17 +7,17 @@ use crate::control_panel::{send_request, WebMmbRpcClient};
 
 #[get("/health")]
 pub(super) async fn health(client: WebMmbRpcClient) -> impl Responder {
-    send_request(client, |client: &MmbRpcClient| client.health().boxed()).await
+    send_request(client, |client| client.health().boxed()).await
 }
 
 #[post("/stop")]
 pub(super) async fn stop(client: WebMmbRpcClient) -> impl Responder {
-    send_request(client, |client: &MmbRpcClient| client.stop().boxed()).await
+    send_request(client, |client| client.stop().boxed()).await
 }
 
 #[get("/config")]
 pub(super) async fn get_config(client: WebMmbRpcClient) -> impl Responder {
-    send_request(client, |client: &MmbRpcClient| client.get_config().boxed()).await
+    send_request(client, |client| client.get_config().boxed()).await
 }
 
 #[post("/config")]
@@ -34,13 +33,10 @@ pub(super) async fn set_config(body: web::Bytes, client: WebMmbRpcClient) -> imp
         }
     };
 
-    send_request(client, move |client: &MmbRpcClient| {
-        client.set_config(settings).boxed()
-    })
-    .await
+    send_request(client, move |client| client.set_config(settings).boxed()).await
 }
 
 #[get("/stats")]
 pub(super) async fn stats(client: WebMmbRpcClient) -> impl Responder {
-    send_request(client, |client: &MmbRpcClient| client.stats().boxed()).await
+    send_request(client, |client| client.stats().boxed()).await
 }
