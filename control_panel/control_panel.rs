@@ -1,20 +1,23 @@
 use actix_server::ServerHandle;
 use anyhow::Result;
-use futures::executor;
-use jsonrpc_core_client::transports::ipc;
+use futures::{executor, future::BoxFuture};
+use jsonrpc_core_client::{transports::ipc, RpcError};
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use parking_lot::Mutex;
 use std::{
     sync::mpsc,
     sync::Arc,
     thread::{self, JoinHandle},
+    time::Duration,
 };
 
 use super::endpoints;
-use actix_web::{dev::Server, rt, App, HttpServer};
+use actix_web::{dev::Server, rt, web, App, HttpResponse, HttpServer};
 use tokio::sync::oneshot;
 
 use actix_web::web::Data;
+
+pub type WebMmbRpcClient = web::Data<Arc<Mutex<Option<MmbRpcClient>>>>;
 
 pub(crate) struct ControlPanel {
     address: String,
@@ -116,5 +119,59 @@ impl ControlPanel {
                 let _ = server;
             });
         })
+    }
+}
+
+fn handle_rpc_error(error: RpcError) -> HttpResponse {
+    match error {
+        RpcError::JsonRpcError(error) => {
+            HttpResponse::InternalServerError().body(error.to_string())
+        }
+        RpcError::ParseError(msg, error) => HttpResponse::BadRequest().body(format!(
+            "Failed to parse '{}': {}",
+            msg,
+            error.to_string()
+        )),
+        RpcError::Timeout => HttpResponse::RequestTimeout().body("Request Timeout"),
+        RpcError::Client(msg) => HttpResponse::InternalServerError().body(msg),
+        RpcError::Other(error) => HttpResponse::InternalServerError().body(error.to_string()),
+    }
+}
+
+pub async fn send_request(
+    client: WebMmbRpcClient,
+    action: impl FnOnce(&MmbRpcClient) -> BoxFuture<Result<String, RpcError>>,
+) -> HttpResponse {
+    let mut try_counter = 1;
+
+    async fn try_reconnect(client: WebMmbRpcClient, try_counter: i32) {
+        log::warn!(
+            "Failed to send request {}, trying to reconnect...",
+            try_counter
+        );
+        *client.lock() = ControlPanel::build_rpc_client().await;
+    }
+
+    loop {
+        log::info!("Trying to send request attempt {}...", try_counter);
+
+        if let Some(client) = &*client.lock() {
+            match (action)(client).await {
+                Ok(response) => return HttpResponse::Ok().body(response.to_string()),
+                Err(err) => {
+                    return handle_rpc_error(err);
+                }
+            }
+        }
+
+        try_reconnect(client.clone(), try_counter).await;
+
+        if try_counter > 2 {
+            return HttpResponse::RequestTimeout().body("Request Timeout");
+        }
+
+        tokio::time::sleep(Duration::from_secs(3)).await;
+
+        try_counter += 1;
     }
 }
