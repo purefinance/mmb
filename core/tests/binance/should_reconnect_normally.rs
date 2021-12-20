@@ -5,7 +5,7 @@ use mmb_core::core::exchanges::general::features::*;
 use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_core::core::{
     connectivity::connectivity_manager::ConnectivityManager,
-    connectivity::websocket_actor::WebSocketParams, exchanges::common::ExchangeAccountId,
+    connectivity::websocket_connection::WebSocketParams, exchanges::common::ExchangeAccountId,
     exchanges::events::AllowedEventSourceType, exchanges::general::commission::Commission,
     exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
 };

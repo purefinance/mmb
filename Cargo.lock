@@ -220,23 +220,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "actix-web-actors"
-version = "4.0.0-beta.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00b43c8e03f1877bc010316de455ee479aa0de0ae0717d49041db5f38fa192de"
-dependencies = [
- "actix",
- "actix-codec",
- "actix-http",
- "actix-web",
- "bytes",
- "bytestring",
- "futures-core",
- "pin-project",
- "tokio",
-]
-
-[[package]]
 name = "actix-web-codegen"
 version = "0.5.0-beta.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -419,6 +402,12 @@ name = "bumpalo"
 version = "3.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f1e260c3a9040a7c19a12468758f4c16f31a81a1fe087482be9570ec864bb6c"
+
+[[package]]
+name = "byteorder"
+version = "1.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
@@ -1324,11 +1313,7 @@ name = "mmb_core"
 version = "0.1.0"
 dependencies = [
  "actix",
- "actix-codec",
- "actix-http",
  "actix-rt",
- "actix-web",
- "actix-web-actors",
  "anyhow",
  "async-trait",
  "awc",
@@ -1369,7 +1354,9 @@ dependencies = [
  "smallstr",
  "thiserror",
  "tokio",
+ "tokio-tungstenite",
  "toml_edit",
+ "url 2.2.2",
  "uuid",
 ]
 
@@ -2395,6 +2382,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-tungstenite"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e80b39df6afcc12cdf752398ade96a6b9e99c903dfdc36e53ad10b9c366bca72"
+dependencies = [
+ "futures-util",
+ "log",
+ "native-tls",
+ "tokio",
+ "tokio-native-tls",
+ "tungstenite",
+]
+
+[[package]]
 name = "tokio-util"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2461,6 +2462,26 @@ name = "try-lock"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
+
+[[package]]
+name = "tungstenite"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ad3713a14ae247f22a728a0456a545df14acf3867f905adff84be99e23b3ad1"
+dependencies = [
+ "base64",
+ "byteorder",
+ "bytes",
+ "http",
+ "httparse",
+ "log",
+ "native-tls",
+ "rand 0.8.4",
+ "sha-1",
+ "thiserror",
+ "url 2.2.2",
+ "utf-8",
+]
 
 [[package]]
 name = "typenum"
@@ -2532,6 +2553,12 @@ dependencies = [
  "matches",
  "percent-encoding 2.1.0",
 ]
+
+[[package]]
+name = "utf-8"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
 name = "uuid"
