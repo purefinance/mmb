@@ -46,23 +46,6 @@ pub struct WebSocketConnection {
 }
 
 impl WebSocketConnection {
-    pub fn new(
-        exchange_account_id: ExchangeAccountId,
-        role: WebSocketRole,
-        writer: WebSocketWriter,
-        connectivity_manager_notifier: ConnectivityManagerNotifier,
-        is_connected: bool,
-    ) -> Self {
-        Self {
-            exchange_account_id,
-            role,
-            writer: tokio::sync::Mutex::new(writer),
-            last_heartbeat_time: Mutex::new(Instant::now()),
-            connectivity_manager_notifier,
-            is_connected: Mutex::new(is_connected),
-        }
-    }
-
     pub async fn open_connection(
         exchange_account_id: ExchangeAccountId,
         role: WebSocketRole,
@@ -126,6 +109,23 @@ impl WebSocketConnection {
 
     pub fn is_connected(&self) -> bool {
         *self.is_connected.lock()
+    }
+
+    fn new(
+        exchange_account_id: ExchangeAccountId,
+        role: WebSocketRole,
+        writer: WebSocketWriter,
+        connectivity_manager_notifier: ConnectivityManagerNotifier,
+        is_connected: bool,
+    ) -> Self {
+        Self {
+            exchange_account_id,
+            role,
+            writer: tokio::sync::Mutex::new(writer),
+            last_heartbeat_time: Mutex::new(Instant::now()),
+            connectivity_manager_notifier,
+            is_connected: Mutex::new(is_connected),
+        }
     }
 
     async fn send(&self, msg: Message) -> std::result::Result<(), Error> {
