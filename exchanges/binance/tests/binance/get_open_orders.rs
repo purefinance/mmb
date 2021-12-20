@@ -7,8 +7,8 @@ use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::OrderProxy;
 use crate::get_binance_credentials_or_exit;
+use core_tests::order::OrderProxy;
 
 use rust_decimal_macros::dec;
 

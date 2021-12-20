@@ -371,6 +371,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "binance"
+version = "0.1.0"
+dependencies = [
+ "actix-rt",
+ "anyhow",
+ "async-trait",
+ "awc",
+ "chrono",
+ "core_tests",
+ "dashmap",
+ "futures 0.3.18",
+ "hex",
+ "hmac",
+ "itertools",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "log",
+ "mmb_core",
+ "mmb_rpc",
+ "mmb_utils",
+ "parking_lot",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -531,6 +561,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
+name = "core_tests"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "futures 0.3.18",
+ "mmb_core",
+ "mmb_utils",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "tokio",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -685,6 +729,7 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "anyhow",
+ "binance",
  "itertools",
  "mmb_core",
  "mmb_utils",
@@ -1346,9 +1391,7 @@ dependencies = [
  "hyper-tls",
  "itertools",
  "jsonrpc-core",
- "jsonrpc-core-client",
  "jsonrpc-ipc-server",
- "libc",
  "log",
  "mmb_rpc",
  "mmb_utils",

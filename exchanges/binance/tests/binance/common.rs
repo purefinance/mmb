@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use binance::binance::BinanceBuilder;
+use mmb_core::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 
@@ -62,7 +64,8 @@ macro_rules! get_binance_credentials_or_exit {
 }
 
 pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc<TimeoutManager> {
-    let engine_build_config = EngineBuildConfig::standard();
+    let engine_build_config =
+        EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
     let timeout_arguments = engine_build_config.supported_exchange_clients
         [&ExchangeId::new("Binance".into())]
         .get_timeout_arguments();

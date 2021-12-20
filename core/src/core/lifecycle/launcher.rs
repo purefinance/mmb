@@ -14,12 +14,10 @@ use crate::core::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::core::settings::{AppSettings, BaseStrategySettings, CoreSettings};
 use crate::core::statistic_service::StatisticEventHandler;
+use crate::core::statistic_service::StatisticService;
 use crate::core::{
     disposition_execution::executor::DispositionExecutorService,
     infrastructure::{keep_application_manager, spawn_future},
-};
-use crate::core::{
-    exchanges::binance::binance::BinanceBuilder, statistic_service::StatisticService,
 };
 use crate::rest_api::control_panel::ControlPanel;
 use crate::strategies::disposition_strategy::DispositionStrategy;
@@ -45,10 +43,9 @@ pub struct EngineBuildConfig {
 }
 
 impl EngineBuildConfig {
-    pub fn standard() -> Self {
+    pub fn standard(client_builder: Box<dyn ExchangeClientBuilder>) -> Self {
         let exchange_name = "Binance".into();
-        let supported_exchange_clients =
-            hashmap![exchange_name => Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>];
+        let supported_exchange_clients = hashmap![exchange_name => client_builder];
 
         EngineBuildConfig {
             supported_exchange_clients,

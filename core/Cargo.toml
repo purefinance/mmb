@@ -35,7 +35,6 @@ actix-web-actors = "=4.0.0-beta.7"
 actix-web = { version = "=4.0.0-beta.12", features = ["rustls"]}
 awc = { version = "=3.0.0-beta.11", features = ["rustls"]}
 
-libc = "0.2"
 form_urlencoded = "1"
 hyper-tls = "0.5"
 hyper = { version = "0.14", features = ["http1", "runtime", "client", "tcp"] }
@@ -72,4 +71,3 @@ actix-rt = "2"
 pretty_assertions = "1"
 rstest = "0.10"
 mockall = "0.10.2"
-jsonrpc-core-client = { version = "18.0.0", features = ["ipc"] }

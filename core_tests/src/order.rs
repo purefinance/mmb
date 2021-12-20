@@ -14,7 +14,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use tokio::time::Duration;
 
-use crate::core::misc::with_timeout::with_timeout;
+use crate::misc::with_timeout::with_timeout;
 
 use std::sync::Arc;
 
@@ -22,7 +22,7 @@ use std::sync::Arc;
 /// You can create an object and change some fields if it's necessary
 /// and than use create_order function for making order in selected Exchange.
 ///
-/// ```no_run
+/// ```ignore
 /// let mut order_proxy = OrderProxy::new(
 ///     exchange_account_id,
 ///     Some("FromExample".to_owned()),

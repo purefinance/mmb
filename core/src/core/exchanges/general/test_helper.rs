@@ -1,27 +1,232 @@
 #![cfg(test)]
 use std::{collections::HashMap, sync::Arc};
 
+use crate::core::{
+    connectivity::connectivity_manager::WebSocketRole,
+    exchanges::{
+        common::{
+            ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, CurrencyPair,
+            ExchangeAccountId, ExchangeError, Price, RestRequestOutcome, SpecificCurrencyPair,
+        },
+        events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent, TradeId},
+        general::{
+            commission::{Commission, CommissionForType},
+            exchange::Exchange,
+            features::{
+                ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
+                RestFillsFeatures, WebSocketOptions,
+            },
+            symbol::{Precision, Symbol},
+        },
+        timeouts::{
+            requests_timeout_manager_factory::RequestTimeoutArguments,
+            timeout_manager::TimeoutManager,
+        },
+        traits::{ExchangeClient, Support},
+    },
+    lifecycle::application_manager::ApplicationManager,
+    orders::{
+        fill::EventSourceType,
+        order::{
+            ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo, OrderRole,
+            OrderSide, OrderSnapshot, OrderType,
+        },
+        pool::{OrderRef, OrdersPool},
+    },
+    settings::ExchangeSettings,
+};
+use actix_http::Uri;
+use anyhow::Result;
+use async_trait::async_trait;
+use dashmap::DashMap;
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 
-use super::{exchange::Exchange, symbol::Precision, symbol::Symbol};
-use crate::core::exchanges::binance::binance::BinanceBuilder;
-use crate::core::exchanges::events::ExchangeEvent;
-use crate::core::exchanges::general::features::*;
-use crate::core::exchanges::traits::ExchangeClientBuilder;
-use crate::core::lifecycle::application_manager::ApplicationManager;
-use crate::core::{
-    exchanges::binance::binance::Binance, exchanges::common::Amount,
-    exchanges::common::CurrencyPair, exchanges::common::ExchangeAccountId,
-    exchanges::common::Price, exchanges::events::AllowedEventSourceType,
-    exchanges::general::commission::Commission, exchanges::general::commission::CommissionForType,
-    exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
-    exchanges::timeouts::timeout_manager::TimeoutManager, orders::order::ClientOrderId,
-    orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
-    orders::order::OrderType, orders::pool::OrderRef, orders::pool::OrdersPool, settings,
+use mmb_utils::{cancellation_token::CancellationToken, DateTime};
+
+use super::{
+    handlers::handle_order_filled::FillEventData, order::get_order_trades::OrderTrade,
+    symbol::BeforeAfter,
 };
-use mmb_utils::cancellation_token::CancellationToken;
+
+pub struct TestClient;
+
+#[async_trait]
+impl ExchangeClient for TestClient {
+    async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn create_order(&self, _order: &OrderCreating) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_cancel_order(&self, _order: &OrderCancelling) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_open_orders_by_currency_pair(
+        &self,
+        _currency_pair: CurrencyPair,
+    ) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_order_info(&self, _order: &OrderRef) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_my_trades(
+        &self,
+        _symbol: &Symbol,
+        _last_date_time: Option<DateTime>,
+    ) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_get_position(&self) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_get_balance(&self) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn request_close_position(
+        &self,
+        _position: &ActivePosition,
+        _price: Option<Price>,
+    ) -> Result<RestRequestOutcome> {
+        unreachable!("doesn't need in UT")
+    }
+}
+
+#[async_trait]
+impl Support for TestClient {
+    fn is_rest_error_code(&self, _response: &RestRequestOutcome) -> Result<(), ExchangeError> {
+        unreachable!("doesn't need in UT")
+    }
+    fn get_order_id(&self, _response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
+        unreachable!("doesn't need in UT")
+    }
+    fn clarify_error_type(&self, __error: &mut ExchangeError) {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn on_websocket_message(&self, _msg: &str) -> Result<()> {
+        unreachable!("doesn't need in UT")
+    }
+    fn on_connecting(&self) -> Result<()> {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn set_order_created_callback(
+        &self,
+        _callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
+    ) {
+    }
+
+    fn set_order_cancelled_callback(
+        &self,
+        _callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
+    ) {
+    }
+
+    fn set_handle_order_filled_callback(
+        &self,
+        _callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
+    ) {
+    }
+
+    fn set_handle_trade_callback(
+        &self,
+        _callback: Box<
+            dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
+        >,
+    ) {
+    }
+
+    fn set_traded_specific_currencies(&self, _currencies: Vec<SpecificCurrencyPair>) {}
+
+    fn is_websocket_enabled(&self, _role: WebSocketRole) -> bool {
+        unreachable!("doesn't need in UT")
+    }
+
+    async fn create_ws_url(&self, _role: WebSocketRole) -> Result<Uri> {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn get_specific_currency_pair(&self, _currency_pair: CurrencyPair) -> SpecificCurrencyPair {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode> {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn should_log_message(&self, _message: &str) -> bool {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn log_unknown_message(&self, exchange_account_id: ExchangeAccountId, message: &str) {
+        log::info!("Unknown message for {}: {}", exchange_account_id, message);
+    }
+
+    fn parse_open_orders(&self, _response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
+        unreachable!("doesn't need in UT")
+    }
+    fn parse_order_info(&self, _response: &RestRequestOutcome) -> Result<OrderInfo> {
+        unreachable!("doesn't need in UT")
+    }
+    fn parse_all_symbols(&self, _response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn get_balance_reservation_currency_code(
+        &self,
+        symbol: Arc<Symbol>,
+        side: OrderSide,
+    ) -> CurrencyCode {
+        symbol.get_trade_code(side, BeforeAfter::Before)
+    }
+
+    fn parse_get_my_trades(
+        &self,
+        _response: &RestRequestOutcome,
+        _last_date_time: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Result<Vec<OrderTrade>> {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn get_settings(&self) -> &ExchangeSettings {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn parse_get_position(&self, _response: &RestRequestOutcome) -> Vec<ActivePosition> {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn parse_close_position(&self, _response: &RestRequestOutcome) -> Result<ClosedPosition> {
+        unreachable!("doesn't need in UT")
+    }
+
+    fn parse_get_balance(&self, _response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
+        unreachable!("doesn't need in UT")
+    }
+}
 
 pub(crate) fn get_test_exchange(
     is_derivative: bool,
@@ -86,23 +291,10 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
     symbol: Arc<Symbol>,
     exchange_account_id: ExchangeAccountId,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
-    let settings = settings::ExchangeSettings::new_short(
-        exchange_account_id,
-        "test_api_key".into(),
-        "test_secret_key".into(),
-        false,
-    );
-
     let application_manager = ApplicationManager::new(CancellationToken::new());
     let (tx, rx) = broadcast::channel(10);
 
-    let binance = Box::new(Binance::new(
-        "Binance_0".parse().expect("in test"),
-        settings.clone(),
-        tx.clone(),
-        application_manager.clone(),
-        false,
-    ));
+    let exchange_client = Box::new(TestClient);
     let referral_reward = dec!(40);
     let commission = Commission::new(
         CommissionForType::new(dec!(0.1), referral_reward),
@@ -111,7 +303,7 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
 
     let exchange = Exchange::new(
         exchange_account_id,
-        binance,
+        exchange_client,
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
@@ -123,7 +315,7 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
-        BinanceBuilder.get_timeout_arguments(),
+        RequestTimeoutArguments::from_requests_per_minute(1200),
         tx,
         application_manager,
         TimeoutManager::new(HashMap::new()),

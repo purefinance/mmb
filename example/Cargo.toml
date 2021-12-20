@@ -17,3 +17,4 @@ serde = { version = "1", features = ["derive", "rc"]}
 
 mmb_core = { path = "../core" }
 mmb_utils = { path = "../mmb_utils" }
+binance = { path = "../exchanges/binance" }

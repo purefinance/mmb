@@ -1,4 +1,6 @@
 use anyhow::Result;
+use binance::binance::BinanceBuilder;
+use mmb_core::core::exchanges::traits::ExchangeClientBuilder;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +38,8 @@ impl BaseStrategySettings for ExampleStrategySettings {
 #[allow(dead_code)]
 #[actix_web::main]
 async fn main() -> Result<()> {
-    let engine_config = EngineBuildConfig::standard();
+    let engine_config =
+        EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
 
     let init_settings = InitSettings::<ExampleStrategySettings>::Load(
         CONFIG_PATH.to_owned(),
