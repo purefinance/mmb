@@ -88,14 +88,14 @@ impl WebSocketConnection {
         Ok(ws)
     }
 
-    pub async fn send_string(&self, text: &str) -> std::result::Result<(), Error> {
+    pub async fn send_string(&self, text: String) -> std::result::Result<(), Error> {
         log::info!(
             "WebsocketActor {} {:?} send msg: {}",
             self.exchange_account_id,
             self.role,
             text
         );
-        self.send(Message::Text(text.to_owned())).await
+        self.send(Message::Text(text)).await
     }
 
     pub async fn send_force_close(&self) -> std::result::Result<(), Error> {
@@ -167,6 +167,8 @@ impl WebSocketConnection {
     async fn heartbeat(this: Arc<WebSocketConnection>) -> Result<()> {
         let mut heartbeat_interval = time::interval(HEARTBEAT_INTERVAL);
         loop {
+            heartbeat_interval.tick().await;
+
             let last_heartbeat_time = *this.last_heartbeat_time.lock();
             if Instant::now().duration_since(last_heartbeat_time) > HEARTBEAT_FAIL_TIMEOUT {
                 log::trace!(
@@ -188,8 +190,6 @@ impl WebSocketConnection {
                     err.to_string()
                 )
             }
-
-            heartbeat_interval.tick().await;
         }
 
         Ok(())
@@ -197,10 +197,7 @@ impl WebSocketConnection {
 
     async fn handle_websocket_message(&self, msg: Message) {
         match msg {
-            Message::Text(ref text) => {
-                // println!("{:?}", text);
-                self.connectivity_manager_notifier.message_received(text)
-            }
+            Message::Text(ref text) => self.connectivity_manager_notifier.message_received(text),
             Message::Binary(bytes) => log::trace!(
                 "Websocket {} {:?} got binary message: {:x?}",
                 self.exchange_account_id,
@@ -224,7 +221,6 @@ impl WebSocketConnection {
                     self.exchange_account_id,
                     self.role,
                     reason
-                        .clone()
                         .map(|x| x.reason.to_string())
                         .unwrap_or("None".to_string())
                 );

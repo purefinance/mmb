@@ -43,7 +43,8 @@ pub async fn connect_and_send_msg() {
          "btcusdt@aggTrade"
        ],
        "id": 1
-    }"#,
+    }"#
+            .to_string(),
         )
         .await
         .expect("Failed to send message");

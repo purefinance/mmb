@@ -209,7 +209,7 @@ impl ConnectivityManager {
             .borrow()
             .state
         {
-            let sending_result = websocket.send_string(message).await;
+            let sending_result = websocket.send_string(message.to_owned()).await;
             if let Err(ref err) = sending_result {
                 log::error!(
                     "Error {} happened when sending to websocket {} message: {}",
