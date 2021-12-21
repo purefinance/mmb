@@ -14,7 +14,7 @@ use mmb_utils::logger::init_logger;
 
 use super::binance_builder::BinanceBuilder;
 
-#[actix_rt::test]
+#[tokio::test]
 async fn get_balance_successfully() {
     init_logger();
 

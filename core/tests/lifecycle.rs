@@ -43,7 +43,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test]
 #[ignore] // TODO: need to fix problem with empty keys for binance
 async fn launch_engine() -> Result<()> {
     struct TestStrategy;

@@ -51,7 +51,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 }
 
-#[actix_rt::test]
+#[tokio::test]
 async fn orders_cancelled() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
     struct TestStrategy;

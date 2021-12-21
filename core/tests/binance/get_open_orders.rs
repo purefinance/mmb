@@ -12,7 +12,7 @@ use crate::get_binance_credentials_or_exit;
 
 use rust_decimal_macros::dec;
 
-#[actix_rt::test]
+#[tokio::test]
 async fn open_orders_exists() {
     init_logger();
 
@@ -84,7 +84,7 @@ async fn open_orders_exists() {
 }
 
 /// It's matter to check branch for OneCurrencyPair variant
-#[actix_rt::test]
+#[tokio::test]
 async fn get_open_orders_for_each_currency_pair_separately() {
     init_logger();
 
