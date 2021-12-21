@@ -2,13 +2,10 @@ use std::fs::read_to_string;
 use std::{collections::HashMap, io::Write};
 use std::{fmt::Debug, fs::File};
 
-use crate::core::infrastructure::WithExpect;
-use crate::{
-    core::settings::{AppSettings, BaseStrategySettings},
-    hashmap,
-};
+use crate::core::settings::{AppSettings, BaseStrategySettings};
 use anyhow::{anyhow, Context, Result};
 use mmb_utils::hashmap;
+use mmb_utils::infrastructure::WithExpect;
 use serde::de::DeserializeOwned;
 use toml_edit::{value, ArrayOfTables, Document, Table};
 
@@ -23,9 +20,9 @@ where
     TSettings: BaseStrategySettings + Clone + Debug + DeserializeOwned,
 {
     let mut settings = read_to_string(config_path)
-        .with_expect(|| format!("Unable load settings file: {}", config_path))?;
+        .with_expect(|| format!("Unable load settings file: {}", config_path));
     let mut credentials = read_to_string(credentials_path)
-        .with_expect(|| format!("Unable load credentials file: {}", credentials_path))?;
+        .with_expect(|| format!("Unable load credentials file: {}", credentials_path));
 
     parse_settings(&mut settings, &mut credentials).expect("Error in parse_settings")
 }
