@@ -10,7 +10,7 @@ use mmb_utils::logger::init_logger;
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::OrderProxy;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancelled_successfully() {
     init_logger();
 
@@ -55,7 +55,7 @@ async fn cancelled_successfully() {
         .await;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancel_opened_orders_successfully() {
     init_logger();
 
@@ -127,7 +127,7 @@ async fn cancel_opened_orders_successfully() {
     assert_eq!(orders.len(), 0);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn nothing_to_cancel() {
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(

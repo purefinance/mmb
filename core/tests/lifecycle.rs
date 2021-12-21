@@ -43,7 +43,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore] // TODO: need to fix problem with empty keys for binance
 async fn launch_engine() -> Result<()> {
     struct TestStrategy;

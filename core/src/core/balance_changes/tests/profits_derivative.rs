@@ -36,7 +36,7 @@ mod tests {
         (usd_converter, usd_converter_locker)
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_profit_by_side_and_price_no_commission() {
         let cases = vec![
             (OrderSide::Buy, dec!(8_000), dec!(4_000), dec!(-50)), // buy, price dropped
@@ -75,7 +75,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_profit_by_side_and_price_with_commission() {
         let cases = vec![
             (OrderSide::Buy, dec!(8_000), dec!(8_000), dec!(-10)), // no price change, minus commission
@@ -114,7 +114,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_profit_two_orders_with_commission() {
         let first_price = dec!(10_000);
         let second_price = dec!(2_000);

@@ -14,7 +14,7 @@ use mmb_utils::logger::init_logger;
 
 use super::binance_builder::BinanceBuilder;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_balance_successfully() {
     init_logger();
 

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use url::Url;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 pub async fn connect_and_send_msg() {
     let url: Url = "wss://stream.binance.com:9443/stream?streams=bnbbtc@depth"
         .parse()

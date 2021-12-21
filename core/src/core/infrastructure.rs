@@ -92,6 +92,13 @@ pub fn spawn_by_timer(
     )
 }
 
+pub async fn timeout_future<T>(future: impl Future<Output = T>, timeout: Duration) {
+    tokio::select! {
+        _ = future => nothing_to_do(),
+        _ = tokio::time::sleep(timeout) => panic!("Timeout was exceeded ({} ms)", timeout.as_millis()),
+    }
+}
+
 #[cfg(test)]
 mod test {
     use mmb_utils::{cancellation_token::CancellationToken, OPERATION_CANCELED_MSG};
@@ -100,7 +107,7 @@ mod test {
     use anyhow::Result;
     use futures::FutureExt;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn panic_with_application_manager() -> Result<()> {
         // Arrange
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };

@@ -144,7 +144,7 @@ mod tests {
     use anyhow::Result;
     use tokio::sync::oneshot::Receiver;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn success() {
         init_logger();
 
@@ -175,7 +175,7 @@ mod tests {
         assert_eq!(not_dropped_services.len(), 0);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn failed() {
         init_logger();
 
