@@ -5,6 +5,7 @@ members = [
     "core_tests",
     "example",
     "exchanges/binance",
+    "exchanges/serum",
     "mmb_rpc",
     "mmb_utils"
 ]
