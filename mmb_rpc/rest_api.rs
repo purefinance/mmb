@@ -1,7 +1,10 @@
 use jsonrpc_core::{Error, Result};
 use jsonrpc_derive::rpc;
 
-pub static IPC_ADDRESS: &str = "/tmp/mmb.ipc";
+#[cfg(unix)]
+pub static IPC_ADDRESS: &str = "/tmp/mmb_core.ipc";
+#[cfg(windows)]
+pub static IPC_ADDRESS: &str = r#"\\.\pipe\mmb_core"#;
 
 #[rpc]
 pub trait MmbRpc {
