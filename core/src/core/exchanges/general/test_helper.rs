@@ -35,7 +35,6 @@ use crate::core::{
     },
     settings::ExchangeSettings,
 };
-use actix_http::Uri;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -44,6 +43,7 @@ use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
+use url::Url;
 
 use super::{
     handlers::handle_order_filled::FillEventData, order::get_order_trades::OrderTrade,
@@ -165,7 +165,7 @@ impl Support for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn create_ws_url(&self, _role: WebSocketRole) -> Result<Uri> {
+    async fn create_ws_url(&self, _role: WebSocketRole) -> Result<Url> {
         unimplemented!("doesn't need in UT")
     }
 
