@@ -1,0 +1,1 @@
+A simple library with common stuff
