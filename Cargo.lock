@@ -398,6 +398,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
+ "url 2.2.2",
 ]
 
 [[package]]
