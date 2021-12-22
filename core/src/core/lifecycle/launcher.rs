@@ -19,7 +19,7 @@ use crate::core::{
     disposition_execution::executor::DispositionExecutorService,
     infrastructure::{keep_application_manager, spawn_future},
 };
-use crate::rest_api::control_panel::ControlPanel;
+use crate::rpc::control_panel::ControlPanel;
 use crate::strategies::disposition_strategy::DispositionStrategy;
 use anyhow::{anyhow, Result};
 use core::fmt::Debug;
