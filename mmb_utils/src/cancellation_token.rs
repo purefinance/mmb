@@ -110,7 +110,7 @@ mod tests {
         token.cancel();
 
         let max_timeout = Duration::from_secs(2);
-        timeout_future(token.when_cancelled(), max_timeout).await;
+        with_timeout(max_timeout, token.when_cancelled()).await;
 
         assert_eq!(token.is_cancellation_requested(), true);
     }
@@ -134,8 +134,8 @@ mod tests {
         token.cancel();
 
         let max_timeout = Duration::from_secs(2);
-        timeout_future(token1.when_cancelled(), max_timeout).await;
-        timeout_future(token2.when_cancelled(), max_timeout).await;
+        with_timeout(max_timeout, token1.when_cancelled()).await;
+        with_timeout(max_timeout, token2.when_cancelled()).await;
 
         assert_eq!(token.is_cancellation_requested(), true);
     }

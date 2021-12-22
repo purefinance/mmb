@@ -53,7 +53,7 @@ pub async fn connect_and_send_msg() {
         .send_force_close()
         .await
         .expect("Failed to disconnect websocket");
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     assert_eq!(
         websocket_connection.is_connected(),

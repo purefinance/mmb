@@ -92,10 +92,13 @@ pub fn spawn_by_timer(
     )
 }
 
-pub async fn timeout_future<T>(future: impl Future<Output = T>, timeout: Duration) {
+pub async fn with_timeout<T, Fut>(timeout: Duration, fut: Fut) -> T
+where
+    Fut: Future<Output = T>,
+{
     tokio::select! {
-        _ = future => nothing_to_do(),
-        _ = tokio::time::sleep(timeout) => panic!("Timeout was exceeded ({} ms)", timeout.as_millis()),
+        result = fut => result,
+        _ = tokio::time::sleep(timeout) => panic!("Timeout {} ms is exceeded", timeout.as_millis()),
     }
 }
 
