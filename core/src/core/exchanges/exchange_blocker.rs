@@ -1,15 +1,13 @@
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::exchange_blocker::ProgressStatus::ProgressBlocked;
-use crate::core::nothing_to_do;
-use crate::core::{
-    infrastructure::{spawn_future, FutureOutcome},
-    lifecycle::cancellation_token::CancellationToken,
-};
+use crate::core::infrastructure::spawn_future;
 use futures::{
     future::{join_all, BoxFuture},
     FutureExt,
 };
 use itertools::Itertools;
+use mmb_utils::{cancellation_token::CancellationToken, infrastructure::FutureOutcome};
+use mmb_utils::{impl_mock_initializer, nothing_to_do};
 use parking_lot::{Mutex, RwLock};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -22,6 +20,8 @@ use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep_until, Duration, Instant};
 
+#[cfg(test)]
+use crate::MOCK_MUTEX;
 #[cfg(test)]
 use mockall::automock;
 
@@ -781,7 +781,7 @@ impl ExchangeBlocker {
     }
 }
 
-crate::impl_mock_initializer!(MockExchangeBlocker);
+impl_mock_initializer!(MockExchangeBlocker);
 
 #[cfg(test)]
 mod tests {
@@ -790,12 +790,11 @@ mod tests {
     use crate::core::exchanges::exchange_blocker::{
         BlockReason, ExchangeBlocker, ExchangeBlockerMoment,
     };
-    use crate::core::nothing_to_do;
-    use crate::core::{
-        infrastructure::spawn_future, lifecycle::cancellation_token::CancellationToken,
-    };
+    use crate::core::infrastructure::spawn_future;
     use futures::future::{join, join_all};
     use futures::FutureExt;
+    use mmb_utils::cancellation_token::CancellationToken;
+    use mmb_utils::nothing_to_do;
     use parking_lot::Mutex;
     use rand::Rng;
     use std::iter::repeat_with;

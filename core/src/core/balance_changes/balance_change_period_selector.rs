@@ -5,6 +5,7 @@ use std::{
 
 use chrono::Duration;
 use itertools::Itertools;
+use mmb_utils::DateTime;
 use mockall_double::double;
 use parking_lot::Mutex;
 
@@ -16,7 +17,6 @@ use crate::core::misc::time::time_manager;
 use crate::core::{
     balance_changes::profit_loss_balance_change::ProfitLossBalanceChange,
     balance_manager::position_change::PositionChange, exchanges::common::TradePlaceAccount,
-    DateTime,
 };
 
 pub(crate) struct BalanceChangePeriodSelector {

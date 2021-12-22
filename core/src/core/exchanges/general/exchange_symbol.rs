@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
 use dashmap::DashMap;
 use itertools::Itertools;
+use mmb_utils::infrastructure::WithExpect;
 use rust_decimal_macros::dec;
 use std::sync::Arc;
 
 use crate::core::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId};
-use crate::core::infrastructure::WithExpect;
 use crate::core::settings::CurrencyPairSetting;
 
 use super::{exchange::Exchange, symbol::Symbol};

@@ -5,8 +5,8 @@ use anyhow::{bail, Result};
 use parking_lot::Mutex;
 use tokio::sync::Notify;
 
-use crate::core::nothing_to_do;
-use crate::core::OPERATION_CANCELED_MSG;
+use crate::nothing_to_do;
+use crate::OPERATION_CANCELED_MSG;
 
 #[derive(Default)]
 struct CancellationState {
@@ -83,9 +83,7 @@ impl CancellationToken {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::{
-        infrastructure::spawn_future, lifecycle::cancellation_token::CancellationToken,
-    };
+    use crate::{cancellation_token::CancellationToken, infrastructure::spawn_future};
     use futures::FutureExt;
     use parking_lot::Mutex;
     use std::sync::Arc;
@@ -169,7 +167,13 @@ mod tests {
 
             Ok(())
         };
-        spawn_future("handle_inner for schedule_handler()", true, action.boxed());
+
+        spawn_future(
+            "handle_inner for schedule_handler()",
+            true,
+            action.boxed(),
+            |_, _| {},
+        );
     }
 
     #[tokio::test]

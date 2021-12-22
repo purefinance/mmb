@@ -1,6 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
 use futures::FutureExt;
+use mmb_utils::{
+    cancellation_token::CancellationToken,
+    send_expected::{SendExpectedAsync, SendExpectedByRef},
+    DateTime,
+};
 use mockall_double::double;
 use tokio::sync::mpsc;
 
@@ -11,17 +16,15 @@ use crate::core::misc::time::time_manager;
 #[double]
 use crate::core::services::usd_converter::usd_converter::UsdConverter;
 
-use crate::core::misc::traits_ext::send_expected::{SendExpectedAsync, SendExpectedByRef};
 use crate::core::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
-    lifecycle::{application_manager::ApplicationManager, cancellation_token::CancellationToken},
+    lifecycle::application_manager::ApplicationManager,
     orders::{
         fill::OrderFill,
         order::{ClientOrderFillId, OrderSnapshot},
     },
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
-    DateTime,
 };
 
 use super::{

@@ -1,4 +1,5 @@
 use futures::{Future, FutureExt};
+use mmb_utils::nothing_to_do;
 use tokio::sync::{Mutex, MutexGuard};
 use tokio::task::JoinHandle;
 
@@ -6,9 +7,8 @@ use std::panic;
 use std::sync::{Arc, Weak};
 
 use crate::core::lifecycle::trading_engine::EngineContext;
-use crate::core::nothing_to_do;
 
-use super::cancellation_token::CancellationToken;
+use mmb_utils::cancellation_token::CancellationToken;
 
 pub struct ApplicationManager {
     cancellation_token: CancellationToken,

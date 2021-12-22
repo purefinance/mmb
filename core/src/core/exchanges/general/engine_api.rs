@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
+#[cfg(test)]
+use crate::MOCK_MUTEX;
 use futures::future::join_all;
 use itertools::Itertools;
+use mmb_utils::{cancellation_token::CancellationToken, impl_mock_initializer};
 #[cfg(test)]
 use mockall::automock;
 
-use crate::core::{
-    exchanges::common::ClosedPosition, lifecycle::cancellation_token::CancellationToken,
-};
+use crate::core::exchanges::common::ClosedPosition;
 
 use super::exchange::Exchange;
 
@@ -56,4 +57,4 @@ impl EngineApi {
     }
 }
 
-crate::impl_mock_initializer!(MockEngineApi);
+impl_mock_initializer!(MockEngineApi);

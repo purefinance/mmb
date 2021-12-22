@@ -11,7 +11,6 @@ use crate::core::exchanges::events::ExchangeEvent;
 use crate::core::exchanges::general::features::*;
 use crate::core::exchanges::traits::ExchangeClientBuilder;
 use crate::core::lifecycle::application_manager::ApplicationManager;
-use crate::core::lifecycle::cancellation_token::CancellationToken;
 use crate::core::{
     exchanges::binance::binance::Binance, exchanges::common::Amount,
     exchanges::common::CurrencyPair, exchanges::common::ExchangeAccountId,
@@ -22,6 +21,7 @@ use crate::core::{
     orders::order::OrderRole, orders::order::OrderSide, orders::order::OrderSnapshot,
     orders::order::OrderType, orders::pool::OrderRef, orders::pool::OrdersPool, settings,
 };
+use mmb_utils::cancellation_token::CancellationToken;
 
 pub(crate) fn get_test_exchange(
     is_derivative: bool,

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use crate::core::{
-    exchanges::common::TradePlace, lifecycle::cancellation_token::CancellationToken,
-    misc::price_by_order_side::PriceByOrderSide, DateTime,
-};
+use mmb_utils::{cancellation_token::CancellationToken, DateTime};
+
+use crate::core::{exchanges::common::TradePlace, misc::price_by_order_side::PriceByOrderSide};
 
 pub struct PriceSourcesLoader {
     // TODO: fix when DatabaseManager will be added

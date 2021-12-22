@@ -1,18 +1,16 @@
-use mmb_core::core::{
-    exchanges::{
-        common::ExchangeAccountId,
-        events::AllowedEventSourceType,
-        general::{
-            commission::Commission,
-            features::{
-                ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
-                RestFillsFeatures, WebSocketOptions,
-            },
+use mmb_core::core::exchanges::{
+    common::ExchangeAccountId,
+    events::AllowedEventSourceType,
+    general::{
+        commission::Commission,
+        features::{
+            ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
+            WebSocketOptions,
         },
     },
-    lifecycle::cancellation_token::CancellationToken,
-    logger::init_logger,
 };
+use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::logger::init_logger;
 
 use super::binance_builder::BinanceBuilder;
 

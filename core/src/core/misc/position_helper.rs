@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use futures::FutureExt;
+use mmb_utils::{cancellation_token::CancellationToken, infrastructure::FutureOutcome};
 use mockall_double::double;
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
@@ -11,9 +12,7 @@ use crate::core::balance_manager::balance_manager::BalanceManager;
 use crate::core::exchanges::general::engine_api::EngineApi;
 
 use crate::core::{
-    exchanges::common::TradePlaceAccount,
-    infrastructure::{spawn_future_timed, FutureOutcome},
-    lifecycle::cancellation_token::CancellationToken,
+    exchanges::common::TradePlaceAccount, infrastructure::spawn_future_timed,
     orders::order::OrderSide,
 };
 

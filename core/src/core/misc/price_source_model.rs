@@ -1,7 +1,6 @@
-use crate::core::{
-    exchanges::common::{CurrencyPair, ExchangeId, Price},
-    DateTime,
-};
+use mmb_utils::DateTime;
+
+use crate::core::exchanges::common::{CurrencyPair, ExchangeId, Price};
 
 pub(crate) struct PriceSourceModel {
     pub init_time: DateTime,

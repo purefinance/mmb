@@ -1,4 +1,5 @@
 use chrono::Utc;
+use mmb_utils::hashmap;
 use parking_lot::Mutex;
 use parking_lot::MutexGuard;
 use rust_decimal::Decimal;
@@ -25,7 +26,6 @@ use crate::core::{
         order::{OrderFillRole, OrderSide},
     },
 };
-use crate::hashmap;
 
 pub struct BalanceManagerDerivative {
     balance_manager_base: BalanceManagerBase,
@@ -232,6 +232,8 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
+    use mmb_utils::hashmap;
+    use mmb_utils::logger::init_logger;
     use parking_lot::RwLock;
     use rstest::rstest;
     use rust_decimal::Decimal;
@@ -241,11 +243,9 @@ mod tests {
     use crate::core::balance_manager::tests::balance_manager_base::BalanceManagerBase;
     use crate::core::exchanges::common::{Amount, CurrencyCode, Price};
     use crate::core::explanation::Explanation;
-    use crate::core::logger::init_logger;
 
     use crate::core::orders::order::{OrderSide, OrderStatus, ReservationId};
     use crate::core::orders::pool::OrdersPool;
-    use crate::hashmap;
 
     use super::BalanceManagerDerivative;
 

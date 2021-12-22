@@ -1,4 +1,8 @@
 #[cfg(test)]
+use crate::MOCK_MUTEX;
+use mmb_utils::impl_mock_initializer;
+use mmb_utils::infrastructure::WithExpect;
+#[cfg(test)]
 use mockall::automock;
 
 use std::collections::HashMap;
@@ -8,7 +12,6 @@ use crate::core::exchanges::common::CurrencyPair;
 use crate::core::exchanges::common::ExchangeAccountId;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::general::symbol::Symbol;
-use crate::core::infrastructure::WithExpect;
 
 #[derive(Clone)]
 pub struct CurrencyPairToSymbolConverter {
@@ -45,5 +48,4 @@ impl CurrencyPairToSymbolConverter {
     }
 }
 
-#[cfg(test)]
-crate::impl_mock_initializer!(MockCurrencyPairToSymbolConverter);
+impl_mock_initializer!(MockCurrencyPairToSymbolConverter);

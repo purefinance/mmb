@@ -2,13 +2,13 @@ use anyhow::Result;
 use futures::Future;
 use log::info;
 use mmb_core::core::exchanges::general::features::*;
-use mmb_core::core::lifecycle::cancellation_token::CancellationToken;
 use mmb_core::core::{
     connectivity::connectivity_manager::ConnectivityManager,
     connectivity::websocket_connection::WebSocketParams, exchanges::common::ExchangeAccountId,
     exchanges::events::AllowedEventSourceType, exchanges::general::commission::Commission,
     exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
 };
+use mmb_utils::cancellation_token::CancellationToken;
 use parking_lot::Mutex;
 use std::time::Duration;
 use std::{pin::Pin, sync::Arc};

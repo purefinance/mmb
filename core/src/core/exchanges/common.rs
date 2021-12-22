@@ -1,7 +1,8 @@
-use crate::core::infrastructure::WithExpect;
 use anyhow::Result;
 use awc::http::StatusCode;
 use itertools::Itertools;
+use mmb_utils::infrastructure::WithExpect;
+use mmb_utils::{impl_table_type, impl_table_type_raw};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use rust_decimal::*;
@@ -133,120 +134,6 @@ impl Debug for ExchangeAccountId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}_{}", self.exchange_id.as_str(), self.account_number)
     }
-}
-
-// Implement type with specified name based on AppendTable8 or AppendTable16 with methods:
-// from_raw - private constructor
-// as_str
-//
-// and implementations for traits:
-// fmt::Display
-// serde::Serialize
-// serde::Deserialize
-#[macro_export]
-macro_rules! impl_table_type_raw {
-    ($ty: ident, $bits:literal) => {
-        paste::paste! {
-            #[derive(Copy, Clone, Eq, PartialEq, Hash)]
-            pub struct $ty([<u $bits>]);
-        }
-
-        paste::paste! {
-            #[allow(unused_qualifications)]
-            static [<SHARED_ $ty:snake:upper>]: once_cell::sync::Lazy<crate::core::utils::[<AppendTable $bits>]>
-                = once_cell::sync::Lazy::new(|| crate::core::utils::[<AppendTable $bits>]::new() );
-        }
-
-        impl $ty {
-            fn from_raw(value: &str) -> Self {
-                Self(paste::paste! { [<SHARED_ $ty:snake:upper>] }.add_or_get(value))
-            }
-
-            /// Extracts a string slice containing the entire string.
-            pub fn as_str(&self) -> &str {
-                paste::paste! { [<SHARED_ $ty:snake:upper>].get_str(self.0) }
-            }
-        }
-
-        #[allow(unused_qualifications)]
-        impl std::fmt::Display for $ty {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                std::fmt::Display::fmt(&self.as_str(), f)
-            }
-        }
-
-        #[allow(unused_qualifications)]
-        impl std::fmt::Debug for $ty {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                std::fmt::Debug::fmt( self.as_str(), f)
-            }
-        }
-
-        paste::paste! {
-            struct [<$ty Visitor>];
-        }
-
-        paste::paste! {
-            #[allow(unused_qualifications)]
-            impl<'de> serde::de::Visitor<'de> for [<$ty Visitor>] {
-                type Value = $ty;
-
-                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                    write!(formatter, "string for {}", stringify!($ty))
-                }
-
-                fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    Ok(<$ty>::from_raw(v))
-                }
-            }
-        }
-
-        #[allow(unused_qualifications)]
-        impl<'de> serde::de::Deserialize<'de> for $ty {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::de::Deserializer<'de>,
-            {
-                paste::paste! {
-                    deserializer.deserialize_str([<$ty Visitor>])
-                }
-            }
-        }
-
-        #[allow(unused_qualifications)]
-        impl serde::ser::Serialize for $ty {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: serde::ser::Serializer,
-            {
-                serializer.serialize_str(self.as_str())
-            }
-        }
-    };
-}
-
-#[macro_export]
-#[allow(unused_qualifications)]
-macro_rules! impl_table_type {
-    ($ty: ident, $bits:literal) => {
-        crate::impl_table_type_raw!($ty, $bits);
-
-        impl $ty {
-            pub fn new(value: &str) -> Self {
-                Self(paste::paste! { [<SHARED_ $ty:snake:upper>] }.add_or_get(value))
-            }
-        }
-
-        impl From<&str> for $ty {
-            #[inline]
-            fn from(value: &str) -> Self {
-                $ty::from_raw(value)
-            }
-        }
-    };
 }
 
 // unique ID of exchange

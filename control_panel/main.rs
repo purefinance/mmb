@@ -33,7 +33,7 @@ async fn control_panel_run() {
 
 #[actix_web::main]
 async fn main() {
-    // TODO: fix me when it will be in lib crate
+    // TODO: fix #316
     // init_logger();
 
     AssertUnwindSafe(control_panel_run())

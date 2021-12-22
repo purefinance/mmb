@@ -1,6 +1,6 @@
 use std::hash::Hash;
 
-use crate::impl_table_type;
+use mmb_utils::impl_table_type;
 
 // An unique name of service, like strategy name or something else.
 impl_table_type!(ServiceName, 16);

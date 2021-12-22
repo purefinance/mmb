@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use itertools::Itertools;
+use mmb_utils::DateTime;
 
 use crate::core::{
     exchanges::{
@@ -9,7 +10,6 @@ use crate::core::{
         timeouts::timeout_manager,
     },
     orders::order::OrderSide,
-    DateTime,
 };
 
 impl Exchange {

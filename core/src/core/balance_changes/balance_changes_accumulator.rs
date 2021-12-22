@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::core::lifecycle::cancellation_token::CancellationToken;
+use mmb_utils::cancellation_token::CancellationToken;
 
 use super::profit_loss_balance_change::ProfitLossBalanceChange;
 

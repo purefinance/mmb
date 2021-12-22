@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use mmb_utils::cancellation_token::CancellationToken;
 use mockall_double::double;
 use parking_lot::Mutex;
 
@@ -17,7 +18,6 @@ use crate::core::{
         common::{Amount, TradePlaceAccount},
         exchange_blocker::{BlockReason, BlockType},
     },
-    lifecycle::cancellation_token::CancellationToken,
     misc::position_helper,
 };
 
@@ -132,6 +132,8 @@ mod test {
     use std::sync::Arc;
 
     use chrono::Duration;
+    use mmb_utils::logger::init_logger;
+    use mmb_utils::DateTime;
     use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal_macros::dec;
 
@@ -147,10 +149,8 @@ mod test {
         exchanges::common::{
             Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, TradePlaceAccount,
         },
-        logger::init_logger,
         misc::time,
         orders::order::ClientOrderFillId,
-        DateTime,
     };
 
     use super::ProfitLossStopper;

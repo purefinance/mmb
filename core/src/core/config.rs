@@ -2,11 +2,9 @@ use std::fs::read_to_string;
 use std::{collections::HashMap, io::Write};
 use std::{fmt::Debug, fs::File};
 
-use crate::{
-    core::settings::{AppSettings, BaseStrategySettings},
-    hashmap,
-};
+use crate::core::settings::{AppSettings, BaseStrategySettings};
 use anyhow::{anyhow, Context, Result};
+use mmb_utils::hashmap;
 use serde::de::DeserializeOwned;
 use toml_edit::{value, ArrayOfTables, Document, Table};
 

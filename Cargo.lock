@@ -676,6 +676,7 @@ dependencies = [
  "anyhow",
  "itertools",
  "mmb_core",
+ "mmb_utils",
  "rust_decimal",
  "rust_decimal_macros",
  "serde",
@@ -1322,7 +1323,6 @@ dependencies = [
  "crypto-mac",
  "dashmap",
  "enum-map",
- "fern",
  "form_urlencoded",
  "futures 0.3.18",
  "hex",
@@ -1336,6 +1336,7 @@ dependencies = [
  "libc",
  "log",
  "mmb_rpc",
+ "mmb_utils",
  "mockall",
  "mockall_double",
  "once_cell",
@@ -1369,6 +1370,29 @@ dependencies = [
  "jsonrpc-core-client",
  "jsonrpc-derive",
  "log",
+]
+
+[[package]]
+name = "mmb_utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "fern",
+ "futures 0.3.18",
+ "log",
+ "mockall",
+ "mockall_double",
+ "once_cell",
+ "parking_lot",
+ "paste",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+ "smallstr",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

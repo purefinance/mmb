@@ -1,10 +1,8 @@
-use crate::core::infrastructure::WithExpect;
 use parking_lot::Mutex;
 use paste::paste;
 use std::collections::HashMap;
-use std::convert::TryInto;
-use std::sync::atomic::AtomicU64;
-use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::infrastructure::WithExpect;
 
 // Declare methods add_or_get and get_str for structs AppendTable8 and AppendTable16 according to its item bit count
 // This types keep items in static tables with fixed sizes
@@ -78,7 +76,7 @@ struct AppendTable8Inner {
     buffer: [Option<&'static str>; 256],
 }
 
-pub(crate) struct AppendTable8(Mutex<AppendTable8Inner>);
+pub struct AppendTable8(Mutex<AppendTable8Inner>);
 
 /// Append only table for keeping small number (<= 256) of strings with different values
 /// Expected using as static table (live whole time that program work)
@@ -103,7 +101,7 @@ struct AppendTable16Inner {
     buffer: Vec<Option<&'static str>>,
 }
 
-pub(crate) struct AppendTable16(Mutex<AppendTable16Inner>);
+pub struct AppendTable16(Mutex<AppendTable16Inner>);
 
 /// Append only table for keeping small number (<= 65536) of strings with different values
 /// Expected using as static table (live whole time that program work)
@@ -118,29 +116,116 @@ impl AppendTable16 {
 
 impl_append_table!(16);
 
-pub(crate) fn get_current_milliseconds() -> u128 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Unable to get time since unix epoch started")
-        .as_millis()
+// Implement type with specified name based on AppendTable8 or AppendTable16 with methods:
+// from_raw - private constructor
+// as_str
+//
+// and implementations for traits:
+// fmt::Display
+// serde::Serialize
+// serde::Deserialize
+#[macro_export]
+macro_rules! impl_table_type_raw {
+    ($ty: ident, $bits:literal) => {
+        paste::paste! {
+            #[derive(Copy, Clone, Eq, PartialEq, Hash)]
+            pub struct $ty([<u $bits>]);
+        }
+
+        paste::paste! {
+            #[allow(unused_qualifications)]
+            static [<SHARED_ $ty:snake:upper>]: once_cell::sync::Lazy<mmb_utils::impl_table_types::[<AppendTable $bits>]>
+                = once_cell::sync::Lazy::new(|| mmb_utils::impl_table_types::[<AppendTable $bits>]::new() );
+        }
+
+        impl $ty {
+            fn from_raw(value: &str) -> Self {
+                Self(paste::paste! { [<SHARED_ $ty:snake:upper>] }.add_or_get(value))
+            }
+
+            /// Extracts a string slice containing the entire string.
+            pub fn as_str(&self) -> &str {
+                paste::paste! { [<SHARED_ $ty:snake:upper>].get_str(self.0) }
+            }
+        }
+
+        #[allow(unused_qualifications)]
+        impl std::fmt::Display for $ty {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Display::fmt(&self.as_str(), f)
+            }
+        }
+
+        #[allow(unused_qualifications)]
+        impl std::fmt::Debug for $ty {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                std::fmt::Debug::fmt( self.as_str(), f)
+            }
+        }
+
+        paste::paste! {
+            struct [<$ty Visitor>];
+        }
+
+        paste::paste! {
+            #[allow(unused_qualifications)]
+            impl<'de> serde::de::Visitor<'de> for [<$ty Visitor>] {
+                type Value = $ty;
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    write!(formatter, "string for {}", stringify!($ty))
+                }
+
+                fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+                where
+                    E: serde::de::Error,
+                {
+                    Ok(<$ty>::from_raw(v))
+                }
+            }
+        }
+
+        #[allow(unused_qualifications)]
+        impl<'de> serde::de::Deserialize<'de> for $ty {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::de::Deserializer<'de>,
+            {
+                paste::paste! {
+                    deserializer.deserialize_str([<$ty Visitor>])
+                }
+            }
+        }
+
+        #[allow(unused_qualifications)]
+        impl serde::ser::Serialize for $ty {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::ser::Serializer,
+            {
+                serializer.serialize_str(self.as_str())
+            }
+        }
+    };
 }
 
-/// Function should be used for initialization of unique IDs based on incrementing AtomicU64 counter.
-/// Returned value initialized with current UNIX time.
-/// # Example:
-/// ```ignore
-/// use once_cell::sync::Lazy;
-/// use std::sync::atomic::{AtomicU64, Ordering};
-///
-/// static CLIENT_ORDER_ID_COUNTER: Lazy<AtomicU64> = Lazy::new(|| get_atomic_current_secs());
-///
-/// let new_id = CLIENT_ORDER_ID_COUNTER.fetch_add(1, Ordering::AcqRel);
-/// ```
-pub fn get_atomic_current_secs() -> AtomicU64 {
-    AtomicU64::new(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Failed to get system time since UNIX_EPOCH")
-            .as_secs(),
-    )
+#[macro_export]
+#[allow(unused_qualifications)]
+macro_rules! impl_table_type {
+    ($ty: ident, $bits:literal) => {
+        mmb_utils::impl_table_type_raw!($ty, $bits);
+
+        impl $ty {
+            pub fn new(value: &str) -> Self {
+                Self(paste::paste! { [<SHARED_ $ty:snake:upper>] }.add_or_get(value))
+            }
+        }
+
+        impl From<&str> for $ty {
+            #[inline]
+            fn from(value: &str) -> Self {
+                $ty::from_raw(value)
+            }
+        }
+    };
 }

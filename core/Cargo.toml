@@ -13,7 +13,6 @@ uuid = { version = "0.8", features = ["serde", "v4"]}
 dashmap = "4"
 chrono = { version = "0.4", features = ["serde"]}
 log = "0.4"
-fern = "0.6"
 itertools = "0.10"
 bytes = "1"
 regex = "1"
@@ -63,6 +62,7 @@ paste = "1"
 tokio-tungstenite = { version = "0.16", features = ["native-tls"] }
 url = "2.0"
 mmb_rpc = { path = "../mmb_rpc" }
+mmb_utils = { path = "../mmb_utils" }
 
 [dev-dependencies]
 rand = "0.8"

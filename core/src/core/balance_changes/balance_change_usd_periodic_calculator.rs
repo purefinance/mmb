@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use chrono::Duration;
 use futures::future::join_all;
 use itertools::Itertools;
+use mmb_utils::cancellation_token::CancellationToken;
 use mockall_double::double;
 use parking_lot::Mutex;
 
@@ -18,7 +19,6 @@ use crate::core::{
         profit_loss_balance_change::ProfitLossBalanceChange,
     },
     exchanges::common::{Amount, TradePlaceAccount},
-    lifecycle::cancellation_token::CancellationToken,
 };
 
 use super::balance_change_period_selector::BalanceChangePeriodSelector;

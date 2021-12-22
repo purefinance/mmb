@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 #[cfg(test)]
+use crate::MOCK_MUTEX;
+use mmb_utils::{cancellation_token::CancellationToken, impl_mock_initializer};
+#[cfg(test)]
 use mockall::automock;
 
-use crate::core::{
-    exchanges::common::{Amount, CurrencyCode},
-    lifecycle::cancellation_token::CancellationToken,
-};
+use crate::core::exchanges::common::{Amount, CurrencyCode};
 
 use super::{
     denominator_usd_converter::DenominatorUsdConverter, price_source_service::PriceSourceService,
@@ -80,4 +80,4 @@ impl UsdConverter {
     }
 }
 
-crate::impl_mock_initializer!(MockUsdConverter);
+impl_mock_initializer!(MockUsdConverter);

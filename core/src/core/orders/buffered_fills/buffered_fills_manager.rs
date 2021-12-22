@@ -1,8 +1,8 @@
+use mmb_utils::infrastructure::WithExpect;
 use std::collections::HashMap;
 
 use crate::core::{
     exchanges::{common::ExchangeAccountId, general::handlers::handle_order_filled::FillEventData},
-    infrastructure::WithExpect,
     orders::order::ExchangeOrderId,
 };
 

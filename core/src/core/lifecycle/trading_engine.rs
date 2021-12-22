@@ -1,4 +1,5 @@
 use futures::FutureExt;
+use mmb_utils::send_expected::SendExpected;
 use std::panic;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicBool;
@@ -9,6 +10,7 @@ use anyhow::Result;
 use dashmap::DashMap;
 use futures::future::join_all;
 use itertools::Itertools;
+use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::Duration;
 
@@ -21,11 +23,9 @@ use crate::core::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::core::exchanges::general::exchange::Exchange;
 use crate::core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::core::lifecycle::shutdown::ShutdownService;
-use crate::core::misc::traits_ext::send_expected::SendExpected;
 use crate::core::settings::CoreSettings;
 use crate::core::{
     infrastructure::unset_application_manager, lifecycle::application_manager::ApplicationManager,
-    lifecycle::cancellation_token::CancellationToken,
 };
 use parking_lot::Mutex;
 

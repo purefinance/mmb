@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::Duration;
 use futures::future::join_all;
+use mmb_utils::cancellation_token::CancellationToken;
 use mockall_double::double;
 use parking_lot::Mutex;
 
@@ -18,7 +19,6 @@ use crate::core::services::usd_converter::usd_converter::UsdConverter;
 use crate::core::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
     exchanges::common::TradePlaceAccount,
-    lifecycle::cancellation_token::CancellationToken,
     settings::{ProfitLossStopperSettings, TimePeriodKind},
 };
 

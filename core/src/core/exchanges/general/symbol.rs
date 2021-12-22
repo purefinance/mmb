@@ -1,9 +1,8 @@
-use crate::core::infrastructure::WithExpect;
-
 use std::hash::Hash;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use mmb_utils::infrastructure::WithExpect;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 

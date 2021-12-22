@@ -1,4 +1,5 @@
 use anyhow::Result;
+use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::oneshot;
 
 use crate::core::{
@@ -7,7 +8,6 @@ use crate::core::{
     exchanges::common::RestRequestOutcome,
     exchanges::general::exchange::Exchange,
     exchanges::general::exchange::RequestResult,
-    lifecycle::cancellation_token::CancellationToken,
     orders::order::ClientOrderId,
     orders::order::ExchangeOrderId,
     orders::{fill::EventSourceType, order::OrderCreating},
