@@ -68,14 +68,6 @@ pub struct DispositionExecutorStatistic {
     skipped_events_amount: u64,
 }
 
-impl DispositionExecutorStatistic {
-    fn new(skipped_events_amount: u64) -> Self {
-        Self {
-            skipped_events_amount,
-        }
-    }
-}
-
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub(crate) struct StatisticServiceState {
     trade_place_stats: RwLock<HashMap<TradePlaceAccount, TradePlaceAccountStatistic>>,
@@ -83,13 +75,6 @@ pub(crate) struct StatisticServiceState {
 }
 
 impl StatisticServiceState {
-    fn new() -> Self {
-        Self {
-            trade_place_stats: Default::default(),
-            disposition_executor_stats: Default::default(),
-        }
-    }
-
     pub(crate) fn register_created_order(&self, trade_place_account: TradePlaceAccount) {
         self.trade_place_stats
             .write()

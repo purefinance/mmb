@@ -59,18 +59,14 @@ pub mod tests {
         profit_loss_balance_changes: Vec<ProfitLossBalanceChange>,
         pub usd_converter: UsdConverter,
 
-        time_manager_mock: time_manager::__now::Context,
-        seconds_offset: Arc<Mutex<u32>>,
-        mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
+        _time_manager_mock: time_manager::__now::Context,
+        _seconds_offset: Arc<Mutex<u32>>,
+        _mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
     }
 
     impl BalanceChangesCalculatorTestsBase {
         pub fn commission_rate_1() -> Decimal {
             dec!(0.01)
-        }
-
-        pub fn commission_rate_2() -> Decimal {
-            dec!(0.02)
         }
 
         pub fn exchange_account_id_1() -> ExchangeAccountId {
@@ -91,10 +87,6 @@ pub mod tests {
 
         pub fn currency_pair() -> CurrencyPair {
             CurrencyPair::from_codes(Self::base(), Self::quote())
-        }
-
-        pub fn inverted_currency_pair() -> CurrencyPair {
-            CurrencyPair::from_codes(Self::quote(), Self::base())
         }
 
         fn service_name() -> ServiceName {
@@ -258,9 +250,9 @@ pub mod tests {
                 ),
                 profit_loss_balance_changes: Vec::new(),
                 usd_converter,
-                time_manager_mock,
-                seconds_offset,
-                mock_lockers,
+                _time_manager_mock: time_manager_mock,
+                _seconds_offset: seconds_offset,
+                _mock_lockers: mock_lockers,
             };
 
             this.set_leverage(dec!(1));
@@ -387,32 +379,6 @@ pub mod tests {
                 CancellationToken::default(),
             )
             .await
-        }
-
-        pub fn create_symbol(
-            base: CurrencyCode,
-            quote: CurrencyCode,
-            is_derivative: bool,
-        ) -> Arc<Symbol> {
-            let amount = if is_derivative { quote } else { base };
-
-            Arc::new(Symbol::new(
-                false,
-                is_derivative,
-                base.as_str().into(),
-                base,
-                quote.as_str().into(),
-                quote,
-                None,
-                None,
-                None,
-                None,
-                None,
-                amount.into(),
-                Some(base),
-                Precision::ByTick { tick: dec!(0.01) },
-                Precision::ByTick { tick: dec!(0) },
-            ))
         }
     }
 }

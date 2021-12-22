@@ -14,6 +14,5 @@
     unused_must_use
 )]
 
-#[allow(dead_code)]
 pub mod misc;
 pub mod order;

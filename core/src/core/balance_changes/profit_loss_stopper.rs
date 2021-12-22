@@ -186,37 +186,37 @@ mod test {
     }
 
     struct TestContext {
-        pub exchange_blocker: Arc<ExchangeBlocker>,
         pub balance_change_usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,
         pub profit_loss_stopper: ProfitLossStopper,
         pub usd_converter: UsdConverter,
         pub balance_manager: Arc<Mutex<BalanceManager>>,
 
-        time_manager_mock: time_manager::__now::Context,
+        _exchange_blocker: Arc<ExchangeBlocker>,
+        _time_manager_mock: time_manager::__now::Context,
         seconds_offset_in_mock: Arc<Mutex<u32>>,
-        mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
+        _mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
     }
 
     impl TestContext {
         pub fn new(
-            exchange_blocker: Arc<ExchangeBlocker>,
+            _exchange_blocker: Arc<ExchangeBlocker>,
             balance_change_usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,
             profit_loss_stopper: ProfitLossStopper,
             usd_converter: UsdConverter,
             balance_manager: Arc<Mutex<BalanceManager>>,
-            time_manager_mock: time_manager::__now::Context,
+            _time_manager_mock: time_manager::__now::Context,
             seconds_offset_in_mock: Arc<Mutex<u32>>,
-            mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
+            _mock_lockers: Vec<ReentrantMutexGuard<'static, ()>>,
         ) -> Self {
             Self {
-                exchange_blocker,
                 balance_change_usd_periodic_calculator,
                 profit_loss_stopper,
                 usd_converter,
                 balance_manager,
-                time_manager_mock,
+                _exchange_blocker,
+                _time_manager_mock,
                 seconds_offset_in_mock,
-                mock_lockers,
+                _mock_lockers,
             }
         }
     }

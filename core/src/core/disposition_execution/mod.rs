@@ -305,13 +305,6 @@ impl OrdersStateBySide {
         }
     }
 
-    pub fn side(&self) -> OrderSide {
-        self.side
-    }
-    pub fn slots(&self) -> &[PriceSlot] {
-        &self.slots
-    }
-
     pub fn calc_total_remaining_amount(&self) -> Decimal {
         self.slots
             .iter()

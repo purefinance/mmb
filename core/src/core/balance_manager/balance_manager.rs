@@ -106,6 +106,7 @@ impl BalanceManager {
             .get_reservation_ids()
     }
 
+    #[cfg(test)]
     pub(crate) fn restore_balance_state_with_reservations_handling(
         &mut self,
         balances: &Balances,

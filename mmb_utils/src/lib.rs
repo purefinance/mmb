@@ -14,7 +14,6 @@
     unused_must_use
 )]
 
-#[allow(dead_code)]
 pub mod cancellation_token;
 pub mod impl_id;
 pub mod impl_mocks;

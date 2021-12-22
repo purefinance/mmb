@@ -35,7 +35,6 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 }
 
-#[allow(dead_code)]
 #[actix_web::main]
 async fn main() -> Result<()> {
     let engine_config =

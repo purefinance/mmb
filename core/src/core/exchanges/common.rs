@@ -309,15 +309,15 @@ impl ToStdExpected for chrono::Duration {
 }
 
 pub struct ClosedPosition {
-    exchange_order_id: ExchangeOrderId,
-    amount: Amount,
+    _exchange_order_id: ExchangeOrderId,
+    _amount: Amount,
 }
 
 impl ClosedPosition {
-    pub fn new(exchange_order_id: ExchangeOrderId, amount: Amount) -> Self {
+    pub fn new(_exchange_order_id: ExchangeOrderId, _amount: Amount) -> Self {
         Self {
-            exchange_order_id,
-            amount,
+            _exchange_order_id,
+            _amount,
         }
     }
 }
