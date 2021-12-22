@@ -2,6 +2,7 @@ use std::panic::AssertUnwindSafe;
 
 use control_panel::ControlPanel;
 use futures::FutureExt;
+use mmb_utils::logger::init_logger_file_named;
 use tokio::signal;
 
 mod control_panel;
@@ -33,8 +34,7 @@ async fn control_panel_run() {
 
 #[actix_web::main]
 async fn main() {
-    // TODO: fix #316
-    // init_logger();
+    init_logger_file_named("control_panel_log.txt");
 
     AssertUnwindSafe(control_panel_run())
         .catch_unwind()
