@@ -523,6 +523,7 @@ dependencies = [
  "jsonrpc-derive",
  "log",
  "mmb_rpc",
+ "mmb_utils",
  "parking_lot",
  "tokio",
 ]
