@@ -7,7 +7,7 @@ use futures::FutureExt;
 use itertools::Itertools;
 use log::log;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::traits_ext::send_expected::SendExpectedByRef;
+use mmb_utils::send_expected::SendExpectedByRef;
 use mmb_utils::{nothing_to_do, DateTime};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;

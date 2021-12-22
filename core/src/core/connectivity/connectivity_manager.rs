@@ -8,9 +8,7 @@ use crate::core::{
 use anyhow::Result;
 use futures::Future;
 use log::log;
-use mmb_utils::{
-    cancellation_token::CancellationToken, traits_ext::send_expected::SendExpectedByRef,
-};
+use mmb_utils::{cancellation_token::CancellationToken, send_expected::SendExpectedByRef};
 use parking_lot::Mutex;
 use std::pin::Pin;
 use std::{
