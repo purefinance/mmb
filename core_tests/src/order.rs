@@ -22,17 +22,25 @@ use std::sync::Arc;
 /// You can create an object and change some fields if it's necessary
 /// and than use create_order function for making order in selected Exchange.
 ///
-/// ```ignore
-/// let mut order_proxy = OrderProxy::new(
-///     exchange_account_id,
-///     Some("FromExample".to_owned()),
-///     CancellationToken::default(),
-///     price,
-/// );
-/// order_proxy.amount = dec!(5000); // Optional amount changing
-/// let created_order = order_proxy
-///     .create_order(exchange.clone())
-///     .await;
+/// ```no_run
+/// use core_tests::order::OrderProxy;
+/// use mmb_core::core::exchanges::common::ExchangeAccountId;
+/// use mmb_core::core::exchanges::common::Price;
+/// use mmb_core::core::exchanges::general::exchange::Exchange;
+/// use mmb_utils::cancellation_token::CancellationToken;
+/// use rust_decimal_macros::dec;
+/// use std::sync::Arc;
+///
+/// async fn example(exchange_account_id: ExchangeAccountId, exchange: Arc<Exchange>, price: Price) {
+///     let mut order_proxy = OrderProxy::new(
+///         exchange_account_id,
+///         Some("FromExample".to_owned()),
+///         CancellationToken::default(),
+///         price,
+///     );
+///     order_proxy.amount = dec!(5000); // Optional amount changing
+///     let created_order = order_proxy.create_order(exchange.clone()).await;
+/// }
 /// ```
 pub struct OrderProxy {
     pub client_order_id: ClientOrderId,
