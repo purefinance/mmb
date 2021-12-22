@@ -1,8 +1,8 @@
-use mmb_core::core::exchanges::common::*;
-use mmb_core::core::exchanges::events::AllowedEventSourceType;
-use mmb_core::core::exchanges::general::commission::Commission;
-use mmb_core::core::exchanges::general::features::*;
-use mmb_core::core::settings::{CurrencyPairSetting, ExchangeSettings};
+use mmb_core::exchanges::common::*;
+use mmb_core::exchanges::events::AllowedEventSourceType;
+use mmb_core::exchanges::general::commission::Commission;
+use mmb_core::exchanges::general::features::*;
+use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger;
 

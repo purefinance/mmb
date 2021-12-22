@@ -4,7 +4,7 @@ use mmb_rpc::rest_api::MmbRpc;
 
 use std::sync::Arc;
 
-use crate::core::{
+use crate::{
     lifecycle::application_manager::ApplicationManager, statistic_service::StatisticService,
 };
 use mmb_rpc::rest_api::ErrorCode;

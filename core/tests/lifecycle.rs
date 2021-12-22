@@ -1,19 +1,19 @@
 #![cfg(test)]
 use anyhow::Result;
 // use futures::FutureExt;
-// use mmb_core::core::config::parse_settings;
-// use mmb_core::core::disposition_execution::{PriceSlot, TradingContext};
-// use mmb_core::core::exchanges::traits::ExchangeClientBuilder;
-// use mmb_core::core::explanation::Explanation;
-// use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
-// use mmb_core::core::orders::order::OrderSnapshot;
-// use mmb_core::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-// use mmb_core::core::settings::BaseStrategySettings;
-// use mmb_core::core::{
+// use mmb_core::config::parse_settings;
+// use mmb_core::disposition_execution::{PriceSlot, TradingContext};
+// use mmb_core::exchanges::traits::ExchangeClientBuilder;
+// use mmb_core::explanation::Explanation;
+// use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
+// use mmb_core::orders::order::OrderSnapshot;
+// use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+// use mmb_core::settings::BaseStrategySettings;
+// use mmb_core::{
 //     exchanges::common::Amount,
 //     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
 // };
-// use mmb_core::core::{
+// use mmb_core::{
 //     exchanges::common::{CurrencyPair, ExchangeAccountId},
 //     infrastructure::spawn_future,
 // };

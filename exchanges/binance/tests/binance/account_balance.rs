@@ -1,4 +1,4 @@
-use mmb_core::core::exchanges::{
+use mmb_core::exchanges::{
     common::ExchangeAccountId,
     events::AllowedEventSourceType,
     general::{

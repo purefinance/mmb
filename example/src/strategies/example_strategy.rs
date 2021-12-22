@@ -7,19 +7,19 @@ use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-use mmb_core::core::balance_manager::balance_manager::BalanceManager;
-use mmb_core::core::disposition_execution::{
+use mmb_core::balance_manager::balance_manager::BalanceManager;
+use mmb_core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
-use mmb_core::core::exchanges::common::{
+use mmb_core::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
 };
-use mmb_core::core::exchanges::general::symbol::Round;
-use mmb_core::core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
-use mmb_core::core::lifecycle::trading_engine::EngineContext;
-use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
-use mmb_core::core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
-use mmb_core::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use mmb_core::exchanges::general::symbol::Round;
+use mmb_core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
+use mmb_core::lifecycle::trading_engine::EngineContext;
+use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
+use mmb_core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
+use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_utils::cancellation_token::CancellationToken;
 

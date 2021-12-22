@@ -7,7 +7,7 @@ use tokio::sync::oneshot;
 
 use std::{sync::Arc, thread};
 
-use crate::core::{
+use crate::{
     lifecycle::{application_manager::ApplicationManager, trading_engine::Service},
     statistic_service::StatisticService,
 };
