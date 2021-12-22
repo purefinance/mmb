@@ -7,7 +7,6 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
-use awc::http::Uri;
 use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
@@ -16,6 +15,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use url::Url;
 
 use super::binance::Binance;
 use crate::core::exchanges::common::{ActivePosition, ClosedPosition, SortedOrderData};
@@ -247,7 +247,7 @@ impl Support for Binance {
         }
     }
 
-    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri> {
+    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Url> {
         let (host, path) = match role {
             WebSocketRole::Main => (
                 &self.hosts.web_socket_host,
@@ -259,8 +259,7 @@ impl Support for Binance {
             ),
         };
 
-        format!("{}{}", host, path)
-            .parse::<Uri>()
+        Url::parse(&format!("{}{}", host, path))
             .with_context(|| format!("Unable parse websocket {:?} uri", role))
     }
 
