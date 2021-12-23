@@ -34,6 +34,8 @@ pub fn init_logger() {
                     .level_for("actix_tls", LevelFilter::Warn)
                     .level_for("rustls", LevelFilter::Warn)
                     .level_for("actix_codec", LevelFilter::Warn)
+                    .level_for("tungstenite", LevelFilter::Warn)
+                    .level_for("tokio_tungstenite", LevelFilter::Warn)
                     .chain(
                         std::fs::OpenOptions::new()
                             .write(true)

@@ -1,30 +1,56 @@
+use jsonrpc_core::Params;
 use jsonrpc_core::Result;
+use jsonrpc_core::Value;
 use mmb_rpc::rest_api::server_side_error;
 use mmb_rpc::rest_api::MmbRpc;
+use parking_lot::Mutex;
+use serde::Deserialize;
 
+use std::sync::mpsc;
 use std::sync::Arc;
 
-use crate::core::{
-    lifecycle::application_manager::ApplicationManager, statistic_service::StatisticService,
-};
+use crate::core::config::save_settings;
+use crate::core::config::CONFIG_PATH;
+use crate::core::config::CREDENTIALS_PATH;
+use crate::core::statistic_service::StatisticService;
+use crate::rest_api::control_panel::FAILED_TO_SEND_STOP_NOTIFICATION;
 use mmb_rpc::rest_api::ErrorCode;
 
 pub struct RpcImpl {
-    _application_manager: Arc<ApplicationManager>,
+    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     statistics: Arc<StatisticService>,
     engine_settings: String,
 }
 
 impl RpcImpl {
     pub fn new(
-        application_manager: Arc<ApplicationManager>,
+        server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
         statistics: Arc<StatisticService>,
         engine_settings: String,
     ) -> Self {
         Self {
-            _application_manager: application_manager,
+            server_stopper_tx,
             statistics,
             engine_settings,
+        }
+    }
+
+    fn send_stop(&self) -> Result<String> {
+        match self.server_stopper_tx.lock().take() {
+            Some(sender) => {
+                if let Err(error) = sender.send(()) {
+                    log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
+                    return Err(server_side_error(ErrorCode::UnableToSendSignal));
+                };
+                Ok("ControlPanel is going to turn off".into())
+            }
+            None => {
+                log::warn!(
+                    "{}: the signal is already sent",
+                    FAILED_TO_SEND_STOP_NOTIFICATION
+                );
+                Err(server_side_error(ErrorCode::StopperIsNone))
+            }
         }
     }
 }
@@ -35,42 +61,32 @@ impl MmbRpc for RpcImpl {
     }
 
     fn stop(&self) -> Result<String> {
-        // self.application_manager
-        //     .spawn_graceful_shutdown("Stop signal from control_panel".into());
-
-        // Ok(Value::String("ControlPanel turned off".into()))
-
-        // TODO: fix it after actors removing
-        Ok("Set config isn't implemented".into())
+        self.send_stop()
     }
 
     fn get_config(&self) -> Result<String> {
         Ok(self.engine_settings.clone())
     }
 
-    fn set_config(&self, _params: String) -> Result<String> {
-        // #[derive(Deserialize)]
-        // struct Data {
-        //     settings: String,
-        // }
+    fn set_config(&self, params: String) -> Result<String> {
+        #[derive(Deserialize)]
+        struct Data {
+            settings: String,
+        }
 
-        // let data: Data = params.parse()?;
+        let data: Data = Params::Array(vec![Value::String(params)]).parse()?;
 
-        // save_settings(data.settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
-        //     log::warn!(
-        //         "Error while trying save new config in set_config endpoint: {}",
-        //         err.to_string()
-        //     );
-        //     server_side_error(ErrorCode::FailedToSaveNewConfig)
-        // })?;
+        save_settings(data.settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
+            log::warn!(
+                "Error while trying save new config in set_config endpoint: {}",
+                err.to_string()
+            );
+            server_side_error(ErrorCode::FailedToSaveNewConfig)
+        })?;
 
-        // self.application_manager
-        //     .spawn_graceful_shutdown("Engine stopped cause config updating".into());
+        self.send_stop()?;
 
-        // Ok("Config was successfully updated. Trading engine stopped".into())
-
-        // TODO: fix it after actors removing
-        Ok("Set config isn't implemented".into())
+        Ok("Config was successfully updated. Trading engine stopped".into())
     }
 
     fn stats(&self) -> Result<String> {

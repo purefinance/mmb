@@ -177,7 +177,7 @@ where
     let statistic_service = StatisticService::new();
     let statistic_event_handler =
         create_statistic_event_handler(exchange_events, statistic_service.clone());
-    let control_panel = ControlPanel::new();
+    let control_panel = ControlPanel::new(engine_context.application_manager.clone());
     engine_context
         .shutdown_service
         .register_service(control_panel.clone());
@@ -194,7 +194,6 @@ where
 
     if let Err(error) = control_panel.clone().start(
         load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
-        engine_context.application_manager.clone(),
         statistic_service.clone(),
     ) {
         log::error!("Unable to start rest api: {}", error);
