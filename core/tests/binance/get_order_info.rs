@@ -11,7 +11,7 @@ use mmb_utils::logger::init_logger;
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::core::order::OrderProxy;
 
-#[actix_rt::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_order_info() {
     init_logger();
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
