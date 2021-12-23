@@ -2,7 +2,6 @@ use mmb_core::core::exchanges::common::{Amount, Price};
 use mmb_core::core::exchanges::common::{CurrencyPair, ExchangeAccountId};
 use mmb_core::core::exchanges::general::exchange::Exchange;
 use mmb_core::core::exchanges::general::exchange::RequestResult;
-use mmb_core::core::infrastructure::with_timeout;
 use mmb_core::core::orders::order::*;
 use mmb_core::core::orders::pool::OrderRef;
 
@@ -15,6 +14,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use tokio::time::Duration;
 
+use mmb_utils::infrastructure::with_timeout;
 use std::sync::Arc;
 
 /// This struct needed for creating an orders in tests.

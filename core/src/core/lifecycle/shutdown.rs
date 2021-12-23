@@ -140,8 +140,8 @@ impl ShutdownService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mmb_utils::logger::init_logger;
     use anyhow::Result;
+    use mmb_utils::logger::init_logger;
     use tokio::sync::oneshot::Receiver;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -83,6 +83,7 @@ impl CancellationToken {
 
 #[cfg(test)]
 mod tests {
+    use crate::infrastructure::with_timeout;
     use crate::{cancellation_token::CancellationToken, infrastructure::spawn_future};
     use futures::FutureExt;
     use parking_lot::Mutex;
