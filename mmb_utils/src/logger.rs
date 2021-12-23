@@ -1,26 +1,18 @@
 use chrono::Utc;
 use log::LevelFilter;
 use std::env;
+use std::path::{Path, PathBuf};
 use std::sync::Once;
 
-fn get_log_file_path(log_file: &str) -> String {
-    let args = std::env::args()
+fn get_log_file_path(log_file: &str) -> PathBuf {
+    let args = std::env::args().next().expect("Failed to get args");
+
+    PathBuf::from(args)
+        .ancestors()
+        .filter(|ancestor| ancestor.ends_with("rusttradingengine"))
         .next()
-        .expect("Failed to get args")
-        .to_string();
-
-    let main_dir = "rusttradingengine/";
-    let mut path = match args.rsplit_once(main_dir) {
-        Some((path, _)) => {
-            let mut result = path.to_string();
-            result.push_str(main_dir);
-            result
-        }
-        None => "./".into(),
-    };
-    path.push_str(log_file);
-
-    path
+        .unwrap_or(Path::new("./"))
+        .join(log_file)
 }
 
 pub fn init_logger() {
