@@ -1,1 +1,1 @@
-The crate with binance stuff for trading engine.
+The crate with implementation of exchange client for Binance.

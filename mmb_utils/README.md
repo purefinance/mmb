@@ -1,1 +1,1 @@
-A simple library with common stuff
+The create with helper methods and shared infrastructure code.
