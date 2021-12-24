@@ -83,6 +83,7 @@ impl CancellationToken {
 
 #[cfg(test)]
 mod tests {
+    use crate::infrastructure::with_timeout;
     use crate::{cancellation_token::CancellationToken, infrastructure::spawn_future};
     use futures::FutureExt;
     use parking_lot::Mutex;
@@ -98,38 +99,31 @@ mod tests {
         assert_eq!(token.is_cancellation_requested(), true);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn single_await() {
         let token = CancellationToken::new();
-
-        let signal = Arc::new(Mutex::new(false));
-
-        spawn_working_future(signal.clone(), token.clone());
 
         // make sure that we don't complete test too fast accidentally before method when_cancelled() completed
         tokio::time::sleep(Duration::from_millis(2)).await;
 
-        assert_eq!(*signal.lock(), false);
         assert_eq!(token.is_cancellation_requested(), false);
 
         token.cancel();
 
-        // we need a little wait while spawned `working_future` react for cancellation
-        tokio::task::yield_now().await;
+        let max_timeout = Duration::from_secs(2);
+        with_timeout(max_timeout, token.when_cancelled()).await;
 
-        assert_eq!(*signal.lock(), true);
         assert_eq!(token.is_cancellation_requested(), true);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn many_awaits() {
         let token = CancellationToken::new();
+        let token1 = token.clone();
+        let token2 = token.clone();
 
         let signal1 = Arc::new(Mutex::new(false));
         let signal2 = Arc::new(Mutex::new(false));
-
-        spawn_working_future(signal1.clone(), token.clone());
-        spawn_working_future(signal2.clone(), token.clone());
 
         // make sure that we don't complete test too fast accidentally before method when_cancelled() completed
         tokio::time::sleep(Duration::from_millis(2)).await;
@@ -140,11 +134,10 @@ mod tests {
 
         token.cancel();
 
-        // we need a little wait while spawned `working_future` react for cancellation
-        tokio::task::yield_now().await;
+        let max_timeout = Duration::from_secs(2);
+        with_timeout(max_timeout, token1.when_cancelled()).await;
+        with_timeout(max_timeout, token2.when_cancelled()).await;
 
-        assert_eq!(*signal1.lock(), true);
-        assert_eq!(*signal2.lock(), true);
         assert_eq!(token.is_cancellation_requested(), true);
     }
 
@@ -176,7 +169,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cancel_source_token_when_linked_source_token_is_not_cancelled() {
         let source_token = CancellationToken::new();
         assert_eq!(source_token.is_cancellation_requested(), false);
@@ -190,7 +183,7 @@ mod tests {
         assert_eq!(new_token.is_cancellation_requested(), true);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn create_linked_token_when_source_token_is_cancelled() {
         let source_token = CancellationToken::new();
         source_token.cancel();
@@ -201,7 +194,7 @@ mod tests {
         assert_eq!(new_token.is_cancellation_requested(), true);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cancel_new_linked_token_when_source_token_is_not_cancelled() {
         let source_token = CancellationToken::new();
         assert_eq!(source_token.is_cancellation_requested(), false);
@@ -215,7 +208,7 @@ mod tests {
         assert_eq!(new_token.is_cancellation_requested(), true);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cancel_when_2_new_linked_tokens_to_single_source() {
         // source -> token1
         //      \--> token2
@@ -238,7 +231,7 @@ mod tests {
         assert_eq!(new_token2.is_cancellation_requested(), true);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cancel_source_when_2_sequentially_new_linked_tokens() {
         // source -> token1 -> token2
         let source_token = CancellationToken::new();
@@ -259,7 +252,7 @@ mod tests {
         assert_eq!(new_token2.is_cancellation_requested(), true);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn cancel_token1_when_2_sequentially_new_linked_tokens() {
         // source -> token1 -> token2
         let source_token = CancellationToken::new();

@@ -36,7 +36,7 @@ impl BaseStrategySettings for ExampleStrategySettings {
 }
 
 #[allow(dead_code)]
-#[actix_web::main]
+#[tokio::main]
 async fn main() -> Result<()> {
     let engine_config =
         EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);

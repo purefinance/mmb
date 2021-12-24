@@ -1,7 +1,6 @@
 use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Context, Error, Result};
-use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::FutureExt;
 use itertools::Itertools;
@@ -61,6 +60,7 @@ use crate::core::{
     exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
+use hyper::StatusCode;
 use std::fmt::{Arguments, Debug, Write};
 
 #[derive(Debug, Eq, PartialEq, Clone)]

@@ -100,7 +100,7 @@ mod test {
     use anyhow::Result;
     use futures::FutureExt;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn panic_with_application_manager() -> Result<()> {
         // Arrange
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
