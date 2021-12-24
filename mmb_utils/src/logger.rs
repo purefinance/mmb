@@ -5,9 +5,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Once;
 
 fn get_log_file_path(log_file: &str) -> PathBuf {
-    let args = std::env::args().next().expect("Failed to get args");
+    let path_to_bin = std::env::args().next().expect("Failed to get first arg");
 
-    PathBuf::from(args)
+    PathBuf::from(path_to_bin)
         .ancestors()
         .filter(|ancestor| ancestor.ends_with("rusttradingengine"))
         .next()
