@@ -28,7 +28,6 @@ hyper = { version = "0.14", features = ["http1", "runtime", "client", "tcp"] }
 hyper-tls = "0.5"
 
 itertools = "0.10"
-
 jsonrpc-core = "18.0.0"
 jsonrpc-ipc-server = "18.0.0"
 
