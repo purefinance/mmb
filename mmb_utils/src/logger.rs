@@ -4,13 +4,14 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
 
+/// Function for getting path to log file. For `cargo run` it will be path to project directory. In other cases it will be `./`
+/// if binary file were called with path that contain `rusttradingengine` dir the log will be there
 fn get_log_file_path(log_file: &str) -> PathBuf {
     let path_to_bin = std::env::args().next().expect("Failed to get first arg");
 
     PathBuf::from(path_to_bin)
         .ancestors()
-        .filter(|ancestor| ancestor.ends_with("rusttradingengine"))
-        .next()
+        .find(|ancestor| ancestor.ends_with("rusttradingengine"))
         .unwrap_or(Path::new("./"))
         .join(log_file)
 }
