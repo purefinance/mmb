@@ -14,5 +14,4 @@
     unused_must_use
 )]
 
-pub mod misc;
 pub mod order;

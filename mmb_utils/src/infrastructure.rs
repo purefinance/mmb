@@ -211,6 +211,16 @@ pub fn spawn_by_timer(
     )
 }
 
+pub async fn with_timeout<T, Fut>(timeout: Duration, fut: Fut) -> T
+where
+    Fut: Future<Output = T>,
+{
+    tokio::select! {
+        result = fut => result,
+        _ = tokio::time::sleep(timeout) => panic!("Timeout {} ms is exceeded", timeout.as_millis()),
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

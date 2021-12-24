@@ -1,5 +1,5 @@
 use futures::FutureExt;
-use mmb_utils::traits_ext::send_expected::SendExpected;
+use mmb_utils::send_expected::SendExpected;
 use std::panic;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicBool;

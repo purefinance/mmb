@@ -1,32 +1,15 @@
 use crate::core::lifecycle::trading_engine::Service;
 use crate::core::text;
-use actix::Recipient;
-use actix::{Message, System};
-use anyhow::Result;
 use futures::future::join_all;
 use futures::FutureExt;
 use itertools::Itertools;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use tokio::sync::oneshot;
-use tokio::sync::oneshot::Sender;
 use tokio::time::{sleep, Duration};
-
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct GracefulShutdownMsg {
-    pub service_finished: Sender<Result<()>>,
-}
-
-struct ActorInfo {
-    name: String,
-    actor: Recipient<GracefulShutdownMsg>,
-}
 
 #[derive(Default)]
 struct State {
     services: Vec<Arc<dyn Service>>,
-    actors: Vec<ActorInfo>,
 }
 
 #[derive(Default)]
@@ -46,35 +29,15 @@ impl ShutdownService {
         }
     }
 
-    pub fn register_actor(&self, name: String, actor: Recipient<GracefulShutdownMsg>) {
-        log::trace!("Registered in ShutdownService actor '{}'", name);
-        self.state.lock().actors.push(ActorInfo { name, actor });
-    }
-
     pub(crate) async fn graceful_shutdown(&self) -> Vec<String> {
         let mut finish_receivers = Vec::new();
 
         log::trace!("Prepare to drop services in ShutdownService started");
 
         {
-            log::trace!("Running graceful shutdown for actors started");
+            log::trace!("Running graceful shutdown for services started");
 
             let state_guard = self.state.lock();
-            for actor_info in &state_guard.actors {
-                let (service_finished, receiver) = oneshot::channel::<Result<()>>();
-                let _ = actor_info
-                    .actor
-                    .try_send(GracefulShutdownMsg { service_finished });
-
-                let actor_name = format!("actor {}", actor_info.name);
-
-                log::trace!("Waiting graceful shutdown finishing for {}", actor_name);
-                finish_receivers.push((actor_name, receiver));
-            }
-
-            log::trace!("Running graceful shutdown for actors finished");
-
-            log::trace!("Running graceful shutdown for services started");
             for service in &state_guard.services {
                 let receiver = service.clone().graceful_shutdown();
 
@@ -133,10 +96,6 @@ impl ShutdownService {
         }
 
         log::trace!("Prepare to drop services in ShutdownService finished");
-
-        log::trace!("Stopping actor system");
-        System::current().stop();
-
         log::trace!("Drop services in ShutdownService started");
 
         let weak_services;
@@ -181,10 +140,11 @@ impl ShutdownService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::Result;
     use mmb_utils::logger::init_logger;
     use tokio::sync::oneshot::Receiver;
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn success() {
         init_logger();
 
@@ -215,7 +175,7 @@ mod tests {
         assert_eq!(not_dropped_services.len(), 0);
     }
 
-    #[actix_rt::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn failed() {
         init_logger();
 

@@ -9,7 +9,7 @@ pub mod tests {
 
     type TestBase = BalanceChangesCalculatorTestsBase;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_buy() {
         let mut test_obj = TestBase::new(true, false);
 
@@ -53,7 +53,7 @@ pub mod tests {
         assert_eq!(actual_quote_balance_changed, quote_amount_changed);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_sell() {
         let mut test_obj = TestBase::new(true, false);
 
@@ -97,7 +97,7 @@ pub mod tests {
         assert_eq!(actual_quote_balance_changed, quote_amount_changed);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn two_directions_buy_sell() {
         /*
          * /// Buy base in direction 1, sell in direction 2 ///

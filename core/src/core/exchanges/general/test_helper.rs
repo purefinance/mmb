@@ -35,13 +35,13 @@ use crate::core::{
     },
     settings::ExchangeSettings,
 };
-use actix_http::Uri;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
+use url::Url;
 
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
 
@@ -165,7 +165,7 @@ impl Support for TestClient {
         unreachable!("doesn't need in UT")
     }
 
-    async fn create_ws_url(&self, _role: WebSocketRole) -> Result<Uri> {
+    async fn create_ws_url(&self, _role: WebSocketRole) -> Result<Url> {
         unreachable!("doesn't need in UT")
     }
 
