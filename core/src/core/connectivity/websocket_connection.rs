@@ -104,7 +104,9 @@ impl WebSocketConnection {
             self.exchange_account_id,
             self.role,
         );
-        self.send(Message::Close(None)).await
+        self.send(Message::Close(None)).await?;
+        self.close_websocket().await;
+        Ok(())
     }
 
     pub fn is_connected(&self) -> bool {
