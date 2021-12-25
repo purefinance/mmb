@@ -1,7 +1,6 @@
 use crate::serum::Serum;
 use anyhow::Result;
 use async_trait::async_trait;
-use awc::http::Uri;
 use dashmap::DashMap;
 use mmb_core::core::connectivity::connectivity_manager::WebSocketRole;
 use mmb_core::core::exchanges::common::CurrencyPair;
@@ -19,6 +18,7 @@ use mmb_core::core::orders::order::{ClientOrderId, ExchangeOrderId, OrderInfo, O
 use mmb_core::core::settings::ExchangeSettings;
 use mmb_utils::DateTime;
 use std::sync::Arc;
+use url::Url;
 
 #[async_trait]
 impl Support for Serum {
@@ -80,7 +80,7 @@ impl Support for Serum {
         todo!()
     }
 
-    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri> {
+    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Url> {
         todo!()
     }
 

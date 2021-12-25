@@ -1970,11 +1970,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "awc",
  "dashmap",
  "mmb_core",
  "mmb_utils",
  "tokio",
+ "url 2.2.2",
 ]
 
 [[package]]
