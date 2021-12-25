@@ -12,7 +12,7 @@ use mmb_core::core::exchanges::events::ExchangeEvent;
 use crate::binance::binance_builder::BinanceBuilder;
 use core_tests::order::OrderProxy;
 
-#[actix_rt::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn create_successfully() {
     init_logger();
 
@@ -74,7 +74,7 @@ async fn create_successfully() {
         .await;
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn should_fail() {
     init_logger();
 
