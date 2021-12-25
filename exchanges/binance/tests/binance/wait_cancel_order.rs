@@ -1,3 +1,4 @@
+use core_tests::order::OrderProxy;
 use mmb_core::core::exchanges::common::*;
 use mmb_core::core::exchanges::events::AllowedEventSourceType;
 use mmb_core::core::exchanges::general::commission::Commission;
@@ -7,7 +8,6 @@ use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::OrderProxy;
 use crate::get_binance_credentials_or_exit;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

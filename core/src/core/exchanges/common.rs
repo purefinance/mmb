@@ -234,7 +234,7 @@ impl ExchangeError {
         }
     }
 
-    pub(crate) fn parsing_error(message: &str) -> Self {
+    pub fn parsing_error(message: &str) -> Self {
         ExchangeError::new(
             ExchangeErrorType::ParsingError,
             format!("Unable to parse {}", message),

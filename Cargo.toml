@@ -2,7 +2,9 @@
 members = [
     "control_panel",
     "core",
+    "core_tests",
     "example",
+    "exchanges/binance",
     "mmb_rpc",
     "mmb_utils"
 ]

@@ -9,7 +9,7 @@ use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::OrderProxy;
+use core_tests::order::OrderProxy;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_order_info() {

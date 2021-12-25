@@ -85,12 +85,12 @@ enum CheckContent {
     Usable,
 }
 
-pub(crate) struct PriceLevel {
+pub struct PriceLevel {
     pub price: Price,
     pub amount: Amount,
 }
 
-pub(crate) struct OrderBookTop {
+pub struct OrderBookTop {
     pub ask: Option<PriceLevel>,
     pub bid: Option<PriceLevel>,
 }
@@ -100,9 +100,9 @@ pub struct Exchange {
     pub symbols: DashMap<CurrencyPair, Arc<Symbol>>,
     /// Actualised orders data for active order and some late cached orders
     pub orders: Arc<OrdersPool>,
-    pub(crate) currencies: Mutex<Vec<CurrencyCode>>,
-    pub(crate) leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
-    pub(crate) order_book_top: DashMap<CurrencyPair, OrderBookTop>,
+    pub currencies: Mutex<Vec<CurrencyCode>>,
+    pub leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
+    pub order_book_top: DashMap<CurrencyPair, OrderBookTop>,
     pub(super) exchange_client: Box<dyn ExchangeClient>,
     pub(super) features: ExchangeFeatures,
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
