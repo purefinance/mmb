@@ -1,8 +1,6 @@
 use async_trait::async_trait;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use crate::infrastructure::WithExpect;
-
 static UNABLE_TO_SEND: &'static str = "Unable to send event";
 
 pub trait SendExpected<T>
@@ -17,8 +15,7 @@ where
     T: Send + std::fmt::Debug,
 {
     fn send_expected(self, value: T) {
-        self.send(value)
-            .with_expect(|| format!("{}", UNABLE_TO_SEND));
+        self.send(value).expect(UNABLE_TO_SEND);
     }
 }
 
@@ -36,9 +33,7 @@ where
     T: Send + std::fmt::Debug,
 {
     async fn send_expected_async(&self, value: T) {
-        self.send(value)
-            .await
-            .with_expect(|| format!("{}", UNABLE_TO_SEND));
+        self.send(value).await.expect(UNABLE_TO_SEND);
     }
 }
 
@@ -54,8 +49,7 @@ where
     T: Send + std::fmt::Debug,
 {
     fn send_expected(&self, value: T) {
-        self.send(value)
-            .with_expect(|| format!("{}", UNABLE_TO_SEND));
+        self.send(value).expect(UNABLE_TO_SEND);
     }
 }
 
@@ -64,8 +58,7 @@ where
     T: Send + std::fmt::Debug,
 {
     fn send_expected(&self, value: T) {
-        self.try_send(value)
-            .with_expect(|| format!("{}", UNABLE_TO_SEND));
+        self.try_send(value).expect(UNABLE_TO_SEND);
     }
 }
 
@@ -74,7 +67,6 @@ where
     T: Send + std::fmt::Debug,
 {
     fn send_expected(&self, value: T) {
-        self.send(value)
-            .with_expect(|| format!("{}", UNABLE_TO_SEND));
+        self.send(value).expect(UNABLE_TO_SEND);
     }
 }
