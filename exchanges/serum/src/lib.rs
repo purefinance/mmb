@@ -15,6 +15,8 @@
 )]
 
 #[allow(dead_code)]
-mod exchange_client;
-mod serum;
-mod support;
+pub mod exchange_client;
+pub mod serum;
+pub mod support;
+
+mod helpers;
