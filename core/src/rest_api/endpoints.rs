@@ -1,6 +1,4 @@
-use jsonrpc_core::Params;
 use jsonrpc_core::Result;
-use jsonrpc_core::Value;
 use mmb_rpc::rest_api::server_side_error;
 use mmb_rpc::rest_api::MmbRpc;
 use parking_lot::Mutex;
@@ -74,11 +72,18 @@ impl MmbRpc for RpcImpl {
             settings: String,
         }
 
-        let data: Data = Params::Array(vec![Value::String(params)]).parse()?;
+        let data: Data = serde_json::from_str(params.as_str()).map_err(|err| {
+            log::warn!(
+                "Error while trying parse new config('{}') in set_config endpoint: {}",
+                params,
+                err.to_string()
+            );
+            server_side_error(ErrorCode::UnableToParseNewConfig)
+        })?;
 
         save_settings(data.settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
             log::warn!(
-                "Error while trying save new config in set_config endpoint: {}",
+                "Error while trying to save new config in set_config endpoint: {}",
                 err.to_string()
             );
             server_side_error(ErrorCode::FailedToSaveNewConfig)
