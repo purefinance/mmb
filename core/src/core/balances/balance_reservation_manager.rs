@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use itertools::Itertools;
+use mmb_utils::decimal_inverse_sign::DecimalInverseSign;
 use mmb_utils::infrastructure::WithExpect;
-use mmb_utils::traits_ext::decimal_inverse_sign::DecimalInverseSign;
 use mmb_utils::DateTime;
 use mockall_double::double;
 use rust_decimal::Decimal;

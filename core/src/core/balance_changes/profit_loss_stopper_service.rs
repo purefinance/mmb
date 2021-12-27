@@ -154,7 +154,7 @@ mod test {
         )
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn settings_loading_test_empty_settings_should_not_throw() {
         let stopper_settings = ProfitLossStopperSettings {
             conditions: vec![StopperCondition {

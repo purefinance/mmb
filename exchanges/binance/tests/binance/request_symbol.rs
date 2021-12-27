@@ -6,7 +6,7 @@ use mmb_utils::cancellation_token::CancellationToken;
 
 use crate::binance::binance_builder::BinanceBuilder;
 
-#[actix_rt::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn request_metadata() {
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     // build_symbol is called in try_new, so if it's doesn't panicked symbol fetched successfully

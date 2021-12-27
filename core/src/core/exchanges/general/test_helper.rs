@@ -35,7 +35,6 @@ use crate::core::{
     },
     settings::ExchangeSettings,
 };
-use actix_http::Uri;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -44,6 +43,7 @@ use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
+use url::Url;
 
 use super::{
     handlers::handle_order_filled::FillEventData, order::get_order_trades::OrderTrade,
@@ -55,34 +55,34 @@ pub struct TestClient;
 #[async_trait]
 impl ExchangeClient for TestClient {
     async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn create_order(&self, _order: &OrderCreating) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_cancel_order(&self, _order: &OrderCancelling) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_open_orders_by_currency_pair(
         &self,
         _currency_pair: CurrencyPair,
     ) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_order_info(&self, _order: &OrderRef) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_my_trades(
@@ -90,19 +90,19 @@ impl ExchangeClient for TestClient {
         _symbol: &Symbol,
         _last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_get_position(&self) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_get_balance(&self) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     async fn request_close_position(
@@ -110,27 +110,27 @@ impl ExchangeClient for TestClient {
         _position: &ActivePosition,
         _price: Option<Price>,
     ) -> Result<RestRequestOutcome> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 }
 
 #[async_trait]
 impl Support for TestClient {
     fn is_rest_error_code(&self, _response: &RestRequestOutcome) -> Result<(), ExchangeError> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
     fn get_order_id(&self, _response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
     fn clarify_error_type(&self, __error: &mut ExchangeError) {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn on_websocket_message(&self, _msg: &str) -> Result<()> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
     fn on_connecting(&self) -> Result<()> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn set_order_created_callback(
@@ -162,23 +162,23 @@ impl Support for TestClient {
     fn set_traded_specific_currencies(&self, _currencies: Vec<SpecificCurrencyPair>) {}
 
     fn is_websocket_enabled(&self, _role: WebSocketRole) -> bool {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
-    async fn create_ws_url(&self, _role: WebSocketRole) -> Result<Uri> {
-        unreachable!("doesn't need in UT")
+    async fn create_ws_url(&self, _role: WebSocketRole) -> Result<Url> {
+        unimplemented!("doesn't need in UT")
     }
 
     fn get_specific_currency_pair(&self, _currency_pair: CurrencyPair) -> SpecificCurrencyPair {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn should_log_message(&self, _message: &str) -> bool {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn log_unknown_message(&self, exchange_account_id: ExchangeAccountId, message: &str) {
@@ -186,13 +186,13 @@ impl Support for TestClient {
     }
 
     fn parse_open_orders(&self, _response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
     fn parse_order_info(&self, _response: &RestRequestOutcome) -> Result<OrderInfo> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
     fn parse_all_symbols(&self, _response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn get_balance_reservation_currency_code(
@@ -208,23 +208,23 @@ impl Support for TestClient {
         _response: &RestRequestOutcome,
         _last_date_time: Option<chrono::DateTime<chrono::Utc>>,
     ) -> Result<Vec<OrderTrade>> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn get_settings(&self) -> &ExchangeSettings {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn parse_get_position(&self, _response: &RestRequestOutcome) -> Vec<ActivePosition> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn parse_close_position(&self, _response: &RestRequestOutcome) -> Result<ClosedPosition> {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 
     fn parse_get_balance(&self, _response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
-        unreachable!("doesn't need in UT")
+        unimplemented!("doesn't need in UT")
     }
 }
 

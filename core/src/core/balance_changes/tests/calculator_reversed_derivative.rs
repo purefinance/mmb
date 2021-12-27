@@ -44,7 +44,7 @@ mod tests {
     #[case(OrderSide::Sell, dec!(8_000), dec!(4_000), dec!(50))] // sell, price dropped
     #[case(OrderSide::Sell, dec!(4_000), dec!(8_000), dec!(-100))] // sell, price rose
     #[case(OrderSide::Sell, dec!(8_000), dec!(8_000), dec!(0))] // sell, same price
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_profit_by_side_and_price_no_commission(
         #[case] side: OrderSide,
         #[case] trade_price: Decimal,
@@ -85,7 +85,7 @@ mod tests {
     #[case(OrderSide::Sell, dec!(8_000), dec!(8_000), dec!(-10))] // no price change, minus commission
     #[case(OrderSide::Buy, dec!(8_000), dec!(8_800), dec!(0))] // positive minus commission
     #[case(OrderSide::Sell, dec!(8_000), dec!(7_200), dec!(0))] // positive minus commission
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_profit_by_side_and_price_with_commission(
         #[case] side: OrderSide,
         #[case] trade_price: Decimal,
@@ -122,7 +122,7 @@ mod tests {
         assert_eq!(usd_over_market, profit);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_profit_two_orders_with_commission() {
         let first_price = dec!(10_000);
         let second_price = dec!(2_000);

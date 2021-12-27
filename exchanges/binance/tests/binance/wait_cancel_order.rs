@@ -10,7 +10,7 @@ use mmb_utils::logger::init_logger;
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::get_binance_credentials_or_exit;
 
-#[actix_rt::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancellation_waited_successfully() {
     init_logger();
 
@@ -70,7 +70,7 @@ async fn cancellation_waited_successfully() {
         .expect("Error while trying wait_cancel_order");
 }
 
-#[actix_rt::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancellation_waited_failed_fallback() {
     init_logger();
 

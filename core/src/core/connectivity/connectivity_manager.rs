@@ -1,18 +1,14 @@
 use crate::core::{
     connectivity::{
         connectivity_manager::WebSocketState::Disconnected,
-        websocket_actor::{self, ForceClose, WebSocketActor, WebSocketParams},
+        websocket_connection::{WebSocketConnection, WebSocketParams},
     },
     exchanges::common::ExchangeAccountId,
 };
-
-use actix::Addr;
 use anyhow::Result;
 use futures::Future;
 use log::log;
-use mmb_utils::{
-    cancellation_token::CancellationToken, traits_ext::send_expected::SendExpectedByRef,
-};
+use mmb_utils::{cancellation_token::CancellationToken, send_expected::SendExpectedByRef};
 use parking_lot::Mutex;
 use std::pin::Pin;
 use std::{
@@ -49,7 +45,7 @@ enum WebSocketState {
         cancel_websocket_connecting: CancellationToken,
     },
     Connected {
-        websocket_actor: Addr<WebSocketActor>,
+        websocket: Arc<WebSocketConnection>,
         finished_sender: broadcast::Sender<()>,
     },
 }
@@ -170,9 +166,9 @@ impl ConnectivityManager {
     }
 
     async fn disconnect_for_websocket(websocket_connectivity: &Mutex<WebSocketConnectivity>) {
-        let guard = websocket_connectivity.lock();
+        let mut guard = websocket_connectivity.lock();
 
-        let mut finished_receiver = match &guard.state {
+        let mut finished_receiver = match &mut guard.state {
             Disconnected => {
                 return;
             }
@@ -185,11 +181,11 @@ impl ConnectivityManager {
                 finished_sender.subscribe()
             }
             WebSocketState::Connected {
-                websocket_actor,
+                websocket,
                 finished_sender,
             } => {
-                if websocket_actor.connected() {
-                    let _ = websocket_actor.try_send(ForceClose);
+                if websocket.is_connected() {
+                    let _ = websocket.send_force_close().await;
                     finished_sender.subscribe()
                 } else {
                     return;
@@ -202,23 +198,19 @@ impl ConnectivityManager {
         let _ = finished_receiver.recv().await;
     }
 
-    pub fn send(&self, role: WebSocketRole, message: &str) {
-        if let WebSocketState::Connected {
-            ref websocket_actor,
-            ..
-        } = self
+    pub async fn send(&self, role: WebSocketRole, message: &str) {
+        if let WebSocketState::Connected { ref websocket, .. } = self
             .websockets
             .get_websocket_state(role)
             .lock()
             .borrow()
             .state
         {
-            let sending_result =
-                websocket_actor.try_send(websocket_actor::SendText(message.to_owned()));
+            let sending_result = websocket.send_string(message.to_owned()).await;
             if let Err(ref err) = sending_result {
                 log::error!(
                     "Error {} happened when sending to websocket {} message: {}",
-                    err,
+                    err.to_string(),
                     self.exchange_account_id,
                     message
                 )
@@ -290,7 +282,7 @@ impl ConnectivityManager {
 
                     let notifier = ConnectivityManagerNotifier::new(role, Arc::downgrade(self));
 
-                    let websocket_actor = WebSocketActor::open_connection(
+                    let websocket = WebSocketConnection::open_connection(
                         self.exchange_account_id,
                         role,
                         params.clone(),
@@ -298,11 +290,11 @@ impl ConnectivityManager {
                     )
                     .await;
 
-                    match websocket_actor {
-                        Ok(websocket_actor) => {
+                    match websocket {
+                        Ok(websocket) => {
                             websocket_connectivity.lock().deref_mut().state =
                                 WebSocketState::Connected {
-                                    websocket_actor,
+                                    websocket: websocket,
                                     finished_sender: finished_sender.clone(),
                                 };
 
@@ -315,11 +307,10 @@ impl ConnectivityManager {
                             }
 
                             if cancel_websocket_connecting.is_cancellation_requested() {
-                                if let WebSocketState::Connected {
-                                    websocket_actor, ..
-                                } = &websocket_connectivity.lock().borrow().state
+                                if let WebSocketState::Connected { websocket, .. } =
+                                    &websocket_connectivity.lock().borrow().state
                                 {
-                                    let _ = websocket_actor.try_send(ForceClose);
+                                    let _ = websocket.send_force_close();
                                 }
                             }
 
