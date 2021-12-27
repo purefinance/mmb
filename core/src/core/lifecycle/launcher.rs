@@ -84,7 +84,7 @@ where
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
         InitSettings::Load(config_path, credentials_path) => {
-            load_settings::<StrategySettings>(&config_path, &credentials_path)?
+            load_settings::<StrategySettings>(&config_path, &credentials_path)
         }
     };
 

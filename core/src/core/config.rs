@@ -5,6 +5,7 @@ use std::{fmt::Debug, fs::File};
 use crate::core::settings::{AppSettings, BaseStrategySettings};
 use anyhow::{anyhow, Context, Result};
 use mmb_utils::hashmap;
+use mmb_utils::infrastructure::WithExpect;
 use serde::de::DeserializeOwned;
 use toml_edit::{value, ArrayOfTables, Document, Table};
 
@@ -14,22 +15,23 @@ pub static SECRET_KEY: &str = "secret_key";
 pub static CONFIG_PATH: &str = "config.toml";
 pub static CREDENTIALS_PATH: &str = "credentials.toml";
 
-pub fn load_settings<TSettings>(
-    config_path: &str,
-    credentials_path: &str,
-) -> Result<AppSettings<TSettings>>
+pub fn load_settings<TSettings>(config_path: &str, credentials_path: &str) -> AppSettings<TSettings>
 where
     TSettings: BaseStrategySettings + Clone + Debug + DeserializeOwned,
 {
-    let mut settings = read_to_string(config_path)?;
-    let mut credentials = read_to_string(credentials_path)?;
+    let mut settings = read_to_string(config_path)
+        .with_expect(|| format!("Unable load settings file: {}", config_path));
+    let mut credentials = read_to_string(credentials_path)
+        .with_expect(|| format!("Unable load credentials file: {}", credentials_path));
 
-    parse_settings(&mut settings, &mut credentials)
+    parse_settings(&mut settings, &mut credentials).expect("Error in parse_settings")
 }
 
 pub fn load_pretty_settings(config_path: &str, credentials_path: &str) -> String {
-    let settings = read_to_string(&config_path).expect("Failed to read config file");
-    let credentials = read_to_string(&credentials_path).expect("Failed to read credentials file");
+    let settings = read_to_string(&config_path)
+        .with_expect(|| format!("Unable load settings file: {}", config_path));
+    let credentials = read_to_string(&credentials_path)
+        .with_expect(|| format!("Unable load credentials file: {}", credentials_path));
 
     let settings = parse_toml_settings(&settings, &credentials).expect("Failed to parse toml file");
     settings.to_string()
@@ -42,7 +44,8 @@ pub fn parse_settings<TSettings>(
 where
     TSettings: BaseStrategySettings + Clone + Debug + DeserializeOwned,
 {
-    let settings = parse_toml_settings(settings, credentials)?;
+    let settings =
+        parse_toml_settings(settings, credentials).context("Unable parse toml settings")?;
     toml_edit::de::from_document::<AppSettings<TSettings>>(settings)
         .context("Unable parse combined settings")
 }
@@ -84,11 +87,10 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
 }
 
 fn parse_toml_settings(settings: &str, credentials: &str) -> Result<Document> {
-    let mut settings: Document = settings.parse()?;
+    let mut settings: Document = settings.parse().context("Unable parse settings")?;
 
-    let exchanges = get_exchanges_mut(&mut settings).ok_or(anyhow!(
-        "Unable to get core.exchanges array from gotten settings"
-    ))?;
+    let exchanges = get_exchanges_mut(&mut settings)
+        .context("Unable to get 'core.exchanges' array from gotten settings")?;
 
     if !exchanges.is_empty() {
         let credentials: Document = credentials.parse()?;
@@ -100,22 +102,22 @@ fn parse_toml_settings(settings: &str, credentials: &str) -> Result<Document> {
                 .get(EXCHANGE_ACCOUNT_ID)
                 .and_then(|v| v.as_str())
                 .ok_or(anyhow!(
-                    "Unable get the exchange account id for the Exchange from the settings"
-                ))?;
+                "Unable get 'exchange_account_id' for one of 'core.exchanges' from the settings"
+            ))?;
 
             let api_key = credentials
                 .get(exchange_account_id)
                 .and_then(|v| v.get(API_KEY))
                 .and_then(|v| v.as_str())
                 .ok_or(anyhow!(
-                    "Unable get the api_key for the Exchange from the settings"
+                    "Unable get 'api_key' for one of 'core.exchanges' from the settings"
                 ))?;
             let secret_key = credentials
                 .get(exchange_account_id)
                 .and_then(|v| v.get(SECRET_KEY))
                 .and_then(|v| v.as_str())
                 .ok_or(anyhow!(
-                    "Unable get the secret_key for the Exchange from the settings"
+                    "Unable get 'secret_key' for one of 'core.exchanges' from the settings"
                 ))?;
 
             exchange.insert(API_KEY, value(api_key));
