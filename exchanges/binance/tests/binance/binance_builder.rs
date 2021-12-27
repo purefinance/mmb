@@ -123,7 +123,7 @@ impl BinanceBuilder {
         }
 
         let default_price = get_default_price(
-            exchange.get_specific_currency_pair(OrderProxy::default_currency_pair()),
+            get_specific_currency_pair_for_tests(&exchange, OrderProxy::default_currency_pair()),
             &hosts,
             &settings.api_key,
         )
