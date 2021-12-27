@@ -28,7 +28,6 @@ pub enum ErrorCode {
     StopperIsNone = 1,
     UnableToSendSignal = 2,
     FailedToSaveNewConfig = 3,
-    UnableToParseNewConfig = 4,
 }
 
 pub fn server_side_error(code: ErrorCode) -> Error {
@@ -36,7 +35,6 @@ pub fn server_side_error(code: ErrorCode) -> Error {
         ErrorCode::StopperIsNone => "Server stopper is none",
         ErrorCode::UnableToSendSignal => "Unable to send signal",
         ErrorCode::FailedToSaveNewConfig => "Failed to save new config",
-        ErrorCode::UnableToParseNewConfig => "Unable to parse new config",
     };
     log::error!("Rest API error: {}", reason);
     Error::new(jsonrpc_core::ErrorCode::ServerError(code as i64))

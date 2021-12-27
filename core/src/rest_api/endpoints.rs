@@ -66,22 +66,8 @@ impl MmbRpc for RpcImpl {
         Ok(self.engine_settings.clone())
     }
 
-    fn set_config(&self, params: String) -> Result<String> {
-        #[derive(Deserialize)]
-        struct Data {
-            settings: String,
-        }
-
-        let data: Data = serde_json::from_str(params.as_str()).map_err(|err| {
-            log::warn!(
-                "Error while trying parse new config('{}') in set_config endpoint: {}",
-                params,
-                err.to_string()
-            );
-            server_side_error(ErrorCode::UnableToParseNewConfig)
-        })?;
-
-        save_settings(data.settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
+    fn set_config(&self, settings: String) -> Result<String> {
+        save_settings(settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
             log::warn!(
                 "Error while trying to save new config in set_config endpoint: {}",
                 err.to_string()
