@@ -2,7 +2,6 @@ use jsonrpc_core::Result;
 use mmb_rpc::rest_api::server_side_error;
 use mmb_rpc::rest_api::MmbRpc;
 use parking_lot::Mutex;
-use serde::Deserialize;
 
 use std::sync::mpsc;
 use std::sync::Arc;

@@ -18,7 +18,7 @@ pub trait MmbRpc {
     fn get_config(&self) -> Result<String>;
 
     #[rpc(name = "set_config")]
-    fn set_config(&self, params: String) -> Result<String>;
+    fn set_config(&self, settings: String) -> Result<String>;
 
     #[rpc(name = "stats")]
     fn stats(&self) -> Result<String>;
