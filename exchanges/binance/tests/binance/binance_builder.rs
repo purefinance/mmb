@@ -1,13 +1,15 @@
 use anyhow::Result;
+use binance::binance::Binance;
+use core_tests::order::OrderProxy;
 use mmb_core::core::balance_manager::balance_manager::BalanceManager;
 use mmb_core::core::exchanges::common::*;
 use mmb_core::core::exchanges::events::ExchangeEvent;
+use mmb_core::core::exchanges::general::commission::Commission;
 use mmb_core::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use mmb_core::core::exchanges::general::exchange::*;
 use mmb_core::core::exchanges::general::features::*;
 use mmb_core::core::exchanges::hosts::Hosts;
-use mmb_core::core::exchanges::traits::ExchangeClientBuilder;
-use mmb_core::core::exchanges::{binance::binance::*, general::commission::Commission};
+use mmb_core::core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::core::lifecycle::application_manager::ApplicationManager;
 use mmb_core::core::settings::CurrencyPairSetting;
 use mmb_core::core::settings::ExchangeSettings;
@@ -18,7 +20,6 @@ use tokio::sync::broadcast;
 
 use crate::binance::common::get_default_price;
 use crate::binance::common::{get_binance_credentials, get_timeout_manager};
-use crate::core::order::OrderProxy;
 
 pub struct BinanceBuilder {
     pub exchange: Arc<Exchange>,
@@ -36,7 +37,7 @@ impl BinanceBuilder {
         features: ExchangeFeatures,
         commission: Commission,
         need_to_clean_up: bool,
-    ) -> Result<BinanceBuilder> {
+    ) -> Result<Self> {
         let (api_key, secret_key) = match get_binance_credentials() {
             Ok((api_key, secret_key)) => (api_key, secret_key),
             Err(_) => ("".to_string(), "".to_string()),
@@ -57,7 +58,7 @@ impl BinanceBuilder {
             currency_pair: None,
         }]);
 
-        BinanceBuilder::try_new_with_settings(
+        Self::try_new_with_settings(
             settings,
             exchange_account_id,
             cancellation_token,
@@ -75,7 +76,7 @@ impl BinanceBuilder {
         features: ExchangeFeatures,
         commission: Commission,
         need_to_clean_up: bool,
-    ) -> Result<BinanceBuilder> {
+    ) -> Result<Self> {
         let application_manager = ApplicationManager::new(cancellation_token.clone());
         let (tx, rx) = broadcast::channel(10);
 
@@ -96,7 +97,7 @@ impl BinanceBuilder {
             exchange_account_id,
             binance,
             features,
-            BinanceBuilder.get_timeout_arguments(),
+            RequestTimeoutArguments::from_requests_per_minute(1200),
             tx.clone(),
             application_manager,
             timeout_manager,
@@ -128,7 +129,7 @@ impl BinanceBuilder {
         )
         .await;
 
-        Ok(BinanceBuilder {
+        Ok(Self {
             exchange,
             hosts,
             exchange_settings: settings,

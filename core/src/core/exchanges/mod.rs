@@ -1,4 +1,3 @@
-pub mod binance;
 pub mod block_reasons;
 pub mod common;
 pub mod events;

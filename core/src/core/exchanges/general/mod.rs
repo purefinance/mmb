@@ -10,5 +10,6 @@ pub mod order;
 pub mod polling_timeout_manager;
 pub mod request_type;
 pub mod symbol;
+
 #[cfg(test)]
 pub mod test_helper;

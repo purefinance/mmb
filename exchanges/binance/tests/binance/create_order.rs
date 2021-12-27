@@ -10,7 +10,7 @@ use rust_decimal_macros::*;
 use mmb_core::core::exchanges::events::ExchangeEvent;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::core::order::OrderProxy;
+use core_tests::order::OrderProxy;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn create_successfully() {

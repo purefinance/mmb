@@ -1,10 +1,12 @@
 #![cfg(test)]
+use binance::binance::Binance;
+use binance::binance::BinanceBuilder;
 use futures::FutureExt;
 use jsonrpc_core::Value;
 use jsonrpc_core_client::transports::ipc;
 use mmb_core::core::config::parse_settings;
 use mmb_core::core::disposition_execution::{PriceSlot, TradingContext};
-use mmb_core::core::exchanges::binance::binance::Binance;
+use mmb_core::core::exchanges::traits::ExchangeClientBuilder;
 use mmb_core::core::explanation::Explanation;
 use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::core::orders::order::OrderSnapshot;
@@ -31,8 +33,8 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::binance::common::get_default_price;
-use crate::core::order::OrderProxy;
 use crate::get_binance_credentials_or_exit;
+use core_tests::order::OrderProxy;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct TestStrategySettings {}
@@ -82,7 +84,8 @@ async fn orders_cancelled() {
         }
     }
 
-    let config = EngineBuildConfig::standard();
+    let config =
+        EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
 
     let mut settings = parse_settings::<TestStrategySettings>(
         include_str!("control_panel.toml"),
