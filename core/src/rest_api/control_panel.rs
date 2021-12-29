@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_ipc_server::{Server, ServerBuilder};
 use mmb_rpc::rest_api::{MmbRpc, IPC_ADDRESS};
@@ -39,15 +39,13 @@ impl ControlPanel {
     }
 
     /// Returned receiver will take a message when shutdown are completed
-    pub(crate) fn stop(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
-        self.server_stopper_tx.lock().take().map(|sender| {
-            if let Err(error) = sender.send(()) {
-                log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
-                return None;
-            }
-
-            self.work_finished_receiver.lock().take()
-        })?
+    pub(crate) fn stop(self: &Arc<Self>) -> Result<()> {
+        match self.server_stopper_tx.lock().take() {
+            Some(sender) => sender
+                .send(())
+                .with_context(|| format!("{}", FAILED_TO_SEND_STOP_NOTIFICATION)),
+            None => bail!("{}: stopper is None", FAILED_TO_SEND_STOP_NOTIFICATION),
+        }
     }
 
     pub(crate) fn start(
@@ -58,19 +56,19 @@ impl ControlPanel {
         let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>();
         *self.server_stopper_tx.lock() = Some(server_stopper_tx.clone());
 
-        let io = self.clone().build_io(engine_settings, statistics);
+        let io = self.build_io(engine_settings, statistics);
 
         let builder = ServerBuilder::new(io);
         let server = builder.start(IPC_ADDRESS).expect("Couldn't open socket");
 
         *self.server.lock() = Some(server);
-        self.clone().server_stopping(server_stopper_rx);
+        self.clone().spawn_server_stopping_action(server_stopper_rx);
 
         Ok(())
     }
 
     fn build_io(
-        self: Arc<Self>,
+        self: &Arc<Self>,
         engine_settings: String,
         statistics: Arc<StatisticService>,
     ) -> MetaIoHandler<()> {
@@ -86,7 +84,7 @@ impl ControlPanel {
         io
     }
 
-    fn server_stopping(self: Arc<Self>, server_stopper_rx: mpsc::Receiver<()>) {
+    fn spawn_server_stopping_action(self: Arc<Self>, server_stopper_rx: mpsc::Receiver<()>) {
         tokio::task::spawn_blocking(move || {
             if let Err(error) = server_stopper_rx.recv() {
                 log::error!("Unable to receive signal to stop IPC server: {}", error);
@@ -115,6 +113,11 @@ impl Service for ControlPanel {
     }
 
     fn graceful_shutdown(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
-        self.clone().stop()
+        if let Err(error) = self.stop() {
+            log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
+            return None;
+        }
+
+        self.work_finished_receiver.lock().take()
     }
 }

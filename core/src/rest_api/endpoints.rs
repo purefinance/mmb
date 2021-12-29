@@ -39,7 +39,9 @@ impl RpcImpl {
                     log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
                     return Err(server_side_error(ErrorCode::UnableToSendSignal));
                 };
-                Ok("ControlPanel is going to turn off".into())
+                let msg = "Trading engine is going to turn off";
+                log::info!("{} by control panel", msg);
+                Ok(msg.into())
             }
             None => {
                 log::warn!(
@@ -76,7 +78,7 @@ impl MmbRpc for RpcImpl {
 
         self.send_stop()?;
 
-        Ok("Config was successfully updated. Trading engine stopped".into())
+        Ok("Config was successfully updated. Trading engine will restarted".into())
     }
 
     fn stats(&self) -> Result<String> {

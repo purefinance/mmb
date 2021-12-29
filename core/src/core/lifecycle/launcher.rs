@@ -189,12 +189,13 @@ where
         let _ = spawn_future("internal_events_loop start", true, action.boxed());
     }
 
-    if let Err(error) = control_panel.clone().start(
-        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
-        statistic_service.clone(),
-    ) {
-        log::error!("Unable to start rest api: {}", error);
-    }
+    control_panel
+        .clone()
+        .start(
+            load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
+            statistic_service.clone(),
+        )
+        .expect("Unable to start control panel");
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
     let disposition_executor_service = create_disposition_executor_service(
