@@ -39,6 +39,7 @@ impl Explanation {
         }
     }
 
+    #[cfg(test)]
     fn reasons(self) -> Vec<String> {
         self.reasons
     }

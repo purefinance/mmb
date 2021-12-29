@@ -27,14 +27,12 @@ pub enum WebSocketRole {
 }
 
 struct WebSocketConnectivity {
-    role: WebSocketRole,
     state: WebSocketState,
 }
 
 impl WebSocketConnectivity {
-    pub fn new(role: WebSocketRole) -> WebSocketConnectivity {
+    pub fn new() -> WebSocketConnectivity {
         WebSocketConnectivity {
-            role,
             state: Disconnected,
         }
     }
@@ -92,8 +90,8 @@ impl ConnectivityManager {
         Arc::new(Self {
             exchange_account_id,
             websockets: WebSockets {
-                main: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Main)),
-                secondary: Mutex::new(WebSocketConnectivity::new(WebSocketRole::Secondary)),
+                main: Mutex::new(WebSocketConnectivity::new()),
+                secondary: Mutex::new(WebSocketConnectivity::new()),
             },
 
             callback_connecting: Mutex::new(Box::new(|| {})),

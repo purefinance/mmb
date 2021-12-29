@@ -271,52 +271,6 @@ mod tests {
         test_object
     }
 
-    fn create_test_obj_with_multiple_currencies(
-        currency_codes: Vec<CurrencyCode>,
-        amounts: Vec<Amount>,
-        is_reversed: bool,
-    ) -> BalanceManagerDerivative {
-        if currency_codes.len() != amounts.len() {
-            panic!("Failed to create test object: currency_codes.len() = {} should be equal amounts.len() = {}",
-            currency_codes.len(), amounts.len());
-        }
-        let test_object = BalanceManagerDerivative::new(is_reversed);
-
-        BalanceManagerBase::update_balance(
-            &mut *test_object.balance_manager(),
-            test_object.balance_manager_base.exchange_account_id_1,
-            currency_codes
-                .into_iter()
-                .zip(amounts.into_iter())
-                .collect(),
-        );
-        test_object
-    }
-
-    fn create_eth_btc_test_obj_for_two_exchanges(
-        cc_for_first: CurrencyCode,
-        amount_for_first: Amount,
-        cc_for_second: CurrencyCode,
-        amount_for_second: Amount,
-        is_reversed: bool,
-    ) -> BalanceManagerDerivative {
-        let test_object = BalanceManagerDerivative::new(is_reversed);
-
-        BalanceManagerBase::update_balance(
-            &mut *test_object.balance_manager(),
-            test_object.balance_manager_base.exchange_account_id_1,
-            hashmap![cc_for_first => amount_for_first],
-        );
-
-        BalanceManagerBase::update_balance(
-            &mut *test_object.balance_manager(),
-            test_object.balance_manager_base.exchange_account_id_2,
-            hashmap![cc_for_second => amount_for_second],
-        );
-
-        test_object
-    }
-
     fn create_test_obj_by_currency_code(
         currency_code: CurrencyCode,
         amount: Amount,

@@ -37,7 +37,6 @@ use super::{
 };
 
 pub struct PriceSourceEventLoop {
-    currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
     price_sources_saver: PriceSourcesSaver,
     all_trade_places: HashSet<TradePlace>,
     local_snapshot_service: LocalSnapshotsService,
@@ -48,7 +47,6 @@ pub struct PriceSourceEventLoop {
 
 impl PriceSourceEventLoop {
     pub async fn run(
-        currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         price_source_chains: Vec<PriceSourceChain>,
         price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
@@ -57,7 +55,6 @@ impl PriceSourceEventLoop {
     ) {
         let run_action = async move {
             let mut this = Self {
-                currency_pair_to_symbol_converter,
                 price_sources_saver,
                 all_trade_places: Self::map_to_used_trade_places(price_source_chains),
                 local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
@@ -184,13 +181,11 @@ impl PriceSourceService {
     }
     pub async fn start(
         self: Arc<Self>,
-        currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         price_sources_saver: PriceSourcesSaver,
         rx_core: broadcast::Receiver<ExchangeEvent>,
         cancellation_token: CancellationToken,
     ) {
         PriceSourceEventLoop::run(
-            currency_pair_to_symbol_converter,
             self.price_source_chains.values().cloned().collect_vec(),
             price_sources_saver,
             rx_core,

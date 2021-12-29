@@ -3,27 +3,27 @@ use mmb_utils::DateTime;
 use crate::core::exchanges::common::{CurrencyPair, ExchangeId, Price};
 
 pub(crate) struct PriceSourceModel {
-    pub init_time: DateTime,
-    pub exchange_id: ExchangeId,
-    pub currency_pair: CurrencyPair,
-    pub bid: Option<Price>,
-    pub ask: Option<Price>,
+    pub _init_time: DateTime,
+    pub _exchange_id: ExchangeId,
+    pub _currency_pair: CurrencyPair,
+    pub _bid: Option<Price>,
+    pub _ask: Option<Price>,
 }
 
 impl PriceSourceModel {
     pub fn new(
-        init_time: DateTime,
-        exchange_id: ExchangeId,
-        currency_pair: CurrencyPair,
-        bid: Option<Price>,
-        ask: Option<Price>,
+        _init_time: DateTime,
+        _exchange_id: ExchangeId,
+        _currency_pair: CurrencyPair,
+        _bid: Option<Price>,
+        _ask: Option<Price>,
     ) -> Self {
         Self {
-            init_time,
-            exchange_id,
-            currency_pair,
-            bid,
-            ask,
+            _init_time,
+            _exchange_id,
+            _currency_pair,
+            _bid,
+            _ask,
         }
     }
 }

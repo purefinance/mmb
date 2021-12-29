@@ -12,6 +12,7 @@ use crate::core::{
     },
 };
 
+#[cfg(test)]
 pub(crate) fn calculate(
     src_amount: Amount,
     price_source_chain: &PriceSourceChain,
