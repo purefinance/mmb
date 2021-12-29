@@ -1,0 +1,1 @@
+The crate with implementation of exchange client for Binance.
