@@ -40,10 +40,10 @@ async fn main() -> Result<()> {
     let engine_config =
         EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
 
-    let init_settings = InitSettings::<ExampleStrategySettings>::Load(
-        CONFIG_PATH.to_owned(),
-        CREDENTIALS_PATH.to_owned(),
-    );
+    let init_settings = InitSettings::<ExampleStrategySettings>::Load {
+        config_path: CONFIG_PATH.to_owned(),
+        credentials_path: CREDENTIALS_PATH.to_owned(),
+    };
 
     let engine = launch_trading_engine(&engine_config, init_settings, |settings, ctx| {
         Box::new(ExampleStrategy::new(

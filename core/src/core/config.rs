@@ -2,6 +2,7 @@ use std::fs::read_to_string;
 use std::{collections::HashMap, io::Write};
 use std::{fmt::Debug, fs::File};
 
+use crate::core::lifecycle::launcher::InitSettings;
 use crate::core::settings::{AppSettings, BaseStrategySettings};
 use anyhow::{anyhow, Context, Result};
 use mmb_utils::hashmap;
@@ -27,14 +28,30 @@ where
     parse_settings(&mut settings, &mut credentials).expect("Error in parse_settings")
 }
 
-pub fn load_pretty_settings(config_path: &str, credentials_path: &str) -> String {
-    let settings = read_to_string(&config_path)
-        .with_expect(|| format!("Unable load settings file: {}", config_path));
-    let credentials = read_to_string(&credentials_path)
-        .with_expect(|| format!("Unable load credentials file: {}", credentials_path));
+pub fn load_pretty_settings<StrategySettings>(
+    init_user_settings: InitSettings<StrategySettings>,
+) -> String
+where
+    StrategySettings: BaseStrategySettings + Clone + serde::ser::Serialize,
+{
+    match init_user_settings {
+        InitSettings::Directly(settings) => {
+            toml_edit::ser::to_string(&settings).expect("Unable serialize user settings")
+        }
+        InitSettings::Load {
+            config_path,
+            credentials_path,
+        } => {
+            let settings = read_to_string(&config_path)
+                .with_expect(|| format!("Unable load settings file: {}", config_path));
+            let credentials = read_to_string(&credentials_path)
+                .with_expect(|| format!("Unable load credentials file: {}", credentials_path));
 
-    let settings = parse_toml_settings(&settings, &credentials).expect("Failed to parse toml file");
-    settings.to_string()
+            let settings =
+                parse_toml_settings(&settings, &credentials).expect("Failed to parse toml file");
+            settings.to_string()
+        }
+    }
 }
 
 pub fn parse_settings<TSettings>(
