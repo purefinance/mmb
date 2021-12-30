@@ -5,7 +5,6 @@ use mmb_core::core::connectivity::websocket_connection::{WebSocketConnection, We
 use mmb_core::core::exchanges::common::ExchangeAccountId;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::time::Duration;
 use url::Url;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
