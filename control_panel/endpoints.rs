@@ -3,7 +3,7 @@ use futures::FutureExt;
 
 use crate::control_panel::{send_request, WebMmbRpcClient};
 
-// New endpoints have to be added as a service for actix server. Look at super::control_panel::start()
+// New endpoints have to be added as a service for actix server and webui control page. Look at super::control_panel::start() and webui/README.md
 
 #[get("/health")]
 pub(super) async fn health(client: WebMmbRpcClient) -> impl Responder {
