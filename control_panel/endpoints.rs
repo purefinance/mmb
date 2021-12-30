@@ -33,7 +33,10 @@ pub(super) async fn set_config(body: web::Bytes, client: WebMmbRpcClient) -> imp
         }
     };
 
-    send_request(client, move |client| client.set_config(settings).boxed()).await
+    send_request(client, move |client| {
+        client.set_config(settings.clone()).boxed()
+    })
+    .await
 }
 
 #[get("/stats")]
