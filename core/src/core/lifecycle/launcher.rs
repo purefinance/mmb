@@ -181,7 +181,7 @@ where
         create_statistic_event_handler(exchange_events, statistic_service.clone());
     let control_panel = ControlPanel::create_and_start(
         engine_context.application_manager.clone(),
-        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
+        load_pretty_settings(init_user_settings),
         statistic_service.clone(),
     )
     .expect("Unable to start control panel");
