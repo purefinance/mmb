@@ -78,7 +78,7 @@ impl MmbRpc for RpcImpl {
 
         self.send_stop()?;
 
-        Ok("Config was successfully updated. Trading engine will restarted".into())
+        Ok("Config was successfully updated. Trading engine will stopped".into())
     }
 
     fn stats(&self) -> Result<String> {
