@@ -35,6 +35,7 @@ use tokio::time::sleep;
 use crate::binance::common::get_default_price;
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
+use mmb_core::core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct TestStrategySettings {}
@@ -131,7 +132,7 @@ async fn orders_cancelled() {
         Some("FromOrdersCancelledTest".to_owned()),
         CancellationToken::default(),
         get_default_price(
-            exchange.get_specific_currency_pair(test_currency_pair),
+            get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
             &Binance::make_hosts(is_margin_trading),
             &api_key,
         )

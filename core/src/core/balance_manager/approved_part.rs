@@ -5,8 +5,8 @@ use crate::core::orders::order::ClientOrderId;
 
 #[derive(Clone, Debug)]
 pub struct ApprovedPart {
-    approve_time: DateTime,
-    client_order_id: ClientOrderId,
+    _approve_time: DateTime,
+    _client_order_id: ClientOrderId,
     /// Order amount in current CurrencyCode
     pub(crate) amount: Amount,
     pub(crate) is_canceled: bool,
@@ -14,10 +14,10 @@ pub struct ApprovedPart {
 }
 
 impl ApprovedPart {
-    pub fn new(approve_time: DateTime, client_order_id: ClientOrderId, amount: Amount) -> Self {
+    pub fn new(_approve_time: DateTime, _client_order_id: ClientOrderId, amount: Amount) -> Self {
         Self {
-            approve_time,
-            client_order_id,
+            _approve_time,
+            _client_order_id,
             amount,
             is_canceled: false,
             unreserved_amount: amount,

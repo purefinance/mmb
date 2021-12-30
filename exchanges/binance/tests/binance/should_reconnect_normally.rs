@@ -16,7 +16,7 @@ use tokio::{sync::oneshot, time::sleep};
 
 use crate::binance::binance_builder::BinanceBuilder;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore]
 pub async fn should_connect_and_reconnect_normally() {
     const EXPECTED_CONNECTED_COUNT: u32 = 3;
