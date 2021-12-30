@@ -174,7 +174,12 @@ where
     let statistic_service = StatisticService::new();
     let statistic_event_handler =
         create_statistic_event_handler(exchange_events, statistic_service.clone());
-    let control_panel = ControlPanel::new(engine_context.application_manager.clone());
+    let control_panel = ControlPanel::create_and_start(
+        engine_context.application_manager.clone(),
+        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
+        statistic_service.clone(),
+    )
+    .expect("Unable to start control panel");
     engine_context
         .shutdown_service
         .register_service(control_panel.clone());
@@ -188,14 +193,6 @@ where
         );
         let _ = spawn_future("internal_events_loop start", true, action.boxed());
     }
-
-    control_panel
-        .clone()
-        .start(
-            load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
-            statistic_service.clone(),
-        )
-        .expect("Unable to start control panel");
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
     let disposition_executor_service = create_disposition_executor_service(

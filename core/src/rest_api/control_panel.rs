@@ -1,13 +1,15 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
+use futures::FutureExt;
 use jsonrpc_core::MetaIoHandler;
 use jsonrpc_ipc_server::{Server, ServerBuilder};
 use mmb_rpc::rest_api::{MmbRpc, IPC_ADDRESS};
 use parking_lot::Mutex;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
-use std::sync::{mpsc, Arc};
+use std::sync::Arc;
 
 use crate::core::{
+    infrastructure::spawn_future,
     lifecycle::{application_manager::ApplicationManager, trading_engine::Service},
     statistic_service::StatisticService,
 };
@@ -27,53 +29,46 @@ pub(crate) struct ControlPanel {
 }
 
 impl ControlPanel {
-    pub(crate) fn new(application_manager: Arc<ApplicationManager>) -> Arc<Self> {
-        let (work_finished_sender, work_finished_receiver) = oneshot::channel();
-        Arc::new(Self {
-            server: Arc::new(Mutex::new(None)),
-            application_manager,
-            server_stopper_tx: Arc::new(Mutex::new(None)),
-            work_finished_sender: Arc::new(Mutex::new(Some(work_finished_sender))),
-            work_finished_receiver: Arc::new(Mutex::new(Some(work_finished_receiver))),
-        })
-    }
-
-    /// Returned receiver will take a message when shutdown are completed
-    pub(crate) fn stop(self: &Arc<Self>) -> Result<()> {
-        match self.server_stopper_tx.lock().take() {
-            Some(sender) => sender
-                .send(())
-                .with_context(|| format!("{}", FAILED_TO_SEND_STOP_NOTIFICATION)),
-            None => bail!("{}: stopper is None", FAILED_TO_SEND_STOP_NOTIFICATION),
+    pub(crate) fn send_stop(self: &Arc<Self>) -> Result<()> {
+        if let Some(sender) = self.server_stopper_tx.lock().take() {
+            return sender
+                .try_send(())
+                .context(FAILED_TO_SEND_STOP_NOTIFICATION);
         }
+        Ok(())
     }
 
-    pub(crate) fn start(
-        self: Arc<Self>,
+    pub(crate) fn create_and_start(
+        application_manager: Arc<ApplicationManager>,
         engine_settings: String,
         statistics: Arc<StatisticService>,
-    ) -> Result<()> {
-        let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>();
-        *self.server_stopper_tx.lock() = Some(server_stopper_tx.clone());
+    ) -> Result<Arc<Self>> {
+        let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>(10);
+        let (work_finished_sender, work_finished_receiver) = oneshot::channel();
+        let server_stopper_tx = Arc::new(Mutex::new(Some(server_stopper_tx)));
 
-        let io = self.build_io(engine_settings, statistics);
+        let io = Self::build_io(engine_settings, statistics, server_stopper_tx.clone());
 
         let builder = ServerBuilder::new(io);
         let server = builder.start(IPC_ADDRESS).expect("Couldn't open socket");
 
-        *self.server.lock() = Some(server);
-        self.clone().spawn_server_stopping_action(server_stopper_rx);
-
-        Ok(())
+        Ok(Arc::new(Self {
+            server: Arc::new(Mutex::new(Some(server))),
+            application_manager,
+            server_stopper_tx,
+            work_finished_sender: Arc::new(Mutex::new(Some(work_finished_sender))),
+            work_finished_receiver: Arc::new(Mutex::new(Some(work_finished_receiver))),
+        })
+        .spawn_server_stopping_action(server_stopper_rx))
     }
 
     fn build_io(
-        self: &Arc<Self>,
         engine_settings: String,
         statistics: Arc<StatisticService>,
+        server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     ) -> MetaIoHandler<()> {
         let rpc_impl = RpcImpl::new(
-            self.server_stopper_tx.clone(),
+            server_stopper_tx,
             statistics.clone(),
             engine_settings.clone(),
         );
@@ -84,26 +79,42 @@ impl ControlPanel {
         io
     }
 
-    fn spawn_server_stopping_action(self: Arc<Self>, server_stopper_rx: mpsc::Receiver<()>) {
-        tokio::task::spawn_blocking(move || {
-            if let Err(error) = server_stopper_rx.recv() {
-                log::error!("Unable to receive signal to stop IPC server: {}", error);
+    fn spawn_server_stopping_action(
+        self: Arc<Self>,
+        mut server_stopper_rx: mpsc::Receiver<()>,
+    ) -> Arc<Self> {
+        let cloned_self = self.clone();
+        let stopping_action = async move {
+            if server_stopper_rx.recv().await.is_none() {
+                log::error!("Unable to receive signal to stop IPC server");
             }
+            tokio::task::spawn_blocking(move || {
+                cloned_self
+                    .server
+                    .lock()
+                    .take()
+                    .expect("IPC server isn't running")
+                    .close();
 
-            self.server
-                .lock()
-                .take()
-                .expect("IPC server isn't running")
-                .close();
-
-            if let Some(work_finished_sender) = self.work_finished_sender.lock().take() {
-                if let Err(_) = work_finished_sender.send(Ok(())) {
-                    log::error!("Unable to send notification about server stopped.",);
+                if let Some(work_finished_sender) = cloned_self.work_finished_sender.lock().take() {
+                    if let Err(_) = work_finished_sender.send(Ok(())) {
+                        log::error!("Unable to send notification about server stopped.",);
+                    }
                 }
-            }
-            self.application_manager
-                .spawn_graceful_shutdown("Stop signal from control_panel".into());
-        });
+                cloned_self
+                    .application_manager
+                    .spawn_graceful_shutdown("Stop signal from control_panel".into());
+            });
+            Ok(())
+        };
+
+        spawn_future(
+            "waiting to stop control panel",
+            true,
+            stopping_action.boxed(),
+        );
+
+        self
     }
 }
 
@@ -113,7 +124,7 @@ impl Service for ControlPanel {
     }
 
     fn graceful_shutdown(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
-        if let Err(error) = self.stop() {
+        if let Err(error) = self.send_stop() {
             log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
             return None;
         }

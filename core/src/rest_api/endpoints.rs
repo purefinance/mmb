@@ -2,8 +2,8 @@ use jsonrpc_core::Result;
 use mmb_rpc::rest_api::server_side_error;
 use mmb_rpc::rest_api::MmbRpc;
 use parking_lot::Mutex;
+use tokio::sync::mpsc;
 
-use std::sync::mpsc;
 use std::sync::Arc;
 
 use crate::core::config::save_settings;
@@ -35,7 +35,7 @@ impl RpcImpl {
     fn send_stop(&self) -> Result<String> {
         match self.server_stopper_tx.lock().take() {
             Some(sender) => {
-                if let Err(error) = sender.send(()) {
+                if let Err(error) = sender.try_send(()) {
                     log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
                     return Err(server_side_error(ErrorCode::UnableToSendSignal));
                 };
