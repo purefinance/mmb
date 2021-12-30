@@ -18,6 +18,7 @@ use crate::{
 impl_u64_id!(ProfitLossBalanceChangeId);
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub(crate) struct ProfitLossBalanceChange {
     pub id: ProfitLossBalanceChangeId,
     pub client_order_fill_id: ClientOrderFillId,

@@ -16,12 +16,12 @@ pub enum EventType {
 /// Event to update local snapshot
 #[derive(Debug, Clone)]
 pub struct OrderBookEvent {
-    id: u128,
+    _id: u128,
     pub creation_time: DateTime,
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
 
-    event_id: String,
+    _event_id: String,
 
     pub event_type: EventType,
     pub data: Arc<OrderBookData>,
@@ -32,16 +32,16 @@ impl OrderBookEvent {
         creation_time: DateTime,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
-        event_id: String,
+        _event_id: String,
         event_type: EventType,
         data: Arc<OrderBookData>,
     ) -> OrderBookEvent {
         OrderBookEvent {
-            id: 0,
+            _id: 0,
             creation_time,
             exchange_account_id,
             currency_pair,
-            event_id,
+            _event_id,
             event_type,
             data,
         }

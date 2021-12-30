@@ -310,7 +310,7 @@ mod test {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn add_change_should_calculate_usd_correctly() {
         init_logger();
         let context = init(max_period(), 4);
@@ -344,7 +344,7 @@ mod test {
         assert_eq!(over_market_usd_change_2, dec!(2) + dec!(3));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn add_change_should_ignore_old_data() {
         init_logger();
         let context = init(max_period(), 3);
@@ -372,7 +372,7 @@ mod test {
         assert_eq!(over_market_usd_change, dec!(2));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn check_for_limit_should_stop_transaction() {
         init_logger();
         let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
@@ -425,7 +425,7 @@ mod test {
             .await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn check_for_limit_should_recover_after_positive_tarde() {
         init_logger();
         let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
@@ -502,7 +502,7 @@ mod test {
             .await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn check_for_limit_should_recover_after_first_change_expired() {
         init_logger();
         let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();
@@ -587,7 +587,7 @@ mod test {
             .await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn check_for_limit_should_recover_after_time_period() {
         init_logger();
         let (mut exchange_blocker, exchange_blocker_locker) = ExchangeBlocker::init_mock();

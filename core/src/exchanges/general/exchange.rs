@@ -1,13 +1,12 @@
 use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Context, Error, Result};
-use awc::http::StatusCode;
 use dashmap::DashMap;
 use futures::FutureExt;
 use itertools::Itertools;
 use log::log;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::traits_ext::send_expected::SendExpectedByRef;
+use mmb_utils::send_expected::SendExpectedByRef;
 use mmb_utils::{nothing_to_do, DateTime};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
@@ -18,9 +17,7 @@ use super::commission::Commission;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use super::symbol::Symbol;
 use crate::connectivity::connectivity_manager::GetWSParamsCallback;
-#[cfg(debug_assertions)]
-use crate::exchanges::common::SpecificCurrencyPair;
-use crate::exchanges::common::{ActivePosition, ClosedPosition, TradePlace};
+use crate::exchanges::common::{ActivePosition, ClosedPosition, SpecificCurrencyPair, TradePlace};
 use crate::exchanges::events::{
     BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
     LiquidationPriceEvent, Trade,
@@ -52,13 +49,16 @@ use crate::{
 
 use crate::balance_manager::balance_manager::BalanceManager;
 use crate::{
-    connectivity::{connectivity_manager::ConnectivityManager, websocket_actor::WebSocketParams},
+    connectivity::{
+        connectivity_manager::ConnectivityManager, websocket_connection::WebSocketParams,
+    },
     orders::order::ClientOrderId,
 };
 use crate::{
     exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
+use hyper::StatusCode;
 use std::fmt::{Arguments, Debug, Write};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -907,10 +907,14 @@ impl Exchange {
         //     DataRecorder.Save(liquidationPrice);
         // }
     }
+}
 
-    #[cfg(debug_assertions)]
-    pub fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair {
-        self.exchange_client
-            .get_specific_currency_pair(currency_pair)
-    }
+/// Helper method only for tests
+pub fn get_specific_currency_pair_for_tests(
+    exchange: &Exchange,
+    currency_pair: CurrencyPair,
+) -> SpecificCurrencyPair {
+    exchange
+        .exchange_client
+        .get_specific_currency_pair(currency_pair)
 }

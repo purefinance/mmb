@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use futures::FutureExt;
 use mmb_utils::{
     cancellation_token::CancellationToken,
-    traits_ext::send_expected::{SendExpectedAsync, SendExpectedByRef},
+    send_expected::{SendExpectedAsync, SendExpectedByRef},
     DateTime,
 };
 use mockall_double::double;

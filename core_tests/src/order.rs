@@ -14,8 +14,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use tokio::time::Duration;
 
-use crate::misc::with_timeout::with_timeout;
-
+use mmb_utils::infrastructure::with_timeout;
 use std::sync::Arc;
 
 /// This struct needed for creating an orders in tests.

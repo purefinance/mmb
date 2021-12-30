@@ -1,2 +1,2 @@
 pub mod connectivity_manager;
-pub mod websocket_actor;
+pub mod websocket_connection;

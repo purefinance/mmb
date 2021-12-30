@@ -1,6 +1,7 @@
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct PreReservedGroup {
     pub(crate) id: RequestGroupId,
     pub(crate) group_type: String,

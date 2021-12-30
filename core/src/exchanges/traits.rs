@@ -29,7 +29,7 @@ use crate::orders::order::{
 use crate::settings::ExchangeSettings;
 use crate::{connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide};
 use crate::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
-use awc::http::Uri;
+use url::Url;
 
 // Implementation of rest API client
 #[async_trait]
@@ -105,7 +105,7 @@ pub trait Support: Send + Sync {
 
     fn is_websocket_enabled(&self, role: WebSocketRole) -> bool;
 
-    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Uri>;
+    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Url>;
 
     fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair;
 

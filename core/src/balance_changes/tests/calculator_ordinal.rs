@@ -9,7 +9,7 @@ mod tests {
 
     type TestBase = BalanceChangesCalculatorTestsBase;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_buy_base_currency() {
         /*
          * /// Just sell some base amount with commission in quote ///
@@ -59,7 +59,7 @@ mod tests {
         assert_eq!(actual_quote_balance_changed, quote_balance_changed);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn simple_sell_base_currency() {
         /*
          * /// Just sell some base amount with commission in quote ///
@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(actual_quote_balance_changed, quote_balance_changed);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn two_directions_amount_in_base_but_sell_by_equal_price_and_amount_nullable_commission(
     ) {
         /*
@@ -190,7 +190,7 @@ mod tests {
         assert_eq!(actual_quote_balance_changed, quote_balance_changed);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn two_directions_amount_in_quote_but_sell_by_equal_price_and_amount_nullable_commission(
     ) {
         /*
@@ -271,7 +271,7 @@ mod tests {
         assert_eq!(actual_quote_balance_changed, quote_balance_changed);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn two_directions_buy_sell() {
         /*
          * /// Buy base in direction 1, sell in direction 2 ///

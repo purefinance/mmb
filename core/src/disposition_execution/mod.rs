@@ -289,18 +289,18 @@ impl PriceSlot {
 
 #[derive(Debug)]
 struct OrdersStateBySide {
-    side: OrderSide,
+    _side: OrderSide,
     slots: Vec<PriceSlot>,
 }
 
 impl OrdersStateBySide {
-    pub fn new(side: OrderSide) -> Self {
+    pub fn new(_side: OrderSide) -> Self {
         OrdersStateBySide {
-            side,
+            _side,
             // TODO create list of PriceSlots by config
             slots: vec![PriceSlot::new(
                 PriceSlotId::new("PriceSlotId".into(), 0),
-                side,
+                _side,
             )],
         }
     }

@@ -1,5 +1,5 @@
 use crate::balance_manager::balance_manager::BalanceManager;
-use crate::config::{load_pretty_settings, load_settings, CONFIG_PATH, CREDENTIALS_PATH};
+use crate::config::{load_pretty_settings, load_settings};
 use crate::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
@@ -53,13 +53,16 @@ impl EngineBuildConfig {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum InitSettings<StrategySettings>
 where
     StrategySettings: BaseStrategySettings + Clone,
 {
     Directly(AppSettings<StrategySettings>),
-    Load(String, String),
+    Load {
+        config_path: String,
+        credentials_path: String,
+    },
 }
 
 async fn before_engine_context_init<StrategySettings>(
@@ -83,9 +86,10 @@ where
 
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
-        InitSettings::Load(config_path, credentials_path) => {
-            load_settings::<StrategySettings>(&config_path, &credentials_path)?
-        }
+        InitSettings::Load {
+            config_path,
+            credentials_path,
+        } => load_settings::<StrategySettings>(&config_path, &credentials_path),
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
@@ -156,6 +160,7 @@ fn run_services<'a, StrategySettings>(
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     settings: AppSettings<StrategySettings>,
     exchanges_map: DashMap<ExchangeAccountId, Arc<Exchange>>,
+    init_user_settings: InitSettings<StrategySettings>,
     build_strategy: impl Fn(
         &AppSettings<StrategySettings>,
         Arc<EngineContext>,
@@ -190,7 +195,7 @@ where
     }
 
     if let Err(error) = control_panel.clone().start(
-        load_pretty_settings(CONFIG_PATH, CREDENTIALS_PATH),
+        load_pretty_settings(init_user_settings),
         engine_context.application_manager.clone(),
         statistic_service.clone(),
     ) {
@@ -253,7 +258,7 @@ where
 {
     let action_outcome = AssertUnwindSafe(before_engine_context_init(
         build_settings,
-        init_user_settings,
+        init_user_settings.clone(),
     ))
     .catch_unwind()
     .await;
@@ -287,6 +292,7 @@ where
             events_receiver,
             settings,
             exchanges_map,
+            init_user_settings,
             build_strategy,
             finish_graceful_shutdown_rx,
         )

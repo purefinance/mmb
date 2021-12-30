@@ -1,26 +1,19 @@
 use chrono::Utc;
 use log::LevelFilter;
 use std::env;
+use std::path::{Path, PathBuf};
 use std::sync::Once;
 
-fn get_log_file_path(log_file: &str) -> String {
-    let args = std::env::args()
-        .next()
-        .expect("Failed to get args")
-        .to_string();
+/// Function for getting path to log file. For `cargo run` it will be path to project directory. In other cases it will be `./`
+/// if binary file were called with path that contain `rusttradingengine` dir the log will be there
+fn get_log_file_path(log_file: &str) -> PathBuf {
+    let path_to_bin = std::env::args().next().expect("Failed to get first arg");
 
-    let main_dir = "rusttradingengine/";
-    let mut path = match args.rsplit_once(main_dir) {
-        Some((path, _)) => {
-            let mut result = path.to_string();
-            result.push_str(main_dir);
-            result
-        }
-        None => "./".into(),
-    };
-    path.push_str(log_file);
-
-    path
+    PathBuf::from(path_to_bin)
+        .ancestors()
+        .find(|ancestor| ancestor.ends_with("rusttradingengine"))
+        .unwrap_or(Path::new("./"))
+        .join(log_file)
 }
 
 pub fn init_logger() {

@@ -24,9 +24,7 @@ use anyhow::{bail, Context, Result};
 use futures::FutureExt;
 use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
-use mmb_utils::{
-    cancellation_token::CancellationToken, traits_ext::send_expected::SendExpected, DateTime,
-};
+use mmb_utils::{cancellation_token::CancellationToken, send_expected::SendExpected, DateTime};
 use mockall_double::double;
 use parking_lot::Mutex;
 use rust_decimal::Decimal;

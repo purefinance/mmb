@@ -4,7 +4,7 @@ use log::info;
 use mmb_core::exchanges::general::features::*;
 use mmb_core::{
     connectivity::connectivity_manager::ConnectivityManager,
-    connectivity::websocket_actor::WebSocketParams, exchanges::common::ExchangeAccountId,
+    connectivity::websocket_connection::WebSocketParams, exchanges::common::ExchangeAccountId,
     exchanges::events::AllowedEventSourceType, exchanges::general::commission::Commission,
     exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
 };
@@ -16,7 +16,8 @@ use tokio::{sync::oneshot, time::sleep};
 
 use crate::binance::binance_builder::BinanceBuilder;
 
-#[actix_rt::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore]
 pub async fn should_connect_and_reconnect_normally() {
     const EXPECTED_CONNECTED_COUNT: u32 = 3;
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use awc::http::StatusCode;
+use hyper::StatusCode;
 use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{impl_table_type, impl_table_type_raw};
