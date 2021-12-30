@@ -1,0 +1,1 @@
+Use https://editor.swagger.io/#/ for editing openapi.json and generating html-client
