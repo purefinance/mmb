@@ -28,12 +28,9 @@ pub struct ServiceValueTree {
     tree: ConfigurationKeyByServiceName,
 }
 impl ServiceValueTree {
+    #[cfg(test)]
     fn get(&self) -> &ConfigurationKeyByServiceName {
         &self.tree
-    }
-
-    fn get_mut(&mut self) -> &mut ConfigurationKeyByServiceName {
-        &mut self.tree
     }
 
     fn get_mut_by_service_name(
@@ -71,23 +68,6 @@ impl ServiceValueTree {
     ) -> Option<&mut ValueByCurrencyCode> {
         self.get_mut_by_exchange_account_id(service_name, configuration_key, exchange_account_id)?
             .get_mut(&currency_pair)
-    }
-
-    fn get_mut_by_currency_code(
-        &mut self,
-        service_name: ServiceName,
-        configuration_key: ServiceConfigurationKey,
-        exchange_account_id: ExchangeAccountId,
-        currency_pair: CurrencyPair,
-        currency_code: &CurrencyCode,
-    ) -> Option<&mut Amount> {
-        self.get_mut_by_currency_pair(
-            service_name,
-            configuration_key,
-            exchange_account_id,
-            currency_pair,
-        )?
-        .get_mut(currency_code)
     }
 
     pub fn get_by_balance_request(&self, balance_request: &BalanceRequest) -> Option<Amount> {

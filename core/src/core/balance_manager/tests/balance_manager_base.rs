@@ -36,8 +36,8 @@ pub struct BalanceManagerBase {
     pub seconds_offset_in_mock: Arc<Mutex<u32>>,
     symbol: Option<Arc<Symbol>>,
 
-    mock_object: time_manager::__now::Context,
-    mock_locker: ReentrantMutexGuard<'static, ()>,
+    _mock_object: time_manager::__now::Context,
+    _mock_locker: ReentrantMutexGuard<'static, ()>,
 }
 
 impl BalanceManagerBase {
@@ -138,8 +138,8 @@ impl BalanceManagerBase {
             seconds_offset_in_mock,
             symbol: None,
             balance_manager: None,
-            mock_object,
-            mock_locker,
+            _mock_object: mock_object,
+            _mock_locker: mock_locker,
         }
     }
 }

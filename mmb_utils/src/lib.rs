@@ -14,7 +14,6 @@
     unused_must_use
 )]
 
-#[allow(dead_code)]
 pub mod cancellation_token;
 pub mod decimal_inverse_sign;
 pub mod impl_id;

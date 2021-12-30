@@ -81,7 +81,6 @@ impl TimeoutManager {
     ) -> Result<impl Future<Output = FutureOutcome> + Send + Sync> {
         let inner = (&self.inner[&exchange_account_id]).clone();
 
-        const ERROR_MSG: &str = "Failed waiting in method TimeoutManager::reserve_when_available";
         let convert = |handle: JoinHandle<FutureOutcome>| {
             handle.map(|res| match res {
                 Ok(future_outcome) => future_outcome,

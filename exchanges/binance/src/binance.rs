@@ -149,7 +149,7 @@ impl Binance {
         format!("{}@{}", specific_currency_pair.as_str(), channel)
     }
 
-    fn is_websocket_reconnecting(&self) -> bool {
+    fn _is_websocket_reconnecting(&self) -> bool {
         todo!("is_websocket_reconnecting")
     }
 

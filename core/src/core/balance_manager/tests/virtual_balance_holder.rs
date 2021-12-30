@@ -16,7 +16,6 @@ use crate::core::service_configuration::configuration_descriptor::ConfigurationD
 struct VirtualBalanceHolderTests {
     virtual_balance_holder: VirtualBalanceHolder,
     pub exchange_account_id: ExchangeAccountId,
-    exchange: Arc<Exchange>,
     pub symbol: Arc<Symbol>,
     configuration_descriptor: ConfigurationDescriptor,
 }
@@ -50,7 +49,6 @@ impl VirtualBalanceHolderTests {
         Self {
             virtual_balance_holder: VirtualBalanceHolder::new(exchanges_by_id),
             exchange_account_id,
-            exchange: tmp_exchange.clone(),
             symbol: tmp_exchange
                 .get_symbol(VirtualBalanceHolderTests::currency_pair())
                 .expect("in test"),

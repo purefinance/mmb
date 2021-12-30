@@ -14,7 +14,6 @@
     unused_must_use
 )]
 
-#[allow(dead_code)]
 pub mod core;
 pub mod rest_api;
 pub mod strategies;
