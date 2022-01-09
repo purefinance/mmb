@@ -10,7 +10,7 @@ use crate::core::config::save_settings;
 use crate::core::config::CONFIG_PATH;
 use crate::core::config::CREDENTIALS_PATH;
 use crate::core::statistic_service::StatisticService;
-use crate::rest_api::control_panel::FAILED_TO_SEND_STOP_NOTIFICATION;
+use crate::rpc::control_panel::FAILED_TO_SEND_STOP_NOTIFICATION;
 use mmb_rpc::rest_api::ErrorCode;
 
 pub struct RpcImpl {
