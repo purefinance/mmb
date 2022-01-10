@@ -41,9 +41,9 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
+use url::Url;
 
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
-use url::Url;
 
 use super::{
     handlers::handle_order_filled::FillEventData, order::get_order_trades::OrderTrade,
