@@ -2,25 +2,23 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use binance::binance::BinanceBuilder;
-use mmb_core::core::exchanges::traits::ExchangeClientBuilder;
+use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 
-use mmb_core::core::exchanges::hosts::Hosts;
+use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::{
-    core::exchanges::common::ExchangeId,
-    core::exchanges::{
+    exchanges::common::ExchangeId,
+    exchanges::{
         common::ExchangeAccountId,
         timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory,
         timeouts::timeout_manager::TimeoutManager,
     },
-    core::{
-        exchanges::{
-            common::SpecificCurrencyPair,
-            rest_client::{self, RestClient},
-        },
-        lifecycle::launcher::EngineBuildConfig,
+    exchanges::{
+        common::SpecificCurrencyPair,
+        rest_client::{self, RestClient},
     },
+    lifecycle::launcher::EngineBuildConfig,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

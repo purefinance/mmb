@@ -1,8 +1,8 @@
 use anyhow::Result;
 use futures::Future;
 use log::info;
-use mmb_core::core::exchanges::general::features::*;
-use mmb_core::core::{
+use mmb_core::exchanges::general::features::*;
+use mmb_core::{
     connectivity::connectivity_manager::ConnectivityManager,
     connectivity::websocket_connection::WebSocketParams, exchanges::common::ExchangeAccountId,
     exchanges::events::AllowedEventSourceType, exchanges::general::commission::Commission,
