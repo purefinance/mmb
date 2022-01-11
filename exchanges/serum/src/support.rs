@@ -227,8 +227,12 @@ impl Serum {
         let amount_currency_code = base_currency_code;
         let balance_currency_code = base_currency_code;
 
-        let price_precision = Precision::ByMantissa { precision: 1 };
-        let amount_precision = Precision::ByMantissa { precision: 1 };
+        let price_precision = Precision::ByMantissa {
+            precision: pc_mint_data.decimals as i8,
+        };
+        let amount_precision = Precision::ByMantissa {
+            precision: coin_min_data.decimals as i8,
+        };
 
         Ok(Symbol::new(
             is_active,
