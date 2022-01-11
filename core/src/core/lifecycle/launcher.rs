@@ -74,7 +74,7 @@ pub async fn load_settings_or_wait<StrategySettings>(
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
-    let (wait_config_tx, mut rx_wait_config) = mpsc::channel::<()>(10);
+    let (wait_config_tx, mut wait_config_rx) = mpsc::channel::<()>(10);
 
     let control_panel = ControlPanel::create_and_start_no_config(wait_config_tx)
         .expect("Failed to start control_panel without config");
@@ -88,7 +88,7 @@ where
 
                     if let Err(error) = rx_stop.try_recv() {
                         log::warn!(
-                            "Failed to get stopped signal from control_panel: {:?}",
+                            "Failed to receive stop signal from control panel: {:?}",
                             error
                         );
                     }
@@ -97,7 +97,7 @@ where
             }
             Err(error) => {
                 log::trace!("Failed to load settings: {:?}", error);
-                rx_wait_config.recv().await;
+                wait_config_rx.recv().await;
             }
         }
     }

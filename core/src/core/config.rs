@@ -141,7 +141,7 @@ fn parse_toml_settings(settings: &str, credentials: &str) -> Result<Document> {
                 ))?;
 
             if api_key.is_empty() || secret_key.is_empty() {
-                bail!("Unable to parse settings api or secret key is empty")
+                bail!("Unable to parse settings: api or secret key is empty")
             }
 
             exchange.insert(API_KEY, value(api_key));
