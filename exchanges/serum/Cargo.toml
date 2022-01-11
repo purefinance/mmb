@@ -10,6 +10,7 @@ anyhow = "1"
 async-trait = "0.1"
 
 dashmap = "4"
+itertools = "0.10"
 
 mmb_core = { path = "../../core/" }
 mmb_utils = { path = "../../mmb_utils" }

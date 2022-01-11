@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
+use crate::urls::MAINNET_SOLANA_URL_PATH;
 use mmb_core::core::exchanges::common::{
     Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, SpecificCurrencyPair,
 };
@@ -24,8 +25,6 @@ use mmb_core::core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide};
 use mmb_core::core::settings::ExchangeSettings;
 use mmb_utils::DateTime;
 
-const MAINNET_SOLANA_URL_PATH: &str = "https://api.mainnet-beta.solana.com";
-
 pub struct Serum {
     pub id: ExchangeAccountId,
     pub settings: ExchangeSettings,
@@ -41,8 +40,6 @@ pub struct Serum {
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
-    pub(super) _application_manager: Arc<ApplicationManager>,
-    pub(super) _events_channel: broadcast::Sender<ExchangeEvent>,
     pub(super) rest_client: RestClient,
     pub(super) rpc_client: RpcClient,
 }
@@ -51,8 +48,8 @@ impl Serum {
     pub fn new(
         id: ExchangeAccountId,
         settings: ExchangeSettings,
-        events_channel: broadcast::Sender<ExchangeEvent>,
-        application_manager: Arc<ApplicationManager>,
+        _events_channel: broadcast::Sender<ExchangeEvent>,
+        _application_manager: Arc<ApplicationManager>,
     ) -> Self {
         Self {
             id,
@@ -64,8 +61,6 @@ impl Serum {
             unified_to_specific: Default::default(),
             supported_currencies: Default::default(),
             traded_specific_currencies: Default::default(),
-            _application_manager: application_manager,
-            _events_channel: events_channel,
             rest_client: RestClient::new(),
             rpc_client: RpcClient::new(MAINNET_SOLANA_URL_PATH.to_string()),
         }
@@ -105,6 +100,6 @@ impl ExchangeClientBuilder for SerumBuilder {
     }
 
     fn get_timeout_arguments(&self) -> RequestTimeoutArguments {
-        RequestTimeoutArguments::from_requests_per_minute(1200)
+        RequestTimeoutArguments::from_requests_per_minute(240)
     }
 }

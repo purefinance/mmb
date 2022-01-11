@@ -3145,6 +3145,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "dashmap",
+ "itertools 0.10.3",
  "mmb_core",
  "mmb_utils",
  "parking_lot",

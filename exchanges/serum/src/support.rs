@@ -1,4 +1,4 @@
-use crate::helpers::{convert64_to_pubkey, remove_dex_account_padding, split_once};
+use crate::helpers::{convert64_to_pubkey, decimal_from_u64, split_once};
 use crate::serum::Serum;
 
 use anyhow::{anyhow, Context, Result};
@@ -6,9 +6,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
-use safe_transmute::{transmute_one_pedantic, transmute_to_bytes};
 use serde_json::Value;
-use std::borrow::Cow;
 use std::str::FromStr;
 use std::sync::Arc;
 use url::Url;
@@ -29,7 +27,8 @@ use mmb_core::core::orders::order::{ClientOrderId, ExchangeOrderId, OrderInfo, O
 use mmb_core::core::settings::ExchangeSettings;
 use mmb_utils::DateTime;
 
-use serum_dex::state::{AccountFlag, Market, MarketState, MarketStateV2};
+use serum_dex::state::Market;
+use solana_program::account_info::IntoAccountInfo;
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use spl_token::state;
@@ -192,25 +191,13 @@ impl Serum {
         market_name: &String,
         market_pub_key: Pubkey,
     ) -> Result<Symbol> {
-        let account_data = self.rpc_client.get_account_data(&market_pub_key)?;
-        let words: Cow<[u64]> = remove_dex_account_padding(&account_data)?;
-        let account_flags = Market::account_flags(&account_data)?;
-        let state: MarketState = {
-            if account_flags.intersects(AccountFlag::Permissioned) {
-                let state = transmute_one_pedantic::<MarketStateV2>(transmute_to_bytes(&words))
-                    .map_err(|e| e.without_src())?;
-                state.check_flags()?;
-                state.inner
-            } else {
-                let state = transmute_one_pedantic::<MarketState>(transmute_to_bytes(&words))
-                    .map_err(|e| e.without_src())?;
-                state.check_flags()?;
-                state
-            }
-        };
+        let mut account = self.rpc_client.get_account(&market_pub_key)?;
+        let program_id = account.owner.clone();
+        let account_info = (&market_pub_key, &mut account).into_account_info();
+        let market = Market::load(&account_info, &program_id)?;
 
-        let coin_mint_adr = convert64_to_pubkey(state.coin_mint);
-        let pc_mint_adr = convert64_to_pubkey(state.pc_mint);
+        let coin_mint_adr = convert64_to_pubkey(market.coin_mint);
+        let pc_mint_adr = convert64_to_pubkey(market.pc_mint);
 
         let coin_data = self.rpc_client.get_account_data(&coin_mint_adr)?;
         let pc_data = self.rpc_client.get_account_data(&pc_mint_adr)?;
@@ -225,24 +212,20 @@ impl Serum {
         let is_active = true;
         let is_derivative = false;
 
-        let min_price = Some(
-            (Decimal::from_u64(10u64.pow(coin_min_data.decimals as u32)).unwrap()
-                * Decimal::from_u64(state.pc_lot_size).unwrap())
-                / (Decimal::from_u64(10u64.pow(pc_mint_data.decimals as u32)).unwrap()
-                    * Decimal::from_u64(state.coin_lot_size).unwrap()),
-        );
-        let max_price = Some(Decimal::from_u64(u64::MAX).unwrap());
+        let min_price = (decimal_from_u64(10u64.pow(coin_min_data.decimals as u32))?
+            * decimal_from_u64(market.pc_lot_size)?)
+            / (decimal_from_u64(10u64.pow(pc_mint_data.decimals as u32))?
+                * decimal_from_u64(market.coin_lot_size)?);
+        let max_price = Decimal::from_u64(u64::MAX);
 
-        let min_amount = Some(
-            Decimal::from_u64(state.coin_lot_size).unwrap()
-                / Decimal::from_u64(10u64.pow(coin_min_data.decimals as u32)).unwrap(),
-        );
-        let max_amount = Some(Decimal::from_u64(u64::MAX).unwrap());
+        let min_amount = decimal_from_u64(market.coin_lot_size)?
+            / decimal_from_u64(10u64.pow(coin_min_data.decimals as u32))?;
+        let max_amount = Decimal::from_u64(u64::MAX);
 
-        let min_cost = Some(min_price.unwrap() * min_amount.unwrap());
+        let min_cost = min_price * min_amount;
 
-        let amount_currency_code: CurrencyCode = base_currency_code;
-        let balance_currency_code: Option<CurrencyCode> = Some(base_currency_code);
+        let amount_currency_code = base_currency_code;
+        let balance_currency_code = base_currency_code;
 
         let price_precision = Precision::ByMantissa { precision: 1 };
         let amount_precision = Precision::ByMantissa { precision: 1 };
@@ -254,13 +237,13 @@ impl Serum {
             base_currency_code,
             quote_currency_id.into(),
             quote_currency_code,
-            min_price,
+            Some(min_price),
             max_price,
-            min_amount,
+            Some(min_amount),
             max_amount,
-            min_cost,
+            Some(min_cost),
             amount_currency_code,
-            balance_currency_code,
+            Some(balance_currency_code),
             price_precision,
             amount_precision,
         ))
