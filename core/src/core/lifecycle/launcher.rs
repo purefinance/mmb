@@ -1,5 +1,6 @@
+use super::trading_engine::Service;
 use crate::core::balance_manager::balance_manager::BalanceManager;
-use crate::core::config::{load_pretty_settings, load_settings};
+use crate::core::config::{load_pretty_settings, try_load_settings};
 use crate::core::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::core::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
@@ -35,8 +36,9 @@ use std::collections::HashMap;
 use std::convert::identity;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::signal;
-use tokio::sync::{broadcast, oneshot};
+use tokio::sync::{broadcast, mpsc, oneshot};
 
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,
@@ -65,6 +67,42 @@ where
     },
 }
 
+pub async fn load_settings_or_wait<StrategySettings>(
+    config_path: &str,
+    credentials_path: &str,
+) -> AppSettings<StrategySettings>
+where
+    StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
+{
+    let (wait_config_tx, mut rx_wait_config) = mpsc::channel::<()>(10);
+
+    let control_panel = ControlPanel::create_and_start_no_config(wait_config_tx)
+        .expect("Failed to start control_panel without config");
+
+    loop {
+        match try_load_settings::<StrategySettings>(&config_path, &credentials_path) {
+            Ok(settings) => {
+                if let Some(mut rx_stop) = control_panel.graceful_shutdown() {
+                    // extra time for stopping control_panel
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+
+                    if let Err(error) = rx_stop.try_recv() {
+                        log::warn!(
+                            "Failed to get stopped signal from control_panel: {:?}",
+                            error
+                        );
+                    }
+                }
+                return settings;
+            }
+            Err(error) => {
+                log::trace!("Failed to load settings: {:?}", error);
+                rx_wait_config.recv().await;
+            }
+        }
+    }
+}
+
 async fn before_engine_context_init<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
@@ -89,7 +127,7 @@ where
         InitSettings::Load {
             config_path,
             credentials_path,
-        } => load_settings::<StrategySettings>(&config_path, &credentials_path),
+        } => load_settings_or_wait::<StrategySettings>(&config_path, &credentials_path).await,
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());

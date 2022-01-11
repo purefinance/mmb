@@ -1,6 +1,7 @@
 use jsonrpc_core::Result;
 use mmb_rpc::rest_api::server_side_error;
 use mmb_rpc::rest_api::MmbRpc;
+use mmb_utils::send_expected::SendExpectedByRef;
 use parking_lot::Mutex;
 use tokio::sync::mpsc;
 
@@ -17,6 +18,7 @@ pub struct RpcImpl {
     server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     statistics: Arc<StatisticService>,
     engine_settings: String,
+    wait_config_tx: Option<mpsc::Sender<()>>,
 }
 
 impl RpcImpl {
@@ -24,11 +26,13 @@ impl RpcImpl {
         server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
         statistics: Arc<StatisticService>,
         engine_settings: String,
+        wait_config_tx: Option<mpsc::Sender<()>>,
     ) -> Self {
         Self {
             server_stopper_tx,
             statistics,
             engine_settings,
+            wait_config_tx,
         }
     }
 
@@ -76,9 +80,18 @@ impl MmbRpc for RpcImpl {
             server_side_error(ErrorCode::FailedToSaveNewConfig)
         })?;
 
-        self.send_stop()?;
+        let answer = match &self.wait_config_tx {
+            Some(wait_config_tx) => {
+                wait_config_tx.send_expected(());
+                "Config was successfully set. Trading engine will be launched".into()
+            }
+            None => {
+                self.send_stop()?;
+                "Config was successfully updated. Trading engine will be stopped".into()
+            } // TODO: need restart here #337
+        };
 
-        Ok("Config was successfully updated. Trading engine will stopped".into())
+        Ok(answer)
     }
 
     fn stats(&self) -> Result<String> {
