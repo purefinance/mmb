@@ -51,12 +51,15 @@ enum WebSocketState {
 }
 
 struct WebSockets {
-    main: Mutex<WebSocketConnectivity>,
-    secondary: Mutex<WebSocketConnectivity>,
+    main: tokio::sync::Mutex<WebSocketConnectivity>,
+    secondary: tokio::sync::Mutex<WebSocketConnectivity>,
 }
 
 impl WebSockets {
-    fn get_websocket_state(&self, role: WebSocketRole) -> &Mutex<WebSocketConnectivity> {
+    fn get_websocket_state(
+        &self,
+        role: WebSocketRole,
+    ) -> &tokio::sync::Mutex<WebSocketConnectivity> {
         match role {
             WebSocketRole::Main => &self.main,
             WebSocketRole::Secondary => &self.secondary,
@@ -90,8 +93,8 @@ impl ConnectivityManager {
         Arc::new(Self {
             exchange_account_id,
             websockets: WebSockets {
-                main: Mutex::new(WebSocketConnectivity::new()),
-                secondary: Mutex::new(WebSocketConnectivity::new()),
+                main: tokio::sync::Mutex::new(WebSocketConnectivity::new()),
+                secondary: tokio::sync::Mutex::new(WebSocketConnectivity::new()),
             },
 
             callback_connecting: Mutex::new(Box::new(|| {})),
@@ -165,10 +168,10 @@ impl ConnectivityManager {
         Self::disconnect_for_websocket(&self.websockets.secondary).await;
     }
 
-    async fn disconnect_for_websocket(websocket_connectivity: &Mutex<WebSocketConnectivity>) {
-        let mut guard = websocket_connectivity.lock();
-
-        let mut finished_receiver = match &mut guard.state {
+    async fn disconnect_for_websocket(
+        websocket_connectivity: &tokio::sync::Mutex<WebSocketConnectivity>,
+    ) {
+        let mut finished_receiver = match &websocket_connectivity.lock().await.state {
             Disconnected => {
                 return;
             }
@@ -193,8 +196,6 @@ impl ConnectivityManager {
             }
         };
 
-        drop(guard);
-
         let _ = finished_receiver.recv().await;
     }
 
@@ -203,6 +204,7 @@ impl ConnectivityManager {
             .websockets
             .get_websocket_state(role)
             .lock()
+            .await
             .borrow()
             .state
         {
@@ -224,18 +226,18 @@ impl ConnectivityManager {
         }
     }
 
-    fn set_disconnected_state(
+    async fn set_disconnected_state(
         finished_sender: broadcast::Sender<()>,
-        websocket_connectivity: &Mutex<WebSocketConnectivity>,
+        websocket_connectivity: &tokio::sync::Mutex<WebSocketConnectivity>,
     ) {
-        websocket_connectivity.lock().deref_mut().state = Disconnected;
+        websocket_connectivity.lock().await.deref_mut().state = Disconnected;
         let _ = finished_sender.send(());
     }
 
-    pub fn notify_connection_closed(&self, websocket_role: WebSocketRole) {
+    pub async fn notify_connection_closed(&self, websocket_role: WebSocketRole) {
         {
             let websocket_connectivity_arc = self.websockets.get_websocket_state(websocket_role);
-            let mut websocket_state_guard = websocket_connectivity_arc.lock();
+            let mut websocket_state_guard = websocket_connectivity_arc.lock().await;
 
             {
                 if let WebSocketState::Connected {
@@ -261,7 +263,7 @@ impl ConnectivityManager {
         let websocket_connectivity = self.websockets.get_websocket_state(role);
 
         {
-            websocket_connectivity.lock().deref_mut().state = WebSocketState::Connecting {
+            websocket_connectivity.lock().await.deref_mut().state = WebSocketState::Connecting {
                 finished_sender: finished_sender.clone(),
                 cancel_websocket_connecting: cancel_websocket_connecting.clone(),
             };
@@ -292,7 +294,7 @@ impl ConnectivityManager {
 
                     match websocket {
                         Ok(websocket) => {
-                            websocket_connectivity.lock().deref_mut().state =
+                            websocket_connectivity.lock().await.deref_mut().state =
                                 WebSocketState::Connected {
                                     websocket: websocket,
                                     finished_sender: finished_sender.clone(),
@@ -308,7 +310,7 @@ impl ConnectivityManager {
 
                             if cancel_websocket_connecting.is_cancellation_requested() {
                                 if let WebSocketState::Connected { websocket, .. } =
-                                    &websocket_connectivity.lock().borrow().state
+                                    &websocket_connectivity.lock().await.borrow().state
                                 {
                                     let _ = websocket.send_force_close();
                                 }
@@ -349,7 +351,7 @@ impl ConnectivityManager {
             }
         }
 
-        Self::set_disconnected_state(finished_sender, &websocket_connectivity);
+        Self::set_disconnected_state(finished_sender, &websocket_connectivity).await;
 
         false
     }
@@ -378,11 +380,13 @@ impl ConnectivityManagerNotifier {
         }
     }
 
-    pub fn notify_websocket_connection_closed(&self, exchange_account_id: ExchangeAccountId) {
+    pub async fn notify_websocket_connection_closed(&self, exchange_account_id: ExchangeAccountId) {
         if let Some(connectivity_manager) = &self.connectivity_manager {
             match connectivity_manager.upgrade() {
                 Some(connectivity_manager) => {
-                    connectivity_manager.notify_connection_closed(self.websocket_role)
+                    connectivity_manager
+                        .notify_connection_closed(self.websocket_role)
+                        .await
                 }
                 None => {
                     log::info!("Unable to upgrade weak reference to ConnectivityManager instance",)
