@@ -83,9 +83,8 @@ impl CancellationToken {
 
 #[cfg(test)]
 mod tests {
+    use crate::cancellation_token::CancellationToken;
     use crate::infrastructure::with_timeout;
-    use crate::{cancellation_token::CancellationToken, infrastructure::spawn_future};
-    use futures::FutureExt;
     use parking_lot::Mutex;
     use std::sync::Arc;
     use tokio::time::Duration;
@@ -151,22 +150,6 @@ mod tests {
 
         token.cancel();
         assert_eq!(token.is_cancellation_requested(), true);
-    }
-
-    fn spawn_working_future(signal: Arc<Mutex<bool>>, token: CancellationToken) {
-        let action = async move {
-            token.when_cancelled().await;
-            *signal.lock() = true;
-
-            Ok(())
-        };
-
-        spawn_future(
-            "handle_inner for schedule_handler()",
-            true,
-            action.boxed(),
-            |_, _| {},
-        );
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

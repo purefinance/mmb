@@ -1,13 +1,13 @@
 use anyhow::Result;
 use binance::binance::BinanceBuilder;
-use mmb_core::core::exchanges::traits::ExchangeClientBuilder;
+use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use mmb_core::core::config::{CONFIG_PATH, CREDENTIALS_PATH};
-use mmb_core::core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
-use mmb_core::core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
-use mmb_core::core::settings::{BaseStrategySettings, CurrencyPairSetting};
+use mmb_core::config::{CONFIG_PATH, CREDENTIALS_PATH};
+use mmb_core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
+use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
+use mmb_core::settings::{BaseStrategySettings, CurrencyPairSetting};
 
 use example::strategies::example_strategy::ExampleStrategy;
 
@@ -35,16 +35,15 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 }
 
-#[allow(dead_code)]
 #[tokio::main]
 async fn main() -> Result<()> {
     let engine_config =
         EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
 
-    let init_settings = InitSettings::<ExampleStrategySettings>::Load(
-        CONFIG_PATH.to_owned(),
-        CREDENTIALS_PATH.to_owned(),
-    );
+    let init_settings = InitSettings::<ExampleStrategySettings>::Load {
+        config_path: CONFIG_PATH.to_owned(),
+        credentials_path: CREDENTIALS_PATH.to_owned(),
+    };
 
     let engine = launch_trading_engine(&engine_config, init_settings, |settings, ctx| {
         Box::new(ExampleStrategy::new(

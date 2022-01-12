@@ -1,13 +1,12 @@
-use mmb::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
-use mmb_core::core as mmb;
-use mmb_core::core::exchanges::common::*;
-use mmb_core::core::exchanges::general::features::*;
-use mmb_core::core::orders::event::OrderEventType;
+use mmb_core::exchanges::common::*;
+use mmb_core::exchanges::general::features::*;
+use mmb_core::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
+use mmb_core::orders::event::OrderEventType;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger;
 use rust_decimal_macros::*;
 
-use mmb_core::core::exchanges::events::ExchangeEvent;
+use mmb_core::exchanges::events::ExchangeEvent;
 
 use crate::binance::binance_builder::BinanceBuilder;
 use core_tests::order::OrderProxy;
