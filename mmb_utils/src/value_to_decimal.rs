@@ -13,9 +13,9 @@ impl GetOrErr for Value {
     fn get_as_str(&self, key: &str) -> Result<String> {
         Ok(self
             .get(key)
-            .with_context(|| format!("Unable to get {} from Binance", key))?
+            .with_context(|| format!("Unable to get {} from {:?}", key, self))?
             .as_str()
-            .with_context(|| format!("Unable to get {} as string from Binance", key))?
+            .with_context(|| format!("Unable to get {} as string", key))?
             .to_string())
     }
 
