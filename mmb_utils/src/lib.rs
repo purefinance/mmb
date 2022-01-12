@@ -23,6 +23,7 @@ pub mod infrastructure;
 pub mod logger;
 pub mod send_expected;
 pub mod time;
+pub mod value_to_decimal;
 
 use chrono::Utc;
 

@@ -43,6 +43,7 @@ async fn cancelled_successfully() {
         Some("FromCancelledSuccessfullyTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
 
     let order_ref = order_proxy
@@ -88,6 +89,7 @@ async fn cancel_opened_orders_successfully() {
         Some("FromCancelOpenedOrdersSuccessfullyTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
     first_order_proxy
         .create_order(binance_builder.exchange.clone())
@@ -99,6 +101,7 @@ async fn cancel_opened_orders_successfully() {
         Some("FromCancelOpenedOrdersSuccessfullyTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
     second_order_proxy
         .create_order(binance_builder.exchange.clone())
@@ -158,6 +161,7 @@ async fn nothing_to_cancel() {
         Some("FromNothingToCancelTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
     let order_to_cancel = OrderCancelling {
         header: order.make_header(),

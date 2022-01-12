@@ -43,6 +43,7 @@ async fn get_order_info() {
         Some("FromGetOrderInfoTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
     order_proxy.reservation_id = Some(ReservationId::generate());
 
