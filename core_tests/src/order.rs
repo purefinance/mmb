@@ -1,9 +1,9 @@
-use mmb_core::core::exchanges::common::{Amount, Price};
-use mmb_core::core::exchanges::common::{CurrencyPair, ExchangeAccountId};
-use mmb_core::core::exchanges::general::exchange::Exchange;
-use mmb_core::core::exchanges::general::exchange::RequestResult;
-use mmb_core::core::orders::order::*;
-use mmb_core::core::orders::pool::OrderRef;
+use mmb_core::exchanges::common::{Amount, Price};
+use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId};
+use mmb_core::exchanges::general::exchange::Exchange;
+use mmb_core::exchanges::general::exchange::RequestResult;
+use mmb_core::orders::order::*;
+use mmb_core::orders::pool::OrderRef;
 
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::DateTime;
@@ -21,9 +21,9 @@ use std::sync::Arc;
 ///
 /// ```no_run
 /// use core_tests::order::OrderProxy;
-/// use mmb_core::core::exchanges::common::ExchangeAccountId;
-/// use mmb_core::core::exchanges::common::{Amount, Price};
-/// use mmb_core::core::exchanges::general::exchange::Exchange;
+/// use mmb_core::exchanges::common::ExchangeAccountId;
+/// use mmb_core::exchanges::common::{Amount, Price};
+/// use mmb_core::exchanges::general::exchange::Exchange;
 /// use mmb_utils::cancellation_token::CancellationToken;
 /// use rust_decimal_macros::dec;
 /// use std::sync::Arc;

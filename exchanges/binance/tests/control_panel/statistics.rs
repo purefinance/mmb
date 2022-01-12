@@ -4,23 +4,23 @@ use binance::binance::BinanceBuilder;
 use futures::FutureExt;
 use jsonrpc_core::Value;
 use jsonrpc_core_client::transports::ipc;
-use mmb_core::core::config::parse_settings;
-use mmb_core::core::disposition_execution::{PriceSlot, TradingContext};
-use mmb_core::core::exchanges::traits::ExchangeClientBuilder;
-use mmb_core::core::explanation::Explanation;
-use mmb_core::core::order_book::local_snapshot_service::LocalSnapshotsService;
-use mmb_core::core::orders::order::OrderSnapshot;
-use mmb_core::core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use mmb_core::core::settings::BaseStrategySettings;
-use mmb_core::core::{
+use mmb_core::config::parse_settings;
+use mmb_core::disposition_execution::{PriceSlot, TradingContext};
+use mmb_core::exchanges::traits::ExchangeClientBuilder;
+use mmb_core::explanation::Explanation;
+use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
+use mmb_core::orders::order::OrderSnapshot;
+use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use mmb_core::settings::BaseStrategySettings;
+use mmb_core::strategies::disposition_strategy::DispositionStrategy;
+use mmb_core::{
     exchanges::common::Amount,
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
 };
-use mmb_core::core::{
+use mmb_core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
     infrastructure::spawn_future,
 };
-use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::DateTime;
@@ -36,7 +36,7 @@ use crate::binance::common::get_default_price;
 use crate::binance::common::get_min_amount;
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
-use mmb_core::core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
+use mmb_core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct TestStrategySettings {}

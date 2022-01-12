@@ -6,11 +6,11 @@ use tokio::sync::mpsc;
 
 use std::sync::Arc;
 
-use crate::core::config::save_settings;
-use crate::core::config::CONFIG_PATH;
-use crate::core::config::CREDENTIALS_PATH;
-use crate::core::statistic_service::StatisticService;
+use crate::config::save_settings;
+use crate::config::CONFIG_PATH;
+use crate::config::CREDENTIALS_PATH;
 use crate::rpc::control_panel::FAILED_TO_SEND_STOP_NOTIFICATION;
+use crate::statistic_service::StatisticService;
 use mmb_rpc::rest_api::ErrorCode;
 
 pub struct RpcImpl {

@@ -1,4 +1,4 @@
-use mmb_core::core::misc::derivative_position::DerivativePosition;
+use mmb_core::misc::derivative_position::DerivativePosition;
 use mmb_utils::infrastructure::WithExpect;
 
 use std::sync::Arc;
@@ -17,24 +17,24 @@ use serde_json::Value;
 use url::Url;
 
 use super::binance::Binance;
-use mmb_core::core::exchanges::common::{ActivePosition, ClosedPosition, SortedOrderData};
-use mmb_core::core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
-use mmb_core::core::exchanges::general::order::get_order_trades::OrderTrade;
-use mmb_core::core::exchanges::rest_client;
-use mmb_core::core::exchanges::{
+use mmb_core::exchanges::common::{ActivePosition, ClosedPosition, SortedOrderData};
+use mmb_core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
+use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
+use mmb_core::exchanges::rest_client;
+use mmb_core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
     general::handlers::handle_order_filled::FillEventData, general::symbol::Symbol,
     traits::Support,
 };
-use mmb_core::core::order_book::event::{EventType, OrderBookEvent};
-use mmb_core::core::order_book::order_book_data::OrderBookData;
-use mmb_core::core::orders::fill::OrderFillType;
-use mmb_core::core::orders::order::*;
-use mmb_core::core::settings::ExchangeSettings;
-use mmb_core::core::{
+use mmb_core::order_book::event::{EventType, OrderBookEvent};
+use mmb_core::order_book::order_book_data::OrderBookData;
+use mmb_core::orders::fill::OrderFillType;
+use mmb_core::orders::order::*;
+use mmb_core::settings::ExchangeSettings;
+use mmb_core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::general::symbol::Precision,
 };
-use mmb_core::core::{
+use mmb_core::{
     exchanges::common::{
         Amount, CurrencyPair, ExchangeError, ExchangeErrorType, Price, RestRequestOutcome,
         SpecificCurrencyPair,
@@ -276,7 +276,7 @@ impl Support for Binance {
 
     fn log_unknown_message(
         &self,
-        exchange_account_id: mmb_core::core::exchanges::common::ExchangeAccountId,
+        exchange_account_id: mmb_core::exchanges::common::ExchangeAccountId,
         message: &str,
     ) {
         log::info!("Unknown message for {}: {}", exchange_account_id, message);
