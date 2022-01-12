@@ -15,34 +15,32 @@ use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::{BinanceBalances, BinanceOrderInfo};
-use mmb_core::core::exchanges::common::{Amount, Price};
-use mmb_core::core::exchanges::events::{
+use mmb_core::exchanges::common::{Amount, Price};
+use mmb_core::exchanges::events::{
     ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId,
 };
-use mmb_core::core::exchanges::general::features::{
+use mmb_core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
-use mmb_core::core::exchanges::hosts::Hosts;
-use mmb_core::core::exchanges::rest_client::RestClient;
-use mmb_core::core::exchanges::traits::ExchangeClientBuilderResult;
-use mmb_core::core::exchanges::{
+use mmb_core::exchanges::hosts::Hosts;
+use mmb_core::exchanges::rest_client::RestClient;
+use mmb_core::exchanges::traits::ExchangeClientBuilderResult;
+use mmb_core::exchanges::{
     common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
-use mmb_core::core::exchanges::{common::CurrencyId, general::exchange::BoxExchangeClient};
-use mmb_core::core::exchanges::{
+use mmb_core::exchanges::{common::CurrencyId, general::exchange::BoxExchangeClient};
+use mmb_core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
     events::AllowedEventSourceType,
 };
-use mmb_core::core::exchanges::{
-    general::handlers::handle_order_filled::FillEventData, rest_client,
-};
-use mmb_core::core::lifecycle::application_manager::ApplicationManager;
-use mmb_core::core::orders::fill::EventSourceType;
-use mmb_core::core::orders::order::*;
-use mmb_core::core::settings::ExchangeSettings;
-use mmb_core::core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
+use mmb_core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
+use mmb_core::lifecycle::application_manager::ApplicationManager;
+use mmb_core::orders::fill::EventSourceType;
+use mmb_core::orders::order::*;
+use mmb_core::settings::ExchangeSettings;
+use mmb_core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 
 pub struct Binance {
     pub settings: ExchangeSettings,
