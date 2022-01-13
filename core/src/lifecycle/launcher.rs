@@ -77,23 +77,23 @@ where
 {
     let (wait_config_tx, mut wait_config_rx) = mpsc::channel::<()>(10);
 
-    let control_panel = ControlPanel::create_and_start_no_config(wait_config_tx)
-        .expect("Failed to start control_panel without config");
+    // let control_panel = ControlPanel::create_and_start_no_config(wait_config_tx)
+    //     .expect("Failed to start control_panel without config");
 
     loop {
         match try_load_settings::<StrategySettings>(&config_path, &credentials_path) {
             Ok(settings) => {
-                if let Some(mut rx_stop) = control_panel.graceful_shutdown() {
-                    // extra time for stopping control_panel
-                    tokio::time::sleep(Duration::from_secs(1)).await;
+                // if let Some(mut rx_stop) = control_panel.graceful_shutdown() {
+                // extra time for stopping control_panel
+                // tokio::time::sleep(Duration::from_secs(1)).await;
 
-                    if let Err(error) = rx_stop.try_recv() {
-                        log::warn!(
-                            "Failed to receive stop signal from control panel: {:?}",
-                            error
-                        );
-                    }
-                }
+                // if let Err(error) = rx_stop.try_recv() {
+                //     log::warn!(
+                //         "Failed to receive stop signal from control panel: {:?}",
+                //         error
+                //     );
+                // }
+                // }
                 return settings;
             }
             Err(error) => {
