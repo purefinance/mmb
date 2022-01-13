@@ -3,7 +3,7 @@ target
 # Vim
 *.swp
 *.ycm_extra_conf.py
-log.txt
+*log.txt
 /.idea/
 *credentials*
 .DS_Store

@@ -1,12 +1,12 @@
 use super::binance::Binance;
 use anyhow::Result;
 use async_trait::async_trait;
-use mmb_core::core::exchanges::common::{ActivePosition, Price};
-use mmb_core::core::exchanges::general::symbol::Symbol;
-use mmb_core::core::exchanges::rest_client;
-use mmb_core::core::exchanges::traits::{ExchangeClient, Support};
-use mmb_core::core::orders::order::*;
-use mmb_core::core::{
+use mmb_core::exchanges::common::{ActivePosition, Price};
+use mmb_core::exchanges::general::symbol::Symbol;
+use mmb_core::exchanges::rest_client;
+use mmb_core::exchanges::traits::{ExchangeClient, Support};
+use mmb_core::orders::order::*;
+use mmb_core::{
     exchanges::common::{CurrencyPair, RestRequestOutcome},
     orders::pool::OrderRef,
 };

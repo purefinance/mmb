@@ -14,10 +14,28 @@
     unused_must_use
 )]
 
-#[allow(dead_code)]
-pub mod core;
-pub mod rest_api;
+pub(crate) mod balance_changes;
+pub mod balance_manager;
+mod balances;
+pub mod connectivity;
+pub mod exchanges;
+pub mod infrastructure;
+pub mod misc;
+pub mod orders;
+pub mod rpc;
+pub mod service_configuration;
+pub mod statistic_service;
 pub mod strategies;
+
+pub mod config;
+pub mod disposition_execution;
+pub mod explanation;
+pub mod lifecycle;
+pub mod math;
+pub mod order_book;
+pub(crate) mod services;
+pub mod settings;
+pub mod text;
 
 #[cfg(test)]
 use parking_lot::ReentrantMutex;
