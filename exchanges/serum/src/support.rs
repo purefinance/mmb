@@ -11,20 +11,20 @@ use std::str::FromStr;
 use std::sync::Arc;
 use url::Url;
 
-use mmb_core::core::connectivity::connectivity_manager::WebSocketRole;
-use mmb_core::core::exchanges::common::CurrencyPair;
-use mmb_core::core::exchanges::common::{
+use mmb_core::connectivity::connectivity_manager::WebSocketRole;
+use mmb_core::exchanges::common::CurrencyPair;
+use mmb_core::exchanges::common::{
     ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, ExchangeError, Price,
     RestRequestOutcome, SpecificCurrencyPair,
 };
-use mmb_core::core::exchanges::events::{ExchangeBalancesAndPositions, TradeId};
-use mmb_core::core::exchanges::general::handlers::handle_order_filled::FillEventData;
-use mmb_core::core::exchanges::general::order::get_order_trades::OrderTrade;
-use mmb_core::core::exchanges::general::symbol::{Precision, Symbol};
-use mmb_core::core::exchanges::traits::Support;
-use mmb_core::core::orders::fill::EventSourceType;
-use mmb_core::core::orders::order::{ClientOrderId, ExchangeOrderId, OrderInfo, OrderSide};
-use mmb_core::core::settings::ExchangeSettings;
+use mmb_core::exchanges::events::{ExchangeBalancesAndPositions, TradeId};
+use mmb_core::exchanges::general::handlers::handle_order_filled::FillEventData;
+use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
+use mmb_core::exchanges::general::symbol::{Precision, Symbol};
+use mmb_core::exchanges::traits::Support;
+use mmb_core::orders::fill::EventSourceType;
+use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderInfo, OrderSide};
+use mmb_core::settings::ExchangeSettings;
 use mmb_utils::DateTime;
 
 use serum_dex::state::Market;

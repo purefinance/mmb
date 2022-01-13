@@ -4,11 +4,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 
 use crate::urls::SERUM_MARKETS_URL_PATH;
-use mmb_core::core::exchanges::common::{ActivePosition, CurrencyPair, Price, RestRequestOutcome};
-use mmb_core::core::exchanges::general::symbol::Symbol;
-use mmb_core::core::exchanges::traits::ExchangeClient;
-use mmb_core::core::orders::order::{OrderCancelling, OrderCreating};
-use mmb_core::core::orders::pool::OrderRef;
+use mmb_core::exchanges::common::{ActivePosition, CurrencyPair, Price, RestRequestOutcome};
+use mmb_core::exchanges::general::symbol::Symbol;
+use mmb_core::exchanges::traits::ExchangeClient;
+use mmb_core::orders::order::{OrderCancelling, OrderCreating};
+use mmb_core::orders::pool::OrderRef;
 
 #[async_trait]
 impl ExchangeClient for Serum {

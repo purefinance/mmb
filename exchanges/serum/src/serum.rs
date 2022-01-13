@@ -6,23 +6,23 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::urls::MAINNET_SOLANA_URL_PATH;
-use mmb_core::core::exchanges::common::{
+use mmb_core::exchanges::common::{
     Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, SpecificCurrencyPair,
 };
-use mmb_core::core::exchanges::events::{AllowedEventSourceType, ExchangeEvent, TradeId};
-use mmb_core::core::exchanges::general::exchange::BoxExchangeClient;
-use mmb_core::core::exchanges::general::features::{
+use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent, TradeId};
+use mmb_core::exchanges::general::exchange::BoxExchangeClient;
+use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
     RestFillsType, WebSocketOptions,
 };
-use mmb_core::core::exchanges::general::handlers::handle_order_filled::FillEventData;
-use mmb_core::core::exchanges::rest_client::RestClient;
-use mmb_core::core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
-use mmb_core::core::exchanges::traits::{ExchangeClientBuilder, ExchangeClientBuilderResult};
-use mmb_core::core::lifecycle::application_manager::ApplicationManager;
-use mmb_core::core::orders::fill::EventSourceType;
-use mmb_core::core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide};
-use mmb_core::core::settings::ExchangeSettings;
+use mmb_core::exchanges::general::handlers::handle_order_filled::FillEventData;
+use mmb_core::exchanges::rest_client::RestClient;
+use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
+use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeClientBuilderResult};
+use mmb_core::lifecycle::application_manager::ApplicationManager;
+use mmb_core::orders::fill::EventSourceType;
+use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide};
+use mmb_core::settings::ExchangeSettings;
 use mmb_utils::DateTime;
 
 pub struct Serum {
