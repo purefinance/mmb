@@ -68,6 +68,9 @@ impl ControlPanel {
         let client = self.client.clone();
 
         let server = HttpServer::new(move || {
+            let mut webui_dir = std::env::current_dir().expect("Unable get current directory");
+            webui_dir.push(r"webui");
+
             App::new()
                 .app_data(Data::new(client.clone()))
                 .service(endpoints::health)
@@ -75,6 +78,11 @@ impl ControlPanel {
                 .service(endpoints::stats)
                 .service(endpoints::get_config)
                 .service(endpoints::set_config)
+                .service(
+                    actix_files::Files::new("/", webui_dir)
+                        .use_last_modified(true)
+                        .index_file("index.html"),
+                )
         })
         .bind(&self.address)?
         .shutdown_timeout(1)
@@ -140,7 +148,7 @@ fn handle_rpc_error(error: RpcError) -> HttpResponse {
 
 pub async fn send_request(
     client: WebMmbRpcClient,
-    action: impl FnOnce(&MmbRpcClient) -> BoxFuture<Result<String, RpcError>>,
+    action: impl Fn(&MmbRpcClient) -> BoxFuture<Result<String, RpcError>>,
 ) -> HttpResponse {
     let mut try_counter = 1;
 
@@ -159,7 +167,9 @@ pub async fn send_request(
             match (action)(client).await {
                 Ok(response) => return HttpResponse::Ok().body(response.to_string()),
                 Err(err) => {
-                    return handle_rpc_error(err);
+                    if try_counter > 2 {
+                        return handle_rpc_error(err);
+                    }
                 }
             }
         }
@@ -167,7 +177,7 @@ pub async fn send_request(
         try_reconnect(client.clone(), try_counter).await;
 
         if try_counter > 2 {
-            return HttpResponse::RequestTimeout().body("Request Timeout");
+            return HttpResponse::ServiceUnavailable().body("Trading engine service unavailable");
         }
 
         tokio::time::sleep(Duration::from_secs(3)).await;

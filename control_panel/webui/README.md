@@ -1,0 +1,1 @@
+Use https://editor.swagger.io/#/ for editing openapi.json and paste it to index.html between "// BEGIN SPEC" and "// END SPEC" comments
