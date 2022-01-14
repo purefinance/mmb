@@ -27,8 +27,8 @@ use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::hashmap;
 use mmb_utils::logger::init_logger;
+use mmb_utils::{hashmap, nothing_to_do};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -79,29 +79,25 @@ where
     let wait_for_config = ConfigWaiter::create_and_start(wait_config_tx)
         .expect("Failed to start RPC server to waiting for config");
 
+    let mut work_finished_receiver = wait_for_config
+        .work_finished_receiver
+        .lock()
+        .take()
+        .expect("work_finished_receiver is None");
+
     loop {
-        if wait_for_config
-            .work_finished_receiver
-            .lock()
-            .try_recv()
-            .is_ok()
-        {
+        if work_finished_receiver.try_recv().is_ok() {
             return None;
         }
 
         match try_load_settings::<StrategySettings>(&config_path, &credentials_path) {
             Ok(settings) => {
                 wait_for_config.stop_server();
-                // extra time for stopping ConfigWaiter
-                // WARN: MUST BE BIGGER THAN Duration IN spawn_server_stopping_action
-                tokio::time::sleep(Duration::from_secs(2)).await;
 
-                if let Err(error) = wait_for_config.work_finished_receiver.lock().try_recv() {
-                    log::warn!(
-                        "Failed to receive stop signal from ConfigWaiter: {:?}",
-                        error
-                    );
-                }
+                tokio::select! {
+                    _ = work_finished_receiver => nothing_to_do(),
+                    _ = tokio::time::sleep(Duration::from_secs(3)) => log::warn!("Failed to receive stop signal from ConfigWaiter"),
+                };
                 return Some(settings);
             }
             Err(error) => {

@@ -13,7 +13,7 @@ use super::{
 
 pub(crate) struct ConfigWaiter {
     server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
-    pub work_finished_receiver: Mutex<oneshot::Receiver<()>>,
+    pub work_finished_receiver: Mutex<Option<oneshot::Receiver<()>>>,
 }
 
 impl ConfigWaiter {
@@ -41,7 +41,7 @@ impl ConfigWaiter {
         log::info!("ConfigWaiter is started. Please send the config via the ControlPanel for start the TradingEngine");
         Ok(Arc::new(Self {
             server_stopper_tx,
-            work_finished_receiver: Mutex::new(work_finished_receiver),
+            work_finished_receiver: Mutex::new(Some(work_finished_receiver)),
         }))
     }
 
