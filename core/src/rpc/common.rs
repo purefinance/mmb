@@ -27,6 +27,7 @@ pub(super) fn set_config(settings: String) -> Result<()> {
     Ok(())
 }
 
+/// Send signal to stop TradingEngine
 pub(super) fn send_stop(stopper: Arc<Mutex<Option<mpsc::Sender<()>>>>) -> Result<String> {
     match stopper.lock().take() {
         Some(sender) => {
@@ -48,6 +49,7 @@ pub(super) fn send_stop(stopper: Arc<Mutex<Option<mpsc::Sender<()>>>>) -> Result
     }
 }
 
+/// Stop RPC server
 pub(super) fn stop_server(
     server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
 ) -> anyhow::Result<()> {
@@ -97,13 +99,17 @@ pub(super) fn spawn_server_stopping_action<T>(
 {
     let stopping_action = async move {
         if server_stopper_rx.recv().await.is_none() {
-            log::error!("Unable to receive signal to stop IPC server");
+            log::error!("Unable to receive signal to stop RPC server");
         }
+
+        // Time to send a response to the ControlPanel before closing the server
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
         tokio::task::spawn_blocking(move || {
             server.close();
 
             if let Err(_) = work_finished_sender.send(msg_to_sender) {
-                log::error!("Unable to send notification about server stopped.",);
+                log::warn!("Unable to send notification about server stopped");
             }
 
             if let Some(application_manager) = application_manager {

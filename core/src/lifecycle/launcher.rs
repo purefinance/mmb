@@ -92,12 +92,13 @@ where
         match try_load_settings::<StrategySettings>(&config_path, &credentials_path) {
             Ok(settings) => {
                 wait_for_config.stop_server();
-                // extra time for stopping control_panel
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                // extra time for stopping ConfigWaiter
+                // WARN: MUST BE BIGGER THAN Duration IN spawn_server_stopping_action
+                tokio::time::sleep(Duration::from_secs(2)).await;
 
                 if let Err(error) = wait_for_config.work_finished_receiver.lock().try_recv() {
                     log::warn!(
-                        "Failed to receive stop signal from control panel: {:?}",
+                        "Failed to receive stop signal from ConfigWaiter: {:?}",
                         error
                     );
                 }

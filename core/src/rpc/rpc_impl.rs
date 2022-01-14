@@ -6,7 +6,6 @@ use tokio::sync::mpsc;
 
 use std::sync::Arc;
 
-use crate::rpc::control_panel::FAILED_TO_SEND_STOP_NOTIFICATION;
 use crate::statistic_service::StatisticService;
 use mmb_rpc::rest_api::ErrorCode;
 
@@ -31,27 +30,6 @@ impl RpcImpl {
             engine_settings,
         }
     }
-
-    fn send_stop(&self) -> Result<String> {
-        match self.server_stopper_tx.lock().take() {
-            Some(sender) => {
-                if let Err(error) = sender.try_send(()) {
-                    log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
-                    return Err(server_side_error(ErrorCode::UnableToSendSignal));
-                };
-                let msg = "Trading engine is going to turn off";
-                log::info!("{} by control panel", msg);
-                Ok(msg.into())
-            }
-            None => {
-                log::warn!(
-                    "{}: the signal is already sent",
-                    FAILED_TO_SEND_STOP_NOTIFICATION
-                );
-                Err(server_side_error(ErrorCode::StopperIsNone))
-            }
-        }
-    }
 }
 
 impl MmbRpc for RpcImpl {
@@ -69,7 +47,7 @@ impl MmbRpc for RpcImpl {
 
     fn set_config(&self, settings: String) -> Result<String> {
         set_config(settings)?;
-        self.send_stop()?; // TODO: need restart here #337
+        send_stop(self.server_stopper_tx.clone())?; // TODO: need restart here #337
         Ok("Config was successfully updated. Trading engine will stopped".into())
     }
 
