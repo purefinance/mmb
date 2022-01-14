@@ -12,6 +12,7 @@ use crate::exchanges::traits::ExchangeClientBuilder;
 use crate::lifecycle::application_manager::ApplicationManager;
 use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
+use crate::rpc::config_waiter::ConfigWaiter;
 use crate::rpc::control_panel::ControlPanel;
 use crate::settings::{AppSettings, BaseStrategySettings, CoreSettings};
 use crate::statistic_service::StatisticEventHandler;
@@ -38,8 +39,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc, oneshot};
-
-use super::trading_engine::Service;
 
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,
@@ -71,30 +70,38 @@ where
 pub async fn load_settings_or_wait<StrategySettings>(
     config_path: &str,
     credentials_path: &str,
-) -> AppSettings<StrategySettings>
+) -> Option<AppSettings<StrategySettings>>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
     let (wait_config_tx, mut wait_config_rx) = mpsc::channel::<()>(10);
 
-    // let control_panel = ControlPanel::create_and_start_no_config(wait_config_tx)
-    //     .expect("Failed to start control_panel without config");
+    let wait_for_config = ConfigWaiter::create_and_start(wait_config_tx)
+        .expect("Failed to start RPC server to waiting for config");
 
     loop {
+        if wait_for_config
+            .work_finished_receiver
+            .lock()
+            .try_recv()
+            .is_ok()
+        {
+            return None;
+        }
+
         match try_load_settings::<StrategySettings>(&config_path, &credentials_path) {
             Ok(settings) => {
-                // if let Some(mut rx_stop) = control_panel.graceful_shutdown() {
+                wait_for_config.stop_server();
                 // extra time for stopping control_panel
-                // tokio::time::sleep(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_secs(1)).await;
 
-                // if let Err(error) = rx_stop.try_recv() {
-                //     log::warn!(
-                //         "Failed to receive stop signal from control panel: {:?}",
-                //         error
-                //     );
-                // }
-                // }
-                return settings;
+                if let Err(error) = wait_for_config.work_finished_receiver.lock().try_recv() {
+                    log::warn!(
+                        "Failed to receive stop signal from control panel: {:?}",
+                        error
+                    );
+                }
+                return Some(settings);
             }
             Err(error) => {
                 log::trace!("Failed to load settings: {:?}", error);
@@ -107,14 +114,16 @@ where
 async fn before_engine_context_init<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
-) -> Result<(
-    broadcast::Sender<ExchangeEvent>,
-    broadcast::Receiver<ExchangeEvent>,
-    AppSettings<StrategySettings>,
-    DashMap<ExchangeAccountId, Arc<Exchange>>,
-    Arc<EngineContext>,
-    oneshot::Receiver<()>,
-)>
+) -> Result<
+    Option<(
+        broadcast::Sender<ExchangeEvent>,
+        broadcast::Receiver<ExchangeEvent>,
+        AppSettings<StrategySettings>,
+        DashMap<ExchangeAccountId, Arc<Exchange>>,
+        Arc<EngineContext>,
+        oneshot::Receiver<()>,
+    )>,
+>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
@@ -128,7 +137,12 @@ where
         InitSettings::Load {
             config_path,
             credentials_path,
-        } => load_settings_or_wait::<StrategySettings>(&config_path, &credentials_path).await,
+        } => {
+            match load_settings_or_wait::<StrategySettings>(&config_path, &credentials_path).await {
+                Some(settings) => settings,
+                None => return Ok(None),
+            }
+        }
     };
 
     let application_manager = ApplicationManager::new(CancellationToken::new());
@@ -183,14 +197,14 @@ where
         balance_manager,
     );
 
-    Ok((
+    Ok(Some((
         events_sender,
         events_receiver,
         settings,
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
-    ))
+    )))
 }
 
 fn run_services<'a, StrategySettings>(
@@ -288,7 +302,7 @@ pub async fn launch_trading_engine<StrategySettings>(
         &AppSettings<StrategySettings>,
         Arc<EngineContext>,
     ) -> Box<dyn DispositionStrategy + 'static>,
-) -> Result<TradingEngine>
+) -> Result<Option<TradingEngine>>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
@@ -307,7 +321,10 @@ where
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
-    ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
+    ) = match unwrap_or_handle_panic(action_outcome, message_template, None)?? {
+        Some(result_tuple) => result_tuple,
+        None => return Ok(None),
+    };
 
     let cloned_application_manager = engine_context.application_manager.clone();
     let action = async move {
@@ -340,6 +357,7 @@ where
         message_template,
         Some(engine_context.application_manager.clone()),
     )
+    .map(|trading_engine| Some(trading_engine))
 }
 
 fn create_disposition_executor_service(
