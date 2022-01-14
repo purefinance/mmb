@@ -51,6 +51,7 @@ impl ControlPanel {
             Some(application_manager),
         );
 
+        log::info!("ControlPanel is started");
         Ok(Arc::new(Self {
             server_stopper_tx,
             work_finished_receiver: Arc::new(Mutex::new(Some(work_finished_receiver))),

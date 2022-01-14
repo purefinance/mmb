@@ -38,6 +38,7 @@ impl ConfigWaiter {
             None,
         );
 
+        log::info!("ConfigWaiter is started. Please send the config via the ControlPanel for start the TradingEngine");
         Ok(Arc::new(Self {
             server_stopper_tx,
             work_finished_receiver: Mutex::new(work_finished_receiver),
@@ -46,5 +47,6 @@ impl ConfigWaiter {
 
     pub(crate) fn stop_server(&self) {
         stop_server(self.server_stopper_tx.clone()).expect("Failed to stop RPC server");
+        log::info!("ConfigWaiter is stopped");
     }
 }
