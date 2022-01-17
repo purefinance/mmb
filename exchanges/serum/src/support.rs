@@ -1,4 +1,4 @@
-use crate::helpers::{convert64_to_pubkey, decimal_from_u64, split_once};
+use crate::helpers::{convert64_to_pubkey, split_once};
 use crate::serum::Serum;
 
 use anyhow::{anyhow, Context, Result};
@@ -212,17 +212,34 @@ impl Serum {
         let is_active = true;
         let is_derivative = false;
 
-        let min_price = (decimal_from_u64(10u64.pow(coin_mint_data.decimals as u32))?
-            * decimal_from_u64(market.pc_lot_size)?)
-            / (decimal_from_u64(10u64.pow(pc_mint_data.decimals as u32))?
-                * decimal_from_u64(market.coin_lot_size)?);
-        let max_price = Decimal::from_u64(u64::MAX);
-
-        let min_amount = decimal_from_u64(market.coin_lot_size)?
-            / decimal_from_u64(10u64.pow(coin_mint_data.decimals as u32))?;
-        let max_amount = Decimal::from_u64(u64::MAX);
-
+        let pc_lot_size = Decimal::from_u64(market.pc_lot_size).with_context(|| {
+            let pc_lot_size = market.pc_lot_size;
+            format!("Unable to convert decimal from pc lot size = {pc_lot_size}")
+        })?;
+        let factor_pc_decimals = Decimal::from_u64(10u64.pow(pc_mint_data.decimals as u32))
+            .with_context(|| {
+                format!(
+                    "Unable to convert decimal from pc decimals = {}",
+                    coin_mint_data.decimals,
+                )
+            })?;
+        let factor_coin_decimals = Decimal::from_u64(10u64.pow(coin_mint_data.decimals as u32))
+            .with_context(|| {
+                format!(
+                    "Unable to convert decimal from coin decimals = {}",
+                    coin_mint_data.decimals,
+                )
+            })?;
+        let coin_lot_size = Decimal::from_u64(market.coin_lot_size).with_context(|| {
+            let coin_lot_size = market.coin_lot_size;
+            format!("Unable to convert decimal from coin lot size = {coin_lot_size}")
+        })?;
+        let min_price = (factor_coin_decimals * pc_lot_size) / (factor_pc_decimals * coin_lot_size);
+        let min_amount = coin_lot_size / factor_coin_decimals;
         let min_cost = min_price * min_amount;
+
+        let max_price = Decimal::from_u64(u64::MAX);
+        let max_amount = Decimal::from_u64(u64::MAX);
 
         let amount_currency_code = base_currency_code;
         let balance_currency_code = base_currency_code;
