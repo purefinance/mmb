@@ -4,7 +4,7 @@ use std::{fmt::Debug, fs::File};
 
 use crate::lifecycle::launcher::InitSettings;
 use crate::settings::{AppSettings, BaseStrategySettings};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 use serde::de::DeserializeOwned;
@@ -16,16 +16,19 @@ pub static SECRET_KEY: &str = "secret_key";
 pub static CONFIG_PATH: &str = "config.toml";
 pub static CREDENTIALS_PATH: &str = "credentials.toml";
 
-pub fn load_settings<TSettings>(config_path: &str, credentials_path: &str) -> AppSettings<TSettings>
+pub fn try_load_settings<TSettings>(
+    config_path: &str,
+    credentials_path: &str,
+) -> Result<AppSettings<TSettings>>
 where
     TSettings: BaseStrategySettings + Clone + Debug + DeserializeOwned,
 {
-    let mut settings = read_to_string(config_path)
-        .with_expect(|| format!("Unable load settings file: {}", config_path));
-    let mut credentials = read_to_string(credentials_path)
-        .with_expect(|| format!("Unable load credentials file: {}", credentials_path));
+    let settings = read_to_string(config_path)
+        .with_context(|| format!("Unable load settings file: {}", config_path))?;
+    let credentials = read_to_string(credentials_path)
+        .with_context(|| format!("Unable load credentials file: {}", credentials_path))?;
 
-    parse_settings(&mut settings, &mut credentials).expect("Error in parse_settings")
+    parse_settings(settings.as_str(), credentials.as_str())
 }
 
 pub fn load_pretty_settings<StrategySettings>(
@@ -136,6 +139,10 @@ fn parse_toml_settings(settings: &str, credentials: &str) -> Result<Document> {
                 .ok_or(anyhow!(
                     "Unable get 'secret_key' for one of 'core.exchanges' from the settings"
                 ))?;
+
+            if api_key.is_empty() || secret_key.is_empty() {
+                bail!("Unable to parse settings: api or secret key is empty")
+            }
 
             exchange.insert(API_KEY, value(api_key));
             exchange.insert(SECRET_KEY, value(secret_key));

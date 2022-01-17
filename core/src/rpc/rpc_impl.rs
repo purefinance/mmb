@@ -6,12 +6,11 @@ use tokio::sync::mpsc;
 
 use std::sync::Arc;
 
-use crate::config::save_settings;
-use crate::config::CONFIG_PATH;
-use crate::config::CREDENTIALS_PATH;
-use crate::rpc::control_panel::FAILED_TO_SEND_STOP_NOTIFICATION;
 use crate::statistic_service::StatisticService;
 use mmb_rpc::rest_api::ErrorCode;
+
+use super::common::send_stop;
+use super::common::set_config;
 
 pub struct RpcImpl {
     server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
@@ -31,27 +30,6 @@ impl RpcImpl {
             engine_settings,
         }
     }
-
-    fn send_stop(&self) -> Result<String> {
-        match self.server_stopper_tx.lock().take() {
-            Some(sender) => {
-                if let Err(error) = sender.try_send(()) {
-                    log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
-                    return Err(server_side_error(ErrorCode::UnableToSendSignal));
-                };
-                let msg = "Trading engine is going to turn off";
-                log::info!("{} by control panel", msg);
-                Ok(msg.into())
-            }
-            None => {
-                log::warn!(
-                    "{}: the signal is already sent",
-                    FAILED_TO_SEND_STOP_NOTIFICATION
-                );
-                Err(server_side_error(ErrorCode::StopperIsNone))
-            }
-        }
-    }
 }
 
 impl MmbRpc for RpcImpl {
@@ -60,7 +38,7 @@ impl MmbRpc for RpcImpl {
     }
 
     fn stop(&self) -> Result<String> {
-        self.send_stop()
+        send_stop(self.server_stopper_tx.clone())
     }
 
     fn get_config(&self) -> Result<String> {
@@ -68,16 +46,8 @@ impl MmbRpc for RpcImpl {
     }
 
     fn set_config(&self, settings: String) -> Result<String> {
-        save_settings(settings.as_str(), CONFIG_PATH, CREDENTIALS_PATH).map_err(|err| {
-            log::warn!(
-                "Error while trying to save new config in set_config endpoint: {}",
-                err.to_string()
-            );
-            server_side_error(ErrorCode::FailedToSaveNewConfig)
-        })?;
-
-        self.send_stop()?;
-
+        set_config(settings)?;
+        send_stop(self.server_stopper_tx.clone())?; // TODO: need restart here #337
         Ok("Config was successfully updated. Trading engine will stopped".into())
     }
 
