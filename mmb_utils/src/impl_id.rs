@@ -1,6 +1,6 @@
 /// This macro needs to generate an string ID for some structures like ClientOrder or ExchangeOrder.
 /// All IDs must be unique, here we use AtomicU64 static variable that initialize with current UNIX time(get_atomic_current_secs() function)
-/// "0" means "empty id"
+/// Value cannot be "0" it means that the var isn't initialized.
 /// # Example:
 /// ```
 /// use std::fmt;
@@ -67,7 +67,7 @@ macro_rules! impl_str_id {
 
 /// This macro needs to generate an u64 ID for some structures like ProfitLossBalanceChange or Reservation.
 /// All IDs must be unique, here we use AtomicU64 static variable that initialize with current UNIX time(get_atomic_current_secs() function)
-/// "0" means "empty id"
+/// Value cannot be "0" it means that the var isn't initialized.
 /// # Example:
 /// ```
 /// use std::fmt;

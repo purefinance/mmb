@@ -10,8 +10,6 @@ use crate::binance::binance_builder::BinanceBuilder;
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
 
-use rust_decimal_macros::dec;
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn open_orders_exists() {
     init_logger();
@@ -45,6 +43,7 @@ async fn open_orders_exists() {
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
 
     let second_order_proxy = OrderProxy::new(
@@ -52,6 +51,7 @@ async fn open_orders_exists() {
         Some("FromOpenOrdersExistsTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
 
     if let Err(error) = first_order_proxy
@@ -134,6 +134,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
 
     first_order_proxy
@@ -141,14 +142,13 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         .await
         .expect("in test");
 
-    let mut second_order_proxy = OrderProxy::new(
+    let second_order_proxy = OrderProxy::new(
         exchange_account_id,
         Some("FromGetOpenOrdersByCurrencyPairTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
-    second_order_proxy.currency_pair = CurrencyPair::from_codes("cnd".into(), "btc".into());
-    second_order_proxy.amount = dec!(1000);
 
     second_order_proxy
         .create_order(binance_builder.exchange.clone())
