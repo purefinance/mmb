@@ -202,7 +202,7 @@ impl Serum {
         let coin_data = self.rpc_client.get_account_data(&coin_mint_adr)?;
         let pc_data = self.rpc_client.get_account_data(&pc_mint_adr)?;
 
-        let coin_min_data = state::Mint::unpack_from_slice(&coin_data)?;
+        let coin_mint_data = state::Mint::unpack_from_slice(&coin_data)?;
         let pc_mint_data = state::Mint::unpack_from_slice(&pc_data)?;
 
         let (base_currency_id, quote_currency_id) = split_once(&market_name, "/");
@@ -212,14 +212,14 @@ impl Serum {
         let is_active = true;
         let is_derivative = false;
 
-        let min_price = (decimal_from_u64(10u64.pow(coin_min_data.decimals as u32))?
+        let min_price = (decimal_from_u64(10u64.pow(coin_mint_data.decimals as u32))?
             * decimal_from_u64(market.pc_lot_size)?)
             / (decimal_from_u64(10u64.pow(pc_mint_data.decimals as u32))?
                 * decimal_from_u64(market.coin_lot_size)?);
         let max_price = Decimal::from_u64(u64::MAX);
 
         let min_amount = decimal_from_u64(market.coin_lot_size)?
-            / decimal_from_u64(10u64.pow(coin_min_data.decimals as u32))?;
+            / decimal_from_u64(10u64.pow(coin_mint_data.decimals as u32))?;
         let max_amount = Decimal::from_u64(u64::MAX);
 
         let min_cost = min_price * min_amount;
@@ -227,11 +227,21 @@ impl Serum {
         let amount_currency_code = base_currency_code;
         let balance_currency_code = base_currency_code;
 
-        let price_precision = Precision::ByMantissa {
-            precision: pc_mint_data.decimals as i8,
+        let price_precision = Precision::ByTick {
+            tick: convert_decimals_to_tick(pc_mint_data.decimals).with_context(|| {
+                format!(
+                    "Unable to convert price precision from decimals = {}",
+                    pc_mint_data.decimals
+                )
+            })?,
         };
-        let amount_precision = Precision::ByMantissa {
-            precision: coin_min_data.decimals as i8,
+        let amount_precision = Precision::ByTick {
+            tick: convert_decimals_to_tick(coin_mint_data.decimals).with_context(|| {
+                format!(
+                    "Unable to convert amount precision from decimals = {}",
+                    coin_mint_data.decimals
+                )
+            })?,
         };
 
         Ok(Symbol::new(
@@ -252,6 +262,12 @@ impl Serum {
             amount_precision,
         ))
     }
+}
+
+fn convert_decimals_to_tick(decimals: u8) -> Result<Decimal> {
+    let tick = 1.0f64 / 10f64.powf(decimals as f64);
+    Decimal::from_f64_retain(tick)
+        .with_context(|| format!("Error parsing decimal from {}f64", tick))
 }
 
 // TODO: Duplicate code. Take out to a separate place (q.v. Binance crate)
