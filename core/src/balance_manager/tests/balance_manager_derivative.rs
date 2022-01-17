@@ -2671,13 +2671,11 @@ mod tests {
                         .balance_manager_base
                         .get_balance_by_trade_side(OrderSide::Sell, price)
                         .expect("in test"),
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
                 .round_to_remove_amount_precision_error(sell_balance * dec!(0.95))
-                .expect("in test")
         );
     }
 
@@ -2827,13 +2825,11 @@ mod tests {
                         .balance_manager_base
                         .get_balance_by_trade_side(OrderSide::Sell, price)
                         .expect("in test"),
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
                 .round_to_remove_amount_precision_error(sell_balance * dec!(0.95))
-                .expect("in test")
         );
     }
 
@@ -2964,8 +2960,7 @@ mod tests {
                             price
                         )
                         .expect("in test")
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
@@ -2975,7 +2970,6 @@ mod tests {
                             / BalanceManagerDerivative::leverage())
                         / price
                 )
-                .expect("in test")
         );
     }
 
@@ -3109,8 +3103,7 @@ mod tests {
                             price
                         )
                         .expect("in test")
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
@@ -3121,7 +3114,6 @@ mod tests {
                             * amount_multiplier)
                         / price
                 )
-                .expect("in test")
         );
     }
 
@@ -3178,13 +3170,11 @@ mod tests {
                         .balance_manager()
                         .get_balance_by_reserve_parameters(&reserve_parameters)
                         .expect("in test")
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
                 .round_to_remove_amount_precision_error(balance_before_reservation)
-                .expect("in test")
         );
 
         let reservation_id = test_object
@@ -3205,13 +3195,11 @@ mod tests {
                         .balance_manager()
                         .get_balance_by_reserve_parameters(&reserve_parameters)
                         .expect("in test")
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
                 .round_to_remove_amount_precision_error(balance_after_reservation)
-                .expect("in test")
         );
 
         let mut order = test_object
@@ -3278,8 +3266,7 @@ mod tests {
                             price
                         )
                         .expect("in test")
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
@@ -3289,7 +3276,6 @@ mod tests {
                             / BalanceManagerDerivative::leverage()
                             / price
                 )
-                .expect("in test")
         );
     }
 
@@ -3349,13 +3335,11 @@ mod tests {
                         .balance_manager()
                         .get_balance_by_reserve_parameters(&reserve_parameters)
                         .expect("in test")
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
                 .round_to_remove_amount_precision_error(balance_before_reservation)
-                .expect("in test")
         );
 
         let reservation_id = test_object
@@ -3376,13 +3360,11 @@ mod tests {
                         .balance_manager()
                         .get_balance_by_reserve_parameters(&reserve_parameters)
                         .expect("in test")
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
                 .round_to_remove_amount_precision_error(balance_after_reservation)
-                .expect("in test")
         );
 
         let mut order = test_object
@@ -3447,8 +3429,7 @@ mod tests {
                             price
                         )
                         .expect("in test")
-                )
-                .expect("in test"),
+                ),
             test_object
                 .balance_manager_base
                 .symbol()
@@ -3456,7 +3437,6 @@ mod tests {
                     balance_before_reservation
                         - amount / BalanceManagerDerivative::leverage() * amount_multiplier
                 )
-                .expect("in test")
         );
     }
 

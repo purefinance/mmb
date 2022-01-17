@@ -193,8 +193,7 @@ impl BalanceReservationManager {
 
         let amount_to_unreserve = reservation
             .symbol
-            .round_to_remove_amount_precision_error(amount)
-            .context("Can't get amount_to_unreserve")?;
+            .round_to_remove_amount_precision_error(amount);
 
         if amount_to_unreserve.is_zero() && !reservation.amount.is_zero() {
             // to prevent error logging in case when amount == 0

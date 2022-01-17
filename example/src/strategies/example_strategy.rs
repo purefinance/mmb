@@ -94,11 +94,11 @@ impl ExampleStrategy {
             match side {
                 OrderSide::Sell => {
                     let price = order_book_middle + (self.spread * dec!(0.5));
-                    symbol.price_round(price, Round::Ceiling).ok()?
+                    symbol.price_round(price, Round::Ceiling)
                 }
                 OrderSide::Buy => {
                     let price = order_book_middle - (self.spread * dec!(0.5));
-                    symbol.price_round(price, Round::Floor).ok()?
+                    symbol.price_round(price, Round::Floor)
                 }
             }
         } else {
@@ -153,7 +153,7 @@ impl ExampleStrategy {
             )
         };
 
-        let amount = symbol.amount_round(amount, Round::Floor).ok()?;
+        let amount = symbol.amount_round(amount, Round::Floor);
 
         Some(TradingContextBySide {
             max_amount,

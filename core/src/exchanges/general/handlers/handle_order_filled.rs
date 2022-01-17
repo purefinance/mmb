@@ -229,7 +229,7 @@ impl Exchange {
         order_fills: &Vec<OrderFill>,
         order_filled_amount: Amount,
         order_ref: &OrderRef,
-    ) -> Result<Option<(Price, Amount, Price)>> {
+    ) -> Option<(Price, Amount, Price)> {
         let mut last_fill_amount = event_data.fill_amount;
         let mut last_fill_price = event_data.fill_price;
         let mut last_fill_cost = if !symbol.is_derivative() {
@@ -240,14 +240,14 @@ impl Exchange {
 
         if !event_data.is_diff && order_fills.len() > 0 {
             match Self::calculate_cost_diff(&order_fills, order_ref, last_fill_cost) {
-                None => return Ok(None),
+                None => return None,
                 Some(cost_diff) => {
                     let (price, amount, cost) = Self::calculate_last_fill_data(
                         last_fill_amount,
                         order_filled_amount,
                         &symbol,
                         cost_diff,
-                    )?;
+                    );
                     last_fill_price = price;
                     last_fill_amount = amount;
                     last_fill_cost = cost;
@@ -264,10 +264,10 @@ impl Exchange {
                 order_ref.exchange_order_id()
             );
 
-            return Ok(None);
+            return None;
         }
 
-        Ok(Some((last_fill_price, last_fill_amount, last_fill_cost)))
+        Some((last_fill_price, last_fill_amount, last_fill_cost))
     }
 
     fn calculate_cost_diff(
@@ -296,19 +296,19 @@ impl Exchange {
         order_filled_amount: Amount,
         symbol: &Symbol,
         cost_diff: Price,
-    ) -> Result<(Price, Amount, Price)> {
+    ) -> (Price, Amount, Price) {
         let amount_diff = last_fill_amount - order_filled_amount;
         let res_fill_price = if !symbol.is_derivative() {
             cost_diff / amount_diff
         } else {
             amount_diff / cost_diff
         };
-        let last_fill_price = symbol.price_round(res_fill_price, Round::ToNearest)?;
+        let last_fill_price = symbol.price_round(res_fill_price, Round::ToNearest);
 
         let last_fill_amount = amount_diff;
         let last_fill_cost = cost_diff;
 
-        Ok((last_fill_price, last_fill_amount, last_fill_cost))
+        (last_fill_price, last_fill_amount, last_fill_cost)
     }
 
     fn try_set_commission_amount(event_data: &mut FillEventData, order_fills: &Vec<OrderFill>) {
@@ -539,7 +539,7 @@ impl Exchange {
         order_role: OrderRole,
         commission_currency_code: CurrencyCode,
         converted_commission_amount: Amount,
-    ) -> Result<OrderFill> {
+    ) -> OrderFill {
         let last_fill_amount_in_converted_commission_currency_code = symbol
             .convert_amount_from_amount_currency_code(
                 converted_commission_currency_code,
@@ -552,7 +552,7 @@ impl Exchange {
         let referral_reward = self.commission.get_commission(order_role).referral_reward;
         let referral_reward_amount = commission_amount * referral_reward.percent_to_rate();
 
-        let rounded_fill_price = symbol.price_round(last_fill_price, Round::ToNearest)?;
+        let rounded_fill_price = symbol.price_round(last_fill_price, Round::ToNearest);
 
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
@@ -576,7 +576,7 @@ impl Exchange {
         );
         order_ref.fn_mut(|order| order.add_fill(order_fill.clone()));
 
-        Ok(order_fill)
+        order_fill
     }
 
     fn try_to_create_and_add_order_fill(
@@ -605,7 +605,7 @@ impl Exchange {
             &order_fills,
             order_filled_amount,
             order_ref,
-        )? {
+        ) {
             Some(last_fill_data) => last_fill_data,
             None => return Ok(()),
         };
@@ -672,7 +672,7 @@ impl Exchange {
             order_role,
             commission_currency_code,
             converted_commission_amount,
-        )?;
+        );
 
         // This order fields updated, so let's use actual values
         let order_filled_amount = order_ref.filled_amount();
@@ -2934,24 +2934,22 @@ mod test {
             let converted_commission_amount = dec!(0.005);
             let commission_amount = dec!(0.1) / dec!(100) * dec!(5);
 
-            let fill = exchange
-                .add_fill(
-                    &trade_id,
-                    is_diff,
-                    OrderFillType::Liquidation,
-                    &symbol,
-                    &order_ref,
-                    converted_commission_currency_code,
-                    last_fill_amount,
-                    last_fill_price,
-                    last_fill_cost,
-                    expected_commission_rate,
-                    commission_amount,
-                    order_role,
-                    commission_currency_code,
-                    converted_commission_amount,
-                )
-                .context("Error while adding fill")?;
+            let fill = exchange.add_fill(
+                &trade_id,
+                is_diff,
+                OrderFillType::Liquidation,
+                &symbol,
+                &order_ref,
+                converted_commission_currency_code,
+                last_fill_amount,
+                last_fill_price,
+                last_fill_cost,
+                expected_commission_rate,
+                commission_amount,
+                order_role,
+                commission_currency_code,
+                converted_commission_amount,
+            );
             assert_eq!(fill.commission_amount(), commission_amount);
             assert_eq!(
                 fill.expected_converted_commission_amount(),
@@ -2995,24 +2993,22 @@ mod test {
             let converted_commission_amount = dec!(0.005);
             let commission_amount = dec!(1000);
 
-            let fill = exchange
-                .add_fill(
-                    &trade_id,
-                    is_diff,
-                    OrderFillType::Liquidation,
-                    &symbol,
-                    &order_ref,
-                    converted_commission_currency_code,
-                    last_fill_amount,
-                    last_fill_price,
-                    last_fill_cost,
-                    expected_commission_rate,
-                    commission_amount,
-                    order_role,
-                    commission_currency_code,
-                    converted_commission_amount,
-                )
-                .context("Error while adding fill")?;
+            let fill = exchange.add_fill(
+                &trade_id,
+                is_diff,
+                OrderFillType::Liquidation,
+                &symbol,
+                &order_ref,
+                converted_commission_currency_code,
+                last_fill_amount,
+                last_fill_price,
+                last_fill_cost,
+                expected_commission_rate,
+                commission_amount,
+                order_role,
+                commission_currency_code,
+                converted_commission_amount,
+            );
 
             assert_eq!(fill.commission_amount(), commission_amount);
             let right_value = dec!(0.1) / dec!(100) * dec!(5);
@@ -3055,24 +3051,22 @@ mod test {
             let commission_currency_code = CurrencyCode::new("PHB".into());
             let converted_commission_amount = dec!(0.005);
 
-            let fill = exchange
-                .add_fill(
-                    &trade_id,
-                    is_diff,
-                    OrderFillType::Liquidation,
-                    &symbol,
-                    &order_ref,
-                    converted_commission_currency_code,
-                    last_fill_amount,
-                    last_fill_price,
-                    last_fill_cost,
-                    expected_commission_rate,
-                    commission_amount,
-                    order_role,
-                    commission_currency_code,
-                    converted_commission_amount,
-                )
-                .context("Error while adding fill")?;
+            let fill = exchange.add_fill(
+                &trade_id,
+                is_diff,
+                OrderFillType::Liquidation,
+                &symbol,
+                &order_ref,
+                converted_commission_currency_code,
+                last_fill_amount,
+                last_fill_price,
+                last_fill_cost,
+                expected_commission_rate,
+                commission_amount,
+                order_role,
+                commission_currency_code,
+                converted_commission_amount,
+            );
 
             let right_value = dec!(5) * dec!(0.1) / dec!(100) * dec!(0.4);
             assert_eq!(fill.referral_reward_amount(), right_value);
