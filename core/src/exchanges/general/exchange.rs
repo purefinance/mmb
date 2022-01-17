@@ -347,6 +347,10 @@ impl Exchange {
         // TODO Reconnect
     }
 
+    pub async fn disconnect(self: Arc<Self>) {
+        self.connectivity_manager.clone().disconnect().await
+    }
+
     async fn try_connect(self: Arc<Self>) {
         // TODO IsWebSocketConnecting()
         log::info!("Websocket: Connecting on {}", "test_exchange_id");

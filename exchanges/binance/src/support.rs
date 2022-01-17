@@ -1,6 +1,5 @@
 use mmb_core::misc::derivative_position::DerivativePosition;
 use mmb_utils::infrastructure::WithExpect;
-use std::str::FromStr;
 
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
@@ -10,7 +9,7 @@ use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
-use mmb_utils::DateTime;
+use mmb_utils::{value_to_decimal::GetOrErr, DateTime};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -508,28 +507,6 @@ impl Support for Binance {
         } else {
             self.get_spot_exchange_balances_and_positions(binance_account_info.balances)
         }
-    }
-}
-
-trait GetOrErr {
-    fn get_as_str(&self, key: &str) -> Result<String>;
-    fn get_as_decimal(&self, key: &str) -> Option<Decimal>;
-}
-
-impl GetOrErr for Value {
-    fn get_as_str(&self, key: &str) -> Result<String> {
-        Ok(self
-            .get(key)
-            .with_context(|| format!("Unable to get {} from Binance", key))?
-            .as_str()
-            .with_context(|| format!("Unable to get {} as string from Binance", key))?
-            .to_string())
-    }
-
-    fn get_as_decimal(&self, key: &str) -> Option<Decimal> {
-        self.get(key)
-            .and_then(|value| value.as_str())
-            .and_then(|value| Decimal::from_str(value).ok())
     }
 }
 

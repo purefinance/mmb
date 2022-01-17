@@ -10,8 +10,6 @@ use mmb_utils::DateTime;
 
 use anyhow::Result;
 use chrono::Utc;
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
 use tokio::time::Duration;
 
 use mmb_utils::infrastructure::with_timeout;
@@ -24,18 +22,19 @@ use std::sync::Arc;
 /// ```no_run
 /// use core_tests::order::OrderProxy;
 /// use mmb_core::exchanges::common::ExchangeAccountId;
-/// use mmb_core::exchanges::common::Price;
+/// use mmb_core::exchanges::common::{Amount, Price};
 /// use mmb_core::exchanges::general::exchange::Exchange;
 /// use mmb_utils::cancellation_token::CancellationToken;
 /// use rust_decimal_macros::dec;
 /// use std::sync::Arc;
 ///
-/// async fn example(exchange_account_id: ExchangeAccountId, exchange: Arc<Exchange>, price: Price) {
+/// async fn example(exchange_account_id: ExchangeAccountId, exchange: Arc<Exchange>, price: Price, amount: Amount) {
 ///     let mut order_proxy = OrderProxy::new(
 ///         exchange_account_id,
 ///         Some("FromExample".to_owned()),
 ///         CancellationToken::default(),
 ///         price,
+///         amount,
 ///     );
 ///     order_proxy.amount = dec!(5000); // Optional amount changing
 ///     let created_order = order_proxy.create_order(exchange.clone()).await;
@@ -65,6 +64,7 @@ impl OrderProxy {
         strategy_name: Option<String>,
         cancellation_token: CancellationToken,
         price: Price,
+        amount: Amount,
     ) -> Self {
         Self {
             client_order_id: ClientOrderId::unique_id(),
@@ -73,7 +73,7 @@ impl OrderProxy {
             currency_pair: OrderProxy::default_currency_pair(),
             order_type: OrderType::Limit,
             side: OrderSide::Buy,
-            amount: OrderProxy::default_amount(),
+            amount,
             execution_type: OrderExecutionType::None,
             reservation_id: None,
             signal_id: None,
@@ -86,14 +86,6 @@ impl OrderProxy {
 
     pub fn default_currency_pair() -> CurrencyPair {
         CurrencyPair::from_codes("cnd".into(), "btc".into())
-    }
-
-    pub fn default_amount() -> Decimal {
-        dec!(1000)
-    }
-
-    pub fn default_price() -> Decimal {
-        dec!(0.0000001)
     }
 
     pub fn make_header(&self) -> Arc<OrderHeader> {
