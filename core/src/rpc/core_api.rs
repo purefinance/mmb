@@ -19,12 +19,12 @@ use super::{
 pub(super) static FAILED_TO_SEND_STOP_NOTIFICATION: &str =
     "Failed to send stop notification to control_panel";
 
-pub(crate) struct ControlPanel {
+pub(crate) struct CoreApi {
     server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
 }
 
-impl ControlPanel {
+impl CoreApi {
     pub(crate) fn create_and_start(
         application_manager: Arc<ApplicationManager>,
         engine_settings: String,
@@ -59,7 +59,7 @@ impl ControlPanel {
     }
 }
 
-impl Service for ControlPanel {
+impl Service for CoreApi {
     fn name(&self) -> &str {
         "ControlPanel"
     }

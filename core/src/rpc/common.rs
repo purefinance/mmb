@@ -12,7 +12,7 @@ use crate::{
     config::{save_settings, CONFIG_PATH, CREDENTIALS_PATH},
     infrastructure::spawn_future,
     lifecycle::application_manager::ApplicationManager,
-    rpc::control_panel::FAILED_TO_SEND_STOP_NOTIFICATION,
+    rpc::core_api::FAILED_TO_SEND_STOP_NOTIFICATION,
 };
 
 pub(super) fn set_config(settings: String) -> Result<()> {
