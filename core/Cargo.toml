@@ -2,7 +2,7 @@
 name = "mmb_core"
 version = "0.1.0"
 authors = ["Evgeny Khudoba <evgeny.khudoba@yandex.ru>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
