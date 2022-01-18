@@ -39,16 +39,8 @@ impl Exchange {
             self.exchange_account_id,
         );
 
-        match self.wait_cancel_order.entry(order.client_order_id()) {
-            Occupied(entry) => {
-                let tx = entry.get();
-                let mut rx = tx.subscribe();
-                // Just wait until order cancelling future completed or operation cancelled
-                tokio::select! {
-                    _ = rx.recv() => nothing_to_do(),
-                    _ = cancellation_token.when_cancelled() => nothing_to_do()
-                }
-            }
+        let rx = match self.wait_cancel_order.entry(order.client_order_id()) {
+            Occupied(entry) => Some(entry.get().subscribe()),
             Vacant(vacant_entry) => {
                 // Be sure value will be removed anyway
                 let _guard = scopeguard::guard((), |_| {
@@ -62,14 +54,22 @@ impl Exchange {
                         &order,
                         pre_reservation_group_id,
                         check_order_fills,
-                        cancellation_token,
+                        cancellation_token.clone(),
                     )
                     .await?;
 
                 let _ = tx.send(outcome);
+                None
+            }
+        };
+
+        if let Some(mut rx) = rx {
+            // Just wait until order cancelling future completed or operation cancelled
+            tokio::select! {
+                _ = rx.recv() => nothing_to_do(),
+                _ = cancellation_token.when_cancelled() => nothing_to_do()
             }
         }
-
         Ok(())
     }
 
