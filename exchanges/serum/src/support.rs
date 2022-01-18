@@ -244,22 +244,8 @@ impl Serum {
         let amount_currency_code = base_currency_code;
         let balance_currency_code = base_currency_code;
 
-        let price_precision = Precision::ByTick {
-            tick: convert_decimals_to_tick(pc_mint_data.decimals).with_context(|| {
-                format!(
-                    "Unable to convert price precision from decimals = {}",
-                    pc_mint_data.decimals
-                )
-            })?,
-        };
-        let amount_precision = Precision::ByTick {
-            tick: convert_decimals_to_tick(coin_mint_data.decimals).with_context(|| {
-                format!(
-                    "Unable to convert amount precision from decimals = {}",
-                    coin_mint_data.decimals
-                )
-            })?,
-        };
+        let price_precision = Precision::tick_from_precision(pc_mint_data.decimals as i8);
+        let amount_precision = Precision::tick_from_precision(coin_mint_data.decimals as i8);
 
         Ok(Symbol::new(
             is_active,
@@ -279,12 +265,6 @@ impl Serum {
             amount_precision,
         ))
     }
-}
-
-fn convert_decimals_to_tick(decimals: u8) -> Result<Decimal> {
-    let tick = 1.0f64 / 10f64.powf(decimals as f64);
-    Decimal::from_f64_retain(tick)
-        .with_context(|| format!("Error parsing decimal from {}f64", tick))
 }
 
 // TODO: Duplicate code. Take out to a separate place (q.v. Binance crate)
