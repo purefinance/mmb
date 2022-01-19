@@ -39,6 +39,7 @@ impl Exchange {
             self.exchange_account_id,
         );
 
+        // we move rx out of the closure to unlock Dashmap while waiting
         let rx = match self.wait_cancel_order.entry(order.client_order_id()) {
             Occupied(entry) => Some(entry.get().subscribe()),
             Vacant(vacant_entry) => {
@@ -64,7 +65,6 @@ impl Exchange {
         };
 
         if let Some(mut rx) = rx {
-            // Just wait until order cancelling future completed or operation cancelled
             tokio::select! {
                 _ = rx.recv() => nothing_to_do(),
                 _ = cancellation_token.when_cancelled() => nothing_to_do()
