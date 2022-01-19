@@ -356,6 +356,16 @@ impl Exchange {
         log::info!("Websocket: Connecting on {}", "test_exchange_id");
 
         // TODO if UsingWebsocket
+        let is_main_websocket_enabled = self
+            .exchange_client
+            .is_websocket_enabled(WebSocketRole::Main);
+        let is_secondary_websocket_enabled = self
+            .exchange_client
+            .is_websocket_enabled(WebSocketRole::Secondary);
+        if !is_main_websocket_enabled && !is_secondary_websocket_enabled {
+            return;
+        }
+
         // TODO handle results
 
         let exchange_weak = Arc::downgrade(&self);

@@ -16,6 +16,10 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - name: install libudev-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
       - uses: actions-rs/cargo@v1
         with:
           command: check
@@ -30,6 +34,10 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+      - name: install libudev-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
       - uses: actions-rs/cargo@v1
         with:
           command: test
