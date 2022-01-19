@@ -19,6 +19,7 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::binance::common::get_default_price;
+use crate::binance::common::get_min_amount;
 use crate::binance::common::{get_binance_credentials, get_timeout_manager};
 
 pub struct BinanceBuilder {
@@ -26,6 +27,7 @@ pub struct BinanceBuilder {
     pub hosts: Hosts,
     pub exchange_settings: ExchangeSettings,
     pub default_price: Price,
+    pub min_amount: Amount,
     pub tx: broadcast::Sender<ExchangeEvent>,
     pub rx: broadcast::Receiver<ExchangeEvent>,
 }
@@ -122,18 +124,18 @@ impl BinanceBuilder {
                 .await;
         }
 
-        let default_price = get_default_price(
-            get_specific_currency_pair_for_tests(&exchange, OrderProxy::default_currency_pair()),
-            &hosts,
-            &settings.api_key,
-        )
-        .await;
+        let currency_pair =
+            get_specific_currency_pair_for_tests(&exchange, OrderProxy::default_currency_pair());
+        let default_price = get_default_price(currency_pair, &hosts, &settings.api_key).await;
+        let min_amount =
+            get_min_amount(currency_pair, &hosts, &settings.api_key, default_price).await;
 
         Ok(Self {
             exchange,
             hosts,
             exchange_settings: settings,
             default_price,
+            min_amount,
             tx,
             rx,
         })

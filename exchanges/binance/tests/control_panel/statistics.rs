@@ -33,6 +33,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::binance::common::get_default_price;
+use crate::binance::common::get_min_amount;
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
@@ -104,6 +105,7 @@ async fn orders_cancelled() {
     let init_settings = InitSettings::Directly(settings.clone());
     let engine = launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy))
         .await
+        .expect("in test")
         .expect("in test");
 
     let context = engine.context().clone();
@@ -127,16 +129,25 @@ async fn orders_cancelled() {
         .await
         .expect("in test");
 
+    let price = get_default_price(
+        get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
+        &Binance::make_hosts(is_margin_trading),
+        &api_key,
+    )
+    .await;
+    let amount = get_min_amount(
+        get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
+        &Binance::make_hosts(is_margin_trading),
+        &api_key,
+        price,
+    )
+    .await;
     let order = OrderProxy::new(
         exchange_account_id,
         Some("FromOrdersCancelledTest".to_owned()),
         CancellationToken::default(),
-        get_default_price(
-            get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
-            &Binance::make_hosts(is_margin_trading),
-            &api_key,
-        )
-        .await,
+        price,
+        amount,
     );
 
     let created_order = order.create_order(exchange.clone()).await.expect("in test");

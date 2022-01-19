@@ -1,8 +1,7 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
-use anyhow::{bail, Context, Result};
-use mmb_utils::infrastructure::WithExpect;
+use anyhow::{Context, Result};
 use rust_decimal::Decimal;
 use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
@@ -43,7 +42,7 @@ pub enum Precision {
     ByTick { tick: Decimal },
     /// Rounding is performed to a number of digits located on `precision` length to the right of start of mantissa
     /// Look at round_by_mantissa test below
-    ByMantissa { precision: i8 },
+    ByMantissa { precision: u8 },
 }
 
 impl Precision {
@@ -144,14 +143,14 @@ impl Symbol {
         self.is_derivative
     }
 
-    pub fn price_round(&self, price: Price, round: Round) -> Result<Price> {
+    pub fn price_round(&self, price: Price, round: Round) -> Price {
         match self.price_precision {
             Precision::ByTick { tick } => Self::round_by_tick(price, tick, round),
             Precision::ByMantissa { precision } => Self::round_by_mantissa(price, precision, round),
         }
     }
 
-    pub fn amount_round(&self, amount: Amount, round: Round) -> Result<Amount> {
+    pub fn amount_round(&self, amount: Amount, round: Round) -> Amount {
         match self.amount_precision {
             Precision::ByTick { tick } => Self::round_by_tick(amount, tick, round),
             Precision::ByMantissa { precision } => {
@@ -165,23 +164,23 @@ impl Symbol {
         &self,
         amount: Amount,
         round: Round,
-        amount_precision: i8,
-    ) -> Result<Amount> {
+        amount_precision: u8,
+    ) -> Amount {
         match self.amount_precision {
             Precision::ByMantissa { precision: _ } => {
                 Self::round_by_mantissa(amount, amount_precision, round)
             }
             Precision::ByTick { tick: _ } => {
-                bail!("amount_round_precision cannot be called with Precision::ByTick variant")
+                panic!("amount_round_precision cannot be called with Precision::ByTick variant")
             }
         }
     }
 
-    pub fn round_to_remove_amount_precision_error(&self, amount: Amount) -> Result<Amount> {
+    pub fn round_to_remove_amount_precision_error(&self, amount: Amount) -> Amount {
         // allowed machine error that is less then 0.01 * amount precision
         match self.amount_precision {
             Precision::ByMantissa { precision } => {
-                self.amount_round_precision(amount, Round::ToNearest, precision + 2i8)
+                self.amount_round_precision(amount, Round::ToNearest, precision + 2u8)
             }
             Precision::ByTick { tick } => {
                 Self::round_by_tick(amount, tick * dec!(0.01), Round::ToNearest)
@@ -191,20 +190,14 @@ impl Symbol {
 
     pub fn round_to_remove_amount_precision_error_expected(&self, amount: Amount) -> Amount {
         self.round_to_remove_amount_precision_error(amount)
-            .with_expect(|| {
-                format!(
-                    "failed to round to remove amount precision error from {:?} for {}",
-                    self, amount
-                )
-            })
     }
 
-    fn round_by_tick(value: Decimal, tick: Decimal, round: Round) -> Result<Decimal> {
+    fn round_by_tick(value: Decimal, tick: Decimal, round: Round) -> Decimal {
         if tick <= dec!(0) {
-            bail!("Too small tick: {}", tick)
+            panic!("Too small tick: {}", tick)
         }
 
-        Ok(Self::inner_round_by_tick(value, tick, round))
+        Self::inner_round_by_tick(value, tick, round)
     }
 
     fn inner_round_by_tick(value: Decimal, tick: Decimal, round: Round) -> Decimal {
@@ -224,23 +217,19 @@ impl Symbol {
         }
     }
 
-    fn round_by_mantissa(value: Price, precision: i8, round: Round) -> Result<Price> {
+    fn round_by_mantissa(value: Price, precision: u8, round: Round) -> Price {
         if value.is_zero() {
-            return Ok(dec!(0));
+            return dec!(0);
         }
 
-        let floor_digits = Self::get_precision_digits_by_fractional(value, precision)?;
+        let floor_digits = Self::get_precision_digits_by_fractional(value, precision);
 
-        Ok(Self::inner_round_by_tick(
-            value,
-            powi(dec!(0.1), floor_digits),
-            round,
-        ))
+        Self::inner_round_by_tick(value, powi(dec!(0.1), floor_digits), round)
     }
 
-    fn get_precision_digits_by_fractional(value: Price, precision: i8) -> Result<i8> {
+    fn get_precision_digits_by_fractional(value: Price, precision: u8) -> i8 {
         if precision <= 0 {
-            bail!(
+            panic!(
                 "Count of precision digits cannot be less 1 but got {}",
                 precision
             )
@@ -263,9 +252,7 @@ impl Symbol {
             }
         }
 
-        let floor_digits = precision - integral_digits;
-
-        Ok(floor_digits)
+        precision as i8 - integral_digits
     }
 
     pub fn get_commission_currency_code(&self, side: OrderSide) -> CurrencyCode {
@@ -376,7 +363,7 @@ impl Symbol {
             false => min_cost / price,
         };
 
-        let rounded_amount = self.amount_round(min_amount_from_cost, Round::Ceiling)?;
+        let rounded_amount = self.amount_round(min_amount_from_cost, Round::Ceiling);
 
         Ok(match self.min_amount {
             None => rounded_amount,
@@ -479,11 +466,11 @@ mod test {
     #[case(dec!(0), 5, Round::ToNearest, dec!(0))]
     fn round_by_mantissa(
         #[case] value: Decimal,
-        #[case] precision: i8,
+        #[case] precision: u8,
         #[case] round_to: Round,
         #[case] expected: Decimal,
     ) -> Result<()> {
-        let rounded = Symbol::round_by_mantissa(value, precision, round_to)?;
+        let rounded = Symbol::round_by_mantissa(value, precision, round_to);
 
         assert_eq!(rounded, expected);
 
@@ -492,34 +479,24 @@ mod test {
 
     #[rstest]
     #[case(dec!(123.456), 0, Round::Floor)]
-    #[case(dec!(123.456), -1, Round::Floor)]
     #[case(dec!(123.456), 0, Round::Ceiling)]
-    #[case(dec!(123.456), -1, Round::Ceiling)]
     #[case(dec!(123.456), 0, Round::ToNearest)]
-    #[case(dec!(123.456), -1, Round::ToNearest)]
+    #[should_panic]
     fn round_by_mantissa_invalid_precision(
         #[case] value: Decimal,
-        #[case] precision: i8,
+        #[case] precision: u8,
         #[case] round_to: Round,
     ) {
-        let rounded = Symbol::round_by_mantissa(value, precision, round_to);
-
-        assert!(rounded.is_err());
+        Symbol::round_by_mantissa(value, precision, round_to);
     }
 
     #[test]
+    #[should_panic]
     fn too_small_tick() {
         let value = dec!(123.456);
         let tick = dec!(-0.1);
 
-        let maybe_error = Symbol::round_by_tick(value, tick, Round::Floor);
-
-        match maybe_error {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!("Too small tick: -0.1", &error.to_string()[..20]);
-            }
-        }
+        Symbol::round_by_tick(value, tick, Round::Floor);
     }
 
     #[rstest]
@@ -545,7 +522,7 @@ mod test {
         #[case] round_to: Round,
         #[case] expected: Decimal,
     ) -> Result<()> {
-        let rounded = Symbol::round_by_tick(value, tick, round_to)?;
+        let rounded = Symbol::round_by_tick(value, tick, round_to);
 
         assert_eq!(rounded, expected);
 

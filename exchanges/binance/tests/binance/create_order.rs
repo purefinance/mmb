@@ -44,6 +44,7 @@ async fn create_successfully() {
         Some("FromCreateSuccessfullyTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
 
     let order_ref = order_proxy
@@ -106,6 +107,7 @@ async fn should_fail() {
         Some("FromShouldFailTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
+        binance_builder.min_amount,
     );
     order_proxy.amount = dec!(1);
     order_proxy.price = dec!(0.0000000000000000001);

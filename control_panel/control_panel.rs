@@ -111,9 +111,7 @@ impl ControlPanel {
 
             if let Some(work_finished_sender) = cloned_self.work_finished_sender.lock().take() {
                 if let Err(_) = work_finished_sender.send(Ok(())) {
-                    log::error!(
-                        "Unable to send notification about server stopped. Probably receiver is already dropped",
-                    );
+                    log::error!("Unable to send notification about server stopped");
                 }
             }
         });

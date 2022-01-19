@@ -63,7 +63,9 @@ async fn main() -> Result<()> {
     //         .spawn_graceful_shutdown("test".to_owned());
     // });
 
-    engine.run().await;
+    if let Some(engine) = engine {
+        engine.run().await;
+    }
 
     Ok(())
 }

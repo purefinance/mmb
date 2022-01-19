@@ -105,7 +105,6 @@ impl WebSocketConnection {
             self.role,
         );
         self.send(Message::Close(None)).await?;
-        self.close_websocket().await;
         Ok(())
     }
 
@@ -234,7 +233,8 @@ impl WebSocketConnection {
     async fn close_websocket(&self) {
         *self.is_connected.lock() = false;
         self.connectivity_manager_notifier
-            .notify_websocket_connection_closed(self.exchange_account_id);
+            .notify_websocket_connection_closed(self.exchange_account_id)
+            .await;
         let _ = self.writer.lock().await.close().await;
     }
 }

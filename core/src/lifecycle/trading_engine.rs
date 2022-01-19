@@ -122,6 +122,12 @@ impl EngineContext {
             }
         }
 
+        let disconnect_websockets = self
+            .exchanges
+            .iter()
+            .map(|exchange| exchange.clone().disconnect());
+        join_all(disconnect_websockets).await;
+
         self.finish_graceful_shutdown_sender
             .lock()
             .take()
