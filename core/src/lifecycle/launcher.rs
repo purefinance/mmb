@@ -13,7 +13,7 @@ use crate::lifecycle::application_manager::ApplicationManager;
 use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::rpc::config_waiter::ConfigWaiter;
-use crate::rpc::control_panel::ControlPanel;
+use crate::rpc::core_api::CoreApi;
 use crate::settings::{AppSettings, BaseStrategySettings, CoreSettings};
 use crate::statistic_service::StatisticEventHandler;
 use crate::statistic_service::StatisticService;
@@ -229,7 +229,7 @@ where
     let statistic_service = StatisticService::new();
     let statistic_event_handler =
         create_statistic_event_handler(exchange_events, statistic_service.clone());
-    let control_panel = ControlPanel::create_and_start(
+    let control_panel = CoreApi::create_and_start(
         engine_context.application_manager.clone(),
         load_pretty_settings(init_user_settings),
         statistic_service.clone(),
