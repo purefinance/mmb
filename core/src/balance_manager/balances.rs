@@ -6,7 +6,7 @@ use crate::balance_manager::{
 };
 use crate::exchanges::common::CurrencyCode;
 use crate::exchanges::common::ExchangeAccountId;
-use crate::exchanges::common::TradePlaceAccount;
+use crate::exchanges::common::MarketAccountId;
 use crate::misc::service_value_tree::ServiceValueTree;
 use crate::orders::fill::OrderFill;
 use crate::orders::order::ReservationId;
@@ -30,7 +30,7 @@ pub struct Balances {
     pub amount_limits: Option<ServiceValueTree>,
     pub balance_reservations_by_reservation_id: Option<HashMap<ReservationId, BalanceReservation>>,
 
-    pub last_order_fills: HashMap<TradePlaceAccount, OrderFill>,
+    pub last_order_fills: HashMap<MarketAccountId, OrderFill>,
 }
 
 impl Balances {

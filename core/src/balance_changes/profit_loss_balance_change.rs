@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     balance_manager::balance_request::BalanceRequest,
-    exchanges::common::{Amount, CurrencyCode, ExchangeId, Price, TradePlaceAccount},
+    exchanges::common::{Amount, CurrencyCode, ExchangeId, MarketAccountId, Price},
     orders::order::ClientOrderFillId,
     service_configuration::configuration_descriptor::{ServiceConfigurationKey, ServiceName},
 };
@@ -26,7 +26,7 @@ pub(crate) struct ProfitLossBalanceChange {
     pub service_name: ServiceName,
     pub service_configuration_key: ServiceConfigurationKey,
     pub exchange_id: ExchangeId,
-    pub trade_place: TradePlaceAccount,
+    pub market_account_id: MarketAccountId,
     pub currency_code: CurrencyCode,
     pub balance_change: Amount,
     pub usd_price: Price,
@@ -52,7 +52,10 @@ impl ProfitLossBalanceChange {
                 .service_configuration_key
                 .clone(),
             exchange_id,
-            trade_place: TradePlaceAccount::new(request.exchange_account_id, request.currency_pair),
+            market_account_id: MarketAccountId::new(
+                request.exchange_account_id,
+                request.currency_pair,
+            ),
             currency_code: request.currency_code,
             balance_change,
             usd_price: usd_balance_change / balance_change,

@@ -16,14 +16,13 @@ use crate::misc::time::time_manager;
 
 use crate::{
     balance_changes::profit_loss_balance_change::ProfitLossBalanceChange,
-    balance_manager::position_change::PositionChange, exchanges::common::TradePlaceAccount,
+    balance_manager::position_change::PositionChange, exchanges::common::MarketAccountId,
 };
 
 pub(crate) struct BalanceChangePeriodSelector {
     pub(super) period: Duration,
     balance_manager: Option<Arc<Mutex<BalanceManager>>>,
-    balance_changes_queues_by_trade_place:
-        HashMap<TradePlaceAccount, VecDeque<ProfitLossBalanceChange>>,
+    balance_changes_queues: HashMap<MarketAccountId, VecDeque<ProfitLossBalanceChange>>,
 }
 
 impl BalanceChangePeriodSelector {
@@ -34,7 +33,7 @@ impl BalanceChangePeriodSelector {
         Arc::new(Mutex::new(Self {
             period,
             balance_manager,
-            balance_changes_queues_by_trade_place: HashMap::new(),
+            balance_changes_queues: HashMap::new(),
         }))
     }
 
@@ -46,26 +45,29 @@ impl BalanceChangePeriodSelector {
             balance_change.balance_change
         );
 
-        self.balance_changes_queues_by_trade_place
-            .entry(balance_change.trade_place.clone())
+        self.balance_changes_queues
+            .entry(balance_change.market_account_id.clone())
             .or_default()
             .push_back(balance_change.clone());
 
-        self.synchronize_period(balance_change.change_date, &balance_change.trade_place);
+        self.synchronize_period(
+            balance_change.change_date,
+            &balance_change.market_account_id,
+        );
     }
 
     fn synchronize_period(
         &mut self,
         now: DateTime,
-        trade_place: &TradePlaceAccount,
+        market_account_id: &MarketAccountId,
     ) -> Option<PositionChange> {
         let start_of_period = now - self.period;
 
         let balance_changes_queue = self
-            .balance_changes_queues_by_trade_place
-            .get_mut(trade_place)
+            .balance_changes_queues
+            .get_mut(market_account_id)
             .or_else(|| {
-                log::error!("Can't find queue for trade place {:?}", trade_place);
+                log::error!("Can't find queue for trade place {:?}", market_account_id);
                 return None;
             })?;
 
@@ -73,7 +75,7 @@ impl BalanceChangePeriodSelector {
             Some(balance_manager) => {
                 let position_change = balance_manager
                     .lock()
-                    .get_last_position_change_before_period(trade_place, start_of_period);
+                    .get_last_position_change_before_period(market_account_id, start_of_period);
 
                 log::info!(
                     "Balance changes list {} {:?}",
@@ -115,23 +117,25 @@ impl BalanceChangePeriodSelector {
     }
 
     pub fn get_items(&mut self) -> Vec<Vec<ProfitLossBalanceChange>> {
-        self.balance_changes_queues_by_trade_place
+        self.balance_changes_queues
             .clone()
             .keys()
-            .map(|current_trade_place| self.get_items_by_trade_place(current_trade_place))
+            .map(|current_market_account_id| {
+                self.get_items_by_market_account_id(current_market_account_id)
+            })
             .collect_vec()
     }
 
-    pub fn get_items_by_trade_place(
+    pub fn get_items_by_market_account_id(
         &mut self,
-        trade_place: &TradePlaceAccount,
+        market_account_id: &MarketAccountId,
     ) -> Vec<ProfitLossBalanceChange> {
-        let position_change = self.synchronize_period(time_manager::now(), trade_place);
+        let position_change = self.synchronize_period(time_manager::now(), market_account_id);
 
         let balance_changes_queue = self
-            .balance_changes_queues_by_trade_place
-            .get(trade_place)
-            .expect("Failed to get balance changes queue by trade_place");
+            .balance_changes_queues
+            .get(market_account_id)
+            .expect("Failed to get balance changes queue by market_account_id");
 
         balance_changes_queue
             .iter()

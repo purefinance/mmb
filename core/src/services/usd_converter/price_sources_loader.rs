@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
 
-use crate::{exchanges::common::TradePlace, misc::price_by_order_side::PriceByOrderSide};
+use crate::{exchanges::common::MarketId, misc::price_by_order_side::PriceByOrderSide};
 
 pub struct PriceSourcesLoader {
     // TODO: fix when DatabaseManager will be added
@@ -21,7 +21,7 @@ impl PriceSourcesLoader {
         &self,
         _save_time: DateTime,
         _cancellation_token: CancellationToken,
-    ) -> Option<HashMap<TradePlace, PriceByOrderSide>> {
+    ) -> Option<HashMap<MarketId, PriceByOrderSide>> {
         //     const string sqlQuery =
         //         "SELECT a.* FROM public.\"PriceSources\" a " +
         //         "JOIN ( " +

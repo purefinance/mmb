@@ -4,7 +4,7 @@ use mmb_utils::DateTime;
 use rust_decimal_macros::dec;
 
 use crate::{
-    exchanges::common::{Amount, Price, TradePlace},
+    exchanges::common::{Amount, MarketId, Price},
     misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
     services::usd_converter::{
@@ -16,10 +16,10 @@ use crate::{
 pub(crate) fn calculate(
     src_amount: Amount,
     price_source_chain: &PriceSourceChain,
-    prices: &HashMap<TradePlace, Price>,
+    prices: &HashMap<MarketId, Price>,
 ) -> Price {
-    calculate_amount_for_chain(src_amount, price_source_chain, |trade_place| {
-        prices.get(&trade_place).cloned()
+    calculate_amount_for_chain(src_amount, price_source_chain, |market_id| {
+        prices.get(&market_id).cloned()
     })
     .expect("Invalid price cache")
 }
@@ -27,13 +27,13 @@ pub(crate) fn calculate(
 fn calculate_amount_for_chain(
     src_amount: Amount,
     price_source_chain: &PriceSourceChain,
-    calculate_price: impl Fn(TradePlace) -> Option<Price>,
+    calculate_price: impl Fn(MarketId) -> Option<Price>,
 ) -> Option<Amount> {
     let mut rebase_price = dec!(1);
 
     for step in &price_source_chain.rebase_price_steps {
-        let trade_place = TradePlace::new(step.exchange_id, step.symbol.currency_pair());
-        let calculated_price = (calculate_price)(trade_place)?;
+        let market_id = MarketId::new(step.exchange_id, step.symbol.currency_pair());
+        let calculated_price = (calculate_price)(market_id)?;
 
         match step.direction {
             RebaseDirection::ToQuote => rebase_price *= calculated_price,
@@ -48,24 +48,24 @@ pub(crate) fn convert_amount(
     local_snapshot_service: &LocalSnapshotsService,
     price_source_chain: &PriceSourceChain,
 ) -> Option<Amount> {
-    calculate_amount_for_chain(src_amount, price_source_chain, |trade_place| {
+    calculate_amount_for_chain(src_amount, price_source_chain, |market_id| {
         local_snapshot_service
-            .get_snapshot(trade_place)?
-            .calculate_middle_price(trade_place)
+            .get_snapshot(market_id)?
+            .calculate_middle_price(market_id)
     })
 }
 
 pub fn convert_amount_in_past(
     src_amount: Amount,
-    price_cache: &HashMap<TradePlace, PriceByOrderSide>,
+    price_cache: &HashMap<MarketId, PriceByOrderSide>,
     time_in_past: DateTime,
     price_source_chain: &PriceSourceChain,
 ) -> Option<Amount> {
-    calculate_amount_for_chain(src_amount, price_source_chain, |trade_place| {
-        let prices = match price_cache.get(&trade_place) {
+    calculate_amount_for_chain(src_amount, price_source_chain, |market_id| {
+        let prices = match price_cache.get(&market_id) {
             Some(prices) => prices,
             None => {
-                log::error!("Can't get price {:?} on time {}", trade_place, time_in_past);
+                log::error!("Can't get price {:?} on time {}", market_id, time_in_past);
                 return None;
             }
         };
@@ -167,9 +167,9 @@ mod test {
         ]
         .to_local_order_book_snapshot();
 
-        let trade_place = TradePlace::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
+        let market_id = MarketId::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
 
-        let snapshot_service = LocalSnapshotsService::new(hashmap![trade_place => snapshot]);
+        let snapshot_service = LocalSnapshotsService::new(hashmap![market_id => snapshot]);
 
         let src_amount = dec!(10);
         let price_now =
@@ -183,9 +183,9 @@ mod test {
         let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let snapshot = order_book_data!().to_local_order_book_snapshot();
 
-        let trade_place = TradePlace::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
+        let market_id = MarketId::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
 
-        let snapshot_service = LocalSnapshotsService::new(hashmap![trade_place => snapshot]);
+        let snapshot_service = LocalSnapshotsService::new(hashmap![market_id => snapshot]);
 
         let src_amount = dec!(10);
         let price_now = convert_amount(src_amount, &snapshot_service, &price_source_chain);
@@ -197,9 +197,9 @@ mod test {
     fn calculate_amount_in_past_using_one_step_with_price() {
         let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let time_in_past = Utc::now();
-        let trade_place = TradePlace::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
+        let market_id = MarketId::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
         let price_cache = hashmap![
-            trade_place => PriceByOrderSide::new(Some(dec!(10)), Some(dec!(2)))
+            market_id => PriceByOrderSide::new(Some(dec!(10)), Some(dec!(2)))
         ];
 
         let src_amount = dec!(10);
@@ -226,8 +226,8 @@ mod test {
     fn calculate_amount_with_current_cached_prices_using_one_step_with_price() {
         let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let cached_price = dec!(6);
-        let trade_place = TradePlace::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
-        let price_cache = hashmap![trade_place => cached_price];
+        let market_id = MarketId::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
+        let price_cache = hashmap![market_id => cached_price];
 
         let src_amount = dec!(10);
         let price_now = calculate(src_amount, &price_source_chain, &price_cache);
@@ -320,19 +320,19 @@ mod test {
     #[test]
     fn calculate_amount_with_current_cached_prices_using_two_step_with_price() {
         let (setup, _locker) = generate_two_step_setup();
-        let trade_place_1 = TradePlace::new(
+        let market_id_1 = MarketId::new(
             PriceSourceServiceTestBase::exchange_id(),
             setup.currency_pair_1,
         );
-        let trade_place_2 = TradePlace::new(
+        let market_id_2 = MarketId::new(
             PriceSourceServiceTestBase::exchange_id(),
             setup.currency_pair_2,
         );
         let cached_price_1 = dec!(6);
         let cached_price_2 = dec!(7);
         let price_cache = hashmap![
-            trade_place_1 => cached_price_1,
-            trade_place_2 => cached_price_2
+            market_id_1 => cached_price_1,
+            market_id_2 => cached_price_2
         ];
 
         let src_amount = dec!(10);
@@ -348,12 +348,12 @@ mod test {
     #[should_panic(expected = "Invalid price cache")]
     fn calculate_amount_with_current_cached_prices_using_two_step_without_one_price() {
         let (setup, _locker) = generate_two_step_setup();
-        let trade_place_1 = TradePlace::new(
+        let market_id = MarketId::new(
             PriceSourceServiceTestBase::exchange_id(),
             setup.currency_pair_1,
         );
-        let cached_price_1 = dec!(6);
-        let price_cache = hashmap![trade_place_1 => cached_price_1];
+        let cached_price = dec!(6);
+        let price_cache = hashmap![market_id => cached_price];
 
         let src_amount = dec!(10);
         let _ = calculate(src_amount, &setup.price_source_chain, &price_cache);

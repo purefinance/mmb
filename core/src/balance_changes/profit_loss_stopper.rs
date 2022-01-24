@@ -15,7 +15,7 @@ use crate::services::usd_converter::usd_converter::UsdConverter;
 
 use crate::{
     exchanges::{
-        common::{Amount, TradePlaceAccount},
+        common::{Amount, MarketAccountId},
         exchange_blocker::{BlockReason, BlockType},
     },
     misc::position_helper,
@@ -27,7 +27,7 @@ static BLOCK_REASON: BlockReason = BlockReason::new("ProfitLossExceeded");
 
 pub(crate) struct ProfitLossStopper {
     limit: Amount,
-    target_trade_place: TradePlaceAccount,
+    target_market_account_id: MarketAccountId,
     usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,
     exchange_blocker: Arc<ExchangeBlocker>,
     balance_manager: Option<Arc<Mutex<BalanceManager>>>,
@@ -37,7 +37,7 @@ pub(crate) struct ProfitLossStopper {
 impl ProfitLossStopper {
     pub fn new(
         limit: Amount,
-        target_trade_place: TradePlaceAccount,
+        target_market_account_id: MarketAccountId,
         usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,
         exchange_blocker: Arc<ExchangeBlocker>,
         balance_manager: Option<Arc<Mutex<BalanceManager>>>,
@@ -45,7 +45,7 @@ impl ProfitLossStopper {
     ) -> Self {
         Self {
             limit,
-            target_trade_place,
+            target_market_account_id,
             usd_periodic_calculator,
             exchange_blocker,
             balance_manager,
@@ -75,11 +75,11 @@ impl ProfitLossStopper {
             self.limit
         );
 
-        let target_exchange_account_id = self.target_trade_place.exchange_account_id;
+        let target_exchange_account_id = self.target_market_account_id.exchange_account_id;
 
         if usd_change <= -self.limit {
             let _ = position_helper::close_position_if_needed(
-                &self.target_trade_place,
+                &self.target_market_account_id,
                 self.balance_manager.clone(),
                 self.engine_api.clone(),
                 cancellation_token,
@@ -147,7 +147,7 @@ mod test {
         },
         balance_manager::position_change::PositionChange,
         exchanges::common::{
-            Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, TradePlaceAccount,
+            Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId,
         },
         misc::time,
         orders::order::ClientOrderFillId,
@@ -167,8 +167,8 @@ mod test {
         CurrencyPair::from_codes(btc(), "ETH".into())
     }
 
-    fn trade_place() -> TradePlaceAccount {
-        TradePlaceAccount::new(exchange_account_id(), currency_pair())
+    fn market_account_id() -> MarketAccountId {
+        MarketAccountId::new(exchange_account_id(), currency_pair())
     }
 
     fn btc() -> CurrencyCode {
@@ -265,7 +265,7 @@ mod test {
 
         let profit_loss_stopper = ProfitLossStopper::new(
             LIMIT,
-            trade_place(),
+            market_account_id(),
             balance_change_usd_periodic_calculator.clone(),
             exchange_blocker.clone(),
             Some(balance_manager.clone()),
@@ -302,7 +302,7 @@ mod test {
             service_name: "test".into(),
             service_configuration_key: "test".into(),
             exchange_id: exchange_id(),
-            trade_place: TradePlaceAccount::new(exchange_account_id(), currency_pair()),
+            market_account_id: MarketAccountId::new(exchange_account_id(), currency_pair()),
             currency_code: btc(),
             balance_change: usd_balance_change * dec!(2),
             usd_price: dec!(1),

@@ -12,7 +12,7 @@ use mmb_core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
 use mmb_core::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, TradePlace, TradePlaceAccount,
+    Amount, CurrencyPair, ExchangeAccountId, MarketAccountId, MarketId,
 };
 use mmb_core::exchanges::general::symbol::Round;
 use mmb_core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
@@ -58,12 +58,12 @@ impl ExampleStrategy {
         "ExampleStrategy"
     }
 
-    fn trade_place_account(&self) -> TradePlaceAccount {
-        TradePlaceAccount::new(self.target_eai, self.currency_pair)
+    fn market_account_id(&self) -> MarketAccountId {
+        MarketAccountId::new(self.target_eai, self.currency_pair)
     }
 
-    fn trade_place(&self) -> TradePlace {
-        self.trade_place_account().trade_place()
+    fn market_id(&self) -> MarketId {
+        self.market_account_id().market_id()
     }
 
     fn calc_trading_context_by_side(
@@ -74,7 +74,7 @@ impl ExampleStrategy {
         local_snapshots_service: &LocalSnapshotsService,
         mut explanation: Explanation,
     ) -> Option<TradingContextBySide> {
-        let snapshot = local_snapshots_service.get_snapshot(self.trade_place())?;
+        let snapshot = local_snapshots_service.get_snapshot(self.market_id())?;
         let ask_min_price = snapshot.get_top_ask()?.0;
         let bid_max_price = snapshot.get_top_bid()?.0;
 
@@ -162,7 +162,7 @@ impl ExampleStrategy {
                     order_role: OrderRole::Maker,
                     strategy_name: Self::strategy_name().to_string(),
                     disposition: TradeDisposition::new(
-                        self.trade_place_account(),
+                        self.market_account_id(),
                         side,
                         price,
                         amount,

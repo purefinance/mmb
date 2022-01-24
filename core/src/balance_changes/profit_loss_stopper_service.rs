@@ -18,7 +18,7 @@ use crate::services::usd_converter::usd_converter::UsdConverter;
 
 use crate::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
-    exchanges::common::TradePlaceAccount,
+    exchanges::common::MarketAccountId,
     settings::{ProfitLossStopperSettings, TimePeriodKind},
 };
 
@@ -28,7 +28,7 @@ use super::{
 };
 
 pub struct ProfitLossStopperService {
-    target_trade_place: TradePlaceAccount,
+    target_market_account_id: MarketAccountId,
     exchange_blocker: Arc<ExchangeBlocker>,
     engine_api: Arc<EngineApi>,
     profit_loss_stoppers: Vec<ProfitLossStopper>,
@@ -37,14 +37,14 @@ pub struct ProfitLossStopperService {
 
 impl ProfitLossStopperService {
     pub fn new(
-        target_trade_place: TradePlaceAccount,
+        target_market_account_id: MarketAccountId,
         stopper_settings: &ProfitLossStopperSettings,
         exchange_blocker: Arc<ExchangeBlocker>,
         balance_manager: Option<Arc<Mutex<BalanceManager>>>,
         engine_api: Arc<EngineApi>,
     ) -> Self {
         let mut this = Self {
-            target_trade_place,
+            target_market_account_id,
             exchange_blocker,
             engine_api,
             profit_loss_stoppers: Vec::new(),
@@ -71,7 +71,7 @@ impl ProfitLossStopperService {
                 BalanceChangeUsdPeriodicCalculator::new(period, balance_manager.clone());
             let profit_loss_stopper = ProfitLossStopper::new(
                 stopper_condition.limit,
-                self.target_trade_place.clone(),
+                self.target_market_account_id.clone(),
                 usd_periodic_calculator.clone(),
                 self.exchange_blocker.clone(),
                 balance_manager.clone(),
@@ -137,7 +137,7 @@ mod test {
     use rust_decimal_macros::dec;
 
     use crate::{
-        exchanges::common::{CurrencyPair, ExchangeAccountId, TradePlaceAccount},
+        exchanges::common::{CurrencyPair, ExchangeAccountId, MarketAccountId},
         settings::StopperCondition,
     };
 
@@ -147,8 +147,8 @@ mod test {
         ExchangeAccountId::new("exchange_test_id".into(), 0)
     }
 
-    fn trade_place() -> TradePlaceAccount {
-        TradePlaceAccount::new(
+    fn market_account_id() -> MarketAccountId {
+        MarketAccountId::new(
             exchange_account_id(),
             CurrencyPair::from_codes("BTC".into(), "ETH".into()),
         )
@@ -165,7 +165,7 @@ mod test {
         };
 
         ProfitLossStopperService::new(
-            trade_place(),
+            market_account_id(),
             &stopper_settings,
             Arc::new(ExchangeBlocker::default()),
             None,

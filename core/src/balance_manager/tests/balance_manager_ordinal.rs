@@ -158,7 +158,7 @@ mod tests {
 
     use crate::balance_manager::balance_manager::BalanceManager;
     use crate::balance_manager::position_change::PositionChange;
-    use crate::exchanges::common::{Amount, CurrencyCode, Price, TradePlaceAccount};
+    use crate::exchanges::common::{Amount, CurrencyCode, MarketAccountId, Price};
     use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
     use crate::exchanges::general::symbol::{Precision, Symbol};
     use crate::misc::reserve_parameters::ReserveParameters;
@@ -5014,14 +5014,14 @@ mod tests {
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
-        let trade_place = TradePlaceAccount::new(
+        let market_account_id = MarketAccountId::new(
             exchange_account_id,
             test_object.balance_manager_base.symbol().currency_pair(),
         );
 
         assert!(test_object
             .balance_manager()
-            .get_last_position_change_before_period(&trade_place, test_object.now)
+            .get_last_position_change_before_period(&market_account_id, test_object.now)
             .is_none());
 
         let price = dec!(0.2);
@@ -5082,7 +5082,7 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .get_last_position_change_before_period(&trade_place, test_object.now)
+                .get_last_position_change_before_period(&market_account_id, test_object.now)
                 .expect("in test"),
             PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
         );
@@ -5093,7 +5093,7 @@ mod tests {
         assert_eq!(
             test_object
                 .balance_manager()
-                .get_last_position_change_before_period(&trade_place, test_object.now)
+                .get_last_position_change_before_period(&market_account_id, test_object.now)
                 .expect("in test"),
             PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
         );
@@ -5106,7 +5106,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_last_position_change_before_period(
-                    &trade_place,
+                    &market_account_id,
                     test_object.now
                         + chrono::Duration::from_std(Duration::from_secs(2)).expect("in test")
                 )
@@ -5127,7 +5127,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_last_position_change_before_period(
-                    &trade_place,
+                    &market_account_id,
                     test_object.now
                         + chrono::Duration::from_std(Duration::from_secs(3)).expect("in test")
                 )
@@ -5148,7 +5148,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_last_position_change_before_period(
-                    &trade_place,
+                    &market_account_id,
                     test_object.now
                         + chrono::Duration::from_std(Duration::from_secs(4)).expect("in test")
                 )
@@ -5169,7 +5169,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_last_position_change_before_period(
-                    &trade_place,
+                    &market_account_id,
                     test_object.now
                         + chrono::Duration::from_std(Duration::from_secs(5)).expect("in test")
                 )
@@ -5192,7 +5192,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_last_position_change_before_period(
-                    &trade_place,
+                    &market_account_id,
                     test_object.now
                         + chrono::Duration::from_std(Duration::from_secs(6)).expect("in test")
                 )

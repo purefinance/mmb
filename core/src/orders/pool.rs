@@ -10,7 +10,7 @@ use super::{
     fill::OrderFill, order::OrderCancelling, order::OrderRole, order::OrderSide, order::OrderType,
     order::ReservationId,
 };
-use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, TradePlaceAccount};
+use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, MarketAccountId};
 use crate::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
 };
@@ -30,10 +30,8 @@ impl OrderRef {
         f(self.0.write().borrow_mut())
     }
 
-    pub fn trade_place_account(&self) -> TradePlaceAccount {
-        self.fn_ref(|x| {
-            TradePlaceAccount::new(x.header.exchange_account_id, x.header.currency_pair)
-        })
+    pub fn market_account_id(&self) -> MarketAccountId {
+        self.fn_ref(|x| MarketAccountId::new(x.header.exchange_account_id, x.header.currency_pair))
     }
 
     pub fn price(&self) -> Decimal {

@@ -11,7 +11,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 use crate::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, Price, TradePlace, TradePlaceAccount,
+    Amount, CurrencyPair, ExchangeAccountId, MarketAccountId, MarketId, Price,
 };
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::explanation::{Explanation, WithExplanation};
@@ -55,15 +55,15 @@ pub struct TradeDisposition {
 
 impl TradeDisposition {
     pub fn new(
-        trade_place_account: TradePlaceAccount,
+        market_account_id: MarketAccountId,
         side: OrderSide,
         price: Price,
         amount: Amount,
     ) -> Self {
         TradeDisposition {
             direction: TradeDirection {
-                exchange_account_id: trade_place_account.exchange_account_id,
-                currency_pair: trade_place_account.currency_pair,
+                exchange_account_id: market_account_id.exchange_account_id,
+                currency_pair: market_account_id.currency_pair,
                 side,
             },
             order: SmallOrder::new(price, amount),
@@ -82,17 +82,17 @@ impl TradeDisposition {
         self.direction.side
     }
 
-    pub fn trade_place(&self) -> TradePlace {
+    pub fn market_id(&self) -> MarketId {
         let direction = &self.direction;
-        TradePlace::new(
+        MarketId::new(
             self.direction.exchange_account_id.exchange_id,
             direction.currency_pair,
         )
     }
 
-    pub fn trade_place_account(&self) -> TradePlaceAccount {
+    pub fn market_account_id(&self) -> MarketAccountId {
         let direction = &self.direction;
-        TradePlaceAccount::new(self.direction.exchange_account_id, direction.currency_pair)
+        MarketAccountId::new(self.direction.exchange_account_id, direction.currency_pair)
     }
 
     pub fn price(&self) -> Price {

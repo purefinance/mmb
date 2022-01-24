@@ -17,7 +17,7 @@ use super::commission::Commission;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use super::symbol::Symbol;
 use crate::connectivity::connectivity_manager::GetWSParamsCallback;
-use crate::exchanges::common::{ActivePosition, ClosedPosition, SpecificCurrencyPair, TradePlace};
+use crate::exchanges::common::{ActivePosition, ClosedPosition, MarketId, SpecificCurrencyPair};
 use crate::exchanges::events::{
     BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
     LiquidationPriceEvent, Trade,
@@ -112,8 +112,8 @@ pub struct Exchange {
     pub(super) polling_timeout_manager: PollingTimeoutManager,
     pub(super) orders_finish_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
     pub(super) orders_created_events: DashMap<ClientOrderId, oneshot::Sender<()>>,
-    pub(super) last_trades_update_time: DashMap<TradePlace, DateTime>,
-    pub(super) last_trades: DashMap<TradePlace, Trade>,
+    pub(super) last_trades_update_time: DashMap<MarketId, DateTime>,
+    pub(super) last_trades: DashMap<MarketId, Trade>,
     pub(super) timeout_manager: Arc<TimeoutManager>,
     pub(super) balance_manager: Mutex<Option<Weak<Mutex<BalanceManager>>>>,
     pub(super) buffered_fills_manager: Mutex<BufferedFillsManager>,

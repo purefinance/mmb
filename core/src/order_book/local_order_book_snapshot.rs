@@ -118,14 +118,14 @@ impl LocalOrderBookSnapshot {
         PriceByOrderSide::new(top_bid, top_ask)
     }
 
-    pub fn calculate_middle_price(&self, trade_place: TradePlace) -> Option<Price> {
+    pub fn calculate_middle_price(&self, market_id: MarketId) -> Option<Price> {
         let prices = self.get_top_prices();
         let top_ask = match prices.top_ask {
             Some(top_ask) => top_ask,
             None => {
                 log::warn!(
                 "Can't get top ask price in {:?} in LocalOrderBookSnapshot::calculate_middle_price() {:?}",
-                trade_place,
+                market_id,
                 self
             );
                 return None;
@@ -137,7 +137,7 @@ impl LocalOrderBookSnapshot {
             None => {
                 log::warn!(
                 "Can't get top bid price in {:?} in LocalOrderBookSnapshot::calculate_middle_price() {:?}",
-                trade_place,
+                market_id,
                 self
             );
                 return None;

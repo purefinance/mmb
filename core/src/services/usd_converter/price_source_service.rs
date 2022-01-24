@@ -9,7 +9,7 @@ use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairTo
 
 use crate::{
     exchanges::{
-        common::{Amount, CurrencyCode, ExchangeId, TradePlace},
+        common::{Amount, CurrencyCode, ExchangeId, MarketId},
         events::ExchangeEvent,
         general::symbol::Symbol,
     },
@@ -38,9 +38,9 @@ use super::{
 
 pub struct PriceSourceEventLoop {
     price_sources_saver: PriceSourcesSaver,
-    all_trade_places: HashSet<TradePlace>,
+    all_market_ids: HashSet<MarketId>,
     local_snapshot_service: LocalSnapshotsService,
-    price_cache: HashMap<TradePlace, PriceByOrderSide>,
+    price_cache: HashMap<MarketId, PriceByOrderSide>,
     rx_core: broadcast::Receiver<ExchangeEvent>,
     convert_currency_notification_receiver: mpsc::Receiver<ConvertAmount>,
 }
@@ -56,7 +56,7 @@ impl PriceSourceEventLoop {
         let run_action = async move {
             let mut this = Self {
                 price_sources_saver,
-                all_trade_places: Self::map_to_used_trade_places(price_source_chains),
+                all_market_ids: Self::map_to_used_market_ids(price_source_chains),
                 local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
                 price_cache: HashMap::new(),
                 rx_core,
@@ -86,13 +86,13 @@ impl PriceSourceEventLoop {
                     let event = core_event_res.context("Error during receiving event on rx_core")?;
                     match event {
                         ExchangeEvent::OrderBookEvent(order_book_event) => {
-                            let trade_place = TradePlace::new(
+                            let market_id = MarketId::new(
                                 order_book_event.exchange_account_id.exchange_id,
                                 order_book_event.currency_pair,
                             );
-                            if self.all_trade_places.contains(&trade_place) {
+                            if self.all_market_ids.contains(&market_id) {
                                 let _ = self.local_snapshot_service.update(order_book_event);
-                                self.update_cache_and_save(trade_place);
+                                self.update_cache_and_save(market_id);
                             }
                         },
                         _ => continue,
@@ -103,8 +103,8 @@ impl PriceSourceEventLoop {
         }
     }
 
-    fn try_update_cache(&mut self, trade_place: TradePlace, new_value: PriceByOrderSide) -> bool {
-        if let Some(old_value) = self.price_cache.get_mut(&trade_place) {
+    fn try_update_cache(&mut self, market_id: MarketId, new_value: PriceByOrderSide) -> bool {
+        if let Some(old_value) = self.price_cache.get_mut(&market_id) {
             match old_value == &new_value {
                 true => return false,
                 false => {
@@ -114,30 +114,28 @@ impl PriceSourceEventLoop {
             }
         };
 
-        self.price_cache.insert(trade_place, new_value);
+        self.price_cache.insert(market_id, new_value);
         return true;
     }
 
-    fn update_cache_and_save(&mut self, trade_place: TradePlace) {
-        let snapshot = self
-            .local_snapshot_service
-            .get_snapshot_expected(trade_place);
+    fn update_cache_and_save(&mut self, market_id: MarketId) {
+        let snapshot = self.local_snapshot_service.get_snapshot_expected(market_id);
 
         let price_by_order_side = snapshot.get_top_prices();
-        if self.try_update_cache(trade_place, price_by_order_side.clone()) {
+        if self.try_update_cache(market_id, price_by_order_side.clone()) {
             self.price_sources_saver
-                .save(trade_place, price_by_order_side);
+                .save(market_id, price_by_order_side);
         }
     }
 
-    fn map_to_used_trade_places(price_source_chains: Vec<PriceSourceChain>) -> HashSet<TradePlace> {
+    fn map_to_used_market_ids(price_source_chains: Vec<PriceSourceChain>) -> HashSet<MarketId> {
         price_source_chains
             .into_iter()
             .flat_map(|price_source_chain| {
                 price_source_chain
                     .rebase_price_steps
                     .into_iter()
-                    .map(|step| TradePlace::new(step.exchange_id, step.symbol.currency_pair()))
+                    .map(|step| MarketId::new(step.exchange_id, step.symbol.currency_pair()))
             })
             .collect()
     }

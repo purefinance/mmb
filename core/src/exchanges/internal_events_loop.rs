@@ -94,10 +94,9 @@ fn update_order_book_top_for_exchange(
     local_snapshots_service: &mut LocalSnapshotsService,
     exchanges_map: &HashMap<ExchangeAccountId, Arc<Exchange>>,
 ) {
-    let trade_place_account = local_snapshots_service.update(order_book_event);
-    if let Some(trade_place_account) = &trade_place_account {
-        let snapshot =
-            local_snapshots_service.get_snapshot_expected(trade_place_account.trade_place());
+    let market_account_id = local_snapshots_service.update(order_book_event);
+    if let Some(market_account_id) = &market_account_id {
+        let snapshot = local_snapshots_service.get_snapshot_expected(market_account_id.market_id());
 
         let order_book_top = OrderBookTop {
             ask: snapshot
@@ -109,11 +108,11 @@ fn update_order_book_top_for_exchange(
         };
 
         exchanges_map
-            .get(&trade_place_account.exchange_account_id)
+            .get(&market_account_id.exchange_account_id)
             .map(|exchange| {
                 exchange
                     .order_book_top
-                    .insert(trade_place_account.currency_pair, order_book_top)
+                    .insert(market_account_id.currency_pair, order_book_top)
             });
     }
 }
