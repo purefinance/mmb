@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::balance_manager::position_change::PositionChange;
-use crate::exchanges::common::{CurrencyPair, ExchangeAccountId, TradePlaceAccount};
+use crate::exchanges::common::{CurrencyPair, ExchangeAccountId, MarketAccountId};
 use crate::orders::order::ClientOrderFillId;
 
 use mmb_utils::DateTime;
@@ -10,11 +10,11 @@ use rust_decimal_macros::dec;
 
 #[derive(Clone, Debug)]
 pub struct BalancePositionByFillAmount {
-    /// TradePlace -> AmountInAmountCurrency
-    position_by_fill_amount: HashMap<TradePlaceAccount, Decimal>,
+    /// MarketAccountId -> AmountInAmountCurrency
+    position_by_fill_amount: HashMap<MarketAccountId, Decimal>,
 
-    /// TradePlace -> AmountInAmountCurrency
-    position_changes: HashMap<TradePlaceAccount, Vec<PositionChange>>,
+    /// MarketAccountId -> AmountInAmountCurrency
+    position_changes: HashMap<MarketAccountId, Vec<PositionChange>>,
 }
 
 impl BalancePositionByFillAmount {
@@ -31,7 +31,7 @@ impl BalancePositionByFillAmount {
         currency_pair: CurrencyPair,
     ) -> Option<Decimal> {
         self.position_by_fill_amount
-            .get(&TradePlaceAccount::new(exchange_account_id, currency_pair))
+            .get(&MarketAccountId::new(exchange_account_id, currency_pair))
             .cloned()
     }
 
@@ -44,7 +44,7 @@ impl BalancePositionByFillAmount {
         client_order_fill_id: Option<ClientOrderFillId>,
         now: DateTime,
     ) {
-        let key = TradePlaceAccount::new(exchange_account_id, currency_pair.clone());
+        let key = MarketAccountId::new(exchange_account_id, currency_pair.clone());
 
         log::info!(
             "PositionChanges {:?} {} {:?}",
@@ -141,14 +141,14 @@ impl BalancePositionByFillAmount {
 
     pub fn get_last_position_change_before_period(
         &self,
-        trade_place: &TradePlaceAccount,
+        market_account_id: &MarketAccountId,
         start_of_period: DateTime,
     ) -> Option<PositionChange> {
-        if let Some(values) = self.position_changes.get(trade_place) {
+        if let Some(values) = self.position_changes.get(market_account_id) {
             log::info!(
                 "get_last_position_change_before_period get {} {} {:?}",
-                trade_place.exchange_account_id,
-                trade_place.currency_pair,
+                market_account_id.exchange_account_id,
+                market_account_id.currency_pair,
                 values
             );
 
@@ -165,8 +165,8 @@ impl BalancePositionByFillAmount {
         }
         log::info!(
             "get_last_position_change_before_period {} {} {:?}",
-            trade_place.exchange_account_id,
-            trade_place.currency_pair,
+            market_account_id.exchange_account_id,
+            market_account_id.currency_pair,
             self.position_changes.keys(),
         );
         None

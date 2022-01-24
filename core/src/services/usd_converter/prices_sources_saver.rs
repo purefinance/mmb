@@ -4,7 +4,7 @@ use mockall_double::double;
 use crate::misc::time::time_manager;
 
 use crate::{
-    exchanges::common::TradePlace,
+    exchanges::common::MarketId,
     misc::{price_by_order_side::PriceByOrderSide, price_source_model::PriceSourceModel},
 };
 
@@ -21,11 +21,11 @@ impl PriceSourcesSaver {
         }
     }
 
-    pub fn save(&mut self, trade_place: TradePlace, prices: PriceByOrderSide) {
+    pub fn save(&mut self, market_id: MarketId, prices: PriceByOrderSide) {
         let _prices_source = PriceSourceModel::new(
             time_manager::now(),
-            trade_place.exchange_id,
-            trade_place.currency_pair,
+            market_id.exchange_id,
+            market_id.currency_pair,
             prices.top_bid,
             prices.top_ask,
         );

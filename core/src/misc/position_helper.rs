@@ -12,12 +12,12 @@ use crate::balance_manager::balance_manager::BalanceManager;
 use crate::exchanges::general::engine_api::EngineApi;
 
 use crate::{
-    exchanges::common::TradePlaceAccount, infrastructure::spawn_future_timed,
+    exchanges::common::MarketAccountId, infrastructure::spawn_future_timed,
     orders::order::OrderSide,
 };
 
 pub fn close_position_if_needed(
-    trade_place: &TradePlaceAccount,
+    market_account_id: &MarketAccountId,
     balance_manager: Option<Arc<Mutex<BalanceManager>>>,
     engine_api: Arc<EngineApi>,
     cancellation_token: CancellationToken,
@@ -27,8 +27,8 @@ pub fn close_position_if_needed(
             if balance_manager
                 .lock()
                 .get_position(
-                    trade_place.exchange_account_id,
-                    trade_place.currency_pair,
+                    market_account_id.exchange_account_id,
+                    market_account_id.currency_pair,
                     OrderSide::Buy,
                 )
                 .is_zero()

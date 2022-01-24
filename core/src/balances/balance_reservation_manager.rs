@@ -22,7 +22,7 @@ use crate::balances::{
     virtual_balance_holder::VirtualBalanceHolder,
 };
 use crate::exchanges::common::{
-    Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount,
+    Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, MarketAccountId, Price,
 };
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::exchanges::general::exchange::Exchange;
@@ -909,11 +909,11 @@ impl BalanceReservationManager {
 
     pub fn get_last_position_change_before_period(
         &self,
-        trade_place: &TradePlaceAccount,
+        market_account_id: &MarketAccountId,
         start_of_period: DateTime,
     ) -> Option<PositionChange> {
         self.position_by_fill_amount_in_amount_currency
-            .get_last_position_change_before_period(trade_place, start_of_period)
+            .get_last_position_change_before_period(market_account_id, start_of_period)
     }
 
     pub fn get_fill_amount_position_percent(

@@ -47,7 +47,7 @@ impl OrderBookEvent {
         }
     }
 
-    pub fn trade_place_account(&self) -> TradePlaceAccount {
-        TradePlaceAccount::new(self.exchange_account_id, self.currency_pair)
+    pub fn market_account_id(&self) -> MarketAccountId {
+        MarketAccountId::new(self.exchange_account_id, self.currency_pair)
     }
 }

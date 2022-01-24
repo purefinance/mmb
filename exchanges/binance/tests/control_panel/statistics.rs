@@ -168,7 +168,7 @@ async fn orders_cancelled() {
     )
     .expect("failed to conver answer to Value");
 
-    let exchange_statistics = &statistics["trade_place_stats"]["Binance_0|cnd/btc"];
+    let exchange_statistics = &statistics["market_account_id_stats"]["Binance_0|cnd/btc"];
     let opened_orders_count = exchange_statistics["opened_orders_count"]
         .as_u64()
         .expect("in test");

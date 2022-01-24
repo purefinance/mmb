@@ -6,7 +6,7 @@ use crate::balance_manager::balance_reservation::BalanceReservation;
 use crate::balance_manager::position_change::PositionChange;
 use crate::balances::balance_reservation_manager::BalanceReservationManager;
 use crate::exchanges::common::{Amount, Price};
-use crate::exchanges::common::{CurrencyCode, CurrencyPair, TradePlaceAccount};
+use crate::exchanges::common::{CurrencyCode, CurrencyPair, MarketAccountId};
 use crate::exchanges::events::ExchangeBalancesAndPositions;
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::exchanges::general::symbol::{BeforeAfter, Symbol};
@@ -41,7 +41,7 @@ use mockall::automock;
 pub struct BalanceManager {
     exchange_id_with_restored_positions: HashSet<ExchangeAccountId>,
     balance_reservation_manager: BalanceReservationManager,
-    last_order_fills: HashMap<TradePlaceAccount, OrderFill>,
+    last_order_fills: HashMap<MarketAccountId, OrderFill>,
     balance_changes_service: Option<Arc<BalanceChangesService>>,
 }
 
@@ -530,7 +530,7 @@ impl BalanceManager {
         Ok(balance_manager)
     }
 
-    pub fn get_last_order_fills(&self) -> &HashMap<TradePlaceAccount, OrderFill> {
+    pub fn get_last_order_fills(&self) -> &HashMap<MarketAccountId, OrderFill> {
         &self.last_order_fills
     }
 
@@ -681,7 +681,7 @@ impl BalanceManager {
         order_fill: OrderFill,
     ) {
         self.last_order_fills.insert(
-            TradePlaceAccount::new(exchange_account_id, currency_pair),
+            MarketAccountId::new(exchange_account_id, currency_pair),
             order_fill,
         );
     }
@@ -1069,11 +1069,11 @@ impl BalanceManager {
 impl BalanceManager {
     pub fn get_last_position_change_before_period(
         &self,
-        trade_place: &TradePlaceAccount,
+        market_account_id: &MarketAccountId,
         start_of_period: DateTime,
     ) -> Option<PositionChange> {
         self.balance_reservation_manager
-            .get_last_position_change_before_period(trade_place, start_of_period)
+            .get_last_position_change_before_period(market_account_id, start_of_period)
     }
 
     pub fn get_position(

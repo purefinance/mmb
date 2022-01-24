@@ -4,7 +4,7 @@ use mmb_utils::DateTime;
 
 use crate::{
     exchanges::{
-        common::{Amount, CurrencyPair, Price, TradePlace},
+        common::{Amount, CurrencyPair, MarketId, Price},
         events::{ExchangeEvent, TickDirection, Trade, TradeId, TradesEvent},
         general::exchange::Exchange,
         timeouts::timeout_manager,
@@ -37,10 +37,10 @@ impl Exchange {
             receipt_time: timeout_manager::now(),
         };
 
-        let trade_place = TradePlace::new(self.exchange_account_id.exchange_id, currency_pair);
+        let market_id = MarketId::new(self.exchange_account_id.exchange_id, currency_pair);
 
         self.last_trades_update_time
-            .insert(trade_place, trades_event.receipt_time);
+            .insert(market_id, trades_event.receipt_time);
 
         if self.exchange_client.get_settings().subscribe_to_market_data {
             return Ok(());
@@ -60,8 +60,7 @@ impl Exchange {
         }
 
         if self.exchange_client.get_settings().request_trades {
-            let should_add_event = if let Some(last_trade) = self.last_trades.get_mut(&trade_place)
-            {
+            let should_add_event = if let Some(last_trade) = self.last_trades.get_mut(&market_id) {
                 let trade_items = trades_event
                     .trades
                     .into_iter()
@@ -81,7 +80,7 @@ impl Exchange {
             };
 
             match trades_event.trades.first() {
-                Some(trade) => self.last_trades.insert(trade_place, trade.clone()),
+                Some(trade) => self.last_trades.insert(market_id, trade.clone()),
                 None => return Ok(()),
             };
 

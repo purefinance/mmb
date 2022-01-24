@@ -13,7 +13,7 @@ use rust_decimal_macros::dec;
 use tokio::sync::{broadcast, oneshot};
 
 use crate::disposition_execution::trading_context_calculation::calculate_trading_context;
-use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, Price, TradePlaceAccount};
+use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, MarketAccountId, Price};
 use crate::exchanges::events::ExchangeEvent;
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::general::request_type::RequestType;
@@ -613,7 +613,7 @@ impl DispositionExecutor {
         }
 
         let new_order_amount = self.calculate_new_order_amount(
-            new_disposition.trade_place_account(),
+            new_disposition.market_account_id(),
             side,
             desired_amount,
             max_amount,
@@ -815,7 +815,7 @@ impl DispositionExecutor {
 
     fn calculate_new_order_amount(
         &self,
-        _trade_place_account: TradePlaceAccount,
+        _market_account_id: MarketAccountId,
         side: OrderSide,
         desired_amount: Decimal,
         max_amount: Decimal,

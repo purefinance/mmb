@@ -18,7 +18,7 @@ use crate::{
         balance_changes_accumulator::BalanceChangeAccumulator, profit_balance_changes_calculator,
         profit_loss_balance_change::ProfitLossBalanceChange,
     },
-    exchanges::common::{Amount, TradePlaceAccount},
+    exchanges::common::{Amount, MarketAccountId},
 };
 
 use super::balance_change_period_selector::BalanceChangePeriodSelector;
@@ -37,11 +37,11 @@ impl BalanceChangeUsdPeriodicCalculator {
         })
     }
 
-    pub fn calculate_raw_usd_change(&self, trade_place: &TradePlaceAccount) -> Amount {
+    pub fn calculate_raw_usd_change(&self, market_account_id: &MarketAccountId) -> Amount {
         let items = self
             .balance_change_period_selector
             .lock()
-            .get_items_by_trade_place(trade_place);
+            .get_items_by_market_account_id(market_account_id);
         profit_balance_changes_calculator::calculate_raw(&items)
     }
 
