@@ -36,6 +36,7 @@ impl ExampleStrategy {
         target_eai: ExchangeAccountId,
         currency_pair: CurrencyPair,
         spread: Decimal,
+        amount_limit: Decimal,
         engine_context: Arc<EngineContext>,
     ) -> Self {
         let configuration_descriptor = ConfigurationDescriptor::new(
@@ -44,6 +45,30 @@ impl ExampleStrategy {
                 .as_str()
                 .into(),
         );
+
+        let exchanges = &engine_context.clone().exchanges;
+        let exchange = exchanges.get(&target_eai).with_expect(|| {
+            format!(
+                "failed to get exchange from trading_engine for {}",
+                target_eai
+            )
+        });
+
+        let symbol = exchange
+            .symbols
+            .get(&currency_pair)
+            .with_expect(|| format!("failed to get symbol from exchange for {}", currency_pair))
+            .clone();
+
+        engine_context
+            .balance_manager
+            .lock()
+            .set_target_amount_limit(
+                configuration_descriptor.clone(),
+                target_eai,
+                symbol,
+                amount_limit,
+            );
 
         ExampleStrategy {
             target_eai,
@@ -139,8 +164,7 @@ impl ExampleStrategy {
                     price,
                     &mut explanation,
                 )
-                .with_expect(|| format!("Failed to get balance for {}", self.target_eai))
-                .min(max_amount);
+                .with_expect(|| format!("Failed to get balance for {}", self.target_eai));
 
             explanation.add_reason(format!(
                 "max_amount changed to {} because target balance wasn't enough",
