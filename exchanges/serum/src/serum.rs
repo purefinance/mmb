@@ -1,11 +1,37 @@
+use anyhow::{anyhow, Context, Result};
 use dashmap::DashMap;
+use memoffset::offset_of;
 use parking_lot::{Mutex, RwLock};
+use rand::rngs::OsRng;
+use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::Decimal;
+use rust_decimal::MathematicalOps;
+use rust_decimal_macros::dec;
+use serum_dex::instruction::MarketInstruction;
+use serum_dex::state::{gen_vault_signer_key, Market, MarketState};
 use solana_client::rpc_client::RpcClient;
+use solana_client::rpc_config;
+use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
+use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
+use solana_client_helpers::spl_associated_token_account::get_associated_token_address;
+use solana_program::account_info::IntoAccountInfo;
+use solana_program::instruction::{AccountMeta, Instruction};
+use solana_program::program_pack::Pack;
+use solana_program::pubkey::Pubkey;
+use solana_sdk::account::Account;
+use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
+use solana_sdk::signature::{Keypair, Signature, Signer};
+use solana_sdk::transaction::Transaction;
+use spl_token::state;
 use std::collections::HashMap;
+use std::mem::size_of;
+use std::num::NonZeroU64;
+use std::ops::Deref;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::urls::MAINNET_SOLANA_URL_PATH;
+use crate::helpers::{FromU64Array, ToSerumSide};
+use crate::market::{MarketData, MarketMetaData, OpenOrderData};
 use mmb_core::exchanges::common::{
     Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, SpecificCurrencyPair,
 };
@@ -21,13 +47,56 @@ use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTime
 use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeClientBuilderResult};
 use mmb_core::lifecycle::application_manager::ApplicationManager;
 use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide};
+use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide, OrderType};
 use mmb_core::settings::ExchangeSettings;
+use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::DateTime;
+
+pub struct SolanaHosts {
+    url: String,
+    ws: String,
+    market_url: String,
+}
+
+pub enum NetworkType {
+    Mainnet,
+    Devnet,
+    Testnet,
+    Custom(SolanaHosts),
+}
+
+impl NetworkType {
+    pub fn url(&self) -> &str {
+        match self {
+            NetworkType::Devnet => "https://api.devnet.solana.com",
+            NetworkType::Mainnet => "https://api.mainnet-beta.solana.com",
+            NetworkType::Testnet => "https://api.testnet.solana.com",
+            NetworkType::Custom(network_opts) => &network_opts.url,
+        }
+    }
+
+    pub fn ws(&self) -> &str {
+        match self {
+            NetworkType::Devnet => "ws://api.devnet.solana.com/",
+            NetworkType::Mainnet => "ws://api.mainnet-beta.solana.com/",
+            NetworkType::Testnet => "ws://api.testnet.solana.com",
+            NetworkType::Custom(network_opts) => &network_opts.ws,
+        }
+    }
+
+    pub fn market_list_url(&self) -> &str {
+        match self {
+            NetworkType::Devnet => "https://raw.githubusercontent.com/kizeevov/serum_devnet/main/markets.json",
+            NetworkType::Custom(network_opts) => &network_opts.market_url,
+            _ => "https://raw.githubusercontent.com/project-serum/serum-ts/master/packages/serum/src/markets.json",
+        }
+    }
+}
 
 pub struct Serum {
     pub id: ExchangeAccountId,
     pub settings: ExchangeSettings,
+    pub payer: Keypair,
     pub order_created_callback:
         Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
     pub order_cancelled_callback:
@@ -41,7 +110,9 @@ pub struct Serum {
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
     pub(super) rest_client: RestClient,
-    pub(super) rpc_client: RpcClient,
+    pub(super) rpc_client: Arc<RpcClient>,
+    pub(super) markets_data: RwLock<HashMap<CurrencyPair, MarketData>>,
+    pub network_type: NetworkType,
 }
 
 impl Serum {
@@ -50,10 +121,14 @@ impl Serum {
         settings: ExchangeSettings,
         _events_channel: broadcast::Sender<ExchangeEvent>,
         _application_manager: Arc<ApplicationManager>,
+        network_type: NetworkType,
     ) -> Self {
+        let payer = Keypair::from_base58_string(&settings.secret_key);
+
         Self {
             id,
             settings,
+            payer,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
             handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
@@ -62,8 +137,270 @@ impl Serum {
             supported_currencies: Default::default(),
             traded_specific_currencies: Default::default(),
             rest_client: RestClient::new(),
-            rpc_client: RpcClient::new(MAINNET_SOLANA_URL_PATH.to_string()),
+            rpc_client: Arc::new(RpcClient::new(network_type.url().to_string())),
+            markets_data: Default::default(),
+            network_type,
         }
+    }
+
+    pub fn get_market(&self, address: &Pubkey) -> Result<MarketState> {
+        let mut account = self.rpc_client.get_account(&address)?;
+        let program_id = account.owner.clone();
+        let account_info = (address, &mut account).into_account_info();
+        let market = Market::load(&account_info, &program_id, false)?;
+        Ok(*market.deref())
+    }
+
+    pub fn get_market_data(&self, currency_pair: &CurrencyPair) -> Result<MarketData> {
+        let lock = self.markets_data.read();
+        lock.get(currency_pair)
+            .cloned()
+            .ok_or(anyhow!("Unable to get market data"))
+    }
+
+    pub fn load_market_meta_data(
+        &self,
+        address: &Pubkey,
+        program_id: &Pubkey,
+    ) -> Result<MarketMetaData> {
+        let market = self.get_market(address)?;
+        let vault_signer_nonce =
+            gen_vault_signer_key(market.vault_signer_nonce, address, program_id)?;
+
+        let coin_mint_address = Pubkey::from_u64_array(market.coin_mint);
+        let price_mint_address = Pubkey::from_u64_array(market.pc_mint);
+
+        let coin_data = self.rpc_client.get_account_data(&coin_mint_address)?;
+        let pc_data = self.rpc_client.get_account_data(&price_mint_address)?;
+
+        let coin_min_data = state::Mint::unpack_from_slice(&coin_data)?;
+        let price_mint_data = state::Mint::unpack_from_slice(&pc_data)?;
+
+        Ok(MarketMetaData {
+            state: market,
+            price_decimal: price_mint_data.decimals,
+            coin_decimal: coin_min_data.decimals,
+            owner_address: Pubkey::from_u64_array(market.own_address),
+            coin_mint_address,
+            price_mint_address,
+            coin_vault_address: Pubkey::from_u64_array(market.coin_vault),
+            price_vault_address: Pubkey::from_u64_array(market.pc_vault),
+            req_queue_address: Pubkey::from_u64_array(market.req_q),
+            event_queue_address: Pubkey::from_u64_array(market.event_q),
+            bids_address: Pubkey::from_u64_array(market.bids),
+            asks_address: Pubkey::from_u64_array(market.asks),
+            vault_signer_nonce,
+            coin_lot: market.coin_lot_size,
+            price_lot: market.pc_lot_size,
+        })
+    }
+
+    pub fn load_orders_for_owner(
+        &self,
+        address: &Pubkey,
+        program_id: &Pubkey,
+    ) -> Result<Vec<(Pubkey, Account)>> {
+        let filter1 = RpcFilterType::Memcmp(Memcmp {
+            offset: offset_of!(OpenOrderData, market),
+            bytes: MemcmpEncodedBytes::Base58(address.to_string()),
+            encoding: None,
+        });
+
+        let filter2 = RpcFilterType::Memcmp(Memcmp {
+            offset: offset_of!(OpenOrderData, owner),
+            bytes: MemcmpEncodedBytes::Base58(self.payer.pubkey().to_string()),
+            encoding: None,
+        });
+
+        let filter3 = RpcFilterType::DataSize(size_of::<OpenOrderData>() as u64);
+
+        let filters = Some(vec![filter1, filter2, filter3]);
+
+        let account_config = RpcAccountInfoConfig {
+            encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
+            ..RpcAccountInfoConfig::default()
+        };
+
+        let config = RpcProgramAccountsConfig {
+            filters,
+            account_config,
+            with_context: Some(false),
+        };
+
+        Ok(self
+            .rpc_client
+            .get_program_accounts_with_config(&program_id, config)?)
+    }
+
+    pub fn create_dex_account(
+        &self,
+        program_id: &Pubkey,
+        payer: &Pubkey,
+        length: usize,
+    ) -> Result<(Keypair, Instruction)> {
+        let key = Keypair::generate(&mut OsRng);
+        let lamports = self
+            .rpc_client
+            .get_minimum_balance_for_rent_exemption(length)?;
+
+        let create_account_instr = solana_sdk::system_instruction::create_account(
+            payer,
+            &key.pubkey(),
+            lamports,
+            length as u64,
+            program_id,
+        );
+        Ok((key, create_account_instr))
+    }
+
+    pub fn create_new_order_instruction(
+        &self,
+        program_id: Pubkey,
+        metadata: &MarketMetaData,
+        open_order_account: Pubkey,
+        side: OrderSide,
+        price: Price,
+        amount: Amount,
+        order_type: OrderType,
+    ) -> Result<Instruction> {
+        let price = self.make_price(&metadata, price);
+        let amount = self.make_size(&metadata, amount);
+        let max_native_price = self.make_max_native(&metadata, price, amount);
+
+        let new_order = serum_dex::instruction::NewOrderInstructionV3 {
+            side: side.to_serum_side(),
+            limit_price: NonZeroU64::new(price)
+                .with_context(|| format!("Failed to create limit_price {:?}", price))?,
+            max_coin_qty: NonZeroU64::new(amount)
+                .with_context(|| format!("Failed to create max_coin_qty {:?}", amount))?,
+            max_native_pc_qty_including_fees: NonZeroU64::new(max_native_price).with_context(
+                || {
+                    format!(
+                        "Failed to create max_native_pc_qty_including_fees {:?}",
+                        max_native_price
+                    )
+                },
+            )?,
+            self_trade_behavior: serum_dex::instruction::SelfTradeBehavior::DecrementTake,
+            order_type: match order_type {
+                OrderType::Limit => serum_dex::matching::OrderType::Limit,
+                _ => unimplemented!(),
+            },
+            client_order_id: 0x0,
+            limit: u16::MAX,
+        };
+
+        let wallet = match side {
+            OrderSide::Buy => {
+                get_associated_token_address(&self.payer.pubkey(), &metadata.price_mint_address)
+            }
+            OrderSide::Sell => {
+                get_associated_token_address(&self.payer.pubkey(), &metadata.coin_mint_address)
+            }
+        };
+
+        Ok(Instruction {
+            program_id,
+            data: MarketInstruction::NewOrderV3(new_order).pack(),
+            accounts: vec![
+                AccountMeta::new(metadata.owner_address, false),
+                AccountMeta::new(open_order_account, false),
+                AccountMeta::new(metadata.req_queue_address, false),
+                AccountMeta::new(metadata.event_queue_address, false),
+                AccountMeta::new(metadata.bids_address, false),
+                AccountMeta::new(metadata.asks_address, false),
+                AccountMeta::new(wallet, false),
+                AccountMeta::new_readonly(self.payer.pubkey(), true),
+                AccountMeta::new(metadata.coin_vault_address, false),
+                AccountMeta::new(metadata.price_vault_address, false),
+                AccountMeta::new_readonly(spl_token::ID, false),
+                AccountMeta::new_readonly(solana_sdk::sysvar::rent::ID, false),
+            ],
+        })
+    }
+
+    pub fn create_settle_funds_instructions(
+        &self,
+        open_order_accounts: &[Pubkey],
+        market: &MarketMetaData,
+        market_id: &Pubkey,
+        program_id: &Pubkey,
+    ) -> Vec<Instruction> {
+        open_order_accounts
+            .iter()
+            .map(|key| {
+                let data = MarketInstruction::SettleFunds.pack();
+                Instruction {
+                    program_id: *program_id,
+                    data,
+                    accounts: vec![
+                        AccountMeta::new(*market_id, false),
+                        AccountMeta::new(*key, false),
+                        AccountMeta::new_readonly(self.payer.pubkey(), true),
+                        AccountMeta::new(market.coin_vault_address, false),
+                        AccountMeta::new(market.price_vault_address, false),
+                        AccountMeta::new(
+                            get_associated_token_address(
+                                &self.payer.pubkey(),
+                                &market.coin_mint_address,
+                            ),
+                            false,
+                        ),
+                        AccountMeta::new(
+                            get_associated_token_address(
+                                &self.payer.pubkey(),
+                                &market.price_mint_address,
+                            ),
+                            false,
+                        ),
+                        AccountMeta::new_readonly(market.vault_signer_nonce, false),
+                        AccountMeta::new_readonly(spl_token::ID, false),
+                    ],
+                }
+            })
+            .collect()
+    }
+
+    pub async fn send_transaction(&self, transaction: Transaction) -> Result<Signature> {
+        Ok(tokio::task::spawn_blocking({
+            let rpc_client = self.rpc_client.clone();
+            move || {
+                rpc_client.send_and_confirm_transaction_with_spinner_and_config(
+                    &transaction,
+                    CommitmentConfig {
+                        commitment: CommitmentLevel::Confirmed,
+                    },
+                    rpc_config::RpcSendTransactionConfig {
+                        skip_preflight: true,
+                        ..rpc_config::RpcSendTransactionConfig::default()
+                    },
+                )
+            }
+        })
+        .await??)
+    }
+
+    fn make_max_native(&self, market: &MarketMetaData, price: u64, size: u64) -> u64 {
+        market.state.pc_lot_size * size * price
+    }
+
+    fn make_price(&self, market: &MarketMetaData, raw_price: Decimal) -> u64 {
+        let price = raw_price
+            * Decimal::from(market.coin_lot)
+            * dec!(10).powi((market.price_decimal - market.coin_decimal) as i64)
+            / Decimal::from(market.state.pc_lot_size);
+
+        price
+            .to_u64()
+            .with_expect(|| format!("Unable to convert make_size as decimal to u64 = {price}"))
+    }
+
+    fn make_size(&self, market: &MarketMetaData, raw_size: Decimal) -> u64 {
+        let size =
+            raw_size * dec!(10).powi(market.coin_decimal as i64) / Decimal::from(market.coin_lot);
+
+        size.to_u64()
+            .with_expect(|| format!("Unable to convert make_size as decimal to u64 = {size}"))
     }
 }
 
@@ -84,6 +421,7 @@ impl ExchangeClientBuilder for SerumBuilder {
                 exchange_settings,
                 events_channel,
                 application_manager,
+                NetworkType::Mainnet,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,

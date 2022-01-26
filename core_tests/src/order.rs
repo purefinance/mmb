@@ -137,3 +137,63 @@ impl OrderProxy {
         }
     }
 }
+
+pub struct OrderProxyBuilder {
+    exchange_account_id: ExchangeAccountId,
+    currency_pair: CurrencyPair,
+    order_type: OrderType,
+    side: OrderSide,
+    amount: Amount,
+    strategy_name: String,
+    price: Price,
+    cancellation_token: CancellationToken,
+}
+
+impl OrderProxyBuilder {
+    pub fn new(
+        exchange_account_id: ExchangeAccountId,
+        strategy_name: Option<String>,
+        price: Price,
+        amount: Amount,
+    ) -> OrderProxyBuilder {
+        Self {
+            exchange_account_id,
+            currency_pair: OrderProxy::default_currency_pair(),
+            order_type: OrderType::Limit,
+            strategy_name: strategy_name.unwrap_or("OrderTest".to_owned()),
+            cancellation_token: CancellationToken::default(),
+            price,
+            amount,
+            side: OrderSide::Buy,
+        }
+    }
+
+    pub fn currency_pair(mut self, currency_pair: CurrencyPair) -> OrderProxyBuilder {
+        self.currency_pair = currency_pair;
+        self
+    }
+
+    pub fn side(mut self, side: OrderSide) -> OrderProxyBuilder {
+        self.side = side;
+        self
+    }
+
+    pub fn build(self) -> OrderProxy {
+        OrderProxy {
+            client_order_id: ClientOrderId::unique_id(),
+            init_time: Utc::now(),
+            exchange_account_id: self.exchange_account_id,
+            currency_pair: self.currency_pair,
+            order_type: self.order_type,
+            side: self.side,
+            amount: self.amount,
+            execution_type: OrderExecutionType::None,
+            reservation_id: None,
+            signal_id: None,
+            strategy_name: self.strategy_name,
+            price: self.price,
+            cancellation_token: self.cancellation_token,
+            timeout: Duration::from_secs(5),
+        }
+    }
+}

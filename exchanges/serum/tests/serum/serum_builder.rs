@@ -1,24 +1,26 @@
 use anyhow::Result;
-use serum::serum::Serum;
+use rust_decimal_macros::dec;
+use serum::serum::{NetworkType, Serum};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use mmb_core::exchanges::common::{ExchangeAccountId, ExchangeId};
+use crate::serum::common::{get_key_pair, get_timeout_manager};
+use mmb_core::exchanges::common::{Amount, ExchangeAccountId, Price};
+use mmb_core::exchanges::events::ExchangeEvent;
 use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::ExchangeFeatures;
-use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::{
-    RequestTimeoutArguments, RequestsTimeoutManagerFactory,
-};
-use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
-use mmb_core::exchanges::traits::ExchangeClientBuilder;
+use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::lifecycle::application_manager::ApplicationManager;
-use mmb_core::lifecycle::launcher::EngineBuildConfig;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::hashmap;
 
-pub struct SerumBuilder {}
+pub struct SerumBuilder {
+    pub exchange: Arc<Exchange>,
+    pub default_price: Price,
+    pub default_amount: Amount,
+    pub rx: broadcast::Receiver<ExchangeEvent>,
+}
 
 impl SerumBuilder {
     pub async fn try_new(
@@ -27,13 +29,14 @@ impl SerumBuilder {
         features: ExchangeFeatures,
         commission: Commission,
     ) -> Result<Self> {
+        let secret_key = get_key_pair()?;
         let mut settings =
-            ExchangeSettings::new_short(exchange_account_id, "".to_string(), "".to_string(), false);
+            ExchangeSettings::new_short(exchange_account_id, "".to_string(), secret_key, false);
 
         settings.currency_pairs = Some(vec![CurrencyPairSetting {
             base: "btc".into(),
             quote: "usdc".into(),
-            currency_pair: None,
+            currency_pair: Some("btc/usdc".to_string()),
         }]);
 
         Self::try_new_with_settings(
@@ -54,21 +57,22 @@ impl SerumBuilder {
         commission: Commission,
     ) -> Result<Self> {
         let application_manager = ApplicationManager::new(cancellation_token.clone());
-        let (tx, _) = broadcast::channel(10);
-        let timeout_manager = Self::get_timeout_manager(exchange_account_id);
+        let (tx, rx) = broadcast::channel(10);
+        let timeout_manager = get_timeout_manager(exchange_account_id);
 
         let serum = Box::new(Serum::new(
             exchange_account_id,
             settings.clone(),
             tx.clone(),
             application_manager.clone(),
+            NetworkType::Devnet,
         ));
 
         let exchange = Exchange::new(
             exchange_account_id,
             serum,
             features,
-            RequestTimeoutArguments::from_requests_per_minute(1200),
+            RequestTimeoutArguments::from_requests_per_minute(240),
             tx.clone(),
             application_manager,
             timeout_manager,
@@ -77,21 +81,11 @@ impl SerumBuilder {
         exchange.clone().connect().await;
         exchange.build_symbols(&settings.currency_pairs).await;
 
-        Ok(Self {})
-    }
-
-    fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc<TimeoutManager> {
-        let engine_build_config = EngineBuildConfig::standard(
-            Box::new(serum::serum::SerumBuilder) as Box<dyn ExchangeClientBuilder>
-        );
-        let timeout_arguments = engine_build_config.supported_exchange_clients
-            [&ExchangeId::new("Binance".into())]
-            .get_timeout_arguments();
-        let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
-            timeout_arguments,
-            exchange_account_id,
-        );
-
-        TimeoutManager::new(hashmap![exchange_account_id => request_timeout_manager])
+        Ok(Self {
+            exchange,
+            default_price: dec!(0.01),
+            default_amount: dec!(0.01),
+            rx,
+        })
     }
 }
