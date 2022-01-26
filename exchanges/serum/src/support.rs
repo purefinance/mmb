@@ -1,12 +1,13 @@
-use crate::helpers::{convert64_to_pubkey, split_once};
+use crate::helpers::{split_once, FromU64Array};
 use crate::serum::Serum;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use dashmap::DashMap;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
-use serde_json::Value;
+use rust_decimal::MathematicalOps;
+use rust_decimal_macros::dec;
 use std::str::FromStr;
 use std::sync::Arc;
 use url::Url;
@@ -27,8 +28,7 @@ use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderInfo, OrderSi
 use mmb_core::settings::ExchangeSettings;
 use mmb_utils::DateTime;
 
-use serum_dex::state::Market;
-use solana_program::account_info::IntoAccountInfo;
+use crate::market::{DeserMarketData, MarketData};
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use spl_token::state;
@@ -120,44 +120,39 @@ impl Support for Serum {
     }
 
     fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
-        let deserialized: Value = serde_json::from_str(&response.content)
+        let markets: Vec<DeserMarketData> = serde_json::from_str(&response.content)
             .context("Unable to deserialize response from Serum markets list")?;
-        let markets = deserialized
-            .as_array()
-            .ok_or(anyhow!("Unable to get markets array from Serum"))?;
 
-        let mut result = Vec::new();
-        for market in markets {
-            let is_deprecated = market["deprecated"]
-                .as_bool()
-                .context("Unable to get deprecated state market from Serum")?;
-            if is_deprecated {
-                continue;
-            }
+        markets
+            .into_iter()
+            .filter(|market| !market.deprecated)
+            .map(|market| {
+                let market_address = Pubkey::from_str(&market.address)
+                    .context("Invalid address constant string specified")?;
+                let market_program_id = Pubkey::from_str(&market.program_id)
+                    .context("Invalid program_id constant string specified")?;
 
-            let market_name = &market
-                .get_as_str("name")
-                .context("Unable to get name market from Serum")?;
+                let symbol = self.get_symbol_from_market(&market.name, market_address)?;
 
-            let market_pub_key_raw = &market
-                .get_as_str("address")
-                .context("Unable to get market address")?;
-            let market_pub_key = Pubkey::from_str(market_pub_key_raw)
-                .context("Invalid pubkey constant string specified")?;
+                let specific_currency_pair = market.name.as_str().into();
+                let unified_currency_pair =
+                    CurrencyPair::from_codes(symbol.base_currency_code, symbol.quote_currency_code);
+                self.unified_to_specific
+                    .write()
+                    .insert(unified_currency_pair, specific_currency_pair);
 
-            let symbol = self.get_symbol_from_market(market_name, market_pub_key)?;
+                // market initiation
+                let market_metadata =
+                    self.load_market_meta_data(&market_address, &market_program_id)?;
+                let market_data =
+                    MarketData::new(market_address, market_program_id, market_metadata);
+                self.markets_data
+                    .write()
+                    .insert(symbol.currency_pair(), market_data);
 
-            let specific_currency_pair = market_name.as_str().into();
-            let unified_currency_pair =
-                CurrencyPair::from_codes(symbol.base_currency_code, symbol.quote_currency_code);
-            self.unified_to_specific
-                .write()
-                .insert(unified_currency_pair, specific_currency_pair);
-
-            result.push(Arc::new(symbol));
-        }
-
-        Ok(result)
+                Ok(Arc::new(symbol))
+            })
+            .collect()
     }
 
     fn parse_get_my_trades(
@@ -191,13 +186,10 @@ impl Serum {
         market_name: &String,
         market_pub_key: Pubkey,
     ) -> Result<Symbol> {
-        let mut account = self.rpc_client.get_account(&market_pub_key)?;
-        let program_id = account.owner.clone();
-        let account_info = (&market_pub_key, &mut account).into_account_info();
-        let market = Market::load(&account_info, &program_id)?;
+        let market = self.get_market(&market_pub_key)?;
 
-        let coin_mint_adr = convert64_to_pubkey(market.coin_mint);
-        let pc_mint_adr = convert64_to_pubkey(market.pc_mint);
+        let coin_mint_adr = Pubkey::from_u64_array(market.coin_mint);
+        let pc_mint_adr = Pubkey::from_u64_array(market.pc_mint);
 
         let coin_data = self.rpc_client.get_account_data(&coin_mint_adr)?;
         let pc_data = self.rpc_client.get_account_data(&pc_mint_adr)?;
@@ -212,28 +204,10 @@ impl Serum {
         let is_active = true;
         let is_derivative = false;
 
-        let pc_lot_size = Decimal::from_u64(market.pc_lot_size).with_context(|| {
-            let pc_lot_size = market.pc_lot_size;
-            format!("Unable to convert decimal from pc lot size = {pc_lot_size}")
-        })?;
-        let factor_pc_decimals = Decimal::from_u64(10u64.pow(pc_mint_data.decimals as u32))
-            .with_context(|| {
-                format!(
-                    "Unable to convert decimal from pc decimals = {}",
-                    coin_mint_data.decimals,
-                )
-            })?;
-        let factor_coin_decimals = Decimal::from_u64(10u64.pow(coin_mint_data.decimals as u32))
-            .with_context(|| {
-                format!(
-                    "Unable to convert decimal from coin decimals = {}",
-                    coin_mint_data.decimals,
-                )
-            })?;
-        let coin_lot_size = Decimal::from_u64(market.coin_lot_size).with_context(|| {
-            let coin_lot_size = market.coin_lot_size;
-            format!("Unable to convert decimal from coin lot size = {coin_lot_size}")
-        })?;
+        let pc_lot_size = Decimal::from(market.pc_lot_size);
+        let coin_lot_size = Decimal::from(market.coin_lot_size);
+        let factor_pc_decimals = dec!(10).powi(pc_mint_data.decimals as i64);
+        let factor_coin_decimals = dec!(10).powi(coin_mint_data.decimals as i64);
         let min_price = (factor_coin_decimals * pc_lot_size) / (factor_pc_decimals * coin_lot_size);
         let min_amount = coin_lot_size / factor_coin_decimals;
         let min_cost = min_price * min_amount;
@@ -264,22 +238,5 @@ impl Serum {
             price_precision,
             amount_precision,
         ))
-    }
-}
-
-// TODO: Duplicate code. Take out to a separate place (q.v. Binance crate)
-trait GetOrErr {
-    fn get_as_str(&self, key: &str) -> Result<String>;
-}
-
-// TODO: Duplicate code. Take out to a separate place (q.v. Binance crate)
-impl GetOrErr for Value {
-    fn get_as_str(&self, key: &str) -> Result<String> {
-        Ok(self
-            .get(key)
-            .with_context(|| format!("Unable to get {} from JSON value", key))?
-            .as_str()
-            .with_context(|| format!("Unable to get {} as string from JSON value", key))?
-            .to_string())
     }
 }
