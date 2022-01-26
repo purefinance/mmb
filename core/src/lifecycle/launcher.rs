@@ -369,7 +369,6 @@ fn create_disposition_executor_service(
         LocalSnapshotsService::default(),
         base_settings.exchange_account_id(),
         base_settings.currency_pair(),
-        base_settings.max_amount(),
         disposition_strategy,
         engine_context.application_manager.stop_token(),
         statistics.clone(),

@@ -50,6 +50,7 @@ async fn main() -> Result<()> {
             settings.strategy.exchange_account_id(),
             settings.strategy.currency_pair(),
             settings.strategy.spread,
+            settings.strategy.max_amount,
             ctx,
         ))
     })

@@ -65,7 +65,9 @@ pub struct Symbol {
     pub quote_currency_code: CurrencyCode,
     pub min_price: Option<Price>,
     pub max_price: Option<Price>,
+    // min amount that Exchange can accept we can't change this field
     pub min_amount: Option<Amount>,
+    // max amount that Exchange can accept we can't change this field
     pub max_amount: Option<Amount>,
     pub min_cost: Option<Price>,
     pub amount_currency_code: CurrencyCode,

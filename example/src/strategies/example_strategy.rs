@@ -11,11 +11,9 @@ use mmb_core::balance_manager::balance_manager::BalanceManager;
 use mmb_core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
-use mmb_core::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, MarketAccountId, MarketId,
-};
+use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId, MarketAccountId, MarketId};
 use mmb_core::exchanges::general::symbol::Round;
-use mmb_core::explanation::{Explanation, OptionExplanationAddReasonExt, WithExplanation};
+use mmb_core::explanation::{Explanation, WithExplanation};
 use mmb_core::lifecycle::trading_engine::EngineContext;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
@@ -29,6 +27,7 @@ pub struct ExampleStrategy {
     spread: Decimal,
     engine_context: Arc<EngineContext>,
     configuration_descriptor: ConfigurationDescriptor,
+    max_amount: Decimal,
 }
 
 impl ExampleStrategy {
@@ -36,6 +35,7 @@ impl ExampleStrategy {
         target_eai: ExchangeAccountId,
         currency_pair: CurrencyPair,
         spread: Decimal,
+        max_amount: Decimal,
         engine_context: Arc<EngineContext>,
     ) -> Self {
         let configuration_descriptor = ConfigurationDescriptor::new(
@@ -45,12 +45,42 @@ impl ExampleStrategy {
                 .into(),
         );
 
+        let exchanges = &engine_context.clone().exchanges;
+        let exchange = exchanges.get(&target_eai).with_expect(|| {
+            format!(
+                "failed to get exchange from trading_engine for {}",
+                target_eai
+            )
+        });
+
+        // amount_limit it's a limit for position changing for both sides
+        // it's equal to half of the max amount because an order that can change a position from
+        // a limit by sells to a limit by buys is possible
+        let amount_limit = max_amount * dec!(0.5);
+
+        let symbol = exchange
+            .symbols
+            .get(&currency_pair)
+            .with_expect(|| format!("failed to get symbol from exchange for {}", currency_pair))
+            .clone();
+
+        engine_context
+            .balance_manager
+            .lock()
+            .set_target_amount_limit(
+                configuration_descriptor.clone(),
+                target_eai,
+                symbol,
+                amount_limit,
+            );
+
         ExampleStrategy {
             target_eai,
             currency_pair,
             spread,
             engine_context,
             configuration_descriptor,
+            max_amount,
         }
     }
 
@@ -69,7 +99,6 @@ impl ExampleStrategy {
     fn calc_trading_context_by_side(
         &mut self,
         side: OrderSide,
-        max_amount: Amount,
         _now: DateTime,
         local_snapshots_service: &LocalSnapshotsService,
         mut explanation: Explanation,
@@ -139,13 +168,7 @@ impl ExampleStrategy {
                     price,
                     &mut explanation,
                 )
-                .with_expect(|| format!("Failed to get balance for {}", self.target_eai))
-                .min(max_amount);
-
-            explanation.add_reason(format!(
-                "max_amount changed to {} because target balance wasn't enough",
-                amount
-            ));
+                .with_expect(|| format!("Failed to get balance for {}", self.target_eai));
 
             // This expect can happened if get_leveraged_balance_in_amount_currency_code() sets the explanation to None
             explanation.expect(
@@ -156,7 +179,7 @@ impl ExampleStrategy {
         let amount = symbol.amount_round(amount, Round::Floor);
 
         Some(TradingContextBySide {
-            max_amount,
+            max_amount: self.max_amount,
             estimating: vec![WithExplanation {
                 value: Some(TradeCycle {
                     order_role: OrderRole::Maker,
@@ -177,14 +200,12 @@ impl ExampleStrategy {
 impl DispositionStrategy for ExampleStrategy {
     fn calculate_trading_context(
         &mut self,
-        max_amount: Decimal,
         now: DateTime,
         local_snapshots_service: &LocalSnapshotsService,
         explanation: &mut Explanation,
     ) -> Option<TradingContext> {
         let buy_trading_ctx = self.calc_trading_context_by_side(
             OrderSide::Buy,
-            max_amount,
             now,
             local_snapshots_service,
             explanation.clone(),
@@ -192,7 +213,6 @@ impl DispositionStrategy for ExampleStrategy {
 
         let sell_trading_ctx = self.calc_trading_context_by_side(
             OrderSide::Sell,
-            max_amount,
             now,
             local_snapshots_service,
             explanation.clone(),

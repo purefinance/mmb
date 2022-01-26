@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use mmb_utils::DateTime;
-use rust_decimal::Decimal;
 
 use crate::disposition_execution::{PriceSlot, TradingContext};
 use crate::exchanges::common::ExchangeAccountId;
@@ -15,7 +14,6 @@ use mmb_utils::cancellation_token::CancellationToken;
 pub trait DispositionStrategy: Send + Sync + 'static {
     fn calculate_trading_context(
         &mut self,
-        max_amount: Decimal,
         now: DateTime,
         local_snapshots_service: &LocalSnapshotsService,
         explanation: &mut Explanation,
