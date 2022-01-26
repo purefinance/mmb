@@ -79,8 +79,29 @@ impl InternalEventsLoop {
                         // TODO react on order liquidation
                     }
                 }
-                ExchangeEvent::BalanceUpdate(_) => {
-                    // TODO add update exchange balance
+                ExchangeEvent::BalanceUpdate(order_event) => {
+                    let target_eai = order_event.exchange_account_id;
+                    let exchange = exchanges_map
+                        .get(&target_eai)
+                        .with_expect(|| format!("Failed to get Exchange for {}", target_eai));
+
+                    exchange
+                        .balance_manager
+                        .lock()
+                        .as_ref()
+                        .with_expect(|| {
+                            format!("BalanceManager isn't set for Exchange {}", target_eai)
+                        })
+                        .upgrade()
+                        .with_expect(|| {
+                            format!(
+                                "BalanceManager for Exchange {} couldn't be upgraded",
+                                target_eai
+                            )
+                        })
+                        .lock()
+                        .update_exchange_balance(target_eai, &order_event.balances_and_positions)
+                        .with_expect(|| format!("Failed to update balance for {}", target_eai));
                 }
                 ExchangeEvent::LiquidationPrice(_) => {}
                 ExchangeEvent::Trades(_) => {}

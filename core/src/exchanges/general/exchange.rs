@@ -115,7 +115,7 @@ pub struct Exchange {
     pub(super) last_trades_update_time: DashMap<MarketId, DateTime>,
     pub(super) last_trades: DashMap<MarketId, Trade>,
     pub(super) timeout_manager: Arc<TimeoutManager>,
-    pub(super) balance_manager: Mutex<Option<Weak<Mutex<BalanceManager>>>>,
+    pub(crate) balance_manager: Mutex<Option<Weak<Mutex<BalanceManager>>>>,
     pub(super) buffered_fills_manager: Mutex<BufferedFillsManager>,
     pub(super) buffered_canceled_orders_manager: Mutex<BufferedCanceledOrdersManager>,
     // It allows to send and receive notification about event in websocket channel
