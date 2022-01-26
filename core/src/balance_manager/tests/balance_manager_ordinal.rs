@@ -5020,7 +5020,7 @@ mod tests {
         let mut test_object = create_eth_btc_test_obj(dec!(100), dec!(100));
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
-        let trade_place = TradePlaceAccount::new(
+        let trade_place = MarketAccountId::new(
             exchange_account_id,
             test_object.balance_manager_base.symbol().currency_pair(),
         );
