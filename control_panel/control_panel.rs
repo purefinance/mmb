@@ -3,6 +3,7 @@ use anyhow::Result;
 use futures::{executor, future::BoxFuture};
 use jsonrpc_core_client::{transports::ipc, RpcError};
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
+use mmb_utils::logger::print_info;
 use parking_lot::Mutex;
 use std::{
     sync::mpsc,
@@ -10,6 +11,8 @@ use std::{
     thread::{self, JoinHandle},
     time::Duration,
 };
+
+use crate::ADDRESS;
 
 use super::endpoints;
 use actix_web::{dev::Server, rt, web, App, HttpResponse, HttpServer};
@@ -92,6 +95,10 @@ impl ControlPanel {
         let server_handle = server.handle();
         self.clone()
             .server_stopping(server_handle, server_stopper_rx);
+
+        print_info(format!(
+            "ControlPanel has been started. WebUI is launched on http://{ADDRESS}"
+        ));
 
         Ok(self.clone().start_server(server))
     }

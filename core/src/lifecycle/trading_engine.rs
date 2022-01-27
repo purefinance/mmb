@@ -1,4 +1,5 @@
 use futures::FutureExt;
+use mmb_utils::logger::print_info;
 use mmb_utils::send_expected::SendExpected;
 use std::panic;
 use std::panic::AssertUnwindSafe;
@@ -93,7 +94,7 @@ impl EngineContext {
             return;
         }
 
-        log::info!("Graceful shutdown started");
+        print_info("Graceful shutdown started");
 
         self.exchanges.iter().for_each(|x| {
             self.exchange_blocker.block(
@@ -136,7 +137,7 @@ impl EngineContext {
 
         unset_application_manager();
 
-        log::info!("Graceful shutdown finished");
+        print_info("Graceful shutdown finished");
     }
 
     pub fn get_events_channel(&self) -> broadcast::Receiver<ExchangeEvent> {

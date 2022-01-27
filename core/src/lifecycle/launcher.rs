@@ -27,7 +27,7 @@ use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger;
+use mmb_utils::logger::{init_logger, print_info};
 use mmb_utils::{hashmap, nothing_to_do};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -303,6 +303,7 @@ pub async fn launch_trading_engine<StrategySettings>(
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
+    print_info("The TradingEngine is going to start...");
     let action_outcome = AssertUnwindSafe(before_engine_context_init(
         build_settings,
         init_user_settings.clone(),
@@ -327,7 +328,7 @@ where
     let action = async move {
         signal::ctrl_c().await.expect("failed to listen for event");
 
-        log::info!("Ctrl-C signal was received so graceful_shutdown started");
+        print_info("Ctrl-C signal was received so graceful_shutdown will be started");
         cloned_application_manager.spawn_graceful_shutdown("Ctrl-C signal was received".to_owned());
 
         Ok(())
@@ -349,12 +350,16 @@ where
     }));
 
     let message_template = "Panic happened during TradingEngine creation";
-    unwrap_or_handle_panic(
+    let result = unwrap_or_handle_panic(
         action_outcome,
         message_template,
         Some(engine_context.application_manager.clone()),
     )
-    .map(|trading_engine| Some(trading_engine))
+    .map(|trading_engine| Some(trading_engine));
+
+    print_info("The TradingEngine has been successfully launched");
+
+    result
 }
 
 fn create_disposition_executor_service(
