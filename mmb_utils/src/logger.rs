@@ -1,6 +1,7 @@
 use chrono::Utc;
 use log::LevelFilter;
 use std::env;
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Once;
 
@@ -59,11 +60,24 @@ pub fn init_logger_file_named(log_file: &str) {
                             .write(true)
                             .create(true)
                             .truncate(true)
-                            .open(path)
+                            .open(path.clone())
                             .expect("Unable to open log file"),
                     ),
             )
             .apply()
             .expect("Unable to set up logger");
-    })
+    });
+
+    print_info(format!(
+        "Logger has been initialized all logs will be stored here: {:?}",
+        path
+    ));
+}
+
+pub fn print_info<T>(msg: T)
+where
+    T: Display,
+{
+    log::info!("{msg}");
+    println!("{msg}");
 }
