@@ -3,7 +3,6 @@ use crate::text;
 use futures::future::join_all;
 use futures::FutureExt;
 use itertools::Itertools;
-use mmb_utils::logger::print_info;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
@@ -18,19 +17,14 @@ pub struct ShutdownService {
     state: Mutex<State>,
 }
 
-fn service_has_been_launched_and_registered_msg(name: &str) -> String {
-    "\tThe ".to_owned() + name + " has been launched and registered in ShutdownService service"
-}
-
 impl ShutdownService {
     pub fn register_service(self: &Arc<Self>, service: Arc<dyn Service>) {
-        print_info(service_has_been_launched_and_registered_msg(service.name()));
+        log::trace!("Registered in ShutdownService service '{}'", service.name());
         self.state.lock().services.push(service);
     }
 
     pub fn register_services(self: &Arc<Self>, services: &[Arc<dyn Service>]) {
         for service in services {
-            print_info(service_has_been_launched_and_registered_msg(service.name()));
             self.register_service(service.clone());
         }
     }
@@ -45,17 +39,18 @@ impl ShutdownService {
 
             let state_guard = self.state.lock();
             for service in &state_guard.services {
-                let service_name = format!("{} service", service.name());
-                print_info(format!("\tStarting to close the {service_name} service...",));
                 let receiver = service.clone().graceful_shutdown();
 
                 if let Some(receiver) = receiver {
+                    let service_name = format!("service {}", service.name());
+
                     log::trace!("Waiting finishing graceful shutdown for {}", service_name);
                     finish_receivers.push((service_name, receiver));
                 } else {
-                    print_info(format!(
-                        "\tService {service_name} not needed waiting graceful shutdown or already finished",
-                    ));
+                    log::trace!(
+                        "Service {} not needed waiting graceful shutdown or already finished",
+                        service.name()
+                    )
                 }
             }
             log::trace!("Running graceful shutdown for services finished");
@@ -83,7 +78,10 @@ impl ShutdownService {
                                 );
                             }
                             Ok(_) => {
-                                print_info(format!("\tThe {service_name} has been stopped successfully"));
+                               log::trace!(
+                                    "Graceful shutdown for {} completed successfully",
+                                    service_name
+                                );
                             },
                         },
                     },

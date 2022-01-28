@@ -5,7 +5,7 @@ use anyhow::{bail, Context, Result};
 use itertools::Itertools;
 use mmb_utils::decimal_inverse_sign::DecimalInverseSign;
 use mmb_utils::infrastructure::WithExpect;
-use mmb_utils::{nothing_to_do, DateTime};
+use mmb_utils::DateTime;
 use mockall_double::double;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -723,13 +723,9 @@ impl BalanceReservationManager {
             .get(exchange_account_id, currency_pair)
             .unwrap_or(dec!(0));
 
-        match (
-            symbol.is_derivative,
-            currency_code == symbol.base_currency_code,
-        ) {
-            (true, true) => position_in_amount_currency.inverse_sign(),
-            (false, false) => position_in_amount_currency.inverse_sign(),
-            _ => nothing_to_do(),
+        if currency_code == symbol.base_currency_code {
+            //sell
+            position_in_amount_currency.inverse_sign();
         }
 
         position_in_amount_currency
@@ -1576,15 +1572,6 @@ impl BalanceReservationManager {
         }
     }
 
-    /// The sign of returned Decimal value calculate over ReserveParameters::order_side.
-    /// for example if side is 'Sell' and we have more filled amount for 'Sell' orders the sign will be positive
-    /// and negative if 'Sell' amount is less than 'Buy'. The same for 'Buy' order if we bought more than sold
-    /// the sign will be positive otherwise - negative.
-    ///     Example:
-    ///         position is 0 and we trying to reserve order for Buy 10 amount(ReserveParameters::order_side = OrderSide::Buy)
-    ///         the function will return - (bool, Some(10))
-    ///         next step we trying to reserve order for Sell 1 amount(ReserveParameters::order_side = OrderSide::Sell)
-    ///         the function will return - (bool, Some(-9))
     fn can_reserve_with_limit(
         &self,
         reserve_parameters: &ReserveParameters,
@@ -1616,14 +1603,15 @@ impl BalanceReservationManager {
             .unwrap_or(dec!(0));
         let new_reserved_amount = reserved_amount + reserve_parameters.amount;
 
-        // The sign depends on reserve_parameters.order_side look comment for this function
-        let position = self.get_position(
-            request.exchange_account_id,
-            request.currency_pair,
-            reserve_parameters.order_side,
-        );
+        let position = self
+            .position_by_fill_amount_in_amount_currency
+            .get(request.exchange_account_id, request.currency_pair)
+            .unwrap_or(dec!(0));
 
-        let potential_position = position + new_reserved_amount;
+        let potential_position = match reserve_parameters.order_side {
+            OrderSide::Buy => position + new_reserved_amount,
+            OrderSide::Sell => position - new_reserved_amount,
+        };
 
         let potential_position_abs = potential_position.abs();
         if potential_position_abs <= limit {

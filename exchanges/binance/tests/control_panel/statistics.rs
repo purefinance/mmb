@@ -24,6 +24,7 @@ use mmb_core::{
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::DateTime;
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -62,6 +63,7 @@ async fn orders_cancelled() {
     impl DispositionStrategy for TestStrategy {
         fn calculate_trading_context(
             &mut self,
+            _max_amount: Decimal,
             _now: DateTime,
             _local_snapshots_service: &LocalSnapshotsService,
             _explanation: &mut Explanation,

@@ -2,16 +2,14 @@ use std::panic::AssertUnwindSafe;
 
 use control_panel::ControlPanel;
 use futures::FutureExt;
-use mmb_utils::logger::{init_logger_file_named, print_info};
+use mmb_utils::logger::init_logger_file_named;
 use tokio::signal;
 
 mod control_panel;
 mod endpoints;
 
-static ADDRESS: &str = "127.0.0.1:8080";
-
 async fn control_panel_run() {
-    let control_panel = ControlPanel::new(ADDRESS).await;
+    let control_panel = ControlPanel::new("127.0.0.1:8080").await;
 
     control_panel
         .clone()
@@ -31,7 +29,7 @@ async fn control_panel_run() {
         .expect("Failed to get work finished message")
         .expect("Failed to stop control panel");
 
-    print_info("ControlPanel has been stopped");
+    log::info!("Ctrl-C signal was received so control_panel will be stopped");
 }
 
 #[actix_web::main]

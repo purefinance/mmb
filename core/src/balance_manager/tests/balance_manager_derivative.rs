@@ -74,29 +74,34 @@ impl BalanceManagerDerivative {
     fn create_balance_manager_ctor_parameters(
         is_reversed: bool,
     ) -> (Arc<Symbol>, HashMap<ExchangeAccountId, Arc<Exchange>>) {
-        let base = BalanceManagerBase::eth();
-        let quote = BalanceManagerBase::btc();
+        let base_currency_code = BalanceManagerBase::eth();
+        let quote_currency_code = BalanceManagerBase::btc();
 
-        let (balance, amount) = if is_reversed {
-            (BalanceManagerBase::btc(), BalanceManagerBase::eth())
+        let balance_currency_code = if is_reversed {
+            BalanceManagerBase::btc()
         } else {
-            (BalanceManagerBase::eth(), BalanceManagerBase::btc())
+            BalanceManagerBase::eth()
+        };
+        let amount_currency_code = if is_reversed {
+            BalanceManagerBase::eth()
+        } else {
+            BalanceManagerBase::btc()
         };
 
         let mut symbol = Symbol::new(
             false,
             true,
-            base.as_str().into(),
-            base,
-            quote.as_str().into(),
-            quote,
+            base_currency_code.as_str().into(),
+            base_currency_code,
+            quote_currency_code.as_str().into(),
+            quote_currency_code,
             None,
             None,
             None,
             None,
             None,
-            amount,
-            Some(balance),
+            amount_currency_code,
+            Some(balance_currency_code),
             Precision::ByTick { tick: dec!(0.1) },
             Precision::ByTick { tick: dec!(0.001) },
         );

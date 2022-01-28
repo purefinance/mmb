@@ -68,6 +68,7 @@ impl DispositionExecutorService {
         local_snapshots_service: LocalSnapshotsService,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
+        max_amount: Amount,
         strategy: Box<dyn DispositionStrategy>,
         cancellation_token: CancellationToken,
         statistics: Arc<StatisticService>,
@@ -81,6 +82,7 @@ impl DispositionExecutorService {
                 local_snapshots_service,
                 exchange_account_id,
                 currency_pair,
+                max_amount,
                 strategy,
                 work_finished_sender,
                 cancellation_token,
@@ -116,6 +118,7 @@ struct DispositionExecutor {
     engine_ctx: Arc<EngineContext>,
     exchange_account_id: ExchangeAccountId,
     symbol: Arc<Symbol>,
+    max_amount: Amount,
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     local_snapshots_service: LocalSnapshotsService,
     orders_state: OrdersState,
@@ -132,6 +135,7 @@ impl DispositionExecutor {
         local_snapshots_service: LocalSnapshotsService,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
+        max_amount: Amount,
         strategy: Box<dyn DispositionStrategy>,
         work_finished_sender: oneshot::Sender<Result<()>>,
         cancellation_token: CancellationToken,
@@ -150,6 +154,7 @@ impl DispositionExecutor {
             local_snapshots_service,
             exchange_account_id,
             symbol,
+            max_amount,
             orders_state: OrdersState::new(),
             strategy,
             work_finished_sender: Some(work_finished_sender),
@@ -283,6 +288,7 @@ impl DispositionExecutor {
 
         let mut new_trading_context = estimate_trading_context(
             need_recalculate_trading_context,
+            self.max_amount,
             self.strategy.as_mut(),
             &self.local_snapshots_service,
             now,
@@ -942,6 +948,7 @@ impl DispositionExecutor {
 
 fn estimate_trading_context(
     need_recalculate_trading_context: bool,
+    max_amount: Amount,
     strategy: &mut dyn DispositionStrategy,
     local_snapshots_service: &LocalSnapshotsService,
     now: DateTime,
@@ -951,6 +958,7 @@ fn estimate_trading_context(
     }
 
     Ok(calculate_trading_context(
+        max_amount,
         strategy,
         local_snapshots_service,
         now,
