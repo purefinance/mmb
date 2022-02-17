@@ -139,7 +139,7 @@ async fn handle_action_outcome(
             }
             Err(error) => {
                 if error.to_string() == OPERATION_CANCELED_MSG {
-                    log::trace!("{} was cancelled via Result<()>", log_template);
+                    log::trace!("{} was cancelled due to Result<()>", log_template);
 
                     return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
                 }
@@ -148,15 +148,15 @@ async fn handle_action_outcome(
                 return FutureOutcome::new(action_name, future_id, CompletionReason::Error);
             }
         },
-        Err(panic) => match panic.as_ref().downcast_ref::<String>() {
-            Some(error_msg) => {
+        Err(panic) => {
+            if let Some(error_msg) = panic.as_ref().downcast_ref::<String>() {
                 if error_msg == OPERATION_CANCELED_MSG {
                     let log_level = if is_critical {
                         log::Level::Error
                     } else {
                         log::Level::Trace
                     };
-                    log!(log_level, "{} was cancelled via panic", log_template);
+                    log!(log_level, "{} was cancelled due to panic", log_template);
 
                     if !is_critical {
                         return FutureOutcome::new(
@@ -166,23 +166,15 @@ async fn handle_action_outcome(
                         );
                     }
                 }
-
-                let error_message = format!("{} panicked with error: {}", log_template, error_msg);
-                log::error!("{}", error_message);
-
-                (graceful_shutdown_spawner)(log_template, error_message);
-
-                FutureOutcome::new(action_name, future_id, CompletionReason::Panicked)
             }
-            None => {
-                let error_message = format!("{} panicked with non string error", log_template);
-                log::error!("{}", error_message);
 
-                (graceful_shutdown_spawner)(log_template, error_message);
+            let error_message = format!("{} panicked", log_template);
+            log::error!("{}", error_message);
 
-                FutureOutcome::new(action_name, future_id, CompletionReason::Panicked)
-            }
-        },
+            (graceful_shutdown_spawner)(log_template, error_message);
+
+            FutureOutcome::new(action_name, future_id, CompletionReason::Panicked)
+        }
     }
 }
 

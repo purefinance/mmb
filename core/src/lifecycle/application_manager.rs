@@ -10,6 +10,12 @@ use crate::lifecycle::trading_engine::EngineContext;
 
 use mmb_utils::cancellation_token::CancellationToken;
 
+#[derive(Clone, Copy, Debug)]
+pub enum ActionAfterGracefulShutdown {
+    Nothing,
+    Restart,
+}
+
 pub struct ApplicationManager {
     cancellation_token: CancellationToken,
     engine_context: Mutex<Option<Weak<EngineContext>>>,
@@ -35,9 +41,17 @@ impl ApplicationManager {
         *engine_context_guard = Some(Arc::downgrade(&engine_context));
     }
 
-    /// Synchronous method for starting graceful shutdown with blocking current thread and
-    /// without waiting for the operation to complete
     pub fn spawn_graceful_shutdown(&self, reason: String) -> Option<JoinHandle<()>> {
+        self.spawn_graceful_shutdown_with_action(reason, ActionAfterGracefulShutdown::Nothing)
+    }
+
+    /// Synchronous method for starting graceful shutdown/restart with blocking current thread and
+    /// without waiting for the operation to complete
+    pub fn spawn_graceful_shutdown_with_action(
+        &self,
+        reason: String,
+        action: ActionAfterGracefulShutdown,
+    ) -> Option<JoinHandle<()>> {
         let engine_context_guard = match self.engine_context.try_lock() {
             Ok(engine_context_guard) => engine_context_guard,
             // if we can't acquire lock, it mean's that someone another acquire lock and will invoke graceful shutdown or it was already invoked
@@ -45,7 +59,7 @@ impl ApplicationManager {
             Err(_) => return None,
         };
 
-        let handler = start_graceful_shutdown_inner(engine_context_guard, &reason)?;
+        let handler = start_graceful_inner(engine_context_guard, &reason, action)?;
 
         Some(tokio::spawn(async move {
             static FUTURE_NAME: &str = "Graceful shutdown future";
@@ -54,12 +68,7 @@ impl ApplicationManager {
 
             match action_outcome {
                 Ok(()) => log::info!("{} completed successfully", FUTURE_NAME),
-                Err(panic) => match panic.downcast_ref::<String>() {
-                    Some(message) => {
-                        log::error!("{} panicked with error: {}", FUTURE_NAME, message)
-                    }
-                    None => log::error!("{} panicked without message", FUTURE_NAME),
-                },
+                Err(_) => log::error!("{} panicked", FUTURE_NAME),
             }
         }))
     }
@@ -67,7 +76,11 @@ impl ApplicationManager {
     /// Launch async graceful shutdown operation
     pub async fn run_graceful_shutdown(&self, reason: &str) {
         let engine_context_guard = self.engine_context.lock().await;
-        let fut_opt = start_graceful_shutdown_inner(engine_context_guard, reason);
+        let fut_opt = start_graceful_inner(
+            engine_context_guard,
+            reason,
+            ActionAfterGracefulShutdown::Nothing,
+        );
         match fut_opt {
             None => nothing_to_do(),
             Some(fut) => fut.await,
@@ -75,9 +88,10 @@ impl ApplicationManager {
     }
 }
 
-pub fn start_graceful_shutdown_inner(
+fn start_graceful_inner(
     engine_context_guard: MutexGuard<'_, Option<Weak<EngineContext>>>,
     reason: &str,
+    action: ActionAfterGracefulShutdown,
 ) -> Option<impl Future<Output = ()> + 'static> {
     let engine_context = engine_context_guard.as_ref().or_else(|| {
         log::error!("Tried to request graceful shutdown with reason '{}', but 'engine_context' is not specified", reason);
@@ -91,6 +105,6 @@ pub fn start_graceful_shutdown_inner(
             log::warn!("Can't execute graceful shutdown with reason '{}', because 'engine_context' was dropped already", reason);
             None
         }
-        Some(ctx) => Some(ctx.graceful_shutdown()),
+        Some(ctx) => Some(ctx.graceful(action)),
     }
 }

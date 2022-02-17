@@ -6,21 +6,23 @@ use tokio::sync::mpsc;
 
 use std::sync::Arc;
 
+use crate::lifecycle::application_manager::ActionAfterGracefulShutdown;
 use crate::statistic_service::StatisticService;
 use mmb_rpc::rest_api::ErrorCode;
 
+use super::common::send_restart;
 use super::common::send_stop;
 use super::common::set_config;
 
 pub struct RpcImpl {
-    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
     statistics: Arc<StatisticService>,
     engine_settings: String,
 }
 
 impl RpcImpl {
     pub fn new(
-        server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+        server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
         statistics: Arc<StatisticService>,
         engine_settings: String,
     ) -> Self {
@@ -47,8 +49,8 @@ impl MmbRpc for RpcImpl {
 
     fn set_config(&self, settings: String) -> Result<String> {
         set_config(settings)?;
-        send_stop(self.server_stopper_tx.clone())?; // TODO: need restart here #337
-        Ok("Config was successfully updated. Trading engine will stopped".into())
+        send_restart(self.server_stopper_tx.clone())?;
+        Ok("Config was successfully updated. Trading engine will be restarted".into())
     }
 
     fn stats(&self) -> Result<String> {

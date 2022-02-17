@@ -5,7 +5,10 @@ use tokio::sync::{mpsc, oneshot};
 use std::sync::Arc;
 
 use crate::{
-    lifecycle::{application_manager::ApplicationManager, trading_engine::Service},
+    lifecycle::{
+        application_manager::{ActionAfterGracefulShutdown, ApplicationManager},
+        trading_engine::Service,
+    },
     statistic_service::StatisticService,
 };
 
@@ -20,7 +23,7 @@ pub(super) static FAILED_TO_SEND_STOP_NOTIFICATION: &str =
     "Failed to send stop notification to control_panel";
 
 pub(crate) struct CoreApi {
-    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
 }
 
@@ -30,7 +33,8 @@ impl CoreApi {
         engine_settings: String,
         statistics: Arc<StatisticService>,
     ) -> Result<Arc<Self>> {
-        let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>(10);
+        let (server_stopper_tx, server_stopper_rx) =
+            mpsc::channel::<ActionAfterGracefulShutdown>(10);
         let server_stopper_tx = Arc::new(Mutex::new(Some(server_stopper_tx.clone())));
         let RpcServerAndChannels {
             server,

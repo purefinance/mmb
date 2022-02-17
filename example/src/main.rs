@@ -1,6 +1,8 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use binance::binance::BinanceBuilder;
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
+use mmb_core::lifecycle::application_manager::ActionAfterGracefulShutdown;
+use mmb_utils::panic_hook::set_panic_hook;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +46,8 @@ impl BaseStrategySettings for ExampleStrategySettings {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    set_panic_hook();
+
     let engine_config =
         EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
 
@@ -51,29 +55,24 @@ async fn main() -> Result<()> {
         config_path: CONFIG_PATH.to_owned(),
         credentials_path: CREDENTIALS_PATH.to_owned(),
     };
+    loop {
+        let engine =
+            launch_trading_engine(&engine_config, init_settings.clone(), |settings, ctx| {
+                Box::new(ExampleStrategy::new(
+                    settings.strategy.exchange_account_id(),
+                    settings.strategy.currency_pair(),
+                    settings.strategy.spread,
+                    settings.strategy.max_amount,
+                    ctx,
+                ))
+            })
+            .await?
+            .ok_or_else(|| anyhow!("Failed to launch_trading_engine"))?;
 
-    let engine = launch_trading_engine(&engine_config, init_settings, |settings, ctx| {
-        Box::new(ExampleStrategy::new(
-            settings.strategy.exchange_account_id(),
-            settings.strategy.currency_pair(),
-            settings.strategy.spread,
-            settings.strategy.max_amount,
-            ctx,
-        ))
-    })
-    .await?;
-
-    // let ctx = engine.context();
-    // let _ = tokio::spawn(async move {
-    //     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    //     ctx.application_manager
-    //         .clone()
-    //         .spawn_graceful_shutdown("test".to_owned());
-    // });
-
-    if let Some(engine) = engine {
-        engine.run().await;
+        match engine.run().await {
+            ActionAfterGracefulShutdown::Nothing => break,
+            ActionAfterGracefulShutdown::Restart => continue,
+        }
     }
-
     Ok(())
 }

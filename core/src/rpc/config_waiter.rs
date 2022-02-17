@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use mmb_utils::logger::print_info;
 use parking_lot::Mutex;
 use tokio::sync::{mpsc, oneshot};
+
+use crate::lifecycle::application_manager::ActionAfterGracefulShutdown;
 
 use super::{
     common::{
@@ -12,13 +15,14 @@ use super::{
 };
 
 pub(crate) struct ConfigWaiter {
-    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
     pub work_finished_receiver: Mutex<Option<oneshot::Receiver<()>>>,
 }
 
 impl ConfigWaiter {
     pub(crate) fn create_and_start(wait_config_tx: mpsc::Sender<()>) -> Result<Arc<Self>> {
-        let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>(10);
+        let (server_stopper_tx, server_stopper_rx) =
+            mpsc::channel::<ActionAfterGracefulShutdown>(10);
         let server_stopper_tx = Arc::new(Mutex::new(Some(server_stopper_tx.clone())));
         let RpcServerAndChannels {
             server,
@@ -38,7 +42,7 @@ impl ConfigWaiter {
             None,
         );
 
-        log::info!("ConfigWaiter is started. Please send the config via the ControlPanel for start the TradingEngine");
+        print_info("ConfigWaiter is started. Please send the config via the ControlPanel for start the TradingEngine");
         Ok(Arc::new(Self {
             server_stopper_tx,
             work_finished_receiver: Mutex::new(Some(work_finished_receiver)),

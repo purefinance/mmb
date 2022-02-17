@@ -30,6 +30,7 @@ use crate::{
 };
 use parking_lot::Mutex;
 
+use super::application_manager::ActionAfterGracefulShutdown;
 use super::launcher::unwrap_or_handle_panic;
 
 pub trait Service: Send + Sync + 'static {
@@ -48,7 +49,7 @@ pub struct EngineContext {
     pub balance_manager: Arc<Mutex<BalanceManager>>,
     is_graceful_shutdown_started: AtomicBool,
     exchange_events: ExchangeEvents,
-    finish_graceful_shutdown_sender: Mutex<Option<oneshot::Sender<()>>>,
+    finish_graceful_shutdown_sender: Mutex<Option<oneshot::Sender<ActionAfterGracefulShutdown>>>,
 }
 
 impl EngineContext {
@@ -56,7 +57,7 @@ impl EngineContext {
         app_settings: CoreSettings,
         exchanges: DashMap<ExchangeAccountId, Arc<Exchange>>,
         exchange_events: ExchangeEvents,
-        finish_graceful_shutdown_sender: oneshot::Sender<()>,
+        finish_graceful_shutdown_sender: oneshot::Sender<ActionAfterGracefulShutdown>,
         timeout_manager: Arc<TimeoutManager>,
         application_manager: Arc<ApplicationManager>,
         balance_manager: Arc<Mutex<BalanceManager>>,
@@ -85,7 +86,7 @@ impl EngineContext {
         engine_context
     }
 
-    pub(crate) async fn graceful_shutdown(self: Arc<Self>) {
+    pub(crate) async fn graceful(self: Arc<Self>, action: ActionAfterGracefulShutdown) {
         if self
             .is_graceful_shutdown_started
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -133,7 +134,7 @@ impl EngineContext {
             .lock()
             .take()
             .expect("'finish_graceful_shutdown_sender' should exists in EngineContext")
-            .send_expected(());
+            .send_expected(action);
 
         unset_application_manager();
 
@@ -163,13 +164,13 @@ async fn cancel_opened_orders(
 
 pub struct TradingEngine {
     context: Arc<EngineContext>,
-    finished_graceful_shutdown: oneshot::Receiver<()>,
+    finished_graceful_shutdown: oneshot::Receiver<ActionAfterGracefulShutdown>,
 }
 
 impl TradingEngine {
     pub fn new(
         context: Arc<EngineContext>,
-        finished_graceful_shutdown: oneshot::Receiver<()>,
+        finished_graceful_shutdown: oneshot::Receiver<ActionAfterGracefulShutdown>,
     ) -> Self {
         TradingEngine {
             context,
@@ -181,15 +182,19 @@ impl TradingEngine {
         self.context.clone()
     }
 
-    pub async fn run(self) {
+    pub async fn run(self) -> ActionAfterGracefulShutdown {
         let action_outcome = AssertUnwindSafe(self.finished_graceful_shutdown)
             .catch_unwind()
             .await;
 
-        let _ = unwrap_or_handle_panic(
+        let is_restart = unwrap_or_handle_panic(
             action_outcome,
             "Panic happened while TradingEngine was run",
             Some(self.context.application_manager.clone()),
-        );
+        )
+        .expect("unwrap_or_handle_panic returned error")
+        .expect("Failed to receive message from finished_graceful_shutdown");
+
+        is_restart
     }
 }
