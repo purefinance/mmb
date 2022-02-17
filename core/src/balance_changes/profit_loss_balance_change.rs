@@ -17,7 +17,7 @@ use crate::{
 
 impl_u64_id!(ProfitLossBalanceChangeId);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 pub(crate) struct ProfitLossBalanceChange {
     pub id: ProfitLossBalanceChangeId,
@@ -68,5 +68,24 @@ impl ProfitLossBalanceChange {
         item.balance_change *= portion;
         item.usd_balance_change *= portion;
         item
+    }
+}
+
+#[cfg(test)]
+impl PartialOrd for ProfitLossBalanceChange {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[cfg(test)]
+impl Ord for ProfitLossBalanceChange {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        if self.change_date > other.change_date {
+            return std::cmp::Ordering::Greater;
+        } else if self.change_date < other.change_date {
+            return std::cmp::Ordering::Less;
+        }
+        std::cmp::Ordering::Equal
     }
 }

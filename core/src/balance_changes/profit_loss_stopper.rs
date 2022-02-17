@@ -126,7 +126,7 @@ impl ProfitLossStopper {
 }
 
 #[cfg(test)]
-mod test {
+pub(crate) mod test {
     use super::*;
 
     use std::sync::Arc;
@@ -166,7 +166,7 @@ mod test {
         CurrencyPair::from_codes(btc(), "ETH".into())
     }
 
-    fn market_account_id() -> MarketAccountId {
+    pub(crate) fn market_account_id() -> MarketAccountId {
         MarketAccountId::new(exchange_account_id(), currency_pair())
     }
 
@@ -289,10 +289,24 @@ mod test {
         )
     }
 
-    fn create_balance_change(
+    pub(crate) fn create_balance_change(
         usd_balance_change: Amount,
         change_date: DateTime,
         client_order_fill_id: ClientOrderFillId,
+    ) -> ProfitLossBalanceChange {
+        create_balance_change_by_market_account_id(
+            usd_balance_change,
+            change_date,
+            client_order_fill_id,
+            market_account_id(),
+        )
+    }
+
+    pub(crate) fn create_balance_change_by_market_account_id(
+        usd_balance_change: Amount,
+        change_date: DateTime,
+        client_order_fill_id: ClientOrderFillId,
+        market_account_id: MarketAccountId,
     ) -> ProfitLossBalanceChange {
         ProfitLossBalanceChange {
             id: ProfitLossBalanceChangeId::generate(),
@@ -301,7 +315,7 @@ mod test {
             service_name: "test".into(),
             service_configuration_key: "test".into(),
             exchange_id: exchange_id(),
-            market_account_id: MarketAccountId::new(exchange_account_id(), currency_pair()),
+            market_account_id,
             currency_code: btc(),
             balance_change: usd_balance_change * dec!(2),
             usd_price: dec!(1),
