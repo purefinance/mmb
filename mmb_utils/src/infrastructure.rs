@@ -2,7 +2,6 @@ use anyhow::{bail, Result};
 use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
-use log::log;
 use std::fmt::Arguments;
 use std::fmt::{Debug, Display};
 use std::panic;
@@ -10,6 +9,9 @@ use std::{pin::Pin, time::Duration};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
+use crate::logger::init_logger_file_named;
+use crate::panic::handle_future_panic;
+use crate::panic::set_panic_hook;
 use crate::OPERATION_CANCELED_MSG;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -148,32 +150,23 @@ async fn handle_action_outcome(
                 return FutureOutcome::new(action_name, future_id, CompletionReason::Error);
             }
         },
-        Err(panic) => {
-            if let Some(error_msg) = panic.as_ref().downcast_ref::<String>() {
-                if error_msg == OPERATION_CANCELED_MSG {
-                    let log_level = if is_critical {
-                        log::Level::Error
-                    } else {
-                        log::Level::Trace
-                    };
-                    log!(log_level, "{} was cancelled due to panic", log_template);
+        Err(panic_info) => {
+            let msg = match panic_info.as_ref().downcast_ref::<&'static str>() {
+                Some(s) => *s,
+                None => match panic_info.as_ref().downcast_ref::<String>() {
+                    Some(s) => &s[..],
+                    None => "without readable message",
+                },
+            };
 
-                    if !is_critical {
-                        return FutureOutcome::new(
-                            action_name,
-                            future_id,
-                            CompletionReason::Canceled,
-                        );
-                    }
-                }
-            }
-
-            let error_message = format!("{} panicked", log_template);
-            log::error!("{}", error_message);
-
-            (graceful_shutdown_spawner)(log_template, error_message);
-
-            FutureOutcome::new(action_name, future_id, CompletionReason::Panicked)
+            handle_future_panic(
+                action_name,
+                future_id,
+                is_critical,
+                graceful_shutdown_spawner,
+                log_template,
+                msg.into(),
+            )
         }
     }
 }
@@ -213,8 +206,15 @@ where
     }
 }
 
+pub fn init_infrastructure(log_file: &str) {
+    set_panic_hook();
+    init_logger_file_named(log_file);
+}
+
 #[cfg(test)]
 mod test {
+    use crate::panic::set_panic_hook;
+
     use super::*;
     use anyhow::{bail, Result};
     use futures::FutureExt;
@@ -271,6 +271,8 @@ mod test {
 
     #[tokio::test]
     async fn non_critical_future_canceled_via_panic() -> Result<()> {
+        set_panic_hook();
+
         // Arrange
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 

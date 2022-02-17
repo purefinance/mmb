@@ -251,7 +251,7 @@ mod test {
     use crate::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
 
     use mmb_utils::hashmap;
-    use mmb_utils::logger::init_logger;
+    use mmb_utils::infrastructure::init_infrastructure;
     use rust_decimal_macros::dec;
 
     use std::collections::HashMap;
@@ -333,14 +333,14 @@ mod test {
 
     #[test]
     pub fn get_as_balances() {
-        init_logger();
+        init_infrastructure("log.txt");
         let test_data = get_test_data();
         assert_eq!(test_data.0.get_as_balances(), test_data.1);
     }
 
     #[test]
     pub fn set() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut service_value_tree = ServiceValueTree::new();
 
         let service_name = "name".into();
@@ -468,7 +468,7 @@ mod test {
 
     #[test]
     pub fn add() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut test_data = get_test_data();
 
         let new_service_name = "new_service_name".into();
@@ -507,7 +507,7 @@ mod test {
 
     #[test]
     pub fn compare() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut service_value_tree = ServiceValueTree::new();
 
         let service_name = "name".into();
@@ -545,7 +545,7 @@ mod test {
     #[test]
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_value() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut service_value_tree = ServiceValueTree::new();
 
         let service_name = "name".into();
@@ -583,7 +583,7 @@ mod test {
     #[test]
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_currency_code() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut service_value_tree = ServiceValueTree::new();
 
         let service_name = "name".into();
@@ -621,7 +621,7 @@ mod test {
     #[test]
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_currency_pair() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut service_value_tree = ServiceValueTree::new();
 
         let service_name = "name".into();
@@ -659,7 +659,7 @@ mod test {
     #[test]
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_exchange_account_id() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut service_value_tree = ServiceValueTree::new();
 
         let service_name = "name".into();
@@ -697,7 +697,7 @@ mod test {
     #[test]
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_service_configuration_key() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut service_value_tree = ServiceValueTree::new();
 
         let service_name = "name".into();
@@ -735,7 +735,7 @@ mod test {
     #[test]
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_service_name() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut service_value_tree = ServiceValueTree::new();
 
         let service_name = "name".into();

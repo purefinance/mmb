@@ -27,7 +27,8 @@ use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::{init_logger, print_info};
+use mmb_utils::infrastructure::init_infrastructure;
+use mmb_utils::logger::print_info;
 use mmb_utils::{hashmap, nothing_to_do};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -126,7 +127,7 @@ async fn before_engine_context_init<StrategySettings>(
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
-    init_logger();
+    init_infrastructure("log.txt");
 
     log::info!("*****************************");
     log::info!("TradingEngine starting");

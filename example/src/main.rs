@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 use binance::binance::BinanceBuilder;
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_core::lifecycle::application_manager::ActionAfterGracefulShutdown;
-use mmb_utils::panic_hook::set_panic_hook;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -46,8 +45,6 @@ impl BaseStrategySettings for ExampleStrategySettings {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    set_panic_hook();
-
     let engine_config =
         EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
 

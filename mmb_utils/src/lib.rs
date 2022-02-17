@@ -21,7 +21,7 @@ pub mod impl_mocks;
 pub mod impl_table_types;
 pub mod infrastructure;
 pub mod logger;
-pub mod panic_hook;
+pub mod panic;
 pub mod send_expected;
 pub mod time;
 pub mod value_to_decimal;

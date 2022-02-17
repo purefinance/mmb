@@ -17,10 +17,6 @@ fn get_log_file_path(log_file: &str) -> PathBuf {
         .join(log_file)
 }
 
-pub fn init_logger() {
-    init_logger_file_named("log.txt")
-}
-
 pub fn init_logger_file_named(log_file: &str) {
     if let Ok(_) = env::var("MMB_NO_LOGS") {
         return;
