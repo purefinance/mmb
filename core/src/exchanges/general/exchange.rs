@@ -291,14 +291,6 @@ impl Exchange {
     }
 
     fn on_websocket_message(&self, msg: &str) {
-        if self
-            .application_manager
-            .stop_token()
-            .is_cancellation_requested()
-        {
-            return;
-        }
-
         if self.exchange_client.should_log_message(msg) {
             self.log_websocket_message(msg);
         }
