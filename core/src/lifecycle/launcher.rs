@@ -40,6 +40,8 @@ use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
+use super::application_manager::ActionAfterGracefulShutdown;
+
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,
 }
@@ -118,7 +120,7 @@ async fn before_engine_context_init<StrategySettings>(
         AppSettings<StrategySettings>,
         DashMap<ExchangeAccountId, Arc<Exchange>>,
         Arc<EngineContext>,
-        oneshot::Receiver<()>,
+        oneshot::Receiver<ActionAfterGracefulShutdown>,
     )>,
 >
 where
@@ -215,7 +217,7 @@ fn run_services<'a, StrategySettings>(
         &AppSettings<StrategySettings>,
         Arc<EngineContext>,
     ) -> Box<dyn DispositionStrategy + 'static>,
-    finish_graceful_shutdown_rx: oneshot::Receiver<()>,
+    finish_graceful_shutdown_rx: oneshot::Receiver<ActionAfterGracefulShutdown>,
 ) -> TradingEngine
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
@@ -264,29 +266,16 @@ where
     TradingEngine::new(engine_context.clone(), finish_graceful_shutdown_rx)
 }
 
-pub(crate) fn handle_panic(
-    application_manager: Option<Arc<ApplicationManager>>,
-    panic: Box<dyn Any + Send>,
-    message_template: &str,
-) {
-    match panic.as_ref().downcast_ref::<String>().clone() {
-        Some(panic_message) => log::error!("{}: {}", message_template, panic_message),
-        None => log::error!("{} without readable message", message_template),
-    }
-
-    if let Some(application_manager) = application_manager {
-        application_manager
-            .spawn_graceful_shutdown("Panic during TradeingEngine creation".to_owned());
-    }
-}
-
 pub(crate) fn unwrap_or_handle_panic<T>(
     action_outcome: Result<T, Box<dyn Any + Send>>,
     message_template: &str,
     application_manager: Option<Arc<ApplicationManager>>,
 ) -> Result<T> {
-    action_outcome.map_err(|panic| {
-        handle_panic(application_manager, panic, message_template);
+    action_outcome.map_err(|_| {
+        if let Some(application_manager) = application_manager {
+            application_manager
+                .spawn_graceful_shutdown("Panic during TradingEngine creation".to_owned());
+        }
 
         anyhow!(message_template.to_owned())
     })

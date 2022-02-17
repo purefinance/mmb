@@ -6,19 +6,21 @@ use tokio::sync::mpsc;
 
 use std::sync::Arc;
 
+use crate::lifecycle::application_manager::ActionAfterGracefulShutdown;
+
 use super::common::send_stop;
 use super::common::set_config;
 
 static CONFIG_IS_NOT_SET: &str = "Config isn't set";
 
 pub struct RpcImplNoConfig {
-    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
     wait_config_tx: mpsc::Sender<()>,
 }
 
 impl RpcImplNoConfig {
     pub fn new(
-        server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+        server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
         wait_config_tx: mpsc::Sender<()>,
     ) -> Self {
         Self {

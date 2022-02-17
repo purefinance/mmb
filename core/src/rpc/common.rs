@@ -11,7 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::{
     config::{save_settings, CONFIG_PATH, CREDENTIALS_PATH},
     infrastructure::spawn_future,
-    lifecycle::application_manager::ApplicationManager,
+    lifecycle::application_manager::{ActionAfterGracefulShutdown, ApplicationManager},
     rpc::core_api::FAILED_TO_SEND_STOP_NOTIFICATION,
 };
 
@@ -28,10 +28,26 @@ pub(super) fn set_config(settings: String) -> Result<()> {
 }
 
 /// Send signal to stop TradingEngine
-pub(super) fn send_stop(stopper: Arc<Mutex<Option<mpsc::Sender<()>>>>) -> Result<String> {
+pub(super) fn send_stop(
+    stopper: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
+) -> Result<String> {
+    send_core(stopper, ActionAfterGracefulShutdown::Nothing)
+}
+
+/// Send signal to restart TradingEngine
+pub(super) fn send_restart(
+    stopper: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
+) -> Result<String> {
+    send_core(stopper, ActionAfterGracefulShutdown::Restart)
+}
+
+fn send_core(
+    stopper: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
+    is_restart: ActionAfterGracefulShutdown,
+) -> Result<String> {
     match stopper.lock().take() {
         Some(sender) => {
-            if let Err(error) = sender.try_send(()) {
+            if let Err(error) = sender.try_send(is_restart) {
                 log::error!("{}: {:?}", FAILED_TO_SEND_STOP_NOTIFICATION, error);
                 return Err(server_side_error(ErrorCode::UnableToSendSignal));
             };
@@ -51,11 +67,11 @@ pub(super) fn send_stop(stopper: Arc<Mutex<Option<mpsc::Sender<()>>>>) -> Result
 
 /// Stop RPC server
 pub(super) fn stop_server(
-    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
+    server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<ActionAfterGracefulShutdown>>>>,
 ) -> anyhow::Result<()> {
     if let Some(sender) = server_stopper_tx.lock().take() {
         return sender
-            .try_send(())
+            .try_send(ActionAfterGracefulShutdown::Nothing)
             .context(FAILED_TO_SEND_STOP_NOTIFICATION);
     }
     Ok(())
@@ -92,15 +108,16 @@ pub(super) fn spawn_server_stopping_action<T>(
     server: Server,
     work_finished_sender: oneshot::Sender<T>,
     msg_to_sender: T,
-    mut server_stopper_rx: mpsc::Receiver<()>,
+    mut server_stopper_rx: mpsc::Receiver<ActionAfterGracefulShutdown>,
     application_manager: Option<Arc<ApplicationManager>>,
 ) where
     T: Send + 'static,
 {
     let stopping_action = async move {
-        if server_stopper_rx.recv().await.is_none() {
-            log::error!("Unable to receive signal to stop RPC server");
-        }
+        let action = server_stopper_rx.recv().await.unwrap_or_else(|| {
+            log::warn!("Unable to receive signal to stop RPC server");
+            ActionAfterGracefulShutdown::Nothing
+        });
 
         // Time to send a response to the ControlPanel before closing the server
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -113,7 +130,10 @@ pub(super) fn spawn_server_stopping_action<T>(
             }
 
             if let Some(application_manager) = application_manager {
-                application_manager.spawn_graceful_shutdown("Stop signal from RPC server".into());
+                application_manager.spawn_graceful_shutdown_with_action(
+                    "Stop signal from RPC server".into(),
+                    action,
+                );
             }
         });
         Ok(())
