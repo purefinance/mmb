@@ -20,10 +20,9 @@ async fn cancellation_waited_successfully() {
 
     // Currency pair in settings are matter here because of need to check
     // Symbol in check_order_fills() inside wait_cancel_order()
-    settings.currency_pairs = Some(vec![CurrencyPairSetting {
+    settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
         base: "cnd".into(),
         quote: "btc".into(),
-        currency_pair: None,
     }]);
 
     let binance_builder = match BinanceBuilder::try_new_with_settings(

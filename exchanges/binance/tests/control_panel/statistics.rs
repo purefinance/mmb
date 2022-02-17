@@ -20,6 +20,7 @@ use mmb_core::{
 use mmb_core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
     infrastructure::spawn_future,
+    settings::CurrencyPairSetting,
 };
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::cancellation_token::CancellationToken;
@@ -112,47 +113,50 @@ async fn orders_cancelled() {
         .get(&exchange_account_id)
         .expect("in test");
 
-    let currency_pair_setting = settings
+    if let CurrencyPairSetting::Ordinary { base, quote } = settings
         .core
         .exchanges
         .first()
         .and_then(|exchange_settings| exchange_settings.currency_pairs.as_ref())
         .and_then(|x| x.first())
-        .expect("in test");
-
-    let test_currency_pair =
-        CurrencyPair::from_codes(currency_pair_setting.base, currency_pair_setting.quote);
-    let _ = exchange
-        .cancel_all_orders(test_currency_pair)
-        .await
-        .expect("in test");
-
-    let price = get_default_price(
-        get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
-        &Binance::make_hosts(is_margin_trading),
-        &api_key,
-    )
-    .await;
-    let amount = get_min_amount(
-        get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
-        &Binance::make_hosts(is_margin_trading),
-        &api_key,
-        price,
-    )
-    .await;
-    let order = OrderProxy::new(
-        exchange_account_id,
-        Some("FromOrdersCancelledTest".to_owned()),
-        CancellationToken::default(),
-        price,
-        amount,
-    );
-
-    let created_order = order.create_order(exchange.clone()).await.expect("in test");
-
-    let _ = order
-        .cancel_order_or_fail(&created_order, exchange.clone())
+        .expect("in test")
+    {
+        let test_currency_pair = CurrencyPair::from_codes(*base, *quote);
+        let _ = exchange
+            .cancel_all_orders(test_currency_pair)
+            .await
+            .expect("in test");
+        let price = get_default_price(
+            get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
+            &Binance::make_hosts(is_margin_trading),
+            &api_key,
+        )
         .await;
+        let amount = get_min_amount(
+            get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
+            &Binance::make_hosts(is_margin_trading),
+            &api_key,
+            price,
+        )
+        .await;
+        let order = OrderProxy::new(
+            exchange_account_id,
+            Some("FromOrdersCancelledTest".to_owned()),
+            CancellationToken::default(),
+            price,
+            amount,
+        );
+        let created_order = order.create_order(exchange.clone()).await.expect("in test");
+        let _ = order
+            .cancel_order_or_fail(&created_order, exchange.clone())
+            .await;
+    } else {
+        panic!(
+            "Incorrect currency pair setting enum type: {:?}",
+            settings.strategy.currency_pair()
+        );
+    }
+
     let rest_client = ipc::connect::<_, MmbRpcClient>(IPC_ADDRESS)
         .await
         .expect("Failed to connect to the IPC socket");

@@ -25,11 +25,13 @@ pub struct CoreSettings {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct CurrencyPairSetting {
-    pub base: CurrencyCode,
-    pub quote: CurrencyCode,
-    // currency code specific for exchange
-    pub currency_pair: Option<String>,
+#[serde(untagged)]
+pub enum CurrencyPairSetting {
+    Ordinary {
+        base: CurrencyCode,
+        quote: CurrencyCode,
+    },
+    Specific(String),
 }
 
 // Field order are matter for serialization:
