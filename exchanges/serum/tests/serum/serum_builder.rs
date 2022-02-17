@@ -33,10 +33,9 @@ impl SerumBuilder {
         let mut settings =
             ExchangeSettings::new_short(exchange_account_id, "".to_string(), secret_key, false);
 
-        settings.currency_pairs = Some(vec![CurrencyPairSetting {
+        settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
             base: "btc".into(),
             quote: "usdc".into(),
-            currency_pair: Some("btc/usdc".to_string()),
         }]);
 
         Self::try_new_with_settings(

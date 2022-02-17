@@ -93,15 +93,13 @@ async fn get_open_orders_for_each_currency_pair_separately() {
     let mut settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
 
     settings.currency_pairs = Some(vec![
-        CurrencyPairSetting {
+        CurrencyPairSetting::Ordinary {
             base: "cnd".into(),
             quote: "btc".into(),
-            currency_pair: None,
         },
-        CurrencyPairSetting {
+        CurrencyPairSetting::Ordinary {
             base: "cnd".into(),
             quote: "btc".into(),
-            currency_pair: None,
         },
     ]);
 

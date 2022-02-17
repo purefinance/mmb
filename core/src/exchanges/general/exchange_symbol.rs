@@ -136,13 +136,15 @@ fn get_matched_currency_pair(
     exchange_account_id: ExchangeAccountId,
 ) -> Option<Arc<Symbol>> {
     // currency pair symbol and currency pairs from settings should match 1 to 1
-    let settings_currency_pair = currency_pair_setting.currency_pair.as_deref();
     let filtered_symbol = exchange_symbols
         .iter()
-        .filter(|symbol| {
-            return Some(symbol.currency_pair().as_str()) == settings_currency_pair
-                || symbol.base_currency_code == currency_pair_setting.base
-                    && symbol.quote_currency_code == currency_pair_setting.quote;
+        .filter(|symbol| match currency_pair_setting {
+            CurrencyPairSetting::Specific(currency_pair) => {
+                symbol.currency_pair().as_str() == currency_pair
+            }
+            CurrencyPairSetting::Ordinary { base, quote } => {
+                symbol.base_currency_code == *base && symbol.quote_currency_code == *quote
+            }
         })
         .take(2)
         .cloned()

@@ -26,7 +26,14 @@ impl BaseStrategySettings for ExampleStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes(self.currency_pair.base, self.currency_pair.quote)
+        if let CurrencyPairSetting::Ordinary { base, quote } = self.currency_pair {
+            CurrencyPair::from_codes(base, quote)
+        } else {
+            panic!(
+                "Incorrect currency pair setting enum type {:?}",
+                self.currency_pair
+            );
+        }
     }
 
     // Max amount for orders that will be created

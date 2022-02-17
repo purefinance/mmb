@@ -54,10 +54,9 @@ impl BinanceBuilder {
             ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
 
         // default currency pair for tests
-        settings.currency_pairs = Some(vec![CurrencyPairSetting {
+        settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
             base: "cnd".into(),
             quote: "btc".into(),
-            currency_pair: None,
         }]);
 
         Self::try_new_with_settings(
