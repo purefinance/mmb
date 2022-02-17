@@ -3,7 +3,7 @@ use mmb_core::exchanges::general::features::*;
 use mmb_core::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
 use mmb_core::orders::event::OrderEventType;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::logger::init_logger;
+use mmb_utils::infrastructure::init_infrastructure;
 use rust_decimal_macros::*;
 
 use mmb_core::exchanges::events::ExchangeEvent;
@@ -13,7 +13,7 @@ use core_tests::order::OrderProxy;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn create_successfully() {
-    init_logger();
+    init_infrastructure("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let mut binance_builder = match BinanceBuilder::try_new(
@@ -76,7 +76,7 @@ async fn create_successfully() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn should_fail() {
-    init_logger();
+    init_infrastructure("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(

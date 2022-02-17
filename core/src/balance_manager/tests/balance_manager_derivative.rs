@@ -228,7 +228,7 @@ mod tests {
 
     use chrono::Utc;
     use mmb_utils::hashmap;
-    use mmb_utils::logger::init_logger;
+    use mmb_utils::infrastructure::init_infrastructure;
     use parking_lot::RwLock;
     use rstest::rstest;
     use rust_decimal::Decimal;
@@ -347,7 +347,7 @@ mod tests {
 
     #[test]
     pub fn reservation_should_use_balance_currency() {
-        init_logger();
+        init_infrastructure("log.txt");
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), false);
 
@@ -401,7 +401,7 @@ mod tests {
 
     #[test]
     pub fn reservation_should_use_balance_currency_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), true);
 
@@ -465,7 +465,7 @@ mod tests {
         #[case] order_side: OrderSide,
         #[case] is_reversed: bool,
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), false);
 
@@ -517,7 +517,7 @@ mod tests {
         #[case] leverage: Option<Decimal>,
         #[case] is_reversed: bool,
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
 
@@ -564,7 +564,7 @@ mod tests {
 
     #[test]
     pub fn fill_buy_should_commission_should_be_deducted_from_balance() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), false);
 
@@ -618,7 +618,7 @@ mod tests {
 
     #[test]
     pub fn fill_buy_should_commission_should_be_deducted_from_balance_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), true);
 
@@ -671,7 +671,7 @@ mod tests {
 
     #[test]
     pub fn fill_sell_should_commission_should_be_deducted_from_balance() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
@@ -725,7 +725,7 @@ mod tests {
 
     #[test]
     pub fn fill_sell_should_commission_should_be_deducted_from_balance_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
@@ -781,7 +781,7 @@ mod tests {
 
     #[test]
     pub fn reservation_after_fill_in_the_same_direction_buy_should_be_not_free() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     pub fn reservation_after_fill_in_the_same_direction_buy_should_be_not_free_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
@@ -1011,7 +1011,7 @@ mod tests {
 
     #[test]
     pub fn reservation_after_fill_in_the_same_direction_sell_should_be_not_free() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
@@ -1125,7 +1125,7 @@ mod tests {
 
     #[test]
     pub fn reservation_after_fill_in_the_same_direction_sell_should_be_not_free_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
@@ -1241,7 +1241,7 @@ mod tests {
 
     #[test]
     pub fn reservation_after_fill_in_opposite_direction_buy_sell_should_be_partially_free() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
@@ -1402,7 +1402,7 @@ mod tests {
     #[test]
     pub fn reservation_after_fill_in_opposite_direction_buy_sell_should_be_partially_free_reversed()
     {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
@@ -1564,7 +1564,7 @@ mod tests {
 
     #[test]
     pub fn reservation_after_fill_in_opposite_direction_sell_buy_should_be_partially_free() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), is_reversed);
@@ -1727,7 +1727,7 @@ mod tests {
     #[test]
     pub fn reservation_after_fill_in_opposite_direction_sell_buy_should_be_partially_free_reversed()
     {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), is_reversed);
@@ -1896,7 +1896,7 @@ mod tests {
     ) {
         // This case may happen because parallel nature of handling orders
 
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(10), is_reversed);
@@ -1968,7 +1968,7 @@ mod tests {
 
     #[test]
     pub fn clone_when_order_created() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(10), is_reversed);
@@ -2057,7 +2057,7 @@ mod tests {
         #[case] amount_2: Amount,
         #[case] amount_to_transfer: Amount,
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let test_object = create_eth_btc_test_obj(src_balance, src_balance, is_reversed);
 
@@ -2154,7 +2154,7 @@ mod tests {
         #[case] amount_2: Amount,
         #[case] amount_to_transfer: Amount,
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), src_balance, is_reversed);
@@ -2209,7 +2209,7 @@ mod tests {
     #[test]
     #[ignore] // Transfer
     pub fn transfer_reservations_amount_partial() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(30), is_reversed);
@@ -2268,7 +2268,7 @@ mod tests {
     #[test]
     #[ignore] // Transfer
     pub fn transfer_reservations_amount_partial_with_cost_diff_due_to_fill() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(25), is_reversed);
@@ -2393,7 +2393,7 @@ mod tests {
 
     #[test]
     pub fn update_exchange_balance_should_use_cost_for_balance_filter_when_no_free_cost() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(25), is_reversed);
@@ -2455,7 +2455,7 @@ mod tests {
 
     #[test]
     pub fn update_exchange_balance_should_use_cost_for_balance_filter_when_partially_free_cost() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::eth(),
@@ -2524,7 +2524,7 @@ mod tests {
 
     #[test]
     pub fn fills_and_reservations_no_limit_buy_enough_and_not_enough() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
@@ -2594,7 +2594,7 @@ mod tests {
 
     #[test]
     pub fn fills_and_reservations_no_limit_buy_enough_and_not_enough_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
@@ -2676,7 +2676,7 @@ mod tests {
 
     #[test]
     pub fn fills_and_reservations_no_limit_sell_enough_and_not_enough() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
@@ -2746,7 +2746,7 @@ mod tests {
 
     #[test]
     pub fn fills_and_reservations_no_limit_sell_enough_and_not_enough_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
@@ -2830,7 +2830,7 @@ mod tests {
 
     #[test]
     pub fn fills_and_reservations_limit_buy_enough_and_not_enough() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
@@ -2970,7 +2970,7 @@ mod tests {
 
     #[test]
     pub fn fills_and_reservations_limit_buy_enough_and_not_enough_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
@@ -3114,7 +3114,7 @@ mod tests {
 
     #[test]
     pub fn fills_and_reservations_limit_sell_enough_and_not_enough() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0), is_reversed);
@@ -3276,7 +3276,7 @@ mod tests {
 
     #[test]
     pub fn fills_and_reservations_limit_sell_enough_and_not_enough_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0), is_reversed);
@@ -3437,7 +3437,7 @@ mod tests {
 
     #[test]
     pub fn can_reserve_no_limit_enough_and_not_enough() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::eth(),
@@ -3495,7 +3495,7 @@ mod tests {
 
     #[test]
     pub fn can_reserve_no_limit_enough_and_not_enough_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::btc(),
@@ -3561,7 +3561,7 @@ mod tests {
 
     #[test]
     pub fn can_reserve_limit_enough_and_not_enough() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = false;
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::eth(),
@@ -3620,7 +3620,7 @@ mod tests {
 
     #[test]
     pub fn can_reserve_limit_enough_and_not_enough_reversed() {
-        init_logger();
+        init_infrastructure("log.txt");
         let is_reversed = true;
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::btc(),
@@ -3704,7 +3704,7 @@ mod tests {
         #[case] expected_can_reserve: bool,
         #[case] is_reversed: bool,
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
             BalanceManagerBase::eth(),
             dec!(1000),
@@ -3738,7 +3738,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_long_position()
     {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(5);
         let is_reversed = false;
 
@@ -3798,7 +3798,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_long_position_reversed(
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(5) / BalanceManagerDerivative::price();
         let is_reversed = true;
 
@@ -3864,7 +3864,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_short_position()
     {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(5);
         let is_reversed = false;
 
@@ -3924,7 +3924,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_short_position_reversed(
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(5) / BalanceManagerDerivative::price();
         let is_reversed = true;
 
@@ -3990,7 +3990,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_long_position()
     {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(10);
         let is_reversed = false;
 
@@ -4057,7 +4057,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_long_position_reversed(
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(1000)
             / BalanceManagerDerivative::price()
             / BalanceManagerDerivative::reversed_amount_multiplier();
@@ -4134,7 +4134,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_short_position()
     {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(10);
         let is_reversed = false;
 
@@ -4200,7 +4200,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_short_position_reversed(
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(1000)
             / BalanceManagerDerivative::price()
             / BalanceManagerDerivative::reversed_amount_multiplier();
@@ -4276,7 +4276,7 @@ mod tests {
     #[test]
     pub fn get_leveraged_balance_in_amount_currency_code_max_rounding_error() {
         //real-life case with a rounding error https://github.com/CryptoDreamTeam/CryptoLp/issues/1348
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(30);
         let price = dec!(9341);
         let is_reversed = false;
@@ -4333,7 +4333,7 @@ mod tests {
     pub fn update_exchange_balance_should_restore_position_on_all_exchanges(
         #[case] is_reversed: bool,
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let position = dec!(2);
 
         let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
@@ -4383,7 +4383,7 @@ mod tests {
     pub fn update_exchange_balance_should_change_fill_position_only_on_first_update(
         #[case] is_reversed: bool,
     ) {
-        init_logger();
+        init_infrastructure("log.txt");
         let position = dec!(2);
 
         let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
@@ -4433,7 +4433,7 @@ mod tests {
     #[case(true)]
     #[case(false)]
     pub fn reservation_over_limit_should_return_false_on_try_reserve(#[case] is_reversed: bool) {
-        init_logger();
+        init_infrastructure("log.txt");
         let amount_limit = dec!(2);
 
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(

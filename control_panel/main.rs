@@ -3,8 +3,9 @@ use std::panic::AssertUnwindSafe;
 use control_panel::ControlPanel;
 use futures::FutureExt;
 use mmb_utils::{
-    logger::{init_logger_file_named, print_info},
-    panic_hook::set_panic_hook,
+    infrastructure::init_infrastructure,
+    logger::print_info,
+    panic::{PanicState, HOOK_IS_NOT_SET, PANIC_DETECTED_IN_NO_PANIC_STATE, PANIC_STATE},
 };
 use tokio::signal;
 
@@ -39,9 +40,15 @@ async fn control_panel_run() {
 
 #[actix_web::main]
 async fn main() {
-    set_panic_hook();
+    init_infrastructure("control_panel_log.txt");
 
-    init_logger_file_named("control_panel_log.txt");
-
-    let _ = AssertUnwindSafe(control_panel_run()).catch_unwind().await;
+    if let Err(_) = AssertUnwindSafe(control_panel_run()).catch_unwind().await {
+        PANIC_STATE.with(|panic_state| {
+            match &*panic_state.borrow() {
+                PanicState::PanicHookIsNotSet => log::warn!("{HOOK_IS_NOT_SET}"),
+                PanicState::NoPanic => log::error!("{PANIC_DETECTED_IN_NO_PANIC_STATE}"),
+                PanicState::PanicHappened(msg) => log::error!("{msg}"),
+            };
+        });
+    }
 }
