@@ -28,11 +28,13 @@ use itertools::Itertools;
 use log::log;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::WithExpect;
-use mmb_utils::DateTime;
+use mmb_utils::{impl_mock_initializer, DateTime};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+#[cfg(test)]
+use crate::MOCK_MUTEX;
 #[cfg(test)]
 use mockall::automock;
 
@@ -1086,3 +1088,5 @@ impl BalanceManager {
             .get_position(exchange_account_id, currency_pair, side)
     }
 }
+
+impl_mock_initializer!(MockBalanceManager);

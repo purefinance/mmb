@@ -36,7 +36,7 @@ pub struct BalanceManagerOrdinal {
 }
 
 impl BalanceManagerOrdinal {
-    fn create_balance_manager() -> (Arc<Symbol>, Arc<Mutex<BalanceManager>>) {
+    pub fn create_balance_manager() -> (Arc<Symbol>, Arc<Mutex<BalanceManager>>) {
         let (symbol, exchanges_by_id) =
             BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
         let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_by_id);

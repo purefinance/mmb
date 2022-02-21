@@ -67,7 +67,7 @@ impl BalanceChangePeriodSelector {
             .balance_changes_queues
             .get_mut(market_account_id)
             .or_else(|| {
-                log::error!("Can't find queue for trade place {:?}", market_account_id);
+                log::error!("Can't find queue for trade place {market_account_id:?}");
                 return None;
             })?;
 
@@ -77,20 +77,13 @@ impl BalanceChangePeriodSelector {
                     .lock()
                     .get_last_position_change_before_period(market_account_id, start_of_period);
 
-                log::info!(
-                    "Balance changes list {} {:?}",
-                    start_of_period,
-                    position_change
-                );
+                log::info!("Balance changes list {start_of_period} {position_change:?}");
 
                 position_change
             }
             None => {
                 // if balance_manager isn't set we don't need to filter position_changes for web_server
-                log::info!(
-                    "Balance changes list {} position_change is None",
-                    start_of_period,
-                );
+                log::info!("Balance changes list {start_of_period} position_change is None");
                 None
             }
         };
@@ -148,5 +141,112 @@ impl BalanceChangePeriodSelector {
                 x.clone()
             })
             .collect_vec()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use mmb_utils::infrastructure::WithExpect;
+    use rust_decimal_macros::dec;
+
+    use crate::balance_changes::profit_loss_stopper::test::{
+        create_balance_change, create_balance_change_by_market_account_id, market_account_id,
+    };
+    use crate::exchanges::common::{CurrencyPair, ExchangeAccountId, ExchangeId};
+    use crate::{misc::time, orders::order::ClientOrderFillId};
+
+    use super::*;
+
+    #[test]
+    fn test_position_change_before_period() {
+        let (mut balance_manager, _locker) = BalanceManager::init_mock();
+
+        let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
+        let (_time_manager_context, _tm_locker) =
+            time::tests::init_mock(seconds_offset_in_mock.clone());
+        let expect_position_change = Some(PositionChange::new(
+            ClientOrderFillId::new("client_order_id_test".into()),
+            time_manager::now() - Duration::minutes(30),
+            dec!(1),
+        ));
+
+        let cloned_expect_position_change = expect_position_change.clone();
+        balance_manager
+            .expect_get_last_position_change_before_period()
+            .returning(move |_, _| cloned_expect_position_change.clone())
+            .times(6);
+
+        let balance_manager = Arc::new(Mutex::new(balance_manager));
+        let period_selector =
+            BalanceChangePeriodSelector::new(Duration::hours(1), Some(balance_manager));
+
+        for i in 0..5 {
+            let balance_change = create_balance_change(
+                dec!(1),
+                time_manager::now() + Duration::minutes(10 * i),
+                ClientOrderFillId::new(i.to_string().into()),
+            );
+
+            period_selector.lock().add(&balance_change);
+        }
+
+        let position_change = period_selector
+            .lock()
+            .synchronize_period(time_manager::now(), &market_account_id());
+
+        assert_eq!(expect_position_change, position_change);
+    }
+
+    #[test]
+    fn test_get_items() {
+        let (mut balance_manager, _locker) = BalanceManager::init_mock();
+
+        let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
+        let (_time_manager_context, _tm_locker) =
+            time::tests::init_mock(seconds_offset_in_mock.clone());
+
+        balance_manager
+            .expect_get_last_position_change_before_period()
+            .returning(move |_, _| None)
+            .times(30);
+
+        let balance_manager = Arc::new(Mutex::new(balance_manager));
+        let period_selector =
+            BalanceChangePeriodSelector::new(Duration::hours(1), Some(balance_manager));
+
+        let expect = (0..5)
+            .map(|i| {
+                (0..5)
+                    .map(|_| {
+                        let market_account_id = MarketAccountId::new(
+                            ExchangeAccountId::new(ExchangeId::new("exchange_test_id".into()), i),
+                            CurrencyPair::from_codes("BTC".into(), "ETH".into()),
+                        );
+                        let balance_change = create_balance_change_by_market_account_id(
+                            dec!(1),
+                            time_manager::now() + Duration::minutes(10 * i as i64),
+                            ClientOrderFillId::new(i.to_string().into()),
+                            market_account_id,
+                        );
+
+                        period_selector.lock().add(&balance_change);
+
+                        balance_change
+                    })
+                    .collect_vec()
+            })
+            .collect_vec();
+
+        let mut result = period_selector.lock().get_items();
+        result.sort();
+
+        for (i, balance_change_vec) in result.into_iter().enumerate() {
+            pretty_assertions::assert_eq!(
+                expect
+                    .get(i)
+                    .with_expect(|| format!("Failed to get vec with number {i}")),
+                &balance_change_vec
+            );
+        }
     }
 }
