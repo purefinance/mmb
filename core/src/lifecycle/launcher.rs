@@ -226,7 +226,7 @@ where
     let internal_events_loop = InternalEventsLoop::new();
     engine_context
         .shutdown_service
-        .register_service(internal_events_loop.clone());
+        .register_core_service(internal_events_loop.clone());
 
     let exchange_events = ExchangeEvents::new(events_sender.clone());
     let statistic_service = StatisticService::new();
@@ -240,7 +240,7 @@ where
     .expect("Unable to start control panel");
     engine_context
         .shutdown_service
-        .register_service(control_panel.clone());
+        .register_core_service(control_panel.clone());
 
     {
         let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();
@@ -261,7 +261,7 @@ where
     );
     engine_context
         .shutdown_service
-        .register_service(disposition_executor_service);
+        .register_user_service(disposition_executor_service);
 
     log::info!("TradingEngine started");
     TradingEngine::new(engine_context.clone(), finish_graceful_shutdown_rx)

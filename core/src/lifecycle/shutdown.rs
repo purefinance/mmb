@@ -8,9 +8,34 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
+/// User side - for services that may be optional depending on the user's preference
+/// Core side - for the core services that provide the TradingEngine to work
+#[derive(Clone, Copy)]
+enum Priority {
+    User,
+    Core,
+}
+
 #[derive(Default)]
 struct State {
-    services: Vec<Arc<dyn Service>>,
+    user_services: Vec<Arc<dyn Service>>,
+    core_services: Vec<Arc<dyn Service>>,
+}
+
+impl State {
+    pub(crate) fn get_state(&self, side: Priority) -> &Vec<Arc<dyn Service>> {
+        match side {
+            Priority::User => &self.user_services,
+            Priority::Core => &self.core_services,
+        }
+    }
+
+    pub(crate) fn get_state_mut(&mut self, side: Priority) -> &mut Vec<Arc<dyn Service>> {
+        match side {
+            Priority::User => &mut self.user_services,
+            Priority::Core => &mut self.core_services,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -18,24 +43,37 @@ pub struct ShutdownService {
     state: Mutex<State>,
 }
 
-fn service_has_been_launched_and_registered_msg(name: &str) -> String {
-    "\tThe ".to_owned() + name + " has been launched and registered in ShutdownService service"
+fn service_has_been_registered_msg(name: &str, side: &str) -> String {
+    format!("\tThe {name} has been registered in ShutdownService {side} service")
 }
 
 impl ShutdownService {
-    pub fn register_service(self: &Arc<Self>, service: Arc<dyn Service>) {
-        print_info(service_has_been_launched_and_registered_msg(service.name()));
-        self.state.lock().services.push(service);
+    pub fn register_user_service(self: &Arc<Self>, service: Arc<dyn Service>) {
+        print_info(service_has_been_registered_msg(service.name(), "user"));
+        self.state.lock().user_services.push(service);
     }
 
-    pub fn register_services(self: &Arc<Self>, services: &[Arc<dyn Service>]) {
+    pub(crate) fn register_core_service(self: &Arc<Self>, service: Arc<dyn Service>) {
+        print_info(service_has_been_registered_msg(service.name(), "core"));
+        self.state.lock().core_services.push(service);
+    }
+
+    pub fn register_user_services(self: &Arc<Self>, services: &[Arc<dyn Service>]) {
         for service in services {
-            print_info(service_has_been_launched_and_registered_msg(service.name()));
-            self.register_service(service.clone());
+            print_info(service_has_been_registered_msg(service.name(), "user"));
+            self.register_user_service(service.clone());
         }
     }
 
-    pub(crate) async fn graceful_shutdown(&self) -> Vec<String> {
+    pub(crate) async fn user_lvl_shutdown(&self) -> Vec<String> {
+        self.graceful_shutdown(Priority::User).await
+    }
+
+    pub(crate) async fn core_lvl_shutdown(&self) -> Vec<String> {
+        self.graceful_shutdown(Priority::Core).await
+    }
+
+    async fn graceful_shutdown(&self, side: Priority) -> Vec<String> {
         let mut finish_receivers = Vec::new();
 
         log::trace!("Prepare to drop services in ShutdownService started");
@@ -44,7 +82,7 @@ impl ShutdownService {
             log::trace!("Running graceful shutdown for services started");
 
             let state_guard = self.state.lock();
-            for service in &state_guard.services {
+            for service in state_guard.get_state(side) {
                 let service_name = format!("{} service", service.name());
                 print_info(format!("\tStarting to close the {service_name} service...",));
                 let receiver = service.clone().graceful_shutdown();
@@ -104,7 +142,7 @@ impl ShutdownService {
         {
             let mut state_guard = self.state.lock();
             weak_services = state_guard
-                .services
+                .get_state_mut(side)
                 .drain(..)
                 .map(|x| Arc::downgrade(&x))
                 .collect_vec();
@@ -171,9 +209,12 @@ mod tests {
         let shutdown_service = Arc::new(ShutdownService::default());
 
         let test = TestService::new();
-        shutdown_service.clone().register_service(test);
+        shutdown_service.clone().register_user_service(test);
 
-        let not_dropped_services = shutdown_service.graceful_shutdown().await;
+        let not_dropped_services = shutdown_service.user_lvl_shutdown().await;
+        assert_eq!(not_dropped_services.len(), 0);
+
+        let not_dropped_services = shutdown_service.core_lvl_shutdown().await;
         assert_eq!(not_dropped_services.len(), 0);
     }
 
@@ -209,9 +250,12 @@ mod tests {
         let test = RefTestService::new();
         let clone = test.clone();
         test.set_ref(clone);
-        shutdown_service.clone().register_service(test);
+        shutdown_service.clone().register_user_service(test);
 
-        let not_dropped_services = shutdown_service.graceful_shutdown().await;
+        let not_dropped_services = shutdown_service.user_lvl_shutdown().await;
         assert_eq!(not_dropped_services, vec![REF_TEST_SERVICE.to_string()]);
+
+        let not_dropped_services = shutdown_service.core_lvl_shutdown().await;
+        assert_eq!(not_dropped_services.len(), 0);
     }
 }
