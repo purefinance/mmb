@@ -7,15 +7,19 @@ use serum_dex::matching::Side;
 use serum_dex::state::MarketState;
 use solana_client::client_error::reqwest::StatusCode;
 use solana_program::account_info::IntoAccountInfo;
+use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
+use std::collections::HashMap;
 use std::mem::size_of;
 use std::ops::DerefMut;
 
 use crate::market::OpenOrderData;
 use mmb_core::exchanges::common::{
-    ActivePosition, CurrencyPair, ExchangeError, ExchangeErrorType, Price, RestRequestOutcome,
+    ActivePosition, CurrencyCode, CurrencyPair, ExchangeError, ExchangeErrorType, Price,
+    RestRequestOutcome,
 };
+use mmb_core::exchanges::events::{ExchangeBalance, ExchangeBalancesAndPositions};
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::traits::ExchangeClient;
 use mmb_core::orders::order::{OrderCancelling, OrderCreating, OrderInfo};
@@ -177,8 +181,34 @@ impl<'a> ExchangeClient for Serum {
         todo!()
     }
 
-    async fn request_get_balance(&self) -> Result<RestRequestOutcome> {
-        todo!()
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
+        // price_mint_address and coin_mint_address are the same for different currency pairs and corresponding CurrencyCode
+        let mint_addresses: HashMap<CurrencyCode, Pubkey> = self
+            .markets_data
+            .read()
+            .iter()
+            .flat_map(|(pair, market)| {
+                let pair_codes = pair.to_codes();
+                let market_metadata = market.metadata;
+
+                [
+                    (pair_codes.base, market_metadata.price_mint_address),
+                    (pair_codes.quote, market_metadata.coin_mint_address),
+                ]
+            })
+            .collect();
+
+        let balances = join_all(mint_addresses.iter().map(|(currency_code, mint_address)| {
+            self.get_exchange_balance_from_account(&currency_code, &mint_address)
+        }))
+        .await
+        .into_iter()
+        .collect::<Result<Vec<ExchangeBalance>>>()?;
+
+        Ok(ExchangeBalancesAndPositions {
+            balances,
+            positions: None,
+        })
     }
 
     async fn request_close_position(

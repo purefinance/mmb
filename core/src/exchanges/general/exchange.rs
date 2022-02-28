@@ -568,17 +568,7 @@ impl Exchange {
     }
 
     pub(super) async fn get_balance_core(&self) -> Result<ExchangeBalancesAndPositions> {
-        let response = self.exchange_client.request_get_balance().await?;
-
-        log::info!(
-            "get_balance_core response on {:?} {:?}",
-            self.exchange_account_id,
-            response,
-        );
-
-        is_rest_error_code(&response)?;
-
-        Ok(self.exchange_client.parse_get_balance(&response))
+        self.exchange_client.get_balance().await
     }
 
     async fn get_balance_and_positions(

@@ -61,7 +61,7 @@ pub trait ExchangeClient: Support {
 
     async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome>;
 
-    async fn request_get_balance(&self) -> Result<RestRequestOutcome>;
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions>;
 
     async fn request_close_position(
         &self,

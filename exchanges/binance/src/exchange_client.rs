@@ -2,7 +2,8 @@ use super::binance::Binance;
 use anyhow::Result;
 use async_trait::async_trait;
 use mmb_core::exchanges::common::{ActivePosition, ExchangeError, ExchangeErrorType, Price};
-use mmb_core::exchanges::general::helpers::get_rest_error_order;
+use mmb_core::exchanges::events::ExchangeBalancesAndPositions;
+use mmb_core::exchanges::general::helpers::{get_rest_error_order, is_rest_error_code};
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::rest_client;
 use mmb_core::exchanges::traits::{ExchangeClient, Support};
@@ -209,7 +210,7 @@ impl ExchangeClient for Binance {
         panic!("not supported request")
     }
 
-    async fn request_get_balance(&self) -> Result<RestRequestOutcome> {
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
         let mut http_params = Vec::new();
         self.add_authentification_headers(&mut http_params)?;
         let url_path = match self.settings.is_margin_trading {
@@ -218,7 +219,20 @@ impl ExchangeClient for Binance {
         };
 
         let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
-        self.rest_client.get(full_url, &self.settings.api_key).await
+        let response = self
+            .rest_client
+            .get(full_url, &self.settings.api_key)
+            .await?;
+
+        log::info!(
+            "get_balance_core response on {:?} {:?}",
+            self.settings.exchange_account_id,
+            &response,
+        );
+
+        is_rest_error_code(&response)?;
+
+        Ok(self.parse_get_balance(&response))
     }
 
     async fn request_close_position(

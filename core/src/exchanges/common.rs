@@ -161,6 +161,11 @@ impl From<&str> for CurrencyCode {
     }
 }
 
+pub struct CurrencyPairCodes {
+    pub base: CurrencyCode,
+    pub quote: CurrencyCode,
+}
+
 // Unified format currency pair for this mmb
 impl_table_type_raw!(CurrencyPair, 16);
 
@@ -168,6 +173,18 @@ impl CurrencyPair {
     pub fn from_codes(base: CurrencyCode, quote: CurrencyCode) -> Self {
         // convention into ccxt format
         Self(SHARED_CURRENCY_PAIR.add_or_get(&[base.as_str(), quote.as_str()].join("/")))
+    }
+
+    pub fn to_codes(&self) -> CurrencyPairCodes {
+        let (base, quote) = self
+            .as_str()
+            .split_once("/")
+            .with_expect(|| format!("Failed to get base and quote value from CurrencyPair {self}"));
+
+        CurrencyPairCodes {
+            base: base.into(),
+            quote: quote.into(),
+        }
     }
 }
 
