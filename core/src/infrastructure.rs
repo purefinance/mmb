@@ -1,6 +1,8 @@
 use futures::future::BoxFuture;
+use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::CustomSpawnFuture;
 use mmb_utils::infrastructure::FutureOutcome;
+use mmb_utils::infrastructure::SpawnFutureFlags;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::panic;
@@ -12,8 +14,24 @@ use super::lifecycle::application_manager::ApplicationManager;
 
 static APPLICATION_MANAGER: OnceCell<Mutex<Option<Arc<ApplicationManager>>>> = OnceCell::new();
 
+pub fn init_application_manager() -> Arc<ApplicationManager> {
+    let application_manager = ApplicationManager::new(CancellationToken::new());
+    keep_application_manager(application_manager.clone());
+
+    application_manager
+}
+
 pub(crate) fn keep_application_manager(application_manager: Arc<ApplicationManager>) {
-    APPLICATION_MANAGER.get_or_init(|| Mutex::new(Some(application_manager)));
+    let mut application_manager_guard = APPLICATION_MANAGER
+        .get_or_init(|| Mutex::new(Some(application_manager.clone())))
+        .lock();
+
+    *application_manager_guard = Some(
+        application_manager_guard
+            .as_ref()
+            .unwrap_or(&application_manager)
+            .clone(),
+    );
 }
 
 pub(crate) fn unset_application_manager() {
@@ -25,20 +43,32 @@ pub(crate) fn unset_application_manager() {
     };
 }
 
+fn get_futures_cancellation_token() -> CancellationToken {
+    APPLICATION_MANAGER
+        .get()
+        .expect("Unable to get_futures_cancellation_token if ApplicationManager isn't set")
+        .lock()
+        .as_ref()
+        .expect("ApplicationManager is none")
+        .futures_cancellation_token
+        .clone()
+}
+
 /// Spawn future with timer. Error will be logged if times up before action completed
 /// Other nuances are the same as spawn_future()
 pub fn spawn_future_timed(
     action_name: &str,
-    is_critical: bool,
+    flags: SpawnFutureFlags,
     duration: Duration,
     action: Pin<CustomSpawnFuture>,
 ) -> JoinHandle<FutureOutcome> {
     mmb_utils::infrastructure::spawn_future_timed(
         action_name,
-        is_critical,
+        flags,
         duration,
         action,
         spawn_graceful_shutdown,
+        get_futures_cancellation_token(),
     )
 }
 
@@ -46,14 +76,15 @@ pub fn spawn_future_timed(
 /// Inside the crate prefer this function to all others
 pub fn spawn_future(
     action_name: &str,
-    is_critical: bool,
+    flags: SpawnFutureFlags,
     action: Pin<CustomSpawnFuture>,
 ) -> JoinHandle<FutureOutcome> {
     mmb_utils::infrastructure::spawn_future(
         action_name,
-        is_critical,
+        flags,
         action,
         spawn_graceful_shutdown,
+        get_futures_cancellation_token(),
     )
 }
 
@@ -80,14 +111,15 @@ pub fn spawn_by_timer(
     name: &str,
     delay: Duration,
     period: Duration,
-    is_critical: bool,
+    flags: SpawnFutureFlags,
 ) -> JoinHandle<FutureOutcome> {
     mmb_utils::infrastructure::spawn_by_timer(
         callback,
         name,
         delay,
         period,
-        is_critical,
+        flags,
+        get_futures_cancellation_token(),
         spawn_graceful_shutdown,
     )
 }
@@ -109,7 +141,12 @@ mod test {
         keep_application_manager(application_manager);
 
         // Act
-        let future_outcome = spawn_future("test_action_name", true, action.boxed()).await?;
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::CRITICAL | SpawnFutureFlags::STOP_BY_TOKEN,
+            action.boxed(),
+        )
+        .await?;
 
         // Assert
         assert!(future_outcome

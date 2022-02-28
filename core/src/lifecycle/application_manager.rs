@@ -19,6 +19,7 @@ pub enum ActionAfterGracefulShutdown {
 pub struct ApplicationManager {
     cancellation_token: CancellationToken,
     engine_context: Mutex<Option<Weak<EngineContext>>>,
+    pub(crate) futures_cancellation_token: CancellationToken,
 }
 
 impl ApplicationManager {
@@ -26,6 +27,7 @@ impl ApplicationManager {
         Arc::new(Self {
             cancellation_token,
             engine_context: Mutex::new(None),
+            futures_cancellation_token: CancellationToken::default(),
         })
     }
 
@@ -59,7 +61,12 @@ impl ApplicationManager {
             Err(_) => return None,
         };
 
-        let handler = start_graceful_inner(engine_context_guard, &reason, action)?;
+        let handler = start_graceful_inner(
+            engine_context_guard,
+            &reason,
+            action,
+            self.futures_cancellation_token.clone(),
+        )?;
 
         Some(tokio::spawn(async move {
             static FUTURE_NAME: &str = "Graceful shutdown future";
@@ -80,6 +87,7 @@ impl ApplicationManager {
             engine_context_guard,
             reason,
             ActionAfterGracefulShutdown::Nothing,
+            self.futures_cancellation_token.clone(),
         );
         match fut_opt {
             None => nothing_to_do(),
@@ -92,6 +100,7 @@ fn start_graceful_inner(
     engine_context_guard: MutexGuard<'_, Option<Weak<EngineContext>>>,
     reason: &str,
     action: ActionAfterGracefulShutdown,
+    futures_cancellation_token: CancellationToken,
 ) -> Option<impl Future<Output = ()> + 'static> {
     let engine_context = engine_context_guard.as_ref().or_else(|| {
         log::error!("Tried to request graceful shutdown with reason '{}', but 'engine_context' is not specified", reason);
@@ -105,6 +114,6 @@ fn start_graceful_inner(
             log::warn!("Can't execute graceful shutdown with reason '{}', because 'engine_context' was dropped already", reason);
             None
         }
-        Some(ctx) => Some(ctx.graceful(action)),
+        Some(ctx) => Some(ctx.graceful(action, futures_cancellation_token)),
     }
 }

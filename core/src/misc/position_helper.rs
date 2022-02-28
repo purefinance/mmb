@@ -1,7 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
 use futures::FutureExt;
-use mmb_utils::{cancellation_token::CancellationToken, infrastructure::FutureOutcome};
+use mmb_utils::{
+    cancellation_token::CancellationToken,
+    infrastructure::{FutureOutcome, SpawnFutureFlags},
+};
 use mockall_double::double;
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
@@ -49,7 +52,7 @@ pub fn close_position_if_needed(
     let action_name = "Close active positions";
     Some(spawn_future_timed(
         action_name,
-        true,
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
         Duration::from_secs(30),
         action.boxed(),
     ))

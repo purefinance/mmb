@@ -5,6 +5,7 @@ use crate::infrastructure::spawn_future;
 use anyhow::{Context as AnyhowContext, Result};
 use futures::stream::{SplitSink, SplitStream};
 use futures::{FutureExt, SinkExt, StreamExt};
+use mmb_utils::infrastructure::SpawnFutureFlags;
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -75,13 +76,13 @@ impl WebSocketConnection {
 
         spawn_future(
             "Run read message from websocket",
-            false,
+            SpawnFutureFlags::STOP_BY_TOKEN,
             Self::read_message_from_websocket(ws.clone(), reader).boxed(),
         );
 
         spawn_future(
             "Run heartbeat for websocket",
-            false,
+            SpawnFutureFlags::STOP_BY_TOKEN,
             Self::heartbeat(ws.clone()).boxed(),
         );
 
@@ -169,7 +170,6 @@ impl WebSocketConnection {
         let mut heartbeat_interval = time::interval(HEARTBEAT_INTERVAL);
         loop {
             heartbeat_interval.tick().await;
-
             let last_heartbeat_time = *this.last_heartbeat_time.lock();
             if Instant::now().duration_since(last_heartbeat_time) > HEARTBEAT_FAIL_TIMEOUT {
                 log::trace!(

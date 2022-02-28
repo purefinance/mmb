@@ -5,7 +5,7 @@ use crate::infrastructure::spawn_future;
 use anyhow::Result;
 use chrono::{Duration, Utc};
 use futures::FutureExt;
-use mmb_utils::DateTime;
+use mmb_utils::{infrastructure::SpawnFutureFlags, DateTime};
 use parking_lot::Mutex;
 use tokio::time::sleep;
 
@@ -90,7 +90,11 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
             self.clone().handle_inner(delay).await;
             Ok(())
         };
-        spawn_future("handle_inner for schedule_handler()", true, action.boxed());
+        spawn_future(
+            "handle_inner for schedule_handler()",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+        );
     }
 
     async fn handle_inner(&self, delay: Duration) {

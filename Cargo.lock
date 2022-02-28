@@ -2258,6 +2258,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backtrace",
+ "bitflags",
  "chrono",
  "fern",
  "futures 0.3.19",

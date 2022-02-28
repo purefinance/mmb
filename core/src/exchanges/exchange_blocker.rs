@@ -6,7 +6,10 @@ use futures::{
     FutureExt,
 };
 use itertools::Itertools;
-use mmb_utils::{cancellation_token::CancellationToken, infrastructure::FutureOutcome};
+use mmb_utils::{
+    cancellation_token::CancellationToken,
+    infrastructure::{FutureOutcome, SpawnFutureFlags},
+};
 use mmb_utils::{impl_mock_initializer, nothing_to_do};
 use parking_lot::{Mutex, RwLock};
 use std::collections::hash_map::Entry;
@@ -224,8 +227,11 @@ impl ExchangeBlockerEventsProcessor {
 
             Ok(())
         };
-        let processing_handle =
-            spawn_future("Start ExchangeBlocker processing", true, action.boxed());
+        let processing_handle = spawn_future(
+            "Start ExchangeBlocker processing",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+        );
 
         let events_processor = ExchangeBlockerEventsProcessor {
             processing_handle: Mutex::new(Some(processing_handle)),
@@ -317,7 +323,11 @@ impl ExchangeBlockerEventsProcessor {
 
                     Ok(())
                 };
-                let _ = spawn_future("Run ExchangeBlocker handlers", true, action.boxed());
+                let _ = spawn_future(
+                    "Run ExchangeBlocker handlers",
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                    action.boxed(),
+                );
             }
             (ProgressBlocked, UnblockRequested) => {
                 blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |statuses| {
@@ -344,7 +354,7 @@ impl ExchangeBlockerEventsProcessor {
                 };
                 let _ = spawn_future(
                     "Run ExchangeBlocker handlers in case WaitBeforeUnblockedMove",
-                    true,
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
                     action.boxed(),
                 );
             }
@@ -360,7 +370,7 @@ impl ExchangeBlockerEventsProcessor {
                 };
                 let _ = spawn_future(
                     "Run ExchangeBlocker handlers in case WaitUnblockedMove",
-                    true,
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
                     action.boxed(),
                 );
             }
@@ -658,7 +668,11 @@ impl ExchangeBlocker {
 
             Ok(())
         };
-        spawn_future("Run ExchangeBlocker handlers", true, action.boxed())
+        spawn_future(
+            "Run ExchangeBlocker handlers",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+        )
     }
 
     pub fn unblock(&self, exchange_account_id: ExchangeAccountId, reason: BlockReason) {
@@ -788,10 +802,11 @@ mod tests {
     use crate::exchanges::common::ExchangeAccountId;
     use crate::exchanges::exchange_blocker::BlockType::*;
     use crate::exchanges::exchange_blocker::{BlockReason, ExchangeBlocker, ExchangeBlockerMoment};
-    use crate::infrastructure::spawn_future;
+    use crate::infrastructure::{init_application_manager, spawn_future};
     use futures::future::{join, join_all};
     use futures::FutureExt;
     use mmb_utils::cancellation_token::CancellationToken;
+    use mmb_utils::infrastructure::SpawnFutureFlags;
     use mmb_utils::nothing_to_do;
     use parking_lot::Mutex;
     use rand::Rng;
@@ -817,6 +832,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_unblock_manual() {
+        let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
 
@@ -845,7 +861,7 @@ mod tests {
 
         let _ = spawn_future(
             "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
-            false,
+            SpawnFutureFlags::STOP_BY_TOKEN,
             {
                 let exchange_blocker = exchange_blocker.clone();
                 let signal = signal.clone();
@@ -878,6 +894,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_duration() {
+        let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
 
@@ -897,7 +914,7 @@ mod tests {
         };
         let handle = spawn_future(
             "Run ExchangeBlocker::wait_unblock in block_duration test",
-            false,
+            SpawnFutureFlags::STOP_BY_TOKEN,
             action.boxed(),
         );
 
@@ -939,7 +956,7 @@ mod tests {
         };
         let handle = spawn_future(
             "Run ExchangeBlocker::wait_unblock in reblock_before_time_is_up test",
-            false,
+            SpawnFutureFlags::STOP_BY_TOKEN,
             action.boxed(),
         );
 
@@ -956,6 +973,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_with_multiple() {
+        let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
 
@@ -1001,6 +1019,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_with_handler() {
+        let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
@@ -1034,6 +1053,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_with_first_long_handler() {
+        let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
@@ -1070,6 +1090,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn stop_blocker() {
+        let _ = init_application_manager();
         let exchange_blocker = exchange_blocker();
 
         let max_timeout = Duration::from_millis(100);
@@ -1081,6 +1102,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_with_handler_after_stop() {
+        let _ = init_application_manager();
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
 
@@ -1114,6 +1136,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_many_times() {
+        let _ = init_application_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
@@ -1154,7 +1177,11 @@ mod tests {
                         do_action(i, b).await;
                         Ok(())
                     };
-                    spawn_future("do_action in block_many_times test", false, action.boxed())
+                    spawn_future(
+                        "do_action in block_many_times test",
+                        SpawnFutureFlags::STOP_BY_TOKEN,
+                        action.boxed(),
+                    )
                 });
             join_all(jobs).await;
         }
@@ -1174,6 +1201,7 @@ mod tests {
     #[ignore] // Ignoring the test, because there is a problem with threads
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_many_times_with_random_reasons() {
+        let _ = init_application_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
@@ -1212,7 +1240,11 @@ mod tests {
 
                     Ok(())
                 };
-                spawn_future("do_action in block_many_times test", false, action.boxed())
+                spawn_future(
+                    "do_action in block_many_times test",
+                    SpawnFutureFlags::STOP_BY_TOKEN,
+                    action.boxed(),
+                )
             });
         join_all(jobs).await;
 
@@ -1226,6 +1258,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_many_times_with_stop_exchange_blocker() {
+        let _ = init_application_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
@@ -1249,7 +1282,11 @@ mod tests {
 
                 Ok(())
             };
-            let _ = spawn_future("do_action in block_many_times test", false, action.boxed());
+            let _ = spawn_future(
+                "do_action in block_many_times test",
+                SpawnFutureFlags::STOP_BY_TOKEN,
+                action.boxed(),
+            );
         }
 
         {
@@ -1262,7 +1299,7 @@ mod tests {
                     let exchange_blocker = exchange_blocker.clone();
                     let _ = spawn_future(
                         "do_action in block_many_times_with_stop_exchange_blocker test",
-                        false,
+                        SpawnFutureFlags::STOP_BY_TOKEN,
                         async move {
                             do_action(i % REASONS_COUNT, exchange_blocker.clone()).await;
                             Ok(())
@@ -1280,7 +1317,7 @@ mod tests {
             };
             let _ = spawn_future(
                 "spawn_actions_notify in block_many_times_with_stop_exchange_blocker test",
-                false,
+                SpawnFutureFlags::STOP_BY_TOKEN,
                 action.boxed(),
             );
         };
@@ -1297,7 +1334,7 @@ mod tests {
             };
             let _ = spawn_future(
                 "start checking when spawn_actions finished",
-                false,
+                SpawnFutureFlags::STOP_BY_TOKEN,
                 action.boxed(),
             );
         }
@@ -1311,6 +1348,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn is_blocked_except_reason_full_cycle() {
+        let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
 
@@ -1349,6 +1387,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn wait_unblock_if_not_blocked() {
+        let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
 
@@ -1362,6 +1401,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn wait_unblock_when_reblock_1_of_2_reasons() {
+        let _ = init_application_manager();
         let exchange_blocker = &exchange_blocker();
         let wait_completed = Signal::<bool>::default();
 
@@ -1373,7 +1413,7 @@ mod tests {
 
         let _ = spawn_future(
             "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
-            true,
+            SpawnFutureFlags::CRITICAL | SpawnFutureFlags::STOP_BY_TOKEN,
             {
                 let exchange_blocker = exchange_blocker.clone();
                 let wait_completed = wait_completed.clone();

@@ -5,6 +5,7 @@ use futures::FutureExt;
 use jsonrpc_core::{MetaIoHandler, Result};
 use jsonrpc_ipc_server::{Server, ServerBuilder};
 use mmb_rpc::rest_api::{server_side_error, ErrorCode, MmbRpc, IPC_ADDRESS};
+use mmb_utils::infrastructure::SpawnFutureFlags;
 use parking_lot::Mutex;
 use tokio::sync::{mpsc, oneshot};
 
@@ -139,5 +140,9 @@ pub(super) fn spawn_server_stopping_action<T>(
         Ok(())
     };
 
-    spawn_future(future_name, true, stopping_action.boxed());
+    spawn_future(
+        future_name,
+        SpawnFutureFlags::CRITICAL,
+        stopping_action.boxed(),
+    );
 }

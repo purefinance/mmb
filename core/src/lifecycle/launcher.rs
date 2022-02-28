@@ -9,6 +9,7 @@ use crate::exchanges::general::exchange_creation::create_timeout_manager;
 use crate::exchanges::internal_events_loop::InternalEventsLoop;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::exchanges::traits::ExchangeClientBuilder;
+use crate::infrastructure::init_application_manager;
 use crate::lifecycle::application_manager::ApplicationManager;
 use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
@@ -19,15 +20,13 @@ use crate::statistic_service::StatisticEventHandler;
 use crate::statistic_service::StatisticService;
 use crate::strategies::disposition_strategy::DispositionStrategy;
 use crate::{
-    disposition_execution::executor::DispositionExecutorService,
-    infrastructure::{keep_application_manager, spawn_future},
+    disposition_execution::executor::DispositionExecutorService, infrastructure::spawn_future,
 };
 use anyhow::{anyhow, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
-use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::init_infrastructure;
+use mmb_utils::infrastructure::{init_infrastructure, SpawnFutureFlags};
 use mmb_utils::logger::print_info;
 use mmb_utils::{hashmap, nothing_to_do};
 use serde::de::DeserializeOwned;
@@ -132,6 +131,8 @@ where
     log::info!("*****************************");
     log::info!("TradingEngine starting");
 
+    let application_manager = init_application_manager();
+
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
         InitSettings::Load {
@@ -145,8 +146,6 @@ where
         }
     };
 
-    let application_manager = ApplicationManager::new(CancellationToken::new());
-    keep_application_manager(application_manager.clone());
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
     let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
@@ -249,7 +248,11 @@ where
             local_exchanges_map,
             engine_context.application_manager.stop_token(),
         );
-        let _ = spawn_future("internal_events_loop start", true, action.boxed());
+        let _ = spawn_future(
+            "internal_events_loop start",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+        );
     }
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
@@ -324,7 +327,11 @@ where
         Ok(())
     };
 
-    let _ = spawn_future("Start Ctrl-C handler", true, action.boxed());
+    let _ = spawn_future(
+        "Start Ctrl-C handler",
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+        action.boxed(),
+    );
 
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(

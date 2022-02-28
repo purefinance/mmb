@@ -5,7 +5,7 @@ use log::log;
 use uuid::Uuid;
 
 use crate::{
-    infrastructure::{CompletionReason, FutureOutcome},
+    infrastructure::{CompletionReason, FutureOutcome, SpawnFutureFlags},
     OPERATION_CANCELED_MSG,
 };
 
@@ -45,7 +45,7 @@ pub fn set_panic_hook() {
 pub fn handle_future_panic(
     action_name: String,
     future_id: Uuid,
-    is_critical: bool,
+    flags: SpawnFutureFlags,
     graceful_shutdown_spawner: impl FnOnce(String, String),
     log_template: String,
     panic_message: String,
@@ -76,14 +76,14 @@ pub fn handle_future_panic(
     };
 
     if error_msg.contains(OPERATION_CANCELED_MSG) {
-        let log_level = if is_critical {
+        let log_level = if flags.intersects(SpawnFutureFlags::CRITICAL) {
             log::Level::Error
         } else {
             log::Level::Trace
         };
         log!(log_level, "{} was cancelled due to panic", log_template);
 
-        if !is_critical {
+        if !flags.intersects(SpawnFutureFlags::CRITICAL) {
             return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
         }
     }
