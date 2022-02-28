@@ -51,11 +51,18 @@ impl CancellationToken {
     }
 
     pub async fn when_cancelled(&self) {
-        if self.is_cancellation_requested() {
-            return;
-        }
+        let action = async {
+            if self.is_cancellation_requested() {
+                return;
+            }
 
-        self.state.clone().signal.notified().await;
+            std::future::pending::<()>().await;
+        };
+
+        tokio::select! {
+            _ = self.state.signal.notified() => nothing_to_do(),
+            _ = action => nothing_to_do(),
+        };
     }
 
     pub fn create_linked_token(&self) -> Self {
