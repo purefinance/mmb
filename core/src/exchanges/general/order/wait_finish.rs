@@ -2,6 +2,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
 use futures::FutureExt;
 use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::infrastructure::SpawnFutureFlags;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -110,7 +111,7 @@ impl Exchange {
         let three_hours = Duration::from_secs(10800);
         let poll_order_fill_future = spawn_future_timed(
             "poll_order_fills future",
-            false,
+            SpawnFutureFlags::STOP_BY_TOKEN,
             three_hours,
             action.boxed(),
         );

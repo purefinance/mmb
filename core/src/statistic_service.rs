@@ -1,6 +1,7 @@
 use super::orders::{event::OrderEventType, order::ClientOrderId};
 use anyhow::{Context, Result};
 use futures::FutureExt;
+use mmb_utils::infrastructure::SpawnFutureFlags;
 use mmb_utils::nothing_to_do;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -238,7 +239,11 @@ impl StatisticEventHandler {
         let statistic_event_handler = Arc::new(Self { stats });
 
         let action = statistic_event_handler.clone().start(events_receiver);
-        spawn_future("Start statistic service", true, action.boxed());
+        spawn_future(
+            "Start statistic service",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+        );
 
         statistic_event_handler
     }

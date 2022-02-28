@@ -24,6 +24,7 @@ use mmb_core::{
 };
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::infrastructure::SpawnFutureFlags;
 use mmb_utils::DateTime;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -195,7 +196,7 @@ async fn orders_cancelled() {
     };
     spawn_future(
         "run graceful_shutdown in launch_engine test",
-        true,
+        SpawnFutureFlags::CRITICAL | SpawnFutureFlags::STOP_BY_TOKEN,
         action.boxed(),
     );
 

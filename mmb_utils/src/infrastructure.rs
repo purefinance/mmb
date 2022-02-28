@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use bitflags::bitflags;
 use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
@@ -9,11 +10,21 @@ use std::{pin::Pin, time::Duration};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
+use crate::cancellation_token::CancellationToken;
 use crate::logger::init_logger_file_named;
+use crate::logger::print_info;
 use crate::panic::handle_future_panic;
 use crate::panic::set_panic_hook;
 use crate::OPERATION_CANCELED_MSG;
 
+bitflags! {
+    pub struct SpawnFutureFlags: u32 {
+        /// If this flag is not set, future will log panic message and graceful_shutdown will not run
+        const CRITICAL = 0b00000001;
+        /// If this flag is setting up the future will be force stopped at the end of graceful_shutdown
+        const STOP_BY_TOKEN = 0b00000010;
+    }
+}
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FutureOutcome {
     name: String,
@@ -66,19 +77,21 @@ pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
 /// Other nuances are the same as spawn_future()
 pub fn spawn_future_timed(
     action_name: &str,
-    is_critical: bool,
+    flags: SpawnFutureFlags,
     duration: Duration,
     action: Pin<CustomSpawnFuture>,
     graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
+    cancellation_token: CancellationToken,
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
     let action = handle_action_outcome(
         action_name.clone(),
         future_id,
-        is_critical,
+        flags,
         action,
         graceful_shutdown_spawner,
+        cancellation_token,
     );
 
     log::info!("Future {} with id {} started", action_name, future_id);
@@ -100,9 +113,10 @@ pub fn spawn_future_timed(
 /// Inside the crate prefer this function to all others
 pub fn spawn_future(
     action_name: &str,
-    is_critical: bool,
+    flags: SpawnFutureFlags,
     action: Pin<CustomSpawnFuture>,
     graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
+    cancellation_token: CancellationToken,
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
@@ -112,21 +126,33 @@ pub fn spawn_future(
     tokio::spawn(handle_action_outcome(
         action_name,
         future_id,
-        is_critical,
+        flags,
         action,
         graceful_shutdown_spawner,
+        cancellation_token,
     ))
 }
 
 async fn handle_action_outcome(
     action_name: String,
     future_id: Uuid,
-    is_critical: bool,
+    flags: SpawnFutureFlags,
     action: Pin<CustomSpawnFuture>,
     graceful_shutdown_spawner: impl FnOnce(String, String),
+    cancellation_token: CancellationToken,
 ) -> FutureOutcome {
-    let log_template = format!("Future {}, with id {}", action_name, future_id);
-    let action_outcome = panic::AssertUnwindSafe(action).catch_unwind().await;
+    let log_template = format!("Future '{}', with id {}", action_name, future_id);
+
+    let action_outcome = match flags.intersects(SpawnFutureFlags::STOP_BY_TOKEN) {
+        true => tokio::select! {
+            res = panic::AssertUnwindSafe(action).catch_unwind() => res,
+            _ = cancellation_token.when_cancelled() => {
+                print_info(format!("{log_template} has been stopped by cancellation_token"));
+                Ok(Ok(()))
+            },
+        },
+        false => panic::AssertUnwindSafe(action).catch_unwind().await,
+    };
 
     match action_outcome {
         Ok(future_outcome) => match future_outcome {
@@ -162,7 +188,7 @@ async fn handle_action_outcome(
             handle_future_panic(
                 action_name,
                 future_id,
-                is_critical,
+                flags,
                 graceful_shutdown_spawner,
                 log_template,
                 msg.into(),
@@ -178,12 +204,13 @@ pub fn spawn_by_timer(
     name: &str,
     delay: Duration,
     period: Duration,
-    is_critical: bool,
+    flags: SpawnFutureFlags,
+    cancellation_token: CancellationToken,
     graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
 ) -> JoinHandle<FutureOutcome> {
     spawn_future(
         name,
-        is_critical,
+        flags,
         async move {
             tokio::time::sleep(delay).await;
             loop {
@@ -193,6 +220,7 @@ pub fn spawn_by_timer(
         }
         .boxed(),
         graceful_shutdown_spawner,
+        cancellation_token,
     )
 }
 
@@ -227,8 +255,14 @@ mod test {
         let action = async { Ok(()) };
 
         // Act
-        let future_outcome =
-            spawn_future("test_action_name", true, action.boxed(), |_, _| {}).await?;
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+            |_, _| {},
+            CancellationToken::default(),
+        )
+        .await?;
 
         // Assert
         assert_eq!(
@@ -245,8 +279,14 @@ mod test {
         let action = async { bail!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome =
-            spawn_future("test_action_name", true, action.boxed(), |_, _| {}).await?;
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+            |_, _| {},
+            CancellationToken::default(),
+        )
+        .await?;
 
         // Assert
         assert_eq!(future_outcome.completion_reason, CompletionReason::Canceled);
@@ -260,8 +300,14 @@ mod test {
         let action = async { bail!("Some error") };
 
         // Act
-        let future_outcome =
-            spawn_future("test_action_name", true, action.boxed(), |_, _| {}).await?;
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+            |_, _| {},
+            CancellationToken::default(),
+        )
+        .await?;
 
         // Assert
         assert_eq!(future_outcome.completion_reason, CompletionReason::Error);
@@ -277,8 +323,14 @@ mod test {
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome =
-            spawn_future("test_action_name", false, action.boxed(), |_, _| {}).await?;
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::STOP_BY_TOKEN,
+            action.boxed(),
+            |_, _| {},
+            CancellationToken::default(),
+        )
+        .await?;
 
         // Assert
         assert_eq!(future_outcome.completion_reason, CompletionReason::Canceled);
@@ -292,8 +344,14 @@ mod test {
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 
         // Act
-        let future_outcome =
-            spawn_future("test_action_name", true, action.boxed(), |_, _| {}).await?;
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+            |_, _| {},
+            CancellationToken::default(),
+        )
+        .await?;
 
         // Assert
         assert_eq!(future_outcome.completion_reason, CompletionReason::Panicked);
@@ -314,8 +372,45 @@ mod test {
         };
 
         // Act
-        let future_outcome = spawn_future("test_action_name", true, action.boxed(), |_, _| {});
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+            |_, _| {},
+            CancellationToken::default(),
+        );
+
         future_outcome.abort();
+        let _ = future_outcome.await;
+
+        // Assert
+        assert_eq!(*test_value.lock(), false);
+    }
+
+    #[tokio::test]
+    async fn future_canceled() {
+        // Arrange
+        let test_value = Arc::new(Mutex::new(false));
+        let test_to_future = test_value.clone();
+        let action = async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            *test_to_future.lock() = true;
+
+            Ok(())
+        };
+        let cancellation_token = CancellationToken::default();
+
+        // Act
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+            |_, _| {},
+            cancellation_token.clone(),
+        );
+        cancellation_token.cancel();
+
+        let _ = future_outcome.await;
 
         // Assert
         assert_eq!(*test_value.lock(), false);
@@ -337,10 +432,11 @@ mod test {
             // Act
             let future_outcome = spawn_future_timed(
                 "test_action_name",
-                true,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
                 Duration::from_secs(0),
                 action.boxed(),
                 |_, _| {},
+                CancellationToken::default(),
             )
             .await?;
 
@@ -361,10 +457,11 @@ mod test {
             // Act
             let future_outcome = spawn_future_timed(
                 "test_action_name",
-                true,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
                 Duration::from_millis(200),
                 action.boxed(),
                 |_, _| {},
+                CancellationToken::default(),
             )
             .await?;
 
@@ -382,10 +479,11 @@ mod test {
             // Act
             let future_outcome = spawn_future_timed(
                 "test_action_name",
-                true,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
                 Duration::from_millis(200),
                 action.boxed(),
                 |_, _| {},
+                CancellationToken::default(),
             )
             .await?;
 
@@ -413,10 +511,11 @@ mod test {
             // Act
             let future_outcome = spawn_future_timed(
                 "test_action_name",
-                true,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
                 Duration::from_millis(200),
                 action.boxed(),
                 |_, _| {},
+                CancellationToken::default(),
             );
             future_outcome.abort();
             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -426,7 +525,7 @@ mod test {
         }
 
         #[tokio::test]
-        async fn repetable_action() {
+        async fn repeatable_action() {
             let counter = Arc::new(Mutex::new(0u64));
             let duration = 200;
             let repeats_count = 5;
@@ -441,7 +540,8 @@ mod test {
                     "spawn_repeatable".into(),
                     Duration::ZERO,
                     Duration::from_millis(duration),
-                    true,
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                    CancellationToken::default(),
                     |_, _| {},
                 )
             };

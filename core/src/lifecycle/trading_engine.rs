@@ -86,7 +86,11 @@ impl EngineContext {
         engine_context
     }
 
-    pub(crate) async fn graceful(self: Arc<Self>, action: ActionAfterGracefulShutdown) {
+    pub(crate) async fn graceful(
+        self: Arc<Self>,
+        action: ActionAfterGracefulShutdown,
+        futures_cancellation_token: CancellationToken,
+    ) {
         if self
             .is_graceful_shutdown_started
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -137,6 +141,10 @@ impl EngineContext {
             .take()
             .expect("'finish_graceful_shutdown_sender' should exists in EngineContext")
             .send_expected(action);
+
+        if let ActionAfterGracefulShutdown::Restart = action {
+            futures_cancellation_token.cancel();
+        }
 
         unset_application_manager();
 

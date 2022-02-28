@@ -3,6 +3,7 @@ use std::{sync::Arc, time::Duration};
 use futures::FutureExt;
 use mmb_utils::{
     cancellation_token::CancellationToken,
+    infrastructure::SpawnFutureFlags,
     send_expected::{SendExpectedAsync, SendExpectedByRef},
     DateTime,
 };
@@ -124,7 +125,7 @@ impl BalanceChangesService {
             "BalanceChangesService",
             Duration::ZERO,
             Duration::from_secs(5),
-            true,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
         );
 
         this

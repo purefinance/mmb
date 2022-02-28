@@ -5,7 +5,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
 use futures::FutureExt;
 use itertools::Itertools;
-use mmb_utils::infrastructure::WithExpect;
+use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use mmb_utils::{nothing_to_do, DateTime};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
@@ -89,7 +89,11 @@ impl DispositionExecutorService {
 
             disposition_executor.start().await
         };
-        spawn_future("Start disposition executor", true, action.boxed());
+        spawn_future(
+            "Start disposition executor",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            action.boxed(),
+        );
 
         Arc::new(DispositionExecutorService {
             work_finished_receiver: Mutex::new(Some(receiver)),
@@ -564,7 +568,7 @@ impl DispositionExecutor {
         };
         spawn_future(
             "Start wait_cancel_order from DispositionExecutor::cancel_order()",
-            true,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
             action.boxed(),
         );
     }
@@ -773,7 +777,7 @@ impl DispositionExecutor {
             };
             spawn_future(
                 "wait_cancel_order in blocking cancel_order",
-                true,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
                 action.boxed(),
             );
         }

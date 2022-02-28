@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use futures::FutureExt;
 use itertools::Itertools;
-use mmb_utils::hashmap;
+use mmb_utils::{hashmap, infrastructure::SpawnFutureFlags};
 use parking_lot::Mutex;
 
 use crate::{
@@ -63,7 +63,7 @@ impl UsdDenominator {
                 "UsdDenominator::refresh_data()",
                 Duration::ZERO,
                 Duration::from_secs(7200), // 2 hours
-                true,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
             );
         }
 
