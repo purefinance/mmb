@@ -101,7 +101,7 @@ impl ExchangeClient for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn request_get_balance(&self) -> Result<RestRequestOutcome> {
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
         unimplemented!("doesn't need in UT")
     }
 

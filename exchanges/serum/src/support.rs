@@ -1,4 +1,4 @@
-use crate::helpers::{split_once, FromU64Array};
+use crate::helpers::FromU64Array;
 use crate::serum::Serum;
 
 use anyhow::{Context, Result};
@@ -180,7 +180,10 @@ impl Serum {
         let coin_mint_data = state::Mint::unpack_from_slice(&coin_data)?;
         let pc_mint_data = state::Mint::unpack_from_slice(&pc_data)?;
 
-        let (base_currency_id, quote_currency_id) = split_once(&market_name, "/");
+        let (base_currency_id, quote_currency_id) =
+            market_name.rsplit_once("/").with_context(|| {
+                format!("Unable to get currency pair from market name {market_name}")
+            })?;
         let base_currency_code = base_currency_id.into();
         let quote_currency_code = quote_currency_id.into();
 

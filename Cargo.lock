@@ -3293,6 +3293,7 @@ dependencies = [
  "dashmap",
  "futures 0.3.19",
  "itertools 0.10.3",
+ "log",
  "memoffset",
  "mmb_core",
  "mmb_utils",

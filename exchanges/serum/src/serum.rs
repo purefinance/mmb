@@ -34,7 +34,9 @@ use crate::market::{MarketData, MarketMetaData, OpenOrderData};
 use mmb_core::exchanges::common::{
     Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, SpecificCurrencyPair,
 };
-use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent, TradeId};
+use mmb_core::exchanges::events::{
+    AllowedEventSourceType, ExchangeBalance, ExchangeEvent, TradeId,
+};
 use mmb_core::exchanges::general::exchange::BoxExchangeClient;
 use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
@@ -381,6 +383,26 @@ impl Serum {
             }
         })
         .await??)
+    }
+
+    pub async fn get_exchange_balance_from_account(
+        &self,
+        currency_code: &CurrencyCode,
+        mint_address: &Pubkey,
+    ) -> Result<ExchangeBalance> {
+        let wallet_address = get_associated_token_address(&self.payer.pubkey(), &mint_address);
+        let token_amount = self.rpc_client.get_token_account_balance(&wallet_address)?;
+        let ui_amount = token_amount.ui_amount.with_context(|| {
+            format!("Unable get token amount for payer {}", self.payer.pubkey())
+        })?;
+        let balance = ui_amount.try_into().with_context(|| {
+            format!("Unable get balance decimal value from ui_amount {ui_amount}")
+        })?;
+
+        Ok(ExchangeBalance {
+            currency_code: *currency_code,
+            balance,
+        })
     }
 
     pub async fn do_get_order_info(&self, order: &OrderRef) -> Result<OrderInfo> {

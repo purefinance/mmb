@@ -39,8 +39,8 @@ impl SerumBuilder {
         );
 
         settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
-            base: "btc".into(),
-            quote: "usdc".into(),
+            base: "sol".into(),
+            quote: "test".into(),
         }]);
 
         Self::try_new_with_settings(

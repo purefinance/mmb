@@ -1,5 +1,3 @@
-use itertools;
-use itertools::Itertools;
 use mmb_core::orders::order::OrderSide;
 use serum_dex::matching::Side;
 use solana_program::pubkey::Pubkey;
@@ -44,11 +42,4 @@ impl FromU64Array for Pubkey {
 
         Pubkey::new_from_array(key)
     }
-}
-
-pub fn split_once<'a>(in_string: &'a str, separator: &'a str) -> (&'a str, &'a str) {
-    in_string
-        .split(separator)
-        .collect_tuple()
-        .expect("Failed to get items of tuple")
 }
