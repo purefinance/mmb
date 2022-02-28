@@ -22,9 +22,10 @@ use mmb_core::exchanges::events::{
 use mmb_core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
+use mmb_core::exchanges::general::helpers::{get_rest_error, handle_parse_error};
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::RestClient;
-use mmb_core::exchanges::traits::ExchangeClientBuilderResult;
+use mmb_core::exchanges::traits::{ExchangeClientBuilderResult, Support};
 use mmb_core::exchanges::{
     common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
@@ -39,6 +40,7 @@ use mmb_core::exchanges::{general::handlers::handle_order_filled::FillEventData,
 use mmb_core::lifecycle::application_manager::ApplicationManager;
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::*;
+use mmb_core::orders::pool::OrderRef;
 use mmb_core::settings::ExchangeSettings;
 use mmb_core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 
@@ -123,7 +125,7 @@ impl Binance {
         }
     }
 
-    pub async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
+    pub(super) async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
         let url_path = match self.settings.is_margin_trading {
             true => "/sapi/v1/userDataStream",
             false => "/api/v3/userDataStream",
@@ -136,6 +138,7 @@ impl Binance {
             .await
     }
 
+    // TODO Change to pub(super) or pub(crate) after implementation if possible
     pub async fn reconnect(&mut self) {
         todo!("reconnect")
     }
@@ -209,7 +212,7 @@ impl Binance {
         Ok(())
     }
 
-    pub fn get_unified_currency_pair(
+    pub(super) fn get_unified_currency_pair(
         &self,
         currency_pair: &SpecificCurrencyPair,
     ) -> Result<CurrencyPair> {
@@ -448,6 +451,97 @@ impl Binance {
     ) -> ExchangeBalancesAndPositions {
         todo!("implement it later")
     }
+
+    pub(super) async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(order.currency_pair());
+
+        let url_path = match self.settings.is_margin_trading {
+            true => "/fapi/v1/order",
+            false => "/api/v3/order",
+        };
+
+        let mut http_params = vec![
+            (
+                "symbol".to_owned(),
+                specific_currency_pair.as_str().to_owned(),
+            ),
+            (
+                "origClientOrderId".to_owned(),
+                order.client_order_id().as_str().to_owned(),
+            ),
+        ];
+        self.add_authentification_headers(&mut http_params)?;
+
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+
+        self.rest_client.get(full_url, &self.settings.api_key).await
+    }
+
+    pub(super) async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
+        let mut http_params = rest_client::HttpParams::new();
+        self.add_authentification_headers(&mut http_params)?;
+
+        self.request_open_orders_by_http_header(http_params).await
+    }
+
+    pub(super) async fn request_open_orders_by_currency_pair(
+        &self,
+        currency_pair: CurrencyPair,
+    ) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
+        let mut http_params = vec![(
+            "symbol".to_owned(),
+            specific_currency_pair.as_str().to_owned(),
+        )];
+        self.add_authentification_headers(&mut http_params)?;
+
+        self.request_open_orders_by_http_header(http_params).await
+    }
+
+    pub(super) fn get_open_orders_from_response(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<Vec<OrderInfo>> {
+        if let Some(error) = get_rest_error(
+            &response,
+            self.settings.exchange_account_id,
+            self.settings.empty_response_is_ok,
+        ) {
+            Err(error).context("From request get_open_orders by all currency pair")?;
+        }
+
+        match self.parse_open_orders(&response) {
+            orders @ Ok(_) => orders,
+            Err(error) => handle_parse_error(
+                error,
+                &response,
+                "".into(),
+                None,
+                self.settings.exchange_account_id,
+            )
+            .map(|_| Vec::new()),
+        }
+    }
+
+    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
+        let binance_orders: Vec<BinanceOrderInfo> = serde_json::from_str(&response.content)
+            .context("Unable to parse response content for get_open_orders request")?;
+
+        let orders_info: Vec<OrderInfo> = binance_orders
+            .iter()
+            .map(|order| self.specific_order_info_to_unified(order))
+            .collect();
+
+        Ok(orders_info)
+    }
+
+    pub(super) fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo> {
+        let specific_order: BinanceOrderInfo = serde_json::from_str(&response.content)
+            .context("Unable to parse response content for get_order_info request")?;
+        let unified_order = self.specific_order_info_to_unified(&specific_order);
+
+        Ok(unified_order)
+    }
 }
 
 pub struct BinanceBuilder;
@@ -504,6 +598,7 @@ mod tests {
             exchange_account_id,
             "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".into(),
             "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".into(),
+            false,
             false,
         );
 

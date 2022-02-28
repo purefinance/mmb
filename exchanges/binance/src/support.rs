@@ -35,10 +35,7 @@ use mmb_core::{
     connectivity::connectivity_manager::WebSocketRole, exchanges::general::symbol::Precision,
 };
 use mmb_core::{
-    exchanges::common::{
-        Amount, CurrencyPair, ExchangeError, ExchangeErrorType, Price, RestRequestOutcome,
-        SpecificCurrencyPair,
-    },
+    exchanges::common::{Amount, CurrencyPair, Price, RestRequestOutcome, SpecificCurrencyPair},
     orders::fill::EventSourceType,
 };
 
@@ -86,64 +83,12 @@ struct BinancePosition {
 
 #[async_trait]
 impl Support for Binance {
-    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
-        //Binance is a little inconsistent: for failed responses sometimes they include
-        //only code or only success:false but sometimes both
-        if !(response.content.contains(r#""success":false"#)
-            || response.content.contains(r#""code""#))
-        {
-            return Ok(());
-        }
-
-        let data: Value = serde_json::from_str(&response.content)
-            .map_err(|err| ExchangeError::parsing_error(&format!("response.content: {:?}", err)))?;
-
-        let message = data["msg"]
-            .as_str()
-            .ok_or_else(|| ExchangeError::parsing_error("`msg` field"))?;
-
-        let code = data["code"]
-            .as_i64()
-            .ok_or_else(|| ExchangeError::parsing_error("`code` field"))?;
-
-        Err(ExchangeError::new(
-            ExchangeErrorType::Unknown,
-            message.to_string(),
-            Some(code),
-        ))
-    }
-
     fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
         let response: Value =
             serde_json::from_str(&response.content).context("Unable to parse response content")?;
         let id = response["orderId"].to_string();
         let id = id.trim_matches('"');
         Ok(ExchangeOrderId::new(id.into()))
-    }
-
-    fn clarify_error_type(&self, error: &mut ExchangeError) {
-        // -1010 ERROR_MSG_RECEIVED
-        // -2010 NEW_ORDER_REJECTED
-        // -2011 CANCEL_REJECTED
-        let error_type = match error.message.as_str() {
-            "Unknown order sent." | "Order does not exist." => ExchangeErrorType::OrderNotFound,
-            "Account has insufficient balance for requested action." => {
-                ExchangeErrorType::InsufficientFunds
-            }
-            "Invalid quantity."
-            | "Filter failure: MIN_NOTIONAL"
-            | "Filter failure: LOT_SIZE"
-            | "Filter failure: PRICE_FILTER"
-            | "Filter failure: PERCENT_PRICE"
-            | "Quantity less than zero."
-            | "Precision is over the maximum defined for this asset." => {
-                ExchangeErrorType::InvalidOrder
-            }
-            msg if msg.contains("Too many requests;") => ExchangeErrorType::RateLimit,
-            _ => ExchangeErrorType::Unknown,
-        };
-
-        error.error_type = error_type;
     }
 
     fn on_websocket_message(&self, msg: &str) -> Result<()> {
@@ -280,26 +225,6 @@ impl Support for Binance {
         message: &str,
     ) {
         log::info!("Unknown message for {}: {}", exchange_account_id, message);
-    }
-
-    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
-        let binance_orders: Vec<BinanceOrderInfo> = serde_json::from_str(&response.content)
-            .context("Unable to parse response content for get_open_orders request")?;
-
-        let orders_info: Vec<OrderInfo> = binance_orders
-            .iter()
-            .map(|order| self.specific_order_info_to_unified(order))
-            .collect();
-
-        Ok(orders_info)
-    }
-
-    fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo> {
-        let specific_order: BinanceOrderInfo = serde_json::from_str(&response.content)
-            .context("Unable to parse response content for get_order_info request")?;
-        let unified_order = self.specific_order_info_to_unified(&specific_order);
-
-        Ok(unified_order)
     }
 
     fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {

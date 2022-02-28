@@ -49,6 +49,7 @@ pub struct ExchangeSettings {
     pub subscribe_to_market_data: bool,
     pub websocket_channels: Vec<String>,
     pub currency_pairs: Option<Vec<CurrencyPairSetting>>,
+    pub empty_response_is_ok: bool,
 }
 
 impl ExchangeSettings {
@@ -58,6 +59,7 @@ impl ExchangeSettings {
         api_key: String,
         secret_key: String,
         is_margin_trading: bool,
+        empty_response_is_ok: bool,
     ) -> Self {
         Self {
             exchange_account_id,
@@ -69,6 +71,7 @@ impl ExchangeSettings {
             currency_pairs: None,
             subscribe_to_market_data: true,
             is_reducing_market_data: None,
+            empty_response_is_ok,
         }
     }
 }
@@ -85,6 +88,7 @@ impl Default for ExchangeSettings {
             currency_pairs: None,
             subscribe_to_market_data: true,
             is_reducing_market_data: None,
+            empty_response_is_ok: false,
         }
     }
 }

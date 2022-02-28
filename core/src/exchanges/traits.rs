@@ -42,14 +42,14 @@ pub trait ExchangeClient: Support {
 
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()>;
 
-    async fn request_open_orders(&self) -> Result<RestRequestOutcome>;
+    async fn get_open_orders(&self) -> Result<Vec<OrderInfo>>;
 
-    async fn request_open_orders_by_currency_pair(
+    async fn get_open_orders_by_currency_pair(
         &self,
         currency_pair: CurrencyPair,
-    ) -> Result<RestRequestOutcome>;
+    ) -> Result<Vec<OrderInfo>>;
 
-    async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome>;
+    async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError>;
 
     async fn request_my_trades(
         &self,
@@ -72,9 +72,7 @@ pub trait ExchangeClient: Support {
 
 #[async_trait]
 pub trait Support: Send + Sync {
-    fn is_rest_error_code(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError>;
     fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId>;
-    fn clarify_error_type(&self, error: &mut ExchangeError);
 
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
     fn on_connecting(&self) -> Result<()>;
@@ -117,8 +115,6 @@ pub trait Support: Send + Sync {
         log::info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>>;
-    fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo>;
     fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>>;
 
     fn get_balance_reservation_currency_code(

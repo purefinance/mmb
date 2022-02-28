@@ -51,7 +51,7 @@ impl BinanceBuilder {
         }
 
         let mut settings =
-            ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
+            ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false, false);
 
         // default currency pair for tests
         settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {

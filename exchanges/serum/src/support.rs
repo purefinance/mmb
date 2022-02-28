@@ -15,8 +15,8 @@ use url::Url;
 use mmb_core::connectivity::connectivity_manager::WebSocketRole;
 use mmb_core::exchanges::common::CurrencyPair;
 use mmb_core::exchanges::common::{
-    ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, ExchangeError, Price,
-    RestRequestOutcome, SpecificCurrencyPair,
+    ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, Price, RestRequestOutcome,
+    SpecificCurrencyPair,
 };
 use mmb_core::exchanges::events::{ExchangeBalancesAndPositions, TradeId};
 use mmb_core::exchanges::general::handlers::handle_order_filled::FillEventData;
@@ -24,7 +24,7 @@ use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::traits::Support;
 use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderInfo, OrderSide};
+use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide};
 use mmb_core::settings::ExchangeSettings;
 use mmb_utils::DateTime;
 
@@ -35,16 +35,7 @@ use spl_token::state;
 
 #[async_trait]
 impl Support for Serum {
-    fn is_rest_error_code(&self, _response: &RestRequestOutcome) -> Result<(), ExchangeError> {
-        // TODO not implemented
-        Ok(())
-    }
-
     fn get_order_id(&self, _response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
-        todo!()
-    }
-
-    fn clarify_error_type(&self, _error: &mut ExchangeError) {
         todo!()
     }
 
@@ -109,14 +100,6 @@ impl Support for Serum {
 
     fn should_log_message(&self, message: &str) -> bool {
         message.contains("executionReport")
-    }
-
-    fn parse_open_orders(&self, _response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
-        todo!()
-    }
-
-    fn parse_order_info(&self, _response: &RestRequestOutcome) -> Result<OrderInfo> {
-        todo!()
     }
 
     fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {

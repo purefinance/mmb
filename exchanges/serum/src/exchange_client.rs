@@ -1,16 +1,24 @@
 use crate::serum::Serum;
 use anyhow::Result;
 use async_trait::async_trait;
+use futures::future::join_all;
+use itertools::Itertools;
+use serum_dex::matching::Side;
+use serum_dex::state::MarketState;
 use solana_client::client_error::reqwest::StatusCode;
+use solana_program::account_info::IntoAccountInfo;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
 use std::mem::size_of;
+use std::ops::DerefMut;
 
 use crate::market::OpenOrderData;
-use mmb_core::exchanges::common::{ActivePosition, CurrencyPair, Price, RestRequestOutcome};
+use mmb_core::exchanges::common::{
+    ActivePosition, CurrencyPair, ExchangeError, ExchangeErrorType, Price, RestRequestOutcome,
+};
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::traits::ExchangeClient;
-use mmb_core::orders::order::{OrderCancelling, OrderCreating};
+use mmb_core::orders::order::{OrderCancelling, OrderCreating, OrderInfo};
 use mmb_core::orders::pool::OrderRef;
 
 #[async_trait]
@@ -97,19 +105,60 @@ impl<'a> ExchangeClient for Serum {
         todo!()
     }
 
-    async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
-        todo!()
+    async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
+        let currency_pairs = self.markets_data.read().keys().cloned().collect_vec();
+
+        join_all(
+            currency_pairs
+                .into_iter()
+                .map(|currency_pair| self.get_open_orders_by_currency_pair(currency_pair)),
+        )
+        .await
+        .into_iter()
+        .flatten_ok()
+        .collect()
     }
 
-    async fn request_open_orders_by_currency_pair(
+    async fn get_open_orders_by_currency_pair(
         &self,
-        _currency_pair: CurrencyPair,
-    ) -> Result<RestRequestOutcome> {
-        todo!()
+        currency_pair: CurrencyPair,
+    ) -> Result<Vec<OrderInfo>> {
+        let market_data = self.get_market_data(&currency_pair)?;
+        let program_id = &market_data.program_id;
+        let market_metadata = &market_data.metadata;
+        let mut account = self
+            .rpc_client
+            .get_account(&market_metadata.owner_address)?;
+        let account_info = (program_id, &mut account).into_account_info();
+
+        let market_data = MarketState::load(&account_info, program_id, false)?;
+
+        let mut asks_account = self.rpc_client.get_account(&market_metadata.asks_address)?;
+        let mut bids_account = self.rpc_client.get_account(&market_metadata.bids_address)?;
+        let asks_info = (&market_metadata.asks_address, &mut asks_account).into_account_info();
+        let bids_info = (&market_metadata.bids_address, &mut bids_account).into_account_info();
+        let mut bids = market_data.load_bids_mut(&bids_info)?;
+        let mut asks = market_data.load_asks_mut(&asks_info)?;
+
+        let bids_slab = bids.deref_mut();
+        let asks_slab = asks.deref_mut();
+
+        let mut orders =
+            self.encode_orders(asks_slab, &market_metadata, Side::Ask, &currency_pair)?;
+        orders.append(&mut self.encode_orders(
+            bids_slab,
+            &market_metadata,
+            Side::Bid,
+            &currency_pair,
+        )?);
+
+        Ok(orders)
     }
 
-    async fn request_order_info(&self, _order: &OrderRef) -> Result<RestRequestOutcome> {
-        todo!()
+    async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
+        self.do_get_order_info(order).await.map_err(|error| {
+            ExchangeError::new(ExchangeErrorType::Unknown, error.to_string(), None)
+        })
     }
 
     async fn request_my_trades(

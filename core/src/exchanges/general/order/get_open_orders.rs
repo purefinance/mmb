@@ -1,4 +1,3 @@
-use crate::exchanges::common::{CurrencyPair, RestRequestOutcome};
 use crate::exchanges::general::request_type::RequestType;
 use crate::orders::order::{
     ClientOrderId, OrderExecutionType, OrderHeader, OrderInfo, OrderSimpleProps, OrderSnapshot,
@@ -7,10 +6,10 @@ use crate::orders::order::{
 use mmb_utils::cancellation_token::CancellationToken;
 
 use crate::{exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType};
-use anyhow::Error;
-use anyhow::{bail, Context};
+use anyhow::bail;
 use parking_lot::RwLock;
 
+use itertools::Itertools;
 use std::sync::Arc;
 use tokio::time::Duration;
 
@@ -38,24 +37,6 @@ impl Exchange {
         }
     }
 
-    async fn request_when_available_by_currency_pair(
-        &self,
-        currency_pair: CurrencyPair,
-    ) -> Result<RestRequestOutcome, Error> {
-        self.timeout_manager
-            .reserve_when_available(
-                self.exchange_account_id,
-                RequestType::GetOpenOrders,
-                None,
-                CancellationToken::default(),
-            )?
-            .await
-            .into_result()?;
-        self.exchange_client
-            .request_open_orders_by_currency_pair(currency_pair)
-            .await
-    }
-
     // Bugs on exchange server can lead to Err even if order was opened
     async fn get_open_orders_core(
         &self,
@@ -73,51 +54,33 @@ impl Exchange {
                     )?
                     .await
                     .into_result()?;
-                let response = self.exchange_client.request_open_orders().await?;
 
-                log::info!(
-                    "get_open_orders() response on {}: {:?}",
-                    self.exchange_account_id,
-                    response
-                );
-
-                if let Some(error) = self.get_rest_error(&response) {
-                    Err(error).context("From request get_open_orders by all currency pair")?;
-                }
-
-                match self.exchange_client.parse_open_orders(&response) {
-                    Ok(ref mut open_orders_tmp) => open_orders.append(open_orders_tmp),
-                    Err(error) => {
-                        self.handle_parse_error(error, &response, "".into(), None)?;
-                        return Ok(Vec::new());
-                    }
-                }
+                open_orders.append(&mut self.exchange_client.get_open_orders().await?);
             }
-
             OpenOrdersType::OneCurrencyPair => {
-                // TODO other actions here have to be written after build_symbol() implementation
-                let responses = futures::future::join_all(
-                    self.symbols
-                        .iter()
-                        .map(|x| self.request_when_available_by_currency_pair(x.currency_pair())),
-                )
-                .await;
-                for response in responses {
-                    let response = &response.with_context(|| {
-                        format!("From get_open_orders() on {}", self.exchange_account_id)
-                    })?;
+                let currency_pair_orders =
+                    futures::future::join_all(self.symbols.iter().map(|x| async move {
+                        self.timeout_manager
+                            .reserve_when_available(
+                                self.exchange_account_id,
+                                RequestType::GetOpenOrders,
+                                None,
+                                CancellationToken::default(),
+                            )?
+                            .await
+                            .into_result()?;
+                        self.exchange_client
+                            .get_open_orders_by_currency_pair(x.currency_pair())
+                            .await
+                    }))
+                    .await;
 
-                    if let Some(error) = self.get_rest_error(response) {
-                        Err(error).context("From request get_open_orders by currency pair")?;
-                    }
-                    match self.exchange_client.parse_open_orders(response) {
-                        Ok(ref mut orders) => open_orders.append(orders),
-                        Err(error) => {
-                            self.handle_parse_error(error, response, "".into(), None)?;
-                            return Ok(Vec::new());
-                        }
-                    }
-                }
+                open_orders.append(
+                    &mut currency_pair_orders
+                        .into_iter()
+                        .flatten_ok()
+                        .collect::<Result<Vec<_>, _>>()?,
+                );
             }
             OpenOrdersType::None => bail!(
                 "Unsupported open_orders_type: {:?}",

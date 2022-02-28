@@ -70,18 +70,18 @@ impl ExchangeClient for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
+    async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn request_open_orders_by_currency_pair(
+    async fn get_open_orders_by_currency_pair(
         &self,
         _currency_pair: CurrencyPair,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<Vec<OrderInfo>> {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn request_order_info(&self, _order: &OrderRef) -> Result<RestRequestOutcome> {
+    async fn get_order_info(&self, _order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
         unimplemented!("doesn't need in UT")
     }
 
@@ -116,13 +116,7 @@ impl ExchangeClient for TestClient {
 
 #[async_trait]
 impl Support for TestClient {
-    fn is_rest_error_code(&self, _response: &RestRequestOutcome) -> Result<(), ExchangeError> {
-        unimplemented!("doesn't need in UT")
-    }
     fn get_order_id(&self, _response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
-        unimplemented!("doesn't need in UT")
-    }
-    fn clarify_error_type(&self, __error: &mut ExchangeError) {
         unimplemented!("doesn't need in UT")
     }
 
@@ -185,12 +179,6 @@ impl Support for TestClient {
         log::info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    fn parse_open_orders(&self, _response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
-        unimplemented!("doesn't need in UT")
-    }
-    fn parse_order_info(&self, _response: &RestRequestOutcome) -> Result<OrderInfo> {
-        unimplemented!("doesn't need in UT")
-    }
     fn parse_all_symbols(&self, _response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
         unimplemented!("doesn't need in UT")
     }

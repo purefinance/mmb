@@ -30,8 +30,13 @@ impl SerumBuilder {
         commission: Commission,
     ) -> Result<Self> {
         let secret_key = get_key_pair()?;
-        let mut settings =
-            ExchangeSettings::new_short(exchange_account_id, "".to_string(), secret_key, false);
+        let mut settings = ExchangeSettings::new_short(
+            exchange_account_id,
+            "".to_string(),
+            secret_key,
+            false,
+            false,
+        );
 
         settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
             base: "btc".into(),

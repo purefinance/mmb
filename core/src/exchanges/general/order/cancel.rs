@@ -5,6 +5,7 @@ use itertools::Itertools;
 use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::oneshot;
 
+use crate::exchanges::general::helpers::get_rest_error_order;
 use crate::{
     exchanges::common::Amount,
     exchanges::common::ExchangeError,
@@ -197,8 +198,11 @@ impl Exchange {
 
         match request_outcome {
             Ok(request_outcome) => {
-                if let Some(rest_error) = self.get_rest_error_order(request_outcome, &order.header)
-                {
+                if let Some(rest_error) = get_rest_error_order(
+                    request_outcome,
+                    &order.header,
+                    self.features.empty_response_is_ok,
+                ) {
                     return CancelOrderResult::failed(rest_error, EventSourceType::Rest);
                 }
 
