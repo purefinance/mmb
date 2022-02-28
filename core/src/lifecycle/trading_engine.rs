@@ -107,7 +107,7 @@ impl EngineContext {
 
         self.application_manager.stop_token().cancel();
 
-        self.shutdown_service.graceful_shutdown().await;
+        self.shutdown_service.user_lvl_shutdown().await;
         self.exchange_blocker.stop_blocker().await;
 
         let cancellation_token = CancellationToken::default();
@@ -123,6 +123,8 @@ impl EngineContext {
                 );
             }
         }
+
+        self.shutdown_service.core_lvl_shutdown().await;
 
         let disconnect_websockets = self
             .exchanges
