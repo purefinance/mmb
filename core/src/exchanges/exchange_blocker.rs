@@ -8,7 +8,7 @@ use futures::{
 use itertools::Itertools;
 use mmb_utils::{
     cancellation_token::CancellationToken,
-    infrastructure::{FutureOutcome, SpawnFutureFlags},
+    infrastructure::{FutureOutcome, SpawnFutureFlags, WithExpect},
 };
 use mmb_utils::{impl_mock_initializer, nothing_to_do};
 use parking_lot::{Mutex, RwLock};
@@ -293,63 +293,68 @@ impl ExchangeBlockerEventsProcessor {
         ctx: &mut ProcessingCtx,
     ) {
         use ExchangeBlockerEventType::*;
-        use ExchangeBlockerMoment::*;
         use ProgressStatus::*;
 
-        let progress = blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |x| x.status);
+        let mut write_guard = ctx.blockers.write();
+        let blockers = write_guard
+            .get_mut(&event.blocker_id.exchange_account_id)
+            .expect(EXPECTED_EAI_SHOULD_BE_CREATED);
 
-        match (progress, event.event_type) {
+        let mut progress_state = blockers
+            .get(&event.blocker_id.reason)
+            .with_expect(|| {
+                format!(
+                    "Blocker {:?} should be added in method ExchangeBlocker::block()",
+                    event.blocker_id
+                )
+            })
+            .progress_state
+            .lock();
+
+        let is_unblock_requested = progress_state.is_unblock_requested;
+        let status = progress_state.status;
+
+        match (status, event.event_type) {
             (WaitBlockedMove, MoveToBlocked) => {
-                let mut ctx = ctx.clone();
+                progress_state.status = match is_unblock_requested {
+                    true => WaitBeforeUnblockedMove,
+                    false => ProgressBlocked,
+                };
+
+                if is_unblock_requested {
+                    let event = event.with_type(MoveBlockedToBeforeUnblocked);
+                    Self::add_event(&mut ctx.events_sender, event)
+                }
+
+                let ctx = ctx.clone();
                 let event = event.clone();
-
                 let action = async move {
-                    Self::run_handlers(&event, Blocked, &ctx).await;
-
-                    let is_unblock_requested =
-                        blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |statuses| {
-                            let is_unblock_requested = statuses.is_unblock_requested;
-                            statuses.status = match is_unblock_requested {
-                                true => WaitBeforeUnblockedMove,
-                                false => ProgressBlocked,
-                            };
-                            is_unblock_requested
-                        });
-
-                    if is_unblock_requested {
-                        let event = event.with_type(MoveBlockedToBeforeUnblocked);
-                        Self::add_event(&mut ctx.events_sender, event)
-                    }
-
+                    Self::run_handlers(&event, ExchangeBlockerMoment::Blocked, &ctx).await;
                     Ok(())
                 };
                 let _ = spawn_future(
-                    "Run ExchangeBlocker handlers",
+                    "Run ExchangeBlocker handlers in case MoveToBlocked",
                     SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
                     action.boxed(),
                 );
             }
             (ProgressBlocked, UnblockRequested) => {
-                blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |statuses| {
-                    statuses.status = WaitBeforeUnblockedMove
-                });
+                if ProgressBlocked == status {
+                    progress_state.status = WaitBeforeUnblockedMove;
+                }
 
                 let event = event.with_type(MoveBlockedToBeforeUnblocked);
-                Self::add_event(&mut ctx.events_sender, event)
+                Self::add_event(&mut ctx.events_sender, event);
             }
             (WaitBeforeUnblockedMove, MoveBlockedToBeforeUnblocked) => {
-                let mut ctx = ctx.clone();
+                progress_state.status = WaitUnblockedMove;
+                let event = event.with_type(MoveBeforeUnblockedToUnblocked);
+                Self::add_event(&mut ctx.events_sender, event.clone());
+
+                let ctx = ctx.clone();
                 let event = event.clone();
                 let action = async move {
-                    Self::run_handlers(&event, BeforeUnblocked, &ctx).await;
-
-                    blocker_progress_apply_fn(&ctx.blockers, &event.blocker_id, |x| {
-                        x.status = WaitUnblockedMove
-                    });
-
-                    let event = event.with_type(MoveBeforeUnblockedToUnblocked);
-                    Self::add_event(&mut ctx.events_sender, event);
-
+                    Self::run_handlers(&event, ExchangeBlockerMoment::BeforeUnblocked, &ctx).await;
                     Ok(())
                 };
                 let _ = spawn_future(
@@ -359,15 +364,19 @@ impl ExchangeBlockerEventsProcessor {
                 );
             }
             (WaitUnblockedMove, MoveBeforeUnblockedToUnblocked) => {
-                Self::remove_blocker(event, &ctx);
+                if !is_unblock_requested {
+                    return;
+                }
+                drop(progress_state);
+                Self::remove_blocker(&event, blockers);
 
                 let ctx = ctx.clone();
                 let event = event.clone();
-
                 let action = async move {
-                    Self::run_handlers(&event, Unblocked, &ctx).await;
+                    Self::run_handlers(&event, ExchangeBlockerMoment::Unblocked, &ctx).await;
                     Ok(())
                 };
+
                 let _ = spawn_future(
                     "Run ExchangeBlocker handlers in case WaitUnblockedMove",
                     SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
@@ -396,12 +405,10 @@ impl ExchangeBlockerEventsProcessor {
         join_all(handlers_futures).await;
     }
 
-    fn remove_blocker(event: &ExchangeBlockerInternalEvent, ctx: &ProcessingCtx) {
-        let mut locks_write = ctx.blockers.write();
-        let blockers = locks_write
-            .get_mut(&event.blocker_id.exchange_account_id)
-            .expect(EXPECTED_EAI_SHOULD_BE_CREATED);
-
+    fn remove_blocker(
+        event: &ExchangeBlockerInternalEvent,
+        blockers: &mut HashMap<BlockReason, Blocker>,
+    ) {
         blockers
             .get(&event.blocker_id.reason)
             .map(|blocker| blocker.unblocked_notify.notify_waiters());
@@ -448,24 +455,6 @@ impl ExchangeBlockerEventsProcessor {
             }
         }
     }
-}
-
-fn blocker_progress_apply_fn<F: FnMut(&mut ProgressState) -> R, R: 'static>(
-    blockers: &Blockers,
-    blocker_id: &BlockerId,
-    mut f: F,
-) -> R {
-    let read_guard = blockers.read();
-    let mut lock_guard = read_guard
-        .get(&blocker_id.exchange_account_id)
-        .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
-        .get(&blocker_id.reason)
-        .expect("Blocker should be added in method ExchangeBlocker::block()")
-        .progress_state
-        .lock();
-    let progress_state = lock_guard.deref_mut();
-
-    f(progress_state)
 }
 
 pub struct ExchangeBlocker {
@@ -554,7 +543,6 @@ impl ExchangeBlocker {
             Entry::Vacant(vacant_entry) => {
                 let blocker_id = BlockerId::new(exchange_account_id, reason);
                 let blocker = self.create_blocker(block_type, blocker_id);
-                vacant_entry.insert(blocker);
                 let event = ExchangeBlockerInternalEvent {
                     blocker_id,
                     event_type: ExchangeBlockerEventType::MoveToBlocked,
@@ -563,6 +551,7 @@ impl ExchangeBlocker {
                     self.events_sender.lock().deref_mut(),
                     event,
                 );
+                vacant_entry.insert(blocker);
             }
         }
 
@@ -688,19 +677,42 @@ impl ExchangeBlocker {
                 .get(&blocker_id.reason)
             {
                 Some(blocker) => blocker,
-                None => return,
+                None => {
+                    log::trace!(
+                        "Unblock stopped because Blocker for {} with reason {} not found",
+                        blocker_id.exchange_account_id,
+                        blocker_id.reason
+                    );
+                    return;
+                }
             };
 
             let mut lock_guard = blocker.progress_state.lock();
             let progress_state = lock_guard.deref_mut();
-            progress_state.is_unblock_requested = true;
-        }
 
-        let event = ExchangeBlockerInternalEvent {
-            blocker_id,
-            event_type: ExchangeBlockerEventType::UnblockRequested,
-        };
-        ExchangeBlockerEventsProcessor::add_event(self.events_sender.lock().deref_mut(), event);
+            if progress_state.is_unblock_requested {
+                log::trace!(
+                    "Unblock stopped because unblock already requested {exchange_account_id} {reason}"
+                );
+                return;
+            }
+
+            progress_state.is_unblock_requested = true;
+
+            if progress_state.status > ProgressBlocked {
+                log::trace!(
+                    "Unblock stopped because status is {:?} {exchange_account_id} {reason}",
+                    progress_state.status,
+                );
+                return;
+            }
+
+            let event = ExchangeBlockerInternalEvent {
+                blocker_id,
+                event_type: ExchangeBlockerEventType::UnblockRequested,
+            };
+            ExchangeBlockerEventsProcessor::add_event(self.events_sender.lock().deref_mut(), event);
+        }
 
         log::trace!("Unblock finished {} {}", exchange_account_id, reason);
     }
@@ -818,6 +830,8 @@ mod tests {
     use tokio::time::{sleep, Duration};
 
     type Signal<T> = Arc<Mutex<T>>;
+
+    const WAIT_UNTIL_HANDLERS_CLOSE: Duration = Duration::from_millis(100);
 
     fn exchange_account_id() -> ExchangeAccountId {
         // TODO Make const way to create ExchangeAccountId
@@ -1048,6 +1062,7 @@ mod tests {
             .await;
 
         assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+        sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
         assert_eq!(*times_count.lock(), 1);
     }
 
@@ -1057,6 +1072,7 @@ mod tests {
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
+        let wait_when_blocked = 40;
 
         exchange_blocker.register_handler({
             let times_count = times_count.clone();
@@ -1065,7 +1081,7 @@ mod tests {
                 async move {
                     match event.moment {
                         ExchangeBlockerMoment::Blocked => {
-                            sleep(Duration::from_millis(40)).await;
+                            sleep(Duration::from_millis(wait_when_blocked)).await;
                             *times_count.lock() += 1;
                         }
                         ExchangeBlockerMoment::BeforeUnblocked => *times_count.lock() += 1,
@@ -1085,6 +1101,7 @@ mod tests {
             .await;
 
         assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+        sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
         assert_eq!(*times_count.lock(), 2);
     }
 
@@ -1130,6 +1147,7 @@ mod tests {
 
         assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
+        sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
         // should ignore all events
         assert_eq!(*times_count.lock(), 0);
     }
@@ -1189,6 +1207,7 @@ mod tests {
         let max_timeout = Duration::from_secs(2);
         tokio::select! {
             _ = exchange_blocker.wait_unblock(exchange_account_id(), cancellation_token) => {
+                sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
                 assert_eq!(*times_count.lock(), TIMES_COUNT);
             },
             _ = sleep(max_timeout) => {
@@ -1198,7 +1217,6 @@ mod tests {
         }
     }
 
-    #[ignore] // Ignoring the test, because there is a problem with threads
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn block_many_times_with_random_reasons() {
         let _ = init_application_manager();
