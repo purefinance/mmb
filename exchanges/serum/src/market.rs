@@ -1,4 +1,10 @@
+use anyhow::Result;
+use mmb_utils::infrastructure::WithExpect;
+use rust_decimal::prelude::ToPrimitive;
+use rust_decimal::{Decimal, MathematicalOps};
+use rust_decimal_macros::dec;
 use serde::Deserialize;
+use serum_dex::matching::Side;
 use serum_dex::state::MarketState;
 use solana_program::pubkey::Pubkey;
 
@@ -40,6 +46,43 @@ pub struct MarketMetaData {
     pub price_lot: u64,
 }
 
+impl MarketMetaData {
+    pub(super) fn encode_price(&self, raw_price: u64) -> Result<Decimal> {
+        Ok(Decimal::from(raw_price)
+            * Decimal::from(self.state.pc_lot_size)
+            * dec!(10).powi(self.coin_decimal as i64 - self.price_decimal as i64)
+            / Decimal::from(self.coin_lot))
+    }
+
+    pub(super) fn encode_size(self, raw_size: u64) -> Result<Decimal> {
+        Ok(Decimal::from(raw_size) * Decimal::from(self.coin_lot)
+            / dec!(10).powi(self.coin_decimal as i64))
+    }
+
+    pub(super) fn make_max_native(&self, price: u64, size: u64) -> u64 {
+        self.state.pc_lot_size * size * price
+    }
+
+    pub(super) fn make_price(&self, raw_price: Decimal) -> u64 {
+        let price = raw_price
+            * Decimal::from(self.coin_lot)
+            * dec!(10).powi(self.price_decimal as i64 - self.coin_decimal as i64)
+            / Decimal::from(self.state.pc_lot_size);
+
+        price
+            .to_u64()
+            .with_expect(|| format!("Unable to convert make_size as decimal to u64 = {price}"))
+    }
+
+    pub(super) fn make_size(&self, raw_size: Decimal) -> u64 {
+        let size =
+            raw_size * dec!(10).powi(self.coin_decimal as i64) / Decimal::from(self.coin_lot);
+
+        size.to_u64()
+            .with_expect(|| format!("Unable to convert make_size as decimal to u64 = {size}"))
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct DeserMarketData {
     pub address: String,
@@ -64,4 +107,15 @@ impl MarketData {
             metadata,
         }
     }
+}
+
+#[derive(Debug)]
+pub struct Order {
+    pub order_id: u128,
+    pub price: Decimal,
+    pub quantity: Decimal,
+    pub slot: u8,
+    pub client_order_id: u64,
+    pub owner: Pubkey,
+    pub side: Side,
 }

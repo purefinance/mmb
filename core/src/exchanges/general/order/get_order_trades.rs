@@ -1,6 +1,7 @@
 use crate::exchanges::common::{Amount, CurrencyCode, ExchangeError, Price};
 use crate::exchanges::events::TradeId;
 use crate::exchanges::general::exchange::RequestResult;
+use crate::exchanges::general::helpers::{get_rest_error, handle_parse_error};
 use crate::exchanges::general::symbol::Symbol;
 use crate::orders::fill::OrderFillType;
 use crate::orders::order::{ExchangeOrderId, OrderRole};
@@ -102,7 +103,11 @@ impl Exchange {
             .request_my_trades(symbol, last_date_time)
             .await?;
 
-        match self.get_rest_error(&response) {
+        match get_rest_error(
+            &response,
+            self.exchange_account_id,
+            self.features.empty_response_is_ok,
+        ) {
             Some(error) => Ok(RequestResult::Error(error)),
             None => match self
                 .exchange_client
@@ -110,7 +115,13 @@ impl Exchange {
             {
                 Ok(data) => Ok(RequestResult::Success(data)),
                 Err(error) => {
-                    self.handle_parse_error(error, &response, "".into(), None)?;
+                    handle_parse_error(
+                        error,
+                        &response,
+                        "".into(),
+                        None,
+                        self.exchange_account_id,
+                    )?;
                     Ok(RequestResult::Error(ExchangeError::unknown_error(
                         &response.content,
                     )))

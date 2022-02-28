@@ -3291,6 +3291,7 @@ dependencies = [
  "async-trait",
  "core_tests",
  "dashmap",
+ "futures 0.3.19",
  "itertools 0.10.3",
  "memoffset",
  "mmb_core",

@@ -1,16 +1,14 @@
 use std::sync::{Arc, Weak};
 
-use anyhow::{bail, Context, Error, Result};
+use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
 use futures::FutureExt;
 use itertools::Itertools;
-use log::log;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::send_expected::SendExpectedByRef;
 use mmb_utils::{nothing_to_do, DateTime};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
-use serde_json::Value;
 use tokio::sync::{broadcast, oneshot};
 
 use super::commission::Commission;
@@ -33,21 +31,21 @@ use crate::misc::time::time_manager;
 use crate::orders::buffered_fills::buffered_canceled_orders_manager::BufferedCanceledOrdersManager;
 use crate::orders::buffered_fills::buffered_fills_manager::BufferedFillsManager;
 use crate::orders::event::OrderEventType;
-use crate::orders::order::{OrderHeader, OrderSide};
+use crate::orders::order::OrderSide;
 use crate::orders::pool::OrdersPool;
 use crate::orders::{order::ExchangeOrderId, pool::OrderRef};
 use crate::{
     connectivity::connectivity_manager::WebSocketRole,
     exchanges::common::ExchangeAccountId,
     exchanges::{
-        common::CurrencyPair,
-        common::{ExchangeError, ExchangeErrorType, RestRequestOutcome},
+        common::{CurrencyPair, ExchangeError},
         traits::ExchangeClient,
     },
     lifecycle::application_manager::ApplicationManager,
 };
 
 use crate::balance_manager::balance_manager::BalanceManager;
+use crate::exchanges::general::helpers::is_rest_error_code;
 use crate::{
     connectivity::{
         connectivity_manager::ConnectivityManager, websocket_connection::WebSocketParams,
@@ -58,8 +56,7 @@ use crate::{
     exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
-use hyper::StatusCode;
-use std::fmt::{Arguments, Debug, Write};
+use std::fmt::Debug;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult<T> {
@@ -76,11 +73,6 @@ impl<T> RequestResult<T> {
             RequestResult::Error(exchange_error) => Some(exchange_error.clone()),
         }
     }
-}
-
-enum CheckContent {
-    Empty,
-    Usable,
 }
 
 pub struct PriceLevel {
@@ -385,132 +377,10 @@ impl Exchange {
         // TODO all other logs and finish_connected
     }
 
-    pub(crate) fn get_rest_error(&self, response: &RestRequestOutcome) -> Option<ExchangeError> {
-        self.get_rest_error_main(response, format_args!(""))
-    }
-
-    pub(super) fn get_rest_error_order(
-        &self,
-        response: &RestRequestOutcome,
-        order_header: &OrderHeader,
-    ) -> Option<ExchangeError> {
-        let client_order_id = &order_header.client_order_id;
-        let exchange_account_id = &order_header.exchange_account_id;
-        self.get_rest_error_main(
-            response,
-            format_args!("order {} {}", client_order_id, exchange_account_id),
-        )
-    }
-
-    pub fn get_rest_error_main(
-        &self,
-        response: &RestRequestOutcome,
-        log_template: Arguments,
-    ) -> Option<ExchangeError> {
-        use ExchangeErrorType::*;
-
-        let error = match response.status {
-            StatusCode::UNAUTHORIZED => {
-                ExchangeError::new(Authentication, response.content.clone(), None)
-            }
-            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => {
-                ExchangeError::new(ServiceUnavailable, response.content.clone(), None)
-            }
-            StatusCode::TOO_MANY_REQUESTS => {
-                ExchangeError::new(RateLimit, response.content.clone(), None)
-            }
-            _ => match Self::check_content(&response.content) {
-                CheckContent::Empty => {
-                    if self.features.empty_response_is_ok {
-                        return None;
-                    }
-
-                    ExchangeError::new(Unknown, "Empty response".to_owned(), None)
-                }
-                CheckContent::Usable => match self.exchange_client.is_rest_error_code(response) {
-                    Ok(_) => return None,
-                    Err(mut error) => match error.error_type {
-                        ParsingError => error,
-                        _ => {
-                            // TODO For Aax Pending time should be received inside clarify_error_type
-                            self.exchange_client.clarify_error_type(&mut error);
-                            error
-                        }
-                    },
-                },
-            },
-        };
-
-        let extra_data_len = 512; // just apriori estimation
-        let mut msg = String::with_capacity(error.message.len() + extra_data_len);
-        write!(
-            &mut msg,
-            "Response has an error {:?}, on {}: {:?}",
-            error.error_type, self.exchange_account_id, error
-        )
-        .expect("Writing rest error");
-
-        write!(&mut msg, " {}", log_template).expect("Writing rest error");
-
-        let log_level = match error.error_type {
-            RateLimit | Authentication | InsufficientFunds | InvalidOrder => log::Level::Error,
-            _ => log::Level::Warn,
-        };
-
-        log!(log_level, "{}. Response: {:?}", &msg, response);
-
-        // TODO some HandleRestError via BotBase
-
-        Some(error)
-    }
-
-    fn check_content(content: &str) -> CheckContent {
-        if content.is_empty() {
-            CheckContent::Empty
-        } else {
-            CheckContent::Usable
-        }
-    }
-
     pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
         self.exchange_client
             .cancel_all_orders(currency_pair)
             .await?;
-
-        Ok(())
-    }
-
-    pub(super) fn handle_parse_error(
-        &self,
-        error: Error,
-        response: &RestRequestOutcome,
-        log_template: String,
-        args_to_log: Option<Vec<String>>,
-    ) -> Result<()> {
-        let content = &response.content;
-        let log_event_level = match serde_json::from_str::<Value>(content) {
-            Ok(_) => log::Level::Error,
-            Err(_) => log::Level::Warn,
-        };
-
-        let mut msg_to_log = format!(
-            "Error parsing response {}, on {}: {}. Error: {:?}",
-            log_template,
-            self.exchange_account_id,
-            content,
-            error.to_string()
-        );
-
-        if let Some(args) = args_to_log {
-            msg_to_log = format!(" {} with args: {:?}", msg_to_log, args);
-        }
-
-        // TODO Add some other fields as Exchange::Id, Exchange::Name
-        log!(log_event_level, "{}.", msg_to_log,);
-
-        if log_event_level == log::Level::Error {
-            bail!("{}", msg_to_log);
-        }
 
         Ok(())
     }
@@ -606,7 +476,7 @@ impl Exchange {
             response,
         );
 
-        self.exchange_client.is_rest_error_code(&response)?;
+        is_rest_error_code(&response)?;
 
         self.exchange_client.parse_close_position(&response)
     }
@@ -692,7 +562,7 @@ impl Exchange {
             response,
         );
 
-        self.exchange_client.is_rest_error_code(&response)?;
+        is_rest_error_code(&response)?;
 
         Ok(self.exchange_client.parse_get_position(&response))
     }
@@ -706,7 +576,7 @@ impl Exchange {
             response,
         );
 
-        self.exchange_client.is_rest_error_code(&response)?;
+        is_rest_error_code(&response)?;
 
         Ok(self.exchange_client.parse_get_balance(&response))
     }
@@ -785,7 +655,7 @@ impl Exchange {
             response,
         );
 
-        self.exchange_client.is_rest_error_code(&response)?;
+        is_rest_error_code(&response)?;
 
         Ok(self.exchange_client.parse_get_balance(&response))
     }

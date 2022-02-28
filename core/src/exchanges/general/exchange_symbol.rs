@@ -6,6 +6,7 @@ use rust_decimal_macros::dec;
 use std::sync::Arc;
 
 use crate::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId};
+use crate::exchanges::general::helpers::{get_rest_error, handle_parse_error};
 use crate::settings::CurrencyPairSetting;
 
 use super::{exchange::Exchange, symbol::Symbol};
@@ -63,14 +64,18 @@ impl Exchange {
     async fn build_all_symbols_core(&self) -> Result<Vec<Arc<Symbol>>> {
         let response = &self.exchange_client.request_all_symbols().await?;
 
-        if let Some(error) = self.get_rest_error(response) {
+        if let Some(error) = get_rest_error(
+            response,
+            self.exchange_account_id,
+            self.features.empty_response_is_ok,
+        ) {
             Err(error).context("Rest error appeared during request request_symbol")?;
         }
 
         match self.exchange_client.parse_all_symbols(response) {
             symbols @ Ok(_) => symbols,
             Err(error) => {
-                self.handle_parse_error(error, response, "".into(), None)?;
+                handle_parse_error(error, response, "".into(), None, self.exchange_account_id)?;
                 Ok(Vec::new())
             }
         }

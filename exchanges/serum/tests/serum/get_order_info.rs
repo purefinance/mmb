@@ -1,22 +1,25 @@
 use crate::serum::serum_builder::SerumBuilder;
+use anyhow::{anyhow, Context, Result};
 use core_tests::order::OrderProxyBuilder;
 use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId};
-use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
+use mmb_core::exchanges::events::AllowedEventSourceType;
 use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
     WebSocketOptions,
 };
-use mmb_core::orders::event::OrderEventType;
 use mmb_core::orders::order::OrderSide;
 use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::infrastructure::init_infrastructure;
 use rust_decimal_macros::dec;
 
-#[ignore] // build_metadata works for a long time
+#[ignore = "not yet implemented Serum::get_order_id()"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn create_successfully() {
-    let exchange_account_id = ExchangeAccountId::new("Serum".into(), 0);
-    let mut serum_builder = match SerumBuilder::try_new(
+async fn get_order_info() -> Result<()> {
+    init_infrastructure("log.txt");
+
+    let exchange_account_id: ExchangeAccountId = "Serum_0".parse().expect("Parsing error");
+    let serum_builder = SerumBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -33,15 +36,12 @@ async fn create_successfully() {
         Commission::default(),
     )
     .await
-    {
-        Ok(serum_builder) => serum_builder,
-        Err(err) => panic!("Failed to create SerumBuilder. {:?}", err),
-    };
+    .context("Failed to create SerumBuilder")?;
 
     let currency_pair = CurrencyPair::from_codes("sol".into(), "test".into());
     let order_proxy = OrderProxyBuilder::new(
         exchange_account_id,
-        Some("FromCreateSuccessfullyTest".to_owned()),
+        Some("FromGetOpenOrdersTest".to_owned()),
         dec!(1),
         dec!(1),
     )
@@ -49,29 +49,23 @@ async fn create_successfully() {
     .side(OrderSide::Sell)
     .build();
 
-    let order_ref = order_proxy
+    let created_order = order_proxy
         .create_order(serum_builder.exchange.clone())
         .await
-        .expect("Create order failed with error");
+        .context("Create order failed")?;
 
-    let event = serum_builder
-        .rx
-        .recv()
+    let order_info = serum_builder
+        .exchange
+        .get_order_info(&created_order)
         .await
-        .expect("CreateOrderSucceeded event had to be occurred");
+        .context("Get order info failed")?;
 
-    let order_event = if let ExchangeEvent::OrderEvent(order_event) = event {
-        order_event
-    } else {
-        panic!("Should receive OrderEvent")
-    };
+    let created_exchange_order_id = created_order
+        .exchange_order_id()
+        .ok_or(anyhow!("Cannot get exchange_order_id"))?;
+    let gotten_info_exchange_order_id = order_info.exchange_order_id;
 
-    match order_event.event_type {
-        OrderEventType::CreateOrderSucceeded => {}
-        _ => panic!("Should receive CreateOrderSucceeded event type"),
-    }
+    assert_eq!(created_exchange_order_id, gotten_info_exchange_order_id);
 
-    order_proxy
-        .cancel_order_or_fail(&order_ref, serum_builder.exchange.clone())
-        .await;
+    Ok(())
 }

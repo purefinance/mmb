@@ -1,7 +1,8 @@
 use super::binance::Binance;
 use anyhow::Result;
 use async_trait::async_trait;
-use mmb_core::exchanges::common::{ActivePosition, Price};
+use mmb_core::exchanges::common::{ActivePosition, ExchangeError, ExchangeErrorType, Price};
+use mmb_core::exchanges::general::helpers::get_rest_error_order;
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::rest_client;
 use mmb_core::exchanges::traits::{ExchangeClient, Support};
@@ -117,50 +118,59 @@ impl ExchangeClient for Binance {
         Ok(())
     }
 
-    async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
-        let mut http_params = rest_client::HttpParams::new();
-        self.add_authentification_headers(&mut http_params)?;
+    async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
+        let response = self.request_open_orders().await?;
+        log::info!(
+            "get_open_orders() response on {}: {:?}",
+            self.settings.exchange_account_id,
+            response
+        );
 
-        self.request_open_orders_by_http_header(http_params).await
+        self.get_open_orders_from_response(&response)
     }
 
-    async fn request_open_orders_by_currency_pair(
+    async fn get_open_orders_by_currency_pair(
         &self,
         currency_pair: CurrencyPair,
-    ) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
-        let mut http_params = vec![(
-            "symbol".to_owned(),
-            specific_currency_pair.as_str().to_owned(),
-        )];
-        self.add_authentification_headers(&mut http_params)?;
+    ) -> Result<Vec<OrderInfo>> {
+        let response = self
+            .request_open_orders_by_currency_pair(currency_pair)
+            .await?;
 
-        self.request_open_orders_by_http_header(http_params).await
+        self.get_open_orders_from_response(&response)
     }
 
-    async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(order.currency_pair());
+    async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
+        let request_outcome = self.request_order_info(order).await;
 
-        let url_path = match self.settings.is_margin_trading {
-            true => "/fapi/v1/order",
-            false => "/api/v3/order",
-        };
+        match request_outcome {
+            Ok(request_outcome) => {
+                let order_header = order.fn_ref(|order| order.header.clone());
+                if let Some(exchange_error) = get_rest_error_order(
+                    &request_outcome,
+                    &order_header,
+                    self.settings.empty_response_is_ok,
+                ) {
+                    return Err(exchange_error);
+                }
 
-        let mut http_params = vec![
-            (
-                "symbol".to_owned(),
-                specific_currency_pair.as_str().to_owned(),
-            ),
-            (
-                "origClientOrderId".to_owned(),
-                order.client_order_id().as_str().to_owned(),
-            ),
-        ];
-        self.add_authentification_headers(&mut http_params)?;
+                let unified_order_info = self.parse_order_info(&request_outcome);
 
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
-
-        self.rest_client.get(full_url, &self.settings.api_key).await
+                match unified_order_info {
+                    Ok(order_info) => Ok(order_info),
+                    Err(error) => Err(ExchangeError::new(
+                        ExchangeErrorType::OrderNotFound,
+                        error.to_string(),
+                        None,
+                    )),
+                }
+            }
+            Err(error) => Err(ExchangeError::new(
+                ExchangeErrorType::Unknown,
+                error.to_string(),
+                None,
+            )),
+        }
     }
 
     async fn request_my_trades(

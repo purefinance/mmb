@@ -4,6 +4,19 @@ use mmb_core::orders::order::OrderSide;
 use serum_dex::matching::Side;
 use solana_program::pubkey::Pubkey;
 
+pub trait ToOrderSide {
+    fn to_order_side(&self) -> OrderSide;
+}
+
+impl ToOrderSide for Side {
+    fn to_order_side(&self) -> OrderSide {
+        match self {
+            Side::Bid => OrderSide::Buy,
+            Side::Ask => OrderSide::Sell,
+        }
+    }
+}
+
 pub trait ToSerumSide {
     fn to_serum_side(&self) -> Side;
 }

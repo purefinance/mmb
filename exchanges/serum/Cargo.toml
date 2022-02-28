@@ -9,6 +9,7 @@ edition = "2021"
 anyhow = "1"
 async-trait = "0.1"
 dashmap = "4"
+futures = "0.3"
 itertools = "0.10"
 memoffset = "0.6"
 mmb_core = { path = "../../core/" }

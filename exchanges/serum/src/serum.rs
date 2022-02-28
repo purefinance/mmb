@@ -3,11 +3,10 @@ use dashmap::DashMap;
 use memoffset::offset_of;
 use parking_lot::{Mutex, RwLock};
 use rand::rngs::OsRng;
-use rust_decimal::prelude::ToPrimitive;
-use rust_decimal::Decimal;
-use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
+use serum_dex::critbit::{Slab, SlabView};
 use serum_dex::instruction::MarketInstruction;
+use serum_dex::matching::Side;
 use serum_dex::state::{gen_vault_signer_key, Market, MarketState};
 use solana_client::rpc_client::RpcClient;
 use solana_client::rpc_config;
@@ -30,7 +29,7 @@ use std::ops::Deref;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::helpers::{FromU64Array, ToSerumSide};
+use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide};
 use crate::market::{MarketData, MarketMetaData, OpenOrderData};
 use mmb_core::exchanges::common::{
     Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, SpecificCurrencyPair,
@@ -44,12 +43,16 @@ use mmb_core::exchanges::general::features::{
 use mmb_core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use mmb_core::exchanges::rest_client::RestClient;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
-use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeClientBuilderResult};
+use mmb_core::exchanges::traits::{
+    ExchangeClient, ExchangeClientBuilder, ExchangeClientBuilderResult,
+};
 use mmb_core::lifecycle::application_manager::ApplicationManager;
 use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide, OrderType};
+use mmb_core::orders::order::{
+    ClientOrderId, ExchangeOrderId, OrderInfo, OrderSide, OrderStatus, OrderType,
+};
+use mmb_core::orders::pool::OrderRef;
 use mmb_core::settings::ExchangeSettings;
-use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::DateTime;
 
 pub struct SolanaHosts {
@@ -263,9 +266,9 @@ impl Serum {
         amount: Amount,
         order_type: OrderType,
     ) -> Result<Instruction> {
-        let price = self.make_price(&metadata, price);
-        let amount = self.make_size(&metadata, amount);
-        let max_native_price = self.make_max_native(&metadata, price, amount);
+        let price = metadata.make_price(price);
+        let amount = metadata.make_size(amount);
+        let max_native_price = metadata.make_max_native(price, amount);
 
         let new_order = serum_dex::instruction::NewOrderInstructionV3 {
             side: side.to_serum_side(),
@@ -380,27 +383,52 @@ impl Serum {
         .await??)
     }
 
-    fn make_max_native(&self, market: &MarketMetaData, price: u64, size: u64) -> u64 {
-        market.state.pc_lot_size * size * price
+    pub async fn do_get_order_info(&self, order: &OrderRef) -> Result<OrderInfo> {
+        let client_order_id = order.client_order_id();
+
+        self.get_open_orders_by_currency_pair(order.currency_pair())
+            .await?
+            .iter()
+            .find(|order_info| order_info.client_order_id == client_order_id)
+            .cloned()
+            .ok_or(anyhow!("Order not found for id {client_order_id}"))
     }
 
-    fn make_price(&self, market: &MarketMetaData, raw_price: Decimal) -> u64 {
-        let price = raw_price
-            * Decimal::from(market.coin_lot)
-            * dec!(10).powi((market.price_decimal - market.coin_decimal) as i64)
-            / Decimal::from(market.state.pc_lot_size);
+    pub fn encode_orders(
+        &self,
+        slab: &Slab,
+        market_info: &MarketMetaData,
+        side: Side,
+        currency_pair: &CurrencyPair,
+    ) -> Result<Vec<OrderInfo>> {
+        let mut orders = Vec::new();
+        for i in 0..slab.capacity() {
+            let any_node = slab.get(i as u32);
+            if let Some(node) = any_node {
+                if let Some(leaf) = node.as_leaf() {
+                    let client_order_id = leaf.client_order_id().to_string().as_str().into();
+                    let exchange_order_id = leaf.order_id().to_string().as_str().into();
+                    let price = market_info.encode_price(leaf.price().get())?;
+                    let quantity = market_info.encode_size(leaf.quantity())?;
+                    orders.push(OrderInfo {
+                        currency_pair: *currency_pair,
+                        exchange_order_id,
+                        client_order_id,
+                        order_side: side.to_order_side(),
+                        order_status: OrderStatus::Created,
+                        price,
+                        amount: quantity,
+                        average_fill_price: price,
+                        filled_amount: dec!(0),
+                        commission_currency_code: None,
+                        commission_rate: None,
+                        commission_amount: None,
+                    })
+                }
+            }
+        }
 
-        price
-            .to_u64()
-            .with_expect(|| format!("Unable to convert make_size as decimal to u64 = {price}"))
-    }
-
-    fn make_size(&self, market: &MarketMetaData, raw_size: Decimal) -> u64 {
-        let size =
-            raw_size * dec!(10).powi(market.coin_decimal as i64) / Decimal::from(market.coin_lot);
-
-        size.to_u64()
-            .with_expect(|| format!("Unable to convert make_size as decimal to u64 = {size}"))
+        Ok(orders)
     }
 }
 
