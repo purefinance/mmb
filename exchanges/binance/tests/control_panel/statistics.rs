@@ -57,6 +57,7 @@ impl BaseStrategySettings for TestStrategySettings {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore] // #431
 async fn orders_cancelled() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
     struct TestStrategy;

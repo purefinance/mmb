@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::{fmt, iter};
 use tokio::sync::{mpsc, Notify};
 use tokio::task::JoinHandle;
-use tokio::time::{sleep_until, Duration, Instant};
+use tokio::time::{sleep, sleep_until, Duration, Instant};
 
 #[cfg(test)]
 use crate::MOCK_MUTEX;
@@ -105,6 +105,10 @@ enum ProgressStatus {
 #[derive(Debug, Clone)]
 struct ProgressState {
     is_unblock_requested: bool,
+    /// This flag needed for signalization that unblocking is already requested, but not started to handling.
+    /// If more than one requests will be in queue and the first one will executed the second will crash the program,
+    /// because `fn move_next_blocker_state_if_can` will panic if blocker doesn't exist.
+    is_unblock_in_queue: bool,
     status: ProgressStatus,
 }
 
@@ -142,6 +146,7 @@ impl Blocker {
             id,
             progress_state: Mutex::new(ProgressState {
                 is_unblock_requested: false,
+                is_unblock_in_queue: false,
                 status: ProgressStatus::WaitBlockedMove,
             }),
             timeout: Mutex::new(timeout),
@@ -173,7 +178,7 @@ impl ExchangeBlockerInternalEvent {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum ExchangeBlockerEventType {
     MoveToBlocked,
     UnblockRequested,
@@ -242,6 +247,8 @@ impl ExchangeBlockerEventsProcessor {
         (events_processor, events_sender)
     }
 
+    /// ATTENTION: the handlers work on 'fire-and-forget' basis and the next step of unblocking will be executed without waiting for called handlers.
+    /// `Unblocked` handler may be missed if unblocking will be interrupted by calling `block` method.
     pub fn register_handler(&self, handler: BlockerEventHandler) {
         self.handlers.write().push(handler);
     }
@@ -300,16 +307,18 @@ impl ExchangeBlockerEventsProcessor {
             .get_mut(&event.blocker_id.exchange_account_id)
             .expect(EXPECTED_EAI_SHOULD_BE_CREATED);
 
-        let mut progress_state = blockers
-            .get(&event.blocker_id.reason)
-            .with_expect(|| {
-                format!(
-                    "Blocker {:?} should be added in method ExchangeBlocker::block()",
-                    event.blocker_id
-                )
-            })
-            .progress_state
-            .lock();
+        let blocker = blockers.get(&event.blocker_id.reason).with_expect(|| {
+            format!(
+                "Blocker {:?} should be added in method ExchangeBlocker::block()",
+                event.blocker_id
+            )
+        });
+
+        let mut progress_state = blocker.progress_state.lock();
+
+        if event.event_type == UnblockRequested && progress_state.is_unblock_in_queue {
+            progress_state.is_unblock_in_queue = false;
+        }
 
         let is_unblock_requested = progress_state.is_unblock_requested;
         let status = progress_state.status;
@@ -365,6 +374,7 @@ impl ExchangeBlockerEventsProcessor {
             }
             (WaitUnblockedMove, MoveBeforeUnblockedToUnblocked) => {
                 if !is_unblock_requested {
+                    progress_state.status = ProgressBlocked;
                     return;
                 }
                 drop(progress_state);
@@ -566,8 +576,10 @@ impl ExchangeBlocker {
         fn rollback_to_blocked_progress(blocker: &Blocker) {
             let mut progress_guard = blocker.progress_state.lock();
             let progress_status = progress_guard.status;
+            let is_unblock_in_queue = progress_guard.is_unblock_in_queue;
             *progress_guard = ProgressState {
                 is_unblock_requested: false,
+                is_unblock_in_queue,
                 status: match progress_status >= ProgressBlocked {
                     false => progress_status,
                     true => ProgressBlocked,
@@ -699,6 +711,13 @@ impl ExchangeBlocker {
 
             progress_state.is_unblock_requested = true;
 
+            if progress_state.is_unblock_in_queue {
+                log::trace!(
+                    "Unblock stopped because unblock already waiting in event queue {exchange_account_id} {reason}"
+                );
+                return;
+            }
+
             if progress_state.status > ProgressBlocked {
                 log::trace!(
                     "Unblock stopped because status is {:?} {exchange_account_id} {reason}",
@@ -711,6 +730,8 @@ impl ExchangeBlocker {
                 blocker_id,
                 event_type: ExchangeBlockerEventType::UnblockRequested,
             };
+
+            progress_state.is_unblock_in_queue = true;
             ExchangeBlockerEventsProcessor::add_event(self.events_sender.lock().deref_mut(), event);
         }
 
@@ -734,18 +755,40 @@ impl ExchangeBlocker {
                 .get(&exchange_account_id)
                 .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
                 .values()
-                .map(|blocker| blocker.unblocked_notify.clone())
+                .map(|blocker| (blocker.unblocked_notify.clone(), blocker.id))
                 .collect_vec();
 
             if unblocked_notifies.is_empty() {
                 return;
             }
 
-            let unblocked_futures = join_all(unblocked_notifies.iter().map(|x| x.notified()));
+            let unblocked_futures =
+                join_all(unblocked_notifies.iter().map(|(notify, id)| async move {
+                    let is_already_unblocked = async move {
+                        // need to avoid that checking will executed before notified()
+                        sleep(Duration::from_millis(50)).await;
+
+                        if self
+                            .blockers
+                            .read()
+                            .get(&exchange_account_id)
+                            .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
+                            .get(&id.reason)
+                            .is_some()
+                        {
+                            std::future::pending::<()>().await;
+                        }
+                    };
+
+                    tokio::select! {
+                        _ = notify.notified() => return,
+                        _ = is_already_unblocked => return,
+                    }
+                }));
 
             tokio::select! {
                 _ = unblocked_futures => nothing_to_do(),
-                _ = cancellation_token.when_cancelled() => return (),
+                _ = cancellation_token.when_cancelled() => return,
             }
 
             // we can reblock some reasons while waiting others
@@ -785,9 +828,25 @@ impl ExchangeBlocker {
             }
         };
 
+        let another_check_and_wait_for_cancel = async move {
+            let is_already_unblocked = self
+                .blockers
+                .read()
+                .get(&exchange_account_id)
+                .expect(EXPECTED_EAI_SHOULD_BE_CREATED)
+                .get(&reason)
+                .is_none();
+
+            if is_already_unblocked {
+                return;
+            }
+
+            cancellation_token.when_cancelled().await;
+        };
+
         tokio::select! {
             _ = unblocked_notify.notified() => nothing_to_do(),
-            _ = cancellation_token.when_cancelled() => return (),
+            _ = another_check_and_wait_for_cancel => return,
         }
 
         log::trace!(
@@ -818,8 +877,9 @@ mod tests {
     use futures::future::{join, join_all};
     use futures::FutureExt;
     use mmb_utils::cancellation_token::CancellationToken;
-    use mmb_utils::infrastructure::SpawnFutureFlags;
+    use mmb_utils::infrastructure::{with_timeout, SpawnFutureFlags};
     use mmb_utils::nothing_to_do;
+    use mmb_utils::send_expected::SendExpectedByRef;
     use parking_lot::Mutex;
     use rand::Rng;
     use std::iter::repeat_with;
@@ -845,6 +905,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_unblock_manual() {
         let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
@@ -863,7 +924,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ntest::timeout(120000)]
     async fn block_unblock_future() {
+        let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
         let signal = Signal::default();
@@ -873,6 +936,7 @@ mod tests {
         exchange_blocker.block(exchange_account_id(), reason, Manual);
         assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
         let _ = spawn_future(
             "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
             SpawnFutureFlags::STOP_BY_TOKEN,
@@ -886,7 +950,7 @@ mod tests {
                         .await;
 
                     *signal.lock() = true;
-
+                    tx.send(()).await.expect("Failed to send message");
                     Ok(())
                 }
                 .boxed()
@@ -902,11 +966,12 @@ mod tests {
             .await;
         assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
 
-        sleep(Duration::from_millis(30)).await;
+        with_timeout(Duration::from_secs(1), rx.recv()).await;
         assert_eq!(*signal.lock(), true);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_duration() {
         let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
@@ -943,6 +1008,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn reblock_before_time_is_up() {
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
@@ -986,6 +1052,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_with_multiple() {
         let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
@@ -1032,6 +1099,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_with_handler() {
         let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
@@ -1067,6 +1135,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_with_first_long_handler() {
         let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
@@ -1106,6 +1175,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn stop_blocker() {
         let _ = init_application_manager();
         let exchange_blocker = exchange_blocker();
@@ -1118,6 +1188,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_with_handler_after_stop() {
         let _ = init_application_manager();
         let exchange_blocker = exchange_blocker();
@@ -1153,6 +1224,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_many_times() {
         let _ = init_application_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
@@ -1218,6 +1290,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_many_times_with_random_reasons() {
         let _ = init_application_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
@@ -1275,6 +1348,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn block_many_times_with_stop_exchange_blocker() {
         let _ = init_application_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
@@ -1365,6 +1439,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn is_blocked_except_reason_full_cycle() {
         let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
@@ -1404,6 +1479,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn wait_unblock_if_not_blocked() {
         let _ = init_application_manager();
         let cancellation_token = CancellationToken::new();
@@ -1418,6 +1494,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ntest::timeout(120000)]
     async fn wait_unblock_when_reblock_1_of_2_reasons() {
         let _ = init_application_manager();
         let exchange_blocker = &exchange_blocker();
@@ -1429,6 +1506,7 @@ mod tests {
         exchange_blocker.block(exchange_account_id(), reason1, Manual);
         exchange_blocker.block(exchange_account_id(), reason2, Manual);
 
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
         let _ = spawn_future(
             "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
             SpawnFutureFlags::CRITICAL | SpawnFutureFlags::STOP_BY_TOKEN,
@@ -1440,6 +1518,7 @@ mod tests {
                         .wait_unblock(exchange_account_id(), CancellationToken::new())
                         .await;
                     *wait_completed.lock() = true;
+                    tx.send_expected(());
                     Ok(())
                 }
             }
@@ -1468,7 +1547,7 @@ mod tests {
             .wait_unblock(exchange_account_id(), CancellationToken::new())
             .await;
 
-        sleep(Duration::from_millis(30)).await;
+        with_timeout(Duration::from_secs(3), rx.recv()).await;
         assert_eq!(*wait_completed.lock(), true);
     }
 
