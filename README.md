@@ -13,6 +13,7 @@ Mmb is an open-source crypto trading engine implemented in Rust
 | logo | id | name | ver | doc | status |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | <img src="assets/binance-logo.jpg" alt="Binance" width="90" /> | binance | [Binance](https://www.binance.com/) | 3 | [API](https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md) | ![GREEN](https://via.placeholder.com/15/008000/?text=+)|
+| <img src="assets/serum-logo.png" alt="Binance" width="90" /> | serum | [Serum](https://www.projectserum.com/) | 1 | [API](https://docs.projectserum.com/serum-ecosystem/build-on-serum/project-ideas-for-serum) | ![YELLOW](https://via.placeholder.com/15/ffff00/?text=+)|
 
 ## Quick Start
 
