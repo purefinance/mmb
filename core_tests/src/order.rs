@@ -129,7 +129,6 @@ impl OrderProxy {
         let cancel_outcome = exchange
             .cancel_order(&order_to_cancel, CancellationToken::default())
             .await
-            .expect("in test")
             .expect("in test");
 
         if let RequestResult::Success(gotten_client_order_id) = cancel_outcome.outcome {

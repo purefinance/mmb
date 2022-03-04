@@ -389,7 +389,7 @@ impl ConnectivityManagerNotifier {
                         .await
                 }
                 None => {
-                    log::info!("Unable to upgrade weak reference to ConnectivityManager instance",)
+                    log::info!("Unable to upgrade weak reference to ConnectivityManager instance")
                 }
             }
         } else {

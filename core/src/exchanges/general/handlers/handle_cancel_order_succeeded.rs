@@ -1,10 +1,8 @@
-use anyhow::{bail, Result};
 use chrono::Utc;
+use mmb_utils::infrastructure::WithExpect;
 
 use crate::{
     exchanges::common::Amount,
-    exchanges::common::ExchangeAccountId,
-    exchanges::events::AllowedEventSourceType,
     exchanges::general::exchange::Exchange,
     orders::{
         event::OrderEventType, fill::EventSourceType, order::ClientOrderId, order::ExchangeOrderId,
@@ -19,7 +17,7 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         filled_amount: Option<Amount>,
         source_type: EventSourceType,
-    ) -> Result<()> {
+    ) {
         let args_to_log = (
             self.exchange_account_id,
             exchange_order_id.clone(),
@@ -29,14 +27,14 @@ impl Exchange {
 
         if Self::should_ignore_event(self.features.allowed_cancel_event_source_type, source_type) {
             log::info!("Ignoring fill {:?}", args_to_log);
-            return Ok(());
+            return;
         }
 
-        if exchange_order_id.as_str().is_empty() {
-            Self::log_cancel_handling_error_and_propagate(
-                "Received HandleOrderFilled with an empty exchangeOrderId",
-                &args_to_log,
-            )?;
+        if exchange_order_id.is_empty() {
+            panic!(
+                "Received HandleOrderFilled with an empty exchangeOrderId {:?}",
+                &args_to_log
+            );
         }
 
         match self.orders.cache_by_exchange_id.get(&exchange_order_id) {
@@ -53,15 +51,10 @@ impl Exchange {
                             self.exchange_account_id,
                             exchange_order_id),
                 }
-
-                Ok(())
             }
-            Some(order_ref) => self.try_update_local_order(
-                &order_ref,
-                filled_amount,
-                source_type,
-                exchange_order_id,
-            ),
+            Some(order_ref) => {
+                self.update_local_order(&order_ref, filled_amount, source_type, exchange_order_id)
+            }
         }
     }
 
@@ -88,17 +81,17 @@ impl Exchange {
         true
     }
 
-    fn try_update_local_order(
+    fn update_local_order(
         &self,
         order_ref: &OrderRef,
         filled_amount: Option<Amount>,
         source_type: EventSourceType,
         exchange_order_id: &ExchangeOrderId,
-    ) -> Result<()> {
+    ) {
         let client_order_id = order_ref.client_order_id();
 
         if self.order_already_closed(order_ref.status(), &client_order_id, exchange_order_id) {
-            return Ok(());
+            return;
         }
 
         if source_type == EventSourceType::RestFallback {
@@ -130,7 +123,8 @@ impl Exchange {
                 order.internal_props.canceled_not_from_wait_cancel_order = true;
             });
 
-            self.add_event_on_order_change(order_ref, OrderEventType::CancelOrderSucceeded)?;
+            self.add_event_on_order_change(order_ref, OrderEventType::CancelOrderSucceeded)
+                .with_expect(|| format!("Failed to add event CancelOrderSucceeded on order change {client_order_id}"));
         }
 
         log::info!(
@@ -141,23 +135,6 @@ impl Exchange {
         );
 
         // TODO DataRecorder.save(order_ref)
-
-        Ok(())
-    }
-
-    fn log_cancel_handling_error_and_propagate(
-        template: &str,
-        args_to_log: &(
-            ExchangeAccountId,
-            ExchangeOrderId,
-            AllowedEventSourceType,
-            EventSourceType,
-        ),
-    ) -> Result<()> {
-        let error_msg = format!("{} {:?}", template, args_to_log);
-
-        log::error!("{}", error_msg);
-        bail!("{}", error_msg)
     }
 }
 
@@ -169,11 +146,11 @@ mod test {
         exchanges::common::CurrencyPair, exchanges::general::test_helper, orders::order::OrderRole,
         orders::order::OrderSide,
     };
-    use anyhow::Context;
     use rstest::rstest;
     use rust_decimal_macros::dec;
 
     #[test]
+    #[should_panic(expected = "Received HandleOrderFilled with an empty exchangeOrderId")]
     fn empty_exchange_order_id() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
@@ -182,22 +159,12 @@ mod test {
         let filled_amount = dec!(1);
         let source_type = EventSourceType::Rest;
 
-        let maybe_error = exchange.handle_cancel_order_succeeded(
+        exchange.handle_cancel_order_succeeded(
             Some(&client_order_id),
             &exchange_order_id,
             Some(filled_amount),
             source_type,
         );
-
-        match maybe_error {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Received HandleOrderFilled with an empty exchangeOrderId",
-                    &error.to_string()[..56]
-                );
-            }
-        }
     }
 
     #[rstest]
@@ -217,7 +184,7 @@ mod test {
     }
 
     #[test]
-    fn return_if_order_already_closed() -> Result<()> {
+    fn return_if_order_already_closed() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -243,20 +210,11 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        let updating_result = exchange.try_update_local_order(
-            &order_ref,
-            filled_amount,
-            source_type,
-            &exchange_order_id,
-        );
-
-        assert!(updating_result.is_ok());
-
-        Ok(())
+        exchange.update_local_order(&order_ref, filled_amount, source_type, &exchange_order_id);
     }
 
     #[test]
-    fn order_filled_amount_cancellation_updated() -> Result<()> {
+    fn order_filled_amount_cancellation_updated() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -281,23 +239,16 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.try_update_local_order(
-            &order_ref,
-            filled_amount,
-            source_type,
-            &exchange_order_id,
-        )?;
+        exchange.update_local_order(&order_ref, filled_amount, source_type, &exchange_order_id);
 
         let changed_amount =
             order_ref.fn_ref(|x| x.internal_props.filled_amount_after_cancellation);
         let expected = filled_amount;
         assert_eq!(changed_amount, expected);
-
-        Ok(())
     }
 
     #[test]
-    fn order_status_updated() -> Result<()> {
+    fn order_status_updated() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -322,12 +273,7 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.try_update_local_order(
-            &order_ref,
-            filled_amount,
-            source_type,
-            &exchange_order_id,
-        )?;
+        exchange.update_local_order(&order_ref, filled_amount, source_type, &exchange_order_id);
 
         let order_status = order_ref.status();
         assert_eq!(order_status, OrderStatus::Canceled);
@@ -336,12 +282,10 @@ mod test {
             .fn_ref(|x| x.internal_props.cancellation_event_source_type)
             .expect("in test");
         assert_eq!(order_event_source_type, source_type);
-
-        Ok(())
     }
 
     #[test]
-    fn canceled_not_from_wait_cancel_order() -> Result<()> {
+    fn canceled_not_from_wait_cancel_order() {
         let (exchange, mut event_receiver) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -366,27 +310,18 @@ mod test {
         let exchange_order_id = ExchangeOrderId::new("".into());
         let filled_amount = Some(dec!(5));
         let source_type = EventSourceType::Rest;
-        exchange.try_update_local_order(
-            &order_ref,
-            filled_amount,
-            source_type,
-            &exchange_order_id,
-        )?;
+        exchange.update_local_order(&order_ref, filled_amount, source_type, &exchange_order_id);
 
         let canceled_not_from_wait_cancel_order =
             order_ref.fn_ref(|x| x.internal_props.canceled_not_from_wait_cancel_order);
         assert_eq!(canceled_not_from_wait_cancel_order, true);
 
-        let event = match event_receiver
-            .try_recv()
-            .context("Event was not received")?
-        {
+        let event = match event_receiver.try_recv().expect("Event was not received") {
             ExchangeEvent::OrderEvent(v) => v,
             _ => panic!("Should be OrderEvent"),
         };
 
         let gotten_id = event.order.client_order_id();
         assert_eq!(gotten_id, client_order_id);
-        Ok(())
     }
 }

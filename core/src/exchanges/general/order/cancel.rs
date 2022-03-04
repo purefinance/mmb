@@ -91,7 +91,7 @@ impl Exchange {
                     .ok_or(anyhow!("Unable to convert order to order_to_cancel"))?;
                 let order_cancellation_outcome = self
                     .cancel_order(&order_to_cancel, cancellation_token)
-                    .await?;
+                    .await;
 
                 log::info!(
                     "Submitted order cancellation {} {:?} on {}: {:?}",
@@ -110,7 +110,7 @@ impl Exchange {
         &self,
         order: &OrderCancelling,
         cancellation_token: CancellationToken,
-    ) -> Result<Option<CancelOrderResult>> {
+    ) -> Option<CancelOrderResult> {
         let order_cancellation_outcome = self.cancel_order_core(order, cancellation_token).await;
 
         // Option is returning when cancel_order_core is stopped by CancellationToken
@@ -122,20 +122,20 @@ impl Exchange {
                     &order.exchange_order_id,
                     cancel_outcome.filled_amount,
                     cancel_outcome.source_type,
-                )?,
+                ),
                 RequestResult::Error(error) => {
                     if error.error_type != ExchangeErrorType::ParsingError {
                         self.handle_cancel_order_failed(
                             &order.exchange_order_id,
                             error.clone(),
                             cancel_outcome.source_type,
-                        )?;
+                        );
                     }
                 }
             };
         }
 
-        Ok(order_cancellation_outcome)
+        order_cancellation_outcome
     }
 
     async fn cancel_order_core(
@@ -226,7 +226,7 @@ impl Exchange {
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,
         source_type: EventSourceType,
-    ) -> Result<()> {
+    ) {
         let filled_amount = None;
         match self.order_cancellation_events.remove(&exchange_order_id) {
             Some((_, (tx, _))) => {
@@ -240,8 +240,6 @@ impl Exchange {
                         error
                     );
                 }
-
-                Ok(())
             }
             None => self.handle_cancel_order_succeeded(
                 Some(&client_order_id),

@@ -1,5 +1,5 @@
-use anyhow::{bail, Context, Result};
 use chrono::Utc;
+use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::DateTime;
 use parking_lot::RwLock;
 use rust_decimal::Decimal;
@@ -67,7 +67,7 @@ pub struct FillEventData {
 }
 
 impl Exchange {
-    pub fn handle_order_filled(&self, mut event_data: FillEventData) -> Result<()> {
+    pub fn handle_order_filled(&self, mut event_data: FillEventData) {
         let args_to_log = (
             self.exchange_account_id,
             event_data.trade_id.clone(),
@@ -82,17 +82,17 @@ impl Exchange {
             event_data.source_type,
         ) {
             log::info!("Ignoring fill {:?}", args_to_log);
-            return Ok(());
+            return;
         }
 
-        if event_data.exchange_order_id.as_str().is_empty() {
-            Self::log_fill_handling_error_and_propagate(
-                "Received HandleOrderFilled with an empty exchangeOrderId",
-                &args_to_log,
-            )?;
+        if event_data.exchange_order_id.is_empty() {
+            panic!(
+                "Received HandleOrderFilled with an empty exchangeOrderId {:?}",
+                &args_to_log
+            );
         }
 
-        self.add_external_order(&mut event_data, &args_to_log)?;
+        self.add_external_order(&mut event_data, &args_to_log);
 
         match self
             .orders
@@ -106,11 +106,14 @@ impl Exchange {
                         client_order_id,
                         &event_data.exchange_order_id,
                         &event_data.source_type,
-                    )?;
+                    )
+                    .with_expect(|| {
+                        format!("Error handle create order succeeded for clientOrderId {client_order_id}")
+                    });
 
                     let order_ref = self.orders.cache_by_exchange_id.get(&event_data.exchange_order_id).
                         expect("Order should be inserted in orders.cache_by_exchange_id by handle_create_order_succeeded called above");
-                    return self.try_to_create_and_add_order_fill(&mut event_data, &order_ref);
+                    return self.create_and_add_order_fill(&mut event_data, &order_ref);
                 }
 
                 log::info!("Received a fill for not existing order {:?}", &args_to_log);
@@ -126,10 +129,8 @@ impl Exchange {
                 if let Some(client_order_id) = client_or_order_id {
                     self.raise_order_created(&client_order_id, &exchange_order_id, source_type);
                 }
-
-                Ok(())
             }
-            Some(order_ref) => self.try_to_create_and_add_order_fill(&mut event_data, &order_ref),
+            Some(order_ref) => self.create_and_add_order_fill(&mut event_data, &order_ref),
         }
     }
 
@@ -252,7 +253,7 @@ impl Exchange {
                     last_fill_amount = amount;
                     last_fill_cost = cost;
 
-                    Self::try_set_commission_amount(event_data, order_fills);
+                    Self::set_commission_amount(event_data, order_fills);
                 }
             };
         }
@@ -311,7 +312,7 @@ impl Exchange {
         (last_fill_price, last_fill_amount, last_fill_cost)
     }
 
-    fn try_set_commission_amount(event_data: &mut FillEventData, order_fills: &Vec<OrderFill>) {
+    fn set_commission_amount(event_data: &mut FillEventData, order_fills: &Vec<OrderFill>) {
         if let Some(commission_amount) = event_data.commission_amount {
             let current_commission: Decimal = order_fills
                 .iter()
@@ -321,44 +322,32 @@ impl Exchange {
         }
     }
 
-    fn wrong_status_or_cancelled(order_ref: &OrderRef, event_data: &FillEventData) -> Result<()> {
+    fn panic_if_wrong_status_or_cancelled(order_ref: &OrderRef, event_data: &FillEventData) {
         if order_ref.status() == OrderStatus::FailedToCreate
             || order_ref.status() == OrderStatus::Completed
             || order_ref.was_cancellation_event_raised()
         {
-            let error_msg = format!(
+            panic!(
                 "Fill was received for a {:?} {} {:?}",
                 order_ref.status(),
                 order_ref.was_cancellation_event_raised(),
                 event_data
             );
-
-            log::error!("{}", error_msg);
-            bail!("{}", error_msg)
         }
-
-        Ok(())
     }
 
-    fn get_order_role(event_data: &FillEventData, order_ref: &OrderRef) -> Result<OrderRole> {
+    fn get_order_role(event_data: &FillEventData, order_ref: &OrderRef) -> OrderRole {
         match &event_data.order_role {
-            Some(order_role) => Ok(order_role.clone()),
+            Some(order_role) => order_role.clone(),
             None => {
                 if event_data.commission_amount.is_none()
                     && event_data.commission_rate.is_none()
                     && order_ref.role().is_none()
                 {
-                    let error_msg = format!("Fill has neither commission nor commission rate");
-
-                    log::error!("{}", error_msg);
-                    bail!("{}", error_msg)
+                    panic!("Fill has neither commission nor commission rate");
                 }
 
-                order_ref.role().with_context(|| {
-                    let error_msg = format!("Unable to determine order_role");
-                    log::error!("{}", error_msg);
-                    error_msg
-                })
+                order_ref.role().expect("Unable to determine order_role")
             }
         }
     }
@@ -371,9 +360,9 @@ impl Exchange {
         last_fill_price: Price,
         commission_currency_code: CurrencyCode,
         symbol: &Symbol,
-    ) -> Result<Amount> {
+    ) -> Amount {
         match event_data_commission_amount {
-            Some(commission_amount) => Ok(commission_amount.clone()),
+            Some(commission_amount) => commission_amount.clone(),
             None => {
                 let commission_rate = match event_data_commission_rate {
                     Some(commission_rate) => commission_rate.clone(),
@@ -386,12 +375,12 @@ impl Exchange {
                         last_fill_amount,
                         last_fill_price,
                     );
-                Ok(last_fill_amount_in_currency_code * commission_rate)
+                last_fill_amount_in_currency_code * commission_rate
             }
         }
     }
 
-    fn try_set_commission_rate(
+    fn set_commission_rate(
         &self,
         event_data: &mut FillEventData,
         order_role: OrderRole,
@@ -413,7 +402,7 @@ impl Exchange {
         commission_amount: Amount,
         converted_commission_amount: &mut Amount,
         converted_commission_currency_code: &mut CurrencyCode,
-    ) -> Result<()> {
+    ) {
         if commission_currency_code != symbol.base_currency_code()
             && commission_currency_code != symbol.quote_currency_code()
         {
@@ -424,7 +413,7 @@ impl Exchange {
                     let bid = top_prices
                         .bid
                         .as_ref()
-                        .context("There are no top bid in order book")?;
+                        .expect("There are no top bid in order book");
                     let price_bnb_quote = bid.price;
                     *converted_commission_amount = commission_amount * price_bnb_quote;
                     *converted_commission_currency_code = symbol.quote_currency_code();
@@ -440,7 +429,7 @@ impl Exchange {
                             let ask = top_prices
                                 .ask
                                 .as_ref()
-                                .context("There are no top ask in order book")?;
+                                .expect("There are no top ask in order book");
                             let price_quote_bnb = ask.price;
                             *converted_commission_amount = commission_amount / price_quote_bnb;
                             *converted_commission_currency_code = symbol.quote_currency_code();
@@ -454,30 +443,19 @@ impl Exchange {
                 }
             }
         }
-
-        Ok(())
     }
 
-    fn check_fill_amounts_comformity(
-        &self,
-        order_filled_amount: Amount,
-        order_ref: &OrderRef,
-    ) -> Result<()> {
+    fn panic_if_fill_amounts_comformity(&self, order_filled_amount: Amount, order_ref: &OrderRef) {
         if order_filled_amount > order_ref.amount() {
-            let error_msg = format!(
+            panic!(
                 "filled_amount {} > order.amount {} for {} {} {:?}",
                 order_filled_amount,
                 order_ref.amount(),
                 self.exchange_account_id,
                 order_ref.client_order_id(),
-                order_ref.exchange_order_id(),
-            );
-
-            log::error!("{}", error_msg);
-            bail!("{}", error_msg)
+                order_ref.exchange_order_id()
+            )
         }
-
-        Ok(())
     }
 
     fn send_order_filled_event(
@@ -485,10 +463,10 @@ impl Exchange {
         event_data: &FillEventData,
         order_ref: &OrderRef,
         order_fill: &OrderFill,
-    ) -> Result<()> {
+    ) {
         let cloned_order = Arc::new(order_ref.deep_clone());
         self.add_event_on_order_change(order_ref, OrderEventType::OrderFilled { cloned_order })
-            .context("Unable to send event, probably receiver is dropped already")?;
+            .expect("Unable to send event, probably receiver is dropped already");
 
         log::info!(
             "Added a fill {} {:?} {} {:?} {:?}",
@@ -498,15 +476,9 @@ impl Exchange {
             order_ref.exchange_order_id(),
             order_fill
         );
-
-        Ok(())
     }
 
-    fn react_if_order_completed(
-        &self,
-        order_filled_amount: Amount,
-        order_ref: &OrderRef,
-    ) -> Result<()> {
+    fn react_if_order_completed(&self, order_filled_amount: Amount, order_ref: &OrderRef) {
         if order_filled_amount == order_ref.amount() {
             order_ref.fn_mut(|order| {
                 order.set_status(OrderStatus::Completed, Utc::now());
@@ -517,10 +489,8 @@ impl Exchange {
                 order_ref,
                 OrderEventType::OrderCompleted { cloned_order },
             )
-            .context("Unable to send event, probably receiver is dropped already")?;
+            .expect("Unable to send event, probably receiver is dropped already");
         }
-
-        Ok(())
     }
 
     fn add_fill(
@@ -579,26 +549,24 @@ impl Exchange {
         order_fill
     }
 
-    fn try_to_create_and_add_order_fill(
-        &self,
-        mut event_data: &mut FillEventData,
-        order_ref: &OrderRef,
-    ) -> Result<()> {
+    fn create_and_add_order_fill(&self, mut event_data: &mut FillEventData, order_ref: &OrderRef) {
         let (order_fills, order_filled_amount) = order_ref.get_fills();
 
         if Self::was_trade_already_received(&event_data.trade_id, &order_fills, order_ref) {
-            return Ok(());
+            return;
         }
 
         if Self::diff_fill_after_non_diff(&event_data, &order_fills, order_ref) {
-            return Ok(());
+            return;
         }
 
         if Self::filled_amount_not_less_event_fill(&event_data, order_filled_amount, order_ref) {
-            return Ok(());
+            return;
         }
 
-        let symbol = self.get_symbol(order_ref.currency_pair())?;
+        let symbol = self
+            .get_symbol(order_ref.currency_pair())
+            .expect("Unable Unable to get symbol");
         let (last_fill_price, last_fill_amount, last_fill_cost) = match Self::get_last_fill_data(
             &mut event_data,
             &symbol,
@@ -607,7 +575,7 @@ impl Exchange {
             order_ref,
         ) {
             Some(last_fill_data) => last_fill_data,
-            None => return Ok(()),
+            None => return,
         };
 
         if Self::should_miss_fill(
@@ -616,10 +584,10 @@ impl Exchange {
             last_fill_amount,
             order_ref,
         ) {
-            return Ok(());
+            return;
         }
 
-        Self::wrong_status_or_cancelled(order_ref, &event_data)?;
+        Self::panic_if_wrong_status_or_cancelled(order_ref, &event_data);
 
         log::info!(
             "Received fill {:?} {} {}",
@@ -632,9 +600,9 @@ impl Exchange {
             .commission_currency_code
             .unwrap_or_else(|| symbol.get_commission_currency_code(order_ref.side()));
 
-        let order_role = Self::get_order_role(event_data, order_ref)?;
+        let order_role = Self::get_order_role(event_data, order_ref);
 
-        let expected_commission_rate = self.try_set_commission_rate(&mut event_data, order_role);
+        let expected_commission_rate = self.set_commission_rate(&mut event_data, order_role);
 
         let commission_amount = Self::get_commission_amount(
             event_data.commission_amount,
@@ -644,7 +612,7 @@ impl Exchange {
             last_fill_price,
             commission_currency_code,
             &symbol,
-        )?;
+        );
 
         let mut converted_commission_currency_code = commission_currency_code;
         let mut converted_commission_amount = commission_amount;
@@ -655,7 +623,7 @@ impl Exchange {
             commission_amount,
             &mut converted_commission_amount,
             &mut converted_commission_currency_code,
-        )?;
+        );
 
         let order_fill = self.add_fill(
             &event_data.trade_id,
@@ -677,57 +645,51 @@ impl Exchange {
         // This order fields updated, so let's use actual values
         let order_filled_amount = order_ref.filled_amount();
 
-        self.check_fill_amounts_comformity(order_filled_amount, order_ref)?;
+        self.panic_if_fill_amounts_comformity(order_filled_amount, order_ref);
 
-        self.send_order_filled_event(&event_data, order_ref, &order_fill)?;
+        self.send_order_filled_event(&event_data, order_ref, &order_fill);
 
         if event_data.source_type == EventSourceType::RestFallback {
             // TODO some metrics
         }
 
-        self.react_if_order_completed(order_filled_amount, order_ref)?;
+        self.react_if_order_completed(order_filled_amount, order_ref);
 
         // TODO DataRecorder.save(order)
-
-        Ok(())
     }
 
-    fn add_external_order(
-        &self,
-        event_data: &mut FillEventData,
-        args_to_log: &ArgsToLog,
-    ) -> Result<()> {
+    fn add_external_order(&self, event_data: &mut FillEventData, args_to_log: &ArgsToLog) {
         if event_data.fill_type == OrderFillType::Liquidation
             || event_data.fill_type == OrderFillType::ClosePosition
         {
             if event_data.fill_type == OrderFillType::Liquidation
                 && event_data.trade_currency_pair.is_none()
             {
-                Self::log_fill_handling_error_and_propagate(
-                    "Currency pair should be set for liquidation trade",
-                    &args_to_log,
-                )?;
+                panic!(
+                    "Currency pair should be set for liquidation trade {:?}",
+                    &args_to_log
+                );
             }
 
             if event_data.order_side.is_none() {
-                Self::log_fill_handling_error_and_propagate(
-                    "Side should be set for liquidation or close position trade",
-                    &args_to_log,
-                )?;
+                panic!(
+                    "Side should be set for liquidation or close position trade {:?}",
+                    &args_to_log
+                );
             }
 
             if event_data.client_order_id.is_some() {
-                Self::log_fill_handling_error_and_propagate(
-                    "Client order id cannot be set for liquidation or close position trade",
-                    &args_to_log,
-                )?;
+                panic!(
+                    "Client order id cannot be set for liquidation or close position trade {:?}",
+                    &args_to_log
+                );
             }
 
             if event_data.order_amount.is_none() {
-                Self::log_fill_handling_error_and_propagate(
-                    "Order amount should be set for liquidation or close position trade",
-                    &args_to_log,
-                )?;
+                panic!(
+                    "Order amount should be set for liquidation or close position trade {:?}",
+                    &args_to_log
+                );
             }
 
             match self
@@ -748,12 +710,11 @@ impl Exchange {
                         &order_ref.client_order_id(),
                         &event_data.exchange_order_id,
                         &event_data.source_type,
-                    )?;
+                    )
+                    .expect("Error handle create order succeeded");
                 }
             }
         }
-
-        Ok(())
     }
 
     fn create_order_in_pool(&self, event_data: &FillEventData, order_role: OrderRole) -> OrderRef {
@@ -788,23 +749,6 @@ impl Exchange {
             .add_snapshot_initial(Arc::new(RwLock::new(order_instance)))
     }
 
-    fn log_fill_handling_error_and_propagate(
-        template: &str,
-        args_to_log: &(
-            ExchangeAccountId,
-            Option<TradeId>,
-            Option<ClientOrderId>,
-            ExchangeOrderId,
-            AllowedEventSourceType,
-            EventSourceType,
-        ),
-    ) -> Result<()> {
-        let error_msg = format!("{} {:?}", template, args_to_log);
-
-        log::error!("{}", error_msg);
-        bail!("{}", error_msg)
-    }
-
     pub(super) fn should_ignore_event(
         allowed_event_source_type: AllowedEventSourceType,
         source_type: EventSourceType,
@@ -828,6 +772,7 @@ impl Exchange {
 
 #[cfg(test)]
 mod test {
+    use anyhow::{Context, Result};
     use chrono::Utc;
     use serde_json::json;
     use uuid::Uuid;
@@ -852,6 +797,7 @@ mod test {
         use super::*;
 
         #[test]
+        #[should_panic(expected = "Currency pair should be set for liquidation trad")]
         fn empty_currency_pair() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
@@ -874,18 +820,11 @@ mod test {
             };
 
             let (exchange, _) = get_test_exchange(false);
-            match exchange.handle_order_filled(event_data) {
-                Ok(_) => assert!(false),
-                Err(error) => {
-                    assert_eq!(
-                        "Currency pair should be set for liquidation trade",
-                        &error.to_string()[..49]
-                    );
-                }
-            }
+            exchange.handle_order_filled(event_data);
         }
 
         #[test]
+        #[should_panic(expected = "Side should be set for liquidation or close position trade")]
         fn empty_order_side() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
@@ -908,18 +847,13 @@ mod test {
             };
 
             let (exchange, _) = get_test_exchange(false);
-            match exchange.handle_order_filled(event_data) {
-                Ok(_) => assert!(false),
-                Err(error) => {
-                    assert_eq!(
-                        "Side should be set for liquidation or close position trade ",
-                        &error.to_string()[..59]
-                    );
-                }
-            }
+            exchange.handle_order_filled(event_data);
         }
 
         #[test]
+        #[should_panic(
+            expected = "Client order id cannot be set for liquidation or close position trade"
+        )]
         fn not_empty_client_order_id() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
@@ -942,18 +876,13 @@ mod test {
             };
 
             let (exchange, _) = get_test_exchange(false);
-            match exchange.handle_order_filled(event_data) {
-                Ok(_) => assert!(false),
-                Err(error) => {
-                    assert_eq!(
-                        "Client order id cannot be set for liquidation or close position trade",
-                        &error.to_string()[..69]
-                    );
-                }
-            }
+            exchange.handle_order_filled(event_data);
         }
 
         #[test]
+        #[should_panic(
+            expected = "Order amount should be set for liquidation or close position trade"
+        )]
         fn not_empty_order_amount() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
@@ -976,15 +905,7 @@ mod test {
             };
 
             let (exchange, _) = get_test_exchange(false);
-            match exchange.handle_order_filled(event_data) {
-                Ok(_) => assert!(false),
-                Err(error) => {
-                    assert_eq!(
-                        "Order amount should be set for liquidation or close position trade",
-                        &error.to_string()[..66]
-                    );
-                }
-            }
+            exchange.handle_order_filled(event_data);
         }
 
         #[test]
@@ -1017,31 +938,29 @@ mod test {
             };
 
             let (exchange, _event_received) = get_test_exchange(false);
-            match exchange.handle_order_filled(event_data) {
-                Ok(_) => {
-                    let order = exchange
-                        .orders
-                        .cache_by_client_id
-                        .iter()
-                        .next()
-                        .expect("order should be added already");
-                    assert_eq!(order.order_type(), OrderType::Liquidation);
-                    assert_eq!(order.exchange_account_id(), exchange.exchange_account_id);
-                    assert_eq!(order.currency_pair(), currency_pair);
-                    assert_eq!(order.side(), order_side);
-                    assert_eq!(order.amount(), order_amount);
-                    assert_eq!(order.price(), fill_price);
-                    assert_eq!(order.role(), Some(OrderRole::Taker));
+            exchange.handle_order_filled(event_data);
 
-                    let (fills, filled_amount) = order.get_fills();
-                    assert_eq!(filled_amount, fill_amount);
-                    assert_eq!(fills.iter().next().expect("in test").price(), fill_price);
-                }
-                Err(_) => assert!(false),
-            }
+            let order = exchange
+                .orders
+                .cache_by_client_id
+                .iter()
+                .next()
+                .expect("order should be added already");
+            assert_eq!(order.order_type(), OrderType::Liquidation);
+            assert_eq!(order.exchange_account_id(), exchange.exchange_account_id);
+            assert_eq!(order.currency_pair(), currency_pair);
+            assert_eq!(order.side(), order_side);
+            assert_eq!(order.amount(), order_amount);
+            assert_eq!(order.price(), fill_price);
+            assert_eq!(order.role(), Some(OrderRole::Taker));
+
+            let (fills, filled_amount) = order.get_fills();
+            assert_eq!(filled_amount, fill_amount);
+            assert_eq!(fills.iter().next().expect("in test").price(), fill_price);
         }
 
         #[test]
+        #[should_panic(expected = "Received HandleOrderFilled with an empty exchangeOrderId")]
         fn empty_exchange_order_id() {
             let event_data = FillEventData {
                 source_type: EventSourceType::WebSocket,
@@ -1064,15 +983,7 @@ mod test {
             };
 
             let (exchange, _event_receiver) = get_test_exchange(false);
-            match exchange.handle_order_filled(event_data) {
-                Ok(_) => assert!(false),
-                Err(error) => {
-                    assert_eq!(
-                        "Received HandleOrderFilled with an empty exchangeOrderId",
-                        &error.to_string()[..56]
-                    );
-                }
-            }
+            exchange.handle_order_filled(event_data);
         }
     }
 
@@ -1146,9 +1057,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange
-            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
-            .expect("in test");
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
         let (_, order_filled_amount) = order_ref.get_fills();
         assert_eq!(order_filled_amount, fill_amount);
@@ -1224,9 +1133,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange
-            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
-            .expect("in test");
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
         let (_, order_filled_amount) = order_ref.get_fills();
         assert_eq!(order_filled_amount, fill_amount);
@@ -1302,9 +1209,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange
-            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
-            .expect("in test");
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
         let (_, order_filled_amount) = order_ref.get_fills();
         assert_eq!(order_filled_amount, fill_amount);
@@ -1380,15 +1285,14 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange
-            .try_to_create_and_add_order_fill(&mut event_data, &order_ref)
-            .expect("in test");
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
         let (_, order_filled_amount) = order_ref.get_fills();
         assert_eq!(order_filled_amount, dec!(0));
     }
 
     #[test]
+    #[should_panic(expected = "Fill was received for a FailedToCreate false")]
     fn error_if_order_status_is_failed_to_create() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
@@ -1436,18 +1340,11 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Fill was received for a FailedToCreate false",
-                    &error.to_string()[..44]
-                );
-            }
-        }
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
     }
 
     #[test]
+    #[should_panic(expected = "Fill was received for a Completed false")]
     fn error_if_order_status_is_completed() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
@@ -1495,18 +1392,11 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Fill was received for a Completed false",
-                    &error.to_string()[..39]
-                );
-            }
-        }
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
     }
 
     #[test]
+    #[should_panic(expected = "Fill was received for a Creating true")]
     fn error_if_cancellation_event_was_raised() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
@@ -1555,17 +1445,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                // TODO has to be Created!
-                // Does it mean order status had to be changed somewhere?
-                assert_eq!(
-                    "Fill was received for a Creating true",
-                    &error.to_string()[..37]
-                );
-            }
-        }
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
     }
 
     // TODO Can be improved via testing only calculate_cost_diff_function
@@ -1638,9 +1518,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(first_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(first_event_data);
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1662,9 +1540,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(second_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(second_event_data);
 
         let order_ref = exchange
             .orders
@@ -1755,9 +1631,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(first_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(first_event_data);
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1779,9 +1653,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(second_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(second_event_data);
 
         let order_ref = exchange
             .orders
@@ -1870,9 +1742,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(first_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(first_event_data);
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -1894,9 +1764,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(second_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(second_event_data);
 
         let order_ref = exchange
             .orders
@@ -1991,9 +1859,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(first_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(first_event_data);
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2015,9 +1881,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(second_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(second_event_data);
 
         let order_ref = exchange
             .orders
@@ -2110,9 +1974,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(first_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(first_event_data);
 
         let second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -2134,9 +1996,7 @@ mod test {
             fill_date: None,
         };
 
-        exchange
-            .handle_order_filled(second_event_data)
-            .expect("in test");
+        exchange.handle_order_filled(second_event_data);
 
         let order_ref = exchange
             .orders
@@ -2196,13 +2056,10 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert!(fills.is_empty());
-            }
-            Err(_) => assert!(false),
-        }
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
+
+        let (fills, _) = order_ref.get_fills();
+        assert!(fills.is_empty());
     }
 
     #[test]
@@ -2253,17 +2110,14 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
-                let fill = &fills[0];
-                let right_value = dec!(0.2) / dec!(100) * dec!(5);
-                assert_eq!(fill.commission_amount(), right_value);
-            }
-            Err(_) => assert!(false),
-        }
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
+
+        let fill = &fills[0];
+        let right_value = dec!(0.2) / dec!(100) * dec!(5);
+        assert_eq!(fill.commission_amount(), right_value);
     }
 
     #[test]
@@ -2314,22 +2168,18 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
-                let fill = &fills[0];
-                let right_value = dec!(0.1) / dec!(100) * dec!(5);
-                assert_eq!(fill.commission_amount(), right_value);
-            }
-            Err(_) => {
-                assert!(false);
-            }
-        }
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
+
+        let fill = &fills[0];
+        let right_value = dec!(0.1) / dec!(100) * dec!(5);
+        assert_eq!(fill.commission_amount(), right_value);
     }
 
     #[test]
+    #[should_panic(expected = "Fill has neither commission nor commission rate")]
     fn error_if_unable_to_get_role() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
@@ -2377,19 +2227,11 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match Exchange::get_order_role(&mut event_data, &order_ref) {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                assert_eq!(
-                    "Fill has neither commission nor commission rate",
-                    &error.to_string()[..47]
-                );
-            }
-        }
+        Exchange::get_order_role(&mut event_data, &order_ref);
     }
 
     #[test]
-    fn use_commission_currency_code_from_event_data() -> Result<()> {
+    fn use_commission_currency_code_from_event_data() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2437,7 +2279,7 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
@@ -2446,8 +2288,6 @@ mod test {
             fill.converted_commission_currency_code(),
             commission_currency_code
         );
-
-        Ok(())
     }
 
     #[test]
@@ -2499,21 +2339,16 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
-                let fill = &fills[0];
-                assert_eq!(
-                    fill.converted_commission_currency_code(),
-                    base_currency_code
-                );
-            }
-            Err(_) => {
-                assert!(false);
-            }
-        }
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
+
+        let fill = &fills[0];
+        assert_eq!(
+            fill.converted_commission_currency_code(),
+            base_currency_code
+        );
     }
 
     #[test]
@@ -2564,29 +2399,24 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
-                let quote_currency_code = exchange
-                    .symbols
-                    .iter()
-                    .next()
-                    .expect("in test")
-                    .value()
-                    .quote_currency_code;
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
 
-                let fill = &fills[0];
-                assert_eq!(
-                    fill.converted_commission_currency_code(),
-                    quote_currency_code
-                );
-            }
-            Err(_) => {
-                assert!(false);
-            }
-        }
+        let quote_currency_code = exchange
+            .symbols
+            .iter()
+            .next()
+            .expect("in test")
+            .value()
+            .quote_currency_code;
+
+        let fill = &fills[0];
+        assert_eq!(
+            fill.converted_commission_currency_code(),
+            quote_currency_code
+        );
     }
 
     #[test]
@@ -2638,22 +2468,17 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (fills, _) = order_ref.get_fills();
-                assert_eq!(fills.len(), 1);
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
-                let first_fill = &fills[0];
-                assert_eq!(first_fill.commission_amount(), commission_amount);
-            }
-            Err(_) => {
-                assert!(false);
-            }
-        }
+        let (fills, _) = order_ref.get_fills();
+        assert_eq!(fills.len(), 1);
+
+        let first_fill = &fills[0];
+        assert_eq!(first_fill.commission_amount(), commission_amount);
     }
 
     #[test]
-    fn use_commission_rate_if_specified() -> Result<()> {
+    fn use_commission_rate_if_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2702,19 +2527,17 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
         let first_fill = &fills[0];
         let result_value = commission_rate * fill_price * fill_amount;
         assert_eq!(first_fill.commission_amount(), result_value);
-
-        Ok(())
     }
 
     #[test]
-    fn calculate_commission_rate_if_not_specified() -> Result<()> {
+    fn calculate_commission_rate_if_not_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2762,19 +2585,17 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
         let first_fill = &fills[0];
         let result_value = dec!(0.1) / dec!(100) * fill_price * fill_amount;
         assert_eq!(first_fill.commission_amount(), result_value);
-
-        Ok(())
     }
 
     #[test]
-    fn calculate_commission_amount() -> Result<()> {
+    fn calculate_commission_amount() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2822,15 +2643,13 @@ mod test {
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
-        exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref)?;
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
         let (fills, _) = order_ref.get_fills();
         assert_eq!(fills.len(), 1);
 
         let first_fill = &fills[0];
         let result_value = dec!(0.1) / dec!(100) * fill_amount;
         assert_eq!(first_fill.commission_amount(), result_value);
-
-        Ok(())
     }
 
     mod get_commission_amount {
@@ -2858,8 +2677,7 @@ mod test {
                 last_fill_price,
                 commission_currency_code,
                 &symbol,
-            )
-            .context("Unable to get commission_amount")?;
+            );
 
             let right_value = event_data_commission_amount;
             assert_eq!(commission_amount, right_value);
@@ -2887,8 +2705,7 @@ mod test {
                 last_fill_price,
                 commission_currency_code,
                 &symbol,
-            )
-            .context("Unable to get commission_amount")?;
+            );
 
             let right_value = dec!(0.1) / dec!(100) * dec!(5) / dec!(0.8);
             assert_eq!(commission_amount, right_value);
@@ -3079,6 +2896,7 @@ mod test {
         use super::*;
 
         #[test]
+        #[should_panic(expected = "filled_amount 13 > order.amount 12 fo")]
         fn too_big_filled_amount() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
@@ -3099,19 +2917,11 @@ mod test {
             );
 
             let fill_amount = dec!(13);
-            match exchange.check_fill_amounts_comformity(fill_amount, &order_ref) {
-                Ok(_) => assert!(false),
-                Err(error) => {
-                    assert_eq!(
-                        "filled_amount 13 > order.amount 12 for",
-                        &error.to_string()[..38]
-                    );
-                }
-            }
+            exchange.panic_if_fill_amounts_comformity(fill_amount, &order_ref);
         }
 
         #[test]
-        fn proper_filled_amount() -> Result<()> {
+        fn proper_filled_amount() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
@@ -3131,11 +2941,7 @@ mod test {
             );
 
             let fill_amount = dec!(10);
-            exchange
-                .check_fill_amounts_comformity(fill_amount, &order_ref)
-                .context("Wrong fill amount")?;
-
-            Ok(())
+            exchange.panic_if_fill_amounts_comformity(fill_amount, &order_ref);
         }
     }
 
@@ -3161,7 +2967,7 @@ mod test {
                 order_side,
             );
             let order_filled_amount = order_amount;
-            exchange.react_if_order_completed(order_filled_amount, &order_ref)?;
+            exchange.react_if_order_completed(order_filled_amount, &order_ref);
             let order_status = order_ref.status();
 
             assert_eq!(order_status, OrderStatus::Completed);
@@ -3179,7 +2985,7 @@ mod test {
         }
 
         #[test]
-        fn order_not_filled() -> Result<()> {
+        fn order_not_filled() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
@@ -3199,12 +3005,11 @@ mod test {
             );
 
             let order_filled_amount = dec!(10);
-            exchange.react_if_order_completed(order_filled_amount, &order_ref)?;
+            exchange.react_if_order_completed(order_filled_amount, &order_ref);
 
             let order_status = order_ref.status();
 
             assert_ne!(order_status, OrderStatus::Completed);
-            Ok(())
         }
     }
 
@@ -3212,7 +3017,7 @@ mod test {
         use super::*;
 
         #[test]
-        fn using_top_bid() -> Result<()> {
+        fn using_top_bid() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
@@ -3246,19 +3051,17 @@ mod test {
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,
-            )?;
+            );
 
             let right_amount = dec!(4.5);
             assert_eq!(converted_commission_amount, right_amount);
 
             let right_currency_code = CurrencyCode::new("BTC".into());
             assert_eq!(converted_commission_currency_code, right_currency_code);
-
-            Ok(())
         }
 
         #[test]
-        fn using_top_ask() -> Result<()> {
+        fn using_top_ask() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
@@ -3291,19 +3094,17 @@ mod test {
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,
-            )?;
+            );
 
             let right_amount = dec!(50);
             assert_eq!(converted_commission_amount, right_amount);
 
             let right_currency_code = CurrencyCode::new("BTC".into());
             assert_eq!(converted_commission_currency_code, right_currency_code);
-
-            Ok(())
         }
 
         #[test]
-        fn fatal_error() -> Result<()> {
+        fn fatal_error() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
@@ -3324,15 +3125,13 @@ mod test {
                 commission_amount,
                 &mut converted_commission_amount,
                 &mut converted_commission_currency_code,
-            )?;
+            );
 
             let right_amount = dec!(3);
             assert_eq!(converted_commission_amount, right_amount);
 
             let right_currency_code = CurrencyCode::new("BTC".into());
             assert_eq!(converted_commission_currency_code, right_currency_code);
-
-            Ok(())
         }
     }
 
@@ -3384,15 +3183,12 @@ mod test {
             fill_date: None,
         };
 
-        match exchange.try_to_create_and_add_order_fill(&mut event_data, &order_ref) {
-            Ok(_) => {
-                let (_, filled_amount) = order_ref.get_fills();
+        exchange.create_and_add_order_fill(&mut event_data, &order_ref);
 
-                let current_right_filled_amount = dec!(5);
-                assert_eq!(filled_amount, current_right_filled_amount);
-            }
-            Err(_) => assert!(false),
-        }
+        let (_, filled_amount) = order_ref.get_fills();
+
+        let current_right_filled_amount = dec!(5);
+        assert_eq!(filled_amount, current_right_filled_amount);
 
         let mut second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -3414,15 +3210,12 @@ mod test {
             fill_date: None,
         };
 
-        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
-            Ok(_) => {
-                let (_, filled_amount) = order_ref.get_fills();
+        exchange.create_and_add_order_fill(&mut second_event_data, &order_ref);
 
-                let right_filled_amount = dec!(7);
-                assert_eq!(filled_amount, right_filled_amount);
-            }
-            Err(_) => assert!(false),
-        }
+        let (_, filled_amount) = order_ref.get_fills();
+
+        let right_filled_amount = dec!(7);
+        assert_eq!(filled_amount, right_filled_amount);
 
         let mut second_event_data = FillEventData {
             source_type: EventSourceType::WebSocket,
@@ -3444,17 +3237,14 @@ mod test {
             fill_date: None,
         };
 
-        match exchange.try_to_create_and_add_order_fill(&mut second_event_data, &order_ref) {
-            Ok(_) => {
-                let (_, filled_amount) = order_ref.get_fills();
+        exchange.create_and_add_order_fill(&mut second_event_data, &order_ref);
 
-                let right_filled_amount = dec!(12);
-                assert_eq!(filled_amount, right_filled_amount);
+        let (_, filled_amount) = order_ref.get_fills();
 
-                let order_status = order_ref.status();
-                assert_eq!(order_status, OrderStatus::Completed);
-            }
-            Err(_) => assert!(false),
-        }
+        let right_filled_amount = dec!(12);
+        assert_eq!(filled_amount, right_filled_amount);
+
+        let order_status = order_ref.status();
+        assert_eq!(order_status, OrderStatus::Completed);
     }
 }

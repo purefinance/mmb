@@ -1,5 +1,6 @@
-use anyhow::Result;
 use chrono::Utc;
+use mmb_utils::infrastructure::WithExpect;
+use mmb_utils::nothing_to_do;
 
 use crate::{
     exchanges::common::ExchangeError, exchanges::common::ExchangeErrorType,
@@ -14,12 +15,12 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         error: ExchangeError,
         event_source_type: EventSourceType,
-    ) -> Result<()> {
+    ) {
         if Self::should_ignore_event(
             self.features.allowed_cancel_event_source_type,
             event_source_type,
         ) {
-            return Ok(());
+            return;
         }
 
         match self.orders.cache_by_exchange_id.get(&exchange_order_id) {
@@ -27,18 +28,14 @@ impl Exchange {
                 log::error!("cancel_order_failed was called for an order which is not in the local order pool: {:?} on {}",
                     exchange_order_id,
                     self.exchange_account_id);
-
-                return Ok(());
             }
             Some(order) => self.react_based_on_order_status(
                 &order,
                 error,
                 &exchange_order_id,
                 event_source_type,
-            )?,
+            ),
         }
-
-        Ok(())
     }
 
     fn react_based_on_order_status(
@@ -47,7 +44,7 @@ impl Exchange {
         error: ExchangeError,
         exchange_order_id: &ExchangeOrderId,
         event_source_type: EventSourceType,
-    ) -> Result<()> {
+    ) {
         match order.status() {
             OrderStatus::Canceled => {
                 log::warn!(
@@ -56,8 +53,6 @@ impl Exchange {
                     order.exchange_order_id(),
                     self.exchange_account_id,
                 );
-
-                return Ok(());
             }
             OrderStatus::Completed => {
                 log::warn!(
@@ -66,8 +61,6 @@ impl Exchange {
                     order.exchange_order_id(),
                     self.exchange_account_id,
                 );
-
-                return Ok(());
             }
             _ => {
                 order.fn_mut(|order| {
@@ -80,11 +73,9 @@ impl Exchange {
                     error,
                     &exchange_order_id,
                     event_source_type,
-                )?;
+                );
             }
         }
-
-        Ok(())
     }
 
     fn react_based_on_error_type(
@@ -93,7 +84,7 @@ impl Exchange {
         error: ExchangeError,
         exchange_order_id: &ExchangeOrderId,
         event_source_type: EventSourceType,
-    ) -> Result<()> {
+    ) {
         match error.error_type {
             ExchangeErrorType::OrderNotFound => {
                 self.handle_cancel_order_succeeded(
@@ -101,18 +92,22 @@ impl Exchange {
                     &exchange_order_id,
                     None,
                     event_source_type,
-                )?;
-
-                return Ok(());
+                );
             }
-            ExchangeErrorType::OrderCompleted => return Ok(()),
+            ExchangeErrorType::OrderCompleted => nothing_to_do(),
             _ => {
                 if event_source_type == EventSourceType::RestFallback {
                     // TODO Some metrics
                 }
 
                 order.fn_mut(|order| order.set_status(OrderStatus::FailedToCancel, Utc::now()));
-                self.add_event_on_order_change(&order, OrderEventType::CancelOrderFailed)?;
+                self.add_event_on_order_change(&order, OrderEventType::CancelOrderFailed)
+                    .with_expect(|| {
+                        format!(
+                            "Failed to add event CancelOrderFailed on order change {:?}",
+                            order.client_order_id()
+                        )
+                    });
 
                 log::warn!(
                     "Order cancellation failed: {} {:?} on {} with error: {:?} {:?} {}",
@@ -127,8 +122,6 @@ impl Exchange {
                 // TODO DataRecorder.save()
             }
         }
-
-        Ok(())
     }
 }
 
@@ -162,15 +155,9 @@ mod test {
         let error = ExchangeError::new(ExchangeErrorType::Unknown, "test_error".to_owned(), None);
 
         // Act
-        let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
-            &exchange_order_id,
-            error,
-            EventSourceType::WebSocket,
-        );
+        exchange.handle_cancel_order_failed(&exchange_order_id, error, EventSourceType::WebSocket);
 
         // Assert
-        assert!(ok_cause_no_such_order.is_ok());
-
         match event_receiver.try_recv() {
             Ok(_) => assert!(false),
             Err(error) => assert_eq!(error, TryRecvError::Empty),
@@ -227,15 +214,13 @@ mod test {
             test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
             // Act
-            let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+            exchange.handle_cancel_order_failed(
                 exchange_order_id,
                 error,
                 EventSourceType::WebSocket,
             );
 
             // Assert
-            assert!(ok_cause_no_such_order.is_ok());
-
             match event_receiver.try_recv() {
                 Ok(_) => assert!(false),
                 Err(error) => assert_eq!(error, TryRecvError::Empty),
@@ -290,15 +275,13 @@ mod test {
             test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
             // Act
-            let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+            exchange.handle_cancel_order_failed(
                 &exchange_order_id,
                 error,
                 EventSourceType::WebSocket,
             );
 
             // Assert
-            assert!(ok_cause_no_such_order.is_ok());
-
             match event_receiver.try_recv() {
                 Ok(_) => assert!(false),
                 Err(error) => assert_eq!(error, TryRecvError::Empty),
@@ -364,15 +347,13 @@ mod test {
             );
 
             // Act
-            let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+            exchange.handle_cancel_order_failed(
                 &exchange_order_id,
                 error.clone(),
                 EventSourceType::WebSocket,
             );
 
             // Assert
-            assert!(ok_cause_no_such_order.is_ok());
-
             assert_eq!(order_ref.status(), OrderStatus::Canceled);
             assert_eq!(
                 order_ref
@@ -446,15 +427,13 @@ mod test {
             );
 
             // Act
-            let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+            exchange.handle_cancel_order_failed(
                 &exchange_order_id,
                 error.clone(),
                 EventSourceType::WebSocket,
             );
 
             // Assert
-            assert!(ok_cause_no_such_order.is_ok());
-
             assert_eq!(order_ref.status(), OrderStatus::Canceled);
             assert_eq!(
                 order_ref
@@ -534,15 +513,13 @@ mod test {
         );
 
         // Act
-        let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+        exchange.handle_cancel_order_failed(
             &exchange_order_id,
             error.clone(),
             EventSourceType::WebSocket,
         );
 
         // Assert
-        assert!(ok_cause_no_such_order.is_ok());
-
         assert_eq!(order_ref.status(), OrderStatus::Created);
         assert_eq!(
             order_ref
@@ -615,15 +592,13 @@ mod test {
         );
 
         // Act
-        let ok_cause_no_such_order = exchange.handle_cancel_order_failed(
+        exchange.handle_cancel_order_failed(
             &exchange_order_id,
             error.clone(),
             EventSourceType::WebSocket,
         );
 
         // Assert
-        assert!(ok_cause_no_such_order.is_ok());
-
         assert_eq!(order_ref.status(), OrderStatus::FailedToCancel);
         assert_eq!(
             order_ref

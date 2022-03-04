@@ -344,7 +344,7 @@ impl Exchange {
                             &exchange_order_id,
                             new_error,
                             EventSourceType::RestFallback,
-                        )?;
+                        );
 
                         break;
                     }
@@ -369,7 +369,7 @@ impl Exchange {
                                     &exchange_order_id,
                                     Some(order_info.filled_amount),
                                     EventSourceType::RestFallback,
-                                )?;
+                                );
                             }
                         }
                         OrderStatus::Completed => {

@@ -173,7 +173,6 @@ async fn nothing_to_cancel() {
         .exchange
         .cancel_order(&order_to_cancel, CancellationToken::default())
         .await
-        .expect("in test")
         .expect("in test");
     if let RequestResult::Error(error) = cancel_outcome.outcome {
         assert_eq!(error.error_type, ExchangeErrorType::OrderNotFound);

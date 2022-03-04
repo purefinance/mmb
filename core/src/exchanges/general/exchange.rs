@@ -205,7 +205,7 @@ impl Exchange {
                 Some(exchange) => {
                     exchange.raise_order_created(&client_order_id, &exchange_order_id, source_type)
                 }
-                None => log::info!("Unable to upgrade weak reference to Exchange instance",),
+                None => log::info!("Unable to upgrade weak reference to Exchange instance"),
             },
         ));
 
@@ -213,22 +213,9 @@ impl Exchange {
         self.exchange_client.set_order_cancelled_callback(Box::new(
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
-                    let raise_outcome = exchange.raise_order_cancelled(
-                        client_order_id,
-                        exchange_order_id,
-                        source_type,
-                    );
-
-                    if let Err(error) = raise_outcome {
-                        let error_message = format!("Error in raise_order_cancelled: {:?}", error);
-                        log::error!("{}", error_message);
-                        exchange
-                            .application_manager
-                            .clone()
-                            .spawn_graceful_shutdown(error_message);
-                    };
+                    exchange.raise_order_cancelled(client_order_id, exchange_order_id, source_type);
                 }
-                None => log::info!("Unable to upgrade weak reference to Exchange instance",),
+                None => log::info!("Unable to upgrade weak reference to Exchange instance"),
             },
         ));
 
@@ -236,20 +223,8 @@ impl Exchange {
         self.exchange_client
             .set_handle_order_filled_callback(Box::new(move |event_data| {
                 match exchange_weak.upgrade() {
-                    Some(exchange) => {
-                        let handle_outcome = exchange.handle_order_filled(event_data);
-
-                        if let Err(error) = handle_outcome {
-                            let error_message =
-                                format!("Error in handle_order_filled: {:?}", error);
-                            log::error!("{}", error_message);
-                            exchange
-                                .application_manager
-                                .clone()
-                                .spawn_graceful_shutdown(error_message);
-                        };
-                    }
-                    None => log::info!("Unable to upgrade weak reference to Exchange instance",),
+                    Some(exchange) => exchange.handle_order_filled(event_data),
+                    None => log::info!("Unable to upgrade weak reference to Exchange instance"),
                 }
             }));
 
@@ -258,7 +233,7 @@ impl Exchange {
             move |currency_pair, trade_id, price, quantity, order_side, transaction_time| {
                 match exchange_weak.upgrade() {
                     Some(exchange) => {
-                        let handle_outcome = exchange.handle_trade(
+                        exchange.handle_trade(
                             currency_pair,
                             trade_id,
                             price,
@@ -266,17 +241,8 @@ impl Exchange {
                             order_side,
                             transaction_time,
                         );
-
-                        if let Err(error) = handle_outcome {
-                            let error_message = format!("Error in handle_trade: {:?}", error);
-                            log::error!("{}", error_message);
-                            exchange
-                                .application_manager
-                                .clone()
-                                .spawn_graceful_shutdown(error_message);
-                        };
                     }
-                    None => log::info!("Unable to upgrade weak reference to Exchange instance",),
+                    None => log::info!("Unable to upgrade weak reference to Exchange instance"),
                 }
             },
         ));

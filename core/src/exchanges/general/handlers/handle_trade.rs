@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 use itertools::Itertools;
 use mmb_utils::DateTime;
 
@@ -21,7 +20,7 @@ impl Exchange {
         quantity: Amount,
         side: OrderSide,
         transaction_time: DateTime,
-    ) -> Result<()> {
+    ) {
         let trades = vec![Trade {
             trade_id,
             price,
@@ -43,7 +42,7 @@ impl Exchange {
             .insert(market_id, trades_event.receipt_time);
 
         if self.exchange_client.get_settings().subscribe_to_market_data {
-            return Ok(());
+            return;
         }
 
         if self.symbols.contains_key(&trades_event.currency_pair)
@@ -81,20 +80,18 @@ impl Exchange {
 
             match trades_event.trades.first() {
                 Some(trade) => self.last_trades.insert(market_id, trade.clone()),
-                None => return Ok(()),
+                None => return,
             };
 
             if !should_add_event {
-                return Ok(());
+                return;
             }
         }
 
         self.events_channel
             .send(ExchangeEvent::Trades(trades_event))
-            .context("Unable to send trades event. Probably receiver is already dropped")?;
+            .expect("Unable to send trades event. Probably receiver is already dropped");
 
         // TODO DataRecorder.save(trades) if needed;
-
-        Ok(())
     }
 }
