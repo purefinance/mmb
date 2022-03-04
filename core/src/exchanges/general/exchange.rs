@@ -41,7 +41,7 @@ use crate::{
         common::{CurrencyPair, ExchangeError},
         traits::ExchangeClient,
     },
-    lifecycle::application_manager::ApplicationManager,
+    lifecycle::app_lifetime_manager::AppLifetimeManager,
 };
 
 use crate::balance_manager::balance_manager::BalanceManager;
@@ -96,7 +96,7 @@ pub struct Exchange {
     pub(super) exchange_client: Box<dyn ExchangeClient>,
     pub(super) features: ExchangeFeatures,
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
-    pub(super) application_manager: Arc<ApplicationManager>,
+    pub(super) lifetime_manager: Arc<AppLifetimeManager>,
     pub(super) commission: Commission,
     pub(super) wait_cancel_order: DashMap<ClientOrderId, broadcast::Sender<()>>,
     pub(super) wait_finish_order: DashMap<ClientOrderId, broadcast::Sender<OrderRef>>,
@@ -140,7 +140,7 @@ impl Exchange {
         features: ExchangeFeatures,
         timeout_arguments: RequestTimeoutArguments,
         events_channel: broadcast::Sender<ExchangeEvent>,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
         timeout_manager: Arc<TimeoutManager>,
         commission: Commission,
     ) -> Arc<Self> {
@@ -154,7 +154,7 @@ impl Exchange {
             connectivity_manager,
             order_creation_events: DashMap::new(),
             order_cancellation_events: DashMap::new(),
-            application_manager,
+            lifetime_manager,
             features,
             events_channel,
             timeout_manager,
@@ -264,7 +264,7 @@ impl Exchange {
 
     fn on_connecting(&self) {
         if self
-            .application_manager
+            .lifetime_manager
             .stop_token()
             .is_cancellation_requested()
         {

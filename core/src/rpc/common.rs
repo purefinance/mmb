@@ -12,7 +12,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::{
     config::{save_settings, CONFIG_PATH, CREDENTIALS_PATH},
     infrastructure::spawn_future,
-    lifecycle::application_manager::{ActionAfterGracefulShutdown, ApplicationManager},
+    lifecycle::app_lifetime_manager::{ActionAfterGracefulShutdown, AppLifetimeManager},
     rpc::core_api::FAILED_TO_SEND_STOP_NOTIFICATION,
 };
 
@@ -110,7 +110,7 @@ pub(super) fn spawn_server_stopping_action<T>(
     work_finished_sender: oneshot::Sender<T>,
     msg_to_sender: T,
     mut server_stopper_rx: mpsc::Receiver<ActionAfterGracefulShutdown>,
-    application_manager: Option<Arc<ApplicationManager>>,
+    lifetime_manager: Option<Arc<AppLifetimeManager>>,
 ) where
     T: Send + 'static,
 {
@@ -130,8 +130,8 @@ pub(super) fn spawn_server_stopping_action<T>(
                 log::warn!("Unable to send notification about server stopped");
             }
 
-            if let Some(application_manager) = application_manager {
-                application_manager.spawn_graceful_shutdown_with_action(
+            if let Some(lifetime_manager) = lifetime_manager {
+                lifetime_manager.spawn_graceful_shutdown_with_action(
                     "Stop signal from RPC server".into(),
                     action,
                 );

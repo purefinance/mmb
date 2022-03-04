@@ -16,13 +16,13 @@ pub enum ActionAfterGracefulShutdown {
     Restart,
 }
 
-pub struct ApplicationManager {
+pub struct AppLifetimeManager {
     cancellation_token: CancellationToken,
     engine_context: Mutex<Option<Weak<EngineContext>>>,
     pub(crate) futures_cancellation_token: CancellationToken,
 }
 
-impl ApplicationManager {
+impl AppLifetimeManager {
     pub fn new(cancellation_token: CancellationToken) -> Arc<Self> {
         Arc::new(Self {
             cancellation_token,

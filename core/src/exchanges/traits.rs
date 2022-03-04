@@ -21,7 +21,7 @@ use super::{
 };
 use crate::exchanges::events::ExchangeEvent;
 use crate::exchanges::general::features::ExchangeFeatures;
-use crate::lifecycle::application_manager::ApplicationManager;
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::orders::fill::EventSourceType;
 use crate::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
@@ -150,7 +150,7 @@ pub trait ExchangeClientBuilder {
         &self,
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
     ) -> ExchangeClientBuilderResult;
 
     fn get_timeout_arguments(&self) -> RequestTimeoutArguments;

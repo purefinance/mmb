@@ -24,7 +24,7 @@ use crate::{
         },
         traits::{ExchangeClient, Support},
     },
-    lifecycle::application_manager::ApplicationManager,
+    lifecycle::app_lifetime_manager::AppLifetimeManager,
     orders::{
         fill::EventSourceType,
         order::{
@@ -279,7 +279,7 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
     symbol: Arc<Symbol>,
     exchange_account_id: ExchangeAccountId,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
-    let application_manager = ApplicationManager::new(CancellationToken::new());
+    let lifetime_manager = AppLifetimeManager::new(CancellationToken::new());
     let (tx, rx) = broadcast::channel(10);
 
     let exchange_client = Box::new(TestClient);
@@ -305,7 +305,7 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
         ),
         RequestTimeoutArguments::from_requests_per_minute(1200),
         tx,
-        application_manager,
+        lifetime_manager,
         TimeoutManager::new(HashMap::new()),
         commission,
     );

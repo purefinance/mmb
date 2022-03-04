@@ -26,11 +26,11 @@ use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::lifecycle::shutdown::ShutdownService;
 use crate::settings::CoreSettings;
 use crate::{
-    infrastructure::unset_application_manager, lifecycle::application_manager::ApplicationManager,
+    infrastructure::unset_lifetime_manager, lifecycle::app_lifetime_manager::AppLifetimeManager,
 };
 use parking_lot::Mutex;
 
-use super::application_manager::ActionAfterGracefulShutdown;
+use super::app_lifetime_manager::ActionAfterGracefulShutdown;
 use super::launcher::unwrap_or_handle_panic;
 
 pub trait Service: Send + Sync + 'static {
@@ -44,7 +44,7 @@ pub struct EngineContext {
     pub exchanges: DashMap<ExchangeAccountId, Arc<Exchange>>,
     pub shutdown_service: Arc<ShutdownService>,
     pub exchange_blocker: Arc<ExchangeBlocker>,
-    pub application_manager: Arc<ApplicationManager>,
+    pub lifetime_manager: Arc<AppLifetimeManager>,
     pub timeout_manager: Arc<TimeoutManager>,
     pub balance_manager: Arc<Mutex<BalanceManager>>,
     is_graceful_shutdown_started: AtomicBool,
@@ -59,7 +59,7 @@ impl EngineContext {
         exchange_events: ExchangeEvents,
         finish_graceful_shutdown_sender: oneshot::Sender<ActionAfterGracefulShutdown>,
         timeout_manager: Arc<TimeoutManager>,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
         balance_manager: Arc<Mutex<BalanceManager>>,
     ) -> Arc<Self> {
         let exchange_account_ids = app_settings
@@ -73,7 +73,7 @@ impl EngineContext {
             exchanges,
             shutdown_service: Default::default(),
             exchange_blocker: ExchangeBlocker::new(exchange_account_ids),
-            application_manager: application_manager.clone(),
+            lifetime_manager: lifetime_manager.clone(),
             timeout_manager,
             balance_manager,
             is_graceful_shutdown_started: Default::default(),
@@ -81,7 +81,7 @@ impl EngineContext {
             finish_graceful_shutdown_sender: Mutex::new(Some(finish_graceful_shutdown_sender)),
         });
 
-        application_manager.setup_engine_context(engine_context.clone());
+        lifetime_manager.setup_engine_context(engine_context.clone());
 
         engine_context
     }
@@ -109,7 +109,7 @@ impl EngineContext {
             )
         });
 
-        self.application_manager.stop_token().cancel();
+        self.lifetime_manager.stop_token().cancel();
 
         self.shutdown_service.user_lvl_shutdown().await;
         self.exchange_blocker.stop_blocker().await;
@@ -146,7 +146,7 @@ impl EngineContext {
             futures_cancellation_token.cancel();
         }
 
-        unset_application_manager();
+        unset_lifetime_manager();
 
         print_info("Graceful shutdown finished");
     }
@@ -200,7 +200,7 @@ impl TradingEngine {
         let is_restart = unwrap_or_handle_panic(
             action_outcome,
             "Panic happened while TradingEngine was run",
-            Some(self.context.application_manager.clone()),
+            Some(self.context.lifetime_manager.clone()),
         )
         .expect("unwrap_or_handle_panic returned error")
         .expect("Failed to receive message from finished_graceful_shutdown");

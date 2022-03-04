@@ -189,7 +189,7 @@ async fn orders_cancelled() {
         sleep(Duration::from_millis(200)).await;
         context
             .clone()
-            .application_manager
+            .lifetime_manager
             .run_graceful_shutdown("test")
             .await;
 

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::{
     lifecycle::{
-        application_manager::{ActionAfterGracefulShutdown, ApplicationManager},
+        app_lifetime_manager::{ActionAfterGracefulShutdown, AppLifetimeManager},
         trading_engine::Service,
     },
     statistic_service::StatisticService,
@@ -29,7 +29,7 @@ pub(crate) struct CoreApi {
 
 impl CoreApi {
     pub(crate) fn create_and_start(
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
         engine_settings: String,
         statistics: Arc<StatisticService>,
     ) -> Result<Arc<Self>> {
@@ -52,7 +52,7 @@ impl CoreApi {
             work_finished_sender,
             Ok(()),
             server_stopper_rx,
-            Some(application_manager),
+            Some(lifetime_manager),
         );
 
         log::info!("ControlPanel is started");

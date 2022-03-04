@@ -9,8 +9,8 @@ use crate::exchanges::general::exchange_creation::create_timeout_manager;
 use crate::exchanges::internal_events_loop::InternalEventsLoop;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::exchanges::traits::ExchangeClientBuilder;
-use crate::infrastructure::init_application_manager;
-use crate::lifecycle::application_manager::ApplicationManager;
+use crate::infrastructure::init_lifetime_manager;
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::rpc::config_waiter::ConfigWaiter;
@@ -40,7 +40,7 @@ use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-use super::application_manager::ActionAfterGracefulShutdown;
+use super::app_lifetime_manager::ActionAfterGracefulShutdown;
 
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,
@@ -131,7 +131,7 @@ where
     log::info!("*****************************");
     log::info!("TradingEngine starting");
 
-    let application_manager = init_application_manager();
+    let lifetime_manager = init_lifetime_manager();
 
     let settings = match init_user_settings {
         InitSettings::Directly(v) => v,
@@ -154,7 +154,7 @@ where
         &settings.core,
         build_settings,
         events_sender.clone(),
-        application_manager.clone(),
+        lifetime_manager.clone(),
         &timeout_manager,
     )
     .await;
@@ -175,7 +175,7 @@ where
 
     BalanceManager::update_balances_for_exchanges(
         balance_manager.clone(),
-        application_manager.stop_token(),
+        lifetime_manager.stop_token(),
     )
     .await;
 
@@ -192,7 +192,7 @@ where
         exchange_events,
         finish_graceful_shutdown_tx,
         timeout_manager,
-        application_manager.clone(),
+        lifetime_manager.clone(),
         balance_manager,
     );
 
@@ -232,9 +232,9 @@ where
     let statistic_event_handler =
         create_statistic_event_handler(exchange_events, statistic_service.clone());
     let control_panel = CoreApi::create_and_start(
-        engine_context.application_manager.clone(),
+        engine_context.lifetime_manager.clone(),
         load_pretty_settings(init_user_settings),
-        statistic_service.clone(),
+        statistic_service,
     )
     .expect("Unable to start control panel");
     engine_context
@@ -246,7 +246,7 @@ where
         let action = internal_events_loop.clone().start(
             events_receiver,
             local_exchanges_map,
-            engine_context.application_manager.stop_token(),
+            engine_context.lifetime_manager.stop_token(),
         );
         let _ = spawn_future(
             "internal_events_loop start",
@@ -273,11 +273,11 @@ where
 pub(crate) fn unwrap_or_handle_panic<T>(
     action_outcome: Result<T, Box<dyn Any + Send>>,
     message_template: &str,
-    application_manager: Option<Arc<ApplicationManager>>,
+    lifetime_manager: Option<Arc<AppLifetimeManager>>,
 ) -> Result<T> {
     action_outcome.map_err(|_| {
-        if let Some(application_manager) = application_manager {
-            application_manager
+        if let Some(lifetime_manager) = lifetime_manager {
+            lifetime_manager
                 .spawn_graceful_shutdown("Panic during TradingEngine creation".to_owned());
         }
 
@@ -317,12 +317,12 @@ where
         None => return Ok(None),
     };
 
-    let cloned_application_manager = engine_context.application_manager.clone();
+    let cloned_lifetime_manager = engine_context.lifetime_manager.clone();
     let action = async move {
         signal::ctrl_c().await.expect("failed to listen for event");
 
         print_info("Ctrl-C signal was received so graceful_shutdown will be started");
-        cloned_application_manager.spawn_graceful_shutdown("Ctrl-C signal was received".to_owned());
+        cloned_lifetime_manager.spawn_graceful_shutdown("Ctrl-C signal was received".to_owned());
 
         Ok(())
     };
@@ -350,7 +350,7 @@ where
     let result = unwrap_or_handle_panic(
         action_outcome,
         message_template,
-        Some(engine_context.application_manager.clone()),
+        Some(engine_context.lifetime_manager.clone()),
     )
     .map(|trading_engine| Some(trading_engine));
 
@@ -372,7 +372,7 @@ fn create_disposition_executor_service(
         base_settings.exchange_account_id(),
         base_settings.currency_pair(),
         disposition_strategy,
-        engine_context.application_manager.stop_token(),
+        engine_context.lifetime_manager.stop_token(),
         statistics.clone(),
     )
 }
@@ -388,7 +388,7 @@ pub async fn create_exchanges(
     core_settings: &CoreSettings,
     build_settings: &EngineBuildConfig,
     events_channel: broadcast::Sender<ExchangeEvent>,
-    application_manager: Arc<ApplicationManager>,
+    lifetime_manager: Arc<AppLifetimeManager>,
     timeout_manager: &Arc<TimeoutManager>,
 ) -> Vec<Arc<Exchange>> {
     join_all(core_settings.exchanges.iter().map(|x| {
@@ -396,7 +396,7 @@ pub async fn create_exchanges(
             x,
             build_settings,
             events_channel.clone(),
-            application_manager.clone(),
+            lifetime_manager.clone(),
             timeout_manager.clone(),
         )
     }))

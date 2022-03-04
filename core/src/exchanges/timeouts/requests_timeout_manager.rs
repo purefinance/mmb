@@ -609,7 +609,7 @@ mod test {
     }
 
     mod try_reserve_instant {
-        use crate::infrastructure::init_application_manager;
+        use crate::infrastructure::init_lifetime_manager;
 
         use super::*;
 
@@ -656,7 +656,7 @@ mod test {
         async fn there_are_requests_from_future_false(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1201,7 +1201,7 @@ mod test {
         async fn when_there_is_request_in_the_future_time(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -1337,7 +1337,7 @@ mod test {
     }
 
     mod reserve_when_available {
-        use crate::infrastructure::init_application_manager;
+        use crate::infrastructure::init_lifetime_manager;
 
         use super::*;
 
@@ -1346,7 +1346,7 @@ mod test {
         async fn no_current_requests_true(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 1;
@@ -1380,7 +1380,7 @@ mod test {
         async fn only_outdated_requests_true(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 1;
@@ -1433,7 +1433,7 @@ mod test {
         async fn there_are_spare_requests_in_the_last_interval_now_after_last_request_date_time(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
@@ -1494,7 +1494,7 @@ mod test {
         async fn there_are_max_requests_in_current_period_in_past(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
@@ -1588,7 +1588,7 @@ mod test {
         async fn there_are_max_requests_in_current_period_in_future(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 3;
@@ -1709,7 +1709,7 @@ mod test {
         async fn there_are_no_max_requests_in_current_period_in_future(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1788,7 +1788,7 @@ mod test {
         async fn with_cancellation_token(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1822,7 +1822,7 @@ mod test {
         async fn with_cancel_at_beginning(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1856,7 +1856,7 @@ mod test {
         async fn with_cancel_after_two_seconds(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             timeout_manager.inner.lock().requests_per_period = 2;
@@ -1955,7 +1955,7 @@ mod test {
         async fn with_reserved_all_request_in_group_and_one_request_available(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let current_time = Utc::now();
@@ -2037,7 +2037,7 @@ mod test {
         async fn with_pre_reserved_four_slots_in_group_and_one_request(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let current_time = Utc::now();
@@ -2094,7 +2094,7 @@ mod test {
         async fn with_pre_reserved_four_slots_in_group_and_one_request_in_group_and_one_request_without_group(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let current_time = Utc::now();
@@ -2162,7 +2162,7 @@ mod test {
         async fn with_pre_reserved_all_slots_in_group(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let current_time = Utc::now();
@@ -2252,7 +2252,7 @@ mod test {
         async fn when_all_requests_pre_reserved_in_groups(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let group_type = "GroupType".to_owned();
@@ -2322,7 +2322,7 @@ mod test {
     mod triggers {
         use parking_lot::Mutex;
 
-        use crate::infrastructure::init_application_manager;
+        use crate::infrastructure::init_lifetime_manager;
 
         use super::*;
         use std::sync::Arc;
@@ -2416,7 +2416,7 @@ mod test {
         async fn calls_count_one_when_only_reserve_instant(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let call_counter = Arc::new(Mutex::new(CallCounter::new()));
@@ -2482,7 +2482,7 @@ mod test {
         async fn calls_count_two_when_one_extra_request(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let call_counter = Arc::new(Mutex::new(CallCounter::new()));
@@ -2559,7 +2559,7 @@ mod test {
         async fn calls_count_one_when_there_are_prereserved_group(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
-            let _ = init_application_manager();
+            let _ = init_lifetime_manager();
 
             // Arrange
             let group_type = "GroupType".to_owned();

@@ -10,7 +10,7 @@ use mmb_core::exchanges::general::exchange::*;
 use mmb_core::exchanges::general::features::*;
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
-use mmb_core::infrastructure::init_application_manager;
+use mmb_core::infrastructure::init_lifetime_manager;
 use mmb_core::settings::CurrencyPairSetting;
 use mmb_core::settings::ExchangeSettings;
 use mmb_utils::cancellation_token::CancellationToken;
@@ -78,7 +78,7 @@ impl BinanceBuilder {
         commission: Commission,
         need_to_clean_up: bool,
     ) -> Result<Self> {
-        let application_manager = init_application_manager();
+        let lifetime_manager = init_lifetime_manager();
         let (tx, rx) = broadcast::channel(10);
 
         settings.websocket_channels = vec!["depth".into(), "trade".into()];
@@ -87,7 +87,7 @@ impl BinanceBuilder {
             exchange_account_id,
             settings.clone(),
             tx.clone(),
-            application_manager.clone(),
+            lifetime_manager.clone(),
             false,
         ));
 
@@ -100,7 +100,7 @@ impl BinanceBuilder {
             features,
             RequestTimeoutArguments::from_requests_per_minute(1200),
             tx.clone(),
-            application_manager,
+            lifetime_manager,
             timeout_manager,
             commission,
         );

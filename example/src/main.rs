@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use binance::binance::BinanceBuilder;
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
-use mmb_core::lifecycle::application_manager::ActionAfterGracefulShutdown;
+use mmb_core::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 

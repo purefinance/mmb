@@ -20,7 +20,7 @@ use crate::services::usd_converter::usd_converter::UsdConverter;
 use crate::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
-    lifecycle::application_manager::ApplicationManager,
+    lifecycle::app_lifetime_manager::AppLifetimeManager,
     orders::{
         fill::OrderFill,
         order::{ClientOrderFillId, OrderSnapshot},
@@ -72,7 +72,7 @@ pub struct BalanceChangesService {
     balance_changes_accumulators: Vec<Arc<dyn BalanceChangeAccumulator + Send + Sync>>,
     profit_loss_stopper_service: Arc<ProfitLossStopperService>,
     balance_changes_calculator: BalanceChangesCalculator,
-    application_manager: Arc<ApplicationManager>,
+    lifetime_manager: Arc<AppLifetimeManager>,
 }
 
 impl BalanceChangesService {
@@ -80,7 +80,7 @@ impl BalanceChangesService {
         currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
         profit_loss_stopper_service: Arc<ProfitLossStopperService>,
         usd_converter: UsdConverter,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
         // IDatabaseManager databaseManager,
         // IDataRecorder dataRecorder,
     ) -> Arc<Self> {
@@ -100,16 +100,16 @@ impl BalanceChangesService {
             balance_changes_calculator: BalanceChangesCalculator::new(
                 currency_pair_to_symbol_converter,
             ),
-            application_manager: application_manager.clone(),
+            lifetime_manager: lifetime_manager.clone(),
         });
 
         let on_timer_tick = {
             let this = this.clone();
             move || {
                 let this = this.clone();
-                let application_manager = application_manager.clone();
+                let lifetime_manager = lifetime_manager.clone();
                 async move {
-                    if application_manager.stop_token().is_cancellation_requested() {
+                    if lifetime_manager.stop_token().is_cancellation_requested() {
                         log::info!(
                             "BalanceChangesService::on_timer_tick not available because cancellation was requested on the CancellationToken"
                         );
@@ -204,7 +204,7 @@ impl BalanceChangesService {
         order_fill: &OrderFill,
     ) {
         if self
-            .application_manager
+            .lifetime_manager
             .stop_token()
             .is_cancellation_requested()
         {
