@@ -94,10 +94,7 @@ async fn launch_engine() -> Result<()> {
 
     let action = async move {
         sleep(Duration::from_millis(200)).await;
-        context
-            .application_manager
-            .run_graceful_shutdown("test")
-            .await;
+        context.lifetime_manager.run_graceful_shutdown("test").await;
 
         Ok(())
     };

@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 
 use std::sync::Arc;
 
-use crate::lifecycle::application_manager::ActionAfterGracefulShutdown;
+use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 use crate::statistic_service::StatisticService;
 use mmb_rpc::rest_api::ErrorCode;
 

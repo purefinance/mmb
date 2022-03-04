@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use super::commission::Commission;
 use crate::exchanges::events::ExchangeEvent;
-use crate::lifecycle::application_manager::ApplicationManager;
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::launcher::EngineBuildConfig;
 use crate::settings::ExchangeSettings;
 use crate::{
@@ -44,7 +44,7 @@ pub async fn create_exchange(
     user_settings: &ExchangeSettings,
     build_settings: &EngineBuildConfig,
     events_channel: broadcast::Sender<ExchangeEvent>,
-    application_manager: Arc<ApplicationManager>,
+    lifetime_manager: Arc<AppLifetimeManager>,
     timeout_manager: Arc<TimeoutManager>,
 ) -> Arc<Exchange> {
     let exchange_client_builder =
@@ -53,7 +53,7 @@ pub async fn create_exchange(
     let exchange_client = exchange_client_builder.create_exchange_client(
         user_settings.clone(),
         events_channel.clone(),
-        application_manager.clone(),
+        lifetime_manager.clone(),
     );
 
     let exchange = Exchange::new(
@@ -62,7 +62,7 @@ pub async fn create_exchange(
         exchange_client.features,
         exchange_client_builder.get_timeout_arguments(),
         events_channel,
-        application_manager,
+        lifetime_manager,
         timeout_manager,
         Commission::default(),
     );

@@ -873,7 +873,7 @@ mod tests {
     use crate::exchanges::common::ExchangeAccountId;
     use crate::exchanges::exchange_blocker::BlockType::*;
     use crate::exchanges::exchange_blocker::{BlockReason, ExchangeBlocker, ExchangeBlockerMoment};
-    use crate::infrastructure::{init_application_manager, spawn_future};
+    use crate::infrastructure::{init_lifetime_manager, spawn_future};
     use futures::future::{join, join_all};
     use futures::FutureExt;
     use mmb_utils::cancellation_token::CancellationToken;
@@ -907,7 +907,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_unblock_manual() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
 
@@ -926,7 +926,7 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(120000)]
     async fn block_unblock_future() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
         let signal = Signal::default();
@@ -973,7 +973,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_duration() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
 
@@ -1054,7 +1054,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_with_multiple() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
 
@@ -1101,7 +1101,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_with_handler() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
@@ -1137,7 +1137,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_with_first_long_handler() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
@@ -1177,7 +1177,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn stop_blocker() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let exchange_blocker = exchange_blocker();
 
         let max_timeout = Duration::from_millis(100);
@@ -1190,7 +1190,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_with_handler_after_stop() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let exchange_blocker = exchange_blocker();
         let times_count = &Signal::<u8>::default();
 
@@ -1226,7 +1226,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_many_times() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
@@ -1292,7 +1292,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_many_times_with_random_reasons() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
@@ -1350,7 +1350,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn block_many_times_with_stop_exchange_blocker() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
             let reason = gen_reason(index);
 
@@ -1441,7 +1441,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn is_blocked_except_reason_full_cycle() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
 
@@ -1481,7 +1481,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn wait_unblock_if_not_blocked() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let cancellation_token = CancellationToken::new();
         let exchange_blocker = &exchange_blocker();
 
@@ -1496,7 +1496,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ntest::timeout(120000)]
     async fn wait_unblock_when_reblock_1_of_2_reasons() {
-        let _ = init_application_manager();
+        let _ = init_lifetime_manager();
         let exchange_blocker = &exchange_blocker();
         let wait_completed = Signal::<bool>::default();
 

@@ -48,7 +48,7 @@ use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTime
 use mmb_core::exchanges::traits::{
     ExchangeClient, ExchangeClientBuilder, ExchangeClientBuilderResult,
 };
-use mmb_core::lifecycle::application_manager::ApplicationManager;
+use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderInfo, OrderSide, OrderStatus, OrderType,
@@ -125,7 +125,7 @@ impl Serum {
         id: ExchangeAccountId,
         settings: ExchangeSettings,
         _events_channel: broadcast::Sender<ExchangeEvent>,
-        _application_manager: Arc<ApplicationManager>,
+        _lifetime_manager: Arc<AppLifetimeManager>,
         network_type: NetworkType,
     ) -> Self {
         let payer = Keypair::from_base58_string(&settings.secret_key);
@@ -461,7 +461,7 @@ impl ExchangeClientBuilder for SerumBuilder {
         &self,
         exchange_settings: ExchangeSettings,
         events_channel: tokio::sync::broadcast::Sender<ExchangeEvent>,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;
 
@@ -470,7 +470,7 @@ impl ExchangeClientBuilder for SerumBuilder {
                 exchange_account_id,
                 exchange_settings,
                 events_channel,
-                application_manager,
+                lifetime_manager,
                 NetworkType::Mainnet,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(

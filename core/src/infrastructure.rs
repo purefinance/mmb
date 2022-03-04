@@ -10,33 +10,33 @@ use std::sync::Arc;
 use std::{pin::Pin, time::Duration};
 use tokio::task::JoinHandle;
 
-use super::lifecycle::application_manager::ApplicationManager;
+use super::lifecycle::app_lifetime_manager::AppLifetimeManager;
 
-static APPLICATION_MANAGER: OnceCell<Mutex<Option<Arc<ApplicationManager>>>> = OnceCell::new();
+static LIFETIME_MANAGER: OnceCell<Mutex<Option<Arc<AppLifetimeManager>>>> = OnceCell::new();
 
-pub fn init_application_manager() -> Arc<ApplicationManager> {
-    let application_manager = ApplicationManager::new(CancellationToken::new());
-    keep_application_manager(application_manager.clone());
+pub fn init_lifetime_manager() -> Arc<AppLifetimeManager> {
+    let manger = AppLifetimeManager::new(CancellationToken::new());
+    keep_lifetime_manager(manger.clone());
 
-    application_manager
+    manger
 }
 
-pub(crate) fn keep_application_manager(application_manager: Arc<ApplicationManager>) {
-    let mut application_manager_guard = APPLICATION_MANAGER
-        .get_or_init(|| Mutex::new(Some(application_manager.clone())))
+pub(crate) fn keep_lifetime_manager(lifetime_manager: Arc<AppLifetimeManager>) {
+    let mut lifetime_manager_guard = LIFETIME_MANAGER
+        .get_or_init(|| Mutex::new(Some(lifetime_manager.clone())))
         .lock();
 
-    *application_manager_guard = Some(
-        application_manager_guard
+    *lifetime_manager_guard = Some(
+        lifetime_manager_guard
             .as_ref()
-            .unwrap_or(&application_manager)
+            .unwrap_or(&lifetime_manager)
             .clone(),
     );
 }
 
-pub(crate) fn unset_application_manager() {
-    match APPLICATION_MANAGER.get() {
-        Some(application_manager) => application_manager.lock().take(),
+pub(crate) fn unset_lifetime_manager() {
+    match LIFETIME_MANAGER.get() {
+        Some(lifetime_manager) => lifetime_manager.lock().take(),
         None => panic!(
             "Attempt to unset static application manager for spawn_future() before it has been set"
         ),
@@ -44,12 +44,12 @@ pub(crate) fn unset_application_manager() {
 }
 
 fn get_futures_cancellation_token() -> CancellationToken {
-    APPLICATION_MANAGER
+    LIFETIME_MANAGER
         .get()
-        .expect("Unable to get_futures_cancellation_token if ApplicationManager isn't set")
+        .expect("Unable to get_futures_cancellation_token if AppLifetimeManager isn't set")
         .lock()
         .as_ref()
-        .expect("ApplicationManager is none")
+        .expect("AppLifetimeManager is none")
         .futures_cancellation_token
         .clone()
 }
@@ -89,11 +89,11 @@ pub fn spawn_future(
 }
 
 fn spawn_graceful_shutdown(log_template: String, error_message: String) {
-    match APPLICATION_MANAGER.get() {
-        Some(application_manager) => {
-            match &*application_manager.lock() {
-                Some(application_manager) => {
-                    application_manager.clone().spawn_graceful_shutdown(error_message.to_owned());
+    match LIFETIME_MANAGER.get() {
+        Some(lifetime_manager) => {
+            match &*lifetime_manager.lock() {
+                Some(lifetime_manager) => {
+                    lifetime_manager.clone().spawn_graceful_shutdown(error_message.to_owned());
                 }
                 None => log::error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
                     log_template),
@@ -133,12 +133,12 @@ mod test {
     use futures::FutureExt;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn panic_with_application_manager() -> Result<()> {
+    async fn panic_with_lifetime_manager() -> Result<()> {
         // Arrange
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 
-        let application_manager = ApplicationManager::new(CancellationToken::new());
-        keep_application_manager(application_manager);
+        let manager = AppLifetimeManager::new(CancellationToken::new());
+        keep_lifetime_manager(manager);
 
         // Act
         let future_outcome = spawn_future(

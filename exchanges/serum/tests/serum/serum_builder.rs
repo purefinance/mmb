@@ -11,7 +11,7 @@ use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::ExchangeFeatures;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
-use mmb_core::lifecycle::application_manager::ApplicationManager;
+use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
 
@@ -60,7 +60,7 @@ impl SerumBuilder {
         features: ExchangeFeatures,
         commission: Commission,
     ) -> Result<Self> {
-        let application_manager = ApplicationManager::new(cancellation_token.clone());
+        let lifetime_manager = AppLifetimeManager::new(cancellation_token.clone());
         let (tx, rx) = broadcast::channel(10);
         let timeout_manager = get_timeout_manager(exchange_account_id);
 
@@ -68,7 +68,7 @@ impl SerumBuilder {
             exchange_account_id,
             settings.clone(),
             tx.clone(),
-            application_manager.clone(),
+            lifetime_manager.clone(),
             NetworkType::Devnet,
         ));
 
@@ -78,7 +78,7 @@ impl SerumBuilder {
             features,
             RequestTimeoutArguments::from_requests_per_minute(240),
             tx.clone(),
-            application_manager,
+            lifetime_manager,
             timeout_manager,
             commission,
         );

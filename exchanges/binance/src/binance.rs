@@ -37,7 +37,7 @@ use mmb_core::exchanges::{
     events::AllowedEventSourceType,
 };
 use mmb_core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
-use mmb_core::lifecycle::application_manager::ApplicationManager;
+use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::*;
 use mmb_core::orders::pool::OrderRef;
@@ -64,7 +64,7 @@ pub struct Binance {
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
     pub(super) last_trade_ids: DashMap<CurrencyPair, TradeId>,
 
-    pub(super) application_manager: Arc<ApplicationManager>,
+    pub(super) lifetime_manager: Arc<AppLifetimeManager>,
 
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
 
@@ -79,7 +79,7 @@ impl Binance {
         id: ExchangeAccountId,
         settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
         is_reducing_market_data: bool,
     ) -> Self {
         let is_reducing_market_data = settings
@@ -104,7 +104,7 @@ impl Binance {
             settings,
             hosts,
             events_channel,
-            application_manager,
+            lifetime_manager,
             rest_client: RestClient::new(),
         }
     }
@@ -551,7 +551,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         &self,
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;
 
@@ -560,7 +560,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 exchange_account_id,
                 exchange_settings,
                 events_channel.clone(),
-                application_manager,
+                lifetime_manager,
                 false,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
@@ -607,7 +607,7 @@ mod tests {
             exchange_account_id,
             settings,
             tx,
-            ApplicationManager::new(CancellationToken::default()),
+            AppLifetimeManager::new(CancellationToken::default()),
             false,
         );
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();

@@ -8,14 +8,14 @@ use parking_lot::Mutex;
 use crate::{
     exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
     infrastructure::spawn_by_timer,
-    lifecycle::application_manager::ApplicationManager,
+    lifecycle::app_lifetime_manager::AppLifetimeManager,
     misc::traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
     services::market_prices::market_currency_code_price::MarketCurrencyCodePrice,
 };
 
 pub struct UsdDenominator {
     market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
-    application_manager: Arc<ApplicationManager>,
+    lifetime_manager: Arc<AppLifetimeManager>,
     market_prices_by_currency_code: Mutex<HashMap<CurrencyCode, MarketCurrencyCodePrice>>,
     pub price_update_callback: Box<dyn Fn() + Sync + Send>,
 }
@@ -45,11 +45,11 @@ impl UsdDenominator {
         market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
         market_prices: Vec<MarketCurrencyCodePrice>,
         auto_refresh_data: bool,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
     ) -> Arc<Self> {
         let this = Arc::new(Self {
             market_service,
-            application_manager: application_manager.clone(),
+            lifetime_manager,
             market_prices_by_currency_code: Mutex::new(UsdDenominator::create_prices_dictionary(
                 market_prices,
             )),
@@ -79,19 +79,14 @@ impl UsdDenominator {
 
     pub async fn create_async<T>(
         auto_refresh_data: bool,
-        application_manager: Arc<ApplicationManager>,
+        lifetime_manager: Arc<AppLifetimeManager>,
     ) -> Arc<Self>
     where
         T: GetMarketCurrencyCodePrice + CreateMarketService,
     {
         let service = T::new();
         let market_prices = service.get_market_currency_code_price().await;
-        UsdDenominator::new(
-            service,
-            market_prices,
-            auto_refresh_data,
-            application_manager,
-        )
+        UsdDenominator::new(service, market_prices, auto_refresh_data, lifetime_manager)
     }
 
     pub fn get_non_refreshing_usd_denominator(&self) -> Arc<Self> {
@@ -103,7 +98,7 @@ impl UsdDenominator {
                 .cloned()
                 .collect_vec(),
             false,
-            self.application_manager.clone(),
+            self.lifetime_manager.clone(),
         )
     }
 

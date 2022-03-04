@@ -552,7 +552,7 @@ impl Binance {
             Err(error) => {
                 let msg = format!("Unable to send exchange event in {}: {}", self.id, error);
                 log::error!("{}", msg);
-                self.application_manager
+                self.lifetime_manager
                     .clone()
                     .spawn_graceful_shutdown(msg.clone());
                 Err(anyhow!(msg))

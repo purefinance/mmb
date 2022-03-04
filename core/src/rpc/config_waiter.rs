@@ -5,7 +5,7 @@ use mmb_utils::logger::print_info;
 use parking_lot::Mutex;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::lifecycle::application_manager::ActionAfterGracefulShutdown;
+use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 
 use super::{
     common::{
