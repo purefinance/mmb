@@ -411,7 +411,7 @@ impl Exchange {
                     for buffered_fill in buffered_fills {
                         self.handle_order_filled(
                             buffered_fill.to_fill_event_data(None, client_order_id.clone()),
-                        )?;
+                        );
                     }
 
                     buffered_fills_manager.remove_fills(exchange_order_id);
@@ -425,7 +425,7 @@ impl Exchange {
                         &exchange_order_id,
                         None,
                         source_type.clone(),
-                    )?;
+                    );
                     buffered_canceled_orders_manager.remove_order(&exchange_order_id);
                 }
 

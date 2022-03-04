@@ -1,4 +1,4 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use futures::FutureExt;
 use mmb_utils::cancellation_token::CancellationToken;
@@ -288,7 +288,7 @@ impl Exchange {
                     &exchange_order_id,
                     None,
                     EventSourceType::RestFallback,
-                )?;
+                );
 
                 Ok(true)
             }
@@ -412,7 +412,7 @@ impl Exchange {
                             continue;
                         };
 
-                        self.handle_order_filled_for_restfallback(order, order_trade)?;
+                        self.handle_order_filled_for_restfallback(order, order_trade);
                     }
                 }
 
@@ -452,7 +452,7 @@ impl Exchange {
                             order_amount: None,
                             fill_date: None,
                         };
-                        self.handle_order_filled(event_data)?;
+                        self.handle_order_filled(event_data);
 
                         RequestResult::Success(order_info)
                     }
@@ -475,10 +475,10 @@ impl Exchange {
         &self,
         order: &OrderRef,
         order_trade: &OrderTrade,
-    ) -> Result<()> {
-        let exchange_order_id = order.exchange_order_id().ok_or(anyhow!(
-            "No exchange_order_id in order while handle_order_filled_for_restfallback"
-        ))?;
+    ) {
+        let exchange_order_id = order
+            .exchange_order_id()
+            .expect("No exchange_order_id in order while handle_order_filled_for_restfallback");
         let event_data = FillEventData {
             source_type: EventSourceType::RestFallback,
             trade_id: Some(order_trade.trade_id.clone()),

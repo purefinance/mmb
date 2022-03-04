@@ -49,6 +49,10 @@ macro_rules! impl_str_id {
             pub fn as_mut_str(&mut self) -> &mut str {
                 self.0.as_mut_str()
             }
+
+            pub fn is_empty(&self) -> bool {
+                self.0.is_empty()
+            }
         }
 
         impl Display for $type {
