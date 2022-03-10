@@ -5,14 +5,14 @@ use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::features::*;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::init_infrastructure;
+use mmb_utils::logger::init_logger_file_named;
 
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::get_binance_credentials_or_exit;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancellation_waited_successfully() {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
@@ -73,7 +73,7 @@ async fn cancellation_waited_successfully() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancellation_waited_failed_fallback() {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(

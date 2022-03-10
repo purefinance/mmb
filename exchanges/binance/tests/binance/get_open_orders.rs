@@ -4,7 +4,7 @@ use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::features::*;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::init_infrastructure;
+use mmb_utils::logger::init_logger_file_named;
 
 use crate::binance::binance_builder::BinanceBuilder;
 use crate::get_binance_credentials_or_exit;
@@ -12,7 +12,7 @@ use core_tests::order::OrderProxy;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn open_orders_exists() {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
@@ -86,7 +86,7 @@ async fn open_orders_exists() {
 /// It's matter to check branch for OneCurrencyPair variant
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_open_orders_for_each_currency_pair_separately() {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let (api_key, secret_key) = get_binance_credentials_or_exit!();

@@ -7,12 +7,12 @@ use mmb_core::exchanges::general::features::{
     WebSocketOptions,
 };
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::init_infrastructure;
+use mmb_utils::logger::init_logger_file_named;
 
 #[ignore = "need solana keypair"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_balance_successfully() {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id = ExchangeAccountId::new("Serum".into(), 0);
     let serum_builder = SerumBuilder::try_new(

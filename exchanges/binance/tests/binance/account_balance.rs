@@ -9,13 +9,13 @@ use mmb_core::exchanges::{
         },
     },
 };
-use mmb_utils::{cancellation_token::CancellationToken, infrastructure::init_infrastructure};
+use mmb_utils::{cancellation_token::CancellationToken, logger::init_logger_file_named};
 
 use super::binance_builder::BinanceBuilder;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_balance_successfully() {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(

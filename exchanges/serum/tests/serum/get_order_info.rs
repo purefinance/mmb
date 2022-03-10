@@ -10,13 +10,13 @@ use mmb_core::exchanges::general::features::{
 };
 use mmb_core::orders::order::OrderSide;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::init_infrastructure;
+use mmb_utils::logger::init_logger_file_named;
 use rust_decimal_macros::dec;
 
 #[ignore = "not yet implemented Serum::get_order_id()"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_order_info() -> Result<()> {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Serum_0".parse().expect("Parsing error");
     let serum_builder = SerumBuilder::try_new(

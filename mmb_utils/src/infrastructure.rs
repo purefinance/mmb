@@ -234,6 +234,7 @@ where
     }
 }
 
+/// Do not use this in tests because panics will not be logged #448
 pub fn init_infrastructure(log_file: &str) {
     set_panic_hook();
     init_logger_file_named(log_file);

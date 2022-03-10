@@ -88,7 +88,7 @@ impl VirtualBalanceHolderTests {
 mod tests {
     use std::collections::HashMap;
 
-    use mmb_utils::{hashmap, infrastructure::init_infrastructure};
+    use mmb_utils::{hashmap, logger::init_logger_file_named};
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     pub fn set_balance_simple() {
-        init_infrastructure("log.txt");
+        init_logger_file_named("log.txt");
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id;
@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     pub fn get_exchange_balance_multiple_currency_code() {
-        init_infrastructure("log.txt");
+        init_logger_file_named("log.txt");
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id;
@@ -156,7 +156,7 @@ mod tests {
 
     #[test]
     pub fn get_all_balances_valid() {
-        init_infrastructure("log.txt");
+        init_logger_file_named("log.txt");
         let mut test_obj = VirtualBalanceHolderTests::new();
 
         let exchange_account_id = test_obj.exchange_account_id;
@@ -190,7 +190,7 @@ mod tests {
     #[test]
     #[ignore] // Work in progress due to derivatives
     pub fn get_balance_for_derivative_with_mark_price() {
-        init_infrastructure("log.txt");
+        init_logger_file_named("log.txt");
         let mut test_obj =
             VirtualBalanceHolderTests::new_with_amount(VirtualBalanceHolderTests::btc().as_str());
 
