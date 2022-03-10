@@ -5,14 +5,14 @@ use mmb_core::exchanges::general::exchange::*;
 use mmb_core::exchanges::general::features::*;
 use mmb_core::orders::order::*;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::init_infrastructure;
+use mmb_utils::logger::init_logger_file_named;
 
 use crate::binance::binance_builder::BinanceBuilder;
 use core_tests::order::OrderProxy;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancelled_successfully() {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
@@ -58,7 +58,7 @@ async fn cancelled_successfully() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancel_opened_orders_successfully() {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(

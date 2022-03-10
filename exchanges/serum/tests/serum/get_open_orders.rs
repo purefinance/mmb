@@ -10,14 +10,14 @@ use mmb_core::exchanges::general::features::{
 };
 use mmb_core::orders::order::{ClientOrderId, OrderSide};
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::init_infrastructure;
+use mmb_utils::logger::init_logger_file_named;
 use rust_decimal_macros::dec;
 use std::collections::BTreeSet;
 
 #[ignore = "not yet implemented Serum::get_order_id()"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_open_orders() -> Result<()> {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id = ExchangeAccountId::new("Serum".into(), 0);
     let serum_builder = SerumBuilder::try_new(
@@ -90,7 +90,7 @@ async fn get_open_orders() -> Result<()> {
 #[ignore = "not yet implemented Serum::get_order_id()"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_open_orders_for_currency_pair() -> Result<()> {
-    init_infrastructure("log.txt");
+    init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Serum_0".parse().expect("Parsing error");
     let serum_builder = SerumBuilder::try_new(
