@@ -65,8 +65,8 @@ pub fn init_logger_file_named(log_file: &str) {
     });
 
     print_info(format!(
-        "Logger has been initialized all logs will be stored here: {:?}",
-        path
+        "Logger has been initialized all logs will be stored here: {}",
+        path.to_str().expect("Unable build logger file path"),
     ));
 }
 
