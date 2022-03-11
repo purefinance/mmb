@@ -8,6 +8,7 @@ use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 
+use mmb_core::exchanges::general::symbol::{Round, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::{
     exchanges::common::ExchangeId,
@@ -96,8 +97,9 @@ async fn send_request(
         .content
 }
 
-/// Automatic price calculation for orders. This function gets the price from the middle of order book bids side.
-/// This helps to avoid creating orders in the top of the order book.
+/// Automatic price calculation for orders. This function gets the price from 10-th price level of
+/// order book if it exists otherwise last bid price from order book.
+/// This helps to avoid creating orders in the top of the order book and filling it.
 pub(crate) async fn get_default_price(
     currency_pair: SpecificCurrencyPair,
     hosts: &Hosts,
@@ -112,19 +114,23 @@ pub(crate) async fn get_default_price(
         hosts,
         api_key,
         "/api/v3/depth",
-        &vec![("symbol".to_owned(), currency_pair.as_str().to_owned())],
+        &vec![
+            ("symbol".to_owned(), currency_pair.to_string()),
+            ("limit".to_owned(), "10".to_owned()),
+        ],
     )
     .await;
 
     let value: OrderBook = serde_json::from_str(data.as_str())
         .with_expect(|| format!("failed to deserialize data: {}", data));
 
-    // getting price for order from the middle of the order book
-    // use bids because this price is little lower then asks
     value
         .bids
-        .get(value.bids.len() / 2)
-        .expect("failed to get bid from the middle of the order book")
+        .iter()
+        .last()
+        .with_expect(|| {
+            format!("unable get bid from the {currency_pair} order book because it's empty")
+        })
         .clone()
         .0
 }
@@ -135,6 +141,7 @@ pub(crate) async fn get_min_amount(
     hosts: &Hosts,
     api_key: &String,
     price: Price,
+    symbol: &Symbol,
 ) -> Amount {
     let data = send_request(
         hosts,
@@ -167,5 +174,5 @@ pub(crate) async fn get_min_amount(
         .get_as_decimal("minNotional")
         .expect("Failed to get min_notional");
 
-    (min_notional / price).ceil()
+    symbol.amount_round(min_notional / price, Round::Ceiling)
 }

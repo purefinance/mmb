@@ -48,7 +48,7 @@ impl BaseStrategySettings for TestStrategySettings {
     }
 
     fn currency_pair(&self) -> CurrencyPair {
-        CurrencyPair::from_codes("cnd".into(), "btc".into())
+        CurrencyPair::from_codes("btc".into(), "usdt".into())
     }
 
     fn max_amount(&self) -> Amount {
@@ -134,13 +134,23 @@ async fn orders_cancelled() {
             &api_key,
         )
         .await;
+
+        let symbol = exchange
+            .symbols
+            .get(&test_currency_pair)
+            .expect("can't find symbol")
+            .value()
+            .clone();
+
         let amount = get_min_amount(
             get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
             &Binance::make_hosts(is_margin_trading),
             &api_key,
             price,
+            &symbol,
         )
         .await;
+
         let order = OrderProxy::new(
             exchange_account_id,
             Some("FromOrdersCancelledTest".to_owned()),
@@ -172,7 +182,7 @@ async fn orders_cancelled() {
     )
     .expect("failed to conver answer to Value");
 
-    let exchange_statistics = &statistics["market_account_id_stats"]["Binance_0|cnd/btc"];
+    let exchange_statistics = &statistics["market_account_id_stats"]["Binance_0|btc/usdt"];
     let opened_orders_count = exchange_statistics["opened_orders_count"]
         .as_u64()
         .expect("in test");

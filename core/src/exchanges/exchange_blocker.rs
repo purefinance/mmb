@@ -1042,13 +1042,16 @@ mod tests {
 
         let min_timeout = duration_sleep + duration;
         let timeout_limit = min_timeout + Duration::from_millis(30);
-        tokio::select! {
-            _ = handle => {
-                let elapsed = timer.elapsed();
-                assert!(elapsed > min_timeout, "Exchange should be unblocked after {} ms, but was {} ms", min_timeout.as_millis(), elapsed.as_millis())
-            },
-            _ = sleep(timeout_limit) => panic!("Timeout limit ({} ms) exceeded", timeout_limit.as_millis()),
-        }
+
+        let _ = with_timeout(timeout_limit, handle).await;
+
+        let elapsed = timer.elapsed();
+        assert!(
+            elapsed > min_timeout,
+            "Exchange should be unblocked after {} ms, but was {} ms",
+            min_timeout.as_millis(),
+            elapsed.as_millis()
+        )
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

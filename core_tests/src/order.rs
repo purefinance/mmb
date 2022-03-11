@@ -85,7 +85,7 @@ impl OrderProxy {
     }
 
     pub fn default_currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes("cnd".into(), "btc".into())
+        CurrencyPair::from_codes("btc".into(), "usdt".into())
     }
 
     pub fn make_header(&self) -> Arc<OrderHeader> {
