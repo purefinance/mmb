@@ -55,8 +55,8 @@ impl BinanceBuilder {
 
         // default currency pair for tests
         settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
-            base: "cnd".into(),
-            quote: "btc".into(),
+            base: "btc".into(),
+            quote: "usdt".into(),
         }]);
 
         Self::try_new_with_settings(
@@ -123,11 +123,26 @@ impl BinanceBuilder {
                 .await;
         }
 
-        let currency_pair =
-            get_specific_currency_pair_for_tests(&exchange, OrderProxy::default_currency_pair());
-        let default_price = get_default_price(currency_pair, &hosts, &settings.api_key).await;
-        let min_amount =
-            get_min_amount(currency_pair, &hosts, &settings.api_key, default_price).await;
+        let currency_pair = OrderProxy::default_currency_pair();
+        let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
+        let default_price =
+            get_default_price(specific_currency_pair, &hosts, &settings.api_key).await;
+
+        let symbol = exchange
+            .symbols
+            .get(&currency_pair)
+            .expect("can't find symbol")
+            .value()
+            .clone();
+
+        let min_amount = get_min_amount(
+            specific_currency_pair,
+            &hosts,
+            &settings.api_key,
+            default_price,
+            &symbol,
+        )
+        .await;
 
         Ok(Self {
             exchange,

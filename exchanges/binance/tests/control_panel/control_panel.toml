@@ -7,4 +7,4 @@ request_trades = false
 websocket_channels = ["depth20"]
 subscribe_to_market_data = true
 
-currency_pairs = [ { base = "cnd", quote = "btc"  } ]
+currency_pairs = [ { base = "btc", quote = "usdt"  } ]

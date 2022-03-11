@@ -95,12 +95,12 @@ async fn get_open_orders_for_each_currency_pair_separately() {
 
     settings.currency_pairs = Some(vec![
         CurrencyPairSetting::Ordinary {
-            base: "cnd".into(),
-            quote: "btc".into(),
+            base: "btc".into(),
+            quote: "usdt".into(),
         },
         CurrencyPairSetting::Ordinary {
-            base: "cnd".into(),
-            quote: "btc".into(),
+            base: "btc".into(),
+            quote: "usdt".into(),
         },
     ]);
 

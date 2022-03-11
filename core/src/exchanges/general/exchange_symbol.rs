@@ -31,7 +31,7 @@ impl Exchange {
         });
 
         self.setup_symbols(get_symbols(
-            &currency_pairs,
+            currency_pairs,
             exchange_symbols,
             self.exchange_account_id,
         ));
