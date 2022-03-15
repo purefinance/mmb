@@ -55,6 +55,7 @@ impl Precision {
 }
 
 /// Metadata for a currency pair
+#[warn(clippy::derive_hash_xor_eq)] // FIXME temporary changed deny=>warn
 #[derive(Debug, Clone, Hash, Eq)]
 pub struct Symbol {
     pub is_active: bool,
@@ -230,7 +231,7 @@ impl Symbol {
     }
 
     fn get_precision_digits_by_fractional(value: Price, precision: u8) -> i8 {
-        if precision <= 0 {
+        if precision == 0 {
             panic!(
                 "Count of precision digits cannot be less 1 but got {}",
                 precision
@@ -258,11 +259,10 @@ impl Symbol {
     }
 
     pub fn get_commission_currency_code(&self, side: OrderSide) -> CurrencyCode {
-        self.balance_currency_code
-            .unwrap_or_else(move || match side {
-                OrderSide::Buy => self.base_currency_code,
-                OrderSide::Sell => self.quote_currency_code,
-            })
+        self.balance_currency_code.unwrap_or(match side {
+            OrderSide::Buy => self.base_currency_code,
+            OrderSide::Sell => self.quote_currency_code,
+        })
     }
 
     pub fn convert_amount_from_amount_currency_code(
@@ -375,7 +375,7 @@ impl Symbol {
 
     pub fn get_amount_tick(&self) -> Decimal {
         match self.amount_precision {
-            Precision::ByTick { tick } => return tick,
+            Precision::ByTick { tick } => tick,
             Precision::ByMantissa { precision: _ } => {
                 panic!("get_amount_tick cannot be called with Precision::ByMantissa variant")
             }
@@ -414,7 +414,7 @@ mod test {
         let quote_currency = "PHB";
         let price_tick = dec!(0.1);
         let is_derivative = false;
-        let balance_currency_code = CurrencyCode::new("ETH".into());
+        let balance_currency_code = CurrencyCode::new("ETH");
 
         let symbol = Symbol::new(
             false,
@@ -537,10 +537,10 @@ mod test {
         let quote_currency = "BTC";
         let price_tick = dec!(0.1);
         let is_derivative = false;
-        let balance_currency_code = CurrencyCode::new("ETH".into());
+        let balance_currency_code = CurrencyCode::new("ETH");
 
-        let base_code = CurrencyCode::new(base_currency.into());
-        let quote_code = CurrencyCode::new(quote_currency.into());
+        let base_code = CurrencyCode::new(base_currency);
+        let quote_code = CurrencyCode::new(quote_currency);
         let symbol = Symbol::new(
             false,
             is_derivative,
