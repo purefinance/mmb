@@ -63,7 +63,7 @@ impl UsdDenominator {
                 "UsdDenominator::refresh_data()",
                 Duration::ZERO,
                 Duration::from_secs(7200), // 2 hours
-                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             );
         }
 

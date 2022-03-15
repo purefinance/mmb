@@ -241,7 +241,7 @@ impl StatisticEventHandler {
         let action = statistic_event_handler.clone().start(events_receiver);
         spawn_future(
             "Start statistic service",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
         );
 

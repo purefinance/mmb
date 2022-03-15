@@ -19,9 +19,10 @@ use crate::OPERATION_CANCELED_MSG;
 
 bitflags! {
     pub struct SpawnFutureFlags: u32 {
-        /// If this flag is not set, future will log panic message and graceful_shutdown will not run
-        const CRITICAL = 0b00000001;
-        /// If this flag is setting up the future will be force stopped at the end of graceful_shutdown
+        /// Run graceful shutdown on cancel for this future, assuming some logical error (deny
+        /// cancellation).
+        const DENY_CANCELLATION = 0b00000001;
+        /// If this flag is set the future will be forced to stop at the end of graceful_shutdown
         const STOP_BY_TOKEN = 0b00000010;
     }
 }
@@ -41,7 +42,7 @@ impl FutureOutcome {
         }
     }
 
-    pub fn into_result(&self) -> Result<()> {
+    pub fn into_result(self) -> Result<()> {
         match self.completion_reason {
             CompletionReason::Error => {
                 bail!("Future {} with id {} returned error", self.name, self.id)
@@ -173,7 +174,7 @@ async fn handle_action_outcome(
                 }
 
                 log::error!("{} returned error: {:?}", log_template, error);
-                return FutureOutcome::new(action_name, future_id, CompletionReason::Error);
+                FutureOutcome::new(action_name, future_id, CompletionReason::Error)
             }
         },
         Err(panic_info) => {
@@ -242,8 +243,6 @@ pub fn init_infrastructure(log_file: &str) {
 
 #[cfg(test)]
 mod test {
-    use crate::panic::set_panic_hook;
-
     use super::*;
     use anyhow::{bail, Result};
     use futures::FutureExt;
@@ -258,7 +257,7 @@ mod test {
         // Act
         let future_outcome = spawn_future(
             "test_action_name",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
             |_, _| {},
             CancellationToken::default(),
@@ -282,7 +281,7 @@ mod test {
         // Act
         let future_outcome = spawn_future(
             "test_action_name",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
             |_, _| {},
             CancellationToken::default(),
@@ -303,7 +302,7 @@ mod test {
         // Act
         let future_outcome = spawn_future(
             "test_action_name",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
             |_, _| {},
             CancellationToken::default(),
@@ -347,7 +346,7 @@ mod test {
         // Act
         let future_outcome = spawn_future(
             "test_action_name",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
             |_, _| {},
             CancellationToken::default(),
@@ -375,7 +374,7 @@ mod test {
         // Act
         let future_outcome = spawn_future(
             "test_action_name",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
             |_, _| {},
             CancellationToken::default(),
@@ -404,7 +403,7 @@ mod test {
         // Act
         let future_outcome = spawn_future(
             "test_action_name",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
             |_, _| {},
             cancellation_token.clone(),
@@ -433,7 +432,7 @@ mod test {
             // Act
             let future_outcome = spawn_future_timed(
                 "test_action_name",
-                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 Duration::from_secs(0),
                 action.boxed(),
                 |_, _| {},
@@ -458,7 +457,7 @@ mod test {
             // Act
             let future_outcome = spawn_future_timed(
                 "test_action_name",
-                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 Duration::from_millis(200),
                 action.boxed(),
                 |_, _| {},
@@ -480,7 +479,7 @@ mod test {
             // Act
             let future_outcome = spawn_future_timed(
                 "test_action_name",
-                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 Duration::from_millis(200),
                 action.boxed(),
                 |_, _| {},
@@ -512,7 +511,7 @@ mod test {
             // Act
             let future_outcome = spawn_future_timed(
                 "test_action_name",
-                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 Duration::from_millis(200),
                 action.boxed(),
                 |_, _| {},
@@ -538,10 +537,10 @@ mod test {
                 let counter = counter.clone();
                 spawn_by_timer(
                     move || (future)(counter.clone()).boxed(),
-                    "spawn_repeatable".into(),
+                    "spawn_repeatable",
                     Duration::ZERO,
                     Duration::from_millis(duration),
-                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                     CancellationToken::default(),
                     |_, _| {},
                 )

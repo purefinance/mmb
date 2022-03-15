@@ -100,7 +100,7 @@ async fn launch_engine() -> Result<()> {
     };
     spawn_future(
         "run graceful_shutdown in launch_engine test",
-        SpawnFutureFlags::CRITICAL,
+        SpawnFutureFlags::DENY_CANCELLATION,
         action.boxed(),
     );
 

@@ -66,7 +66,7 @@ impl PriceSourceEventLoop {
         };
         spawn_future(
             "PriceSourceService",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             run_action.boxed(),
         )
         .await

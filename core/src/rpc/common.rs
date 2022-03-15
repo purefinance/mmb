@@ -142,7 +142,7 @@ pub(super) fn spawn_server_stopping_action<T>(
 
     spawn_future(
         future_name,
-        SpawnFutureFlags::CRITICAL,
+        SpawnFutureFlags::DENY_CANCELLATION,
         stopping_action.boxed(),
     );
 }

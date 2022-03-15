@@ -91,7 +91,7 @@ impl DispositionExecutorService {
         };
         spawn_future(
             "Start disposition executor",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
         );
 
@@ -568,7 +568,7 @@ impl DispositionExecutor {
         };
         spawn_future(
             "Start wait_cancel_order from DispositionExecutor::cancel_order()",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
         );
     }
@@ -777,7 +777,7 @@ impl DispositionExecutor {
             };
             spawn_future(
                 "wait_cancel_order in blocking cancel_order",
-                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 action.boxed(),
             );
         }

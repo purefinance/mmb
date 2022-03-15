@@ -92,7 +92,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
         };
         spawn_future(
             "handle_inner for schedule_handler()",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
         );
     }
