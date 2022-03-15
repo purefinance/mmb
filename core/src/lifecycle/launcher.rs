@@ -250,7 +250,7 @@ where
         );
         let _ = spawn_future(
             "internal_events_loop start",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
         );
     }
@@ -329,7 +329,7 @@ where
 
     let _ = spawn_future(
         "Start Ctrl-C handler",
-        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
         action.boxed(),
     );
 

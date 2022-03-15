@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 
 use backtrace::Backtrace;
-use log::log;
 use uuid::Uuid;
 
 use crate::{
@@ -30,7 +29,7 @@ pub fn set_panic_hook() {
         let location = panic_info
             .location()
             .map(|x| x.to_string())
-            .unwrap_or("Failed to get location from PanicInfo".into());
+            .unwrap_or_else(|| "Failed to get location from PanicInfo".to_owned());
 
         let location_and_backtrace = format!("At {}\n{:?}", location, backtrace);
 
@@ -75,17 +74,11 @@ pub fn handle_future_panic(
         None => format!("panic happened: {panic_message}"),
     };
 
-    if error_msg.contains(OPERATION_CANCELED_MSG) {
-        let log_level = if flags.intersects(SpawnFutureFlags::CRITICAL) {
-            log::Level::Error
-        } else {
-            log::Level::Trace
-        };
-        log!(log_level, "{} was cancelled due to panic", log_template);
-
-        if !flags.intersects(SpawnFutureFlags::CRITICAL) {
-            return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
-        }
+    if error_msg.contains(OPERATION_CANCELED_MSG)
+        && !flags.intersects(SpawnFutureFlags::DENY_CANCELLATION)
+    {
+        log::warn!("{} was cancelled due to panic", log_template);
+        return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
     }
 
     log::error!("{}", error_msg);

@@ -125,7 +125,7 @@ impl BalanceChangesService {
             "BalanceChangesService",
             Duration::ZERO,
             Duration::from_secs(5),
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
         );
 
         this

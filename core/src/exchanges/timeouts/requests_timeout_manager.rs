@@ -307,7 +307,7 @@ impl RequestsTimeoutManager {
         );
         let request_availability = spawn_future(
             "Waiting request in reserve_when_available()",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
         );
 

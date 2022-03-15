@@ -207,7 +207,7 @@ async fn orders_cancelled() {
     };
     spawn_future(
         "run graceful_shutdown in launch_engine test",
-        SpawnFutureFlags::CRITICAL | SpawnFutureFlags::STOP_BY_TOKEN,
+        SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
         action.boxed(),
     );
 

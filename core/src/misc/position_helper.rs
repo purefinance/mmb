@@ -52,7 +52,7 @@ pub fn close_position_if_needed(
     let action_name = "Close active positions";
     Some(spawn_future_timed(
         action_name,
-        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
         Duration::from_secs(30),
         action.boxed(),
     ))

@@ -93,7 +93,7 @@ fn spawn_graceful_shutdown(log_template: String, error_message: String) {
         Some(lifetime_manager) => {
             match &*lifetime_manager.lock() {
                 Some(lifetime_manager) => {
-                    lifetime_manager.clone().spawn_graceful_shutdown(error_message.to_owned());
+                    lifetime_manager.spawn_graceful_shutdown(error_message);
                 }
                 None => log::error!("Unable to start graceful shutdown after panic inside {} because there are no application manager",
                     log_template),
@@ -131,9 +131,11 @@ mod test {
     use super::*;
     use anyhow::Result;
     use futures::FutureExt;
+    use mmb_utils::infrastructure::init_infrastructure;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn panic_with_lifetime_manager() -> Result<()> {
+    async fn panic_with_deny_cancellation() -> Result<()> {
+        init_infrastructure("log.txt");
         // Arrange
         let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
 
@@ -143,17 +145,42 @@ mod test {
         // Act
         let future_outcome = spawn_future(
             "test_action_name",
-            SpawnFutureFlags::CRITICAL | SpawnFutureFlags::STOP_BY_TOKEN,
+            SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
             action.boxed(),
         )
-        .await?;
+        .await?
+        .into_result()
+        .expect_err("in test")
+        .to_string();
 
         // Assert
-        assert!(future_outcome
-            .into_result()
-            .expect_err("in test")
-            .to_string()
-            .contains("panicked"));
+        assert!(future_outcome.contains("panicked"));
+
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn panic_without_deny_cancellation() -> Result<()> {
+        init_infrastructure("log.txt");
+        // Arrange
+        let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
+
+        let application_manager = AppLifetimeManager::new(CancellationToken::new());
+        keep_lifetime_manager(application_manager);
+
+        // Act
+        let future_outcome = spawn_future(
+            "test_action_name",
+            SpawnFutureFlags::STOP_BY_TOKEN,
+            action.boxed(),
+        )
+        .await?
+        .into_result()
+        .expect_err("in test")
+        .to_string();
+
+        // Assert
+        assert!(future_outcome.contains("canceled"));
 
         Ok(())
     }

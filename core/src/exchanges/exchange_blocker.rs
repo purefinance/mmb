@@ -234,7 +234,7 @@ impl ExchangeBlockerEventsProcessor {
         };
         let processing_handle = spawn_future(
             "Start ExchangeBlocker processing",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
         );
 
@@ -343,7 +343,7 @@ impl ExchangeBlockerEventsProcessor {
                 };
                 let _ = spawn_future(
                     "Run ExchangeBlocker handlers in case MoveToBlocked",
-                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                     action.boxed(),
                 );
             }
@@ -368,7 +368,7 @@ impl ExchangeBlockerEventsProcessor {
                 };
                 let _ = spawn_future(
                     "Run ExchangeBlocker handlers in case WaitBeforeUnblockedMove",
-                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                     action.boxed(),
                 );
             }
@@ -389,7 +389,7 @@ impl ExchangeBlockerEventsProcessor {
 
                 let _ = spawn_future(
                     "Run ExchangeBlocker handlers in case WaitUnblockedMove",
-                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                     action.boxed(),
                 );
             }
@@ -671,7 +671,7 @@ impl ExchangeBlocker {
         };
         spawn_future(
             "Run ExchangeBlocker handlers",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::CRITICAL,
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
             action.boxed(),
         )
     }
@@ -1512,7 +1512,7 @@ mod tests {
         let (tx, mut rx) = tokio::sync::mpsc::channel(1);
         let _ = spawn_future(
             "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
-            SpawnFutureFlags::CRITICAL | SpawnFutureFlags::STOP_BY_TOKEN,
+            SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
             {
                 let exchange_blocker = exchange_blocker.clone();
                 let wait_completed = wait_completed.clone();
