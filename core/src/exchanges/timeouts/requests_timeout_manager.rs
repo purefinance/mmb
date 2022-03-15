@@ -181,7 +181,7 @@ impl RequestsTimeoutManager {
 
                 // TODO save to DataRecorder
 
-                return inner.try_reserve_request_instant(request_type, current_time);
+                inner.try_reserve_request_instant(request_type, current_time)
             }
             Some(group) => {
                 let group = group.clone();
@@ -268,7 +268,7 @@ impl RequestsTimeoutManager {
         let request = if inner.requests.is_empty() {
             request_start_time = current_time;
             delay = Duration::zero();
-            available_requests_count_for_period = inner.requests_per_period;
+            // available_requests_count_for_period = inner.requests_per_period;
             inner.add_request(request_type, current_time, None)?
         } else {
             let last_request = inner.get_last_request()?;
@@ -293,7 +293,7 @@ impl RequestsTimeoutManager {
         );
 
         // TODO save to DataRecorder. Delete drop
-        drop(available_requests_count_for_period);
+        // drop(available_requests_count_for_period);
 
         inner.last_time = Some(current_time);
 
@@ -416,12 +416,10 @@ mod test {
     fn timeout_manager() -> Arc<RequestsTimeoutManager> {
         let requests_per_period = 5;
         let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id".into(), 0);
-        let timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
+        RequestsTimeoutManagerFactory::from_requests_per_period(
             RequestTimeoutArguments::from_requests_per_minute(requests_per_period),
             exchange_account_id,
-        );
-
-        timeout_manager
+        )
     }
 
     mod try_reserve_group {
@@ -461,7 +459,7 @@ mod test {
         }
 
         #[rstest]
-        fn not_enought_requests(timeout_manager: Arc<RequestsTimeoutManager>) -> Result<()> {
+        fn not_enough_requests(timeout_manager: Arc<RequestsTimeoutManager>) -> Result<()> {
             // Arrange
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
@@ -1264,7 +1262,7 @@ mod test {
         }
 
         #[rstest]
-        fn when_group_has_more_requests_then_preffered_count(
+        fn when_group_has_more_requests_then_preferred_count(
             timeout_manager: Arc<RequestsTimeoutManager>,
         ) -> Result<()> {
             // Arrange
@@ -2331,12 +2329,10 @@ mod test {
         fn timeout_manager() -> Arc<RequestsTimeoutManager> {
             let requests_per_period = 5;
             let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id".into(), 0);
-            let timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
+            RequestsTimeoutManagerFactory::from_requests_per_period(
                 RequestTimeoutArguments::new(requests_per_period, Duration::milliseconds(1)),
                 exchange_account_id,
-            );
-
-            timeout_manager
+            )
         }
 
         struct CallCounter {

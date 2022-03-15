@@ -109,17 +109,17 @@ impl PriceSourceEventLoop {
 
     fn try_update_cache(&mut self, market_id: MarketId, new_value: PriceByOrderSide) -> bool {
         if let Some(old_value) = self.price_cache.get_mut(&market_id) {
-            match old_value == &new_value {
-                true => return false,
+            return match old_value == &new_value {
+                true => false,
                 false => {
                     *old_value = new_value;
-                    return true;
+                    true
                 }
-            }
+            };
         };
 
         self.price_cache.insert(market_id, new_value);
-        return true;
+        true
     }
 
     fn update_cache_and_save(&mut self, market_id: MarketId) {
@@ -155,12 +155,12 @@ pub struct PriceSourceService {
 impl PriceSourceService {
     pub fn new(
         currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
-        price_source_settings: &Vec<CurrencyPriceSourceSettings>,
+        price_source_settings: &[CurrencyPriceSourceSettings],
         price_sources_loader: PriceSourcesLoader,
     ) -> Arc<Self> {
         let price_source_chains = Self::prepare_price_source_chains(
             price_source_settings,
-            currency_pair_to_symbol_converter.clone(),
+            currency_pair_to_symbol_converter,
         );
         let (tx_main, convert_currency_notification_receiver) = mpsc::channel(20_000);
 
@@ -203,7 +203,7 @@ impl PriceSourceService {
     }
 
     pub fn prepare_price_source_chains(
-        price_source_settings: &Vec<CurrencyPriceSourceSettings>,
+        price_source_settings: &[CurrencyPriceSourceSettings],
         currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
     ) -> Vec<PriceSourceChain> {
         if price_source_settings.is_empty() {
@@ -444,7 +444,7 @@ pub mod test {
 
     impl PriceSourceServiceTestBase {
         pub fn exchange_id() -> ExchangeId {
-            ExchangeId::new("Binance".into())
+            ExchangeId::new("Binance")
         }
 
         pub fn exchange_account_id() -> ExchangeAccountId {
@@ -756,7 +756,7 @@ pub mod test {
 
     #[test]
     #[should_panic(expected = "failed to get currency pair")]
-    fn throw_exception_when_more_cirrencies_then_needed() {
+    fn throw_exception_when_more_currencies_then_needed() {
         let eos = "EOS".into();
         let btc = "BTC".into();
         let usdt = "USDT".into();
@@ -795,7 +795,7 @@ pub mod test {
                     get_test_exchange_by_currency_codes(false, btc.as_str(), usdt.as_str())
                 } else if exchange_account_id == PriceSourceServiceTestBase::exchange_account_id_2()
                 {
-                    get_test_exchange_by_currency_codes(false, btc.as_str(), usdt.as_str())
+                    get_test_exchange_by_currency_codes(false, btc.as_str(), karma.as_str())
                 } else {
                     panic!(
                         "Unknown exchange in CurrencyPairToSymbolConverter:{:?}",

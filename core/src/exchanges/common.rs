@@ -47,10 +47,6 @@ impl ExchangeAccountId {
             account_number,
         }
     }
-
-    pub fn to_string(&self) -> String {
-        format!("{}", self)
-    }
 }
 
 impl FromStr for ExchangeAccountId {
@@ -62,17 +58,17 @@ impl FromStr for ExchangeAccountId {
 
         let captures = regex
             .captures(text)
-            .ok_or(ExchangeIdParseError("Invalid format".into()))?
+            .ok_or_else(|| ExchangeIdParseError("Invalid format".into()))?
             .iter()
             .collect_vec();
 
         let exchange_id = captures[1]
-            .ok_or(ExchangeIdParseError("Invalid format".into()))?
+            .ok_or_else(|| ExchangeIdParseError("Invalid format".into()))?
             .as_str()
             .into();
 
         let number = captures[2]
-            .ok_or(ExchangeIdParseError("Invalid format".into()))?
+            .ok_or_else(|| ExchangeIdParseError("Invalid format".into()))?
             .as_str()
             .parse()
             .map_err(|x| {
@@ -178,7 +174,7 @@ impl CurrencyPair {
     pub fn to_codes(&self) -> CurrencyPairCodes {
         let (base, quote) = self
             .as_str()
-            .split_once("/")
+            .split_once('/')
             .with_expect(|| format!("Failed to get base and quote value from CurrencyPair {self}"));
 
         CurrencyPairCodes {
@@ -416,9 +412,9 @@ mod tests {
         #[test]
         pub fn just_create() {
             let exchange_id: ExchangeId = ExchangeId::new("Binance");
-            let cloned = exchange_id.clone();
+            let copied = exchange_id;
 
-            assert_eq!(cloned, exchange_id);
+            assert_eq!(copied, exchange_id);
             assert_eq!(exchange_id.as_str(), "Binance");
         }
 
