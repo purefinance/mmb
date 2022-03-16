@@ -1,7 +1,6 @@
 use mmb_core::exchanges::common::*;
 use mmb_core::exchanges::events::AllowedEventSourceType;
 use mmb_core::exchanges::general::commission::Commission;
-use mmb_core::exchanges::general::exchange::*;
 use mmb_core::exchanges::general::features::*;
 use mmb_core::orders::order::*;
 use mmb_utils::cancellation_token::CancellationToken;
@@ -9,6 +8,7 @@ use mmb_utils::logger::init_logger_file_named;
 
 use crate::binance::binance_builder::BinanceBuilder;
 use core_tests::order::OrderProxy;
+use mmb_core::exchanges::general::exchange::RequestResult;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancelled_successfully() {
@@ -132,6 +132,8 @@ async fn cancel_opened_orders_successfully() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn nothing_to_cancel() {
+    init_logger_file_named("log.txt");
+
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
     let binance_builder = match BinanceBuilder::try_new(
         exchange_account_id,
@@ -171,10 +173,13 @@ async fn nothing_to_cancel() {
     // Cancel last order
     let cancel_outcome = binance_builder
         .exchange
-        .cancel_order(&order_to_cancel, CancellationToken::default())
+        .cancel_order(order_to_cancel, CancellationToken::default())
         .await
         .expect("in test");
     if let RequestResult::Error(error) = cancel_outcome.outcome {
-        assert_eq!(error.error_type, ExchangeErrorType::OrderNotFound);
+        assert_eq!(
+            error.message,
+            "Type: OrderNotFound Message: Unknown order sent. Code Some(-2011)"
+        );
     }
 }

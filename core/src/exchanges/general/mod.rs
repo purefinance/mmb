@@ -6,7 +6,6 @@ pub mod exchange_creation;
 pub mod exchange_symbol;
 pub mod features;
 pub mod handlers;
-pub mod helpers;
 pub mod order;
 pub mod polling_timeout_manager;
 pub mod request_type;

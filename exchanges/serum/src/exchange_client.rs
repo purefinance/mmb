@@ -1,107 +1,49 @@
 use crate::serum::Serum;
 use anyhow::Result;
 use async_trait::async_trait;
+use function_name::named;
 use futures::future::join_all;
 use itertools::Itertools;
 use serum_dex::matching::Side;
 use serum_dex::state::MarketState;
-use solana_client::client_error::reqwest::StatusCode;
 use solana_program::account_info::IntoAccountInfo;
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::{Keypair, Signer};
-use solana_sdk::transaction::Transaction;
 use std::collections::HashMap;
-use std::mem::size_of;
 use std::ops::DerefMut;
+use std::sync::Arc;
 
-use crate::market::OpenOrderData;
 use mmb_core::exchanges::common::{
-    ActivePosition, CurrencyCode, CurrencyPair, ExchangeError, ExchangeErrorType, Price,
-    RestRequestOutcome,
+    ActivePosition, ClosedPosition, CurrencyCode, CurrencyPair, ExchangeError, ExchangeErrorType,
+    Price,
 };
 use mmb_core::exchanges::events::{ExchangeBalance, ExchangeBalancesAndPositions};
+use mmb_core::exchanges::general::exchange::RequestResult;
+use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
+use mmb_core::exchanges::general::order::create::CreateOrderResult;
+use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::traits::ExchangeClient;
+use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::{OrderCancelling, OrderCreating, OrderInfo};
 use mmb_core::orders::pool::OrderRef;
+use mmb_utils::DateTime;
 
 #[async_trait]
-impl<'a> ExchangeClient for Serum {
-    async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
-        self.rest_client
-            .get(
-                self.network_type
-                    .market_list_url()
-                    .try_into()
-                    .expect("Unable create url"),
-                "",
-            )
-            .await
-    }
-
-    async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome> {
-        let mut instructions = Vec::new();
-        let mut signers = Vec::new();
-        let orders_keypair: Keypair;
-
-        let market_data = self.get_market_data(&order.header.currency_pair)?;
-        let accounts = self.load_orders_for_owner(&market_data.address, &market_data.program_id)?;
-
-        let open_order_account = match accounts.first() {
-            Some((acc, _)) => *acc,
-            None => {
-                let (orders_key, instruction) = self.create_dex_account(
-                    &market_data.program_id,
-                    &self.payer.pubkey(),
-                    size_of::<OpenOrderData>(),
-                )?;
-                // life time saving
-                orders_keypair = orders_key;
-
-                signers.push(&orders_keypair);
-                instructions.push(instruction);
-                orders_keypair.pubkey()
+impl ExchangeClient for Serum {
+    async fn create_order(&self, order: OrderCreating) -> CreateOrderResult {
+        // TODO Possible handle ExchangeError in create_order_core
+        match self.create_order_core(order).await {
+            Ok(exchange_order_id) => {
+                CreateOrderResult::successed(&exchange_order_id, EventSourceType::Rpc)
             }
-        };
-
-        let place_order_ix = self.create_new_order_instruction(
-            market_data.program_id,
-            &market_data.metadata,
-            open_order_account,
-            order.header.side,
-            order.price,
-            order.header.amount,
-            order.header.order_type,
-        )?;
-        instructions.push(place_order_ix);
-
-        let settle_funds_instructions = self.create_settle_funds_instructions(
-            &[open_order_account],
-            &market_data.metadata,
-            &market_data.address,
-            &market_data.program_id,
-        );
-        instructions.extend(settle_funds_instructions);
-
-        signers.push(&self.payer);
-
-        let recent_hash = self.rpc_client.get_latest_blockhash()?;
-        let transaction = Transaction::new_signed_with_payer(
-            &instructions,
-            Some(&self.payer.pubkey()),
-            &signers,
-            recent_hash,
-        );
-
-        let transaction_signature = self.send_transaction(transaction).await?;
-
-        Ok(RestRequestOutcome::new(
-            transaction_signature.to_string(),
-            StatusCode::OK,
-        ))
+            Err(error) => CreateOrderResult::failed(
+                ExchangeError::new(ExchangeErrorType::Unknown, error.to_string(), None),
+                EventSourceType::Rpc,
+            ),
+        }
     }
 
-    async fn request_cancel_order(&self, _order: &OrderCancelling) -> Result<RestRequestOutcome> {
+    async fn cancel_order(&self, _order: OrderCancelling) -> CancelOrderResult {
         todo!()
     }
 
@@ -165,19 +107,15 @@ impl<'a> ExchangeClient for Serum {
         })
     }
 
-    async fn request_my_trades(
+    async fn close_position(
         &self,
-        _symbol: &Symbol,
-        _last_date_time: Option<mmb_utils::DateTime>,
-    ) -> Result<RestRequestOutcome> {
+        _position: &ActivePosition,
+        _price: Option<Price>,
+    ) -> Result<ClosedPosition> {
         todo!()
     }
 
-    async fn request_get_position(&self) -> Result<RestRequestOutcome> {
-        todo!()
-    }
-
-    async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
+    async fn get_active_positions(&self) -> Result<Vec<ActivePosition>> {
         todo!()
     }
 
@@ -211,11 +149,33 @@ impl<'a> ExchangeClient for Serum {
         })
     }
 
-    async fn request_close_position(
-        &self,
-        _position: &ActivePosition,
-        _price: Option<Price>,
-    ) -> Result<RestRequestOutcome> {
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
         todo!()
+    }
+
+    async fn get_my_trades(
+        &self,
+        _symbol: &Symbol,
+        _last_date_time: Option<DateTime>,
+    ) -> Result<RequestResult<Vec<OrderTrade>>> {
+        todo!()
+    }
+
+    #[named]
+    async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {
+        let request_symbols = self
+            .rest_client
+            .get(
+                self.network_type
+                    .market_list_url()
+                    .try_into()
+                    .expect("Unable create url"),
+                "",
+                function_name!(),
+                "".to_string(),
+            )
+            .await?;
+
+        self.parse_all_symbols(&request_symbols)
     }
 }

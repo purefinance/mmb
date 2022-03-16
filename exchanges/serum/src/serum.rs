@@ -30,9 +30,10 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide};
-use crate::market::{MarketData, MarketMetaData, OpenOrderData};
+use crate::market::{DeserMarketData, MarketData, MarketMetaData, OpenOrderData};
 use mmb_core::exchanges::common::{
-    Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, SpecificCurrencyPair,
+    Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, RestRequestOutcome,
+    SpecificCurrencyPair,
 };
 use mmb_core::exchanges::events::{
     AllowedEventSourceType, ExchangeBalance, ExchangeEvent, TradeId,
@@ -43,7 +44,8 @@ use mmb_core::exchanges::general::features::{
     RestFillsType, WebSocketOptions,
 };
 use mmb_core::exchanges::general::handlers::handle_order_filled::FillEventData;
-use mmb_core::exchanges::rest_client::RestClient;
+use mmb_core::exchanges::general::symbol::Symbol;
+use mmb_core::exchanges::rest_client::{ErrorHandlerData, ErrorHandlerEmpty, RestClient};
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::exchanges::traits::{
     ExchangeClient, ExchangeClientBuilder, ExchangeClientBuilderResult,
@@ -51,7 +53,7 @@ use mmb_core::exchanges::traits::{
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderInfo, OrderSide, OrderStatus, OrderType,
+    ClientOrderId, ExchangeOrderId, OrderCreating, OrderInfo, OrderSide, OrderStatus, OrderType,
 };
 use mmb_core::orders::pool::OrderRef;
 use mmb_core::settings::ExchangeSettings;
@@ -127,8 +129,10 @@ impl Serum {
         _events_channel: broadcast::Sender<ExchangeEvent>,
         _lifetime_manager: Arc<AppLifetimeManager>,
         network_type: NetworkType,
+        empty_response_is_ok: bool,
     ) -> Self {
         let payer = Keypair::from_base58_string(&settings.secret_key);
+        let exchange_account_id = settings.exchange_account_id;
 
         Self {
             id,
@@ -141,7 +145,11 @@ impl Serum {
             unified_to_specific: Default::default(),
             supported_currencies: Default::default(),
             traded_specific_currencies: Default::default(),
-            rest_client: RestClient::new(),
+            rest_client: RestClient::new(ErrorHandlerData::new(
+                empty_response_is_ok,
+                exchange_account_id,
+                ErrorHandlerEmpty::new(),
+            )),
             rpc_client: Arc::new(RpcClient::new(network_type.url().to_string())),
             markets_data: Default::default(),
             network_type,
@@ -452,6 +460,112 @@ impl Serum {
 
         Ok(orders)
     }
+
+    fn get_order_id(&self) -> Result<ExchangeOrderId> {
+        unimplemented!()
+    }
+
+    pub(super) async fn create_order_core(&self, order: OrderCreating) -> Result<ExchangeOrderId> {
+        let mut instructions = Vec::new();
+        let mut signers = Vec::new();
+        let orders_keypair: Keypair;
+
+        let market_data = self.get_market_data(&order.header.currency_pair)?;
+        let accounts = self.load_orders_for_owner(&market_data.address, &market_data.program_id)?;
+
+        let open_order_account = match accounts.first() {
+            Some((acc, _)) => *acc,
+            None => {
+                let (orders_key, instruction) = self.create_dex_account(
+                    &market_data.program_id,
+                    &self.payer.pubkey(),
+                    size_of::<OpenOrderData>(),
+                )?;
+                // life time saving
+                orders_keypair = orders_key;
+
+                signers.push(&orders_keypair);
+                instructions.push(instruction);
+                orders_keypair.pubkey()
+            }
+        };
+
+        let place_order_ix = self.create_new_order_instruction(
+            market_data.program_id,
+            &market_data.metadata,
+            open_order_account,
+            order.header.side,
+            order.price,
+            order.header.amount,
+            order.header.order_type,
+        )?;
+        instructions.push(place_order_ix);
+
+        let settle_funds_instructions = self.create_settle_funds_instructions(
+            &[open_order_account],
+            &market_data.metadata,
+            &market_data.address,
+            &market_data.program_id,
+        );
+        instructions.extend(settle_funds_instructions);
+
+        signers.push(&self.payer);
+
+        let recent_hash = self.rpc_client.get_latest_blockhash()?;
+        let transaction = Transaction::new_signed_with_payer(
+            &instructions,
+            Some(&self.payer.pubkey()),
+            &signers,
+            recent_hash,
+        );
+
+        self.send_transaction(transaction).await?;
+
+        self.get_order_id()
+    }
+
+    pub(super) fn parse_all_symbols(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<Vec<Arc<Symbol>>> {
+        let markets: Vec<DeserMarketData> = serde_json::from_str(&response.content)
+            .expect("Unable to deserialize response from Serum markets list");
+
+        markets
+            .into_iter()
+            .filter(|market| !market.deprecated)
+            .map(|market| {
+                let market_address = market
+                    .address
+                    .parse()
+                    .expect("Invalid address constant string specified");
+                let market_program_id = market
+                    .program_id
+                    .parse()
+                    .expect("Invalid program_id constant string specified");
+
+                let symbol = self.get_symbol_from_market(&market.name, market_address)?;
+
+                let specific_currency_pair = market.name.as_str().into();
+                let unified_currency_pair =
+                    CurrencyPair::from_codes(symbol.base_currency_code, symbol.quote_currency_code);
+                self.unified_to_specific
+                    .write()
+                    .insert(unified_currency_pair, specific_currency_pair);
+
+                // market initiation
+                let market_metadata =
+                    self.load_market_meta_data(&market_address, &market_program_id)?;
+                let market_data =
+                    MarketData::new(market_address, market_program_id, market_metadata);
+                self.markets_data
+                    .write()
+                    .insert(symbol.currency_pair(), market_data);
+
+                Ok(Arc::new(symbol))
+            })
+            .collect()
+    }
 }
 
 pub struct SerumBuilder;
@@ -464,6 +578,7 @@ impl ExchangeClientBuilder for SerumBuilder {
         lifetime_manager: Arc<AppLifetimeManager>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;
+        let empty_response_is_ok = false;
 
         ExchangeClientBuilderResult {
             client: Box::new(Serum::new(
@@ -472,6 +587,7 @@ impl ExchangeClientBuilder for SerumBuilder {
                 events_channel,
                 lifetime_manager,
                 NetworkType::Mainnet,
+                empty_response_is_ok,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
@@ -479,7 +595,7 @@ impl ExchangeClientBuilder for SerumBuilder {
                 OrderFeatures::default(),
                 OrderTradeOption::default(),
                 WebSocketOptions::default(),
-                false,
+                empty_response_is_ok,
                 false,
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,

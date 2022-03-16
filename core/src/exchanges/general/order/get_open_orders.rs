@@ -42,8 +42,7 @@ impl Exchange {
         &self,
         check_missing_orders: bool,
     ) -> anyhow::Result<Vec<OrderInfo>> {
-        let mut open_orders = Vec::new();
-        match self.features.open_orders_type {
+        let open_orders = match self.features.open_orders_type {
             OpenOrdersType::AllCurrencyPair => {
                 self.timeout_manager
                     .reserve_when_available(
@@ -55,7 +54,7 @@ impl Exchange {
                     .await
                     .into_result()?;
 
-                open_orders.append(&mut self.exchange_client.get_open_orders().await?);
+                self.exchange_client.get_open_orders().await?
             }
             OpenOrdersType::OneCurrencyPair => {
                 let currency_pair_orders =
@@ -75,18 +74,16 @@ impl Exchange {
                     }))
                     .await;
 
-                open_orders.append(
-                    &mut currency_pair_orders
-                        .into_iter()
-                        .flatten_ok()
-                        .collect::<Result<Vec<_>, _>>()?,
-                );
+                currency_pair_orders
+                    .into_iter()
+                    .flatten_ok()
+                    .try_collect()?
             }
             OpenOrdersType::None => bail!(
                 "Unsupported open_orders_type: {:?}",
                 self.features.open_orders_type
             ),
-        }
+        };
 
         if check_missing_orders {
             self.add_missing_open_orders(&open_orders);

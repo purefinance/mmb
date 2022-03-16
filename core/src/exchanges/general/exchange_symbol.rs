@@ -1,4 +1,3 @@
-use anyhow::{Context, Result};
 use dashmap::DashMap;
 use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
@@ -6,7 +5,6 @@ use rust_decimal_macros::dec;
 use std::sync::Arc;
 
 use crate::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId};
-use crate::exchanges::general::helpers::{get_rest_error, handle_parse_error};
 use crate::settings::CurrencyPairSetting;
 
 use super::{exchange::Exchange, symbol::Symbol};
@@ -41,7 +39,7 @@ impl Exchange {
         const MAX_RETRIES: u8 = 5;
         let mut retry = 0;
         loop {
-            match self.build_all_symbols_core().await {
+            match self.exchange_client.build_all_symbols().await {
                 Ok(result_symbols) => return result_symbols,
                 Err(error) => {
                     let error_message = format!(
@@ -58,26 +56,6 @@ impl Exchange {
             }
 
             retry += 1;
-        }
-    }
-
-    async fn build_all_symbols_core(&self) -> Result<Vec<Arc<Symbol>>> {
-        let response = &self.exchange_client.request_all_symbols().await?;
-
-        if let Some(error) = get_rest_error(
-            response,
-            self.exchange_account_id,
-            self.features.empty_response_is_ok,
-        ) {
-            Err(error).context("Rest error appeared during request request_symbol")?;
-        }
-
-        match self.exchange_client.parse_all_symbols(response) {
-            symbols @ Ok(_) => symbols,
-            Err(error) => {
-                handle_parse_error(error, response, "".into(), None, self.exchange_account_id)?;
-                Ok(Vec::new())
-            }
         }
     }
 

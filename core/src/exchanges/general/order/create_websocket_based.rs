@@ -1,12 +1,7 @@
-use anyhow::Result;
 use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::oneshot;
 
-use crate::exchanges::general::helpers::get_rest_error_order;
 use crate::{
-    exchanges::common::ExchangeError,
-    exchanges::common::ExchangeErrorType,
-    exchanges::common::RestRequestOutcome,
     exchanges::general::exchange::Exchange,
     exchanges::general::exchange::RequestResult,
     orders::order::ClientOrderId,
@@ -19,7 +14,7 @@ use super::create::CreateOrderResult;
 impl Exchange {
     pub(super) async fn create_order_core(
         &self,
-        order: &OrderCreating,
+        order: OrderCreating,
         cancellation_token: CancellationToken,
     ) -> Option<CreateOrderResult> {
         let client_order_id = order.header.client_order_id.clone();
@@ -30,11 +25,10 @@ impl Exchange {
         self.order_creation_events
             .insert(client_order_id.clone(), (tx, None));
 
-        let order_create_future = self.exchange_client.create_order(&order);
+        let create_order_future = self.exchange_client.create_order(order);
 
         tokio::select! {
-            rest_request_outcome = order_create_future => {
-                let create_order_result = self.handle_create_order_response(&rest_request_outcome, &order);
+            create_order_result = create_order_future => {
                 match create_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
@@ -59,51 +53,6 @@ impl Exchange {
                 return websocket_outcome.ok();
             }
         };
-    }
-
-    fn handle_create_order_response(
-        &self,
-        request_outcome: &Result<RestRequestOutcome>,
-        order: &OrderCreating,
-    ) -> CreateOrderResult {
-        log::info!(
-            "Create response for {}, {:?}, {:?}",
-            // TODO other order_headers_field
-            order.header.client_order_id,
-            order.header.exchange_account_id,
-            request_outcome
-        );
-
-        match request_outcome {
-            Ok(request_outcome) => {
-                if let Some(rest_error) = get_rest_error_order(
-                    request_outcome,
-                    &order.header,
-                    self.features.empty_response_is_ok,
-                ) {
-                    return CreateOrderResult::failed(rest_error, EventSourceType::Rest);
-                }
-
-                match self.exchange_client.get_order_id(&request_outcome) {
-                    Ok(created_order_id) => {
-                        CreateOrderResult::successed(&created_order_id, EventSourceType::Rest)
-                    }
-                    Err(error) => {
-                        let exchange_error = ExchangeError::new(
-                            ExchangeErrorType::ParsingError,
-                            error.to_string(),
-                            None,
-                        );
-                        CreateOrderResult::failed(exchange_error, EventSourceType::Rest)
-                    }
-                }
-            }
-            Err(error) => {
-                let exchange_error =
-                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
-                return CreateOrderResult::failed(exchange_error, EventSourceType::Rest);
-            }
-        }
     }
 
     pub(crate) fn raise_order_created(

@@ -45,7 +45,6 @@ use crate::{
 };
 
 use crate::balance_manager::balance_manager::BalanceManager;
-use crate::exchanges::general::helpers::is_rest_error_code;
 use crate::{
     connectivity::{
         connectivity_manager::ConnectivityManager, websocket_connection::WebSocketParams,
@@ -424,29 +423,6 @@ impl Exchange {
             .get_balance_reservation_currency_code(symbol, side)
     }
 
-    pub async fn close_position(
-        &self,
-        position: &ActivePosition,
-        price: Option<Price>,
-    ) -> Result<ClosedPosition> {
-        let response = self
-            .exchange_client
-            .request_close_position(position, price)
-            .await
-            .expect("request_close_position failed.");
-
-        log::info!(
-            "Close position response for {:?} {:?} {:?}",
-            position,
-            price,
-            response,
-        );
-
-        is_rest_error_code(&response)?;
-
-        self.exchange_client.parse_close_position(&response)
-    }
-
     pub async fn close_position_loop(
         &self,
         position: &ActivePosition,
@@ -468,7 +444,8 @@ impl Exchange {
 
             log::info!("Closing position request reserved {}", position.id);
 
-            if let Ok(closed_position) = self.close_position(position, price).await {
+            if let Ok(closed_position) = self.exchange_client.close_position(position, price).await
+            {
                 log::info!("Closed position {}", position.id);
                 return closed_position;
             }
@@ -496,11 +473,13 @@ impl Exchange {
         }
     }
 
-    pub async fn get_active_positions_by_features(&self) -> Result<Vec<ActivePosition>> {
+    async fn get_active_positions_by_features(&self) -> Result<Vec<ActivePosition>> {
         match self.features.balance_position_option {
-            BalancePositionOption::IndividualRequests => self.get_active_positions_core().await,
+            BalancePositionOption::IndividualRequests => {
+                self.exchange_client.get_active_positions().await
+            }
             BalancePositionOption::SingleRequest => {
-                let result = self.get_balance_and_positions_core().await?;
+                let result = self.exchange_client.get_balance_and_positions().await?;
                 Ok(result
                     .positions
                     .context("Positions is none.")?
@@ -513,28 +492,6 @@ impl Exchange {
                 Ok(Vec::new())
             }
         }
-    }
-
-    async fn get_active_positions_core(&self) -> Result<Vec<ActivePosition>> {
-        let response = self
-            .exchange_client
-            .request_get_position()
-            .await
-            .expect("request_close_position failed.");
-
-        log::info!(
-            "get_positions response on {:?} {:?}",
-            self.exchange_account_id,
-            response,
-        );
-
-        is_rest_error_code(&response)?;
-
-        Ok(self.exchange_client.parse_get_position(&response))
-    }
-
-    pub(super) async fn get_balance_core(&self) -> Result<ExchangeBalancesAndPositions> {
-        self.exchange_client.get_balance().await
     }
 
     async fn get_balance_and_positions(
@@ -551,10 +508,14 @@ impl Exchange {
             .await;
 
         let balance_result = match self.features.balance_position_option {
-            BalancePositionOption::NonDerivative => return self.get_balance_core().await,
-            BalancePositionOption::SingleRequest => self.get_balance_and_positions_core().await?,
+            BalancePositionOption::NonDerivative => {
+                return self.exchange_client.get_balance().await
+            }
+            BalancePositionOption::SingleRequest => {
+                self.exchange_client.get_balance_and_positions().await?
+            }
             BalancePositionOption::IndividualRequests => {
-                let balances_result = self.get_balance_core().await?;
+                let balances_result = self.exchange_client.get_balance().await?;
 
                 if balances_result.positions.is_some() {
                     bail!("Exchange supports SingleRequest but Individual is used")
@@ -569,7 +530,7 @@ impl Exchange {
                     )?
                     .await;
 
-                let position_result = self.get_active_positions_core().await?;
+                let position_result = self.exchange_client.get_active_positions().await?;
 
                 let balances = balances_result.balances;
                 let positions = position_result
@@ -596,24 +557,6 @@ impl Exchange {
         }
 
         Ok(balance_result)
-    }
-
-    async fn get_balance_and_positions_core(&self) -> Result<ExchangeBalancesAndPositions> {
-        let response = self
-            .exchange_client
-            .request_get_balance_and_position()
-            .await
-            .expect("request_close_position failed.");
-
-        log::info!(
-            "get_balance_and_positions_core response on {:?} {:?}",
-            self.exchange_account_id,
-            response,
-        );
-
-        is_rest_error_code(&response)?;
-
-        Ok(self.exchange_client.parse_get_balance(&response))
     }
 
     /// Remove currency pairs that aren't supported by the current exchange

@@ -15,8 +15,8 @@
 )]
 
 pub mod exchange_client;
-pub mod market;
 pub mod serum;
-pub mod support;
 
 mod helpers;
+mod market;
+mod support;

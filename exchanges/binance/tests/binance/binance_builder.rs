@@ -51,7 +51,7 @@ impl BinanceBuilder {
         }
 
         let mut settings =
-            ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false, false);
+            ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
 
         // default currency pair for tests
         settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
@@ -89,6 +89,7 @@ impl BinanceBuilder {
             tx.clone(),
             lifetime_manager.clone(),
             false,
+            false,
         ));
 
         let hosts = binance.hosts.clone();
@@ -125,8 +126,13 @@ impl BinanceBuilder {
 
         let currency_pair = OrderProxy::default_currency_pair();
         let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
-        let default_price =
-            get_default_price(specific_currency_pair, &hosts, &settings.api_key).await;
+        let default_price = get_default_price(
+            specific_currency_pair,
+            &hosts,
+            &settings.api_key,
+            exchange_account_id,
+        )
+        .await;
 
         let symbol = exchange
             .symbols
@@ -141,6 +147,7 @@ impl BinanceBuilder {
             &settings.api_key,
             default_price,
             &symbol,
+            exchange_account_id,
         )
         .await;
 

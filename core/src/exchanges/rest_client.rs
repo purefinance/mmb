@@ -1,35 +1,192 @@
 use super::common::*;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use hyper::client::HttpConnector;
-use hyper::{Body, Client, Error, Request, Response, Uri};
+use hyper::{Body, Client, Error, Request, Response, StatusCode, Uri};
 use hyper_tls::HttpsConnector;
+use log::log;
+use mmb_utils::infrastructure::WithExpect;
 use std::convert::TryInto;
+use std::fmt::Write;
 
 pub type HttpParams = Vec<(String, String)>;
 
-pub struct RestClient {
-    client: Client<HttpsConnector<HttpConnector>>,
+/// Trait for specific exchange errors handling
+pub trait ErrorHandler {
+    // To find out if there is any special exchange error in a rest outcome
+    fn check_spec_rest_error(&self, _response: &RestRequestOutcome) -> Result<(), ExchangeError>;
+
+    // Some of special errors should be classified to further handling depending on error type
+    fn clarify_error_type(&self, _error: &mut ExchangeError);
 }
 
-const KEEP_ALIVE: &'static str = "keep-alive";
+pub struct ErrorHandlerEmpty;
 
-impl RestClient {
-    pub fn new() -> Self {
+// TODO change to static dispatching from dynamic
+pub type BoxErrorHandler = Box<dyn ErrorHandler + Send + Sync>;
+
+impl ErrorHandlerEmpty {
+    pub fn new() -> BoxErrorHandler {
+        Box::new(ErrorHandlerEmpty {})
+    }
+}
+
+impl ErrorHandler for ErrorHandlerEmpty {
+    fn check_spec_rest_error(&self, _: &RestRequestOutcome) -> Result<(), ExchangeError> {
+        Ok(())
+    }
+
+    fn clarify_error_type(&self, _: &mut ExchangeError) {}
+}
+
+pub struct ErrorHandlerData {
+    empty_response_is_ok: bool,
+    exchange_account_id: ExchangeAccountId,
+    error_handler: BoxErrorHandler,
+}
+
+impl ErrorHandlerData {
+    pub fn new(
+        empty_response_is_ok: bool,
+        exchange_account_id: ExchangeAccountId,
+        error_handler_trait: BoxErrorHandler,
+    ) -> Self {
         Self {
-            client: create_client(),
+            empty_response_is_ok,
+            exchange_account_id,
+            error_handler: error_handler_trait,
         }
     }
 
-    pub async fn get(&self, url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
+    pub(super) fn request_log(&self, fn_name: &str) {
+        log::trace!(
+            "{} request on exchange_account_id {}",
+            fn_name,
+            self.exchange_account_id,
+        );
+    }
+
+    pub(super) fn response_log(
+        &self,
+        fn_name: &str,
+        log_args: &str,
+        response: &RestRequestOutcome,
+    ) {
+        log::trace!(
+            "{} response on exchange_account_id {}: {:?}, params {}",
+            fn_name,
+            self.exchange_account_id,
+            response,
+            log_args,
+        );
+    }
+
+    pub(super) fn get_rest_error(
+        &self,
+        response: &RestRequestOutcome,
+        log_args: &str,
+    ) -> Option<ExchangeError> {
+        use ExchangeErrorType::*;
+
+        let error = match response.status {
+            StatusCode::UNAUTHORIZED => {
+                ExchangeError::new(Authentication, response.content.clone(), None)
+            }
+            StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => {
+                ExchangeError::new(ServiceUnavailable, response.content.clone(), None)
+            }
+            StatusCode::TOO_MANY_REQUESTS => {
+                ExchangeError::new(RateLimit, response.content.clone(), None)
+            }
+            _ => match check_content(&response.content) {
+                CheckContent::Empty => {
+                    if self.empty_response_is_ok {
+                        return None;
+                    }
+
+                    ExchangeError::new(Unknown, "Empty response".to_owned(), None)
+                }
+                CheckContent::Usable => match self.error_handler.check_spec_rest_error(response) {
+                    Ok(_) => return None,
+                    Err(mut error) => match error.error_type {
+                        ParsingError => error,
+                        _ => {
+                            // TODO For Aax Pending time should be received inside clarify_error_type
+                            self.error_handler.clarify_error_type(&mut error);
+                            error
+                        }
+                    },
+                },
+            },
+        };
+
+        let extra_data_len = 512; // just apriori estimation
+        let mut msg = String::with_capacity(error.message.len() + extra_data_len);
+        write!(
+            &mut msg,
+            "Response has an error {:?}, on exchange_account_id {}: {:?}, params: {}",
+            error.error_type, self.exchange_account_id, error, log_args
+        )
+        .expect("Writing rest error");
+
+        let log_level = match error.error_type {
+            RateLimit | Authentication | InsufficientFunds | InvalidOrder => log::Level::Error,
+            _ => log::Level::Warn,
+        };
+        log!(log_level, "{}. Response: {:?}", &msg, response);
+
+        Some(error)
+    }
+}
+
+enum CheckContent {
+    Empty,
+    Usable,
+}
+
+fn check_content(content: &str) -> CheckContent {
+    if content.is_empty() {
+        CheckContent::Empty
+    } else {
+        CheckContent::Usable
+    }
+}
+
+pub struct RestClient {
+    client: Client<HttpsConnector<HttpConnector>>,
+    error_handler: ErrorHandlerData,
+}
+
+const KEEP_ALIVE: &'static str = "keep-alive";
+// Inner Hyper types. Needed just for unified response handling in handle_response()
+type ResponseType = std::result::Result<Response<Body>, Error>;
+
+impl RestClient {
+    pub fn new(error_handler: ErrorHandlerData) -> Self {
+        Self {
+            client: create_client(),
+            error_handler,
+        }
+    }
+
+    pub async fn get(
+        &self,
+        url: Uri,
+        api_key: &str,
+        action_name: &'static str,
+        log_args: String,
+    ) -> Result<RestRequestOutcome> {
+        self.error_handler.request_log(action_name);
+
         let req = Request::get(url)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
-            .context("Error during creation of http GET request")?;
+            .expect("Error during creation of http GET request");
 
         let response = self.client.request(req).await;
 
-        handle_response(response, "GET").await
+        self.handle_response(response, "GET", action_name, log_args)
+            .await
     }
 
     pub async fn post(
@@ -37,7 +194,11 @@ impl RestClient {
         url: Uri,
         api_key: &str,
         http_params: &HttpParams,
+        action_name: &'static str,
+        log_args: String,
     ) -> Result<RestRequestOutcome> {
+        self.error_handler.request_log(action_name);
+
         let form_encoded = form_urlencoded::Serializer::new(String::new())
             .extend_pairs(http_params)
             .finish();
@@ -46,42 +207,78 @@ impl RestClient {
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::from(form_encoded))
-            .context("Error during creation of http delete request")?;
+            .expect("Error during creation of http delete request");
 
         let response = self.client.request(req).await;
 
-        handle_response(response, "POST").await
+        self.handle_response(response, "POST", action_name, log_args)
+            .await
     }
 
-    pub async fn delete(&self, url: Uri, api_key: &str) -> Result<RestRequestOutcome> {
+    pub async fn delete(
+        &self,
+        url: Uri,
+        api_key: &str,
+        action_name: &'static str,
+        log_args: String,
+    ) -> Result<RestRequestOutcome> {
+        self.error_handler.request_log(action_name);
+
         let req = Request::delete(url)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
-            .context("Error during creation of http delete request")?;
+            .expect("Error during creation of http delete request");
 
         let response = self.client.request(req).await;
 
-        handle_response(response, "DELETE").await
+        self.handle_response(response, "DELETE", action_name, log_args)
+            .await
+    }
+
+    async fn handle_response(
+        &self,
+        response: ResponseType,
+        rest_action: &'static str,
+        action_name: &'static str,
+        log_args: String,
+    ) -> Result<RestRequestOutcome> {
+        let response = response.with_expect(|| format!("Unable to send {} request", rest_action));
+        let response_status = response.status();
+        let request_bytes = hyper::body::to_bytes(response.into_body())
+            .await
+            .expect("Unable to convert response body to bytes");
+        let request_content = std::str::from_utf8(&request_bytes)
+            .with_expect(|| {
+                format!(
+                    "Unable to convert response content from utf8: {:?}",
+                    request_bytes
+                )
+            })
+            .to_owned();
+
+        let request_outcome = RestRequestOutcome {
+            status: response_status,
+            content: request_content,
+        };
+
+        self.error_handler
+            .response_log(action_name, &log_args, &request_outcome);
+
+        if let Some(err) = self
+            .error_handler
+            .get_rest_error(&request_outcome, &log_args)
+        {
+            bail!(err);
+        }
+
+        Ok(request_outcome)
     }
 }
 
 fn create_client() -> Client<HttpsConnector<HttpConnector>> {
     let https = HttpsConnector::new();
     Client::builder().build::<_, Body>(https)
-}
-
-// Inner Hyper types. Needed just for unified response handling in handle_response()
-type ResponseType = std::result::Result<Response<Body>, Error>;
-async fn handle_response(response: ResponseType, rest_action: &str) -> Result<RestRequestOutcome> {
-    let response = response.with_context(|| format!("Unable to send {} request", rest_action))?;
-
-    Ok(RestRequestOutcome {
-        status: response.status(),
-        content: std::str::from_utf8(hyper::body::to_bytes(response.into_body()).await?.as_ref())
-            .context("Unable to parse content string")?
-            .to_owned(),
-    })
 }
 
 pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Result<Uri> {

@@ -1,102 +1,69 @@
 use super::binance::Binance;
+use crate::support::{BinanceOrderInfo, BinancePosition};
 use anyhow::Result;
 use async_trait::async_trait;
-use mmb_core::exchanges::common::{ActivePosition, ExchangeError, ExchangeErrorType, Price};
+use function_name::named;
+use itertools::Itertools;
+use mmb_core::exchanges::common::{
+    ActivePosition, ClosedPosition, CurrencyPair, ExchangeError, ExchangeErrorType, Price,
+};
 use mmb_core::exchanges::events::ExchangeBalancesAndPositions;
-use mmb_core::exchanges::general::helpers::{get_rest_error_order, is_rest_error_code};
+use mmb_core::exchanges::general::exchange::RequestResult;
+use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
+use mmb_core::exchanges::general::order::create::CreateOrderResult;
+use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::rest_client;
 use mmb_core::exchanges::traits::{ExchangeClient, Support};
+use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::*;
-use mmb_core::{
-    exchanges::common::{CurrencyPair, RestRequestOutcome},
-    orders::pool::OrderRef,
-};
+use mmb_core::orders::pool::OrderRef;
 use mmb_utils::DateTime;
+use std::sync::Arc;
 
 #[async_trait]
 impl ExchangeClient for Binance {
-    async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
-        // In current versions works only with Spot market
-        let url_path = "/api/v3/exchangeInfo";
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
-
-        self.rest_client.get(full_url, &self.settings.api_key).await
-    }
-
-    async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
-
-        let mut http_params = vec![
-            (
-                "symbol".to_owned(),
-                specific_currency_pair.as_str().to_owned(),
-            ),
-            (
-                "side".to_owned(),
-                Self::to_server_order_side(order.header.side),
-            ),
-            (
-                "type".to_owned(),
-                Self::to_server_order_type(order.header.order_type),
-            ),
-            ("quantity".to_owned(), order.header.amount.to_string()),
-            (
-                "newClientOrderId".to_owned(),
-                order.header.client_order_id.as_str().to_owned(),
-            ),
-        ];
-
-        if order.header.order_type != OrderType::Market {
-            http_params.push(("timeInForce".to_owned(), "GTC".to_owned()));
-            http_params.push(("price".to_owned(), order.price.to_string()));
-        } else if order.header.execution_type == OrderExecutionType::MakerOnly {
-            http_params.push(("timeInForce".to_owned(), "GTX".to_owned()));
+    async fn create_order(&self, order: OrderCreating) -> CreateOrderResult {
+        match self.request_create_order(order).await {
+            Ok(request_outcome) => match self.get_order_id(&request_outcome) {
+                Ok(created_order_id) => {
+                    CreateOrderResult::successed(&created_order_id, EventSourceType::Rest)
+                }
+                Err(error) => {
+                    let exchange_error = ExchangeError::new(
+                        ExchangeErrorType::ParsingError,
+                        error.to_string(),
+                        None,
+                    );
+                    CreateOrderResult::failed(exchange_error, EventSourceType::Rest)
+                }
+            },
+            Err(error) => {
+                let exchange_error =
+                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
+                return CreateOrderResult::failed(exchange_error, EventSourceType::Rest);
+            }
         }
-        self.add_authentification_headers(&mut http_params)?;
-
-        let url_path = match self.settings.is_margin_trading {
-            true => "/fapi/v1/order",
-            false => "/api/v3/order",
-        };
-
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
-
-        self.rest_client
-            .post(full_url, &self.settings.api_key, &http_params)
-            .await
     }
 
-    async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
+    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
+        let order_header = order.header.clone();
 
-        let url_path = match self.settings.is_margin_trading {
-            true => "/fapi/v1/order",
-            false => "/api/v3/order",
-        };
-
-        let mut http_params = vec![
-            (
-                "symbol".to_owned(),
-                specific_currency_pair.as_str().to_owned(),
+        match self.request_cancel_order(order).await {
+            Ok(_) => CancelOrderResult::successed(
+                order_header.client_order_id.clone(),
+                EventSourceType::Rest,
+                None,
             ),
-            (
-                "orderId".to_owned(),
-                order.exchange_order_id.as_str().to_owned(),
-            ),
-        ];
-        self.add_authentification_headers(&mut http_params)?;
-
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
-
-        let outcome = self
-            .rest_client
-            .delete(full_url, &self.settings.api_key)
-            .await?;
-
-        Ok(outcome)
+            Err(error) => {
+                let exchange_error =
+                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
+                return CancelOrderResult::failed(exchange_error, EventSourceType::Rest);
+            }
+        }
     }
 
+    #[named]
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
         let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
 
@@ -111,23 +78,22 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(host, path_to_delete, &http_params)?;
 
-        let _cancel_order_outcome = self
-            .rest_client
-            .delete(full_url, &self.settings.api_key)
-            .await;
+        self.rest_client
+            .delete(
+                full_url,
+                &self.settings.api_key,
+                function_name!(),
+                "".to_string(),
+            )
+            .await?;
 
         Ok(())
     }
 
     async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
         let response = self.request_open_orders().await?;
-        log::info!(
-            "get_open_orders() response on {}: {:?}",
-            self.settings.exchange_account_id,
-            response
-        );
 
-        self.get_open_orders_from_response(&response)
+        Ok(self.parse_open_orders(&response))
     }
 
     async fn get_open_orders_by_currency_pair(
@@ -138,145 +104,82 @@ impl ExchangeClient for Binance {
             .request_open_orders_by_currency_pair(currency_pair)
             .await?;
 
-        self.get_open_orders_from_response(&response)
+        Ok(self.parse_open_orders(&response))
     }
 
     async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
-        let request_outcome = self.request_order_info(order).await;
-
-        match request_outcome {
-            Ok(request_outcome) => {
-                let order_header = order.fn_ref(|order| order.header.clone());
-                if let Some(exchange_error) = get_rest_error_order(
-                    &request_outcome,
-                    &order_header,
-                    self.settings.empty_response_is_ok,
-                ) {
-                    return Err(exchange_error);
-                }
-
-                let unified_order_info = self.parse_order_info(&request_outcome);
-
-                match unified_order_info {
-                    Ok(order_info) => Ok(order_info),
-                    Err(error) => Err(ExchangeError::new(
-                        ExchangeErrorType::OrderNotFound,
-                        error.to_string(),
-                        None,
-                    )),
-                }
-            }
+        match self.request_order_info(order).await {
+            Ok(request_outcome) => Ok(self.parse_order_info(&request_outcome)),
             Err(error) => Err(ExchangeError::new(
-                ExchangeErrorType::Unknown,
+                ExchangeErrorType::ParsingError,
                 error.to_string(),
                 None,
             )),
         }
     }
 
-    async fn request_my_trades(
+    async fn close_position(
         &self,
-        symbol: &Symbol,
-        _last_date_time: Option<DateTime>,
-    ) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(symbol.currency_pair());
-        let mut http_params = vec![(
-            "symbol".to_owned(),
-            specific_currency_pair.as_str().to_owned(),
-        )];
+        position: &ActivePosition,
+        price: Option<Price>,
+    ) -> Result<ClosedPosition> {
+        let response = self.request_close_position(position, price).await?;
+        let binance_order: BinanceOrderInfo = serde_json::from_str(&response.content)
+            .expect("Unable to parse response content for get_open_orders request");
 
-        self.add_authentification_headers(&mut http_params)?;
-
-        let url_path = match self.settings.is_margin_trading {
-            true => "/fapi/v1/userTrades",
-            false => "/api/v3/myTrades",
-        };
-
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
-        self.rest_client.get(full_url, &self.settings.api_key).await
+        Ok(ClosedPosition::new(
+            ExchangeOrderId::from(binance_order.exchange_order_id.to_string().as_ref()),
+            binance_order.orig_quantity,
+        ))
     }
 
-    async fn request_get_position(&self) -> Result<RestRequestOutcome> {
-        let mut http_params = Vec::new();
-        self.add_authentification_headers(&mut http_params)?;
+    async fn get_active_positions(&self) -> Result<Vec<ActivePosition>> {
+        let response = self.request_get_position().await?;
+        let binance_positions: Vec<BinancePosition> = serde_json::from_str(&response.content)
+            .expect("Unable to parse response content for get_active_positions_core request");
 
-        let url_path = "/fapi/v2/positionRisk";
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
-
-        self.rest_client.get(full_url, &self.settings.api_key).await
-    }
-
-    async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
-        panic!("not supported request")
+        Ok(binance_positions
+            .into_iter()
+            .map(|x| self.binance_position_to_active_position(x))
+            .collect_vec())
     }
 
     async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
-        let mut http_params = Vec::new();
-        self.add_authentification_headers(&mut http_params)?;
-        let url_path = match self.settings.is_margin_trading {
-            true => "/fapi/v2/account",
-            false => "/api/v3/account",
-        };
-
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
-        let response = self
-            .rest_client
-            .get(full_url, &self.settings.api_key)
-            .await?;
-
-        log::info!(
-            "get_balance_core response on {:?} {:?}",
-            self.settings.exchange_account_id,
-            &response,
-        );
-
-        is_rest_error_code(&response)?;
+        let response = self.request_get_balance().await?;
 
         Ok(self.parse_get_balance(&response))
     }
 
-    async fn request_close_position(
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
+        let response = self.request_get_balance_and_position().await?;
+
+        Ok(self.parse_get_balance(&response))
+    }
+
+    async fn get_my_trades(
         &self,
-        position: &ActivePosition,
-        price: Option<Price>,
-    ) -> Result<RestRequestOutcome> {
-        let side = match position.derivative.side {
-            Some(side) => side.change_side().to_string(),
-            None => "0".to_string(), // unknown side
-        };
-
-        let mut http_params = vec![
-            (
-                "leverage".to_string(),
-                position.derivative.leverage.to_string(),
-            ),
-            ("positionSide".to_string(), "BOTH".to_string()),
-            (
-                "quantity".to_string(),
-                position.derivative.position.abs().to_string(),
-            ),
-            ("side".to_string(), side),
-            (
-                "symbol".to_string(),
-                position.derivative.currency_pair.to_string(),
-            ),
-        ];
-
-        match price {
-            Some(price) => {
-                http_params.push(("type".to_string(), "MARKET".to_string()));
-                http_params.push(("price".to_string(), price.to_string()));
-            }
-            None => http_params.push(("type".to_string(), "LIMIT".to_string())),
+        symbol: &Symbol,
+        last_date_time: Option<DateTime>,
+    ) -> Result<RequestResult<Vec<OrderTrade>>> {
+        // TODO Add metric UseTimeMetric(RequestType::GetMyTrades)
+        match self.request_my_trades(symbol, last_date_time).await {
+            Ok(response) => match self.parse_get_my_trades(&response, last_date_time) {
+                Ok(data) => Ok(RequestResult::Success(data)),
+                Err(_) => Ok(RequestResult::Error(ExchangeError::unknown_error(
+                    &response.content,
+                ))),
+            },
+            Err(error) => Ok(RequestResult::Error(ExchangeError::new(
+                ExchangeErrorType::ParsingError,
+                error.to_string(),
+                None,
+            ))),
         }
+    }
 
-        self.add_authentification_headers(&mut http_params)?;
+    async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {
+        let response = &self.request_all_symbols().await?;
 
-        let url_path = "/fapi/v1/order";
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
-
-        self.rest_client
-            .post(full_url, &self.settings.api_key, &http_params)
-            .await
+        self.parse_all_symbols(response)
     }
 }
