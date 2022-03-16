@@ -113,7 +113,7 @@ impl OrderProxy {
 
         with_timeout(
             self.timeout,
-            exchange.create_order(&to_create, None, self.cancellation_token.clone()),
+            exchange.create_order(to_create, None, self.cancellation_token.clone()),
         )
         .await
     }
@@ -127,7 +127,7 @@ impl OrderProxy {
         };
 
         let cancel_outcome = exchange
-            .cancel_order(&order_to_cancel, CancellationToken::default())
+            .cancel_order(order_to_cancel, CancellationToken::default())
             .await
             .expect("in test");
 

@@ -8,19 +8,13 @@ use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
-use std::str::FromStr;
-use std::sync::Arc;
 use url::Url;
 
 use mmb_core::connectivity::connectivity_manager::WebSocketRole;
 use mmb_core::exchanges::common::CurrencyPair;
-use mmb_core::exchanges::common::{
-    ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, Price, RestRequestOutcome,
-    SpecificCurrencyPair,
-};
-use mmb_core::exchanges::events::{ExchangeBalancesAndPositions, TradeId};
+use mmb_core::exchanges::common::{Amount, CurrencyCode, CurrencyId, Price, SpecificCurrencyPair};
+use mmb_core::exchanges::events::TradeId;
 use mmb_core::exchanges::general::handlers::handle_order_filled::FillEventData;
-use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::traits::Support;
 use mmb_core::orders::fill::EventSourceType;
@@ -28,17 +22,12 @@ use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide};
 use mmb_core::settings::ExchangeSettings;
 use mmb_utils::DateTime;
 
-use crate::market::{DeserMarketData, MarketData};
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use spl_token::state;
 
 #[async_trait]
 impl Support for Serum {
-    fn get_order_id(&self, _response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
-        todo!()
-    }
-
     fn on_websocket_message(&self, _msg: &str) -> Result<()> {
         unimplemented!("Not needed for implementation Serum")
     }
@@ -102,63 +91,7 @@ impl Support for Serum {
         message.contains("executionReport")
     }
 
-    fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
-        let markets: Vec<DeserMarketData> = serde_json::from_str(&response.content)
-            .context("Unable to deserialize response from Serum markets list")?;
-
-        markets
-            .into_iter()
-            .filter(|market| !market.deprecated)
-            .map(|market| {
-                let market_address = Pubkey::from_str(&market.address)
-                    .context("Invalid address constant string specified")?;
-                let market_program_id = Pubkey::from_str(&market.program_id)
-                    .context("Invalid program_id constant string specified")?;
-
-                let symbol = self.get_symbol_from_market(&market.name, market_address)?;
-
-                let specific_currency_pair = market.name.as_str().into();
-                let unified_currency_pair =
-                    CurrencyPair::from_codes(symbol.base_currency_code, symbol.quote_currency_code);
-                self.unified_to_specific
-                    .write()
-                    .insert(unified_currency_pair, specific_currency_pair);
-
-                // market initiation
-                let market_metadata =
-                    self.load_market_meta_data(&market_address, &market_program_id)?;
-                let market_data =
-                    MarketData::new(market_address, market_program_id, market_metadata);
-                self.markets_data
-                    .write()
-                    .insert(symbol.currency_pair(), market_data);
-
-                Ok(Arc::new(symbol))
-            })
-            .collect()
-    }
-
-    fn parse_get_my_trades(
-        &self,
-        _response: &RestRequestOutcome,
-        _last_date_time: Option<DateTime>,
-    ) -> Result<Vec<OrderTrade>> {
-        todo!()
-    }
-
     fn get_settings(&self) -> &ExchangeSettings {
-        todo!()
-    }
-
-    fn parse_get_position(&self, _response: &RestRequestOutcome) -> Vec<ActivePosition> {
-        todo!()
-    }
-
-    fn parse_close_position(&self, _response: &RestRequestOutcome) -> Result<ClosedPosition> {
-        todo!()
-    }
-
-    fn parse_get_balance(&self, _response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
         todo!()
     }
 }

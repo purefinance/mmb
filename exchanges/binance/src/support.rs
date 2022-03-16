@@ -1,41 +1,33 @@
 use mmb_core::misc::derivative_position::DerivativePosition;
 use mmb_utils::infrastructure::WithExpect;
 
-use std::sync::Arc;
-use std::time::{Duration, UNIX_EPOCH};
-
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
-use mmb_utils::{value_to_decimal::GetOrErr, DateTime};
+use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
 use url::Url;
 
 use super::binance::Binance;
-use mmb_core::exchanges::common::{ActivePosition, ClosedPosition, SortedOrderData};
-use mmb_core::exchanges::events::{ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
-use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
-use mmb_core::exchanges::rest_client;
+use mmb_core::connectivity::connectivity_manager::WebSocketRole;
+use mmb_core::exchanges::common::{ActivePosition, SortedOrderData};
+use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
 use mmb_core::exchanges::{
     common::CurrencyCode, common::CurrencyId,
-    general::handlers::handle_order_filled::FillEventData, general::symbol::Symbol,
-    traits::Support,
+    general::handlers::handle_order_filled::FillEventData, traits::Support,
 };
 use mmb_core::order_book::event::{EventType, OrderBookEvent};
 use mmb_core::order_book::order_book_data::OrderBookData;
-use mmb_core::orders::fill::OrderFillType;
 use mmb_core::orders::order::*;
 use mmb_core::settings::ExchangeSettings;
 use mmb_core::{
-    connectivity::connectivity_manager::WebSocketRole, exchanges::general::symbol::Precision,
-};
-use mmb_core::{
-    exchanges::common::{Amount, CurrencyPair, Price, RestRequestOutcome, SpecificCurrencyPair},
+    exchanges::common::{Amount, CurrencyPair, Price, SpecificCurrencyPair},
     orders::fill::EventSourceType,
 };
 
@@ -69,7 +61,7 @@ pub struct BinanceBalances {
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-struct BinancePosition {
+pub(super) struct BinancePosition {
     #[serde(rename = "symbol")]
     pub specific_currency_pair: SpecificCurrencyPair,
     #[serde(rename = "PositionAmt")]
@@ -83,14 +75,6 @@ struct BinancePosition {
 
 #[async_trait]
 impl Support for Binance {
-    fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
-        let response: Value =
-            serde_json::from_str(&response.content).context("Unable to parse response content")?;
-        let id = response["orderId"].to_string();
-        let id = id.trim_matches('"');
-        Ok(ExchangeOrderId::new(id.into()))
-    }
-
     fn on_websocket_message(&self, msg: &str) -> Result<()> {
         let mut data: Value =
             serde_json::from_str(msg).context("Unable to parse websocket message")?;
@@ -227,211 +211,8 @@ impl Support for Binance {
         log::info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
-        let deserialized: Value = serde_json::from_str(&response.content)
-            .context("Unable to deserialize response from Binance")?;
-        let symbols = deserialized
-            .get("symbols")
-            .and_then(|symbols| symbols.as_array())
-            .ok_or(anyhow!("Unable to get symbols array from Binance"))?;
-
-        let mut result = Vec::new();
-        for symbol in symbols {
-            let is_active = symbol["status"] == "TRADING";
-
-            // TODO There is no work with derivatives in current version
-            let is_derivative = false;
-            let base_currency_id = &symbol
-                .get_as_str("baseAsset")
-                .context("Unable to get base currency id from Binance")?;
-            let quote_currency_id = &symbol
-                .get_as_str("quoteAsset")
-                .context("Unable to get quote currency id from Binance")?;
-            let base = base_currency_id.as_str().into();
-            let quote = quote_currency_id.as_str().into();
-
-            let specific_currency_pair = symbol.get_as_str("symbol")?.as_str().into();
-            let unified_currency_pair = CurrencyPair::from_codes(base, quote);
-            self.unified_to_specific
-                .write()
-                .insert(unified_currency_pair, specific_currency_pair);
-
-            self.specific_to_unified
-                .write()
-                .insert(specific_currency_pair, unified_currency_pair);
-
-            let amount_currency_code = base;
-
-            // TODO There are no balance_currency_code for spot, why does it set here this way?
-            let balance_currency_code = base;
-
-            let mut min_amount = None;
-            let mut max_amount = None;
-            let mut min_price = None;
-            let mut max_price = None;
-            let mut min_cost = None;
-            let mut price_tick = None;
-            let mut amount_tick = None;
-
-            let filters = symbol
-                .get("filters")
-                .and_then(|filters| filters.as_array())
-                .context("Unable to get filters as array from Binance")?;
-            for filter in filters {
-                let filter_name = filter.get_as_str("filterType")?;
-                match filter_name.as_str() {
-                    "PRICE_FILTER" => {
-                        min_price = filter.get_as_decimal("minPrice");
-                        max_price = filter.get_as_decimal("maxPrice");
-                        price_tick = filter.get_as_decimal("tickSize");
-                    }
-                    "LOT_SIZE" => {
-                        min_amount = filter.get_as_decimal("minQty");
-                        max_amount = filter.get_as_decimal("maxQty");
-                        amount_tick = filter.get_as_decimal("stepSize");
-                    }
-                    "MIN_NOTIONAL" => {
-                        min_cost = filter.get_as_decimal("minNotional");
-                    }
-                    _ => {}
-                }
-            }
-
-            let price_precision = match price_tick {
-                Some(tick) => Precision::ByTick { tick },
-                None => bail!(
-                    "Unable to get price precision from Binance for {:?}",
-                    specific_currency_pair
-                ),
-            };
-
-            let amount_precision = match amount_tick {
-                Some(tick) => Precision::ByTick { tick },
-                None => bail!(
-                    "Unable to get amount precision from Binance for {:?}",
-                    specific_currency_pair
-                ),
-            };
-
-            let symbol = Symbol::new(
-                is_active,
-                is_derivative,
-                base_currency_id.as_str().into(),
-                base,
-                quote_currency_id.as_str().into(),
-                quote,
-                min_price,
-                max_price,
-                min_amount,
-                max_amount,
-                min_cost,
-                amount_currency_code,
-                Some(balance_currency_code),
-                price_precision,
-                amount_precision,
-            );
-
-            result.push(Arc::new(symbol))
-        }
-
-        Ok(result)
-    }
-
-    fn parse_get_my_trades(
-        &self,
-        response: &RestRequestOutcome,
-        _last_date_time: Option<DateTime>,
-    ) -> Result<Vec<OrderTrade>> {
-        #[derive(Serialize, Deserialize, Debug)]
-        #[serde(rename_all = "camelCase")]
-        struct BinanceMyTrade {
-            id: TradeId,
-            order_id: u64,
-            price: Price,
-            #[serde(alias = "qty")]
-            amount: Amount,
-            commission: Amount,
-            #[serde(alias = "commissionAsset")]
-            commission_currency_code: CurrencyId,
-            time: u64,
-            is_maker: bool,
-        }
-
-        impl BinanceMyTrade {
-            pub(super) fn to_unified_order_trade(
-                &self,
-                commission_currency_code: Option<CurrencyCode>,
-            ) -> Result<OrderTrade> {
-                let datetime: DateTime = (UNIX_EPOCH + Duration::from_millis(self.time)).into();
-                let order_role = if self.is_maker {
-                    OrderRole::Maker
-                } else {
-                    OrderRole::Taker
-                };
-
-                let fee_currency_code = commission_currency_code.context("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting")?;
-                Ok(OrderTrade::new(
-                    ExchangeOrderId::from(self.order_id.to_string().as_ref()),
-                    self.id.clone(),
-                    datetime,
-                    self.price,
-                    self.amount,
-                    order_role,
-                    fee_currency_code,
-                    None,
-                    Some(self.commission),
-                    OrderFillType::UserTrade,
-                ))
-            }
-        }
-
-        let my_trades: Vec<BinanceMyTrade> = serde_json::from_str(&response.content)?;
-
-        my_trades
-            .into_iter()
-            .map(|my_trade| {
-                my_trade.to_unified_order_trade(
-                    self.get_currency_code(&my_trade.commission_currency_code),
-                )
-            })
-            .collect()
-    }
-
     fn get_settings(&self) -> &ExchangeSettings {
         &self.settings
-    }
-
-    fn parse_get_position(&self, response: &RestRequestOutcome) -> Vec<ActivePosition> {
-        let binance_positions: Vec<BinancePosition> = serde_json::from_str(&response.content)
-            .expect("Unable to parse response content for get_active_positions_core request");
-
-        binance_positions
-            .into_iter()
-            .map(|x| self.binance_position_to_active_position(x))
-            .collect_vec()
-    }
-
-    fn parse_close_position(&self, response: &RestRequestOutcome) -> Result<ClosedPosition> {
-        let binance_order: BinanceOrderInfo = serde_json::from_str(&response.content)
-            .context("Unable to parse response content for get_open_orders request")?;
-
-        let closed_position = ClosedPosition::new(
-            ExchangeOrderId::from(binance_order.exchange_order_id.to_string().as_ref()),
-            binance_order.orig_quantity,
-        );
-
-        Ok(closed_position)
-    }
-
-    fn parse_get_balance(&self, response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
-        let binance_account_info: BinanceAccountInfo = serde_json::from_str(&response.content)
-            .expect("Unable to parse response content for get_balance request");
-
-        if self.settings.is_margin_trading {
-            Binance::get_margin_exchange_balances_and_positions(binance_account_info.balances)
-        } else {
-            self.get_spot_exchange_balances_and_positions(binance_account_info.balances)
-        }
     }
 }
 
@@ -593,23 +374,7 @@ impl Binance {
         Ok(ws_path)
     }
 
-    pub(crate) async fn request_open_orders_by_http_header(
-        &self,
-        http_params: Vec<(String, String)>,
-    ) -> Result<RestRequestOutcome> {
-        let url_path = match self.settings.is_margin_trading {
-            true => "/fapi/v1/openOrders",
-            false => "/api/v3/openOrders",
-        };
-
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
-
-        let orders = self.rest_client.get(full_url, &self.settings.api_key).await;
-
-        orders
-    }
-
-    fn binance_position_to_active_position(
+    pub(super) fn binance_position_to_active_position(
         &self,
         binance_position: BinancePosition,
     ) -> ActivePosition {

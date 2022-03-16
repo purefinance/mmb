@@ -1,7 +1,6 @@
-use crate::exchanges::common::{Amount, CurrencyCode, ExchangeError, Price};
+use crate::exchanges::common::{Amount, CurrencyCode, Price};
 use crate::exchanges::events::TradeId;
 use crate::exchanges::general::exchange::RequestResult;
-use crate::exchanges::general::helpers::{get_rest_error, handle_parse_error};
 use crate::exchanges::general::symbol::Symbol;
 use crate::orders::fill::OrderFillType;
 use crate::orders::order::{ExchangeOrderId, OrderRole};
@@ -74,7 +73,7 @@ impl Exchange {
         symbol: &Symbol,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        let my_trades = self.get_my_trades(symbol, None).await?;
+        let my_trades = self.exchange_client.get_my_trades(symbol, None).await?;
         match my_trades {
             RequestResult::Error(_) => Ok(my_trades),
             RequestResult::Success(my_trades) => {
@@ -89,44 +88,6 @@ impl Exchange {
 
                 Ok(RequestResult::Success(data))
             }
-        }
-    }
-
-    pub async fn get_my_trades(
-        &self,
-        symbol: &Symbol,
-        last_date_time: Option<DateTime>,
-    ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        // TODO Add metric UseTimeMetric(RequestType::GetMyTrades)
-        let response = self
-            .exchange_client
-            .request_my_trades(symbol, last_date_time)
-            .await?;
-
-        match get_rest_error(
-            &response,
-            self.exchange_account_id,
-            self.features.empty_response_is_ok,
-        ) {
-            Some(error) => Ok(RequestResult::Error(error)),
-            None => match self
-                .exchange_client
-                .parse_get_my_trades(&response, last_date_time)
-            {
-                Ok(data) => Ok(RequestResult::Success(data)),
-                Err(error) => {
-                    handle_parse_error(
-                        error,
-                        &response,
-                        "".into(),
-                        None,
-                        self.exchange_account_id,
-                    )?;
-                    Ok(RequestResult::Error(ExchangeError::unknown_error(
-                        &response.content,
-                    )))
-                }
-            },
         }
     }
 }

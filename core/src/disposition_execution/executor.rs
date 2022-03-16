@@ -768,7 +768,7 @@ impl DispositionExecutor {
                 };
 
                 exchange
-                    .create_order(&order_creating, None, cancellation_token)
+                    .create_order(order_creating, None, cancellation_token)
                     .await?;
 
                 log::trace!("Finished create_order {}", new_client_order_id);

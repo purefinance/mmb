@@ -22,6 +22,7 @@ pub enum EventSourceType {
     RestFallback = 1,
     Rest = 2,
     WebSocket = 3,
+    Rpc = 4,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

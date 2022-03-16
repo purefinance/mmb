@@ -57,7 +57,6 @@ impl BaseStrategySettings for TestStrategySettings {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore] // #431
 async fn orders_cancelled() {
     let (api_key, secret_key) = get_binance_credentials_or_exit!();
     struct TestStrategy;
@@ -124,14 +123,12 @@ async fn orders_cancelled() {
         .expect("in test")
     {
         let test_currency_pair = CurrencyPair::from_codes(*base, *quote);
-        let _ = exchange
-            .cancel_all_orders(test_currency_pair)
-            .await
-            .expect("in test");
+        let _ = exchange.cancel_all_orders(test_currency_pair).await;
         let price = get_default_price(
             get_specific_currency_pair_for_tests(&exchange, test_currency_pair),
             &Binance::make_hosts(is_margin_trading),
             &api_key,
+            exchange_account_id,
         )
         .await;
 
@@ -148,6 +145,7 @@ async fn orders_cancelled() {
             &api_key,
             price,
             &symbol,
+            exchange_account_id,
         )
         .await;
 

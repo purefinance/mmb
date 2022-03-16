@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
+use function_name::named;
 use hex;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
@@ -15,16 +17,22 @@ use sha2::Sha256;
 use tokio::sync::broadcast;
 
 use super::support::{BinanceBalances, BinanceOrderInfo};
-use mmb_core::exchanges::common::{Amount, Price};
+use crate::support::BinanceAccountInfo;
+use mmb_core::exchanges::common::{
+    ActivePosition, Amount, ExchangeError, ExchangeErrorType, Price,
+};
 use mmb_core::exchanges::events::{
     ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId,
 };
 use mmb_core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
-use mmb_core::exchanges::general::helpers::{get_rest_error, handle_parse_error};
+use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
+use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
-use mmb_core::exchanges::rest_client::RestClient;
+use mmb_core::exchanges::rest_client::{
+    BoxErrorHandler, ErrorHandler, ErrorHandlerData, RestClient,
+};
 use mmb_core::exchanges::traits::{ExchangeClientBuilderResult, Support};
 use mmb_core::exchanges::{
     common::CurrencyCode,
@@ -43,6 +51,70 @@ use mmb_core::orders::order::*;
 use mmb_core::orders::pool::OrderRef;
 use mmb_core::settings::ExchangeSettings;
 use mmb_core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
+use mmb_utils::value_to_decimal::GetOrErr;
+use serde::{Deserialize, Serialize};
+
+pub struct ErrorHandlerBinance;
+
+impl ErrorHandlerBinance {
+    pub fn new() -> BoxErrorHandler {
+        Box::new(ErrorHandlerBinance {})
+    }
+}
+
+impl ErrorHandler for ErrorHandlerBinance {
+    fn check_spec_rest_error(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
+        //Binance is a little inconsistent: for failed responses sometimes they include
+        //only code or only success:false but sometimes both
+        if !(response.content.contains(r#""success":false"#)
+            || response.content.contains(r#""code""#))
+        {
+            return Ok(());
+        }
+
+        let data: Value = serde_json::from_str(&response.content)
+            .map_err(|err| ExchangeError::parsing_error(&format!("response.content: {:?}", err)))?;
+
+        let message = data["msg"]
+            .as_str()
+            .ok_or_else(|| ExchangeError::parsing_error("`msg` field"))?;
+
+        let code = data["code"]
+            .as_i64()
+            .ok_or_else(|| ExchangeError::parsing_error("`code` field"))?;
+
+        Err(ExchangeError::new(
+            ExchangeErrorType::Unknown,
+            message.to_string(),
+            Some(code),
+        ))
+    }
+
+    fn clarify_error_type(&self, error: &mut ExchangeError) {
+        // -1010 ERROR_MSG_RECEIVED
+        // -2010 NEW_ORDER_REJECTED
+        // -2011 CANCEL_REJECTED
+        let error_type = match error.message.as_str() {
+            "Unknown order sent." | "Order does not exist." => ExchangeErrorType::OrderNotFound,
+            "Account has insufficient balance for requested action." => {
+                ExchangeErrorType::InsufficientFunds
+            }
+            "Invalid quantity."
+            | "Filter failure: MIN_NOTIONAL"
+            | "Filter failure: LOT_SIZE"
+            | "Filter failure: PRICE_FILTER"
+            | "Filter failure: PERCENT_PRICE"
+            | "Quantity less than zero."
+            | "Precision is over the maximum defined for this asset." => {
+                ExchangeErrorType::InvalidOrder
+            }
+            msg if msg.contains("Too many requests;") => ExchangeErrorType::RateLimit,
+            _ => ExchangeErrorType::Unknown,
+        };
+
+        error.error_type = error_type;
+    }
+}
 
 pub struct Binance {
     pub settings: ExchangeSettings,
@@ -81,12 +153,14 @@ impl Binance {
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
         is_reducing_market_data: bool,
+        empty_response_is_ok: bool,
     ) -> Self {
         let is_reducing_market_data = settings
             .is_reducing_market_data
             .unwrap_or(is_reducing_market_data);
 
         let hosts = Self::make_hosts(settings.is_margin_trading);
+        let exchange_account_id = settings.exchange_account_id;
 
         Self {
             id,
@@ -105,7 +179,11 @@ impl Binance {
             hosts,
             events_channel,
             lifetime_manager,
-            rest_client: RestClient::new(),
+            rest_client: RestClient::new(ErrorHandlerData::new(
+                empty_response_is_ok,
+                exchange_account_id,
+                ErrorHandlerBinance::new(),
+            )),
         }
     }
 
@@ -126,15 +204,21 @@ impl Binance {
     }
 
     pub(super) async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
-        let url_path = match self.settings.is_margin_trading {
-            true => "/sapi/v1/userDataStream",
-            false => "/api/v3/userDataStream",
-        };
-
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
+        let full_url = rest_client::build_uri(
+            &self.hosts.rest_host,
+            self.get_url_path("/sapi/v1/userDataStream", "/api/v3/userDataStream"),
+            &vec![],
+        )?;
         let http_params = rest_client::HttpParams::new();
+
         self.rest_client
-            .post(full_url, &self.settings.api_key, &http_params)
+            .post(
+                full_url,
+                &self.settings.api_key,
+                &http_params,
+                "get_listen_key",
+                "".to_string(),
+            )
             .await
     }
 
@@ -452,13 +536,50 @@ impl Binance {
         todo!("implement it later")
     }
 
+    pub(super) fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
+        let deserialized: OrderId = serde_json::from_str(&response.content)
+            .expect("Unable to parse orderId from response content");
+
+        Ok(ExchangeOrderId::new(
+            deserialized.order_id.to_string().into(),
+        ))
+    }
+
+    pub(super) fn get_url_path<'a>(
+        &self,
+        margin_trading_url: &'a str,
+        not_margin_trading_url: &'a str,
+    ) -> &'a str {
+        match self.settings.is_margin_trading {
+            true => margin_trading_url,
+            false => not_margin_trading_url,
+        }
+    }
+
+    #[named]
+    pub(crate) async fn request_open_orders_by_http_header(
+        &self,
+        http_params: Vec<(String, String)>,
+    ) -> Result<RestRequestOutcome> {
+        let full_url = rest_client::build_uri(
+            &self.hosts.rest_host,
+            self.get_url_path("/fapi/v1/openOrders", "/api/v3/openOrders"),
+            &http_params,
+        )?;
+
+        self.rest_client
+            .get(
+                full_url,
+                &self.settings.api_key,
+                function_name!(),
+                "".to_string(),
+            )
+            .await
+    }
+
+    #[named]
     pub(super) async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome> {
         let specific_currency_pair = self.get_specific_currency_pair(order.currency_pair());
-
-        let url_path = match self.settings.is_margin_trading {
-            true => "/fapi/v1/order",
-            false => "/api/v3/order",
-        };
 
         let mut http_params = vec![
             (
@@ -472,9 +593,26 @@ impl Binance {
         ];
         self.add_authentification_headers(&mut http_params)?;
 
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(
+            &self.hosts.rest_host,
+            self.get_url_path("/fapi/v1/order", "/api/v3/order"),
+            &http_params,
+        )?;
 
-        self.rest_client.get(full_url, &self.settings.api_key).await
+        let order_header = order.fn_ref(|order| order.header.clone());
+
+        let log_args = format_args!("order {}", order_header.client_order_id).to_string();
+
+        self.rest_client
+            .get(full_url, &self.settings.api_key, function_name!(), log_args)
+            .await
+    }
+
+    pub(super) fn parse_order_info(&self, response: &RestRequestOutcome) -> OrderInfo {
+        let specific_order: BinanceOrderInfo = serde_json::from_str(&response.content)
+            .expect("Unable to parse response content for get_order_info request");
+
+        self.specific_order_info_to_unified(&specific_order)
     }
 
     pub(super) async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
@@ -498,49 +636,438 @@ impl Binance {
         self.request_open_orders_by_http_header(http_params).await
     }
 
-    pub(super) fn get_open_orders_from_response(
-        &self,
-        response: &RestRequestOutcome,
-    ) -> Result<Vec<OrderInfo>> {
-        if let Some(error) = get_rest_error(
-            &response,
-            self.settings.exchange_account_id,
-            self.settings.empty_response_is_ok,
-        ) {
-            Err(error).context("From request get_open_orders by all currency pair")?;
-        }
-
-        match self.parse_open_orders(&response) {
-            orders @ Ok(_) => orders,
-            Err(error) => handle_parse_error(
-                error,
-                &response,
-                "".into(),
-                None,
-                self.settings.exchange_account_id,
-            )
-            .map(|_| Vec::new()),
-        }
-    }
-
-    fn parse_open_orders(&self, response: &RestRequestOutcome) -> Result<Vec<OrderInfo>> {
+    pub(super) fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo> {
         let binance_orders: Vec<BinanceOrderInfo> = serde_json::from_str(&response.content)
-            .context("Unable to parse response content for get_open_orders request")?;
+            .expect("Unable to parse response content for get_open_orders request");
 
-        let orders_info: Vec<OrderInfo> = binance_orders
+        binance_orders
             .iter()
             .map(|order| self.specific_order_info_to_unified(order))
-            .collect();
-
-        Ok(orders_info)
+            .collect()
     }
 
-    pub(super) fn parse_order_info(&self, response: &RestRequestOutcome) -> Result<OrderInfo> {
-        let specific_order: BinanceOrderInfo = serde_json::from_str(&response.content)
-            .context("Unable to parse response content for get_order_info request")?;
-        let unified_order = self.specific_order_info_to_unified(&specific_order);
+    #[named]
+    pub(super) async fn request_close_position(
+        &self,
+        position: &ActivePosition,
+        price: Option<Price>,
+    ) -> Result<RestRequestOutcome> {
+        let side = match position.derivative.side {
+            Some(side) => side.change_side().to_string(),
+            None => "0".to_string(), // unknown side
+        };
 
-        Ok(unified_order)
+        let mut http_params = vec![
+            (
+                "leverage".to_string(),
+                position.derivative.leverage.to_string(),
+            ),
+            ("positionSide".to_string(), "BOTH".to_string()),
+            (
+                "quantity".to_string(),
+                position.derivative.position.abs().to_string(),
+            ),
+            ("side".to_string(), side),
+            (
+                "symbol".to_string(),
+                position.derivative.currency_pair.to_string(),
+            ),
+        ];
+
+        match price {
+            Some(price) => {
+                http_params.push(("type".to_string(), "MARKET".to_string()));
+                http_params.push(("price".to_string(), price.to_string()));
+            }
+            None => http_params.push(("type".to_string(), "LIMIT".to_string())),
+        }
+
+        self.add_authentification_headers(&mut http_params)?;
+
+        let url_path = "/fapi/v1/order";
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+
+        let log_args =
+            format_args!("Close position response for {:?} {:?}", position, price).to_string();
+
+        self.rest_client
+            .post(
+                full_url,
+                &self.settings.api_key,
+                &http_params,
+                function_name!(),
+                log_args,
+            )
+            .await
+    }
+
+    #[named]
+    pub(super) async fn request_get_position(&self) -> Result<RestRequestOutcome> {
+        let mut http_params = Vec::new();
+        self.add_authentification_headers(&mut http_params)?;
+
+        let url_path = "/fapi/v2/positionRisk";
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+
+        self.rest_client
+            .get(
+                full_url,
+                &self.settings.api_key,
+                function_name!(),
+                "".to_string(),
+            )
+            .await
+    }
+
+    #[named]
+    pub(super) async fn request_get_balance(&self) -> Result<RestRequestOutcome> {
+        let mut http_params = Vec::new();
+        self.add_authentification_headers(&mut http_params)?;
+        let full_url = rest_client::build_uri(
+            &self.hosts.rest_host,
+            self.get_url_path("/fapi/v2/account", "/api/v3/account"),
+            &http_params,
+        )?;
+
+        self.rest_client
+            .get(
+                full_url,
+                &self.settings.api_key,
+                function_name!(),
+                "".to_string(),
+            )
+            .await
+    }
+
+    pub(super) async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
+        panic!("not supported request")
+    }
+
+    pub(super) fn parse_get_balance(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> ExchangeBalancesAndPositions {
+        let binance_account_info: BinanceAccountInfo = serde_json::from_str(&response.content)
+            .expect("Unable to parse response content for get_balance request");
+
+        if self.settings.is_margin_trading {
+            Binance::get_margin_exchange_balances_and_positions(binance_account_info.balances)
+        } else {
+            self.get_spot_exchange_balances_and_positions(binance_account_info.balances)
+        }
+    }
+
+    #[named]
+    pub(super) async fn request_cancel_order(
+        &self,
+        order: OrderCancelling,
+    ) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
+
+        let mut http_params = vec![
+            (
+                "symbol".to_owned(),
+                specific_currency_pair.as_str().to_owned(),
+            ),
+            (
+                "orderId".to_owned(),
+                order.exchange_order_id.as_str().to_owned(),
+            ),
+        ];
+        self.add_authentification_headers(&mut http_params)?;
+
+        let full_url = rest_client::build_uri(
+            &self.hosts.rest_host,
+            self.get_url_path("/fapi/v1/order", "/api/v3/order"),
+            &http_params,
+        )?;
+
+        let log_args =
+            format_args!("Cancel order for {}", order.header.client_order_id).to_string();
+        self.rest_client
+            .delete(full_url, &self.settings.api_key, function_name!(), log_args)
+            .await
+    }
+
+    #[named]
+    pub(super) async fn request_my_trades(
+        &self,
+        symbol: &Symbol,
+        _last_date_time: Option<DateTime>,
+    ) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(symbol.currency_pair());
+        let mut http_params = vec![(
+            "symbol".to_owned(),
+            specific_currency_pair.as_str().to_owned(),
+        )];
+
+        self.add_authentification_headers(&mut http_params)?;
+        let full_url = rest_client::build_uri(
+            &self.hosts.rest_host,
+            self.get_url_path("/fapi/v1/userTrades", "/api/v3/myTrades"),
+            &http_params,
+        )?;
+
+        self.rest_client
+            .get(
+                full_url,
+                &self.settings.api_key,
+                function_name!(),
+                "".to_string(),
+            )
+            .await
+    }
+
+    pub(super) fn parse_get_my_trades(
+        &self,
+        response: &RestRequestOutcome,
+        _last_date_time: Option<DateTime>,
+    ) -> Result<Vec<OrderTrade>> {
+        #[derive(Serialize, Deserialize, Debug)]
+        #[serde(rename_all = "camelCase")]
+        struct BinanceMyTrade {
+            id: TradeId,
+            order_id: u64,
+            price: Price,
+            #[serde(alias = "qty")]
+            amount: Amount,
+            commission: Amount,
+            #[serde(alias = "commissionAsset")]
+            commission_currency_code: CurrencyId,
+            time: u64,
+            is_maker: bool,
+        }
+
+        impl BinanceMyTrade {
+            fn to_unified_order_trade(
+                &self,
+                commission_currency_code: Option<CurrencyCode>,
+            ) -> Result<OrderTrade> {
+                let datetime: DateTime = (UNIX_EPOCH + Duration::from_millis(self.time)).into();
+                let order_role = if self.is_maker {
+                    OrderRole::Maker
+                } else {
+                    OrderRole::Taker
+                };
+
+                let fee_currency_code = commission_currency_code.context("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting")?;
+                Ok(OrderTrade::new(
+                    ExchangeOrderId::from(self.order_id.to_string().as_ref()),
+                    self.id.clone(),
+                    datetime,
+                    self.price,
+                    self.amount,
+                    order_role,
+                    fee_currency_code,
+                    None,
+                    Some(self.commission),
+                    OrderFillType::UserTrade,
+                ))
+            }
+        }
+
+        let my_trades: Vec<BinanceMyTrade> =
+            serde_json::from_str(&response.content).expect("Unable to parse trades from response");
+
+        my_trades
+            .into_iter()
+            .map(|my_trade| {
+                my_trade.to_unified_order_trade(
+                    self.get_currency_code(&my_trade.commission_currency_code),
+                )
+            })
+            .collect()
+    }
+
+    #[named]
+    pub(super) async fn request_create_order(
+        &self,
+        order: OrderCreating,
+    ) -> Result<RestRequestOutcome> {
+        let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
+
+        let mut http_params = vec![
+            (
+                "symbol".to_owned(),
+                specific_currency_pair.as_str().to_owned(),
+            ),
+            (
+                "side".to_owned(),
+                Self::to_server_order_side(order.header.side),
+            ),
+            (
+                "type".to_owned(),
+                Self::to_server_order_type(order.header.order_type),
+            ),
+            ("quantity".to_owned(), order.header.amount.to_string()),
+            (
+                "newClientOrderId".to_owned(),
+                order.header.client_order_id.as_str().to_owned(),
+            ),
+        ];
+
+        if order.header.order_type != OrderType::Market {
+            http_params.push(("timeInForce".to_owned(), "GTC".to_owned()));
+            http_params.push(("price".to_owned(), order.price.to_string()));
+        } else if order.header.execution_type == OrderExecutionType::MakerOnly {
+            http_params.push(("timeInForce".to_owned(), "GTX".to_owned()));
+        }
+        self.add_authentification_headers(&mut http_params)?;
+
+        let full_url = rest_client::build_uri(
+            &self.hosts.rest_host,
+            self.get_url_path("/fapi/v1/order", "/api/v3/order"),
+            &vec![],
+        )?;
+
+        let log_args = format_args!(
+            "Create order for {}",
+            // TODO other order_headers_field
+            order.header.client_order_id,
+        )
+        .to_string();
+
+        self.rest_client
+            .post(
+                full_url,
+                &self.settings.api_key,
+                &http_params,
+                function_name!(),
+                log_args,
+            )
+            .await
+    }
+
+    #[named]
+    pub(super) async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
+        // In current versions works only with Spot market
+        let url_path = "/api/v3/exchangeInfo";
+        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
+
+        self.rest_client
+            .get(
+                full_url,
+                &self.settings.api_key,
+                function_name!(),
+                "".to_string(),
+            )
+            .await
+    }
+
+    pub(super) fn parse_all_symbols(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<Vec<Arc<Symbol>>> {
+        let deserialized: Value = serde_json::from_str(&response.content)
+            .expect("Unable to deserialize response from Binance");
+        let symbols = deserialized
+            .get("symbols")
+            .and_then(|symbols| symbols.as_array())
+            .ok_or(anyhow!("Unable to get symbols array from Binance"))?;
+
+        let mut result = Vec::new();
+        for symbol in symbols {
+            let is_active = symbol["status"] == "TRADING";
+
+            // TODO There is no work with derivatives in current version
+            let is_derivative = false;
+            let base_currency_id = &symbol
+                .get_as_str("baseAsset")
+                .expect("Unable to get base currency id from Binance");
+            let quote_currency_id = &symbol
+                .get_as_str("quoteAsset")
+                .expect("Unable to get quote currency id from Binance");
+            let base = base_currency_id.as_str().into();
+            let quote = quote_currency_id.as_str().into();
+
+            let specific_currency_pair_id = symbol
+                .get_as_str("symbol")
+                .expect("Unable to get specific currency pair");
+            let specific_currency_pair = specific_currency_pair_id.as_str().into();
+            let unified_currency_pair = CurrencyPair::from_codes(base, quote);
+            self.unified_to_specific
+                .write()
+                .insert(unified_currency_pair, specific_currency_pair);
+
+            self.specific_to_unified
+                .write()
+                .insert(specific_currency_pair, unified_currency_pair);
+
+            let amount_currency_code = base;
+
+            // TODO There are no balance_currency_code for spot, why does it set here this way?
+            let balance_currency_code = base;
+
+            let mut min_amount = None;
+            let mut max_amount = None;
+            let mut min_price = None;
+            let mut max_price = None;
+            let mut min_cost = None;
+            let mut price_tick = None;
+            let mut amount_tick = None;
+
+            let filters = symbol
+                .get("filters")
+                .and_then(|filters| filters.as_array())
+                .expect("Unable to get filters as array from Binance");
+            for filter in filters {
+                let filter_name = filter.get_as_str("filterType")?;
+                match filter_name.as_str() {
+                    "PRICE_FILTER" => {
+                        min_price = filter.get_as_decimal("minPrice");
+                        max_price = filter.get_as_decimal("maxPrice");
+                        price_tick = filter.get_as_decimal("tickSize");
+                    }
+                    "LOT_SIZE" => {
+                        min_amount = filter.get_as_decimal("minQty");
+                        max_amount = filter.get_as_decimal("maxQty");
+                        amount_tick = filter.get_as_decimal("stepSize");
+                    }
+                    "MIN_NOTIONAL" => {
+                        min_cost = filter.get_as_decimal("minNotional");
+                    }
+                    _ => {}
+                }
+            }
+
+            let price_precision = match price_tick {
+                Some(tick) => Precision::ByTick { tick },
+                None => bail!(
+                    "Unable to get price precision from Binance for {:?}",
+                    specific_currency_pair
+                ),
+            };
+
+            let amount_precision = match amount_tick {
+                Some(tick) => Precision::ByTick { tick },
+                None => bail!(
+                    "Unable to get amount precision from Binance for {:?}",
+                    specific_currency_pair
+                ),
+            };
+
+            let symbol = Symbol::new(
+                is_active,
+                is_derivative,
+                base_currency_id.as_str().into(),
+                base,
+                quote_currency_id.as_str().into(),
+                quote,
+                min_price,
+                max_price,
+                min_amount,
+                max_amount,
+                min_cost,
+                amount_currency_code,
+                Some(balance_currency_code),
+                price_precision,
+                amount_precision,
+            );
+
+            result.push(Arc::new(symbol))
+        }
+
+        Ok(result)
     }
 }
 
@@ -554,6 +1081,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         lifetime_manager: Arc<AppLifetimeManager>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;
+        let empty_response_is_ok = false;
 
         ExchangeClientBuilderResult {
             client: Box::new(Binance::new(
@@ -562,6 +1090,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 events_channel.clone(),
                 lifetime_manager,
                 false,
+                empty_response_is_ok,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
@@ -569,7 +1098,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 OrderFeatures::default(),
                 OrderTradeOption::default(),
                 WebSocketOptions::default(),
-                false,
+                empty_response_is_ok,
                 false,
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
@@ -599,7 +1128,6 @@ mod tests {
             "vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A".into(),
             "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j".into(),
             false,
-            false,
         );
 
         let (tx, _) = broadcast::channel(10);
@@ -608,6 +1136,7 @@ mod tests {
             settings,
             tx,
             AppLifetimeManager::new(CancellationToken::default()),
+            false,
             false,
         );
         let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
@@ -633,4 +1162,10 @@ mod tests {
         let right_value = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
         assert_eq!(http_string, right_value);
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OrderId {
+    order_id: u32,
 }

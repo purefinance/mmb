@@ -9,8 +9,7 @@ use tokio::sync::broadcast;
 use super::{
     common::CurrencyCode,
     common::{
-        ActivePosition, CurrencyPair, ExchangeAccountId, ExchangeError, RestRequestOutcome,
-        SpecificCurrencyPair,
+        ActivePosition, CurrencyPair, ExchangeAccountId, ExchangeError, SpecificCurrencyPair,
     },
     common::{Amount, ClosedPosition, CurrencyId, Price},
     events::{ExchangeBalancesAndPositions, TradeId},
@@ -20,7 +19,10 @@ use super::{
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::exchanges::events::ExchangeEvent;
+use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::features::ExchangeFeatures;
+use crate::exchanges::general::order::cancel::CancelOrderResult;
+use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::orders::fill::EventSourceType;
 use crate::orders::order::{
@@ -34,11 +36,9 @@ use url::Url;
 // Implementation of rest API client
 #[async_trait]
 pub trait ExchangeClient: Support {
-    async fn request_all_symbols(&self) -> Result<RestRequestOutcome>;
+    async fn create_order(&self, order: OrderCreating) -> CreateOrderResult;
 
-    async fn create_order(&self, order: &OrderCreating) -> Result<RestRequestOutcome>;
-
-    async fn request_cancel_order(&self, order: &OrderCancelling) -> Result<RestRequestOutcome>;
+    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult;
 
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()>;
 
@@ -51,29 +51,29 @@ pub trait ExchangeClient: Support {
 
     async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError>;
 
-    async fn request_my_trades(
-        &self,
-        symbol: &Symbol,
-        last_date_time: Option<DateTime>,
-    ) -> Result<RestRequestOutcome>;
-
-    async fn request_get_position(&self) -> Result<RestRequestOutcome>;
-
-    async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome>;
-
-    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions>;
-
-    async fn request_close_position(
+    async fn close_position(
         &self,
         position: &ActivePosition,
         price: Option<Price>,
-    ) -> Result<RestRequestOutcome>;
+    ) -> Result<ClosedPosition>;
+
+    async fn get_active_positions(&self) -> Result<Vec<ActivePosition>>;
+
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions>;
+
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions>;
+
+    async fn get_my_trades(
+        &self,
+        symbol: &Symbol,
+        last_date_time: Option<DateTime>,
+    ) -> Result<RequestResult<Vec<OrderTrade>>>;
+
+    async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>>;
 }
 
 #[async_trait]
 pub trait Support: Send + Sync {
-    fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId>;
-
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
     fn on_connecting(&self) -> Result<()>;
 
@@ -115,8 +115,6 @@ pub trait Support: Send + Sync {
         log::info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    fn parse_all_symbols(&self, response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>>;
-
     fn get_balance_reservation_currency_code(
         &self,
         symbol: Arc<Symbol>,
@@ -125,19 +123,7 @@ pub trait Support: Send + Sync {
         symbol.get_trade_code(side, BeforeAfter::Before)
     }
 
-    fn parse_get_my_trades(
-        &self,
-        response: &RestRequestOutcome,
-        last_date_time: Option<chrono::DateTime<chrono::Utc>>,
-    ) -> Result<Vec<OrderTrade>>;
-
     fn get_settings(&self) -> &ExchangeSettings;
-
-    fn parse_get_position(&self, response: &RestRequestOutcome) -> Vec<ActivePosition>;
-
-    fn parse_close_position(&self, response: &RestRequestOutcome) -> Result<ClosedPosition>;
-
-    fn parse_get_balance(&self, response: &RestRequestOutcome) -> ExchangeBalancesAndPositions;
 }
 
 pub struct ExchangeClientBuilderResult {

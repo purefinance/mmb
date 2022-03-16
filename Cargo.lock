@@ -392,9 +392,11 @@ dependencies = [
  "chrono",
  "core_tests",
  "dashmap",
+ "function_name",
  "futures 0.3.19",
  "hex",
  "hmac 0.11.0",
+ "hyper",
  "itertools 0.10.3",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -1421,6 +1423,26 @@ name = "fs_extra"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2022715d62ab30faffd124d40b76f4134a550a87792276512b18d63272333394"
+
+[[package]]
+name = "function_name"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88b2afa9b514dc3a75af6cf24d1914e1c7eb6f1b86de849147563548d5c0a0cd"
+dependencies = [
+ "function_name-proc-macro",
+]
+
+[[package]]
+name = "function_name-proc-macro"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6790a8d356d2f65d7972181e866b92a50a87c27d6a48cbe9dbb8be13ca784c7d"
+dependencies = [
+ "proc-macro-crate 0.1.5",
+ "quote 0.6.13",
+ "syn 0.15.44",
+]
 
 [[package]]
 name = "futures"
@@ -3333,6 +3355,7 @@ dependencies = [
  "async-trait",
  "core_tests",
  "dashmap",
+ "function_name",
  "futures 0.3.19",
  "itertools 0.10.3",
  "log",

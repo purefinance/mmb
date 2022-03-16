@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use binance::binance::BinanceBuilder;
+use binance::binance::{BinanceBuilder, ErrorHandlerBinance};
+use function_name::named;
 use jsonrpc_core::Value;
 use mmb_core::exchanges::common::{Amount, Price};
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
@@ -10,6 +11,7 @@ use mmb_utils::infrastructure::WithExpect;
 
 use mmb_core::exchanges::general::symbol::{Round, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
+use mmb_core::exchanges::rest_client::ErrorHandlerData;
 use mmb_core::{
     exchanges::common::ExchangeId,
     exchanges::{
@@ -79,19 +81,25 @@ pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc
     TimeoutManager::new(hashmap![exchange_account_id => request_timeout_manager])
 }
 
+#[named]
 async fn send_request(
     hosts: &Hosts,
     api_key: &String,
     url_path: &str,
     http_params: &Vec<(String, String)>,
+    exchange_account_id: ExchangeAccountId,
 ) -> String {
-    let rest_client = RestClient::new();
+    let rest_client = RestClient::new(ErrorHandlerData::new(
+        false,
+        exchange_account_id,
+        ErrorHandlerBinance::new(),
+    ));
 
     let full_url = rest_client::build_uri(&hosts.rest_host, url_path, http_params)
         .expect("build_uri is failed");
 
     rest_client
-        .get(full_url, api_key)
+        .get(full_url, api_key, function_name!(), "".to_string())
         .await
         .with_expect(|| format!("failed to request {}", url_path))
         .content
@@ -104,6 +112,7 @@ pub(crate) async fn get_default_price(
     currency_pair: SpecificCurrencyPair,
     hosts: &Hosts,
     api_key: &String,
+    exchange_account_id: ExchangeAccountId,
 ) -> Price {
     #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
     struct OrderBook {
@@ -118,6 +127,7 @@ pub(crate) async fn get_default_price(
             ("symbol".to_owned(), currency_pair.to_string()),
             ("limit".to_owned(), "10".to_owned()),
         ],
+        exchange_account_id,
     )
     .await;
 
@@ -142,12 +152,14 @@ pub(crate) async fn get_min_amount(
     api_key: &String,
     price: Price,
     symbol: &Symbol,
+    exchange_account_id: ExchangeAccountId,
 ) -> Amount {
     let data = send_request(
         hosts,
         api_key,
         "/api/v3/exchangeInfo",
         &vec![("symbol".to_owned(), currency_pair.as_str().to_owned())],
+        exchange_account_id,
     )
     .await;
 

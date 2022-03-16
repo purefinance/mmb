@@ -121,7 +121,7 @@ async fn should_fail() {
         }
         Err(error) => {
             assert_eq!(
-                "Exchange error: Precision is over the maximum defined for this asset.",
+                "Exchange error: Type: InvalidOrder Message: Precision is over the maximum defined for this asset. Code Some(-1111)",
                 error.to_string()
             );
         }

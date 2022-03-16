@@ -46,11 +46,11 @@ impl CreateOrderResult {
 impl Exchange {
     pub async fn create_order(
         &self,
-        order_to_create: &OrderCreating,
+        order_to_create: OrderCreating,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
-        log::info!("Submitting order {:?}", order_to_create);
+        log::info!("Submitting order {:?}", &order_to_create);
         self.orders
             .add_simple_initial(order_to_create.header.clone(), Some(order_to_create.price));
 
@@ -144,11 +144,12 @@ impl Exchange {
 
     async fn create_order_base(
         &self,
-        order_to_create: &OrderCreating,
+        order_to_create: OrderCreating,
         cancellation_token: CancellationToken,
     ) -> Result<CreateOrderResult> {
+        let order_header = order_to_create.header.clone();
         let create_order_result = self
-            .create_order_core(&order_to_create, cancellation_token)
+            .create_order_core(order_to_create, cancellation_token)
             .await;
 
         if let Some(created_order) = create_order_result {
@@ -156,7 +157,7 @@ impl Exchange {
                 Success(exchange_order_id) => {
                     self.handle_create_order_succeeded(
                         self.exchange_account_id,
-                        &order_to_create.header.client_order_id,
+                        &order_header.client_order_id,
                         &exchange_order_id,
                         &created_order.source_type,
                     )?;
@@ -165,7 +166,7 @@ impl Exchange {
                     if exchange_error.error_type != ExchangeErrorType::ParsingError {
                         self.handle_create_order_failed(
                             self.exchange_account_id,
-                            &order_to_create.header.client_order_id,
+                            &order_header.client_order_id,
                             &exchange_error,
                             &created_order.source_type,
                         )?

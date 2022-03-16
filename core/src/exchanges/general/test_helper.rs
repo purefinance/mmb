@@ -6,7 +6,7 @@ use crate::{
     exchanges::{
         common::{
             ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, CurrencyPair,
-            ExchangeAccountId, ExchangeError, Price, RestRequestOutcome, SpecificCurrencyPair,
+            ExchangeAccountId, ExchangeError, Price, SpecificCurrencyPair,
         },
         events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent, TradeId},
         general::{
@@ -43,6 +43,9 @@ use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 use url::Url;
 
+use crate::exchanges::general::exchange::RequestResult;
+use crate::exchanges::general::order::cancel::CancelOrderResult;
+use crate::exchanges::general::order::create::CreateOrderResult;
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
 
 use super::{
@@ -54,15 +57,11 @@ pub struct TestClient;
 
 #[async_trait]
 impl ExchangeClient for TestClient {
-    async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
+    async fn create_order(&self, _order: OrderCreating) -> CreateOrderResult {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn create_order(&self, _order: &OrderCreating) -> Result<RestRequestOutcome> {
-        unimplemented!("doesn't need in UT")
-    }
-
-    async fn request_cancel_order(&self, _order: &OrderCancelling) -> Result<RestRequestOutcome> {
+    async fn cancel_order(&self, _order: OrderCancelling) -> CancelOrderResult {
         unimplemented!("doesn't need in UT")
     }
 
@@ -85,19 +84,15 @@ impl ExchangeClient for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn request_my_trades(
+    async fn close_position(
         &self,
-        _symbol: &Symbol,
-        _last_date_time: Option<DateTime>,
-    ) -> Result<RestRequestOutcome> {
+        _position: &ActivePosition,
+        _price: Option<Price>,
+    ) -> Result<ClosedPosition> {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn request_get_position(&self) -> Result<RestRequestOutcome> {
-        unimplemented!("doesn't need in UT")
-    }
-
-    async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
+    async fn get_active_positions(&self) -> Result<Vec<ActivePosition>> {
         unimplemented!("doesn't need in UT")
     }
 
@@ -105,21 +100,25 @@ impl ExchangeClient for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn request_close_position(
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
+        unimplemented!("doesn't need in UT")
+    }
+
+    async fn get_my_trades(
         &self,
-        _position: &ActivePosition,
-        _price: Option<Price>,
-    ) -> Result<RestRequestOutcome> {
+        _symbol: &Symbol,
+        _last_date_time: Option<DateTime>,
+    ) -> Result<RequestResult<Vec<OrderTrade>>> {
+        unimplemented!("doesn't need in UT")
+    }
+
+    async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {
         unimplemented!("doesn't need in UT")
     }
 }
 
 #[async_trait]
 impl Support for TestClient {
-    fn get_order_id(&self, _response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
-        unimplemented!("doesn't need in UT")
-    }
-
     fn on_websocket_message(&self, _msg: &str) -> Result<()> {
         unimplemented!("doesn't need in UT")
     }
@@ -179,10 +178,6 @@ impl Support for TestClient {
         log::info!("Unknown message for {}: {}", exchange_account_id, message);
     }
 
-    fn parse_all_symbols(&self, _response: &RestRequestOutcome) -> Result<Vec<Arc<Symbol>>> {
-        unimplemented!("doesn't need in UT")
-    }
-
     fn get_balance_reservation_currency_code(
         &self,
         symbol: Arc<Symbol>,
@@ -191,27 +186,7 @@ impl Support for TestClient {
         symbol.get_trade_code(side, BeforeAfter::Before)
     }
 
-    fn parse_get_my_trades(
-        &self,
-        _response: &RestRequestOutcome,
-        _last_date_time: Option<chrono::DateTime<chrono::Utc>>,
-    ) -> Result<Vec<OrderTrade>> {
-        unimplemented!("doesn't need in UT")
-    }
-
     fn get_settings(&self) -> &ExchangeSettings {
-        unimplemented!("doesn't need in UT")
-    }
-
-    fn parse_get_position(&self, _response: &RestRequestOutcome) -> Vec<ActivePosition> {
-        unimplemented!("doesn't need in UT")
-    }
-
-    fn parse_close_position(&self, _response: &RestRequestOutcome) -> Result<ClosedPosition> {
-        unimplemented!("doesn't need in UT")
-    }
-
-    fn parse_get_balance(&self, _response: &RestRequestOutcome) -> ExchangeBalancesAndPositions {
         unimplemented!("doesn't need in UT")
     }
 }
