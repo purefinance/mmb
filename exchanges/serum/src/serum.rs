@@ -26,8 +26,11 @@ use std::collections::HashMap;
 use std::mem::size_of;
 use std::num::NonZeroU64;
 use std::ops::Deref;
+use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::broadcast;
+use tokio::time::sleep;
 
 use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide};
 use crate::market::{DeserMarketData, MarketData, MarketMetaData, OpenOrderData};
@@ -208,7 +211,7 @@ impl Serum {
         })
     }
 
-    pub fn load_orders_for_owner(
+    fn load_orders_for_owner(
         &self,
         address: &Pubkey,
         program_id: &Pubkey,
@@ -245,7 +248,7 @@ impl Serum {
             .get_program_accounts_with_config(&program_id, config)?)
     }
 
-    pub fn create_dex_account(
+    fn create_dex_account(
         &self,
         program_id: &Pubkey,
         payer: &Pubkey,
@@ -266,7 +269,7 @@ impl Serum {
         Ok((key, create_account_instr))
     }
 
-    pub fn create_new_order_instruction(
+    fn create_new_order_instruction(
         &self,
         program_id: Pubkey,
         metadata: &MarketMetaData,
@@ -275,22 +278,25 @@ impl Serum {
         price: Price,
         amount: Amount,
         order_type: OrderType,
+        client_order_id: &ClientOrderId,
     ) -> Result<Instruction> {
         let price = metadata.make_price(price);
         let amount = metadata.make_size(amount);
         let max_native_price = metadata.make_max_native(price, amount);
+        let client_order_id = u64::from_str(client_order_id.as_str()).with_context(|| {
+            format!("Failed to convert client_order_id {client_order_id} to u64")
+        })?;
 
         let new_order = serum_dex::instruction::NewOrderInstructionV3 {
             side: side.to_serum_side(),
             limit_price: NonZeroU64::new(price)
-                .with_context(|| format!("Failed to create limit_price {:?}", price))?,
+                .with_context(|| format!("Failed to create limit_price {price:?}"))?,
             max_coin_qty: NonZeroU64::new(amount)
-                .with_context(|| format!("Failed to create max_coin_qty {:?}", amount))?,
+                .with_context(|| format!("Failed to create max_coin_qty {amount:?}"))?,
             max_native_pc_qty_including_fees: NonZeroU64::new(max_native_price).with_context(
                 || {
                     format!(
-                        "Failed to create max_native_pc_qty_including_fees {:?}",
-                        max_native_price
+                        "Failed to create max_native_pc_qty_including_fees {max_native_price:?}"
                     )
                 },
             )?,
@@ -299,7 +305,7 @@ impl Serum {
                 OrderType::Limit => serum_dex::matching::OrderType::Limit,
                 _ => unimplemented!(),
             },
-            client_order_id: 0x0,
+            client_order_id,
             limit: u16::MAX,
         };
 
@@ -461,14 +467,30 @@ impl Serum {
         Ok(orders)
     }
 
-    fn get_order_id(&self) -> Result<ExchangeOrderId> {
-        unimplemented!()
+    async fn get_order_id(&self, client_order_id: &ClientOrderId) -> Result<ExchangeOrderId> {
+        for attempt in 1..=10 {
+            let orders = self.get_open_orders().await?;
+            if let Some(order) = orders
+                .iter()
+                .find(|order| order.client_order_id == *client_order_id)
+            {
+                return Ok(order.exchange_order_id.clone());
+            }
+
+            log::warn!("Failed to get ExchangeOrderId. Order with client order id {client_order_id} not found. Attempt {attempt}");
+            sleep(Duration::from_secs(2)).await;
+        }
+
+        Err(anyhow!(
+            "Failed to get ExchangeOrderId by client order id {client_order_id}"
+        ))
     }
 
     pub(super) async fn create_order_core(&self, order: OrderCreating) -> Result<ExchangeOrderId> {
         let mut instructions = Vec::new();
         let mut signers = Vec::new();
         let orders_keypair: Keypair;
+        let client_order_id = order.header.client_order_id.clone();
 
         let market_data = self.get_market_data(&order.header.currency_pair)?;
         let accounts = self.load_orders_for_owner(&market_data.address, &market_data.program_id)?;
@@ -498,6 +520,7 @@ impl Serum {
             order.price,
             order.header.amount,
             order.header.order_type,
+            &client_order_id,
         )?;
         instructions.push(place_order_ix);
 
@@ -520,8 +543,7 @@ impl Serum {
         );
 
         self.send_transaction(transaction).await?;
-
-        self.get_order_id()
+        self.get_order_id(&client_order_id).await
     }
 
     pub(super) fn parse_all_symbols(
