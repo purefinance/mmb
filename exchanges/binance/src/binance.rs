@@ -1167,5 +1167,5 @@ mod tests {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OrderId {
-    order_id: u32,
+    order_id: u64,
 }
