@@ -30,9 +30,7 @@ use mmb_core::exchanges::general::features::{
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
-use mmb_core::exchanges::rest_client::{
-    BoxErrorHandler, ErrorHandler, ErrorHandlerData, RestClient,
-};
+use mmb_core::exchanges::rest_client::{ErrorHandler, ErrorHandlerData, RestClient};
 use mmb_core::exchanges::traits::{ExchangeClientBuilderResult, Support};
 use mmb_core::exchanges::{
     common::CurrencyCode,
@@ -57,7 +55,7 @@ use serde::{Deserialize, Serialize};
 pub struct ErrorHandlerBinance;
 
 impl ErrorHandlerBinance {
-    pub fn new() -> BoxErrorHandler {
+    pub fn new() -> Box<Self> {
         Box::new(ErrorHandlerBinance {})
     }
 }
@@ -205,7 +203,7 @@ impl Binance {
 
     pub(super) async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
         let full_url = rest_client::build_uri(
-            &self.hosts.rest_host,
+            self.hosts.rest_host,
             self.get_url_path("/sapi/v1/userDataStream", "/api/v3/userDataStream"),
             &vec![],
         )?;
@@ -279,7 +277,7 @@ impl Binance {
         hmac.update(data.as_bytes());
         let result = hex::encode(&hmac.finalize().into_bytes());
 
-        return Ok(result);
+        Ok(result)
     }
 
     pub(super) fn add_authentification_headers(
@@ -289,7 +287,7 @@ impl Binance {
         let time_stamp = get_current_milliseconds();
         parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
 
-        let message_to_sign = rest_client::to_http_string(&parameters);
+        let message_to_sign = rest_client::to_http_string(parameters);
         let signature = self.generate_signature(message_to_sign)?;
         parameters.push(("signature".to_owned(), signature));
 
@@ -421,7 +419,7 @@ impl Binance {
     pub(crate) fn get_currency_code(&self, currency_id: &CurrencyId) -> Option<CurrencyCode> {
         self.supported_currencies
             .get(currency_id)
-            .map(|some| some.value().clone())
+            .map(|some| *some.value())
     }
 
     pub(crate) fn get_currency_code_expected(&self, currency_id: &CurrencyId) -> CurrencyCode {
@@ -562,7 +560,7 @@ impl Binance {
         http_params: Vec<(String, String)>,
     ) -> Result<RestRequestOutcome> {
         let full_url = rest_client::build_uri(
-            &self.hosts.rest_host,
+            self.hosts.rest_host,
             self.get_url_path("/fapi/v1/openOrders", "/api/v3/openOrders"),
             &http_params,
         )?;
@@ -594,7 +592,7 @@ impl Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let full_url = rest_client::build_uri(
-            &self.hosts.rest_host,
+            self.hosts.rest_host,
             self.get_url_path("/fapi/v1/order", "/api/v3/order"),
             &http_params,
         )?;
@@ -685,7 +683,7 @@ impl Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let url_path = "/fapi/v1/order";
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params)?;
 
         let log_args =
             format_args!("Close position response for {:?} {:?}", position, price).to_string();
@@ -707,7 +705,7 @@ impl Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let url_path = "/fapi/v2/positionRisk";
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params)?;
 
         self.rest_client
             .get(
@@ -724,7 +722,7 @@ impl Binance {
         let mut http_params = Vec::new();
         self.add_authentification_headers(&mut http_params)?;
         let full_url = rest_client::build_uri(
-            &self.hosts.rest_host,
+            self.hosts.rest_host,
             self.get_url_path("/fapi/v2/account", "/api/v3/account"),
             &http_params,
         )?;
@@ -777,7 +775,7 @@ impl Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let full_url = rest_client::build_uri(
-            &self.hosts.rest_host,
+            self.hosts.rest_host,
             self.get_url_path("/fapi/v1/order", "/api/v3/order"),
             &http_params,
         )?;
@@ -803,7 +801,7 @@ impl Binance {
 
         self.add_authentification_headers(&mut http_params)?;
         let full_url = rest_client::build_uri(
-            &self.hosts.rest_host,
+            self.hosts.rest_host,
             self.get_url_path("/fapi/v1/userTrades", "/api/v3/myTrades"),
             &http_params,
         )?;
@@ -915,7 +913,7 @@ impl Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let full_url = rest_client::build_uri(
-            &self.hosts.rest_host,
+            self.hosts.rest_host,
             self.get_url_path("/fapi/v1/order", "/api/v3/order"),
             &vec![],
         )?;
@@ -942,7 +940,7 @@ impl Binance {
     pub(super) async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
         // In current versions works only with Spot market
         let url_path = "/api/v3/exchangeInfo";
-        let full_url = rest_client::build_uri(&self.hosts.rest_host, url_path, &vec![])?;
+        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &vec![])?;
 
         self.rest_client
             .get(
@@ -1087,7 +1085,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
             client: Box::new(Binance::new(
                 exchange_account_id,
                 exchange_settings,
-                events_channel.clone(),
+                events_channel,
                 lifetime_manager,
                 false,
                 empty_response_is_ok,

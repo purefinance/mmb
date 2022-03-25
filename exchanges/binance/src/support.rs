@@ -126,7 +126,7 @@ impl Support for Binance {
             .for_each(|(currency_pair, _)| {
                 let _ = self
                     .last_trade_ids
-                    .insert(currency_pair.clone(), TradeId::Number(0));
+                    .insert(*currency_pair, TradeId::Number(0));
             });
 
         Ok(())
@@ -170,7 +170,7 @@ impl Support for Binance {
         match role {
             WebSocketRole::Main => true,
             WebSocketRole::Secondary => {
-                self.settings.api_key != "" && self.settings.secret_key != ""
+                !self.settings.api_key.is_empty() && !self.settings.secret_key.is_empty()
             }
         }
     }
@@ -286,7 +286,7 @@ impl Binance {
         let bids = get_order_book_side(raw_bids)?;
 
         let order_book_data = OrderBookData::new(asks, bids);
-        self.handle_order_book_snapshot(currency_pair, &last_update_id, order_book_data, None)
+        self.handle_order_book_snapshot(currency_pair, last_update_id, order_book_data, None)
     }
 
     fn handle_order_book_snapshot(
@@ -405,7 +405,7 @@ impl Binance {
     }
 }
 
-fn get_order_book_side(levels: &Vec<Value>) -> Result<SortedOrderData> {
+fn get_order_book_side(levels: &[Value]) -> Result<SortedOrderData> {
     levels
         .iter()
         .map(|x| {
