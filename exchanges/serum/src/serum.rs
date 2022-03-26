@@ -1,11 +1,13 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
+use futures::future::join_all;
+use itertools::Itertools;
 use memoffset::offset_of;
 use parking_lot::{Mutex, RwLock};
 use rand::rngs::OsRng;
 use rust_decimal_macros::dec;
 use serum_dex::critbit::{Slab, SlabView};
-use serum_dex::instruction::MarketInstruction;
+use serum_dex::instruction::{cancel_order, MarketInstruction};
 use serum_dex::matching::Side;
 use serum_dex::state::{gen_vault_signer_key, Market, MarketState};
 use solana_client::rpc_client::RpcClient;
@@ -32,7 +34,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 
-use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide};
+use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide, ToU128};
 use crate::market::{DeserMarketData, MarketData, MarketMetaData, OpenOrderData};
 use mmb_core::exchanges::common::{
     Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, RestRequestOutcome,
@@ -56,7 +58,8 @@ use mmb_core::exchanges::traits::{
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderCreating, OrderInfo, OrderSide, OrderStatus, OrderType,
+    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo, OrderSide,
+    OrderStatus, OrderType,
 };
 use mmb_core::orders::pool::OrderRef;
 use mmb_core::settings::ExchangeSettings;
@@ -122,6 +125,7 @@ pub struct Serum {
     pub(super) rest_client: RestClient,
     pub(super) rpc_client: Arc<RpcClient>,
     pub(super) markets_data: RwLock<HashMap<CurrencyPair, MarketData>>,
+    pub(super) open_orders_by_owner: RwLock<HashMap<ClientOrderId, Pubkey>>,
     pub network_type: NetworkType,
 }
 
@@ -155,6 +159,7 @@ impl Serum {
             )),
             rpc_client: Arc::new(RpcClient::new(network_type.url().to_string())),
             markets_data: Default::default(),
+            open_orders_by_owner: Default::default(),
             network_type,
         }
     }
@@ -399,6 +404,19 @@ impl Serum {
         .await??)
     }
 
+    pub async fn send_instructions(&self, instructions: &[Instruction]) -> Result<()> {
+        let recent_hash = self.rpc_client.get_latest_blockhash()?;
+        let transaction = Transaction::new_signed_with_payer(
+            instructions,
+            Some(&self.payer.pubkey()),
+            &[&self.payer],
+            recent_hash,
+        );
+
+        self.send_transaction(transaction).await?;
+        Ok(())
+    }
+
     pub async fn get_exchange_balance_from_account(
         &self,
         currency_code: &CurrencyCode,
@@ -481,9 +499,7 @@ impl Serum {
             sleep(Duration::from_secs(2)).await;
         }
 
-        Err(anyhow!(
-            "Failed to get ExchangeOrderId by client order id {client_order_id}"
-        ))
+        bail!("Failed to get ExchangeOrderId by client order id {client_order_id}")
     }
 
     pub(super) async fn create_order_core(&self, order: OrderCreating) -> Result<ExchangeOrderId> {
@@ -543,7 +559,116 @@ impl Serum {
         );
 
         self.send_transaction(transaction).await?;
-        self.get_order_id(&client_order_id).await
+
+        self.open_orders_by_owner
+            .write()
+            .insert(client_order_id.clone(), open_order_account);
+
+        let exchange_order_id = self.get_order_id(&client_order_id).await?;
+
+        // TODO move to handle websocket notification
+        (&self.order_created_callback).lock()(
+            client_order_id.into(),
+            exchange_order_id.clone().into(),
+            EventSourceType::WebSocket,
+        );
+
+        Ok(exchange_order_id)
+    }
+
+    pub(super) async fn cancel_order_core(&self, order: &OrderCancelling) -> Result<()> {
+        let market_data = self.get_market_data(&order.header.currency_pair)?;
+        let metadata = market_data.metadata;
+        let client_order_id = order.header.client_order_id.clone();
+        let exchange_order_id = order.exchange_order_id.clone();
+
+        let owner = self
+            .open_orders_by_owner
+            .write()
+            .remove(&client_order_id)
+            .with_context(|| {
+                format!("Unable to get owner by client order id = {client_order_id}")
+            })?;
+
+        let instructions = &[cancel_order(
+            &market_data.program_id,
+            &metadata.owner_address,
+            &metadata.bids_address,
+            &metadata.asks_address,
+            &owner,
+            &self.payer.pubkey(),
+            &metadata.event_queue_address,
+            order.header.side.to_serum_side(),
+            exchange_order_id.to_u128(),
+        )?];
+
+        let recent_hash = self.rpc_client.get_latest_blockhash()?;
+        let transaction = Transaction::new_signed_with_payer(
+            instructions,
+            Some(&self.payer.pubkey()),
+            &[&self.payer],
+            recent_hash,
+        );
+
+        self.send_transaction(transaction).await?;
+
+        // TODO move to handle websocket notification
+        (&self.order_cancelled_callback).lock()(
+            client_order_id.into(),
+            exchange_order_id.into(),
+            EventSourceType::WebSocket,
+        );
+
+        Ok(())
+    }
+
+    pub(super) async fn cancel_all_orders_core(&self, currency_pair: &CurrencyPair) -> Result<()> {
+        let market_data = self.get_market_data(currency_pair)?;
+        let metadata = market_data.metadata;
+
+        let orders = self
+            .get_open_orders_by_currency_pair(currency_pair.clone())
+            .await?;
+
+        let instructions: Vec<Instruction> = orders
+            .iter()
+            .map(|order| {
+                let owner = self
+                    .open_orders_by_owner
+                    .write()
+                    .remove(&order.client_order_id)
+                    .with_context(|| {
+                        format!(
+                            "Unable to get owner by client order id = {}",
+                            order.client_order_id
+                        )
+                    })?;
+
+                cancel_order(
+                    &market_data.program_id,
+                    &metadata.owner_address,
+                    &metadata.bids_address,
+                    &metadata.asks_address,
+                    &owner,
+                    &self.payer.pubkey(),
+                    &metadata.event_queue_address,
+                    order.order_side.to_serum_side(),
+                    order.exchange_order_id.to_u128(),
+                )
+                .map_err(|error| anyhow!(error))
+            })
+            .try_collect()?;
+
+        join_all(
+            instructions
+                .chunks(12)
+                .map(|ixs| self.send_instructions(ixs)),
+        )
+        .await
+        .into_iter()
+        .try_collect()?;
+
+        Ok(())
     }
 
     pub(super) fn parse_all_symbols(

@@ -1,6 +1,7 @@
-use mmb_core::orders::order::OrderSide;
+use mmb_core::orders::order::{ExchangeOrderId, OrderSide};
 use serum_dex::matching::Side;
 use solana_program::pubkey::Pubkey;
+use std::str::FromStr;
 
 pub trait ToOrderSide {
     fn to_order_side(&self) -> OrderSide;
@@ -25,6 +26,16 @@ impl ToSerumSide for OrderSide {
             OrderSide::Buy => Side::Bid,
             OrderSide::Sell => Side::Ask,
         }
+    }
+}
+
+pub trait ToU128 {
+    fn to_u128(&self) -> u128;
+}
+
+impl ToU128 for ExchangeOrderId {
+    fn to_u128(&self) -> u128 {
+        u128::from_str(self.as_str()).expect("Unable to convert u128 from ExchangeOrderId")
     }
 }
 
