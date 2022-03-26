@@ -737,7 +737,7 @@ impl Binance {
             .await
     }
 
-    pub(super) async fn request_get_balance_and_position(&self) -> Result<RestRequestOutcome> {
+    pub(super) async fn request_get_balance_spot(&self) -> Result<RestRequestOutcome> {
         panic!("not supported request")
     }
 
