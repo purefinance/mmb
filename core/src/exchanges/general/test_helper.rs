@@ -96,11 +96,7 @@ impl ExchangeClient for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
-        unimplemented!("doesn't need in UT")
-    }
-
-    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
+    async fn get_balance(&self, _is_spot: bool) -> Result<ExchangeBalancesAndPositions> {
         unimplemented!("doesn't need in UT")
     }
 
