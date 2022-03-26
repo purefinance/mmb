@@ -1,4 +1,5 @@
 pub mod account_balance;
+pub mod cancel_order;
 pub mod common;
 pub mod create_order;
 pub mod get_open_orders;

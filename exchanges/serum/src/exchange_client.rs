@@ -16,7 +16,7 @@ use mmb_core::exchanges::common::{
     ActivePosition, ClosedPosition, CurrencyCode, CurrencyPair, ExchangeError, ExchangeErrorType,
     Price,
 };
-use mmb_core::exchanges::events::{ExchangeBalance, ExchangeBalancesAndPositions};
+use mmb_core::exchanges::events::ExchangeBalancesAndPositions;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
@@ -43,12 +43,23 @@ impl ExchangeClient for Serum {
         }
     }
 
-    async fn cancel_order(&self, _order: OrderCancelling) -> CancelOrderResult {
-        todo!()
+    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
+        // TODO Possible handle ExchangeError in create_order_core
+        match self.cancel_order_core(&order).await {
+            Ok(_) => CancelOrderResult::successed(
+                order.header.client_order_id.clone(),
+                EventSourceType::Rpc,
+                None,
+            ),
+            Err(error) => CancelOrderResult::failed(
+                ExchangeError::new(ExchangeErrorType::Unknown, error.to_string(), None),
+                EventSourceType::Rpc,
+            ),
+        }
     }
 
-    async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()> {
-        todo!()
+    async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
+        self.cancel_all_orders_core(&currency_pair).await
     }
 
     async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
@@ -141,7 +152,7 @@ impl ExchangeClient for Serum {
         }))
         .await
         .into_iter()
-        .collect::<Result<Vec<ExchangeBalance>>>()?;
+        .try_collect()?;
 
         Ok(ExchangeBalancesAndPositions {
             balances,
