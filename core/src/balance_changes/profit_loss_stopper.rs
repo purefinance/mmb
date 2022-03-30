@@ -11,7 +11,7 @@ use crate::exchanges::exchange_blocker::ExchangeBlocker;
 #[double]
 use crate::exchanges::general::engine_api::EngineApi;
 #[double]
-use crate::services::usd_converter::usd_converter::UsdConverter;
+use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
     exchanges::{
@@ -138,6 +138,7 @@ pub(crate) mod test {
 
     #[double]
     use crate::misc::time::time_manager;
+    use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
     use crate::{
         balance_changes::{
             balance_change_usd_periodic_calculator::BalanceChangeUsdPeriodicCalculator,
@@ -312,8 +313,10 @@ pub(crate) mod test {
             id: ProfitLossBalanceChangeId::generate(),
             client_order_fill_id,
             change_date,
-            service_name: "test".into(),
-            service_configuration_key: "test".into(),
+            configuration_descriptor: ConfigurationDescriptor {
+                service_name: "test".into(),
+                service_configuration_key: "test".into(),
+            },
             exchange_id: exchange_id(),
             market_account_id,
             currency_code: btc(),

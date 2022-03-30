@@ -1,7 +1,7 @@
 use mockall_double::double;
 
 #[double]
-use crate::services::usd_converter::usd_converter::UsdConverter;
+use crate::services::usd_convertion::usd_converter::UsdConverter;
 use crate::{
     exchanges::common::{Amount, CurrencyCode, ExchangeId, Price},
     misc::service_value_tree::ServiceValueTree,

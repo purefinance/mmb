@@ -31,7 +31,9 @@ use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::{ErrorHandler, ErrorHandlerData, RestClient};
-use mmb_core::exchanges::traits::{ExchangeClientBuilderResult, Support};
+use mmb_core::exchanges::traits::{
+    ExchangeClientBuilderResult, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, Support,
+};
 use mmb_core::exchanges::{
     common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
@@ -118,14 +120,10 @@ pub struct Binance {
     pub settings: ExchangeSettings,
     pub hosts: Hosts,
     pub id: ExchangeAccountId,
-    pub order_created_callback:
-        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
-    pub order_cancelled_callback:
-        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
+    pub order_created_callback: Mutex<OrderCreatedCb>,
+    pub order_cancelled_callback: Mutex<OrderCancelledCb>,
     pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
-    pub handle_trade_callback: Mutex<
-        Box<dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>,
-    >,
+    pub handle_trade_callback: Mutex<HandleTradeCb>,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,

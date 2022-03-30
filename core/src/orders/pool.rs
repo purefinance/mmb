@@ -65,7 +65,7 @@ impl OrderRef {
         self.fn_ref(|x| x.header.reservation_id)
     }
     pub fn order_type(&self) -> OrderType {
-        self.fn_ref(|x| x.header.order_type.clone())
+        self.fn_ref(|x| x.header.order_type)
     }
     pub fn currency_pair(&self) -> CurrencyPair {
         self.fn_ref(|x| x.header.currency_pair)
@@ -109,11 +109,11 @@ impl OrderRef {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct OrdersPool {
     pub cache_by_client_id: DashMap<ClientOrderId, OrderRef>,
     pub cache_by_exchange_id: DashMap<ExchangeOrderId, OrderRef>,
     pub not_finished: DashMap<ClientOrderId, OrderRef>,
-    _private: (), // field base constructor shouldn't be accessible from other modules
 }
 
 impl OrdersPool {
@@ -124,14 +124,13 @@ impl OrdersPool {
             cache_by_client_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
             cache_by_exchange_id: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
             not_finished: DashMap::with_capacity(ORDERS_INIT_CAPACITY),
-            _private: (),
         })
     }
 
     /// Insert specified `OrderSnapshot` in order pool.
     pub fn add_snapshot_initial(&self, snapshot: Arc<RwLock<OrderSnapshot>>) -> OrderRef {
         let client_order_id = snapshot.read().header.client_order_id.clone();
-        let order_ref = OrderRef(snapshot.clone());
+        let order_ref = OrderRef(snapshot);
         let _ = self
             .cache_by_client_id
             .insert(client_order_id.clone(), order_ref.clone());

@@ -12,15 +12,12 @@ use url::Url;
 
 use mmb_core::connectivity::connectivity_manager::WebSocketRole;
 use mmb_core::exchanges::common::CurrencyPair;
-use mmb_core::exchanges::common::{Amount, CurrencyCode, CurrencyId, Price, SpecificCurrencyPair};
-use mmb_core::exchanges::events::TradeId;
-use mmb_core::exchanges::general::handlers::handle_order_filled::FillEventData;
+use mmb_core::exchanges::common::{CurrencyCode, CurrencyId, SpecificCurrencyPair};
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
-use mmb_core::exchanges::traits::Support;
-use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{ClientOrderId, ExchangeOrderId, OrderSide};
+use mmb_core::exchanges::traits::{
+    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, Support,
+};
 use mmb_core::settings::ExchangeSettings;
-use mmb_utils::DateTime;
 
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
@@ -37,33 +34,19 @@ impl Support for Serum {
         Ok(())
     }
 
-    fn set_order_created_callback(
-        &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
-    ) {
+    fn set_order_created_callback(&self, callback: OrderCreatedCb) {
         *self.order_created_callback.lock() = callback;
     }
 
-    fn set_order_cancelled_callback(
-        &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
-    ) {
+    fn set_order_cancelled_callback(&self, callback: OrderCancelledCb) {
         *self.order_cancelled_callback.lock() = callback;
     }
 
-    fn set_handle_order_filled_callback(
-        &self,
-        callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
-    ) {
+    fn set_handle_order_filled_callback(&self, callback: HandleOrderFilledCb) {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
-    fn set_handle_trade_callback(
-        &self,
-        callback: Box<
-            dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
-        >,
-    ) {
+    fn set_handle_trade_callback(&self, callback: HandleTradeCb) {
         *self.handle_trade_callback.lock() = callback;
     }
 
@@ -99,7 +82,7 @@ impl Support for Serum {
 impl Serum {
     pub fn get_symbol_from_market(
         &self,
-        market_name: &String,
+        market_name: &str,
         market_pub_key: Pubkey,
     ) -> Result<Symbol> {
         let market = self.get_market(&market_pub_key)?;
@@ -114,7 +97,7 @@ impl Serum {
         let pc_mint_data = state::Mint::unpack_from_slice(&pc_data)?;
 
         let (base_currency_id, quote_currency_id) =
-            market_name.rsplit_once("/").with_context(|| {
+            market_name.rsplit_once('/').with_context(|| {
                 format!("Unable to get currency pair from market name {market_name}")
             })?;
         let base_currency_code = base_currency_id.into();

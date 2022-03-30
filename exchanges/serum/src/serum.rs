@@ -40,20 +40,18 @@ use mmb_core::exchanges::common::{
     Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, RestRequestOutcome,
     SpecificCurrencyPair,
 };
-use mmb_core::exchanges::events::{
-    AllowedEventSourceType, ExchangeBalance, ExchangeEvent, TradeId,
-};
+use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeBalance, ExchangeEvent};
 use mmb_core::exchanges::general::exchange::BoxExchangeClient;
 use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
     RestFillsType, WebSocketOptions,
 };
-use mmb_core::exchanges::general::handlers::handle_order_filled::FillEventData;
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::rest_client::{ErrorHandlerData, ErrorHandlerEmpty, RestClient};
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::exchanges::traits::{
-    ExchangeClient, ExchangeClientBuilder, ExchangeClientBuilderResult,
+    ExchangeClient, ExchangeClientBuilder, ExchangeClientBuilderResult, HandleOrderFilledCb,
+    HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::fill::EventSourceType;
@@ -63,7 +61,6 @@ use mmb_core::orders::order::{
 };
 use mmb_core::orders::pool::OrderRef;
 use mmb_core::settings::ExchangeSettings;
-use mmb_utils::DateTime;
 
 pub struct SolanaHosts {
     url: String,
@@ -110,14 +107,10 @@ pub struct Serum {
     pub id: ExchangeAccountId,
     pub settings: ExchangeSettings,
     pub payer: Keypair,
-    pub order_created_callback:
-        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
-    pub order_cancelled_callback:
-        Mutex<Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>>,
-    pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
-    pub handle_trade_callback: Mutex<
-        Box<dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>,
-    >,
+    pub order_created_callback: Mutex<OrderCreatedCb>,
+    pub order_cancelled_callback: Mutex<OrderCancelledCb>,
+    pub handle_order_filled_callback: Mutex<HandleOrderFilledCb>,
+    pub handle_trade_callback: Mutex<HandleTradeCb>,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
@@ -165,16 +158,16 @@ impl Serum {
     }
 
     pub fn get_market(&self, address: &Pubkey) -> Result<MarketState> {
-        let mut account = self.rpc_client.get_account(&address)?;
-        let program_id = account.owner.clone();
+        let mut account = self.rpc_client.get_account(address)?;
+        let program_id = account.owner;
         let account_info = (address, &mut account).into_account_info();
         let market = Market::load(&account_info, &program_id, false)?;
         Ok(*market.deref())
     }
 
-    pub fn get_market_data(&self, currency_pair: &CurrencyPair) -> Result<MarketData> {
+    pub fn get_market_data(&self, currency_pair: CurrencyPair) -> Result<MarketData> {
         let lock = self.markets_data.read();
-        lock.get(currency_pair)
+        lock.get(&currency_pair)
             .cloned()
             .ok_or(anyhow!("Unable to get market data"))
     }
@@ -250,7 +243,7 @@ impl Serum {
 
         Ok(self
             .rpc_client
-            .get_program_accounts_with_config(&program_id, config)?)
+            .get_program_accounts_with_config(program_id, config)?)
     }
 
     fn create_dex_account(
@@ -422,7 +415,7 @@ impl Serum {
         currency_code: &CurrencyCode,
         mint_address: &Pubkey,
     ) -> Result<ExchangeBalance> {
-        let wallet_address = get_associated_token_address(&self.payer.pubkey(), &mint_address);
+        let wallet_address = get_associated_token_address(&self.payer.pubkey(), mint_address);
         let token_amount = self.rpc_client.get_token_account_balance(&wallet_address)?;
         let ui_amount = token_amount.ui_amount.with_context(|| {
             format!("Unable get token amount for payer {}", self.payer.pubkey())
@@ -508,7 +501,7 @@ impl Serum {
         let orders_keypair: Keypair;
         let client_order_id = order.header.client_order_id.clone();
 
-        let market_data = self.get_market_data(&order.header.currency_pair)?;
+        let market_data = self.get_market_data(order.header.currency_pair)?;
         let accounts = self.load_orders_for_owner(&market_data.address, &market_data.program_id)?;
 
         let open_order_account = match accounts.first() {
@@ -568,8 +561,8 @@ impl Serum {
 
         // TODO move to handle websocket notification
         (&self.order_created_callback).lock()(
-            client_order_id.into(),
-            exchange_order_id.clone().into(),
+            client_order_id,
+            exchange_order_id.clone(),
             EventSourceType::WebSocket,
         );
 
@@ -577,7 +570,7 @@ impl Serum {
     }
 
     pub(super) async fn cancel_order_core(&self, order: &OrderCancelling) -> Result<()> {
-        let market_data = self.get_market_data(&order.header.currency_pair)?;
+        let market_data = self.get_market_data(order.header.currency_pair)?;
         let metadata = market_data.metadata;
         let client_order_id = order.header.client_order_id.clone();
         let exchange_order_id = order.exchange_order_id.clone();
@@ -614,21 +607,19 @@ impl Serum {
 
         // TODO move to handle websocket notification
         (&self.order_cancelled_callback).lock()(
-            client_order_id.into(),
-            exchange_order_id.into(),
+            client_order_id,
+            exchange_order_id,
             EventSourceType::WebSocket,
         );
 
         Ok(())
     }
 
-    pub(super) async fn cancel_all_orders_core(&self, currency_pair: &CurrencyPair) -> Result<()> {
+    pub(super) async fn cancel_all_orders_core(&self, currency_pair: CurrencyPair) -> Result<()> {
         let market_data = self.get_market_data(currency_pair)?;
         let metadata = market_data.metadata;
 
-        let orders = self
-            .get_open_orders_by_currency_pair(currency_pair.clone())
-            .await?;
+        let orders = self.get_open_orders_by_currency_pair(currency_pair).await?;
 
         let instructions: Vec<Instruction> = orders
             .iter()

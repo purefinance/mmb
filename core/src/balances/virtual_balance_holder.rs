@@ -27,7 +27,7 @@ impl VirtualBalanceHolder {
 
         Self {
             balance_by_exchange_id,
-            balance_diff: ServiceValueTree::new(),
+            balance_diff: ServiceValueTree::default(),
         }
     }
 
@@ -47,7 +47,7 @@ impl VirtualBalanceHolder {
 
         let all_diffs = self.balance_diff.get_as_balances();
         for currency_code in balances_by_currency_code.keys() {
-            for (balance_request, _) in &all_diffs {
+            for balance_request in all_diffs.keys() {
                 if balance_request.exchange_account_id == exchange_account_id
                     && balance_request.currency_code == *currency_code
                 {
@@ -100,7 +100,7 @@ impl VirtualBalanceHolder {
             self.add_balance(request, diff_in_request_currency);
         } else {
             let balance_currency_code_request = BalanceRequest::new(
-                request.configuration_descriptor.clone(),
+                request.configuration_descriptor,
                 request.exchange_account_id,
                 request.currency_pair,
                 symbol
@@ -147,7 +147,7 @@ impl VirtualBalanceHolder {
         } else {
             let price = price?;
             let balance_currency_code_request = BalanceRequest::new(
-                balance_request.configuration_descriptor.clone(),
+                balance_request.configuration_descriptor,
                 balance_request.exchange_account_id,
                 balance_request.currency_pair,
                 symbol.balance_currency_code.expect(
@@ -181,7 +181,7 @@ impl VirtualBalanceHolder {
 
             cur_balance_diff
         };
-        return Some(exchange_balance + current_balance_diff);
+        Some(exchange_balance + current_balance_diff)
     }
 
     pub fn get_exchange_balance(
@@ -233,7 +233,7 @@ impl VirtualBalanceHolder {
     pub fn has_real_balance_on_exchange(&self, exchange_account_id: ExchangeAccountId) -> bool {
         self.balance_by_exchange_id
             .get(&exchange_account_id)
-            .map(|x| x.len() > 0)
+            .map(|x| !x.is_empty())
             .unwrap_or(false)
     }
 }

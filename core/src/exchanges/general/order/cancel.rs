@@ -116,7 +116,7 @@ impl Exchange {
         if let Some(ref cancel_outcome) = order_cancellation_outcome {
             match &cancel_outcome.outcome {
                 RequestResult::Success(client_order_id) => self.handle_cancel_order_succeeded(
-                    Some(&client_order_id),
+                    Some(client_order_id),
                     &exchange_order_id,
                     cancel_outcome.filled_amount,
                     cancel_outcome.source_type,
@@ -158,27 +158,27 @@ impl Exchange {
                 match cancel_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
-                        return Some(cancel_order_result);
+                        Some(cancel_order_result)
                     }
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return websocket_outcome.ok()
+                                websocket_outcome.ok()
                             }
                             _ = cancellation_token.when_cancelled() => {
-                                return None;
+                                None
                             }
                         }
                     }
                 }
             }
             _ = cancellation_token.when_cancelled() => {
-                return None;
+                None
             }
             websocket_outcome = &mut websocket_event_receiver => {
-                return websocket_outcome.ok()
+                websocket_outcome.ok()
             }
-        };
+        }
     }
 
     pub(crate) fn raise_order_cancelled(
@@ -215,7 +215,7 @@ impl Exchange {
         orders: Vec<OrderInfo>,
         cancellation_token: CancellationToken,
     ) {
-        if orders.len() == 0 {
+        if orders.is_empty() {
             return;
         }
 

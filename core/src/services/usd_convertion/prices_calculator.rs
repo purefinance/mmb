@@ -7,7 +7,7 @@ use crate::{
     exchanges::common::{Amount, MarketId, Price},
     misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
-    services::usd_converter::{
+    services::usd_convertion::{
         price_source_chain::PriceSourceChain, rebase_price_step::RebaseDirection,
     },
 };
@@ -94,7 +94,7 @@ mod test {
         exchanges::{
             common::CurrencyPair, general::test_helper::get_test_exchange_by_currency_codes,
         },
-        services::usd_converter::{
+        services::usd_convertion::{
             price_source_chain::PriceSourceChain,
             price_source_service::{test::PriceSourceServiceTestBase, PriceSourceService},
         },

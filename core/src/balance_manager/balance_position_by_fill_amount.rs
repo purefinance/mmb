@@ -8,7 +8,7 @@ use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BalancePositionByFillAmount {
     /// MarketAccountId -> AmountInAmountCurrency
     position_by_fill_amount: HashMap<MarketAccountId, Decimal>,
@@ -18,13 +18,6 @@ pub struct BalancePositionByFillAmount {
 }
 
 impl BalancePositionByFillAmount {
-    pub fn new() -> Self {
-        Self {
-            position_by_fill_amount: HashMap::new(),
-            position_changes: HashMap::new(),
-        }
-    }
-
     pub fn get(
         &self,
         exchange_account_id: ExchangeAccountId,
@@ -44,7 +37,7 @@ impl BalancePositionByFillAmount {
         client_order_fill_id: Option<ClientOrderFillId>,
         now: DateTime,
     ) {
-        let key = MarketAccountId::new(exchange_account_id, currency_pair.clone());
+        let key = MarketAccountId::new(exchange_account_id, currency_pair);
 
         log::info!(
             "PositionChanges {:?} {} {:?}",
@@ -104,7 +97,7 @@ impl BalancePositionByFillAmount {
                 );
 
                 self.position_changes.insert(
-                    key.clone(),
+                    key,
                     vec![PositionChange::new(client_order_fill_id, now, dec!(1))],
                 );
             }

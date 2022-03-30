@@ -8,11 +8,11 @@ use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::{
     balance_manager::balance_request::BalanceRequest,
     exchanges::common::{Amount, CurrencyCode, ExchangeId, MarketAccountId, Price},
     orders::order::ClientOrderFillId,
-    service_configuration::configuration_descriptor::{ServiceConfigurationKey, ServiceName},
 };
 
 impl_u64_id!(ProfitLossBalanceChangeId);
@@ -23,8 +23,7 @@ pub(crate) struct ProfitLossBalanceChange {
     pub id: ProfitLossBalanceChangeId,
     pub client_order_fill_id: ClientOrderFillId,
     pub change_date: DateTime,
-    pub service_name: ServiceName,
-    pub service_configuration_key: ServiceConfigurationKey,
+    pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_id: ExchangeId,
     pub market_account_id: MarketAccountId,
     pub currency_code: CurrencyCode,
@@ -46,11 +45,7 @@ impl ProfitLossBalanceChange {
             id: ProfitLossBalanceChangeId::generate(),
             client_order_fill_id,
             change_date,
-            service_name: request.configuration_descriptor.service_name,
-            service_configuration_key: request
-                .configuration_descriptor
-                .service_configuration_key
-                .clone(),
+            configuration_descriptor: request.configuration_descriptor,
             exchange_id,
             market_account_id: MarketAccountId::new(
                 request.exchange_account_id,
@@ -59,7 +54,7 @@ impl ProfitLossBalanceChange {
             currency_code: request.currency_code,
             balance_change,
             usd_price: usd_balance_change / balance_change,
-            usd_balance_change: usd_balance_change,
+            usd_balance_change,
         }
     }
 
@@ -81,11 +76,6 @@ impl PartialOrd for ProfitLossBalanceChange {
 #[cfg(test)]
 impl Ord for ProfitLossBalanceChange {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        if self.change_date > other.change_date {
-            return std::cmp::Ordering::Greater;
-        } else if self.change_date < other.change_date {
-            return std::cmp::Ordering::Less;
-        }
-        std::cmp::Ordering::Equal
+        self.change_date.cmp(&other.change_date)
     }
 }

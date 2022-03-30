@@ -296,7 +296,7 @@ impl ConnectivityManager {
                         Ok(websocket) => {
                             websocket_connectivity.lock().await.deref_mut().state =
                                 WebSocketState::Connected {
-                                    websocket: websocket,
+                                    websocket,
                                     finished_sender: finished_sender.clone(),
                                 };
 
@@ -351,7 +351,7 @@ impl ConnectivityManager {
             }
         }
 
-        Self::set_disconnected_state(finished_sender, &websocket_connectivity).await;
+        Self::set_disconnected_state(finished_sender, websocket_connectivity).await;
 
         false
     }

@@ -11,7 +11,7 @@ use parking_lot::Mutex;
 #[double]
 use crate::balance_manager::balance_manager::BalanceManager;
 #[double]
-use crate::services::usd_converter::usd_converter::UsdConverter;
+use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
     balance_changes::{

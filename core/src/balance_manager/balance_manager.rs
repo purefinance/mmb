@@ -127,7 +127,8 @@ impl BalanceManager {
             .get_reservation(reservation_id)
             .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?
             .unreserved_amount;
-        return self.unreserve(reservation_id, amount);
+
+        self.unreserve(reservation_id, amount)
     }
 
     pub fn unreserve(&mut self, reservation_id: ReservationId, amount: Amount) -> Result<()> {
@@ -367,7 +368,7 @@ impl BalanceManager {
             .lock()
             .iter()
             .for_each(|x| {
-                let _ = filtered_exchange_balances.entry(x.clone()).or_default();
+                let _ = filtered_exchange_balances.entry(*x).or_default();
             });
 
         let reservations_by_exchange_account_id = self
@@ -469,7 +470,7 @@ impl BalanceManager {
         this: Arc<Mutex<Self>>,
         orders: Option<Vec<OrderRef>>,
     ) -> Result<Arc<Mutex<BalanceManager>>> {
-        let balance_manager = Self::custom_clone(this.clone());
+        let balance_manager = Self::custom_clone(this);
 
         let mut bm_locked = balance_manager.lock();
         let not_full_approved_reservations: HashMap<_, _> = bm_locked
@@ -478,7 +479,7 @@ impl BalanceManager {
             .get_all_raw_reservations()
             .iter()
             .filter(|(_, reservation)| reservation.not_approved_amount > dec!(0))
-            .map(|(id, reservation)| (id.clone(), reservation.clone()))
+            .map(|(id, reservation)| (*id, reservation.clone()))
             .collect();
 
         let orders_to_subtract = orders.unwrap_or_default();
@@ -524,7 +525,7 @@ impl BalanceManager {
                 // just in case if there is a possible precision error
                 continue;
             }
-            bm_locked.unreserve(reservation_id.clone(), amount_to_unreserve)?;
+            bm_locked.unreserve(reservation_id, amount_to_unreserve)?;
         }
 
         drop(bm_locked);
@@ -545,9 +546,9 @@ impl BalanceManager {
     ) -> Decimal {
         self.balance_reservation_manager
             .get_fill_amount_position_percent(
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
-                symbol.clone(),
+                symbol,
                 side,
             )
     }
@@ -581,7 +582,7 @@ impl BalanceManager {
             .currency_pair_to_symbol_converter
             .get_symbol(exchange_account_id, order_snapshot.header.currency_pair);
         self.handle_order_fill(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol,
             order_snapshot,
@@ -614,7 +615,7 @@ impl BalanceManager {
                 order_fill.client_order_fill_id(),
                 order_fill.amount(),
                 order_fill.price(),
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 symbol.clone(),
             );
@@ -627,7 +628,7 @@ impl BalanceManager {
                 order_fill.client_order_fill_id(),
                 -order_fill.amount(),
                 order_fill.price(),
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 symbol.clone(),
             );
@@ -639,7 +640,7 @@ impl BalanceManager {
                 order_fill.converted_commission_currency_code(),
                 order_fill.converted_commission_amount(),
                 order_fill.price(),
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 symbol.clone(),
             );
@@ -654,7 +655,7 @@ impl BalanceManager {
             .balance_reservation_manager
             .get_position_in_amount_currency_code(
                 exchange_account_id,
-                symbol.clone(),
+                symbol,
                 order_snapshot.header.side,
             );
 
@@ -696,11 +697,7 @@ impl BalanceManager {
         order_snapshot: &OrderSnapshot,
     ) {
         for order_fill in &order_snapshot.fills.fills {
-            self.order_was_filled_with_fill(
-                configuration_descriptor.clone(),
-                order_snapshot,
-                order_fill,
-            );
+            self.order_was_filled_with_fill(configuration_descriptor, order_snapshot, order_fill);
         }
 
         if order_snapshot.status() == OrderStatus::Canceled {
@@ -935,7 +932,7 @@ impl BalanceManager {
     ) -> Option<Amount> {
         self.balance_reservation_manager
             .try_get_available_balance_with_unknown_side(
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 symbol,
                 currency_code,
@@ -952,7 +949,7 @@ impl BalanceManager {
         price: Price,
     ) -> Option<Amount> {
         self.balance_reservation_manager.try_get_available_balance(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol,
             side,
@@ -968,7 +965,7 @@ impl BalanceManager {
         reserve_parameters: &ReserveParameters,
     ) -> Option<Amount> {
         self.get_balance_by_side(
-            reserve_parameters.configuration_descriptor.clone(),
+            reserve_parameters.configuration_descriptor,
             reserve_parameters.exchange_account_id,
             reserve_parameters.symbol.clone(),
             reserve_parameters.order_side,
@@ -1031,7 +1028,8 @@ impl BalanceManager {
             .map(|exchange| {
                 let this = this.clone();
                 let cancellation_token = cancellation_token.clone();
-                let action = async move {
+
+                async move {
                     let balances_and_positions = exchange
                         .get_balance(cancellation_token.clone())
                         .await
@@ -1048,9 +1046,7 @@ impl BalanceManager {
                             &balances_and_positions,
                         )
                         .expect("failed to update exchange balance");
-                };
-
-                action
+                }
             })
             .collect_vec();
 

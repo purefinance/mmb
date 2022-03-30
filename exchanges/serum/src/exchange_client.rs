@@ -59,7 +59,7 @@ impl ExchangeClient for Serum {
     }
 
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
-        self.cancel_all_orders_core(&currency_pair).await
+        self.cancel_all_orders_core(currency_pair).await
     }
 
     async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
@@ -80,7 +80,7 @@ impl ExchangeClient for Serum {
         &self,
         currency_pair: CurrencyPair,
     ) -> Result<Vec<OrderInfo>> {
-        let market_data = self.get_market_data(&currency_pair)?;
+        let market_data = self.get_market_data(currency_pair)?;
         let program_id = &market_data.program_id;
         let market_metadata = &market_data.metadata;
         let mut account = self
@@ -101,10 +101,10 @@ impl ExchangeClient for Serum {
         let asks_slab = asks.deref_mut();
 
         let mut orders =
-            self.encode_orders(asks_slab, &market_metadata, Side::Ask, &currency_pair)?;
+            self.encode_orders(asks_slab, market_metadata, Side::Ask, &currency_pair)?;
         orders.append(&mut self.encode_orders(
             bids_slab,
-            &market_metadata,
+            market_metadata,
             Side::Bid,
             &currency_pair,
         )?);
@@ -149,7 +149,7 @@ impl ExchangeClient for Serum {
                 .collect();
 
             let balances = join_all(mint_addresses.iter().map(|(currency_code, mint_address)| {
-                self.get_exchange_balance_from_account(&currency_code, &mint_address)
+                self.get_exchange_balance_from_account(currency_code, mint_address)
             }))
             .await
             .into_iter()

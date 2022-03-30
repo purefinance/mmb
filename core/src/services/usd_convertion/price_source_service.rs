@@ -16,7 +16,7 @@ use crate::{
     infrastructure::spawn_future,
     misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
-    services::usd_converter::{prices_calculator, rebase_price_step::RebaseDirection},
+    services::usd_convertion::{prices_calculator, rebase_price_step::RebaseDirection},
     settings::CurrencyPriceSourceSettings,
 };
 

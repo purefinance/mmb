@@ -28,5 +28,5 @@ pub fn is_enough_amount_and_cost(
         log::trace!("{}", msg);
     }
 
-    return Err(msg);
+    Err(msg)
 }

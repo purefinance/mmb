@@ -66,7 +66,7 @@ impl ControlPanel {
     /// Start Actix Server in new thread
     pub(crate) fn start(self: Arc<Self>) -> Result<JoinHandle<()>> {
         let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>();
-        *self.server_stopper_tx.lock() = Some(server_stopper_tx.clone());
+        *self.server_stopper_tx.lock() = Some(server_stopper_tx);
 
         let client = self.client.clone();
 
@@ -100,7 +100,7 @@ impl ControlPanel {
             "ControlPanel has been started. WebUI is launched on http://{ADDRESS}"
         ));
 
-        Ok(self.clone().start_server(server))
+        Ok(self.start_server(server))
     }
 
     fn server_stopping(
@@ -108,7 +108,6 @@ impl ControlPanel {
         server_handle: ServerHandle,
         server_stopper_rx: mpsc::Receiver<()>,
     ) {
-        let cloned_self = self.clone();
         thread::spawn(move || {
             if let Err(error) = server_stopper_rx.recv() {
                 log::error!("Unable to receive signal to stop actix server: {}", error);
@@ -116,8 +115,8 @@ impl ControlPanel {
 
             executor::block_on(server_handle.stop(true));
 
-            if let Some(work_finished_sender) = cloned_self.work_finished_sender.lock().take() {
-                if let Err(_) = work_finished_sender.send(Ok(())) {
+            if let Some(work_finished_sender) = self.work_finished_sender.lock().take() {
+                if work_finished_sender.send(Ok(())).is_err() {
                     log::error!("Unable to send notification about server stopped");
                 }
             }
@@ -140,11 +139,9 @@ fn handle_rpc_error(error: RpcError) -> HttpResponse {
         RpcError::JsonRpcError(error) => {
             HttpResponse::InternalServerError().body(error.to_string())
         }
-        RpcError::ParseError(msg, error) => HttpResponse::BadRequest().body(format!(
-            "Failed to parse '{}': {}",
-            msg,
-            error.to_string()
-        )),
+        RpcError::ParseError(msg, error) => {
+            HttpResponse::BadRequest().body(format!("Failed to parse '{msg}': {error}"))
+        }
         RpcError::Timeout => HttpResponse::RequestTimeout().body("Request Timeout"),
         RpcError::Client(msg) => HttpResponse::InternalServerError().body(msg),
         RpcError::Other(error) => HttpResponse::InternalServerError().body(error.to_string()),
@@ -170,7 +167,7 @@ pub async fn send_request(
 
         if let Some(client) = &*client.lock() {
             match (action)(client).await {
-                Ok(response) => return HttpResponse::Ok().body(response.to_string()),
+                Ok(response) => return HttpResponse::Ok().body(response),
                 Err(err) => {
                     if try_counter > 2 {
                         return handle_rpc_error(err);

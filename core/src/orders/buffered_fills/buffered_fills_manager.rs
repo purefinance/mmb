@@ -8,17 +8,12 @@ use crate::{
 
 use super::buffered_fill::BufferedFill;
 
+#[derive(Default)]
 pub struct BufferedFillsManager {
     buffered_fills: HashMap<ExchangeOrderId, Vec<BufferedFill>>,
 }
 
 impl BufferedFillsManager {
-    pub fn new() -> Self {
-        Self {
-            buffered_fills: HashMap::<ExchangeOrderId, Vec<BufferedFill>>::new(),
-        }
-    }
-
     pub fn add_fill(&mut self, exchange_account_id: ExchangeAccountId, event_date: FillEventData) {
         //likely we got a fill notification before an order creation notification
         let buffered_fill = BufferedFill::new(

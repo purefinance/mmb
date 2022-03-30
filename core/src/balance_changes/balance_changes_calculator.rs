@@ -41,7 +41,7 @@ impl BalanceChangesCalculator {
         self.get_balance_changes_calculator_results(
             configuration_descriptor,
             order,
-            &order_fill,
+            order_fill,
             symbol,
         )
     }
@@ -131,7 +131,7 @@ impl BalanceChangesCalculator {
         };
 
         let base_currency_code_request = BalanceRequest::new(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.currency_pair(),
             symbol.base_currency_code(),
@@ -144,7 +144,7 @@ impl BalanceChangesCalculator {
             symbol.quote_currency_code(),
         );
 
-        let mut res_balance_changes = ServiceValueTree::new();
+        let mut res_balance_changes = ServiceValueTree::default();
         res_balance_changes.set_by_balance_request(&base_currency_code_request, new_base_amount);
         res_balance_changes.set_by_balance_request(&quote_currency_code_request, new_quote_amount);
 

@@ -553,7 +553,7 @@ impl DispositionExecutor {
         log::trace!("Begin cancel_order {}", order.client_order_id());
 
         let client_order_id = order.client_order_id();
-        let request_group_id = order_record.request_group_id.clone();
+        let request_group_id = order_record.request_group_id;
         let exchange = self.exchange();
         let cancellation_token = self.cancellation_token.clone();
 
@@ -800,7 +800,7 @@ impl DispositionExecutor {
         };
 
         for slot in &self.orders_state.by_side[side.change_side()].slots {
-            for (_, order_record) in &slot.order.borrow().orders {
+            for order_record in slot.order.borrow().orders.values() {
                 let order = &order_record.order;
                 if order.is_finished() && is_crossing(order) {
                     return Some(order.clone());
@@ -808,7 +808,7 @@ impl DispositionExecutor {
             }
         }
 
-        return None;
+        None
     }
 
     fn calculate_new_order_amount(
@@ -844,7 +844,7 @@ impl DispositionExecutor {
             order.client_order_id(),
             self.exchange_account_id
         );
-        return None;
+        None
     }
 
     fn finish_order(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
@@ -1007,7 +1007,7 @@ fn now() -> DateTime {
 }
 
 #[inline(always)]
-fn log_trace<'a>(msg: impl AsRef<str>, explanation: &mut Explanation) -> Result<()> {
+fn log_trace(msg: impl AsRef<str>, explanation: &mut Explanation) -> Result<()> {
     let msg = msg.as_ref();
 
     log::trace!("{}", msg);

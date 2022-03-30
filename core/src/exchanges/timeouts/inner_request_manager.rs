@@ -153,10 +153,7 @@ impl InnerRequestsTimeoutManager {
     }
 
     pub(super) fn get_last_request(&self) -> Result<Request> {
-        self.requests
-            .last()
-            .map(|request| request.clone())
-            .ok_or(anyhow!(
+        self.requests.last().cloned().ok_or(anyhow!(
             "There are no stored request at all in TimeoutManager, so unable to get the last one"
         ))
     }
@@ -166,12 +163,11 @@ impl InnerRequestsTimeoutManager {
         let reserved_requests_counts_without_group = reserved_requests_count
             .requests_count
             .saturating_sub(reserved_requests_count.reserved_in_groups_requests_count);
-        let available_requests_count = self.requests_per_period.saturating_sub(
+
+        self.requests_per_period.saturating_sub(
             reserved_requests_counts_without_group
                 + reserved_requests_count.vacant_and_reserved_in_groups_requests_count,
-        );
-
-        available_requests_count
+        )
     }
 
     fn get_reserved_requests_count_at_present(
@@ -245,10 +241,7 @@ impl InnerRequestsTimeoutManager {
     }
 
     pub(super) fn get_all_available_requests_count(&self) -> usize {
-        let available_requests_number =
-            self.requests_per_period.saturating_sub(self.requests.len());
-
-        available_requests_number
+        self.requests_per_period.saturating_sub(self.requests.len())
     }
 
     pub(super) fn remove_outdated_requests(&mut self, current_time: DateTime) -> Result<()> {

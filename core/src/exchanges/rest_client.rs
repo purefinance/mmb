@@ -25,7 +25,7 @@ pub struct ErrorHandlerEmpty;
 pub type BoxErrorHandler = Box<dyn ErrorHandler + Send + Sync>;
 
 impl ErrorHandlerEmpty {
-    pub fn new() -> BoxErrorHandler {
+    pub fn new() -> Box<Self> {
         Box::new(ErrorHandlerEmpty {})
     }
 }
@@ -156,7 +156,7 @@ pub struct RestClient {
     error_handler: ErrorHandlerData,
 }
 
-const KEEP_ALIVE: &'static str = "keep-alive";
+const KEEP_ALIVE: &str = "keep-alive";
 // Inner Hyper types. Needed just for unified response handling in handle_response()
 type ResponseType = std::result::Result<Response<Body>, Error>;
 
