@@ -33,7 +33,6 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
-use std::convert::identity;
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 use std::time::Duration;
@@ -92,7 +91,7 @@ where
             return None;
         }
 
-        match try_load_settings::<StrategySettings>(&config_path, &credentials_path) {
+        match try_load_settings::<StrategySettings>(config_path, credentials_path) {
             Ok(settings) => {
                 wait_for_config.stop_server();
 
@@ -148,7 +147,7 @@ where
 
     let (events_sender, events_receiver) = broadcast::channel(CHANNEL_MAX_EVENTS_COUNT);
 
-    let timeout_manager = create_timeout_manager(&settings.core, &build_settings);
+    let timeout_manager = create_timeout_manager(&settings.core, build_settings);
 
     let exchanges = create_exchanges(
         &settings.core,
@@ -227,7 +226,7 @@ where
         .shutdown_service
         .register_core_service(internal_events_loop.clone());
 
-    let exchange_events = ExchangeEvents::new(events_sender.clone());
+    let exchange_events = ExchangeEvents::new(events_sender);
     let statistic_service = StatisticService::new();
     let statistic_event_handler =
         create_statistic_event_handler(exchange_events, statistic_service.clone());
@@ -239,11 +238,11 @@ where
     .expect("Unable to start control panel");
     engine_context
         .shutdown_service
-        .register_core_service(control_panel.clone());
+        .register_core_service(control_panel);
 
     {
-        let local_exchanges_map = exchanges_map.into_iter().map(identity).collect();
-        let action = internal_events_loop.clone().start(
+        let local_exchanges_map = exchanges_map.into_iter().collect();
+        let action = internal_events_loop.start(
             events_receiver,
             local_exchanges_map,
             engine_context.lifetime_manager.stop_token(),
@@ -267,7 +266,7 @@ where
         .register_user_service(disposition_executor_service);
 
     log::info!("TradingEngine started");
-    TradingEngine::new(engine_context.clone(), finish_graceful_shutdown_rx)
+    TradingEngine::new(engine_context, finish_graceful_shutdown_rx)
 }
 
 pub(crate) fn unwrap_or_handle_panic<T>(
@@ -352,7 +351,7 @@ where
         message_template,
         Some(engine_context.lifetime_manager.clone()),
     )
-    .map(|trading_engine| Some(trading_engine));
+    .map(Some);
 
     print_info("The TradingEngine has been successfully launched");
 

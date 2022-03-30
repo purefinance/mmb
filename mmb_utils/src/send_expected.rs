@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use tokio::sync::{broadcast, mpsc, oneshot};
 
-static UNABLE_TO_SEND: &'static str = "Unable to send event";
+static UNABLE_TO_SEND: &str = "Unable to send event";
 
 pub trait SendExpected<T>
 where

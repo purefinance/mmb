@@ -92,7 +92,7 @@ impl Exchange {
         Ok(open_orders)
     }
 
-    fn add_missing_open_orders(&self, open_orders: &Vec<OrderInfo>) {
+    fn add_missing_open_orders(&self, open_orders: &[OrderInfo]) {
         for order in open_orders {
             if order.client_order_id.as_str().is_empty()
                 && self
@@ -113,12 +113,12 @@ impl Exchange {
                 continue;
             }
 
-            let id_for_new_header: ClientOrderId;
-            if order.client_order_id.as_str().is_empty() {
-                id_for_new_header = ClientOrderId::unique_id();
+            let id_for_new_header = if order.client_order_id.as_str().is_empty() {
+                ClientOrderId::unique_id()
             } else {
-                id_for_new_header = order.client_order_id.clone();
-            }
+                order.client_order_id.clone()
+            };
+
             let new_header = OrderHeader::new(
                 id_for_new_header,
                 chrono::Utc::now(),

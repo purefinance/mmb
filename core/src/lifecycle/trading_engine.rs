@@ -197,14 +197,12 @@ impl TradingEngine {
             .catch_unwind()
             .await;
 
-        let is_restart = unwrap_or_handle_panic(
+        unwrap_or_handle_panic(
             action_outcome,
             "Panic happened while TradingEngine was run",
             Some(self.context.lifetime_manager.clone()),
         )
         .expect("unwrap_or_handle_panic returned error")
-        .expect("Failed to receive message from finished_graceful_shutdown");
-
-        is_restart
+        .expect("Failed to receive message from finished_graceful_shutdown")
     }
 }

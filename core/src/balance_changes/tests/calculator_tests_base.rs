@@ -16,7 +16,7 @@ pub mod tests {
     #[double]
     use crate::misc::time::time_manager;
     #[double]
-    use crate::services::usd_converter::usd_converter::UsdConverter;
+    use crate::services::usd_convertion::usd_converter::UsdConverter;
 
     use crate::misc::time;
     use crate::service_configuration::configuration_descriptor::{

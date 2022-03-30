@@ -139,7 +139,7 @@ impl Exchange {
                 .await
                 .into_result()?;
 
-            let cancel_order_future = self.start_cancel_order(&order, cancellation_token.clone());
+            let cancel_order_future = self.start_cancel_order(order, cancellation_token.clone());
 
             // TODO select cancel_order_task only if Exchange.AllowedCancelEventSourceType != AllowedEventSourceType.OnlyFallback
 
@@ -147,7 +147,7 @@ impl Exchange {
                 cancel_order_outcome = cancel_order_future, if self.features.allowed_cancel_event_source_type != AllowedEventSourceType::FallbackOnly => {
                     let cancel_order_outcome = cancel_order_outcome?;
                     self.order_cancelled(
-                        &order,
+                        order,
                         pre_reservation_group_id,
                         cancel_order_outcome,
                         cancellation_token.clone(),
@@ -316,7 +316,7 @@ impl Exchange {
                 self.exchange_account_id
             );
 
-            let order_info = self.get_order_info(&order).await;
+            let order_info = self.get_order_info(order).await;
 
             if order.is_finished() {
                 return Ok(());

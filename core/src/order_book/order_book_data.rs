@@ -85,9 +85,9 @@ impl OrderBookData {
     }
 
     fn update_by_side(snapshot: &mut SortedOrderData, update: &SortedOrderData) {
-        for (key, amount) in update.into_iter() {
+        for (key, amount) in update {
             if amount.is_zero() {
-                let _ = snapshot.remove(&key);
+                let _ = snapshot.remove(key);
             } else {
                 let _ = snapshot.insert(*key, *amount);
             }

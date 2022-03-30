@@ -5,13 +5,13 @@ use mmb_utils::infrastructure::WithExpect;
 use mockall_double::double;
 
 #[double]
-use crate::services::usd_converter::usd_converter::UsdConverter;
+use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::exchanges::common::Amount;
 
 use super::profit_loss_balance_change::ProfitLossBalanceChange;
 
-pub(crate) fn calculate_raw(profit_loss_balance_changes: &Vec<ProfitLossBalanceChange>) -> Amount {
+pub(crate) fn calculate_raw(profit_loss_balance_changes: &[ProfitLossBalanceChange]) -> Amount {
     profit_loss_balance_changes
         .iter()
         .map(|x| x.usd_balance_change)
@@ -19,7 +19,7 @@ pub(crate) fn calculate_raw(profit_loss_balance_changes: &Vec<ProfitLossBalanceC
 }
 
 pub(crate) async fn calculate_over_market(
-    profit_loss_balance_changes: &Vec<ProfitLossBalanceChange>,
+    profit_loss_balance_changes: &[ProfitLossBalanceChange],
     usd_converter: &UsdConverter,
     cancellation_token: CancellationToken,
 ) -> Amount {
@@ -32,10 +32,10 @@ pub(crate) async fn calculate_over_market(
             .iter()
             .map(|(currency_code, balance_changes)| {
                 let sum = balance_changes.iter().map(|x| x.balance_change).sum();
-                let cloned_cancellation_token = cancellation_token.clone();
+                let cancellation_token = cancellation_token.clone();
                 async move {
                     usd_converter
-                        .convert_amount(*currency_code, sum, cloned_cancellation_token)
+                        .convert_amount(*currency_code, sum, cancellation_token)
                         .await
                         .with_expect(|| {
                             format!("Can't find usd_balance_change for {}", currency_code)

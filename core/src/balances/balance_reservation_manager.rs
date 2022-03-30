@@ -65,9 +65,9 @@ impl BalanceReservationManager {
     pub fn new(currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>) -> Self {
         Self {
             currency_pair_to_symbol_converter: currency_pair_to_symbol_converter.clone(),
-            reserved_amount_in_amount_currency: ServiceValueTree::new(),
-            amount_limits_in_amount_currency: ServiceValueTree::new(),
-            position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount::new(),
+            reserved_amount_in_amount_currency: ServiceValueTree::default(),
+            amount_limits_in_amount_currency: ServiceValueTree::default(),
+            position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount::default(),
             reservation_id: ReservationId::generate(),
             virtual_balance_holder: VirtualBalanceHolder::new(
                 currency_pair_to_symbol_converter.exchanges_by_id().clone(),
@@ -78,7 +78,7 @@ impl BalanceReservationManager {
     }
 
     pub fn exchanges_by_id(&self) -> &HashMap<ExchangeAccountId, Arc<Exchange>> {
-        &self.currency_pair_to_symbol_converter.exchanges_by_id()
+        self.currency_pair_to_symbol_converter.exchanges_by_id()
     }
 
     pub fn update_reserved_balances(
@@ -86,9 +86,9 @@ impl BalanceReservationManager {
         reserved_balances_by_id: &HashMap<ReservationId, BalanceReservation>,
     ) {
         self.balance_reservation_storage.clear();
-        for (reservation_id, reservation) in reserved_balances_by_id {
+        for (&reservation_id, reservation) in reserved_balances_by_id {
             self.balance_reservation_storage
-                .add(reservation_id.clone(), reservation.clone());
+                .add(reservation_id, reservation.clone());
         }
         self.sync_reservation_amounts();
     }
@@ -96,7 +96,7 @@ impl BalanceReservationManager {
     pub fn sync_reservation_amounts(&mut self) {
         fn make_balance_request(reservation: &BalanceReservation) -> BalanceRequest {
             BalanceRequest::new(
-                reservation.configuration_descriptor.clone(),
+                reservation.configuration_descriptor,
                 reservation.exchange_account_id,
                 reservation.symbol.currency_pair(),
                 reservation
@@ -117,7 +117,7 @@ impl BalanceReservationManager {
             }
         }
 
-        let mut svt = ServiceValueTree::new();
+        let mut svt = ServiceValueTree::default();
         for (request, reserved) in reserved_by_request {
             svt.set_by_balance_request(&request, reserved);
         }
@@ -221,7 +221,7 @@ impl BalanceReservationManager {
         log::info!("VirtualBalanceHolder {}", old_balance);
 
         self.unreserve_not_approved_part(reservation_id, client_or_order_id, amount_to_unreserve)
-            .with_context(|| format!("failed unreserve not approved part"))?;
+            .context("failed unreserve not approved part")?;
 
         let reservation = self.get_reservation_expected(reservation_id);
         let balance_request = BalanceRequest::from_reservation(reservation);
@@ -294,7 +294,7 @@ impl BalanceReservationManager {
         reservation_id: ReservationId,
         amount: Amount,
         client_or_order_id: &Option<ClientOrderId>,
-    ) -> () {
+    ) {
         self.unreserve(reservation_id, amount, client_or_order_id)
             .with_expect(|| {
                 format!(
@@ -311,7 +311,7 @@ impl BalanceReservationManager {
         explanation: &mut Option<Explanation>,
     ) -> Amount {
         self.try_get_available_balance(
-            parameters.configuration_descriptor.clone(),
+            parameters.configuration_descriptor,
             parameters.exchange_account_id,
             parameters.symbol.clone(),
             parameters.order_side,
@@ -347,7 +347,7 @@ impl BalanceReservationManager {
         }
 
         let request = BalanceRequest::new(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.currency_pair(),
             currency_code,
@@ -369,7 +369,7 @@ impl BalanceReservationManager {
     ) -> Option<Amount> {
         let currency_code = symbol.get_trade_code(side, BeforeAfter::Before);
         let request = BalanceRequest::new(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.currency_pair(),
             currency_code,
@@ -448,10 +448,10 @@ impl BalanceReservationManager {
                 )
             });
         }
-        if !self
+        if self
             .amount_limits_in_amount_currency
             .get_by_balance_request(&request)
-            .is_none()
+            .is_some()
         {
             balance_in_currency_code = self.get_balance_with_applied_limits(
                 &request,
@@ -536,7 +536,7 @@ impl BalanceReservationManager {
         explanation: &mut Option<Explanation>,
     ) -> Amount {
         let position = self.get_position_values(
-            request.configuration_descriptor.clone(),
+            request.configuration_descriptor,
             request.exchange_account_id,
             symbol.clone(),
             side,
@@ -671,14 +671,14 @@ impl BalanceReservationManager {
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
     ) -> Decimal {
-        self.exchanges_by_id()
+        *self
+            .exchanges_by_id()
             .get(&exchange_account_id)
-            .expect("failed to get exchange")
+            .with_expect(|| format!("failed to get exchange {exchange_account_id}"))
             .leverage_by_currency_pair
             .get(&currency_pair)
             .as_deref()
             .expect("failed to get leverage")
-            .clone()
     }
 
     fn get_position_values(
@@ -690,7 +690,7 @@ impl BalanceReservationManager {
     ) -> BalancePositionModel {
         let currency_code = symbol.get_trade_code(side, BeforeAfter::Before);
         let request = BalanceRequest::new(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.currency_pair(),
             currency_code,
@@ -817,7 +817,7 @@ impl BalanceReservationManager {
 
         // global reservation indicator
         let res_amount_request = BalanceRequest::new(
-            request.configuration_descriptor.clone(),
+            request.configuration_descriptor,
             request.exchange_account_id,
             request.currency_pair,
             reservation.reservation_currency_code,
@@ -836,7 +836,7 @@ impl BalanceReservationManager {
         update_balance: bool,
     ) -> Result<()> {
         BalanceReservationManager::add_reserved_amount_by_reservation(
-            &balance_request,
+            balance_request,
             &mut self.virtual_balance_holder,
             self.balance_reservation_storage
                 .get_mut_expected(reservation_id),
@@ -852,7 +852,7 @@ impl BalanceReservationManager {
         reservation_id: ReservationId,
         amount_diff_in_amount_currency: Amount,
         update_balance: bool,
-    ) -> () {
+    ) {
         self.add_reserved_amount(
             balance_request,
             reservation_id,
@@ -927,12 +927,8 @@ impl BalanceReservationManager {
         symbol: Arc<Symbol>,
         side: OrderSide,
     ) -> Decimal {
-        let position = self.get_position_values(
-            configuration_descriptor,
-            exchange_account_id,
-            symbol.clone(),
-            side,
-        );
+        let position =
+            self.get_position_values(configuration_descriptor, exchange_account_id, symbol, side);
 
         let limit = position
             .limit
@@ -956,7 +952,7 @@ impl BalanceReservationManager {
 
         let currency_code = symbol.get_trade_code(side, before_after);
         let request = BalanceRequest::new(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.currency_pair(),
             currency_code,
@@ -1064,7 +1060,7 @@ impl BalanceReservationManager {
                         .get_reservation_ids()
                         .to_string()
                 );
-                return ();
+                return;
             }
         };
 
@@ -1072,7 +1068,7 @@ impl BalanceReservationManager {
             Some(approved_part) => approved_part,
             None => {
                 log::error!("There is no approved part for order {}", client_order_id);
-                return ();
+                return;
             }
         };
 
@@ -1106,7 +1102,7 @@ impl BalanceReservationManager {
         let leverage = self.get_leverage(exchange_account_id, symbol.currency_pair());
         if !symbol.is_derivative || symbol.balance_currency_code == Some(commission_currency_code) {
             let request = BalanceRequest::new(
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 symbol.currency_pair(),
                 commission_currency_code,
@@ -1116,7 +1112,7 @@ impl BalanceReservationManager {
                 .add_balance(&request, -res_commission_amount);
         } else {
             let request = BalanceRequest::new(
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 symbol.currency_pair(),
                 converted_commission_currency_code,
@@ -1129,7 +1125,7 @@ impl BalanceReservationManager {
             let res_commission_amount_in_amount_currency = commission_in_amount_currency / leverage;
             self.virtual_balance_holder.add_balance_by_symbol(
                 &request,
-                symbol.clone(),
+                symbol,
                 -res_commission_amount_in_amount_currency,
                 price,
             );
@@ -1238,7 +1234,7 @@ impl BalanceReservationManager {
 
                 let available_balance = self
                     .try_get_available_balance(
-                        dst_reservation.configuration_descriptor.clone(),
+                        dst_reservation.configuration_descriptor,
                         dst_reservation.exchange_account_id,
                         dst_reservation.symbol.clone(),
                         dst_reservation.order_side,
@@ -1417,8 +1413,7 @@ impl BalanceReservationManager {
         let reservation = self.get_reservation_expected(reservation_id).clone();
 
         if reservation.is_amount_within_symbol_margin_error(new_unreserved_amount) {
-            self.balance_reservation_storage
-                .remove(reservation_id.clone());
+            self.balance_reservation_storage.remove(reservation_id);
 
             if !new_unreserved_amount.is_zero() {
                 log::error!(
@@ -1485,13 +1480,13 @@ impl BalanceReservationManager {
         }
 
         let request = BalanceRequest::new(
-            reserve_parameters.configuration_descriptor.clone(),
+            reserve_parameters.configuration_descriptor,
             reserve_parameters.exchange_account_id,
             reserve_parameters.symbol.currency_pair(),
             can_reserve_result.preset.reservation_currency_code,
         );
         let reservation = BalanceReservation::new(
-            reserve_parameters.configuration_descriptor.clone(),
+            reserve_parameters.configuration_descriptor,
             reserve_parameters.exchange_account_id,
             reserve_parameters.symbol.clone(),
             reserve_parameters.order_side,
@@ -1594,7 +1589,7 @@ impl BalanceReservationManager {
             .get_trade_code(reserve_parameters.order_side, BeforeAfter::Before);
 
         let request = BalanceRequest::new(
-            reserve_parameters.configuration_descriptor.clone(),
+            reserve_parameters.configuration_descriptor,
             reserve_parameters.exchange_account_id,
             reserve_parameters.symbol.currency_pair(),
             reservation_currency_code,
@@ -1754,7 +1749,7 @@ impl BalanceReservationManager {
 
         let old_balance = self
             .try_get_available_balance(
-                reservation.configuration_descriptor.clone(),
+                reservation.configuration_descriptor,
                 reservation.exchange_account_id,
                 reservation.symbol.clone(),
                 reservation.order_side,
@@ -1852,7 +1847,7 @@ impl BalanceReservationManager {
         self.try_get_available_balance(
             configuration_descriptor,
             exchange_account_id,
-            symbol.clone(),
+            symbol,
             side,
             price,
             true,
@@ -1870,7 +1865,7 @@ impl BalanceReservationManager {
     ) {
         for currency_code in [symbol.base_currency_code, symbol.quote_currency_code()] {
             let request = BalanceRequest::new(
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 symbol.currency_pair(),
                 currency_code,

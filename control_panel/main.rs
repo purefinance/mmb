@@ -42,7 +42,7 @@ async fn control_panel_run() {
 async fn main() {
     init_infrastructure("control_panel_log.txt");
 
-    if let Err(_) = AssertUnwindSafe(control_panel_run()).catch_unwind().await {
+    if (AssertUnwindSafe(control_panel_run()).catch_unwind().await).is_err() {
         PANIC_STATE.with(|panic_state| {
             match &*panic_state.borrow() {
                 PanicState::PanicHookIsNotSet => log::warn!("{HOOK_IS_NOT_SET}"),

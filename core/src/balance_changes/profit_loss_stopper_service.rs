@@ -14,7 +14,7 @@ use crate::exchanges::exchange_blocker::ExchangeBlocker;
 #[double]
 use crate::exchanges::general::engine_api::EngineApi;
 #[double]
-use crate::services::usd_converter::usd_converter::UsdConverter;
+use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
@@ -71,7 +71,7 @@ impl ProfitLossStopperService {
                 BalanceChangeUsdPeriodicCalculator::new(period, balance_manager.clone());
             let profit_loss_stopper = ProfitLossStopper::new(
                 stopper_condition.limit,
-                self.target_market_account_id.clone(),
+                self.target_market_account_id,
                 usd_periodic_calculator.clone(),
                 self.exchange_blocker.clone(),
                 balance_manager.clone(),

@@ -36,6 +36,7 @@ pub struct BalanceUpdateEvent {
 pub const LIQUIDATION_PRICE_CURRENT_VERSION: u32 = 1;
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct LiquidationPriceEvent {
     pub version: u32,
     pub event_creation_time: DateTime,
@@ -44,7 +45,6 @@ pub struct LiquidationPriceEvent {
     pub liq_price: Price,
     pub entry_price: Price,
     pub side: OrderSide,
-    _private: (), // field base constructor shouldn't be accessible from other modules
 }
 
 impl LiquidationPriceEvent {
@@ -64,7 +64,6 @@ impl LiquidationPriceEvent {
             liq_price,
             entry_price,
             side,
-            _private: (),
         }
     }
 }

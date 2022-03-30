@@ -14,7 +14,7 @@ use crate::{
 };
 
 pub struct UsdDenominator {
-    market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
+    market_service: Arc<dyn GetMarketCurrencyCodePrice>,
     lifetime_manager: Arc<AppLifetimeManager>,
     market_prices_by_currency_code: Mutex<HashMap<CurrencyCode, MarketCurrencyCodePrice>>,
     pub price_update_callback: Box<dyn Fn() + Sync + Send>,
@@ -34,15 +34,15 @@ impl UsdDenominator {
             .map(|x| {
                 let currency_code = exceptions
                     .get(&x.currency_code.as_str().into())
-                    .unwrap_or(&x.currency_code)
-                    .clone();
+                    .cloned()
+                    .unwrap_or(x.currency_code);
                 (currency_code, x)
             })
             .collect()
     }
 
     fn new(
-        market_service: Arc<dyn GetMarketCurrencyCodePrice + Send + Sync>,
+        market_service: Arc<dyn GetMarketCurrencyCodePrice>,
         market_prices: Vec<MarketCurrencyCodePrice>,
         auto_refresh_data: bool,
         lifetime_manager: Arc<AppLifetimeManager>,
@@ -77,7 +77,7 @@ impl UsdDenominator {
         (this.price_update_callback)()
     }
 
-    pub async fn create_async<T>(
+    pub async fn create_async<T: 'static>(
         auto_refresh_data: bool,
         lifetime_manager: Arc<AppLifetimeManager>,
     ) -> Arc<Self>
@@ -86,7 +86,12 @@ impl UsdDenominator {
     {
         let service = T::new();
         let market_prices = service.get_market_currency_code_price().await;
-        UsdDenominator::new(service, market_prices, auto_refresh_data, lifetime_manager)
+        UsdDenominator::new(
+            service as Arc<dyn GetMarketCurrencyCodePrice>,
+            market_prices,
+            auto_refresh_data,
+            lifetime_manager,
+        )
     }
 
     pub fn get_non_refreshing_usd_denominator(&self) -> Arc<Self> {

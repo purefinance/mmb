@@ -88,7 +88,7 @@ impl Exchange {
                 let result_order = &*self
                     .orders
                     .cache_by_exchange_id
-                    .get(&exchange_order_id).ok_or_else(||
+                    .get(exchange_order_id).ok_or_else(||
                         anyhow!("Impossible situation: order was created, but missing in local orders pool")
                     )?;
 
@@ -128,7 +128,7 @@ impl Exchange {
                     result_order.exchange_account_id()
                 );
 
-                return Ok(result_order.clone());
+                Ok(result_order.clone())
             }
             Error(exchange_error) => {
                 if exchange_error.error_type == ExchangeErrorType::ParsingError {
@@ -158,7 +158,7 @@ impl Exchange {
                     self.handle_create_order_succeeded(
                         self.exchange_account_id,
                         &order_header.client_order_id,
-                        &exchange_order_id,
+                        exchange_order_id,
                         &created_order.source_type,
                     )?;
                 }
@@ -167,7 +167,7 @@ impl Exchange {
                         self.handle_create_order_failed(
                             self.exchange_account_id,
                             &order_header.client_order_id,
-                            &exchange_error,
+                            exchange_error,
                             &created_order.source_type,
                         )?
                     }
@@ -247,8 +247,7 @@ impl Exchange {
 
                 order_ref.fn_mut(|order| {
                     order.set_status(OrderStatus::FailedToCreate, Utc::now());
-                    order.internal_props.last_creation_error_type =
-                        Some(exchange_error.error_type.clone());
+                    order.internal_props.last_creation_error_type = Some(exchange_error.error_type);
                     order.internal_props.last_creation_error_message =
                         exchange_error.message.clone();
                 });
@@ -316,7 +315,7 @@ impl Exchange {
             None => {
                 log::warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
 
-                return Ok(());
+                Ok(())
             }
             Some(order_ref) => {
                 order_ref.fn_mut(|order| {
@@ -369,7 +368,7 @@ impl Exchange {
 
                 order_ref.fn_mut(|order| {
                     order.set_status(OrderStatus::Created, Utc::now());
-                    order.internal_props.creation_event_source_type = Some(source_type.clone());
+                    order.internal_props.creation_event_source_type = Some(*source_type);
                 });
 
                 self.orders
@@ -400,7 +399,7 @@ impl Exchange {
                 self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderSucceeded)?;
 
                 let mut buffered_fills_manager = self.buffered_fills_manager.lock();
-                if let Some(buffered_fills) = buffered_fills_manager.get_fills(&exchange_order_id) {
+                if let Some(buffered_fills) = buffered_fills_manager.get_fills(exchange_order_id) {
                     log::trace!(
                         "Found buffered fills for an order {} {} {} {:?}",
                         self.exchange_account_id,
@@ -420,14 +419,14 @@ impl Exchange {
 
                 let mut buffered_canceled_orders_manager =
                     self.buffered_canceled_orders_manager.lock();
-                if buffered_canceled_orders_manager.is_order_buffered(&exchange_order_id) {
+                if buffered_canceled_orders_manager.is_order_buffered(exchange_order_id) {
                     self.handle_cancel_order_succeeded(
                         Some(&client_order_id),
-                        &exchange_order_id,
+                        exchange_order_id,
                         None,
-                        source_type.clone(),
+                        *source_type,
                     );
-                    buffered_canceled_orders_manager.remove_order(&exchange_order_id);
+                    buffered_canceled_orders_manager.remove_order(exchange_order_id);
                 }
 
                 // TODO DataRecorder.Save(order); Do we really need it here?

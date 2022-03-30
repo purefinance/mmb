@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
 use itertools::Itertools;
-use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
@@ -17,19 +16,16 @@ use url::Url;
 use super::binance::Binance;
 use mmb_core::connectivity::connectivity_manager::WebSocketRole;
 use mmb_core::exchanges::common::{ActivePosition, SortedOrderData};
+use mmb_core::exchanges::common::{Amount, CurrencyPair, Price, SpecificCurrencyPair};
 use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
-use mmb_core::exchanges::{
-    common::CurrencyCode, common::CurrencyId,
-    general::handlers::handle_order_filled::FillEventData, traits::Support,
+use mmb_core::exchanges::traits::{
+    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
 };
+use mmb_core::exchanges::{common::CurrencyCode, common::CurrencyId, traits::Support};
 use mmb_core::order_book::event::{EventType, OrderBookEvent};
 use mmb_core::order_book::order_book_data::OrderBookData;
 use mmb_core::orders::order::*;
 use mmb_core::settings::ExchangeSettings;
-use mmb_core::{
-    exchanges::common::{Amount, CurrencyPair, Price, SpecificCurrencyPair},
-    orders::fill::EventSourceType,
-};
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BinanceOrderInfo {
@@ -132,33 +128,19 @@ impl Support for Binance {
         Ok(())
     }
 
-    fn set_order_created_callback(
-        &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
-    ) {
+    fn set_order_created_callback(&self, callback: OrderCreatedCb) {
         *self.order_created_callback.lock() = callback;
     }
 
-    fn set_order_cancelled_callback(
-        &self,
-        callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
-    ) {
+    fn set_order_cancelled_callback(&self, callback: OrderCancelledCb) {
         *self.order_cancelled_callback.lock() = callback;
     }
 
-    fn set_handle_order_filled_callback(
-        &self,
-        callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
-    ) {
+    fn set_handle_order_filled_callback(&self, callback: HandleOrderFilledCb) {
         *self.handle_order_filled_callback.lock() = callback;
     }
 
-    fn set_handle_trade_callback(
-        &self,
-        callback: Box<
-            dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
-        >,
-    ) {
+    fn set_handle_trade_callback(&self, callback: HandleTradeCb) {
         *self.handle_trade_callback.lock() = callback;
     }
 

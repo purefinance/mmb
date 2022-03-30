@@ -23,7 +23,7 @@ impl Exchange {
             return;
         }
 
-        match self.orders.cache_by_exchange_id.get(&exchange_order_id) {
+        match self.orders.cache_by_exchange_id.get(exchange_order_id) {
             None => {
                 log::error!("cancel_order_failed was called for an order which is not in the local order pool: {:?} on {}",
                     exchange_order_id,
@@ -32,7 +32,7 @@ impl Exchange {
             Some(order) => self.react_based_on_order_status(
                 &order,
                 error,
-                &exchange_order_id,
+                exchange_order_id,
                 event_source_type,
             ),
         }
@@ -64,16 +64,11 @@ impl Exchange {
             }
             _ => {
                 order.fn_mut(|order| {
-                    order.internal_props.last_cancellation_error = Some(error.error_type.clone());
+                    order.internal_props.last_cancellation_error = Some(error.error_type);
                     order.internal_props.cancellation_event_source_type = Some(event_source_type);
                 });
 
-                self.react_based_on_error_type(
-                    &order,
-                    error,
-                    &exchange_order_id,
-                    event_source_type,
-                );
+                self.react_based_on_error_type(order, error, exchange_order_id, event_source_type);
             }
         }
     }
@@ -89,7 +84,7 @@ impl Exchange {
             ExchangeErrorType::OrderNotFound => {
                 self.handle_cancel_order_succeeded(
                     None,
-                    &exchange_order_id,
+                    exchange_order_id,
                     None,
                     event_source_type,
                 );
@@ -101,7 +96,7 @@ impl Exchange {
                 }
 
                 order.fn_mut(|order| order.set_status(OrderStatus::FailedToCancel, Utc::now()));
-                self.add_event_on_order_change(&order, OrderEventType::CancelOrderFailed)
+                self.add_event_on_order_change(order, OrderEventType::CancelOrderFailed)
                     .with_expect(|| {
                         format!(
                             "Failed to add event CancelOrderFailed on order change {:?}",

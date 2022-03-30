@@ -1,5 +1,6 @@
 use crate::connectivity::connectivity_manager::{ConnectivityManagerNotifier, WebSocketRole};
 use crate::exchanges::common::ExchangeAccountId;
+use std::fmt::Display;
 
 use crate::infrastructure::spawn_future;
 use anyhow::{Context as AnyhowContext, Result};
@@ -21,7 +22,7 @@ const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 /// Time interval before lack of client response causes a timeout
 const HEARTBEAT_FAIL_TIMEOUT: Duration = Duration::from_secs(10);
 
-const PING_MESSAGE: &'static [u8; 9] = b"heartbeat";
+const PING_MESSAGE: &[u8; 9] = b"heartbeat";
 
 #[derive(Debug, Clone)]
 pub struct WebSocketParams {
@@ -216,14 +217,15 @@ impl WebSocketConnection {
                         String::from_utf8_lossy(PING_MESSAGE));
                 }
             }
-            Message::Close(reason) => {
+            Message::Close(ref reason) => {
                 log::trace!(
                     "Websocket {} {:?} closed with reason: {}",
                     self.exchange_account_id,
                     self.role,
-                    reason
-                        .map(|x| x.reason.to_string())
-                        .unwrap_or("None".to_string())
+                    match reason {
+                        Some(ref reason) => &reason.reason as &dyn Display,
+                        None => &"None" as &dyn Display,
+                    }
                 );
                 self.close_websocket().await;
             }

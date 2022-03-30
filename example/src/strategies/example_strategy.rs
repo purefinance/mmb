@@ -67,12 +67,7 @@ impl ExampleStrategy {
         engine_context
             .balance_manager
             .lock()
-            .set_target_amount_limit(
-                configuration_descriptor.clone(),
-                target_eai,
-                symbol,
-                amount_limit,
-            );
+            .set_target_amount_limit(configuration_descriptor, target_eai, symbol, amount_limit);
 
         ExampleStrategy {
             target_eai,
@@ -161,7 +156,7 @@ impl ExampleStrategy {
             amount = balance_manager
                 .lock()
                 .get_leveraged_balance_in_amount_currency_code(
-                    self.configuration_descriptor.clone(),
+                    self.configuration_descriptor,
                     side,
                     self.target_eai,
                     symbol.clone(),
@@ -233,6 +228,6 @@ impl DispositionStrategy for ExampleStrategy {
     }
 
     fn configuration_descriptor(&self) -> ConfigurationDescriptor {
-        self.configuration_descriptor.clone()
+        self.configuration_descriptor
     }
 }

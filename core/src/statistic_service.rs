@@ -172,7 +172,7 @@ impl StatisticService {
         self.statistic_service_state
             .register_canceled_order(market_account_id);
 
-        self.remove_filled_order_if_exist(market_account_id, &client_order_id);
+        self.remove_filled_order_if_exist(market_account_id, client_order_id);
     }
 
     pub(crate) fn register_partially_filled_order(
@@ -182,7 +182,7 @@ impl StatisticService {
     ) {
         let mut partially_filled_orders = self.partially_filled_orders.lock();
 
-        if !(*partially_filled_orders).contains(&client_order_id) {
+        if !(*partially_filled_orders).contains(client_order_id) {
             self.statistic_service_state
                 .register_partially_filled_order(market_account_id);
             let _ = partially_filled_orders.insert(client_order_id.clone());
@@ -215,7 +215,7 @@ impl StatisticService {
     ) {
         let mut partially_filled_orders = self.partially_filled_orders.lock();
 
-        if (*partially_filled_orders).contains(&client_order_id) {
+        if (*partially_filled_orders).contains(client_order_id) {
             self.statistic_service_state
                 .decrement_partially_filled_orders(market_account_id);
             let _ = partially_filled_orders.remove(client_order_id);

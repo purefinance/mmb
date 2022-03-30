@@ -13,12 +13,12 @@ fn get_log_file_path(log_file: &str) -> PathBuf {
     PathBuf::from(path_to_bin)
         .ancestors()
         .find(|ancestor| ancestor.ends_with("rusttradingengine"))
-        .unwrap_or(Path::new("./"))
+        .unwrap_or_else(|| Path::new("./"))
         .join(log_file)
 }
 
 pub fn init_logger_file_named(log_file: &str) {
-    if let Ok(_) = env::var("MMB_NO_LOGS") {
+    if env::var("MMB_NO_LOGS").is_ok() {
         return;
     }
 

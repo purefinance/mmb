@@ -46,7 +46,7 @@ impl BalanceChangePeriodSelector {
         );
 
         self.balance_changes_queues
-            .entry(balance_change.market_account_id.clone())
+            .entry(balance_change.market_account_id)
             .or_default()
             .push_back(balance_change.clone());
 
@@ -68,7 +68,7 @@ impl BalanceChangePeriodSelector {
             .get_mut(market_account_id)
             .or_else(|| {
                 log::error!("Can't find queue for trade place {market_account_id:?}");
-                return None;
+                None
             })?;
 
         let position_change_before_period = match &self.balance_manager {

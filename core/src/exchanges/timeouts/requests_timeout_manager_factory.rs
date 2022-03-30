@@ -24,7 +24,7 @@ impl RequestsTimeoutManagerFactory {
         timeout_arguments: RequestTimeoutArguments,
         exchange_account_id: ExchangeAccountId,
     ) -> Arc<RequestsTimeoutManager> {
-        let trigger_scheduler = MoreOrEqualsAvailableRequestsCountTriggerScheduler::new();
+        let trigger_scheduler = MoreOrEqualsAvailableRequestsCountTriggerScheduler::default();
         RequestsTimeoutManager::new(
             timeout_arguments.requests_per_period,
             timeout_arguments.period,

@@ -171,8 +171,8 @@ impl Exchange {
             last_trades_update_time: DashMap::new(),
             last_trades: DashMap::new(),
             balance_manager: Mutex::new(None),
-            buffered_fills_manager: Mutex::new(BufferedFillsManager::new()),
-            buffered_canceled_orders_manager: Mutex::new(BufferedCanceledOrdersManager::new()),
+            buffered_fills_manager: Default::default(),
+            buffered_canceled_orders_manager: Default::default(),
         });
 
         exchange.clone().setup_connectivity_manager();
@@ -407,7 +407,6 @@ impl Exchange {
                                 .map(|x| x.client_order_id.as_str())
                                 .collect_vec(),
                         );
-                        ()
                     },
                 }
             }
@@ -484,7 +483,7 @@ impl Exchange {
                     .positions
                     .context("Positions is none.")?
                     .into_iter()
-                    .map(|x| ActivePosition::new(x))
+                    .map(ActivePosition::new)
                     .collect_vec())
             }
             BalancePositionOption::NonDerivative => {
@@ -643,7 +642,7 @@ impl Exchange {
 
         // TODO: uncomment it after implementation reconnect function
         // await Reconnect();
-        return None;
+        None
     }
 
     fn handle_liquidation_price(

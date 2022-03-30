@@ -78,6 +78,12 @@ struct AppendTable8Inner {
 
 pub struct AppendTable8(Mutex<AppendTable8Inner>);
 
+impl Default for AppendTable8 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Append only table for keeping small number (<= 256) of strings with different values
 /// Expected using as static table (live whole time that program work)
 impl AppendTable8 {
@@ -102,6 +108,12 @@ struct AppendTable16Inner {
 }
 
 pub struct AppendTable16(Mutex<AppendTable16Inner>);
+
+impl Default for AppendTable16 {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Append only table for keeping small number (<= 65536) of strings with different values
 /// Expected using as static table (live whole time that program work)

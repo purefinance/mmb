@@ -35,7 +35,7 @@ impl CoreApi {
     ) -> Result<Arc<Self>> {
         let (server_stopper_tx, server_stopper_rx) =
             mpsc::channel::<ActionAfterGracefulShutdown>(10);
-        let server_stopper_tx = Arc::new(Mutex::new(Some(server_stopper_tx.clone())));
+        let server_stopper_tx = Arc::new(Mutex::new(Some(server_stopper_tx)));
         let RpcServerAndChannels {
             server,
             work_finished_sender,

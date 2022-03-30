@@ -11,18 +11,12 @@ use tokio::time::sleep;
 
 pub type TriggerHandler = Mutex<Box<dyn FnMut() -> Result<()> + Send>>;
 
+#[derive(Default)]
 pub struct MoreOrEqualsAvailableRequestsCountTriggerScheduler {
     increasing_count_triggers: Mutex<Vec<Arc<MoreOrEqualsAvailableRequestsCountTrigger>>>,
 }
 
 impl MoreOrEqualsAvailableRequestsCountTriggerScheduler {
-    pub fn new() -> Self {
-        let triggers = Mutex::new(Vec::new());
-        Self {
-            increasing_count_triggers: triggers,
-        }
-    }
-
     pub fn utc_now() -> DateTime {
         Utc::now()
     }

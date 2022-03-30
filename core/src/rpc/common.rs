@@ -126,7 +126,7 @@ pub(super) fn spawn_server_stopping_action<T>(
         tokio::task::spawn_blocking(move || {
             server.close();
 
-            if let Err(_) = work_finished_sender.send(msg_to_sender) {
+            if work_finished_sender.send(msg_to_sender).is_err() {
                 log::warn!("Unable to send notification about server stopped");
             }
 

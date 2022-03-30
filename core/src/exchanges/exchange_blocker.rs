@@ -15,7 +15,6 @@ use parking_lot::{Mutex, RwLock};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::iter::FromIterator;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::{fmt, iter};
@@ -361,7 +360,6 @@ impl ExchangeBlockerEventsProcessor {
                 Self::add_event(&mut ctx.events_sender, event.clone());
 
                 let ctx = ctx.clone();
-                let event = event.clone();
                 let action = async move {
                     Self::run_handlers(&event, ExchangeBlockerMoment::BeforeUnblocked, &ctx).await;
                     Ok(())
@@ -419,9 +417,9 @@ impl ExchangeBlockerEventsProcessor {
         event: &ExchangeBlockerInternalEvent,
         blockers: &mut HashMap<BlockReason, Blocker>,
     ) {
-        blockers
-            .get(&event.blocker_id.reason)
-            .map(|blocker| blocker.unblocked_notify.notify_waiters());
+        if let Some(blocker) = blockers.get(&event.blocker_id.reason) {
+            blocker.unblocked_notify.notify_waiters()
+        }
 
         let removed_blocker = blockers.remove_entry(&event.blocker_id.reason);
 
@@ -476,12 +474,12 @@ pub struct ExchangeBlocker {
 #[cfg_attr(test, automock)]
 impl ExchangeBlocker {
     pub fn new(exchange_account_ids: Vec<ExchangeAccountId>) -> Arc<Self> {
-        let blockers = Arc::new(RwLock::new(HashMap::from_iter(
+        let blockers = Arc::new(RwLock::new(
             exchange_account_ids
                 .into_iter()
                 .map(|x| (x, HashMap::new()))
-                .into_iter(),
-        )));
+                .collect(),
+        ));
 
         let (events_processor, events_sender) =
             ExchangeBlockerEventsProcessor::start(blockers.clone());
@@ -781,8 +779,8 @@ impl ExchangeBlocker {
                     };
 
                     tokio::select! {
-                        _ = notify.notified() => return,
-                        _ = is_already_unblocked => return,
+                        _ = notify.notified() => (),
+                        _ = is_already_unblocked => (),
                     }
                 }));
 

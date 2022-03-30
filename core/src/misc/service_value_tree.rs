@@ -23,7 +23,7 @@ pub(crate) type ValueByCurrencyCode = HashMap<CurrencyCode, Amount>;
 ///     NOTE: there is storing all balances by ServiceNames(strategy name),
 ///     that will contain several configuration keys for strategies, next layer is one or more accounts for
 ///     selected ServiceName and here stored CurrencyCodes by CurrencyPairs and amount for every currency code.
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct ServiceValueTree {
     tree: ConfigurationKeyByServiceName,
 }
@@ -103,9 +103,9 @@ impl ServiceValueTree {
         value: CurrencyPairByExchangeAccountId,
     ) {
         if let Some(sub_tree) = self.get_mut_by_service_name(service_name) {
-            sub_tree.insert(configuration_key.clone(), value);
+            sub_tree.insert(configuration_key, value);
         } else {
-            self.set_by_service_name(service_name, hashmap![configuration_key.clone() => value]);
+            self.set_by_service_name(service_name, hashmap![configuration_key => value]);
         }
     }
 
@@ -191,11 +191,6 @@ impl ServiceValueTree {
         );
     }
 
-    pub fn new() -> Self {
-        Self {
-            tree: HashMap::new(),
-        }
-    }
     pub fn get_as_balances(&self) -> HashMap<BalanceRequest, Amount> {
         self.tree
             .iter()
@@ -295,7 +290,7 @@ mod test {
     }
 
     fn get_test_data() -> (ServiceValueTree, HashMap<BalanceRequest, Amount>) {
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
         let mut balances = HashMap::new();
         for service_name in get_service_names() {
             for service_configuration_key in get_configuration_keys() {
@@ -340,7 +335,7 @@ mod test {
     #[test]
     pub fn set() {
         init_logger_file_named("log.txt");
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
@@ -480,7 +475,7 @@ mod test {
         let new_currency_code = CurrencyCode::new("0".into());
         let new_value = dec!(0);
 
-        let mut new_tree = ServiceValueTree::new();
+        let mut new_tree = ServiceValueTree::default();
         new_tree.set_by_currency_code(
             new_service_name,
             new_service_configuration_key,
@@ -507,7 +502,7 @@ mod test {
     #[test]
     pub fn compare() {
         init_logger_file_named("log.txt");
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
@@ -545,7 +540,7 @@ mod test {
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_value() {
         init_logger_file_named("log.txt");
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
@@ -583,7 +578,7 @@ mod test {
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_currency_code() {
         init_logger_file_named("log.txt");
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
@@ -621,7 +616,7 @@ mod test {
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_currency_pair() {
         init_logger_file_named("log.txt");
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
@@ -659,7 +654,7 @@ mod test {
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_exchange_account_id() {
         init_logger_file_named("log.txt");
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
@@ -697,7 +692,7 @@ mod test {
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_service_configuration_key() {
         init_logger_file_named("log.txt");
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
@@ -735,7 +730,7 @@ mod test {
     #[should_panic(expected = "assertion failed: `(left == right)`")]
     pub fn compare_failed_by_service_name() {
         init_logger_file_named("log.txt");
-        let mut service_value_tree = ServiceValueTree::new();
+        let mut service_value_tree = ServiceValueTree::default();
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();

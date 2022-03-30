@@ -80,9 +80,8 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
         "Unable to get core.exchanges array from gotten settings"
     ))?;
     for exchange_settings in exchanges.iter_mut() {
-        let (exchange_account_id, api_key, secret_key) =
-            get_credentials_data(&exchange_settings)
-                .ok_or(anyhow!("Unable to get credentials data for exchange"))?;
+        let (exchange_account_id, api_key, secret_key) = get_credentials_data(exchange_settings)
+            .ok_or(anyhow!("Unable to get credentials data for exchange"))?;
 
         let creds = hashmap![
             API_KEY => api_key,
@@ -98,10 +97,10 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
 
     let serialized_creds = toml_edit::ser::to_string(&credentials_per_exchange)?;
     let mut credentials_config = File::create(credentials_path)?;
-    credentials_config.write_all(&serialized_creds.as_bytes())?;
+    credentials_config.write_all(serialized_creds.as_bytes())?;
 
     let mut main_config = File::create(config_path)?;
-    main_config.write_all(&serialized_settings.to_string().as_bytes())?;
+    main_config.write_all(serialized_settings.to_string().as_bytes())?;
 
     Ok(())
 }

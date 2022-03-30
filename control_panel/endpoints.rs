@@ -26,9 +26,7 @@ pub(super) async fn set_config(body: web::Bytes, client: WebMmbRpcClient) -> imp
         Ok(settings) => settings,
         Err(err) => {
             return HttpResponse::BadRequest().body(format!(
-                "Failed to convert input settings({:?}) to utf8 string: {}",
-                body,
-                err.to_string(),
+                "Failed to convert input settings({body:?}) to utf8 string: {err}",
             ))
         }
     };

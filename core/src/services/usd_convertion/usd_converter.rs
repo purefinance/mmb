@@ -22,17 +22,17 @@ pub struct UsdConverter {
 #[cfg_attr(test, automock)]
 impl UsdConverter {
     pub fn new(
-        currencies: &Vec<CurrencyCode>,
+        currencies: &[CurrencyCode],
         price_source_service: PriceSourceService,
         usd_denominator: Arc<UsdDenominator>,
     ) -> Self {
         let usd = "USD".into();
-        let usdt = CurrencyCode::from("USDT");
+        let usdt = "USDT".into();
         Self {
             price_source_service,
             usd_currency_code: currencies
                 .iter()
-                .find(|&x| x == &usdt || x == &usd)
+                .find(move |&&x| x == usdt || x == usd)
                 .cloned()
                 .unwrap_or(usd),
             denominator_usd_converter: DenominatorUsdConverter::new(usd_denominator),

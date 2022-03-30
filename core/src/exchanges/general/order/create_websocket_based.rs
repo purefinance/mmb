@@ -32,27 +32,27 @@ impl Exchange {
                 match create_order_result.outcome {
                     RequestResult::Error(_) => {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
-                        return Some(create_order_result);
+                        Some(create_order_result)
                     }
                     RequestResult::Success(_) => {
                         tokio::select! {
                             websocket_outcome = &mut websocket_event_receiver => {
-                                return websocket_outcome.ok()
+                                websocket_outcome.ok()
                             }
                             _ = cancellation_token.when_cancelled() => {
-                                return None;
+                                None
                             }
                         }
                     }
                 }
             }
             _ = cancellation_token.when_cancelled() => {
-                return None;
+                None
             }
             websocket_outcome = &mut websocket_event_receiver => {
-                return websocket_outcome.ok();
+                websocket_outcome.ok()
             }
-        };
+        }
     }
 
     pub(crate) fn raise_order_created(
@@ -61,7 +61,7 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         source_type: EventSourceType,
     ) {
-        if let Some((_, (tx, _))) = self.order_creation_events.remove(&client_order_id) {
+        if let Some((_, (tx, _))) = self.order_creation_events.remove(client_order_id) {
             if let Err(error) =
                 tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
             {

@@ -15,7 +15,7 @@ use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairTo
 #[double]
 use crate::misc::time::time_manager;
 #[double]
-use crate::services::usd_converter::usd_converter::UsdConverter;
+use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
     balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,

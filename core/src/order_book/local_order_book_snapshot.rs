@@ -61,7 +61,7 @@ impl LocalOrderBookSnapshot {
         // Get the first item (minimal)
         self.get_asks_price_levels()
             .next()
-            .map(|price_level| (price_level.0.clone(), price_level.1.clone()))
+            .map(|(&price, &amount)| (price, amount))
     }
 
     /// Return value with maximum price
@@ -69,7 +69,7 @@ impl LocalOrderBookSnapshot {
         // Get the last item (maximum)
         self.get_bids_price_levels()
             .next()
-            .map(|price_level| (price_level.0.clone(), price_level.1.clone()))
+            .map(|(&price, &amount)| (price, amount))
     }
 
     /// Return top value of asks or bids
