@@ -19,7 +19,7 @@ use mmb_core::exchanges::common::{ActivePosition, SortedOrderData};
 use mmb_core::exchanges::common::{Amount, CurrencyPair, Price, SpecificCurrencyPair};
 use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
 use mmb_core::exchanges::traits::{
-    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
+    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
 };
 use mmb_core::exchanges::{common::CurrencyCode, common::CurrencyId, traits::Support};
 use mmb_core::order_book::event::{EventType, OrderBookEvent};
@@ -127,6 +127,8 @@ impl Support for Binance {
 
         Ok(())
     }
+
+    fn set_send_websocket_message_callback(&self, _callback: SendWebsocketMessageCb) {}
 
     fn set_order_created_callback(&self, callback: OrderCreatedCb) {
         *self.order_created_callback.lock() = callback;

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use rust_decimal_macros::dec;
-use serum::serum::{NetworkType, Serum};
+use serum::serum::Serum;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -11,9 +11,10 @@ use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::ExchangeFeatures;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
-use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
+use mmb_core::infrastructure::init_lifetime_manager;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
+use serum::solana_client::NetworkType;
 
 pub struct SerumBuilder {
     pub exchange: Arc<Exchange>,
@@ -25,7 +26,7 @@ pub struct SerumBuilder {
 impl SerumBuilder {
     pub async fn try_new(
         exchange_account_id: ExchangeAccountId,
-        cancellation_token: CancellationToken,
+        _cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
     ) -> Result<Self> {
@@ -38,24 +39,16 @@ impl SerumBuilder {
             quote: "test".into(),
         }]);
 
-        Self::try_new_with_settings(
-            settings,
-            exchange_account_id,
-            cancellation_token,
-            features,
-            commission,
-        )
-        .await
+        Self::try_new_with_settings(settings, exchange_account_id, features, commission).await
     }
 
     pub async fn try_new_with_settings(
         settings: ExchangeSettings,
         exchange_account_id: ExchangeAccountId,
-        cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
     ) -> Result<Self> {
-        let lifetime_manager = AppLifetimeManager::new(cancellation_token.clone());
+        let lifetime_manager = init_lifetime_manager();
         let (tx, rx) = broadcast::channel(10);
         let timeout_manager = get_timeout_manager(exchange_account_id);
 

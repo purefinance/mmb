@@ -34,7 +34,7 @@ async fn cancelled_successfully() {
     .await
     .expect("Failed to create SerumBuilder");
 
-    let currency_pair = CurrencyPair::from_codes("sol".into(), "test2".into());
+    let currency_pair = CurrencyPair::from_codes("sol".into(), "test".into());
     let order_proxy = OrderProxyBuilder::new(
         exchange_account_id,
         Some("FromCreateSuccessfullyTest".to_owned()),

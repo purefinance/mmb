@@ -3353,6 +3353,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "core_tests",
  "dashmap",
  "function_name",
@@ -3362,7 +3363,9 @@ dependencies = [
  "memoffset",
  "mmb_core",
  "mmb_utils",
+ "once_cell",
  "parking_lot",
+ "paste",
  "rand 0.7.3",
  "rust_decimal",
  "rust_decimal_macros",

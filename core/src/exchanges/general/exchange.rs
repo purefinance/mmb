@@ -245,6 +245,16 @@ impl Exchange {
                 }
             },
         ));
+
+        let exchange_weak = Arc::downgrade(&self);
+        self.exchange_client
+            .set_send_websocket_message_callback(Box::new(move |role, message| {
+                exchange_weak
+                    .upgrade()
+                    .expect("Unable to upgrade reference to Exchange")
+                    .send_websocket_message(role, message)
+                    .boxed()
+            }));
     }
 
     fn on_websocket_message(&self, msg: &str) {
@@ -277,6 +287,10 @@ impl Exchange {
                 error
             );
         }
+    }
+
+    async fn send_websocket_message(self: Arc<Self>, role: WebSocketRole, message: String) {
+        self.connectivity_manager.send(role, &message).await
     }
 
     fn log_websocket_message(&self, msg: &str) {

@@ -10,8 +10,7 @@ use serum_dex::critbit::{Slab, SlabView};
 use serum_dex::instruction::{cancel_order, MarketInstruction};
 use serum_dex::matching::Side;
 use serum_dex::state::{gen_vault_signer_key, Market, MarketState};
-use solana_client::rpc_client::RpcClient;
-use solana_client::rpc_config;
+use solana_account_decoder::UiAccount;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
 use solana_client_helpers::spl_associated_token_account::get_associated_token_address;
@@ -20,8 +19,7 @@ use solana_program::instruction::{AccountMeta, Instruction};
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::account::Account;
-use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
-use solana_sdk::signature::{Keypair, Signature, Signer};
+use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
 use spl_token::state;
 use std::collections::HashMap;
@@ -35,7 +33,8 @@ use tokio::sync::broadcast;
 use tokio::time::sleep;
 
 use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide, ToU128};
-use crate::market::{DeserMarketData, MarketData, MarketMetaData, OpenOrderData};
+use crate::market::{DeserMarketData, MarketData, MarketMetaData, OpenOrderData, OrderSerumInfo};
+use crate::solana_client::{NetworkType, SolanaClient};
 use mmb_core::exchanges::common::{
     Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, RestRequestOutcome,
     SpecificCurrencyPair,
@@ -54,54 +53,12 @@ use mmb_core::exchanges::traits::{
     HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
-use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo, OrderSide,
     OrderStatus, OrderType,
 };
 use mmb_core::orders::pool::OrderRef;
 use mmb_core::settings::ExchangeSettings;
-
-pub struct SolanaHosts {
-    url: String,
-    ws: String,
-    market_url: String,
-}
-
-pub enum NetworkType {
-    Mainnet,
-    Devnet,
-    Testnet,
-    Custom(SolanaHosts),
-}
-
-impl NetworkType {
-    pub fn url(&self) -> &str {
-        match self {
-            NetworkType::Devnet => "https://api.devnet.solana.com",
-            NetworkType::Mainnet => "https://api.mainnet-beta.solana.com",
-            NetworkType::Testnet => "https://api.testnet.solana.com",
-            NetworkType::Custom(network_opts) => &network_opts.url,
-        }
-    }
-
-    pub fn ws(&self) -> &str {
-        match self {
-            NetworkType::Devnet => "ws://api.devnet.solana.com/",
-            NetworkType::Mainnet => "ws://api.mainnet-beta.solana.com/",
-            NetworkType::Testnet => "ws://api.testnet.solana.com",
-            NetworkType::Custom(network_opts) => &network_opts.ws,
-        }
-    }
-
-    pub fn market_list_url(&self) -> &str {
-        match self {
-            NetworkType::Devnet => "https://raw.githubusercontent.com/kizeevov/serum_devnet/main/markets.json",
-            NetworkType::Custom(network_opts) => &network_opts.market_url,
-            _ => "https://raw.githubusercontent.com/project-serum/serum-ts/master/packages/serum/src/markets.json",
-        }
-    }
-}
 
 pub struct Serum {
     pub id: ExchangeAccountId,
@@ -116,9 +73,9 @@ pub struct Serum {
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
     pub(super) rest_client: RestClient,
-    pub(super) rpc_client: Arc<RpcClient>,
+    pub(super) rpc_client: Arc<SolanaClient>,
     pub(super) markets_data: RwLock<HashMap<CurrencyPair, MarketData>>,
-    pub(super) open_orders_by_owner: RwLock<HashMap<ClientOrderId, Pubkey>>,
+    pub(super) open_orders_by_owner: RwLock<HashMap<ClientOrderId, OrderSerumInfo>>,
     pub network_type: NetworkType,
 }
 
@@ -150,7 +107,7 @@ impl Serum {
                 exchange_account_id,
                 ErrorHandlerEmpty::new(),
             )),
-            rpc_client: Arc::new(RpcClient::new(network_type.url().to_string())),
+            rpc_client: Arc::new(SolanaClient::new(&network_type)),
             markets_data: Default::default(),
             open_orders_by_owner: Default::default(),
             network_type,
@@ -241,9 +198,8 @@ impl Serum {
             with_context: Some(false),
         };
 
-        Ok(self
-            .rpc_client
-            .get_program_accounts_with_config(program_id, config)?)
+        self.rpc_client
+            .get_program_accounts_with_config(program_id, config)
     }
 
     fn create_dex_account(
@@ -378,25 +334,6 @@ impl Serum {
             .collect()
     }
 
-    pub async fn send_transaction(&self, transaction: Transaction) -> Result<Signature> {
-        Ok(tokio::task::spawn_blocking({
-            let rpc_client = self.rpc_client.clone();
-            move || {
-                rpc_client.send_and_confirm_transaction_with_spinner_and_config(
-                    &transaction,
-                    CommitmentConfig {
-                        commitment: CommitmentLevel::Confirmed,
-                    },
-                    rpc_config::RpcSendTransactionConfig {
-                        skip_preflight: true,
-                        ..rpc_config::RpcSendTransactionConfig::default()
-                    },
-                )
-            }
-        })
-        .await??)
-    }
-
     pub async fn send_instructions(&self, instructions: &[Instruction]) -> Result<()> {
         let recent_hash = self.rpc_client.get_latest_blockhash()?;
         let transaction = Transaction::new_signed_with_payer(
@@ -406,7 +343,7 @@ impl Serum {
             recent_hash,
         );
 
-        self.send_transaction(transaction).await?;
+        self.rpc_client.send_transaction(transaction).await?;
         Ok(())
     }
 
@@ -439,6 +376,31 @@ impl Serum {
             .find(|order_info| order_info.client_order_id == client_order_id)
             .cloned()
             .ok_or(anyhow!("Order not found for id {client_order_id}"))
+    }
+
+    pub fn get_orders_from_ui_account(
+        &self,
+        ui_account: UiAccount,
+        market_info: &MarketMetaData,
+        side: Side,
+        currency_pair: CurrencyPair,
+    ) -> Result<Vec<OrderInfo>> {
+        let mut account: Account = ui_account.decode().with_context(|| {
+            format!("Failed to decode account for currency pair {currency_pair}")
+        })?;
+        let market_state = market_info.state;
+        let account_address = match side {
+            Side::Ask => &market_info.asks_address,
+            Side::Bid => &market_info.bids_address,
+        };
+
+        let account_info = (account_address, &mut account).into_account_info();
+        let slab = match side {
+            Side::Ask => market_state.load_asks_mut(&account_info)?,
+            Side::Bid => market_state.load_bids_mut(&account_info)?,
+        };
+
+        self.encode_orders(&slab, market_info, side, &currency_pair)
     }
 
     pub fn encode_orders(
@@ -478,9 +440,23 @@ impl Serum {
         Ok(orders)
     }
 
-    async fn get_order_id(&self, client_order_id: &ClientOrderId) -> Result<ExchangeOrderId> {
+    pub async fn subscribe_to_all_market(&self) {
+        let markets_data: HashMap<CurrencyPair, MarketData> = self.markets_data.read().clone();
+
+        join_all(markets_data.iter().map(|(currency_pair, market_data)| {
+            self.rpc_client
+                .subscribe_to_market(currency_pair, market_data)
+        }))
+        .await;
+    }
+
+    async fn get_order_id(
+        &self,
+        client_order_id: &ClientOrderId,
+        currency_pair: CurrencyPair,
+    ) -> Result<ExchangeOrderId> {
         for attempt in 1..=10 {
-            let orders = self.get_open_orders().await?;
+            let orders = self.get_open_orders_by_currency_pair(currency_pair).await?;
             if let Some(order) = orders
                 .iter()
                 .find(|order| order.client_order_id == *client_order_id)
@@ -500,8 +476,9 @@ impl Serum {
         let mut signers = Vec::new();
         let orders_keypair: Keypair;
         let client_order_id = order.header.client_order_id.clone();
+        let currency_pair = order.header.currency_pair;
 
-        let market_data = self.get_market_data(order.header.currency_pair)?;
+        let market_data = self.get_market_data(currency_pair)?;
         let accounts = self.load_orders_for_owner(&market_data.address, &market_data.program_id)?;
 
         let open_order_account = match accounts.first() {
@@ -551,21 +528,19 @@ impl Serum {
             recent_hash,
         );
 
-        self.send_transaction(transaction).await?;
-
-        self.open_orders_by_owner
-            .write()
-            .insert(client_order_id.clone(), open_order_account);
-
-        let exchange_order_id = self.get_order_id(&client_order_id).await?;
-
-        // TODO move to handle websocket notification
-        (&self.order_created_callback).lock()(
-            client_order_id,
-            exchange_order_id.clone(),
-            EventSourceType::WebSocket,
+        self.open_orders_by_owner.write().insert(
+            client_order_id.clone(),
+            OrderSerumInfo {
+                currency_pair,
+                owner: open_order_account,
+                status: OrderStatus::Creating,
+                exchange_order_id: "0".into(),
+            },
         );
 
+        self.rpc_client.send_transaction(transaction).await?;
+
+        let exchange_order_id = self.get_order_id(&client_order_id, currency_pair).await?;
         Ok(exchange_order_id)
     }
 
@@ -575,13 +550,15 @@ impl Serum {
         let client_order_id = order.header.client_order_id.clone();
         let exchange_order_id = order.exchange_order_id.clone();
 
-        let owner = self
-            .open_orders_by_owner
-            .write()
-            .remove(&client_order_id)
-            .with_context(|| {
+        let owner = {
+            let mut guard_lock = self.open_orders_by_owner.write();
+            let order_info = guard_lock.get_mut(&client_order_id).with_context(|| {
                 format!("Unable to get owner by client order id = {client_order_id}")
             })?;
+
+            order_info.status = OrderStatus::Canceling;
+            order_info.owner
+        };
 
         let instructions = &[cancel_order(
             &market_data.program_id,
@@ -603,14 +580,7 @@ impl Serum {
             recent_hash,
         );
 
-        self.send_transaction(transaction).await?;
-
-        // TODO move to handle websocket notification
-        (&self.order_cancelled_callback).lock()(
-            client_order_id,
-            exchange_order_id,
-            EventSourceType::WebSocket,
-        );
+        self.rpc_client.send_transaction(transaction).await?;
 
         Ok(())
     }
@@ -633,7 +603,8 @@ impl Serum {
                             "Unable to get owner by client order id = {}",
                             order.client_order_id
                         )
-                    })?;
+                    })?
+                    .owner;
 
                 cancel_order(
                     &market_data.program_id,

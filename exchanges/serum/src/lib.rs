@@ -16,6 +16,7 @@
 
 pub mod exchange_client;
 pub mod serum;
+pub mod solana_client;
 
 mod helpers;
 mod market;

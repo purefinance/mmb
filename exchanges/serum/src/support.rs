@@ -8,6 +8,8 @@ use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
 use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
+use serum_dex::matching::Side;
+use solana_account_decoder::UiAccount;
 use url::Url;
 
 use mmb_core::connectivity::connectivity_manager::WebSocketRole;
@@ -15,23 +17,37 @@ use mmb_core::exchanges::common::CurrencyPair;
 use mmb_core::exchanges::common::{CurrencyCode, CurrencyId, SpecificCurrencyPair};
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::traits::{
-    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, Support,
+    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
+    Support,
 };
+use mmb_core::orders::fill::EventSourceType;
+use mmb_core::orders::order::OrderStatus;
 use mmb_core::settings::ExchangeSettings;
 
+use crate::solana_client::SolanaMessage;
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use spl_token::state;
 
 #[async_trait]
 impl Support for Serum {
-    fn on_websocket_message(&self, _msg: &str) -> Result<()> {
-        unimplemented!("Not needed for implementation Serum")
+    fn on_websocket_message(&self, msg: &str) -> Result<()> {
+        match self.rpc_client.handle_on_message(msg) {
+            SolanaMessage::AccountUpdated(currency_pair, side, ui_account) => {
+                self.handle_account_market_changed(currency_pair, side, ui_account)
+            }
+            _ => Ok(()),
+        }
     }
 
     fn on_connecting(&self) -> Result<()> {
-        // TODO not implemented
+        // Not needed for implementation Serum
         Ok(())
+    }
+
+    fn set_send_websocket_message_callback(&self, callback: SendWebsocketMessageCb) {
+        self.rpc_client
+            .set_send_websocket_message_callback(callback);
     }
 
     fn set_order_created_callback(&self, callback: OrderCreatedCb) {
@@ -54,12 +70,20 @@ impl Support for Serum {
         *self.traded_specific_currencies.lock() = currencies;
     }
 
-    fn is_websocket_enabled(&self, _role: WebSocketRole) -> bool {
-        false
+    fn is_websocket_enabled(&self, role: WebSocketRole) -> bool {
+        match role {
+            WebSocketRole::Main => true,
+            WebSocketRole::Secondary => false,
+        }
     }
 
-    async fn create_ws_url(&self, _role: WebSocketRole) -> Result<Url> {
-        unimplemented!("Not needed for implementation Serum")
+    async fn create_ws_url(&self, role: WebSocketRole) -> Result<Url> {
+        let url = match role {
+            WebSocketRole::Main => self.network_type.ws(),
+            WebSocketRole::Secondary => unimplemented!("Not needed for implementation Serum"),
+        };
+
+        Url::parse(url).with_context(|| format!("Unable parse websocket {role:?} uri from {url}"))
     }
 
     fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair {
@@ -80,6 +104,56 @@ impl Support for Serum {
 }
 
 impl Serum {
+    fn handle_account_market_changed(
+        &self,
+        currency_pair: CurrencyPair,
+        side: Side,
+        ui_account: UiAccount,
+    ) -> Result<()> {
+        let market = self.get_market_data(currency_pair)?;
+        let market_info = &market.metadata;
+        let orders =
+            self.get_orders_from_ui_account(ui_account, market_info, side, currency_pair)?;
+
+        let mut guard_lock = self.open_orders_by_owner.write();
+        guard_lock
+            .iter_mut()
+            .filter(|(_, order_info)| order_info.currency_pair == currency_pair)
+            .for_each(|(client_order_id, order_info)| match order_info.status {
+                OrderStatus::Creating => {
+                    if let Some(order) = orders
+                        .iter()
+                        .find(|order| order.client_order_id == *client_order_id)
+                    {
+                        order_info.status = OrderStatus::Created;
+                        order_info.exchange_order_id = order.exchange_order_id.clone();
+                        (&self.order_created_callback).lock()(
+                            order.client_order_id.clone(),
+                            order.exchange_order_id.clone(),
+                            EventSourceType::WebSocket,
+                        );
+                    }
+                }
+                OrderStatus::Canceling => {
+                    if !orders
+                        .iter()
+                        .any(|order| order.client_order_id == *client_order_id)
+                    {
+                        order_info.status = OrderStatus::Canceled;
+                        (&self.order_cancelled_callback).lock()(
+                            client_order_id.clone(),
+                            order_info.exchange_order_id.clone(),
+                            EventSourceType::WebSocket,
+                        );
+                    }
+                }
+                _ => {}
+            });
+        guard_lock.retain(|_, order_info| !order_info.status.is_finished());
+
+        Ok(())
+    }
+
     pub fn get_symbol_from_market(
         &self,
         market_name: &str,

@@ -11,12 +11,13 @@ use mmb_core::orders::event::OrderEventType;
 use mmb_core::orders::order::OrderSide;
 use mmb_utils::cancellation_token::CancellationToken;
 use rust_decimal_macros::dec;
+use std::time::Duration;
 
-#[ignore] // build_metadata works for a long time
+#[ignore = "need solana keypair"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn create_successfully() {
     let exchange_account_id = ExchangeAccountId::new("Serum".into(), 0);
-    let mut serum_builder = match SerumBuilder::try_new(
+    let mut serum_builder = SerumBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -33,10 +34,7 @@ async fn create_successfully() {
         Commission::default(),
     )
     .await
-    {
-        Ok(serum_builder) => serum_builder,
-        Err(err) => panic!("Failed to create SerumBuilder. {:?}", err),
-    };
+    .expect("Failed to create SerumBuilder");
 
     let currency_pair = CurrencyPair::from_codes("sol".into(), "test".into());
     let order_proxy = OrderProxyBuilder::new(
@@ -47,6 +45,7 @@ async fn create_successfully() {
     )
     .currency_pair(currency_pair)
     .side(OrderSide::Sell)
+    .timeout(Duration::from_secs(30))
     .build();
 
     let order_ref = order_proxy
@@ -63,7 +62,7 @@ async fn create_successfully() {
     let order_event = if let ExchangeEvent::OrderEvent(order_event) = event {
         order_event
     } else {
-        panic!("Should receive OrderEvent")
+        panic!("Should receive OrderEvent {:?}", event)
     };
 
     match order_event.event_type {
