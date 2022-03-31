@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
+use futures::future::BoxFuture;
 use mmb_utils::DateTime;
 use tokio::sync::broadcast;
 
@@ -80,10 +81,14 @@ pub type HandleTradeCb =
     Box<dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>;
 pub type HandleOrderFilledCb = Box<dyn FnMut(FillEventData) + Send + Sync>;
 
+pub type SendWebsocketMessageCb =
+    Box<dyn Fn(WebSocketRole, String) -> BoxFuture<'static, ()> + Send + Sync>;
+
 #[async_trait]
 pub trait Support: Send + Sync {
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
     fn on_connecting(&self) -> Result<()>;
+    fn set_send_websocket_message_callback(&self, callback: SendWebsocketMessageCb);
 
     fn set_order_created_callback(&self, callback: OrderCreatedCb);
 

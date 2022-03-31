@@ -38,6 +38,7 @@ use crate::{
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
+use futures::future::BoxFuture;
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
@@ -46,6 +47,7 @@ use url::Url;
 use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
+use crate::exchanges::traits::SendWebsocketMessageCb;
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
 
 use super::{
@@ -121,6 +123,8 @@ impl Support for TestClient {
     fn on_connecting(&self) -> Result<()> {
         unimplemented!("doesn't need in UT")
     }
+
+    fn set_send_websocket_message_callback(&self, _callback: SendWebsocketMessageCb) {}
 
     fn set_order_created_callback(
         &self,

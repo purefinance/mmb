@@ -1,4 +1,6 @@
 use anyhow::Result;
+use mmb_core::exchanges::common::CurrencyPair;
+use mmb_core::orders::order::{ExchangeOrderId, OrderStatus};
 use mmb_utils::infrastructure::WithExpect;
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps};
@@ -7,6 +9,13 @@ use serde::Deserialize;
 use serum_dex::matching::Side;
 use serum_dex::state::MarketState;
 use solana_program::pubkey::Pubkey;
+
+pub struct OrderSerumInfo {
+    pub currency_pair: CurrencyPair,
+    pub owner: Pubkey,
+    pub status: OrderStatus,
+    pub exchange_order_id: ExchangeOrderId,
+}
 
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]

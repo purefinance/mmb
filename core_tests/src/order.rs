@@ -146,6 +146,7 @@ pub struct OrderProxyBuilder {
     strategy_name: String,
     price: Price,
     cancellation_token: CancellationToken,
+    timeout: Duration,
 }
 
 impl OrderProxyBuilder {
@@ -164,6 +165,7 @@ impl OrderProxyBuilder {
             price,
             amount,
             side: OrderSide::Buy,
+            timeout: Duration::from_secs(5),
         }
     }
 
@@ -174,6 +176,11 @@ impl OrderProxyBuilder {
 
     pub fn side(mut self, side: OrderSide) -> OrderProxyBuilder {
         self.side = side;
+        self
+    }
+
+    pub fn timeout(mut self, timeout: Duration) -> OrderProxyBuilder {
+        self.timeout = timeout;
         self
     }
 
@@ -192,7 +199,7 @@ impl OrderProxyBuilder {
             strategy_name: self.strategy_name,
             price: self.price,
             cancellation_token: self.cancellation_token,
-            timeout: Duration::from_secs(5),
+            timeout: self.timeout,
         }
     }
 }

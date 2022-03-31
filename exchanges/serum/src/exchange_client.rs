@@ -187,6 +187,9 @@ impl ExchangeClient for Serum {
             )
             .await?;
 
-        self.parse_all_symbols(&request_symbols)
+        let symbols = self.parse_all_symbols(&request_symbols);
+        self.subscribe_to_all_market().await;
+
+        symbols
     }
 }
