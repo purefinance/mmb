@@ -38,7 +38,7 @@ impl EngineApi {
                 if active_position.derivative.position.is_zero() {
                     return None;
                 }
-                Some(self.exchange.close_position_loop(
+                Some(self.exchange.close_position(
                     active_position,
                     None,
                     cancellation_token.clone(),
@@ -46,7 +46,11 @@ impl EngineApi {
             })
             .collect_vec();
 
-        let closed_positions = join_all(get_closed_positions_futures).await;
+        let closed_positions = join_all(get_closed_positions_futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
 
         log::info!(
             "Closed active position for exchange {}",

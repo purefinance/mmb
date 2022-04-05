@@ -56,6 +56,8 @@ use crate::{
     orders::event::OrderEvent,
 };
 use std::fmt::Debug;
+use std::time::Duration;
+use tokio::time::sleep;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum RequestResult<T> {
@@ -436,15 +438,15 @@ impl Exchange {
             .get_balance_reservation_currency_code(symbol, side)
     }
 
-    pub async fn close_position_loop(
+    pub async fn close_position(
         &self,
         position: &ActivePosition,
         price: Option<Decimal>,
         cancellation_token: CancellationToken,
-    ) -> ClosedPosition {
+    ) -> Option<ClosedPosition> {
         log::info!("Closing position {}", position.id);
 
-        loop {
+        for retry_attempt in 1..=5 {
             self.timeout_manager
                 .reserve_when_available(
                     self.exchange_account_id,
@@ -457,19 +459,37 @@ impl Exchange {
 
             log::info!("Closing position request reserved {}", position.id);
 
-            if let Ok(closed_position) = self.exchange_client.close_position(position, price).await
-            {
-                log::info!("Closed position {}", position.id);
-                return closed_position;
+            match self.exchange_client.close_position(position, price).await {
+                Ok(closed_position) => {
+                    log::info!("Closed position {}", position.id);
+                    return Some(closed_position);
+                }
+                Err(error) => {
+                    print_warn(
+                        retry_attempt,
+                        "close_position",
+                        &self.exchange_account_id,
+                        error,
+                    );
+                    sleep(Duration::from_secs(1)).await;
+                }
             }
         }
+
+        log::warn!(
+            "Close position with id {} for {} reached maximum retries - reconnecting",
+            position.id,
+            self.exchange_account_id
+        );
+
+        None
     }
 
     pub async fn get_active_positions(
         &self,
         cancellation_token: CancellationToken,
     ) -> Vec<ActivePosition> {
-        loop {
+        for retry_attempt in 1..=5 {
             self.timeout_manager
                 .reserve_when_available(
                     self.exchange_account_id,
@@ -480,10 +500,26 @@ impl Exchange {
                 .expect("Failed to reserve timeout_manager for get_active_positions")
                 .await;
 
-            if let Ok(positions) = self.get_active_positions_by_features().await {
-                return positions;
+            match self.get_active_positions_by_features().await {
+                Ok(positions) => return positions,
+                Err(error) => {
+                    print_warn(
+                        retry_attempt,
+                        "get_active_positions",
+                        &self.exchange_account_id,
+                        error,
+                    );
+                    sleep(Duration::from_secs(1)).await;
+                }
             }
         }
+
+        log::warn!(
+            "Get active positions with for {} reached maximum retries - reconnecting",
+            self.exchange_account_id
+        );
+
+        Vec::new()
     }
 
     async fn get_active_positions_by_features(&self) -> Result<Vec<ActivePosition>> {
@@ -617,15 +653,6 @@ impl Exchange {
         &self,
         cancellation_token: CancellationToken,
     ) -> Option<ExchangeBalancesAndPositions> {
-        let print_warn = |retry_attempt: i32, error: String| {
-            log::warn!(
-                "Failed to get balance for {} on retry {}: {}",
-                self.exchange_account_id,
-                retry_attempt,
-                error
-            )
-        };
-
         for retry_attempt in 1..=5 {
             let balances_and_positions = self
                 .get_balance_and_positions(cancellation_token.clone())
@@ -637,7 +664,12 @@ impl Exchange {
                     balances,
                 }) => {
                     if balances.is_empty() {
-                        (print_warn)(retry_attempt, "balances is empty".into());
+                        print_warn(
+                            retry_attempt,
+                            "get_balance",
+                            &self.exchange_account_id,
+                            "balances is empty",
+                        );
                         continue;
                     }
 
@@ -645,7 +677,12 @@ impl Exchange {
                         self.remove_unknown_currency_pairs(positions, balances),
                     ));
                 }
-                Err(error) => (print_warn)(retry_attempt, error.to_string()),
+                Err(error) => print_warn(
+                    retry_attempt,
+                    "get_balance",
+                    &self.exchange_account_id,
+                    error,
+                ),
             };
         }
 
@@ -703,4 +740,19 @@ pub fn get_specific_currency_pair_for_tests(
     exchange
         .exchange_client
         .get_specific_currency_pair(currency_pair)
+}
+
+fn print_warn(
+    retry_attempt: i32,
+    fn_name: &str,
+    exchange_account_id: &ExchangeAccountId,
+    error: impl Debug,
+) {
+    log::warn!(
+        "Failed to {} for {} on retry {}: {:?}",
+        fn_name,
+        exchange_account_id,
+        retry_attempt,
+        error
+    );
 }
