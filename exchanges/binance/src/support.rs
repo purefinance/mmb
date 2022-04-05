@@ -15,7 +15,7 @@ use url::Url;
 
 use super::binance::Binance;
 use mmb_core::connectivity::connectivity_manager::WebSocketRole;
-use mmb_core::exchanges::common::{ActivePosition, SortedOrderData};
+use mmb_core::exchanges::common::{send_event, ActivePosition, SortedOrderData};
 use mmb_core::exchanges::common::{Amount, CurrencyPair, Price, SpecificCurrencyPair};
 use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
 use mmb_core::exchanges::traits::{
@@ -303,26 +303,17 @@ impl Binance {
 
         // TODO safe event in database if needed
 
-        self.send_event(event)
+        send_event(
+            &self.events_channel,
+            self.lifetime_manager.clone(),
+            self.id,
+            event,
+        )
     }
 
     fn currency_pair_from_web_socket(&self, currency_pair: &str) -> Result<CurrencyPair> {
         let specific_currency_pair = currency_pair.to_uppercase().as_str().into();
         self.get_unified_currency_pair(&specific_currency_pair)
-    }
-
-    fn send_event(&self, event: ExchangeEvent) -> Result<()> {
-        match self.events_channel.send(event) {
-            Ok(_) => Ok(()),
-            Err(error) => {
-                let msg = format!("Unable to send exchange event in {}: {}", self.id, error);
-                log::error!("{}", msg);
-                self.lifetime_manager
-                    .clone()
-                    .spawn_graceful_shutdown(msg.clone());
-                Err(anyhow!(msg))
-            }
-        }
     }
 
     fn build_ws_main_path(&self, websocket_channels: &[String]) -> String {

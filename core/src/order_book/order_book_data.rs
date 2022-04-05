@@ -31,13 +31,13 @@ macro_rules! order_book_data {
     ($( $key_a: expr => $val_a: expr ),*, ;
      $( $key_b: expr => $val_b: expr ),*,) => {{
         use rust_decimal::Decimal;
-        let mut asks = crate::exchanges::common::SortedOrderData::new();
+        let mut asks = $crate::exchanges::common::SortedOrderData::new();
         asks.extend(vec![ $( ($key_a, $val_a), )* ] as Vec<(Decimal, Decimal)>);
 
-        let mut bids = crate::exchanges::common::SortedOrderData::new();
+        let mut bids = $crate::exchanges::common::SortedOrderData::new();
         bids.extend(vec![ $( ($key_b, $val_b), )* ] as Vec<(Decimal, Decimal)>);
 
-        crate::order_book::order_book_data::OrderBookData::new(asks, bids)
+        $crate::order_book::order_book_data::OrderBookData::new(asks, bids)
     }};
     ($( $key_a: expr => $val_a: expr ),*, ;) => {{ order_book_data!($( $key_a => $val_a ),*, ;,) }};
     (; $( $key_b: expr => $val_b: expr ),*,) => {{ order_book_data!(, ; $( $key_b => $val_b ),*,) }};
@@ -45,7 +45,7 @@ macro_rules! order_book_data {
 }
 
 /// Main asks and bids storage
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OrderBookData {
     pub asks: SortedOrderData,
     pub bids: SortedOrderData,

@@ -1,4 +1,6 @@
-use anyhow::Result;
+use crate::exchanges::events::ExchangeEvent;
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
+use anyhow::{anyhow, Result};
 use hyper::StatusCode;
 use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
@@ -14,9 +16,11 @@ use smallstr::SmallString;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::BTreeMap, time::Duration};
 use thiserror::Error;
+use tokio::sync::broadcast;
 
 use crate::misc::derivative_position::DerivativePosition;
 use crate::orders::order::ExchangeOrderId;
@@ -397,6 +401,23 @@ impl ActivePosition {
             time_stamp: 0,
             pl: dec!(0),
             derivative,
+        }
+    }
+}
+
+pub fn send_event(
+    events_channel: &broadcast::Sender<ExchangeEvent>,
+    lifetime_manager: Arc<AppLifetimeManager>,
+    id: ExchangeAccountId,
+    event: ExchangeEvent,
+) -> Result<()> {
+    match events_channel.send(event) {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let msg = format!("Unable to send exchange event in {}: {}", id, error);
+            log::error!("{}", msg);
+            lifetime_manager.spawn_graceful_shutdown(msg.clone());
+            Err(anyhow!(msg))
         }
     }
 }
