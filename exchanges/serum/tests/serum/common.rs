@@ -7,8 +7,16 @@ use mmb_utils::hashmap;
 use std::sync::Arc;
 
 pub fn get_key_pair() -> Result<String> {
-    std::env::var("SOLANA_KEY_PAIR").with_context(|| {
-        "Environment variable SOLANA_KEY_PAIR are not set. Unable to continue test"
+    get_key_pair_impl("SOLANA_KEY_PAIR")
+}
+
+pub fn get_additional_key_pair() -> Result<String> {
+    get_key_pair_impl("SOLANA_ADDITIONAL_KEY_PAIR")
+}
+
+fn get_key_pair_impl(name: &str) -> Result<String> {
+    std::env::var(name).with_context(|| {
+        format!("Environment variable {name} are not set. Unable to continue test")
     })
 }
 

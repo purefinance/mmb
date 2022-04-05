@@ -77,14 +77,16 @@ pub struct Serum {
     pub(super) markets_data: RwLock<HashMap<CurrencyPair, MarketData>>,
     pub(super) open_orders_by_owner: RwLock<HashMap<ClientOrderId, OrderSerumInfo>>,
     pub network_type: NetworkType,
+    pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
+    pub(super) lifetime_manager: Arc<AppLifetimeManager>,
 }
 
 impl Serum {
     pub fn new(
         id: ExchangeAccountId,
         settings: ExchangeSettings,
-        _events_channel: broadcast::Sender<ExchangeEvent>,
-        _lifetime_manager: Arc<AppLifetimeManager>,
+        events_channel: broadcast::Sender<ExchangeEvent>,
+        lifetime_manager: Arc<AppLifetimeManager>,
         network_type: NetworkType,
         empty_response_is_ok: bool,
     ) -> Self {
@@ -111,6 +113,8 @@ impl Serum {
             markets_data: Default::default(),
             open_orders_by_owner: Default::default(),
             network_type,
+            events_channel,
+            lifetime_manager,
         }
     }
 

@@ -1,8 +1,10 @@
 use crate::helpers::FromU64Array;
 use crate::serum::Serum;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use chrono::Utc;
 use dashmap::DashMap;
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::Decimal;
@@ -13,18 +15,22 @@ use solana_account_decoder::UiAccount;
 use url::Url;
 
 use mmb_core::connectivity::connectivity_manager::WebSocketRole;
-use mmb_core::exchanges::common::CurrencyPair;
-use mmb_core::exchanges::common::{CurrencyCode, CurrencyId, SpecificCurrencyPair};
+use mmb_core::exchanges::common::{
+    send_event, CurrencyCode, CurrencyId, CurrencyPair, SortedOrderData, SpecificCurrencyPair,
+};
+use mmb_core::exchanges::events::ExchangeEvent;
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
     Support,
 };
 use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::OrderStatus;
+use mmb_core::orders::order::{OrderInfo, OrderSide, OrderStatus};
 use mmb_core::settings::ExchangeSettings;
 
 use crate::solana_client::SolanaMessage;
+use mmb_core::order_book::event::{EventType, OrderBookEvent};
+use mmb_core::order_book::order_book_data::OrderBookData;
 use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use spl_token::state;
@@ -115,6 +121,51 @@ impl Serum {
         let orders =
             self.get_orders_from_ui_account(ui_account, market_info, side, currency_pair)?;
 
+        self.handle_order_event(&orders, currency_pair);
+        self.handle_order_book_snapshot(&orders, currency_pair)?;
+
+        Ok(())
+    }
+
+    fn handle_order_book_snapshot(
+        &self,
+        orders: &[OrderInfo],
+        currency_pair: CurrencyPair,
+    ) -> Result<()> {
+        let mut asks = SortedOrderData::new();
+        let mut bids = SortedOrderData::new();
+        for order in orders.iter() {
+            match order.order_side {
+                OrderSide::Buy => &mut bids,
+                OrderSide::Sell => &mut asks,
+            }
+            .entry(order.price)
+            .and_modify(|amount| *amount += order.amount)
+            .or_insert(order.amount);
+        }
+
+        let order_book_event = OrderBookEvent::new(
+            Utc::now(),
+            self.id,
+            currency_pair,
+            "".to_string(),
+            EventType::Snapshot,
+            Arc::new(OrderBookData::new(asks, bids)),
+        );
+
+        let event = ExchangeEvent::OrderBookEvent(order_book_event);
+
+        // TODO safe event in database if needed
+
+        send_event(
+            &self.events_channel,
+            self.lifetime_manager.clone(),
+            self.id,
+            event,
+        )
+    }
+
+    fn handle_order_event(&self, orders: &[OrderInfo], currency_pair: CurrencyPair) {
         let mut guard_lock = self.open_orders_by_owner.write();
         guard_lock
             .iter_mut()
@@ -150,8 +201,6 @@ impl Serum {
                 _ => {}
             });
         guard_lock.retain(|_, order_info| !order_info.status.is_finished());
-
-        Ok(())
     }
 
     pub fn get_symbol_from_market(
