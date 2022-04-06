@@ -1,10 +1,13 @@
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use mmb_core::exchanges::common::ExchangeAccountId;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory;
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_utils::hashmap;
+use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
 
 pub fn get_key_pair() -> Result<String> {
     get_key_pair_impl("SOLANA_KEY_PAIR")
@@ -29,4 +32,32 @@ pub fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc<Timeou
     );
 
     TimeoutManager::new(hashmap![exchange_account_id => request_timeout_manager])
+}
+
+pub async fn retry_action<Out, Fut>(
+    retry_count: u32,
+    sleep_duration: Duration,
+    action_name: &str,
+    mut action: impl FnMut() -> Fut + Sized,
+) -> Result<Out>
+where
+    Fut: Future<Output = Result<Out>>,
+{
+    let mut retry = 1;
+    let error = loop {
+        match action().await {
+            Ok(out) => return Ok(out),
+            Err(err) => {
+                if retry < retry_count {
+                    log::warn!("Error during action {action_name} on retry {retry}: {err:?}");
+                    sleep(sleep_duration).await;
+                    retry += 1;
+                } else {
+                    break err;
+                }
+            }
+        }
+    };
+
+    bail!("Action {action_name} failed after {retry_count} retries. Last error: {error:?}");
 }
