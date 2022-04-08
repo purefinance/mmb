@@ -130,7 +130,7 @@ impl Serum {
         let lock = self.markets_data.read();
         lock.get(&currency_pair)
             .cloned()
-            .ok_or(anyhow!("Unable to get market data"))
+            .ok_or_else(|| anyhow!("Unable to get market data by {currency_pair}"))
     }
 
     pub fn load_market_meta_data(
@@ -400,8 +400,12 @@ impl Serum {
 
         let account_info = (account_address, &mut account).into_account_info();
         let slab = match side {
-            Side::Ask => market_state.load_asks_mut(&account_info)?,
-            Side::Bid => market_state.load_bids_mut(&account_info)?,
+            Side::Ask => market_state.load_asks_mut(&account_info).with_context(|| {
+                format!("Failed to load asks order book market by {currency_pair}")
+            })?,
+            Side::Bid => market_state.load_bids_mut(&account_info).with_context(|| {
+                format!("Failed to load bids order book market by {currency_pair}")
+            })?,
         };
 
         self.encode_orders(&slab, market_info, side, &currency_pair)
