@@ -1,10 +1,12 @@
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
 use futures::future::join_all;
+use futures::{join, try_join};
 use itertools::Itertools;
 use memoffset::offset_of;
 use parking_lot::{Mutex, RwLock};
-use rand::rngs::OsRng;
+use rust_decimal::prelude::FromPrimitive;
+use rust_decimal::{Decimal, MathematicalOps};
 use rust_decimal_macros::dec;
 use serum_dex::critbit::{Slab, SlabView};
 use serum_dex::instruction::{cancel_order, MarketInstruction};
@@ -20,8 +22,8 @@ use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::account::Account;
 use solana_sdk::signature::{Keypair, Signer};
-use solana_sdk::transaction::Transaction;
 use spl_token::state;
+use spl_token::state::Mint;
 use std::collections::HashMap;
 use std::mem::size_of;
 use std::num::NonZeroU64;
@@ -36,7 +38,7 @@ use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide, ToU128};
 use crate::market::{DeserMarketData, MarketData, MarketMetaData, OpenOrderData, OrderSerumInfo};
 use crate::solana_client::{NetworkType, SolanaClient};
 use mmb_core::exchanges::common::{
-    Amount, CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, Price, RestRequestOutcome,
+    CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, RestRequestOutcome,
     SpecificCurrencyPair,
 };
 use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeBalance, ExchangeEvent};
@@ -45,7 +47,7 @@ use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
     RestFillsType, WebSocketOptions,
 };
-use mmb_core::exchanges::general::symbol::Symbol;
+use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::rest_client::{ErrorHandlerData, ErrorHandlerEmpty, RestClient};
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::exchanges::traits::{
@@ -118,8 +120,8 @@ impl Serum {
         }
     }
 
-    pub fn get_market(&self, address: &Pubkey) -> Result<MarketState> {
-        let mut account = self.rpc_client.get_account(address)?;
+    pub async fn get_market_state(&self, address: &Pubkey) -> Result<MarketState> {
+        let mut account = self.rpc_client.get_account(address).await?;
         let program_id = account.owner;
         let account_info = (address, &mut account).into_account_info();
         let market = Market::load(&account_info, &program_id, false)?;
@@ -133,44 +135,42 @@ impl Serum {
             .ok_or_else(|| anyhow!("Unable to get market data by {currency_pair}"))
     }
 
-    pub fn load_market_meta_data(
+    pub async fn load_market_meta_data(
         &self,
         address: &Pubkey,
         program_id: &Pubkey,
     ) -> Result<MarketMetaData> {
-        let market = self.get_market(address)?;
+        let market_state = self.get_market_state(address).await?;
         let vault_signer_nonce =
-            gen_vault_signer_key(market.vault_signer_nonce, address, program_id)?;
+            gen_vault_signer_key(market_state.vault_signer_nonce, address, program_id)?;
 
-        let coin_mint_address = Pubkey::from_u64_array(market.coin_mint);
-        let price_mint_address = Pubkey::from_u64_array(market.pc_mint);
-
-        let coin_data = self.rpc_client.get_account_data(&coin_mint_address)?;
-        let pc_data = self.rpc_client.get_account_data(&price_mint_address)?;
-
-        let coin_min_data = state::Mint::unpack_from_slice(&coin_data)?;
-        let price_mint_data = state::Mint::unpack_from_slice(&pc_data)?;
+        let coin_mint_address = Pubkey::from_u64_array(market_state.coin_mint);
+        let price_mint_address = Pubkey::from_u64_array(market_state.pc_mint);
+        let (coin_mint_data, price_mint_data) = self
+            .load_mint_data(&coin_mint_address, &price_mint_address)
+            .await
+            .context("Load market meta data")?;
 
         Ok(MarketMetaData {
-            state: market,
+            state: market_state,
             price_decimal: price_mint_data.decimals,
-            coin_decimal: coin_min_data.decimals,
-            owner_address: Pubkey::from_u64_array(market.own_address),
+            coin_decimal: coin_mint_data.decimals,
+            owner_address: Pubkey::from_u64_array(market_state.own_address),
             coin_mint_address,
             price_mint_address,
-            coin_vault_address: Pubkey::from_u64_array(market.coin_vault),
-            price_vault_address: Pubkey::from_u64_array(market.pc_vault),
-            req_queue_address: Pubkey::from_u64_array(market.req_q),
-            event_queue_address: Pubkey::from_u64_array(market.event_q),
-            bids_address: Pubkey::from_u64_array(market.bids),
-            asks_address: Pubkey::from_u64_array(market.asks),
+            coin_vault_address: Pubkey::from_u64_array(market_state.coin_vault),
+            price_vault_address: Pubkey::from_u64_array(market_state.pc_vault),
+            req_queue_address: Pubkey::from_u64_array(market_state.req_q),
+            event_queue_address: Pubkey::from_u64_array(market_state.event_q),
+            bids_address: Pubkey::from_u64_array(market_state.bids),
+            asks_address: Pubkey::from_u64_array(market_state.asks),
             vault_signer_nonce,
-            coin_lot: market.coin_lot_size,
-            price_lot: market.pc_lot_size,
+            coin_lot: market_state.coin_lot_size,
+            price_lot: market_state.pc_lot_size,
         })
     }
 
-    fn load_orders_for_owner(
+    async fn load_orders_for_owner(
         &self,
         address: &Pubkey,
         program_id: &Pubkey,
@@ -204,27 +204,7 @@ impl Serum {
 
         self.rpc_client
             .get_program_accounts_with_config(program_id, config)
-    }
-
-    fn create_dex_account(
-        &self,
-        program_id: &Pubkey,
-        payer: &Pubkey,
-        length: usize,
-    ) -> Result<(Keypair, Instruction)> {
-        let key = Keypair::generate(&mut OsRng);
-        let lamports = self
-            .rpc_client
-            .get_minimum_balance_for_rent_exemption(length)?;
-
-        let create_account_instr = solana_sdk::system_instruction::create_account(
-            payer,
-            &key.pubkey(),
-            lamports,
-            length as u64,
-            program_id,
-        );
-        Ok((key, create_account_instr))
+            .await
     }
 
     fn create_new_order_instruction(
@@ -232,18 +212,21 @@ impl Serum {
         program_id: Pubkey,
         metadata: &MarketMetaData,
         open_order_account: Pubkey,
-        side: OrderSide,
-        price: Price,
-        amount: Amount,
-        order_type: OrderType,
-        client_order_id: &ClientOrderId,
+        order: OrderCreating,
     ) -> Result<Instruction> {
-        let price = metadata.make_price(price);
-        let amount = metadata.make_size(amount);
+        let order_header = order.header;
+        let side = order_header.side;
+
+        let price = metadata.make_price(order.price);
+        let amount = metadata.make_size(order_header.amount);
         let max_native_price = metadata.make_max_native(price, amount);
-        let client_order_id = u64::from_str(client_order_id.as_str()).with_context(|| {
-            format!("Failed to convert client_order_id {client_order_id} to u64")
-        })?;
+        let client_order_id =
+            u64::from_str(order_header.client_order_id.as_str()).with_context(|| {
+                format!(
+                    "Failed to convert client_order_id {} to u64",
+                    order_header.client_order_id
+                )
+            })?;
 
         let new_order = serum_dex::instruction::NewOrderInstructionV3 {
             side: side.to_serum_side(),
@@ -259,7 +242,7 @@ impl Serum {
                 },
             )?,
             self_trade_behavior: serum_dex::instruction::SelfTradeBehavior::DecrementTake,
-            order_type: match order_type {
+            order_type: match order_header.order_type {
                 OrderType::Limit => serum_dex::matching::OrderType::Limit,
                 _ => unimplemented!(),
             },
@@ -338,26 +321,16 @@ impl Serum {
             .collect()
     }
 
-    pub async fn send_instructions(&self, instructions: &[Instruction]) -> Result<()> {
-        let recent_hash = self.rpc_client.get_latest_blockhash()?;
-        let transaction = Transaction::new_signed_with_payer(
-            instructions,
-            Some(&self.payer.pubkey()),
-            &[&self.payer],
-            recent_hash,
-        );
-
-        self.rpc_client.send_transaction(transaction).await?;
-        Ok(())
-    }
-
     pub async fn get_exchange_balance_from_account(
         &self,
         currency_code: &CurrencyCode,
         mint_address: &Pubkey,
     ) -> Result<ExchangeBalance> {
         let wallet_address = get_associated_token_address(&self.payer.pubkey(), mint_address);
-        let token_amount = self.rpc_client.get_token_account_balance(&wallet_address)?;
+        let token_amount = self
+            .rpc_client
+            .get_token_account_balance(&wallet_address)
+            .await?;
         let ui_amount = token_amount.ui_amount.with_context(|| {
             format!("Unable get token amount for payer {}", self.payer.pubkey())
         })?;
@@ -487,16 +460,21 @@ impl Serum {
         let currency_pair = order.header.currency_pair;
 
         let market_data = self.get_market_data(currency_pair)?;
-        let accounts = self.load_orders_for_owner(&market_data.address, &market_data.program_id)?;
+        let accounts = self
+            .load_orders_for_owner(&market_data.address, &market_data.program_id)
+            .await?;
 
         let open_order_account = match accounts.first() {
             Some((acc, _)) => *acc,
             None => {
-                let (orders_key, instruction) = self.create_dex_account(
-                    &market_data.program_id,
-                    &self.payer.pubkey(),
-                    size_of::<OpenOrderData>(),
-                )?;
+                let (orders_key, instruction) = self
+                    .rpc_client
+                    .create_dex_account(
+                        &market_data.program_id,
+                        &self.payer.pubkey(),
+                        size_of::<OpenOrderData>(),
+                    )
+                    .await?;
                 // life time saving
                 orders_keypair = orders_key;
 
@@ -510,11 +488,7 @@ impl Serum {
             market_data.program_id,
             &market_data.metadata,
             open_order_account,
-            order.header.side,
-            order.price,
-            order.header.amount,
-            order.header.order_type,
-            &client_order_id,
+            order,
         )?;
         instructions.push(place_order_ix);
 
@@ -525,16 +499,7 @@ impl Serum {
             &market_data.program_id,
         );
         instructions.extend(settle_funds_instructions);
-
         signers.push(&self.payer);
-
-        let recent_hash = self.rpc_client.get_latest_blockhash()?;
-        let transaction = Transaction::new_signed_with_payer(
-            &instructions,
-            Some(&self.payer.pubkey()),
-            &signers,
-            recent_hash,
-        );
 
         self.open_orders_by_owner.write().insert(
             client_order_id.clone(),
@@ -546,10 +511,10 @@ impl Serum {
             },
         );
 
-        self.rpc_client.send_transaction(transaction).await?;
-
-        let exchange_order_id = self.get_order_id(&client_order_id, currency_pair).await?;
-        Ok(exchange_order_id)
+        self.rpc_client
+            .send_instructions(&self.payer, &instructions)
+            .await?;
+        self.get_order_id(&client_order_id, currency_pair).await
     }
 
     pub(super) async fn cancel_order_core(&self, order: &OrderCancelling) -> Result<()> {
@@ -580,17 +545,9 @@ impl Serum {
             exchange_order_id.to_u128(),
         )?];
 
-        let recent_hash = self.rpc_client.get_latest_blockhash()?;
-        let transaction = Transaction::new_signed_with_payer(
-            instructions,
-            Some(&self.payer.pubkey()),
-            &[&self.payer],
-            recent_hash,
-        );
-
-        self.rpc_client.send_transaction(transaction).await?;
-
-        Ok(())
+        self.rpc_client
+            .send_instructions(&self.payer, instructions)
+            .await
     }
 
     pub(super) async fn cancel_all_orders_core(&self, currency_pair: CurrencyPair) -> Result<()> {
@@ -632,7 +589,7 @@ impl Serum {
         join_all(
             instructions
                 .chunks(12)
-                .map(|ixs| self.send_instructions(ixs)),
+                .map(|ixs| self.rpc_client.send_instructions(&self.payer, ixs)),
         )
         .await
         .into_iter()
@@ -641,47 +598,135 @@ impl Serum {
         Ok(())
     }
 
-    pub(super) fn parse_all_symbols(
+    pub(super) async fn parse_all_symbols(
         &self,
         response: &RestRequestOutcome,
     ) -> Result<Vec<Arc<Symbol>>> {
         let markets: Vec<DeserMarketData> = serde_json::from_str(&response.content)
             .expect("Unable to deserialize response from Serum markets list");
 
-        markets
-            .into_iter()
-            .filter(|market| !market.deprecated)
-            .map(|market| {
-                let market_address = market
-                    .address
-                    .parse()
-                    .expect("Invalid address constant string specified");
-                let market_program_id = market
-                    .program_id
-                    .parse()
-                    .expect("Invalid program_id constant string specified");
+        join_all(
+            markets
+                .into_iter()
+                .filter(|market| !market.deprecated)
+                .map(|market| self.init_symbol(market)),
+        )
+        .await
+        .into_iter()
+        .try_collect()
+    }
 
-                let symbol = self.get_symbol_from_market(&market.name, market_address)?;
+    async fn init_symbol(&self, market: DeserMarketData) -> Result<Arc<Symbol>> {
+        let market_name = market.name;
+        let market_address = market
+            .address
+            .parse()
+            .context("Invalid address constant string specified")?;
+        let market_program_id = market
+            .program_id
+            .parse()
+            .context("Invalid program_id constant string specified")?;
 
-                let specific_currency_pair = market.name.as_str().into();
-                let unified_currency_pair =
-                    CurrencyPair::from_codes(symbol.base_currency_code, symbol.quote_currency_code);
-                self.unified_to_specific
-                    .write()
-                    .insert(unified_currency_pair, specific_currency_pair);
+        let (symbol, market_metadata) = join!(
+            self.get_symbol_from_market(&market_name, market_address),
+            self.load_market_meta_data(&market_address, &market_program_id)
+        );
 
-                // market initiation
-                let market_metadata =
-                    self.load_market_meta_data(&market_address, &market_program_id)?;
-                let market_data =
-                    MarketData::new(market_address, market_program_id, market_metadata);
-                self.markets_data
-                    .write()
-                    .insert(symbol.currency_pair(), market_data);
+        let symbol = symbol
+            .with_context(|| format!("Get symbol from market {market_name} {market_address}"))?;
+        let market_metadata = market_metadata
+            .with_context(|| format!("Load meta data for market {market_name} {market_address}"))?;
 
-                Ok(Arc::new(symbol))
-            })
-            .collect()
+        let specific_currency_pair = market_name.as_str().into();
+        let unified_currency_pair = symbol.currency_pair();
+        self.unified_to_specific
+            .write()
+            .insert(unified_currency_pair, specific_currency_pair);
+
+        let market_data = MarketData::new(market_address, market_program_id, market_metadata);
+        self.markets_data
+            .write()
+            .insert(unified_currency_pair, market_data);
+
+        Ok(Arc::new(symbol))
+    }
+
+    async fn get_symbol_from_market(
+        &self,
+        market_name: &str,
+        market_pub_key: Pubkey,
+    ) -> Result<Symbol> {
+        let market_state = self.get_market_state(&market_pub_key).await?;
+
+        let coin_mint_address = Pubkey::from_u64_array(market_state.coin_mint);
+        let price_mint_address = Pubkey::from_u64_array(market_state.pc_mint);
+        let (coin_mint_data, price_mint_data) = self
+            .load_mint_data(&coin_mint_address, &price_mint_address)
+            .await
+            .context("Get symbol from market")?;
+
+        let (base_currency_id, quote_currency_id) =
+            market_name.rsplit_once('/').with_context(|| {
+                format!("Unable to get currency pair from market name {market_name}")
+            })?;
+        let base_currency_code = base_currency_id.into();
+        let quote_currency_code = quote_currency_id.into();
+
+        let is_active = true;
+        let is_derivative = false;
+
+        let pc_lot_size = Decimal::from(market_state.pc_lot_size);
+        let coin_lot_size = Decimal::from(market_state.coin_lot_size);
+        let factor_pc_decimals = dec!(10).powi(price_mint_data.decimals as i64);
+        let factor_coin_decimals = dec!(10).powi(coin_mint_data.decimals as i64);
+        let min_price = (factor_coin_decimals * pc_lot_size) / (factor_pc_decimals * coin_lot_size);
+        let min_amount = coin_lot_size / factor_coin_decimals;
+        let min_cost = min_price * min_amount;
+
+        let max_price = Decimal::from_u64(u64::MAX);
+        let max_amount = Decimal::from_u64(u64::MAX);
+
+        let amount_currency_code = base_currency_code;
+        let balance_currency_code = base_currency_code;
+
+        let price_precision = Precision::tick_from_precision(price_mint_data.decimals as i8);
+        let amount_precision = Precision::tick_from_precision(coin_mint_data.decimals as i8);
+
+        Ok(Symbol::new(
+            is_active,
+            is_derivative,
+            base_currency_id.into(),
+            base_currency_code,
+            quote_currency_id.into(),
+            quote_currency_code,
+            Some(min_price),
+            max_price,
+            Some(min_amount),
+            max_amount,
+            Some(min_cost),
+            amount_currency_code,
+            Some(balance_currency_code),
+            price_precision,
+            amount_precision,
+        ))
+    }
+
+    async fn load_mint_data(
+        &self,
+        coin_mint_address: &Pubkey,
+        price_mint_address: &Pubkey,
+    ) -> Result<(Mint, Mint)> {
+        let (coin_data, pc_data) = try_join!(
+            self.rpc_client.get_account_data(coin_mint_address),
+            self.rpc_client.get_account_data(price_mint_address)
+        )
+        .context("Load data for mint addresses")?;
+
+        let coin_mint_data =
+            state::Mint::unpack_from_slice(&coin_data).context("Unpack coin data")?;
+        let price_mint_data =
+            state::Mint::unpack_from_slice(&pc_data).context("Unpack price data")?;
+        Ok((coin_mint_data, price_mint_data))
     }
 }
 

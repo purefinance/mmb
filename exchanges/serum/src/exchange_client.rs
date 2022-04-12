@@ -1,15 +1,15 @@
 use crate::serum::Serum;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use function_name::named;
 use futures::future::join_all;
+use futures::try_join;
 use itertools::Itertools;
 use serum_dex::matching::Side;
 use serum_dex::state::MarketState;
 use solana_program::account_info::IntoAccountInfo;
 use solana_program::pubkey::Pubkey;
 use std::collections::HashMap;
-use std::ops::DerefMut;
 use std::sync::Arc;
 
 use mmb_core::exchanges::common::{
@@ -82,32 +82,39 @@ impl ExchangeClient for Serum {
     ) -> Result<Vec<OrderInfo>> {
         let market_data = self.get_market_data(currency_pair)?;
         let program_id = &market_data.program_id;
+
         let market_metadata = &market_data.metadata;
-        let mut account = self
-            .rpc_client
-            .get_account(&market_metadata.owner_address)?;
+        let owner_address = &market_metadata.owner_address;
+        let asks_address = &market_metadata.asks_address;
+        let bids_address = &market_metadata.bids_address;
+
+        let (mut account, mut asks_account, mut bids_account) = try_join!(
+            self.rpc_client.get_account(owner_address),
+            self.rpc_client.get_account(asks_address),
+            self.rpc_client.get_account(bids_address),
+        )
+        .with_context(|| format!("Failed to get market accounts for addresses {owner_address}, {asks_address}, {bids_address}"))?;
+
         let account_info = (program_id, &mut account).into_account_info();
+        let asks_info = (asks_address, &mut asks_account).into_account_info();
+        let bids_info = (bids_address, &mut bids_account).into_account_info();
 
         let market_data = MarketState::load(&account_info, program_id, false)?;
+        let bids_slab = market_data
+            .load_bids_mut(&bids_info)
+            .with_context(|| format!("Failed load bids slab for market {currency_pair}"))?;
+        let asks_slab = market_data
+            .load_asks_mut(&asks_info)
+            .with_context(|| format!("Failed load asks slab for market {currency_pair}"))?;
 
-        let mut asks_account = self.rpc_client.get_account(&market_metadata.asks_address)?;
-        let mut bids_account = self.rpc_client.get_account(&market_metadata.bids_address)?;
-        let asks_info = (&market_metadata.asks_address, &mut asks_account).into_account_info();
-        let bids_info = (&market_metadata.bids_address, &mut bids_account).into_account_info();
-        let mut bids = market_data.load_bids_mut(&bids_info)?;
-        let mut asks = market_data.load_asks_mut(&asks_info)?;
-
-        let bids_slab = bids.deref_mut();
-        let asks_slab = asks.deref_mut();
-
-        let mut orders =
-            self.encode_orders(asks_slab, market_metadata, Side::Ask, &currency_pair)?;
-        orders.append(&mut self.encode_orders(
-            bids_slab,
-            market_metadata,
-            Side::Bid,
-            &currency_pair,
-        )?);
+        let mut orders = self
+            .encode_orders(&asks_slab, market_metadata, Side::Ask, &currency_pair)
+            .context("Failed encode asks orders")?;
+        orders.append(
+            &mut self
+                .encode_orders(&bids_slab, market_metadata, Side::Bid, &currency_pair)
+                .context("Failed encode bids orders")?,
+        );
 
         Ok(orders)
     }
@@ -187,7 +194,7 @@ impl ExchangeClient for Serum {
             )
             .await?;
 
-        let symbols = self.parse_all_symbols(&request_symbols);
+        let symbols = self.parse_all_symbols(&request_symbols).await;
         self.subscribe_to_all_market().await;
 
         symbols

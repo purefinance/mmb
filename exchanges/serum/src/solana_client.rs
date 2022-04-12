@@ -3,6 +3,7 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 
+use rand::rngs::OsRng;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -15,15 +16,15 @@ use serum_dex::matching::Side;
 
 use solana_account_decoder::parse_token::UiTokenAmount;
 use solana_account_decoder::{UiAccount, UiAccountEncoding};
-use solana_client::rpc_client::RpcClient;
-use solana_client::rpc_config;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use solana_client::rpc_response::Response;
-use solana_program::hash::Hash;
+use solana_program::instruction::Instruction;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::account::Account;
 use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
-use solana_sdk::signature::Signature;
+use solana_sdk::signature::Keypair;
+use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
 use tokio::join;
 
@@ -126,10 +127,10 @@ pub struct SolanaClient {
 
 impl SolanaClient {
     pub fn new(network_type: &NetworkType) -> Self {
-        let rpc_client = RpcClient::new(network_type.url().to_string());
+        let async_rpc_client = RpcClient::new(network_type.url().to_string());
 
         Self {
-            rpc_client: Arc::new(rpc_client),
+            rpc_client: Arc::new(async_rpc_client),
             send_websocket_message_callback: Mutex::new(Box::new(|_, _| Box::pin(async {}))),
             subscription_requests: Default::default(),
             subscriptions: Default::default(),
@@ -140,55 +141,75 @@ impl SolanaClient {
         *self.send_websocket_message_callback.lock() = callback;
     }
 
-    pub fn get_account(&self, pubkey: &Pubkey) -> Result<Account> {
-        Ok(self.rpc_client.get_account(pubkey)?)
+    pub async fn get_account(&self, pubkey: &Pubkey) -> Result<Account> {
+        self.rpc_client
+            .get_account(pubkey)
+            .await
+            .map_err(|err| err.into())
     }
 
-    pub fn get_account_data(&self, pubkey: &Pubkey) -> Result<Vec<u8>> {
-        Ok(self.rpc_client.get_account_data(pubkey)?)
+    pub async fn get_account_data(&self, pubkey: &Pubkey) -> Result<Vec<u8>> {
+        self.rpc_client
+            .get_account_data(pubkey)
+            .await
+            .map_err(|err| err.into())
     }
 
-    pub fn get_program_accounts_with_config(
+    pub async fn get_program_accounts_with_config(
         &self,
         pubkey: &Pubkey,
         config: RpcProgramAccountsConfig,
     ) -> Result<Vec<(Pubkey, Account)>> {
-        Ok(self
+        self.rpc_client
+            .get_program_accounts_with_config(pubkey, config)
+            .await
+            .map_err(|err| err.into())
+    }
+
+    pub async fn get_token_account_balance(&self, pubkey: &Pubkey) -> Result<UiTokenAmount> {
+        self.rpc_client
+            .get_token_account_balance(pubkey)
+            .await
+            .map_err(|err| err.into())
+    }
+
+    pub async fn send_instructions(
+        &self,
+        payer: &Keypair,
+        instructions: &[Instruction],
+    ) -> Result<()> {
+        let recent_hash = self.rpc_client.get_latest_blockhash().await?;
+        let transaction = Transaction::new_signed_with_payer(
+            instructions,
+            Some(&payer.pubkey()),
+            &[payer],
+            recent_hash,
+        );
+
+        self.rpc_client.send_transaction(&transaction).await?;
+        Ok(())
+    }
+
+    pub async fn create_dex_account(
+        &self,
+        program_id: &Pubkey,
+        payer: &Pubkey,
+        length: usize,
+    ) -> Result<(Keypair, Instruction)> {
+        let key = Keypair::generate(&mut OsRng);
+        let lamports = self
             .rpc_client
-            .get_program_accounts_with_config(pubkey, config)?)
-    }
+            .get_minimum_balance_for_rent_exemption(length)
+            .await?;
 
-    pub fn get_minimum_balance_for_rent_exemption(&self, data_len: usize) -> Result<u64> {
-        Ok(self
-            .rpc_client
-            .get_minimum_balance_for_rent_exemption(data_len)?)
-    }
-
-    pub fn get_latest_blockhash(&self) -> Result<Hash> {
-        Ok(self.rpc_client.get_latest_blockhash()?)
-    }
-
-    pub fn get_token_account_balance(&self, pubkey: &Pubkey) -> Result<UiTokenAmount> {
-        Ok(self.rpc_client.get_token_account_balance(pubkey)?)
-    }
-
-    pub async fn send_transaction(&self, transaction: Transaction) -> Result<Signature> {
-        Ok(tokio::task::spawn_blocking({
-            let rpc_client = self.rpc_client.clone();
-            move || {
-                rpc_client.send_and_confirm_transaction_with_spinner_and_config(
-                    &transaction,
-                    CommitmentConfig {
-                        commitment: CommitmentLevel::Confirmed,
-                    },
-                    rpc_config::RpcSendTransactionConfig {
-                        skip_preflight: true,
-                        ..rpc_config::RpcSendTransactionConfig::default()
-                    },
-                )
-            }
-        })
-        .await??)
+        let create_account_instr = solana_sdk::system_instruction::create_account(
+            payer,
+            &key.pubkey(),
+            lamports,
+            length as u64,
+            program_id,
+        );
+        Ok((key, create_account_instr))
     }
 
     pub async fn subscribe_to_market(&self, currency_pair: &CurrencyPair, market: &MarketData) {
