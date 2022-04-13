@@ -11,7 +11,8 @@
     unused_extern_crates,
     unused_import_braces,
     unused_qualifications,
-    unused_must_use
+    unused_must_use,
+    clippy::unwrap_used
 )]
 
 pub mod order;
