@@ -1,3 +1,22 @@
+#![deny(
+    non_shorthand_field_patterns,
+    no_mangle_generic_items,
+    overflowing_literals,
+    path_statements,
+    unused_allocation,
+    unused_comparisons,
+    unused_parens,
+    while_true,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_must_use,
+    clippy::unwrap_used
+)]
+
+mod strategies;
+
 use anyhow::{anyhow, Result};
 use binance::binance::BinanceBuilder;
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
@@ -10,7 +29,7 @@ use mmb_core::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
 use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_core::settings::{BaseStrategySettings, CurrencyPairSetting};
 
-use example::strategies::example_strategy::ExampleStrategy;
+use crate::strategies::example_strategy::ExampleStrategy;
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {

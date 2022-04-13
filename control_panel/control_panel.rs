@@ -15,12 +15,12 @@ use std::{
 use crate::ADDRESS;
 
 use super::endpoints;
-use actix_web::{dev::Server, rt, web, App, HttpResponse, HttpServer};
+use actix_web::{dev::Server, rt, App, HttpResponse, HttpServer};
 use tokio::sync::oneshot;
 
 use actix_web::web::Data;
 
-pub type WebMmbRpcClient = web::Data<Arc<Mutex<Option<MmbRpcClient>>>>;
+pub type WebMmbRpcClient = Data<Arc<Mutex<Option<MmbRpcClient>>>>;
 
 pub(crate) struct ControlPanel {
     address: String,

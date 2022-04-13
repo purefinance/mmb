@@ -1,5 +1,4 @@
 #![cfg(test)]
-use anyhow::Result;
 use binance::binance::BinanceBuilder;
 use futures::FutureExt;
 use mmb_core::config::parse_settings;
@@ -46,7 +45,7 @@ impl BaseStrategySettings for TestStrategySettings {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn launch_engine() -> Result<()> {
+async fn launch_engine() -> anyhow::Result<()> {
     struct TestStrategy;
 
     impl DispositionStrategy for TestStrategy {
