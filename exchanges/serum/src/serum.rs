@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
+use function_name::named;
 use futures::future::join_all;
 use futures::{join, try_join};
 use itertools::Itertools;
@@ -35,11 +36,10 @@ use tokio::sync::broadcast;
 use tokio::time::sleep;
 
 use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide, ToU128};
-use crate::market::{DeserMarketData, MarketData, MarketMetaData, OpenOrderData, OrderSerumInfo};
+use crate::market::{MarketData, MarketInfo, MarketMetaData, OpenOrderData, OrderSerumInfo};
 use crate::solana_client::{NetworkType, SolanaClient};
 use mmb_core::exchanges::common::{
-    CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, RestRequestOutcome,
-    SpecificCurrencyPair,
+    CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, SpecificCurrencyPair,
 };
 use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeBalance, ExchangeEvent};
 use mmb_core::exchanges::general::exchange::BoxExchangeClient;
@@ -598,13 +598,8 @@ impl Serum {
         Ok(())
     }
 
-    pub(super) async fn parse_all_symbols(
-        &self,
-        response: &RestRequestOutcome,
-    ) -> Result<Vec<Arc<Symbol>>> {
-        let markets: Vec<DeserMarketData> = serde_json::from_str(&response.content)
-            .expect("Unable to deserialize response from Serum markets list");
-
+    pub(super) async fn build_all_symbols_inner(&self) -> Result<Vec<Arc<Symbol>>> {
+        let markets = self.get_market_list().await?;
         join_all(
             markets
                 .into_iter()
@@ -616,7 +611,37 @@ impl Serum {
         .try_collect()
     }
 
-    async fn init_symbol(&self, market: DeserMarketData) -> Result<Arc<Symbol>> {
+    #[named]
+    async fn get_market_list(&self) -> Result<Vec<MarketInfo>> {
+        let symbols_json = match self.network_type.market_list_json() {
+            None => {
+                self.rest_client
+                    .get(
+                        self.network_type
+                            .market_list_url()
+                            .try_into()
+                            .expect("Unable create url"),
+                        "", // authorization is not required
+                        function_name!(),
+                        "".to_string(),
+                    )
+                    .await
+                    .with_context(|| {
+                        format!(
+                            "Request market list from url {}",
+                            self.network_type.market_list_url()
+                        )
+                    })?
+                    .content
+            }
+            Some(json) => json.clone(),
+        };
+
+        serde_json::from_str(&symbols_json)
+            .context("Unable to deserialize response from Serum markets list")
+    }
+
+    async fn init_symbol(&self, market: MarketInfo) -> Result<Arc<Symbol>> {
         let market_name = market.name;
         let market_address = market
             .address

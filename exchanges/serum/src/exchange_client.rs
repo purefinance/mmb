@@ -1,7 +1,6 @@
 use crate::serum::Serum;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use function_name::named;
 use futures::future::join_all;
 use futures::try_join;
 use itertools::Itertools;
@@ -179,22 +178,8 @@ impl ExchangeClient for Serum {
         todo!()
     }
 
-    #[named]
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {
-        let request_symbols = self
-            .rest_client
-            .get(
-                self.network_type
-                    .market_list_url()
-                    .try_into()
-                    .expect("Unable create url"),
-                "",
-                function_name!(),
-                "".to_string(),
-            )
-            .await?;
-
-        let symbols = self.parse_all_symbols(&request_symbols).await;
+        let symbols = self.build_all_symbols_inner().await;
         self.subscribe_to_all_market().await;
 
         symbols
