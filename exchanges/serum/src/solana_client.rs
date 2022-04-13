@@ -40,39 +40,56 @@ pub struct SolanaHosts {
     url: String,
     ws: String,
     market_url: String,
+    market_list_json: Option<String>,
+}
+
+impl SolanaHosts {
+    pub fn new(
+        url: String,
+        ws: String,
+        market_url: String,
+        market_list_json: Option<String>,
+    ) -> Self {
+        SolanaHosts {
+            url,
+            ws,
+            market_url,
+            market_list_json,
+        }
+    }
 }
 
 pub enum NetworkType {
     Mainnet,
-    Devnet,
-    Testnet,
     Custom(SolanaHosts),
 }
 
 impl NetworkType {
     pub fn url(&self) -> &str {
         match self {
-            NetworkType::Devnet => "https://api.devnet.solana.com",
             NetworkType::Mainnet => "https://api.mainnet-beta.solana.com",
-            NetworkType::Testnet => "https://api.testnet.solana.com",
             NetworkType::Custom(network_opts) => &network_opts.url,
         }
     }
 
     pub fn ws(&self) -> &str {
         match self {
-            NetworkType::Devnet => "ws://api.devnet.solana.com/",
             NetworkType::Mainnet => "ws://api.mainnet-beta.solana.com/",
-            NetworkType::Testnet => "ws://api.testnet.solana.com",
             NetworkType::Custom(network_opts) => &network_opts.ws,
         }
     }
 
     pub fn market_list_url(&self) -> &str {
         match self {
-            NetworkType::Devnet => "https://raw.githubusercontent.com/kizeevov/serum_devnet/main/markets.json",
             NetworkType::Custom(network_opts) => &network_opts.market_url,
             _ => "https://raw.githubusercontent.com/project-serum/serum-ts/master/packages/serum/src/markets.json",
+        }
+    }
+
+    pub fn market_list_json(&self) -> Option<&String> {
+        match self {
+            NetworkType::Custom(network_opts) => network_opts.market_list_json.as_ref(),
+            _ => None,
         }
     }
 }
@@ -119,7 +136,6 @@ pub enum SolanaMessage {
 /// and subscription to order change events
 pub struct SolanaClient {
     rpc_client: Arc<RpcClient>,
-
     send_websocket_message_callback: Mutex<SendWebsocketMessageCb>,
     subscription_requests: RwLock<HashMap<RequestId, SubscriptionMarketData>>,
     subscriptions: RwLock<HashMap<RequestId, SubscriptionMarketData>>,

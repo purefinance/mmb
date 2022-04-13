@@ -4,6 +4,7 @@ use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestsTim
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_utils::hashmap;
+use serum::solana_client::{NetworkType, SolanaHosts};
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
@@ -21,6 +22,17 @@ fn get_key_pair_impl(name: &str) -> Result<String> {
     std::env::var(name).with_context(|| {
         format!("Environment variable {name} are not set. Unable to continue test")
     })
+}
+
+pub fn get_network_type() -> Result<NetworkType> {
+    let markets_json = get_key_pair_impl("SERUM_MARKET_LIST")?;
+
+    Ok(NetworkType::Custom(SolanaHosts::new(
+        "https://api.devnet.solana.com".to_string(),
+        "ws://api.devnet.solana.com/".to_string(),
+        "".to_string(),
+        Some(markets_json),
+    )))
 }
 
 pub fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc<TimeoutManager> {

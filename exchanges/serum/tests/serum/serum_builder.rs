@@ -1,10 +1,10 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rust_decimal_macros::dec;
 use serum::serum::Serum;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::serum::common::{get_key_pair, get_timeout_manager};
+use crate::serum::common::{get_key_pair, get_network_type, get_timeout_manager};
 use mmb_core::exchanges::common::{Amount, ExchangeAccountId, Price};
 use mmb_core::exchanges::events::ExchangeEvent;
 use mmb_core::exchanges::general::commission::Commission;
@@ -14,7 +14,6 @@ use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTime
 use mmb_core::infrastructure::init_lifetime_manager;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
-use serum::solana_client::NetworkType;
 
 pub struct SerumBuilder {
     pub exchange: Arc<Exchange>,
@@ -51,13 +50,14 @@ impl SerumBuilder {
         let lifetime_manager = init_lifetime_manager();
         let (tx, rx) = broadcast::channel(10);
         let timeout_manager = get_timeout_manager(exchange_account_id);
+        let network_type = get_network_type().context("Get network type")?;
 
         let serum = Box::new(Serum::new(
             exchange_account_id,
             settings.clone(),
             tx.clone(),
             lifetime_manager.clone(),
-            NetworkType::Devnet,
+            network_type,
             false,
         ));
 

@@ -93,7 +93,7 @@ impl MarketMetaData {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct DeserMarketData {
+pub struct MarketInfo {
     pub address: String,
     pub name: String,
     pub deprecated: bool,
