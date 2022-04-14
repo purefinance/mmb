@@ -61,7 +61,7 @@ impl AppLifetimeManager {
             Err(_) => return None,
         };
 
-        let handler = start_graceful_inner(
+        let handler = start_graceful_shutdown_inner(
             engine_context_guard,
             &reason,
             action,
@@ -83,7 +83,7 @@ impl AppLifetimeManager {
     /// Launch async graceful shutdown operation
     pub async fn run_graceful_shutdown(&self, reason: &str) {
         let engine_context_guard = self.engine_context.lock().await;
-        let fut_opt = start_graceful_inner(
+        let fut_opt = start_graceful_shutdown_inner(
             engine_context_guard,
             reason,
             ActionAfterGracefulShutdown::Nothing,
@@ -96,7 +96,7 @@ impl AppLifetimeManager {
     }
 }
 
-fn start_graceful_inner(
+fn start_graceful_shutdown_inner(
     engine_context_guard: MutexGuard<'_, Option<Weak<EngineContext>>>,
     reason: &str,
     action: ActionAfterGracefulShutdown,
