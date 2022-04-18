@@ -1,4 +1,5 @@
 #![deny(
+    non_ascii_idents,
     non_shorthand_field_patterns,
     no_mangle_generic_items,
     overflowing_literals,
