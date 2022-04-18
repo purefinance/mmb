@@ -35,12 +35,10 @@ static ADDRESS: &str = "127.0.0.1:8080";
 async fn control_panel_run() {
     let control_panel = ControlPanel::new(ADDRESS).await;
 
-    control_panel
+    let _ = control_panel
         .clone()
         .start()
-        .expect("Unable to start control panel")
-        .join()
-        .expect("control panel finished with error");
+        .expect("Unable to start control panel");
 
     signal::ctrl_c().await.expect("failed to listen for event");
 
