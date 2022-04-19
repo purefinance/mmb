@@ -1,24 +1,20 @@
 use actix_server::ServerHandle;
 use anyhow::Result;
-use futures::{executor, future::BoxFuture};
+use futures::{executor, future::BoxFuture, FutureExt};
 use jsonrpc_core_client::{transports::ipc, RpcError};
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::logger::print_info;
 use parking_lot::Mutex;
-use std::{
-    sync::mpsc,
-    sync::Arc,
-    thread::{self, JoinHandle},
-    time::Duration,
-};
-
-use crate::ADDRESS;
+use std::{sync::mpsc, sync::Arc, time::Duration};
 
 use super::endpoints;
-use actix_web::{dev::Server, rt, App, HttpResponse, HttpServer};
+use actix_web::{dev::Server, App, HttpResponse, HttpServer};
 use tokio::sync::oneshot;
 
 use actix_web::web::Data;
+use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::infrastructure::{spawn_future, FutureOutcome, SpawnFutureFlags};
+use tokio::task::JoinHandle;
 
 pub type WebMmbRpcClient = Data<Arc<Mutex<Option<MmbRpcClient>>>>;
 
@@ -64,7 +60,7 @@ impl ControlPanel {
     }
 
     /// Start Actix Server in new thread
-    pub(crate) fn start(self: Arc<Self>) -> Result<JoinHandle<()>> {
+    pub(crate) fn start(self: Arc<Self>) -> Result<JoinHandle<FutureOutcome>> {
         let (server_stopper_tx, server_stopper_rx) = mpsc::channel::<()>();
         *self.server_stopper_tx.lock() = Some(server_stopper_tx);
 
@@ -97,7 +93,8 @@ impl ControlPanel {
             .server_stopping(server_handle, server_stopper_rx);
 
         print_info(format!(
-            "ControlPanel has been started. WebUI is launched on http://{ADDRESS}"
+            "ControlPanel has been started. WebUI is launched on http://{}",
+            self.address
         ));
 
         Ok(self.start_server(server))
@@ -108,7 +105,7 @@ impl ControlPanel {
         server_handle: ServerHandle,
         server_stopper_rx: mpsc::Receiver<()>,
     ) {
-        thread::spawn(move || {
+        std::thread::spawn(move || {
             if let Err(error) = server_stopper_rx.recv() {
                 log::error!("Unable to receive signal to stop actix server: {}", error);
             }
@@ -123,14 +120,14 @@ impl ControlPanel {
         });
     }
 
-    fn start_server(self: Arc<Self>, server: Server) -> JoinHandle<()> {
-        thread::spawn(move || {
-            let system = Arc::new(rt::System::new());
-
-            system.block_on(async {
-                let _ = server;
-            });
-        })
+    fn start_server(self: Arc<Self>, server: Server) -> JoinHandle<FutureOutcome> {
+        spawn_future(
+            "start server",
+            SpawnFutureFlags::STOP_BY_TOKEN & SpawnFutureFlags::DENY_CANCELLATION,
+            async move { server.await.map_err(Into::into) }.boxed(),
+            |_, _| {},
+            CancellationToken::new(),
+        )
     }
 }
 
