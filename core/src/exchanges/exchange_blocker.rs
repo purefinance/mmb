@@ -15,7 +15,7 @@ use parking_lot::{Mutex, RwLock};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use std::ops::{Deref, DerefMut};
+use std::ops::DerefMut;
 use std::sync::Arc;
 use std::{fmt, iter};
 use tokio::sync::{mpsc, Notify};
@@ -55,14 +55,6 @@ impl From<&'static str> for BlockReason {
 impl Display for BlockReason {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
-    }
-}
-
-impl Deref for BlockReason {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        self.0
     }
 }
 
@@ -376,7 +368,7 @@ impl ExchangeBlockerEventsProcessor {
                     return;
                 }
                 drop(progress_state);
-                Self::remove_blocker(&event, blockers);
+                Self::remove_blocker(event, blockers);
 
                 let ctx = ctx.clone();
                 let event = event.clone();
