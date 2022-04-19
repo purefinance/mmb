@@ -37,223 +37,7 @@
     window.onload = function () {
       // Begin Swagger UI call region
       const ui = SwaggerUIBundle({
-        // BEGIN SPEC
-        spec: {
-          "swagger": "2.0",
-          "info": {
-            "version": "0.1.0",
-            "title": "MMB Trading Engine",
-            "license": {
-              "name": "GNU General Public License v3.0",
-              "url": "https://github.com/purefinance/mmb/blob/main/LICENSE"
-            }
-          },
-          "host": "127.0.0.1:8080",
-          "tags": [
-            {
-              "name": "Info",
-              "description": "Get some info about the trading engine condition"
-            },
-            {
-              "name": "Action",
-              "description": "Execute some actions on the trading engine"
-            }
-          ],
-          "schemes": [
-            "http"
-          ],
-          "paths": {
-            "/config": {
-              "post": {
-                "tags": [
-                  "Action"
-                ],
-                "summary": "Setup a new config to the trading engine",
-                "description": "**WARN!!!**\nAfter setting up, the trading engine will be restarted.",
-                "consumes": [
-                  "text/plain"
-                ],
-                "produces": [
-                  "text/plain"
-                ],
-                "parameters": [
-                  {
-                    "in": "body",
-                    "name": "body",
-                    "description": "New config in the TOML format",
-                    "required": true,
-                    "schema": {
-                      "$ref": "#/definitions/Config"
-                    }
-                  }
-                ],
-                "responses": {
-                  "200": {
-                    "description": "Config was successfully updated. Trading engine will restarted"
-                  },
-                  "500": {
-                    "description": "Internal Server Error"
-                  },
-                  "503": {
-                    "description": "Trading engine service unavailable"
-                  }
-                }
-              },
-              "get": {
-                "tags": [
-                  "Info"
-                ],
-                "produces": [
-                  "text/plain"
-                ],
-                "summary": "Get the current trading engine config in TOML format",
-                "responses": {
-                  "200": {
-                    "description": "Success",
-                    "schema": {
-                      "$ref": "#/definitions/Config"
-                    }
-                  },
-                  "503": {
-                    "description": "Trading engine service unavailable"
-                  }
-                }
-              }
-            },
-            "/health": {
-              "get": {
-                "tags": [
-                  "Info"
-                ],
-                "summary": "Ping the trading engine",
-                "description": "Check that trading engine is available",
-                "responses": {
-                  "200": {
-                    "description": "Engine is working"
-                  },
-                  "503": {
-                    "description": "Trading engine service unavailable"
-                  }
-                }
-              },
-            },
-            "/stats": {
-              "get": {
-                "tags": [
-                  "Info"
-                ],
-                "summary": "The trading engine statistics",
-                "responses": {
-                  "200": {
-                    "description": "Success",
-                    "schema": {
-                      "$ref": "#/definitions/Stats"
-                    }
-                  },
-                  "500": {
-                    "description": "Internal Server Error"
-                  },
-                  "503": {
-                    "description": "Trading engine service unavailable"
-                  }
-                }
-              }
-            },
-            "/stop": {
-              "post": {
-                "tags": [
-                  "Action"
-                ],
-                "summary": "Stop the trading engine",
-                "description": "Graceful shutdown will call on the trading engine",
-                "responses": {
-                  "200": {
-                    "description": "Trading engine is going to turn off"
-                  },
-                  "500": {
-                    "description": "Internal Server Error"
-                  },
-                  "503": {
-                    "description": "Trading engine service unavailable"
-                  }
-                }
-              }
-            }
-          },
-          "definitions": {
-            "Config": {
-              "type": "string",
-              "example": "[strategy]\nspread = \"integer\"\ncurrency_pair = { base = \"string\", quote = \"string\" }\nmax_amount = \"integer\"\n\n[[core.exchanges]]\nexchange_account_id = \"string\"\nis_margin_trading = \"boolean\"\nrequest_trades = \"boolean\"\nwebsocket_channels = [\"string\"]\nsubscribe_to_market_data = \"boolean\"\n\ncurrency_pairs = [ { base = \"string\", quote = \"string\"  } ]\napi_key = \"string\"\nsecret_key = \"string\""
-            },
-            "Stats": {
-              "type": "object",
-              "properties": {
-                "market_account_id_stats": {
-                  "type": "object",
-                  "properties": {
-                    "key": {
-                      "type": "string"
-                    },
-                    "value": {
-                      "$ref": "#/definitions/TradePlaceAccountStatistic"
-                    }
-                  }
-                },
-                "disposition_executor_stats": {
-                  "type": "object",
-                  "properties": {
-                    "skipped_events_amount": {
-                      "type": "integer"
-                    }
-                  }
-                }
-              },
-              "example": {
-                "market_account_id_stats": {
-                  "example_market_account_id": {
-                    "opened_orders_count": 0,
-                    "canceled_orders_count": 0,
-                    "partially_filled_orders_count": 0,
-                    "fully_filled_orders_count": 0,
-                    "summary_filled_amount": 0,
-                    "summary_commission": 0
-                  }
-                },
-                "disposition_executor_stats": {
-                  "skipped_events_amount": 0
-                }
-              }
-            },
-            "TradePlaceAccountStatistic": {
-              "type": "object",
-              "properties": {
-                "opened_orders_count": {
-                  "type": "integer"
-                },
-                "canceled_orders_count": {
-                  "type": "integer"
-                },
-                "partially_filled_orders_count": {
-                  "type": "integer"
-                },
-                "fully_filled_orders_count": {
-                  "type": "integer"
-                },
-                "summary_filled_amount": {
-                  "type": "number"
-                },
-                "summary_commission": {
-                  "type": "number"
-                }
-              }
-            }
-          },
-          "externalDocs": {
-            "description": "Find out more about the trading engine",
-            "url": "https://github.com/purefinance/mmb"
-          }
-        },
-        // END SPEC
+        url: "http_api.json",
         dom_id: '#swagger-ui',
         deepLinking: true,
         presets: [
@@ -261,7 +45,8 @@
           SwaggerUIStandalonePreset
         ],
         plugins: [
-          SwaggerUIBundle.plugins.DownloadUrl
+          SwaggerUIBundle.plugins.DownloadUrl,
+          HideTopbarPlugin
         ],
         layout: "StandaloneLayout"
       });
@@ -269,6 +54,14 @@
 
       window.ui = ui;
     };
+
+    function HideTopbarPlugin() {
+      return {
+        components: {
+          Topbar: function() { return null }
+        }
+      }
+    }
   </script>
 </body>
 
