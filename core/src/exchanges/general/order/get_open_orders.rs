@@ -151,6 +151,7 @@ impl Exchange {
                 fills: Default::default(),
                 status_history: Default::default(),
                 internal_props: Default::default(),
+                extension_data: order.extension_data.clone(),
             }));
 
             let new_order = self.orders.add_snapshot_initial(new_snapshot);

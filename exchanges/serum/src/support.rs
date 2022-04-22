@@ -1,4 +1,4 @@
-use crate::serum::Serum;
+use crate::serum::{downcast_mut_to_serum_extension_data, Serum};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -20,8 +20,10 @@ use mmb_core::exchanges::traits::{
 use mmb_core::order_book::event::{EventType, OrderBookEvent};
 use mmb_core::order_book::order_book_data::OrderBookData;
 use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{OrderInfo, OrderSide, OrderStatus};
+use mmb_core::orders::order::{ClientOrderId, OrderInfo, OrderSide, OrderStatus};
 use mmb_core::settings::ExchangeSettings;
+use mmb_utils::infrastructure::WithExpect;
+use mmb_utils::nothing_to_do;
 
 use crate::solana_client::SolanaMessage;
 
@@ -156,40 +158,57 @@ impl Serum {
     }
 
     fn handle_order_event(&self, orders: &[OrderInfo], currency_pair: CurrencyPair) {
-        let mut guard_lock = self.open_orders_by_owner.write();
-        guard_lock
-            .iter_mut()
-            .filter(|(_, order_info)| order_info.currency_pair == currency_pair)
-            .for_each(|(client_order_id, order_info)| match order_info.status {
-                OrderStatus::Creating => {
-                    if let Some(order) = orders
-                        .iter()
-                        .find(|order| order.client_order_id == *client_order_id)
-                    {
-                        order_info.status = OrderStatus::Created;
-                        order_info.exchange_order_id = order.exchange_order_id.clone();
-                        (&self.order_created_callback).lock()(
-                            order.client_order_id.clone(),
-                            order.exchange_order_id.clone(),
-                            EventSourceType::WebSocket,
-                        );
+        let orders: DashMap<ClientOrderId, &OrderInfo> = orders
+            .iter()
+            .map(|order| (order.client_order_id.clone(), order))
+            .collect();
+
+        self.orders
+            .cache_by_client_id
+            .iter()
+            .filter(|order| order.currency_pair() == currency_pair)
+            .for_each(|order_ref| {
+                order_ref.fn_mut(|order| {
+                    let client_order_id = &order.header.client_order_id;
+                    match order.props.status {
+                        OrderStatus::Creating => {
+                            let serum_extension_data =
+                                downcast_mut_to_serum_extension_data(order.extension_data.as_deref_mut());
+
+                            if OrderStatus::Created != serum_extension_data.actual_status {
+                                if let Some(order_from_event) = orders.get(client_order_id) {
+                                    (&self.order_created_callback).lock()(
+                                        client_order_id.clone(),
+                                        order_from_event.exchange_order_id.clone(),
+                                        EventSourceType::WebSocket,
+                                    );
+
+                                    serum_extension_data.actual_status = OrderStatus::Created;
+                                }
+                            }
+                        }
+                        OrderStatus::Canceling => {
+                            let serum_extension_data =
+                                downcast_mut_to_serum_extension_data(order.extension_data.as_deref_mut());
+
+                            if OrderStatus::Canceled != serum_extension_data.actual_status && !orders.contains_key(client_order_id) {
+                                let exchange_order_id = order.props.exchange_order_id.as_ref().with_expect(|| {
+                                    format!(
+                                        "Failed to get exchange order id for order {client_order_id}"
+                                    )
+                                });
+                                (&self.order_cancelled_callback).lock()(
+                                    client_order_id.clone(),
+                                    exchange_order_id.clone(),
+                                    EventSourceType::WebSocket,
+                                );
+
+                                serum_extension_data.actual_status = OrderStatus::Canceled;
+                            }
+                        }
+                        _ => nothing_to_do(),
                     }
-                }
-                OrderStatus::Canceling => {
-                    if !orders
-                        .iter()
-                        .any(|order| order.client_order_id == *client_order_id)
-                    {
-                        order_info.status = OrderStatus::Canceled;
-                        (&self.order_cancelled_callback).lock()(
-                            client_order_id.clone(),
-                            order_info.exchange_order_id.clone(),
-                            EventSourceType::WebSocket,
-                        );
-                    }
-                }
-                _ => {}
+                });
             });
-        guard_lock.retain(|_, order_info| !order_info.status.is_finished());
     }
 }

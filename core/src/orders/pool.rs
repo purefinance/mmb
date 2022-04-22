@@ -98,6 +98,7 @@ impl OrderRef {
                 .map(|exchange_order_id| OrderCancelling {
                     header: order.header.clone(),
                     exchange_order_id: exchange_order_id.clone(),
+                    extension_data: order.extension_data.clone(),
                 })
         })
     }
@@ -149,6 +150,7 @@ impl OrdersPool {
                     fills: Default::default(),
                     status_history: Default::default(),
                     internal_props: Default::default(),
+                    extension_data: None,
                 }));
 
                 self.add_snapshot_initial(snapshot)

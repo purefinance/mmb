@@ -26,9 +26,8 @@ use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::orders::fill::EventSourceType;
-use crate::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo,
-};
+use crate::orders::order::{ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo};
+use crate::orders::pool::OrdersPool;
 use crate::settings::ExchangeSettings;
 use crate::{connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide};
 use crate::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
@@ -37,7 +36,7 @@ use url::Url;
 // Implementation of rest API client
 #[async_trait]
 pub trait ExchangeClient: Support {
-    async fn create_order(&self, order: OrderCreating) -> CreateOrderResult;
+    async fn create_order(&self, order: &OrderRef) -> CreateOrderResult;
 
     async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult;
 
@@ -136,6 +135,7 @@ pub trait ExchangeClientBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult;
 
     fn get_timeout_arguments(&self) -> RequestTimeoutArguments;

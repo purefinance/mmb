@@ -1478,6 +1478,7 @@ mod test {
             OrderFills::default(),
             OrderStatusHistory::default(),
             SystemInternalOrderProps::default(),
+            None,
         );
 
         let order_pool = OrdersPool::new();
@@ -1590,6 +1591,7 @@ mod test {
             OrderFills::default(),
             OrderStatusHistory::default(),
             SystemInternalOrderProps::default(),
+            None,
         );
 
         let order_pool = OrdersPool::new();
@@ -1702,6 +1704,7 @@ mod test {
             OrderFills::default(),
             OrderStatusHistory::default(),
             SystemInternalOrderProps::default(),
+            None,
         );
 
         let order_pool = OrdersPool::new();
@@ -1819,6 +1822,7 @@ mod test {
             OrderFills::default(),
             OrderStatusHistory::default(),
             SystemInternalOrderProps::default(),
+            None,
         );
 
         let order_pool = OrdersPool::new();
@@ -1934,6 +1938,7 @@ mod test {
             OrderFills::default(),
             OrderStatusHistory::default(),
             SystemInternalOrderProps::default(),
+            None,
         );
 
         let order_pool = OrdersPool::new();

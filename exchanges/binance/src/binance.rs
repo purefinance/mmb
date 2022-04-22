@@ -48,7 +48,7 @@ use mmb_core::exchanges::{general::handlers::handle_order_filled::FillEventData,
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::*;
-use mmb_core::orders::pool::OrderRef;
+use mmb_core::orders::pool::{OrderRef, OrdersPool};
 use mmb_core::settings::ExchangeSettings;
 use mmb_core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use mmb_utils::value_to_decimal::GetOrErr;
@@ -878,36 +878,36 @@ impl Binance {
     #[named]
     pub(super) async fn request_create_order(
         &self,
-        order: OrderCreating,
+        order: &OrderRef,
     ) -> Result<RestRequestOutcome> {
-        let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
+        let (header, price) = order.fn_ref(|order| (order.header.clone(), order.price()));
+
+        let specific_currency_pair = self.get_specific_currency_pair(header.currency_pair);
 
         let mut http_params = vec![
             (
                 "symbol".to_owned(),
                 specific_currency_pair.as_str().to_owned(),
             ),
-            (
-                "side".to_owned(),
-                Self::to_server_order_side(order.header.side),
-            ),
+            ("side".to_owned(), Self::to_server_order_side(header.side)),
             (
                 "type".to_owned(),
-                Self::to_server_order_type(order.header.order_type),
+                Self::to_server_order_type(header.order_type),
             ),
-            ("quantity".to_owned(), order.header.amount.to_string()),
+            ("quantity".to_owned(), header.amount.to_string()),
             (
                 "newClientOrderId".to_owned(),
-                order.header.client_order_id.as_str().to_owned(),
+                header.client_order_id.as_str().to_owned(),
             ),
         ];
 
-        if order.header.order_type != OrderType::Market {
+        if header.order_type != OrderType::Market {
             http_params.push(("timeInForce".to_owned(), "GTC".to_owned()));
-            http_params.push(("price".to_owned(), order.price.to_string()));
-        } else if order.header.execution_type == OrderExecutionType::MakerOnly {
+            http_params.push(("price".to_owned(), price.to_string()));
+        } else if header.execution_type == OrderExecutionType::MakerOnly {
             http_params.push(("timeInForce".to_owned(), "GTX".to_owned()));
         }
+
         self.add_authentification_headers(&mut http_params)?;
 
         let full_url = rest_client::build_uri(
@@ -916,12 +916,7 @@ impl Binance {
             &vec![],
         )?;
 
-        let log_args = format_args!(
-            "Create order for {}",
-            // TODO other order_headers_field
-            order.header.client_order_id,
-        )
-        .to_string();
+        let log_args = format!("Create order for {:?}", header);
 
         self.rest_client
             .post(
@@ -1075,6 +1070,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        _orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;
         let empty_response_is_ok = false;

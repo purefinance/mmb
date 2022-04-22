@@ -320,7 +320,7 @@ impl SolanaClient {
         .to_string();
 
         let send_websocket_message_future =
-            (&self.send_websocket_message_callback.lock())(WebSocketRole::Main, message);
+            self.send_websocket_message_callback.lock()(WebSocketRole::Main, message);
         send_websocket_message_future.await
     }
 }
