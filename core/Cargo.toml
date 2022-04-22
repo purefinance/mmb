@@ -17,6 +17,8 @@ crypto-mac = { version = "0.11", features = ["std"]}
 
 dashmap = "4"
 
+dyn-clone = "1"
+
 enum-map = "1.1.1"
 
 form_urlencoded = "1"
@@ -57,6 +59,7 @@ thiserror = "1"
 tokio = { version = "1", features = ["macros", "time", "sync", "rt-multi-thread", "signal"]}
 tokio-tungstenite = { version = "0.16", features = ["native-tls"] }
 toml_edit = { version = "0.12", features = ["serde"] }
+typetag = "0.1.8"
 
 url = "2.0"
 uuid = { version = "0.8", features = ["serde", "v4"]}

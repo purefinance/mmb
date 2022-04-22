@@ -51,13 +51,13 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
         log::info!("Submitting order {:?}", &order_to_create);
-        self.orders
+        let order = self
+            .orders
             .add_simple_initial(order_to_create.header.clone(), Some(order_to_create.price));
 
         let linked_cancellation_token = cancellation_token.create_linked_token();
 
-        let create_order_future =
-            self.create_order_base(order_to_create, linked_cancellation_token);
+        let create_order_future = self.create_order_base(&order, linked_cancellation_token);
 
         // TODO if AllowedCreateEventSourceType != AllowedEventSourceType.OnlyFallback
         // TODO self.poll_order_create(order, pre_reservation_group_id, _linked_cancellation_token)
@@ -144,20 +144,18 @@ impl Exchange {
 
     async fn create_order_base(
         &self,
-        order_to_create: OrderCreating,
+        order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Result<CreateOrderResult> {
-        let order_header = order_to_create.header.clone();
-        let create_order_result = self
-            .create_order_core(order_to_create, cancellation_token)
-            .await;
+        let client_order_id = order.client_order_id();
+        let create_order_result = self.create_order_core(order, cancellation_token).await;
 
         if let Some(created_order) = create_order_result {
             match &created_order.outcome {
                 Success(exchange_order_id) => {
                     self.handle_create_order_succeeded(
                         self.exchange_account_id,
-                        &order_header.client_order_id,
+                        &client_order_id,
                         exchange_order_id,
                         &created_order.source_type,
                     )?;
@@ -166,7 +164,7 @@ impl Exchange {
                     if exchange_error.error_type != ExchangeErrorType::ParsingError {
                         self.handle_create_order_failed(
                             self.exchange_account_id,
-                            &order_header.client_order_id,
+                            &client_order_id,
                             exchange_error,
                             &created_order.source_type,
                         )?

@@ -138,6 +138,7 @@ impl Exchange {
     pub fn new(
         exchange_account_id: ExchangeAccountId,
         exchange_client: BoxExchangeClient,
+        orders: Arc<OrdersPool>,
         features: ExchangeFeatures,
         timeout_arguments: RequestTimeoutArguments,
         events_channel: broadcast::Sender<ExchangeEvent>,
@@ -151,7 +152,7 @@ impl Exchange {
         let exchange = Arc::new(Self {
             exchange_account_id,
             exchange_client,
-            orders: OrdersPool::new(),
+            orders,
             connectivity_manager,
             order_creation_events: DashMap::new(),
             order_cancellation_events: DashMap::new(),

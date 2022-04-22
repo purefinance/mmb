@@ -4,6 +4,7 @@ use super::commission::Commission;
 use crate::exchanges::events::ExchangeEvent;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::launcher::EngineBuildConfig;
+use crate::orders::pool::OrdersPool;
 use crate::settings::ExchangeSettings;
 use crate::{
     exchanges::{
@@ -49,16 +50,19 @@ pub async fn create_exchange(
 ) -> Arc<Exchange> {
     let exchange_client_builder =
         &build_settings.supported_exchange_clients[&user_settings.exchange_account_id.exchange_id];
+    let orders = OrdersPool::new();
 
     let exchange_client = exchange_client_builder.create_exchange_client(
         user_settings.clone(),
         events_channel.clone(),
         lifetime_manager.clone(),
+        orders.clone(),
     );
 
     let exchange = Exchange::new(
         user_settings.exchange_account_id,
         exchange_client.client,
+        orders,
         exchange_client.features,
         exchange_client_builder.get_timeout_arguments(),
         events_channel,

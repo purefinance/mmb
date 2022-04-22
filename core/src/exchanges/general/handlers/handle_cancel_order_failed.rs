@@ -203,6 +203,7 @@ mod test {
                 OrderFills::default(),
                 OrderStatusHistory::default(),
                 SystemInternalOrderProps::default(),
+                None,
             );
             let order_pool = OrdersPool::new();
             let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
@@ -264,6 +265,7 @@ mod test {
                 OrderFills::default(),
                 OrderStatusHistory::default(),
                 SystemInternalOrderProps::default(),
+                None,
             );
             let order_pool = OrdersPool::new();
             let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
@@ -329,6 +331,7 @@ mod test {
                 OrderFills::default(),
                 OrderStatusHistory::default(),
                 SystemInternalOrderProps::default(),
+                None,
             );
             let order_pool = OrdersPool::new();
             order.internal_props.is_canceling_from_wait_cancel_order = true;
@@ -409,6 +412,7 @@ mod test {
                 OrderFills::default(),
                 OrderStatusHistory::default(),
                 SystemInternalOrderProps::default(),
+                None,
             );
             order.internal_props.is_canceling_from_wait_cancel_order = false;
             let order_pool = OrdersPool::new();
@@ -496,6 +500,7 @@ mod test {
             OrderFills::default(),
             OrderStatusHistory::default(),
             SystemInternalOrderProps::default(),
+            None,
         );
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
@@ -575,6 +580,7 @@ mod test {
             OrderFills::default(),
             OrderStatusHistory::default(),
             SystemInternalOrderProps::default(),
+            None,
         );
         let order_pool = OrdersPool::new();
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));

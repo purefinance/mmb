@@ -9,6 +9,7 @@ use parking_lot::{Mutex, RwLock};
 use rust_decimal::prelude::FromPrimitive;
 use rust_decimal::{Decimal, MathematicalOps};
 use rust_decimal_macros::dec;
+use serde::{Deserialize, Serialize};
 use serum_dex::critbit::{Slab, SlabView};
 use serum_dex::instruction::{cancel_order, MarketInstruction};
 use serum_dex::matching::Side;
@@ -25,7 +26,9 @@ use solana_sdk::account::Account;
 use solana_sdk::signature::{Keypair, Signer};
 use spl_token::state;
 use spl_token::state::Mint;
+use std::any::Any;
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::mem::size_of;
 use std::num::NonZeroU64;
 use std::ops::Deref;
@@ -36,7 +39,7 @@ use tokio::sync::broadcast;
 use tokio::time::sleep;
 
 use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide, ToU128};
-use crate::market::{MarketData, MarketInfo, MarketMetaData, OpenOrderData, OrderSerumInfo};
+use crate::market::{MarketData, MarketInfo, MarketMetaData, OpenOrderData};
 use crate::solana_client::{NetworkType, SolanaClient};
 use mmb_core::exchanges::common::{
     CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, SpecificCurrencyPair,
@@ -56,16 +59,77 @@ use mmb_core::exchanges::traits::{
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo, OrderSide,
+    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderSide,
     OrderStatus, OrderType,
 };
-use mmb_core::orders::pool::OrderRef;
+use mmb_core::orders::pool::{OrderRef, OrdersPool};
 use mmb_core::settings::ExchangeSettings;
+use mmb_utils::infrastructure::WithExpect;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SerumExtensionData {
+    pub owner: Pubkey,
+    // actual status, used to prevent duplication of events
+    pub actual_status: OrderStatus,
+}
+
+#[typetag::serde]
+impl OrderInfoExtensionData for SerumExtensionData {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_mut_any(&mut self) -> &mut dyn Any {
+        self
+    }
+}
+
+/// Trait - a wrapper for compact casting to a SerumExtensionData type
+trait DowncastToSerumExtensionData {
+    fn downcast_to_serum_extension_data(&self) -> &SerumExtensionData;
+}
+
+impl DowncastToSerumExtensionData for OrderCancelling {
+    fn downcast_to_serum_extension_data(&self) -> &SerumExtensionData {
+        downcast_to_serum_extension_data(self.extension_data.as_deref())
+    }
+}
+
+impl DowncastToSerumExtensionData for OrderInfo {
+    fn downcast_to_serum_extension_data(&self) -> &SerumExtensionData {
+        downcast_to_serum_extension_data(self.extension_data.as_deref())
+    }
+}
+
+fn downcast_to_serum_extension_data(
+    extension_data: Option<&dyn OrderInfoExtensionData>,
+) -> &SerumExtensionData {
+    extension_data
+        .expect("Failed to complete downcast to SerumExtensionData type. Extension data is None")
+        .as_any()
+        .downcast_ref::<SerumExtensionData>()
+        .with_expect(|| {
+            format!(
+                "Failed to complete downcast to SerumExtensionData type from {extension_data:?}"
+            )
+        })
+}
+
+pub fn downcast_mut_to_serum_extension_data(
+    extension_data: Option<&mut dyn OrderInfoExtensionData>,
+) -> &mut SerumExtensionData {
+    extension_data
+        .expect("Failed to complete downcast to SerumExtensionData type. Extension data is None")
+        .as_mut_any()
+        .downcast_mut::<SerumExtensionData>()
+        .expect("Failed to complete downcast to SerumExtensionData type")
+}
 
 pub struct Serum {
     pub id: ExchangeAccountId,
     pub settings: ExchangeSettings,
     pub payer: Keypair,
+    pub(super) orders: Arc<OrdersPool>,
     pub order_created_callback: Mutex<OrderCreatedCb>,
     pub order_cancelled_callback: Mutex<OrderCancelledCb>,
     pub handle_order_filled_callback: Mutex<HandleOrderFilledCb>,
@@ -77,7 +141,6 @@ pub struct Serum {
     pub(super) rest_client: RestClient,
     pub(super) rpc_client: Arc<SolanaClient>,
     pub(super) markets_data: RwLock<HashMap<CurrencyPair, MarketData>>,
-    pub(super) open_orders_by_owner: RwLock<HashMap<ClientOrderId, OrderSerumInfo>>,
     pub network_type: NetworkType,
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
     pub(super) lifetime_manager: Arc<AppLifetimeManager>,
@@ -89,6 +152,7 @@ impl Serum {
         settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        orders: Arc<OrdersPool>,
         network_type: NetworkType,
         empty_response_is_ok: bool,
     ) -> Self {
@@ -99,6 +163,7 @@ impl Serum {
             id,
             settings,
             payer,
+            orders,
             order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
             order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
             handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
@@ -113,7 +178,6 @@ impl Serum {
             )),
             rpc_client: Arc::new(SolanaClient::new(&network_type)),
             markets_data: Default::default(),
-            open_orders_by_owner: Default::default(),
             network_type,
             events_channel,
             lifetime_manager,
@@ -212,19 +276,18 @@ impl Serum {
         program_id: Pubkey,
         metadata: &MarketMetaData,
         open_order_account: Pubkey,
-        order: OrderCreating,
+        order: &OrderRef,
     ) -> Result<Instruction> {
-        let order_header = order.header;
-        let side = order_header.side;
-
-        let price = metadata.make_price(order.price);
-        let amount = metadata.make_size(order_header.amount);
+        let (header, price) = order.fn_ref(|order| (order.header.clone(), order.price()));
+        let side = header.side;
+        let price = metadata.make_price(price);
+        let amount = metadata.make_size(header.amount);
         let max_native_price = metadata.make_max_native(price, amount);
         let client_order_id =
-            u64::from_str(order_header.client_order_id.as_str()).with_context(|| {
+            u64::from_str(header.client_order_id.as_str()).with_context(|| {
                 format!(
                     "Failed to convert client_order_id {} to u64",
-                    order_header.client_order_id
+                    header.client_order_id
                 )
             })?;
 
@@ -242,7 +305,7 @@ impl Serum {
                 },
             )?,
             self_trade_behavior: serum_dex::instruction::SelfTradeBehavior::DecrementTake,
-            order_type: match order_header.order_type {
+            order_type: match header.order_type {
                 OrderType::Limit => serum_dex::matching::OrderType::Limit,
                 _ => unimplemented!(),
             },
@@ -413,6 +476,10 @@ impl Serum {
                         commission_currency_code: None,
                         commission_rate: None,
                         commission_amount: None,
+                        extension_data: Some(Box::new(SerumExtensionData {
+                            owner: market_info.owner_address,
+                            actual_status: OrderStatus::Created,
+                        })),
                     })
                 }
             }
@@ -452,12 +519,14 @@ impl Serum {
         bail!("Failed to get ExchangeOrderId by client order id {client_order_id}")
     }
 
-    pub(super) async fn create_order_core(&self, order: OrderCreating) -> Result<ExchangeOrderId> {
+    pub(super) async fn create_order_core(&self, order: &OrderRef) -> Result<ExchangeOrderId> {
         let mut instructions = Vec::new();
         let mut signers = Vec::new();
         let orders_keypair: Keypair;
-        let client_order_id = order.header.client_order_id.clone();
-        let currency_pair = order.header.currency_pair;
+        let (client_order_id, currency_pair) = order.fn_ref(|order| {
+            let header = order.header.as_ref();
+            (header.client_order_id.clone(), header.currency_pair)
+        });
 
         let market_data = self.get_market_data(currency_pair)?;
         let accounts = self
@@ -483,6 +552,12 @@ impl Serum {
                 orders_keypair.pubkey()
             }
         };
+        order.fn_mut(|order| {
+            order.extension_data = Some(Box::new(SerumExtensionData {
+                owner: open_order_account,
+                actual_status: OrderStatus::Creating,
+            }))
+        });
 
         let place_order_ix = self.create_new_order_instruction(
             market_data.program_id,
@@ -501,16 +576,6 @@ impl Serum {
         instructions.extend(settle_funds_instructions);
         signers.push(&self.payer);
 
-        self.open_orders_by_owner.write().insert(
-            client_order_id.clone(),
-            OrderSerumInfo {
-                currency_pair,
-                owner: open_order_account,
-                status: OrderStatus::Creating,
-                exchange_order_id: "0".into(),
-            },
-        );
-
         self.rpc_client
             .send_instructions(&self.payer, &instructions)
             .await?;
@@ -520,25 +585,15 @@ impl Serum {
     pub(super) async fn cancel_order_core(&self, order: &OrderCancelling) -> Result<()> {
         let market_data = self.get_market_data(order.header.currency_pair)?;
         let metadata = market_data.metadata;
-        let client_order_id = order.header.client_order_id.clone();
         let exchange_order_id = order.exchange_order_id.clone();
-
-        let owner = {
-            let mut guard_lock = self.open_orders_by_owner.write();
-            let order_info = guard_lock.get_mut(&client_order_id).with_context(|| {
-                format!("Unable to get owner by client order id = {client_order_id}")
-            })?;
-
-            order_info.status = OrderStatus::Canceling;
-            order_info.owner
-        };
+        let extension_data = order.downcast_to_serum_extension_data();
 
         let instructions = &[cancel_order(
             &market_data.program_id,
             &metadata.owner_address,
             &metadata.bids_address,
             &metadata.asks_address,
-            &owner,
+            &extension_data.owner,
             &self.payer.pubkey(),
             &metadata.event_queue_address,
             order.header.side.to_serum_side(),
@@ -559,24 +614,13 @@ impl Serum {
         let instructions: Vec<Instruction> = orders
             .iter()
             .map(|order| {
-                let owner = self
-                    .open_orders_by_owner
-                    .write()
-                    .remove(&order.client_order_id)
-                    .with_context(|| {
-                        format!(
-                            "Unable to get owner by client order id = {}",
-                            order.client_order_id
-                        )
-                    })?
-                    .owner;
-
+                let extension_data = order.downcast_to_serum_extension_data();
                 cancel_order(
                     &market_data.program_id,
                     &metadata.owner_address,
                     &metadata.bids_address,
                     &metadata.asks_address,
-                    &owner,
+                    &extension_data.owner,
                     &self.payer.pubkey(),
                     &metadata.event_queue_address,
                     order.order_side.to_serum_side(),
@@ -763,6 +807,7 @@ impl ExchangeClientBuilder for SerumBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: tokio::sync::broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;
         let empty_response_is_ok = false;
@@ -773,6 +818,7 @@ impl ExchangeClientBuilder for SerumBuilder {
                 exchange_settings,
                 events_channel,
                 lifetime_manager,
+                orders,
                 NetworkType::Mainnet,
                 empty_response_is_ok,
             )) as BoxExchangeClient,

@@ -168,6 +168,7 @@ async fn nothing_to_cancel() {
     let order_to_cancel = OrderCancelling {
         header: order.make_header(),
         exchange_order_id: "1234567890".into(),
+        extension_data: None,
     };
 
     // Cancel last order

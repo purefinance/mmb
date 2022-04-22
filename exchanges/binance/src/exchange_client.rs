@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 #[async_trait]
 impl ExchangeClient for Binance {
-    async fn create_order(&self, order: OrderCreating) -> CreateOrderResult {
+    async fn create_order(&self, order: &OrderRef) -> CreateOrderResult {
         match self.request_create_order(order).await {
             Ok(request_outcome) => match self.get_order_id(&request_outcome) {
                 Ok(created_order_id) => {

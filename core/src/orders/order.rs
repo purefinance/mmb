@@ -1,11 +1,13 @@
+use std::any::Any;
 use std::fmt;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::vec::Vec;
 
 use chrono::Utc;
+use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;
 use itertools::Itertools;
 use mmb_utils::DateTime;
@@ -320,6 +322,67 @@ pub struct SystemInternalOrderProps {
     pub filled_amount_after_cancellation: Option<Amount>,
 }
 
+/// It may be necessary for an exchange to store specific information for an order.
+/// To do this, you need to implement `OrderInfoExtensionData` trait for the structure specific to the exchange.
+/// For the correct implementation of the trait for `Serialize/Deserialize`, it is also necessary to add a procedural macro `#[typetag::serde]`
+///
+/// # Examples
+///
+/// ```
+/// use serde::{Deserialize, Serialize};
+/// use mmb_core::orders::order::OrderInfoExtensionData;
+/// use std::any::Any;
+///
+/// // Structure for which extension data is added
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct OrderInfo {
+///     pub price: i32,
+///     pub amount: i32,
+///     pub extension_data: Box<dyn OrderInfoExtensionData>  
+/// }
+///
+/// // Specific extension data
+/// #[derive(Debug, Clone, Serialize, Deserialize)]
+/// struct OrderExtensionData {
+///     pub owner: String,
+/// }
+///
+/// #[typetag::serde]
+/// impl OrderInfoExtensionData for OrderExtensionData {
+///     fn as_any(&self) -> &dyn Any {
+///         self
+///     }
+///
+///     fn as_mut_any(&mut self) -> &mut dyn Any {
+///         self
+///     }
+/// }
+///
+/// // Creation
+/// let order_info = OrderInfo {
+///     price: 10,
+///     amount: 2,
+///     extension_data: Box::new(OrderExtensionData {
+///         owner: "this".into()
+///     }),
+/// };
+///
+/// // Downcasting
+/// let extension_data = order_info.extension_data
+///                         .as_any()
+///                         .downcast_ref::<OrderExtensionData>()
+///                         .unwrap();
+/// ```
+#[typetag::serde(tag = "type")]
+pub trait OrderInfoExtensionData: Any + DynClone + Send + Sync + Debug {
+    /// Needed to call the `downcast_ref` method
+    fn as_any(&self) -> &dyn Any;
+
+    fn as_mut_any(&mut self) -> &mut dyn Any;
+}
+
+clone_trait_object!(OrderInfoExtensionData);
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderInfo {
     pub currency_pair: CurrencyPair,
@@ -334,6 +397,7 @@ pub struct OrderInfo {
     pub commission_currency_code: Option<String>,
     pub commission_rate: Option<Price>,
     pub commission_amount: Option<Amount>,
+    pub extension_data: Option<Box<dyn OrderInfoExtensionData>>,
 }
 
 impl OrderInfo {
@@ -364,6 +428,7 @@ impl OrderInfo {
             commission_currency_code,
             commission_rate,
             commission_amount,
+            extension_data: None,
         }
     }
 }
@@ -378,6 +443,7 @@ pub struct OrderCreating {
 pub struct OrderCancelling {
     pub header: Arc<OrderHeader>,
     pub exchange_order_id: ExchangeOrderId,
+    pub extension_data: Option<Box<dyn OrderInfoExtensionData>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -387,6 +453,7 @@ pub struct OrderSnapshot {
     pub fills: OrderFills,
     pub status_history: OrderStatusHistory,
     pub internal_props: SystemInternalOrderProps,
+    pub extension_data: Option<Box<dyn OrderInfoExtensionData>>,
 }
 
 impl OrderSnapshot {
@@ -396,6 +463,7 @@ impl OrderSnapshot {
         fills: OrderFills,
         status_history: OrderStatusHistory,
         internal_props: SystemInternalOrderProps,
+        extension_data: Option<Box<dyn OrderInfoExtensionData>>,
     ) -> Self {
         OrderSnapshot {
             header,
@@ -403,6 +471,7 @@ impl OrderSnapshot {
             fills,
             status_history,
             internal_props,
+            extension_data,
         }
     }
 
@@ -441,6 +510,7 @@ impl OrderSnapshot {
             OrderFills::default(),
             OrderStatusHistory::default(),
             SystemInternalOrderProps::default(),
+            None,
         )
     }
 

@@ -263,6 +263,7 @@ impl BalanceManagerBase {
             fills: Default::default(),
             status_history: Default::default(),
             internal_props: Default::default(),
+            extension_data: None,
         };
         self.order_index += 1;
         order_snapshot

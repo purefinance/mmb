@@ -124,7 +124,10 @@ impl OrderProxy {
         let order_to_cancel = OrderCancelling {
             header: header.clone(),
             exchange_order_id,
+            extension_data: order_ref.fn_ref(|s| s.extension_data.clone()),
         };
+
+        order_ref.fn_mut(|order| order.set_status(OrderStatus::Canceling, Utc::now()));
 
         let cancel_outcome = exchange
             .cancel_order(order_to_cancel, CancellationToken::default())

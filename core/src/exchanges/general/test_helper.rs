@@ -28,8 +28,8 @@ use crate::{
     orders::{
         fill::EventSourceType,
         order::{
-            ClientOrderId, ExchangeOrderId, OrderCancelling, OrderCreating, OrderInfo, OrderRole,
-            OrderSide, OrderSnapshot, OrderType,
+            ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderRole, OrderSide,
+            OrderSnapshot, OrderType,
         },
         pool::{OrderRef, OrdersPool},
     },
@@ -58,7 +58,7 @@ pub struct TestClient;
 
 #[async_trait]
 impl ExchangeClient for TestClient {
-    async fn create_order(&self, _order: OrderCreating) -> CreateOrderResult {
+    async fn create_order(&self, _order: &OrderRef) -> CreateOrderResult {
         unimplemented!("doesn't need in UT")
     }
 
@@ -266,6 +266,7 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
     let exchange = Exchange::new(
         exchange_account_id,
         exchange_client,
+        OrdersPool::new(),
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),

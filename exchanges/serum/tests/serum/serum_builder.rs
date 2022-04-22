@@ -12,6 +12,7 @@ use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::ExchangeFeatures;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::infrastructure::init_lifetime_manager;
+use mmb_core::orders::pool::OrdersPool;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
 
@@ -51,12 +52,14 @@ impl SerumBuilder {
         let (tx, rx) = broadcast::channel(10);
         let timeout_manager = get_timeout_manager(exchange_account_id);
         let network_type = get_network_type().context("Get network type")?;
+        let orders_pool = OrdersPool::new();
 
         let serum = Box::new(Serum::new(
             exchange_account_id,
             settings.clone(),
             tx.clone(),
             lifetime_manager.clone(),
+            orders_pool.clone(),
             network_type,
             false,
         ));
@@ -64,6 +67,7 @@ impl SerumBuilder {
         let exchange = Exchange::new(
             exchange_account_id,
             serum,
+            orders_pool,
             features,
             RequestTimeoutArguments::from_requests_per_minute(240),
             tx.clone(),

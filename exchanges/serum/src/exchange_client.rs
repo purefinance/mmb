@@ -23,13 +23,13 @@ use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::traits::ExchangeClient;
 use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{OrderCancelling, OrderCreating, OrderInfo};
+use mmb_core::orders::order::{OrderCancelling, OrderInfo};
 use mmb_core::orders::pool::OrderRef;
 use mmb_utils::DateTime;
 
 #[async_trait]
 impl ExchangeClient for Serum {
-    async fn create_order(&self, order: OrderCreating) -> CreateOrderResult {
+    async fn create_order(&self, order: &OrderRef) -> CreateOrderResult {
         // TODO Possible handle ExchangeError in create_order_core
         match self.create_order_core(order).await {
             Ok(exchange_order_id) => {

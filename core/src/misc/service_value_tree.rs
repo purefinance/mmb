@@ -19,7 +19,7 @@ pub(crate) type CurrencyPairByCurrencyPair = HashMap<CurrencyPair, ValueByCurren
 pub(crate) type ValueByCurrencyCode = HashMap<CurrencyCode, Amount>;
 
 /// A tree that contain balance amounts distributed by
-/// ServiceNames -> ConfigurationKeys -> ExchangerAccountIds -> CurrencyPairs -> CurrencyCodes.
+/// ServiceNames -> ConfigurationKeys -> ExchangeAccountIds -> CurrencyPairs -> CurrencyCodes.
 ///     NOTE: there is storing all balances by ServiceNames(strategy name),
 ///     that will contain several configuration keys for strategies, next layer is one or more accounts for
 ///     selected ServiceName and here stored CurrencyCodes by CurrencyPairs and amount for every currency code.

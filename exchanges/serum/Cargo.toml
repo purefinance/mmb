@@ -33,6 +33,7 @@ solana-program = "1.10"
 solana-sdk = "1.10"
 spl-token = { version = "3.2", features = ["no-entrypoint"], default-features = false }
 tokio = { version = "1" }
+typetag = "0.1.8"
 url = "2.0"
 function_name = "0.2.0"
 

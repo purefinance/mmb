@@ -11,6 +11,7 @@ use mmb_core::exchanges::general::features::*;
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::infrastructure::init_lifetime_manager;
+use mmb_core::orders::pool::OrdersPool;
 use mmb_core::settings::CurrencyPairSetting;
 use mmb_core::settings::ExchangeSettings;
 use mmb_utils::cancellation_token::CancellationToken;
@@ -98,6 +99,7 @@ impl BinanceBuilder {
         let exchange = Exchange::new(
             exchange_account_id,
             binance,
+            OrdersPool::new(),
             features,
             RequestTimeoutArguments::from_requests_per_minute(1200),
             tx.clone(),

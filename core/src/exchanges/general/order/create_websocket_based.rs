@@ -1,12 +1,10 @@
 use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::oneshot;
 
+use crate::orders::pool::OrderRef;
 use crate::{
-    exchanges::general::exchange::Exchange,
-    exchanges::general::exchange::RequestResult,
-    orders::order::ClientOrderId,
-    orders::order::ExchangeOrderId,
-    orders::{fill::EventSourceType, order::OrderCreating},
+    exchanges::general::exchange::Exchange, exchanges::general::exchange::RequestResult,
+    orders::fill::EventSourceType, orders::order::ClientOrderId, orders::order::ExchangeOrderId,
 };
 
 use super::create::CreateOrderResult;
@@ -14,10 +12,10 @@ use super::create::CreateOrderResult;
 impl Exchange {
     pub(super) async fn create_order_core(
         &self,
-        order: OrderCreating,
+        order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Option<CreateOrderResult> {
-        let client_order_id = order.header.client_order_id.clone();
+        let client_order_id = order.client_order_id();
         let (tx, mut websocket_event_receiver) = oneshot::channel();
 
         // TODO insert is not analog of C# GetOrAd!
