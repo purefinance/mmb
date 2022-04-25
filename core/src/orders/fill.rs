@@ -48,7 +48,7 @@ pub struct OrderFill {
     converted_commission_amount: Decimal,
     expected_converted_commission_amount: Decimal,
 
-    is_diff: bool,
+    is_incremental_fill: bool,
     event_source_type: Option<EventSourceType>,
     side: Option<OrderSide>,
 }
@@ -70,7 +70,7 @@ impl OrderFill {
         converted_commission_currency_code: CurrencyCode,
         converted_commission_amount: Decimal,
         expected_converted_commission_amount: Decimal,
-        is_diff: bool,
+        is_incremental_fill: bool,
         event_source_type: Option<EventSourceType>,
         side: Option<OrderSide>,
     ) -> Self {
@@ -90,7 +90,7 @@ impl OrderFill {
             converted_commission_currency_code,
             converted_commission_amount,
             expected_converted_commission_amount,
-            is_diff,
+            is_incremental_fill,
             event_source_type,
             side,
         }
@@ -138,8 +138,8 @@ impl OrderFill {
     pub fn expected_converted_commission_amount(&self) -> Decimal {
         self.expected_converted_commission_amount
     }
-    pub fn is_diff(&self) -> bool {
-        self.is_diff
+    pub fn is_incremental_fill(&self) -> bool {
+        self.is_incremental_fill
     }
     pub fn event_source_type(&self) -> Option<EventSourceType> {
         self.event_source_type

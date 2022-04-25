@@ -14,7 +14,7 @@ use crate::exchanges::common::ToStdExpected;
 use crate::exchanges::common::{CurrencyCode, ExchangeErrorType};
 use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::features::RestFillsType;
-use crate::exchanges::general::handlers::handle_order_filled::FillEventData;
+use crate::exchanges::general::handlers::handle_order_filled::{FillAmount, FillEvent};
 use crate::exchanges::general::request_type::RequestType;
 use crate::exchanges::general::symbol::Symbol;
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
@@ -433,15 +433,15 @@ impl Exchange {
                             .clone()
                             .map(|currency_code| CurrencyCode::new(&currency_code));
 
-                        let event_data = FillEventData {
+                        let fill_event = FillEvent {
                             source_type: EventSourceType::RestFallback,
                             trade_id: None,
                             client_order_id: Some(order.client_order_id()),
                             exchange_order_id,
                             fill_price: order_info.average_fill_price,
-                            fill_amount: order_info.filled_amount,
-                            is_diff: false,
-                            total_filled_amount: None,
+                            fill_amount: FillAmount::Total {
+                                total_fill_amount: order_info.filled_amount,
+                            },
                             order_role: None,
                             commission_currency_code,
                             commission_rate: order_info.commission_rate,
@@ -452,7 +452,7 @@ impl Exchange {
                             order_amount: None,
                             fill_date: None,
                         };
-                        self.handle_order_filled(event_data);
+                        self.handle_order_filled(fill_event);
 
                         RequestResult::Success(order_info)
                     }
@@ -479,15 +479,16 @@ impl Exchange {
         let exchange_order_id = order
             .exchange_order_id()
             .expect("No exchange_order_id in order while handle_order_filled_for_restfallback");
-        let event_data = FillEventData {
+        let fill_event = FillEvent {
             source_type: EventSourceType::RestFallback,
             trade_id: Some(order_trade.trade_id.clone()),
             client_order_id: Some(order.client_order_id()),
             exchange_order_id,
             fill_price: order_trade.price,
-            fill_amount: order_trade.amount,
-            is_diff: true,
-            total_filled_amount: None,
+            fill_amount: FillAmount::Incremental {
+                fill_amount: order_trade.amount,
+                total_filled_amount: None,
+            },
             order_role: Some(order_trade.order_role),
             commission_currency_code: Some(order_trade.fee_currency_code),
             commission_rate: order_trade.fee_rate,
@@ -499,7 +500,7 @@ impl Exchange {
             fill_date: Some(order_trade.datetime),
         };
 
-        self.handle_order_filled(event_data)
+        self.handle_order_filled(fill_event)
     }
 
     pub(super) async fn create_order_finish_future(

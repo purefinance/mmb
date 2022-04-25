@@ -1,11 +1,12 @@
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 
+use crate::exchanges::general::handlers::handle_order_filled::FillAmount;
 use crate::{
     exchanges::{
         common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
         events::TradeId,
-        general::handlers::handle_order_filled::FillEventData,
+        general::handlers::handle_order_filled::FillEvent,
     },
     orders::{
         fill::{EventSourceType, OrderFillType},
@@ -76,16 +77,25 @@ impl BufferedFill {
         &self,
         order_amount: Option<Decimal>,
         client_order_id: ClientOrderId,
-    ) -> FillEventData {
-        FillEventData {
+    ) -> FillEvent {
+        let fill_amount = if self.is_diff {
+            FillAmount::Incremental {
+                fill_amount: self.fill_amount,
+                total_filled_amount: self.total_filled_amount,
+            }
+        } else {
+            FillAmount::Total {
+                total_fill_amount: self.fill_amount,
+            }
+        };
+
+        FillEvent {
             source_type: self.event_source_type,
             trade_id: Some(self.trade_id.clone()),
             client_order_id: Some(client_order_id),
             exchange_order_id: self.exchange_order_id.clone(),
             fill_price: self.fill_price,
-            fill_amount: self.fill_amount,
-            is_diff: self.is_diff,
-            total_filled_amount: self.total_filled_amount,
+            fill_amount,
             order_role: self.order_role,
             commission_currency_code: Some(self.commission_currency_code),
             commission_rate: self.commission_rate,

@@ -14,7 +14,7 @@ use super::{
     },
     common::{Amount, ClosedPosition, CurrencyId, Price},
     events::{ExchangeBalancesAndPositions, TradeId},
-    general::handlers::handle_order_filled::FillEventData,
+    general::handlers::handle_order_filled::FillEvent,
     general::symbol::BeforeAfter,
     general::{order::get_order_trades::OrderTrade, symbol::Symbol},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
@@ -78,7 +78,7 @@ pub type OrderCreatedCb =
 
 pub type HandleTradeCb =
     Box<dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>;
-pub type HandleOrderFilledCb = Box<dyn FnMut(FillEventData) + Send + Sync>;
+pub type HandleOrderFilledCb = Box<dyn FnMut(FillEvent) + Send + Sync>;
 
 pub type SendWebsocketMessageCb =
     Box<dyn Fn(WebSocketRole, String) -> BoxFuture<'static, ()> + Send + Sync>;
