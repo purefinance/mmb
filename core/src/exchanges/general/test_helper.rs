@@ -46,13 +46,10 @@ use url::Url;
 use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
-use crate::exchanges::traits::SendWebsocketMessageCb;
+use crate::exchanges::traits::{HandleOrderFilledCb, SendWebsocketMessageCb};
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
 
-use super::{
-    handlers::handle_order_filled::FillEventData, order::get_order_trades::OrderTrade,
-    symbol::BeforeAfter,
-};
+use super::{order::get_order_trades::OrderTrade, symbol::BeforeAfter};
 
 pub struct TestClient;
 
@@ -137,11 +134,7 @@ impl Support for TestClient {
     ) {
     }
 
-    fn set_handle_order_filled_callback(
-        &self,
-        _callback: Box<dyn FnMut(FillEventData) + Send + Sync>,
-    ) {
-    }
+    fn set_handle_order_filled_callback(&self, _callback: HandleOrderFilledCb) {}
 
     fn set_handle_trade_callback(
         &self,

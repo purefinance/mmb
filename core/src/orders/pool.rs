@@ -26,7 +26,7 @@ impl OrderRef {
     }
 
     /// Lock order for write and provide mutate state of order
-    pub fn fn_mut<T: 'static>(&self, mut f: impl FnMut(&mut OrderSnapshot) -> T) -> T {
+    pub fn fn_mut<T: 'static>(&self, f: impl FnOnce(&mut OrderSnapshot) -> T) -> T {
         f(self.0.write().borrow_mut())
     }
 

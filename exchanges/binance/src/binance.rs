@@ -27,12 +27,14 @@ use mmb_core::exchanges::events::{
 use mmb_core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
+use mmb_core::exchanges::general::handlers::handle_order_filled::FillAmount;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::{ErrorHandler, ErrorHandlerData, RestClient};
 use mmb_core::exchanges::traits::{
-    ExchangeClientBuilderResult, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, Support,
+    ExchangeClientBuilderResult, HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb,
+    OrderCreatedCb, Support,
 };
 use mmb_core::exchanges::{
     common::CurrencyCode,
@@ -44,7 +46,7 @@ use mmb_core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
     events::AllowedEventSourceType,
 };
-use mmb_core::exchanges::{general::handlers::handle_order_filled::FillEventData, rest_client};
+use mmb_core::exchanges::{general::handlers::handle_order_filled::FillEvent, rest_client};
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::*;
@@ -122,7 +124,7 @@ pub struct Binance {
     pub id: ExchangeAccountId,
     pub order_created_callback: Mutex<OrderCreatedCb>,
     pub order_cancelled_callback: Mutex<OrderCancelledCb>,
-    pub handle_order_filled_callback: Mutex<Box<dyn FnMut(FillEventData) + Send + Sync>>,
+    pub handle_order_filled_callback: Mutex<HandleOrderFilledCb>,
     pub handle_trade_callback: Mutex<HandleTradeCb>,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
@@ -435,7 +437,7 @@ impl Binance {
         execution_type: &str,
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,
-    ) -> Result<FillEventData> {
+    ) -> Result<FillEvent> {
         let trade_id = json_response["t"].clone().into();
         let last_filled_price = json_response["L"]
             .as_str()
@@ -476,15 +478,18 @@ impl Binance {
             OrderRole::Taker
         };
 
-        let event_data = FillEventData {
+        let fill_amount = FillAmount::Incremental {
+            fill_amount: last_filled_amount.parse()?,
+            total_filled_amount: Some(total_filled_amount.parse()?),
+        };
+
+        let fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id: Some(trade_id),
             client_order_id: Some(client_order_id),
             exchange_order_id,
             fill_price: last_filled_price.parse()?,
-            fill_amount: last_filled_amount.parse()?,
-            is_diff: true,
-            total_filled_amount: Some(total_filled_amount.parse()?),
+            fill_amount,
             order_role: Some(order_role),
             commission_currency_code: Some(commission_currency_code),
             commission_rate: None,
@@ -496,7 +501,7 @@ impl Binance {
             fill_date: Some(fill_date),
         };
 
-        Ok(event_data)
+        Ok(fill_event)
     }
 
     // According to https://binance-docs.github.io/apidocs/futures/en/#event-order-update
