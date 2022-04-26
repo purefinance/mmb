@@ -14,7 +14,7 @@ use std::sync::Arc;
 use url::Url;
 
 use super::binance::Binance;
-use mmb_core::connectivity::connectivity_manager::WebSocketRole;
+use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::common::{send_event, ActivePosition, SortedOrderData};
 use mmb_core::exchanges::common::{Amount, CurrencyPair, Price, SpecificCurrencyPair};
 use mmb_core::exchanges::events::{ExchangeEvent, TradeId};

@@ -28,7 +28,7 @@ where
     let credentials = read_to_string(credentials_path)
         .with_context(|| format!("Unable load credentials file: {}", credentials_path))?;
 
-    parse_settings(settings.as_str(), credentials.as_str())
+    parse_settings(&settings, &credentials)
 }
 
 pub fn load_pretty_settings<StrategySettings>(

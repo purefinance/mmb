@@ -9,9 +9,10 @@ use serum_dex::matching::Side;
 use solana_account_decoder::UiAccount;
 use url::Url;
 
-use mmb_core::connectivity::connectivity_manager::WebSocketRole;
-use mmb_core::exchanges::common::{send_event, CurrencyPair, SortedOrderData};
-use mmb_core::exchanges::common::{CurrencyCode, CurrencyId, SpecificCurrencyPair};
+use mmb_core::connectivity::WebSocketRole;
+use mmb_core::exchanges::common::{
+    send_event, CurrencyCode, CurrencyId, CurrencyPair, SortedOrderData, SpecificCurrencyPair,
+};
 use mmb_core::exchanges::events::ExchangeEvent;
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,

@@ -2,7 +2,6 @@ use std::sync::{Arc, Weak};
 
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
-use futures::FutureExt;
 use itertools::Itertools;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::send_expected::SendExpectedByRef;
@@ -14,7 +13,6 @@ use tokio::sync::{broadcast, oneshot};
 use super::commission::Commission;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use super::symbol::Symbol;
-use crate::connectivity::connectivity_manager::GetWSParamsCallback;
 use crate::exchanges::common::{ActivePosition, ClosedPosition, MarketId, SpecificCurrencyPair};
 use crate::exchanges::events::{
     BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
@@ -35,7 +33,6 @@ use crate::orders::order::OrderSide;
 use crate::orders::pool::OrdersPool;
 use crate::orders::{order::ExchangeOrderId, pool::OrderRef};
 use crate::{
-    connectivity::connectivity_manager::WebSocketRole,
     exchanges::common::ExchangeAccountId,
     exchanges::{
         common::{CurrencyPair, ExchangeError},
@@ -45,17 +42,20 @@ use crate::{
 };
 
 use crate::balance_manager::balance_manager::BalanceManager;
-use crate::{
-    connectivity::{
-        connectivity_manager::ConnectivityManager, websocket_connection::WebSocketParams,
-    },
-    orders::order::ClientOrderId,
+use crate::connectivity::{
+    websocket_open, ConnectivityError, WebSocketParams, WebSocketRole, WsSender,
 };
+use crate::infrastructure::spawn_future;
+use crate::orders::order::ClientOrderId;
 use crate::{
     exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
+use futures::FutureExt;
+use mmb_utils::infrastructure::SpawnFutureFlags;
 use std::fmt::Debug;
+use std::ops::DerefMut;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -129,7 +129,8 @@ pub struct Exchange {
             Option<oneshot::Receiver<CancelOrderResult>>,
         ),
     >,
-    connectivity_manager: Arc<ConnectivityManager>,
+    ws_sender: Mutex<Option<WsSender>>,
+    auto_reconnect: AtomicBool,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -146,14 +147,13 @@ impl Exchange {
         timeout_manager: Arc<TimeoutManager>,
         commission: Commission,
     ) -> Arc<Self> {
-        let connectivity_manager = ConnectivityManager::new(exchange_account_id);
         let polling_timeout_manager = PollingTimeoutManager::new(timeout_arguments);
 
         let exchange = Arc::new(Self {
             exchange_account_id,
             exchange_client,
             orders,
-            connectivity_manager,
+            ws_sender: Default::default(),
             order_creation_events: DashMap::new(),
             order_cancellation_events: DashMap::new(),
             lifetime_manager,
@@ -176,62 +176,47 @@ impl Exchange {
             balance_manager: Mutex::new(None),
             buffered_fills_manager: Default::default(),
             buffered_canceled_orders_manager: Default::default(),
+            auto_reconnect: AtomicBool::new(false),
         });
 
-        exchange.clone().setup_connectivity_manager();
-        exchange.clone().setup_exchange_client();
-
+        exchange.setup_exchange_client();
         exchange
     }
 
-    fn setup_connectivity_manager(self: Arc<Self>) {
-        let exchange_weak = Arc::downgrade(&self);
-        self.connectivity_manager
-            .set_callback_msg_received(Box::new(move |data| match exchange_weak.upgrade() {
-                Some(exchange) => exchange.on_websocket_message(data),
-                None => log::info!("Unable to upgrade weak reference to Exchange instance"),
-            }));
+    fn setup_exchange_client(self: &Arc<Self>) {
+        let exchange_weak = Arc::downgrade(self);
 
-        let exchange_weak = Arc::downgrade(&self);
-        self.connectivity_manager
-            .set_callback_connecting(Box::new(move || match exchange_weak.upgrade() {
-                Some(exchange) => exchange.on_connecting(),
-                None => log::info!("Unable to upgrade weak reference to Exchange instance"),
-            }));
-    }
-
-    fn setup_exchange_client(self: Arc<Self>) {
-        let exchange_weak = Arc::downgrade(&self);
-        self.exchange_client.set_order_created_callback(Box::new(
+        self.exchange_client.set_order_created_callback(Box::new({
+            let exchange_weak = exchange_weak.clone();
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
                     exchange.raise_order_created(&client_order_id, &exchange_order_id, source_type)
                 }
                 None => log::info!("Unable to upgrade weak reference to Exchange instance"),
-            },
-        ));
+            }
+        }));
 
-        let exchange_weak = Arc::downgrade(&self);
-        self.exchange_client.set_order_cancelled_callback(Box::new(
+        self.exchange_client.set_order_cancelled_callback(Box::new({
+            let exchange_weak = exchange_weak.clone();
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
                     exchange.raise_order_cancelled(client_order_id, exchange_order_id, source_type);
                 }
                 None => log::info!("Unable to upgrade weak reference to Exchange instance"),
-            },
-        ));
+            }
+        }));
 
-        let exchange_weak = Arc::downgrade(&self);
         self.exchange_client
-            .set_handle_order_filled_callback(Box::new(move |event_data| {
-                match exchange_weak.upgrade() {
+            .set_handle_order_filled_callback(Box::new({
+                let exchange_weak = exchange_weak.clone();
+                move |event_data| match exchange_weak.upgrade() {
                     Some(exchange) => exchange.handle_order_filled(event_data),
                     None => log::info!("Unable to upgrade weak reference to Exchange instance"),
                 }
             }));
 
-        let exchange_weak = Arc::downgrade(&self);
-        self.exchange_client.set_handle_trade_callback(Box::new(
+        self.exchange_client.set_handle_trade_callback(Box::new({
+            let exchange_weak = exchange_weak.clone();
             move |currency_pair, trade_id, price, quantity, order_side, transaction_time| {
                 match exchange_weak.upgrade() {
                     Some(exchange) => {
@@ -246,24 +231,25 @@ impl Exchange {
                     }
                     None => log::info!("Unable to upgrade weak reference to Exchange instance"),
                 }
-            },
-        ));
+            }
+        }));
 
-        let exchange_weak = Arc::downgrade(&self);
         self.exchange_client
             .set_send_websocket_message_callback(Box::new(move |role, message| {
-                exchange_weak
-                    .upgrade()
-                    .expect("Unable to upgrade reference to Exchange")
-                    .send_websocket_message(role, message)
-                    .boxed()
+                let exchange = match exchange_weak.upgrade() {
+                    None => {
+                        // some race during shutdown
+                        log::info!("Unable to upgrade weak reference to Exchange instance");
+                        return Err(ConnectivityError::NotConnected.into());
+                    }
+                    Some(exchange) => exchange,
+                };
+                exchange.forward_websocket_message(role, message)
             }));
     }
 
     fn on_websocket_message(&self, msg: &str) {
-        if self.exchange_client.should_log_message(msg) {
-            self.log_websocket_message(msg);
-        }
+        self.maybe_log_websocket_message(msg);
 
         let callback_outcome = self.exchange_client.on_websocket_message(msg);
         if let Err(error) = callback_outcome {
@@ -292,71 +278,159 @@ impl Exchange {
         }
     }
 
-    async fn send_websocket_message(self: Arc<Self>, role: WebSocketRole, message: String) {
-        self.connectivity_manager.send(role, &message).await
+    fn on_connected(&self) {
+        log::info!("Exchange account id {} connected", self.exchange_account_id);
     }
 
-    fn log_websocket_message(&self, msg: &str) {
+    fn on_disconnected(self: &Arc<Self>) {
         log::info!(
-            "Websocket message from {}: {}",
-            self.exchange_account_id,
-            msg
+            "Exchange account id {} disconnected",
+            self.exchange_account_id
         );
+        // auto reconnect
+        if !self.auto_reconnect.load(Ordering::SeqCst) {
+            return;
+        }
+        let id = self.exchange_account_id;
+        let action = format!("Exchange account id {} reconnect", id);
+        let self_weak = Arc::downgrade(self);
+        let future = async move {
+            if let Some(self_strong) = self_weak.upgrade() {
+                if let Err(e) = self_strong.connect().await {
+                    log::error!("Exchange account id {} failed to reconnect: {:?}", id, e)
+                }
+            }
+            Ok(())
+        }
+        .boxed();
+        spawn_future(&action, SpawnFutureFlags::STOP_BY_TOKEN, future);
+    }
+
+    fn maybe_log_websocket_message(&self, msg: &str) {
+        if self.exchange_client.should_log_message(msg) {
+            log::info!(
+                "Websocket message from {}: {}",
+                self.exchange_account_id,
+                msg
+            );
+        }
     }
 
     pub fn setup_balance_manager(&self, balance_manager: Arc<Mutex<BalanceManager>>) {
         *self.balance_manager.lock() = Some(Arc::downgrade(&balance_manager));
     }
 
-    pub async fn connect(self: Arc<Self>) {
-        self.try_connect().await;
-        // TODO Reconnect
-    }
-
     pub async fn disconnect(self: Arc<Self>) {
-        self.connectivity_manager.clone().disconnect().await
+        // prevent auto reconnect
+        self.auto_reconnect.store(false, Ordering::SeqCst);
+        self.ws_sender.lock().take();
     }
 
-    async fn try_connect(self: Arc<Self>) {
-        // TODO IsWebSocketConnecting()
-        log::info!("Websocket: Connecting on {}", "test_exchange_id");
+    pub async fn connect(self: &Arc<Self>) -> Result<()> {
+        // fire connecting callback
+        self.on_connecting();
+        // do connect
+        match self.connect_internal().await {
+            Ok(reader) => {
+                // enable auto reconnect after first success
+                self.auto_reconnect.store(true, Ordering::SeqCst);
+                spawn_future(
+                    &format!("Exchange account id {} reader", self.exchange_account_id),
+                    SpawnFutureFlags::STOP_BY_TOKEN,
+                    Self::reader_future(Arc::downgrade(self), reader).boxed(),
+                );
+                self.on_connected();
+                Ok(())
+            }
+            Err(e) => {
+                self.on_disconnected();
+                Err(e.into())
+            }
+        }
+    }
 
-        // TODO if UsingWebsocket
-        let is_main_websocket_enabled = self
-            .exchange_client
-            .is_websocket_enabled(WebSocketRole::Main);
-        let is_secondary_websocket_enabled = self
-            .exchange_client
-            .is_websocket_enabled(WebSocketRole::Secondary);
-        if !is_main_websocket_enabled && !is_secondary_websocket_enabled {
-            return;
+    /// Read websocket messages and forward to upstream callbacks
+    async fn reader_future(
+        instance: Weak<Self>,
+        mut reader: tokio::sync::mpsc::UnboundedReceiver<String>,
+    ) -> Result<()> {
+        while let Some(msg) = reader.recv().await {
+            match instance.upgrade() {
+                Some(strong) => strong.on_websocket_message(&msg),
+                None => {
+                    // Exchange doesn't exist
+                    return Ok(());
+                }
+            }
         }
 
-        // TODO handle results
-
-        let exchange_weak = Arc::downgrade(&self);
-        let get_websocket_params: GetWSParamsCallback = Box::new(move |websocket_role| {
-            exchange_weak
-                .upgrade()
-                .expect("Unable to upgrade reference to Exchange")
-                .get_websocket_params(websocket_role)
-                .boxed()
-        });
-
-        let is_enabled_secondary_websocket = self
-            .exchange_client
-            .is_websocket_enabled(WebSocketRole::Secondary);
-
-        let is_connected = self
-            .connectivity_manager
-            .clone()
-            .connect(is_enabled_secondary_websocket, get_websocket_params)
-            .await;
-
-        if !is_connected {
-            // TODO finish_connected
+        // channel exhausted, so, disconnected
+        if let Some(strong) = instance.upgrade() {
+            strong.on_disconnected()
         }
-        // TODO all other logs and finish_connected
+
+        Ok(())
+    }
+
+    /// Actual connect function, all internal work here.
+    async fn connect_internal(
+        self: &Arc<Self>,
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<String>, ConnectivityError> {
+        log::info!("Websocket: Connecting on {}", self.exchange_account_id);
+
+        if !self
+            .exchange_client
+            .is_websocket_enabled(WebSocketRole::Main)
+        {
+            // no websockets - is it ok? probably not!
+            log::info!("Main websocket disabled for {}", self.exchange_account_id);
+            return Err(ConnectivityError::FailedToGetParams(
+                WebSocketRole::Main,
+                "parameters doesn't set".to_owned(),
+            ));
+        };
+
+        let main = self
+            .get_websocket_params(WebSocketRole::Main)
+            .await
+            .map_err(|e| {
+                ConnectivityError::FailedToGetParams(WebSocketRole::Main, e.to_string())
+            })?;
+
+        let secondary = if self
+            .exchange_client
+            .is_websocket_enabled(WebSocketRole::Secondary)
+        {
+            let params = self
+                .get_websocket_params(WebSocketRole::Secondary)
+                .await
+                .map_err(|e| {
+                    ConnectivityError::FailedToGetParams(WebSocketRole::Secondary, e.to_string())
+                })?;
+            Some(params)
+        } else {
+            log::info!(
+                "Secondary websocket disabled for {}",
+                self.exchange_account_id
+            );
+            None
+        };
+        let (tx, rx) = websocket_open(self.exchange_account_id, main, secondary).await?;
+        self.ws_sender.lock().replace(tx);
+        Ok(rx)
+    }
+
+    fn forward_websocket_message(&self, role: WebSocketRole, msg: String) -> Result<()> {
+        let mut locked = self.ws_sender.lock();
+        if let Some(sender) = locked.deref_mut() {
+            match role {
+                WebSocketRole::Main => sender.send_main(msg),
+                WebSocketRole::Secondary => sender.send_secondary(msg),
+            }
+            .map_err(|e| e.into())
+        } else {
+            Err(ConnectivityError::NotConnected.into())
+        }
     }
 
     pub async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
@@ -368,7 +442,7 @@ impl Exchange {
     }
 
     pub async fn get_websocket_params(
-        self: Arc<Self>,
+        self: &Arc<Self>,
         role: WebSocketRole,
     ) -> Result<WebSocketParams> {
         let ws_url = self.exchange_client.create_ws_url(role).await?;

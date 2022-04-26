@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use futures::future::BoxFuture;
 use mmb_utils::DateTime;
 use tokio::sync::broadcast;
 
@@ -29,7 +28,7 @@ use crate::orders::fill::EventSourceType;
 use crate::orders::order::{ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo};
 use crate::orders::pool::OrdersPool;
 use crate::settings::ExchangeSettings;
-use crate::{connectivity::connectivity_manager::WebSocketRole, orders::order::OrderSide};
+use crate::{connectivity::WebSocketRole, orders::order::OrderSide};
 use crate::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use url::Url;
 
@@ -80,8 +79,7 @@ pub type HandleTradeCb =
     Box<dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>;
 pub type HandleOrderFilledCb = Box<dyn FnMut(FillEvent) + Send + Sync>;
 
-pub type SendWebsocketMessageCb =
-    Box<dyn Fn(WebSocketRole, String) -> BoxFuture<'static, ()> + Send + Sync>;
+pub type SendWebsocketMessageCb = Box<dyn Fn(WebSocketRole, String) -> Result<()> + Send + Sync>;
 
 #[async_trait]
 pub trait Support: Send + Sync {

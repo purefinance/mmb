@@ -2,7 +2,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{
-    connectivity::connectivity_manager::WebSocketRole,
+    connectivity::WebSocketRole,
     exchanges::{
         common::{
             ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, CurrencyPair,
