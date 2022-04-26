@@ -75,7 +75,7 @@ impl SerumBuilder {
             timeout_manager,
             commission,
         );
-        exchange.clone().connect().await;
+        exchange.connect().await?;
         exchange.build_symbols(&settings.currency_pairs).await;
 
         Ok(Self {

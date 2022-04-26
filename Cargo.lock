@@ -2428,6 +2428,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-tungstenite 0.16.1",
+ "tokio-util 0.7.1",
  "toml_edit",
  "typetag",
  "url 2.2.2",

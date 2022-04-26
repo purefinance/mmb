@@ -16,6 +16,7 @@ use mmb_core::settings::CurrencyPairSetting;
 use mmb_core::settings::ExchangeSettings;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::hashmap;
+use mmb_utils::infrastructure::WithExpect;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -45,7 +46,7 @@ impl BinanceBuilder {
             Ok((api_key, secret_key)) => (api_key, secret_key),
             Err(_) => ("".to_string(), "".to_string()),
         };
-        if api_key == "" || secret_key == "" {
+        if api_key.is_empty() || secret_key.is_empty() {
             return Err(anyhow::Error::msg(
                 "Environment variable BINANCE_SECRET_KEY or BINANCE_API_KEY are not set. Unable to continue test",
             ));
@@ -60,7 +61,7 @@ impl BinanceBuilder {
             quote: "usdt".into(),
         }]);
 
-        Self::try_new_with_settings(
+        Ok(Self::try_new_with_settings(
             settings,
             exchange_account_id,
             cancellation_token,
@@ -68,7 +69,7 @@ impl BinanceBuilder {
             commission,
             need_to_clean_up,
         )
-        .await
+        .await)
     }
 
     pub async fn try_new_with_settings(
@@ -78,7 +79,7 @@ impl BinanceBuilder {
         features: ExchangeFeatures,
         commission: Commission,
         need_to_clean_up: bool,
-    ) -> Result<Self> {
+    ) -> Self {
         let lifetime_manager = init_lifetime_manager();
         let (tx, rx) = broadcast::channel(10);
 
@@ -107,7 +108,9 @@ impl BinanceBuilder {
             timeout_manager,
             commission,
         );
-        exchange.clone().connect().await;
+        exchange.connect().await.with_expect(move || {
+            "Failed to connect to websockets on exchange {exchange_account_id}"
+        });
         exchange.build_symbols(&settings.currency_pairs).await;
 
         let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(
@@ -153,7 +156,7 @@ impl BinanceBuilder {
         )
         .await;
 
-        Ok(Self {
+        Self {
             exchange,
             hosts,
             exchange_settings: settings,
@@ -161,6 +164,6 @@ impl BinanceBuilder {
             min_amount,
             tx,
             rx,
-        })
+        }
     }
 }

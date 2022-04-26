@@ -25,7 +25,7 @@ async fn cancellation_waited_successfully() {
         quote: "usdt".into(),
     }]);
 
-    let binance_builder = match BinanceBuilder::try_new_with_settings(
+    let binance_builder = BinanceBuilder::try_new_with_settings(
         settings.clone(),
         exchange_account_id,
         CancellationToken::default(),
@@ -43,11 +43,7 @@ async fn cancellation_waited_successfully() {
         Commission::default(),
         true,
     )
-    .await
-    {
-        Ok(binance_builder) => binance_builder,
-        Err(_) => return,
-    };
+    .await;
 
     let order_proxy = OrderProxy::new(
         exchange_account_id,

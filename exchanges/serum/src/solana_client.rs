@@ -28,7 +28,7 @@ use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
 use tokio::join;
 
-use mmb_core::connectivity::connectivity_manager::WebSocketRole;
+use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::common::CurrencyPair;
 use mmb_core::exchanges::traits::SendWebsocketMessageCb;
 use mmb_utils::infrastructure::WithExpect;
@@ -147,7 +147,9 @@ impl SolanaClient {
 
         Self {
             rpc_client: Arc::new(async_rpc_client),
-            send_websocket_message_callback: Mutex::new(Box::new(|_, _| Box::pin(async {}))),
+            send_websocket_message_callback: Mutex::new(Box::new(|_, _| {
+                Err(anyhow::anyhow!("not connected!"))
+            })),
             subscription_requests: Default::default(),
             subscriptions: Default::default(),
         }
@@ -319,8 +321,7 @@ impl SolanaClient {
         })
         .to_string();
 
-        let send_websocket_message_future =
-            self.send_websocket_message_callback.lock()(WebSocketRole::Main, message);
-        send_websocket_message_future.await
+        self.send_websocket_message_callback.lock()(WebSocketRole::Main, message)
+            .expect("failed to send websocket message")
     }
 }

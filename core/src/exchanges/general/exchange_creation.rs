@@ -14,6 +14,7 @@ use crate::{
     },
     settings::CoreSettings,
 };
+use mmb_utils::infrastructure::WithExpect;
 use tokio::sync::broadcast;
 
 pub fn create_timeout_manager(
@@ -48,8 +49,9 @@ pub async fn create_exchange(
     lifetime_manager: Arc<AppLifetimeManager>,
     timeout_manager: Arc<TimeoutManager>,
 ) -> Arc<Exchange> {
+    let exchange_account_id = user_settings.exchange_account_id;
     let exchange_client_builder =
-        &build_settings.supported_exchange_clients[&user_settings.exchange_account_id.exchange_id];
+        &build_settings.supported_exchange_clients[&exchange_account_id.exchange_id];
     let orders = OrdersPool::new();
 
     let exchange_client = exchange_client_builder.create_exchange_client(
@@ -60,7 +62,7 @@ pub async fn create_exchange(
     );
 
     let exchange = Exchange::new(
-        user_settings.exchange_account_id,
+        exchange_account_id,
         exchange_client.client,
         orders,
         exchange_client.features,
@@ -73,7 +75,10 @@ pub async fn create_exchange(
 
     exchange.build_symbols(&user_settings.currency_pairs).await;
 
-    exchange.clone().connect().await;
+    exchange
+        .connect()
+        .await
+        .with_expect(move || "Failed to connect to websockets on exchange {exchange_account_id}");
 
     exchange
 }

@@ -1,30 +1,20 @@
 use anyhow::Result;
-use futures::Future;
-use log::info;
+use mmb_core::connectivity::{websocket_open, WebSocketParams, WebSocketRole};
 use mmb_core::exchanges::general::features::*;
 use mmb_core::{
-    connectivity::connectivity_manager::ConnectivityManager,
-    connectivity::websocket_connection::WebSocketParams, exchanges::common::ExchangeAccountId,
-    exchanges::events::AllowedEventSourceType, exchanges::general::commission::Commission,
-    exchanges::general::features::ExchangeFeatures, exchanges::general::features::OpenOrdersType,
+    exchanges::common::ExchangeAccountId, exchanges::events::AllowedEventSourceType,
+    exchanges::general::commission::Commission, exchanges::general::features::ExchangeFeatures,
+    exchanges::general::features::OpenOrdersType,
 };
 use mmb_utils::cancellation_token::CancellationToken;
-use parking_lot::Mutex;
-use std::time::Duration;
-use std::{pin::Pin, sync::Arc};
-use tokio::{sync::oneshot, time::sleep};
+use mmb_utils::infrastructure::init_infrastructure;
+use tokio::time::{timeout, Duration};
 
 use crate::binance::binance_builder::BinanceBuilder;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore]
-pub async fn should_connect_and_reconnect_normally() {
-    const EXPECTED_CONNECTED_COUNT: u32 = 3;
-
-    let (finish_sender, finish_receiver) = oneshot::channel::<()>();
-
+async fn init_test_stuff() -> Result<(ExchangeAccountId, WebSocketParams, WebSocketParams)> {
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let binance_builder = match BinanceBuilder::try_new(
+    let exchange = BinanceBuilder::try_new(
         exchange_account_id,
         CancellationToken::default(),
         ExchangeFeatures::new(
@@ -41,52 +31,59 @@ pub async fn should_connect_and_reconnect_normally() {
         Commission::default(),
         true,
     )
-    .await
-    {
-        Ok(binance_builder) => binance_builder,
-        Err(_) => return,
+    .await?
+    .exchange;
+
+    let main = exchange
+        .get_websocket_params(WebSocketRole::Main)
+        .await
+        .expect("Failed to get Main WebSocket params");
+
+    let secondary = exchange
+        .get_websocket_params(WebSocketRole::Secondary)
+        .await
+        .expect("Failed to get Secondary WebSocket params");
+
+    Ok((exchange_account_id, main, secondary))
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+pub async fn connect_disconnect() {
+    init_infrastructure("log.txt");
+    let (account, main, secondary) = match init_test_stuff().await {
+        Ok((account, main, secondary)) => (account, main, secondary),
+        Err(_) => {
+            log::error!("failed to init test stuff, disabling test (missing API keys?)");
+            return;
+        }
     };
 
-    let exchange_weak = Arc::downgrade(&binance_builder.exchange);
-    let connectivity_manager = ConnectivityManager::new(exchange_account_id);
+    for _ in 0..3 {
+        let (sender, mut receiver) = websocket_open(account, main.clone(), Some(secondary.clone()))
+            .await
+            .expect("in test");
 
-    let connected_count = Arc::new(Mutex::new(0));
-    {
-        let connected_count = connected_count.clone();
-        connectivity_manager
-            .clone()
-            .set_callback_connected(Box::new(move || *connected_count.lock() += 1));
-    }
+        // receive first message
+        // should arrive in few milliseconds (on production)
+        let data = timeout(Duration::from_secs(10), receiver.recv())
+            .await
+            .expect("in test");
 
-    let get_websocket_params = Box::new(move |websocket_role| {
-        let exchange = exchange_weak.upgrade().expect("in test");
-        let params = exchange.get_websocket_params(websocket_role);
-        Box::pin(params) as Pin<Box<dyn Future<Output = Result<WebSocketParams>>>>
-    });
+        log::info!("RECEIVED: {}", data.expect("in test"));
 
-    for _ in 0..EXPECTED_CONNECTED_COUNT {
-        let connect_result = connectivity_manager
-            .clone()
-            .connect(false, get_websocket_params.clone())
-            .await;
-        assert_eq!(
-            connect_result, true,
-            "websocket should connect successfully"
-        );
+        // close connection
+        drop(sender);
 
-        connectivity_manager.clone().disconnect().await;
-    }
+        // drain whole channel
+        let future = async move {
+            while let Some(msg) = receiver.recv().await {
+                log::info!("RECEIVED ON DRAIN: {}", msg);
+            }
+        };
 
-    assert_eq!(
-        *connected_count.lock(),
-        EXPECTED_CONNECTED_COUNT,
-        "we should reconnect expected count times"
-    );
-
-    let _ = finish_sender.send(()).expect("in test");
-
-    tokio::select! {
-        _ = finish_receiver => info!("Test finished successfully"),
-        _ = sleep(Duration::from_secs(10)) => panic!("Test time is gone!")
+        // should drain very quickly
+        timeout(Duration::from_millis(10), future)
+            .await
+            .expect("in test");
     }
 }
