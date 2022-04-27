@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use futures::FutureExt;
 use jsonrpc_core::{MetaIoHandler, Result};
 use jsonrpc_ipc_server::{Server, ServerBuilder};
 use mmb_rpc::rest_api::{server_side_error, ErrorCode, MmbRpc, IPC_ADDRESS};
@@ -11,7 +10,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::{
     config::{save_settings, CONFIG_PATH, CREDENTIALS_PATH},
-    infrastructure::spawn_future,
+    infrastructure::spawn_future_ok,
     lifecycle::app_lifetime_manager::{ActionAfterGracefulShutdown, AppLifetimeManager},
     rpc::core_api::FAILED_TO_SEND_STOP_NOTIFICATION,
 };
@@ -137,12 +136,11 @@ pub(super) fn spawn_server_stopping_action<T>(
                 );
             }
         });
-        Ok(())
     };
 
-    spawn_future(
+    spawn_future_ok(
         future_name,
         SpawnFutureFlags::DENY_CANCELLATION,
-        stopping_action.boxed(),
+        stopping_action,
     );
 }

@@ -1,10 +1,11 @@
 #![cfg(test)]
 use binance::binance::BinanceBuilder;
-use futures::FutureExt;
 use mmb_core::config::parse_settings;
 use mmb_core::disposition_execution::{PriceSlot, TradingContext};
+use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId};
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_core::explanation::Explanation;
+use mmb_core::infrastructure::spawn_future_ok;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::orders::order::OrderSnapshot;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
@@ -13,10 +14,6 @@ use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_core::{
     exchanges::common::Amount,
     lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
-};
-use mmb_core::{
-    exchanges::common::{CurrencyPair, ExchangeAccountId},
-    infrastructure::spawn_future,
 };
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::SpawnFutureFlags;
@@ -94,13 +91,11 @@ async fn launch_engine() -> anyhow::Result<()> {
     let action = async move {
         sleep(Duration::from_millis(200)).await;
         context.lifetime_manager.run_graceful_shutdown("test").await;
-
-        Ok(())
     };
-    spawn_future(
+    spawn_future_ok(
         "run graceful_shutdown in launch_engine test",
         SpawnFutureFlags::DENY_CANCELLATION,
-        action.boxed(),
+        action,
     );
 
     engine.run().await;

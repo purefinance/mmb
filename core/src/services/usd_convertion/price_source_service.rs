@@ -21,7 +21,6 @@ use crate::{
 };
 
 use anyhow::{bail, Context, Result};
-use futures::FutureExt;
 use itertools::Itertools;
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use mmb_utils::{cancellation_token::CancellationToken, send_expected::SendExpected, DateTime};
@@ -67,7 +66,7 @@ impl PriceSourceEventLoop {
         spawn_future(
             "PriceSourceService",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            run_action.boxed(),
+            run_action,
         )
         .await
         .expect("Failed to spawn PriceSourceService::run_loop() future");

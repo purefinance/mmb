@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use crate::exchanges::common::ToStdExpected;
-use crate::infrastructure::spawn_future;
+use crate::{exchanges::common::ToStdExpected, infrastructure::spawn_future_ok};
 use anyhow::Result;
 use chrono::{Duration, Utc};
-use futures::FutureExt;
 use mmb_utils::{infrastructure::SpawnFutureFlags, DateTime};
 use parking_lot::Mutex;
 use tokio::time::sleep;
@@ -80,18 +78,14 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
         let mut delay = trigger_time - current_time;
         delay = delay.max(Duration::zero());
 
-        let action = async move {
-            self.clone().handle_inner(delay).await;
-            Ok(())
-        };
-        spawn_future(
+        spawn_future_ok(
             "handle_inner for schedule_handler()",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            self.clone().handle_inner(delay),
         );
     }
 
-    async fn handle_inner(&self, delay: Duration) {
+    async fn handle_inner(self: Arc<Self>, delay: Duration) {
         let delay_std = delay.to_std_expected();
 
         sleep(delay_std).await;

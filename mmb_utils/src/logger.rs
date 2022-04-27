@@ -64,7 +64,7 @@ pub fn init_logger_file_named(log_file: &str) {
             .expect("Unable to set up logger");
     });
 
-    print_info(format!(
+    print_info(format_args!(
         "Logger has been initialized all logs will be stored here: {}",
         path.to_str().expect("Unable build logger file path"),
     ));

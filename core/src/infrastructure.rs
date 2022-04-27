@@ -1,13 +1,13 @@
-use futures::future::BoxFuture;
+use anyhow::Result;
+use futures::Future;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::CustomSpawnFuture;
 use mmb_utils::infrastructure::FutureOutcome;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
 use std::panic;
 use std::sync::Arc;
-use std::{pin::Pin, time::Duration};
+use std::time::Duration;
 use tokio::task::JoinHandle;
 
 use super::lifecycle::app_lifetime_manager::AppLifetimeManager;
@@ -60,7 +60,7 @@ pub fn spawn_future_timed(
     action_name: &str,
     flags: SpawnFutureFlags,
     duration: Duration,
-    action: Pin<CustomSpawnFuture>,
+    action: impl Future<Output = Result<()>> + Send + 'static,
 ) -> JoinHandle<FutureOutcome> {
     mmb_utils::infrastructure::spawn_future_timed(
         action_name,
@@ -72,12 +72,23 @@ pub fn spawn_future_timed(
     )
 }
 
+pub fn spawn_future_ok(
+    action_name: &str,
+    flags: SpawnFutureFlags,
+    action: impl Future<Output = ()> + Send + 'static,
+) -> JoinHandle<FutureOutcome> {
+    spawn_future(action_name, flags, async move {
+        action.await;
+        Ok(())
+    })
+}
+
 /// Spawn future with logging and error, panic and cancellation handling
 /// Inside the crate prefer this function to all others
 pub fn spawn_future(
     action_name: &str,
     flags: SpawnFutureFlags,
-    action: Pin<CustomSpawnFuture>,
+    action: impl Future<Output = Result<()>> + Send + 'static,
 ) -> JoinHandle<FutureOutcome> {
     mmb_utils::infrastructure::spawn_future(
         action_name,
@@ -106,13 +117,17 @@ fn spawn_graceful_shutdown(log_template: String, error_message: String) {
 
 /// This function spawn a future after waiting for some `delay`
 /// and will repeat the `callback` endlessly with some `period`
-pub fn spawn_by_timer(
-    callback: impl Fn() -> BoxFuture<'static, ()> + Send + Sync + 'static,
+pub fn spawn_by_timer<F, Fut>(
+    callback: F,
     name: &str,
     delay: Duration,
     period: Duration,
     flags: SpawnFutureFlags,
-) -> JoinHandle<FutureOutcome> {
+) -> JoinHandle<FutureOutcome>
+where
+    F: Fn() -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
     mmb_utils::infrastructure::spawn_by_timer(
         callback,
         name,
@@ -130,15 +145,12 @@ mod test {
 
     use super::*;
     use anyhow::Result;
-    use futures::FutureExt;
     use mmb_utils::infrastructure::init_infrastructure;
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn panic_with_deny_cancellation() -> Result<()> {
         init_infrastructure("log.txt");
         // Arrange
-        let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
-
         let manager = AppLifetimeManager::new(CancellationToken::new());
         keep_lifetime_manager(manager);
 
@@ -146,7 +158,7 @@ mod test {
         let future_outcome = spawn_future(
             "test_action_name",
             SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
-            action.boxed(),
+            async { panic!("{}", OPERATION_CANCELED_MSG) },
         )
         .await?
         .into_result()
@@ -163,21 +175,18 @@ mod test {
     async fn panic_without_deny_cancellation() -> Result<()> {
         init_infrastructure("log.txt");
         // Arrange
-        let action = async { panic!("{}", OPERATION_CANCELED_MSG) };
-
         let application_manager = AppLifetimeManager::new(CancellationToken::new());
         keep_lifetime_manager(application_manager);
 
         // Act
-        let future_outcome = spawn_future(
-            "test_action_name",
-            SpawnFutureFlags::STOP_BY_TOKEN,
-            action.boxed(),
-        )
-        .await?
-        .into_result()
-        .expect_err("in test")
-        .to_string();
+        let future_outcome =
+            spawn_future("test_action_name", SpawnFutureFlags::STOP_BY_TOKEN, async {
+                panic!("{}", OPERATION_CANCELED_MSG)
+            })
+            .await?
+            .into_result()
+            .expect_err("in test")
+            .to_string();
 
         // Assert
         assert!(future_outcome.contains("canceled"));

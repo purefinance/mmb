@@ -84,14 +84,16 @@ impl ShutdownService {
             let state_guard = self.state.lock();
             for service in state_guard.get_state(side) {
                 let service_name = format!("{} service", service.name());
-                print_info(format!("\tStarting to close the {service_name} service...",));
+                print_info(format_args!(
+                    "\tStarting to close the {service_name} service..."
+                ));
                 let receiver = service.clone().graceful_shutdown();
 
                 if let Some(receiver) = receiver {
-                    log::trace!("Waiting finishing graceful shutdown for {}", service_name);
+                    log::trace!("Waiting finishing graceful shutdown for {service_name}");
                     finish_receivers.push((service_name, receiver));
                 } else {
-                    print_info(format!(
+                    print_info(format_args!(
                         "\tService {service_name} not needed waiting graceful shutdown or already finished",
                     ));
                 }
@@ -121,7 +123,7 @@ impl ShutdownService {
                                 );
                             }
                             Ok(_) => {
-                                print_info(format!("\tThe {service_name} has been stopped successfully"));
+                                print_info(format_args!("\tThe {service_name} has been stopped successfully"));
                             },
                         },
                     },

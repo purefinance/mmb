@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use futures::FutureExt;
 use itertools::Itertools;
 use mmb_utils::{hashmap, infrastructure::SpawnFutureFlags};
 use parking_lot::Mutex;
@@ -57,9 +56,9 @@ impl UsdDenominator {
         });
 
         if auto_refresh_data {
-            let cloned_this = this.clone();
+            let this = this.clone();
             let _ = spawn_by_timer(
-                move || Self::refresh_data(cloned_this.clone()).boxed(),
+                move || Self::refresh_data(this.clone()),
                 "UsdDenominator::refresh_data()",
                 Duration::ZERO,
                 Duration::from_secs(7200), // 2 hours

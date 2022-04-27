@@ -9,7 +9,7 @@ use crate::exchanges::general::exchange_creation::create_timeout_manager;
 use crate::exchanges::internal_events_loop::InternalEventsLoop;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::exchanges::traits::ExchangeClientBuilder;
-use crate::infrastructure::init_lifetime_manager;
+use crate::infrastructure::{init_lifetime_manager, spawn_future_ok};
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
@@ -241,16 +241,14 @@ where
         .register_core_service(control_panel);
 
     {
-        let local_exchanges_map = exchanges_map.into_iter().collect();
-        let action = internal_events_loop.start(
-            events_receiver,
-            local_exchanges_map,
-            engine_context.lifetime_manager.stop_token(),
-        );
         let _ = spawn_future(
             "internal_events_loop start",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            internal_events_loop.start(
+                events_receiver,
+                exchanges_map.into_iter().collect(),
+                engine_context.lifetime_manager.stop_token(),
+            ),
         );
     }
 
@@ -322,14 +320,12 @@ where
 
         print_info("Ctrl-C signal was received so graceful_shutdown will be started");
         cloned_lifetime_manager.spawn_graceful_shutdown("Ctrl-C signal was received".to_owned());
-
-        Ok(())
     };
 
-    let _ = spawn_future(
+    let _ = spawn_future_ok(
         "Start Ctrl-C handler",
         SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-        action.boxed(),
+        action,
     );
 
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
