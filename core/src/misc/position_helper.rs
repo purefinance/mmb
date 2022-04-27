@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use futures::FutureExt;
 use mmb_utils::{
     cancellation_token::CancellationToken,
     infrastructure::{FutureOutcome, SpawnFutureFlags},
@@ -49,11 +48,10 @@ pub fn close_position_if_needed(
         Ok(())
     };
 
-    let action_name = "Close active positions";
     Some(spawn_future_timed(
-        action_name,
+        "Close active positions",
         SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
         Duration::from_secs(30),
-        action.boxed(),
+        action,
     ))
 }

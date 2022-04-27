@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
-use futures::FutureExt;
 use itertools::Itertools;
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use mmb_utils::{nothing_to_do, DateTime};
@@ -92,7 +91,7 @@ impl DispositionExecutorService {
         spawn_future(
             "Start disposition executor",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
         );
 
         Arc::new(DispositionExecutorService {
@@ -569,7 +568,7 @@ impl DispositionExecutor {
         spawn_future(
             "Start wait_cancel_order from DispositionExecutor::cancel_order()",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
         );
     }
 
@@ -778,7 +777,7 @@ impl DispositionExecutor {
             spawn_future(
                 "wait_cancel_order in blocking cancel_order",
                 SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-                action.boxed(),
+                action,
             );
         }
 

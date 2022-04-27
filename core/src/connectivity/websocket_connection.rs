@@ -1,8 +1,8 @@
 use super::{ConnectivityError, Result, WebSocketParams, WebSocketRole};
 use crate::exchanges::common::ExchangeAccountId;
-use crate::infrastructure::spawn_future;
+use crate::infrastructure::spawn_future_ok;
 use futures::stream::{SplitSink, SplitStream};
-use futures::{FutureExt, SinkExt, StreamExt};
+use futures::{SinkExt, StreamExt};
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use std::fmt::Formatter;
 use tokio::net::TcpStream;
@@ -336,23 +336,15 @@ pub async fn open_connection(
         cancel,
     };
 
-    spawn_future(
+    spawn_future_ok(
         "WriterHandler::run",
         SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-        async move {
-            writer.run().await;
-            Ok(())
-        }
-        .boxed(),
+        writer.run(),
     );
-    spawn_future(
+    spawn_future_ok(
         "ReaderHandle::run",
         SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-        async move {
-            reader.run().await;
-            Ok(())
-        }
-        .boxed(),
+        reader.run(),
     );
 
     Ok((writer_tx, reader_rx))

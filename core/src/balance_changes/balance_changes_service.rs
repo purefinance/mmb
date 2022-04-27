@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::Duration};
 
-use futures::FutureExt;
 use mmb_utils::{
     cancellation_token::CancellationToken,
     infrastructure::SpawnFutureFlags,
@@ -115,8 +114,10 @@ impl BalanceChangesService {
                         );
                         return;
                     }
-                    this.tx_event.send_expected_async(BalanceChangeServiceEvent::OnTimer).await;
-                }.boxed()
+                    this.tx_event
+                        .send_expected_async(BalanceChangeServiceEvent::OnTimer)
+                        .await;
+                }
             }
         };
 

@@ -1,13 +1,13 @@
 #![cfg(test)]
 use binance::binance::Binance;
 use binance::binance::BinanceBuilder;
-use futures::FutureExt;
 use jsonrpc_core::Value;
 use jsonrpc_core_client::transports::ipc;
 use mmb_core::config::parse_settings;
 use mmb_core::disposition_execution::{PriceSlot, TradingContext};
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_core::explanation::Explanation;
+use mmb_core::infrastructure::spawn_future_ok;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::orders::order::OrderSnapshot;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
@@ -19,7 +19,6 @@ use mmb_core::{
 };
 use mmb_core::{
     exchanges::common::{CurrencyPair, ExchangeAccountId},
-    infrastructure::spawn_future,
     settings::CurrencyPairSetting,
 };
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
@@ -200,13 +199,11 @@ async fn orders_cancelled() {
             .lifetime_manager
             .run_graceful_shutdown("test")
             .await;
-
-        Ok(())
     };
-    spawn_future(
+    spawn_future_ok(
         "run graceful_shutdown in launch_engine test",
         SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
-        action.boxed(),
+        action,
     );
 
     engine.run().await;

@@ -1,6 +1,5 @@
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
-use futures::FutureExt;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use std::sync::Arc;
@@ -91,29 +90,21 @@ impl Exchange {
         let linked_cancellation_token = cancellation_token.create_linked_token();
 
         // if has_websocket_notification: in background we poll for fills every x seconds for those rare cases then we missed a websocket fill
-        let cloned_order = order.clone();
-        let cloned_self = self.clone();
-        let cloned_cancellation_token = linked_cancellation_token.clone();
         let _guard = scopeguard::guard((), |_| {
             linked_cancellation_token.cancel();
         });
 
-        let action = async move {
-            cloned_self
-                .poll_order_fills(
-                    &cloned_order,
-                    has_websocket_notification,
-                    pre_reservation_group_id,
-                    cloned_cancellation_token,
-                )
-                .await
-        };
         let three_hours = Duration::from_secs(10800);
         let poll_order_fill_future = spawn_future_timed(
             "poll_order_fills future",
             SpawnFutureFlags::STOP_BY_TOKEN,
             three_hours,
-            action.boxed(),
+            self.clone().poll_order_fills(
+                order.clone(),
+                has_websocket_notification,
+                pre_reservation_group_id,
+                linked_cancellation_token.clone(),
+            ),
         );
 
         if !has_websocket_notification {
@@ -131,8 +122,8 @@ impl Exchange {
     }
 
     pub(crate) async fn poll_order_fills(
-        &self,
-        order: &OrderRef,
+        self: Arc<Self>,
+        ref order: OrderRef,
         is_fallback: bool,
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
@@ -178,14 +169,12 @@ impl Exchange {
                     order.fn_ref(|order| order.internal_props.last_order_trades_request_time);
                 let polling_trades_range = 20f64;
 
+                let exchange_account_id = self.exchange_account_id;
                 let counter = *self
                     .polling_trades_counts
-                    .get(&self.exchange_account_id)
+                    .get(&exchange_account_id)
                     .with_context(|| {
-                        format!(
-                            "No counts for exchange_account_id {}",
-                            self.exchange_account_id
-                        )
+                        format!("No counts for exchange_account_id {exchange_account_id}")
                     })? as f64;
 
                 self.polling_timeout_manager

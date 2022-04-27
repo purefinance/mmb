@@ -1,12 +1,11 @@
 use anyhow::{bail, Result};
 use bitflags::bitflags;
-use futures::future::BoxFuture;
 use futures::Future;
 use futures::FutureExt;
 use std::fmt::Arguments;
 use std::fmt::{Debug, Display};
 use std::panic;
-use std::{pin::Pin, time::Duration};
+use std::time::Duration;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -26,6 +25,7 @@ bitflags! {
         const STOP_BY_TOKEN = 0b00000010;
     }
 }
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FutureOutcome {
     name: String,
@@ -72,15 +72,13 @@ pub enum CompletionReason {
     TimeExpired,
 }
 
-pub type CustomSpawnFuture = Box<dyn Future<Output = Result<()>> + Send>;
-
 /// Spawn future with timer. Error will be logged if times up before action completed
 /// Other nuances are the same as spawn_future()
 pub fn spawn_future_timed(
     action_name: &str,
     flags: SpawnFutureFlags,
     duration: Duration,
-    action: Pin<CustomSpawnFuture>,
+    action: impl Future<Output = Result<()>> + Send + 'static,
     graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
     cancellation_token: CancellationToken,
 ) -> JoinHandle<FutureOutcome> {
@@ -115,14 +113,14 @@ pub fn spawn_future_timed(
 pub fn spawn_future(
     action_name: &str,
     flags: SpawnFutureFlags,
-    action: Pin<CustomSpawnFuture>,
+    action: impl Future<Output = Result<()>> + Send + 'static,
     graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
     cancellation_token: CancellationToken,
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
 
-    log::info!("Future {} with id {} started", action_name, future_id);
+    log::info!("Future {action_name} with id {future_id} started");
 
     tokio::spawn(handle_action_outcome(
         action_name,
@@ -138,7 +136,7 @@ async fn handle_action_outcome(
     action_name: String,
     future_id: Uuid,
     flags: SpawnFutureFlags,
-    action: Pin<CustomSpawnFuture>,
+    action: impl Future<Output = Result<()>> + Send + 'static,
     graceful_shutdown_spawner: impl FnOnce(String, String),
     cancellation_token: CancellationToken,
 ) -> FutureOutcome {
@@ -200,15 +198,19 @@ async fn handle_action_outcome(
 
 /// This function spawn a future after waiting for some `delay`
 /// and will repeat the `callback` endlessly with some `period`
-pub fn spawn_by_timer(
-    callback: impl Fn() -> BoxFuture<'static, ()> + Send + Sync + 'static,
+pub fn spawn_by_timer<F, Fut>(
+    callback: F,
     name: &str,
     delay: Duration,
     period: Duration,
     flags: SpawnFutureFlags,
     cancellation_token: CancellationToken,
     graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
-) -> JoinHandle<FutureOutcome> {
+) -> JoinHandle<FutureOutcome>
+where
+    F: Fn() -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
     spawn_future(
         name,
         flags,
@@ -218,8 +220,7 @@ pub fn spawn_by_timer(
                 (callback)().await;
                 tokio::time::sleep(period).await;
             }
-        }
-        .boxed(),
+        },
         graceful_shutdown_spawner,
         cancellation_token,
     )
@@ -245,7 +246,6 @@ pub fn init_infrastructure(log_file: &str) {
 mod test {
     use super::*;
     use anyhow::{bail, Result};
-    use futures::FutureExt;
     use parking_lot::Mutex;
     use std::sync::Arc;
 
@@ -258,7 +258,7 @@ mod test {
         let future_outcome = spawn_future(
             "test_action_name",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
             |_, _| {},
             CancellationToken::default(),
         )
@@ -282,7 +282,7 @@ mod test {
         let future_outcome = spawn_future(
             "test_action_name",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
             |_, _| {},
             CancellationToken::default(),
         )
@@ -303,7 +303,7 @@ mod test {
         let future_outcome = spawn_future(
             "test_action_name",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
             |_, _| {},
             CancellationToken::default(),
         )
@@ -326,7 +326,7 @@ mod test {
         let future_outcome = spawn_future(
             "test_action_name",
             SpawnFutureFlags::STOP_BY_TOKEN,
-            action.boxed(),
+            action,
             |_, _| {},
             CancellationToken::default(),
         )
@@ -347,7 +347,7 @@ mod test {
         let future_outcome = spawn_future(
             "test_action_name",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
             |_, _| {},
             CancellationToken::default(),
         )
@@ -375,7 +375,7 @@ mod test {
         let future_outcome = spawn_future(
             "test_action_name",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
             |_, _| {},
             CancellationToken::default(),
         );
@@ -404,7 +404,7 @@ mod test {
         let future_outcome = spawn_future(
             "test_action_name",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
             |_, _| {},
             cancellation_token.clone(),
         );
@@ -434,7 +434,7 @@ mod test {
                 "test_action_name",
                 SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 Duration::from_secs(0),
-                action.boxed(),
+                action,
                 |_, _| {},
                 CancellationToken::default(),
             )
@@ -459,7 +459,7 @@ mod test {
                 "test_action_name",
                 SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 Duration::from_millis(200),
-                action.boxed(),
+                action,
                 |_, _| {},
                 CancellationToken::default(),
             )
@@ -481,7 +481,7 @@ mod test {
                 "test_action_name",
                 SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 Duration::from_millis(200),
-                action.boxed(),
+                action,
                 |_, _| {},
                 CancellationToken::default(),
             )
@@ -513,7 +513,7 @@ mod test {
                 "test_action_name",
                 SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                 Duration::from_millis(200),
-                action.boxed(),
+                action,
                 |_, _| {},
                 CancellationToken::default(),
             );
@@ -536,7 +536,7 @@ mod test {
 
                 let counter = counter.clone();
                 spawn_by_timer(
-                    move || (future)(counter.clone()).boxed(),
+                    move || (future)(counter.clone()),
                     "spawn_repeatable",
                     Duration::ZERO,
                     Duration::from_millis(duration),

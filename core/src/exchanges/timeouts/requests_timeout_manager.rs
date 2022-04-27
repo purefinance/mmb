@@ -3,7 +3,6 @@ use std::sync::{Arc, Weak};
 
 use anyhow::{anyhow, bail, Context, Result};
 use chrono::Duration;
-use futures::FutureExt;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::{FutureOutcome, SpawnFutureFlags};
 use mmb_utils::{DateTime, OPERATION_CANCELED_MSG};
@@ -308,7 +307,7 @@ impl RequestsTimeoutManager {
         let request_availability = spawn_future(
             "Waiting request in reserve_when_available()",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            action.boxed(),
+            action,
         );
 
         Ok((request_availability, request_start_time, delay))
