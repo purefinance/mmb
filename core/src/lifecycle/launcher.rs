@@ -22,7 +22,7 @@ use crate::strategies::disposition_strategy::DispositionStrategy;
 use crate::{
     disposition_execution::executor::DispositionExecutorService, infrastructure::spawn_future,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
@@ -112,16 +112,14 @@ where
 async fn before_engine_context_init<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
-) -> Result<
-    Option<(
-        broadcast::Sender<ExchangeEvent>,
-        broadcast::Receiver<ExchangeEvent>,
-        AppSettings<StrategySettings>,
-        DashMap<ExchangeAccountId, Arc<Exchange>>,
-        Arc<EngineContext>,
-        oneshot::Receiver<ActionAfterGracefulShutdown>,
-    )>,
->
+) -> Result<(
+    broadcast::Sender<ExchangeEvent>,
+    broadcast::Receiver<ExchangeEvent>,
+    AppSettings<StrategySettings>,
+    DashMap<ExchangeAccountId, Arc<Exchange>>,
+    Arc<EngineContext>,
+    oneshot::Receiver<ActionAfterGracefulShutdown>,
+)>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
@@ -140,7 +138,7 @@ where
         } => {
             match load_settings_or_wait::<StrategySettings>(&config_path, &credentials_path).await {
                 Some(settings) => settings,
-                None => return Ok(None),
+                None => bail!("Error loading settings"),
             }
         }
     };
@@ -195,14 +193,14 @@ where
         balance_manager,
     );
 
-    Ok(Some((
+    Ok((
         events_sender,
         events_receiver,
         settings,
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
-    )))
+    ))
 }
 
 fn run_services<'a, StrategySettings>(
@@ -289,7 +287,7 @@ pub async fn launch_trading_engine<StrategySettings>(
         &AppSettings<StrategySettings>,
         Arc<EngineContext>,
     ) -> Box<dyn DispositionStrategy + 'static>,
-) -> Result<Option<TradingEngine>>
+) -> Result<TradingEngine>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
@@ -309,10 +307,7 @@ where
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
-    ) = match unwrap_or_handle_panic(action_outcome, message_template, None)?? {
-        Some(result_tuple) => result_tuple,
-        None => return Ok(None),
-    };
+    ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
 
     let cloned_lifetime_manager = engine_context.lifetime_manager.clone();
     let action = async move {
@@ -346,8 +341,7 @@ where
         action_outcome,
         message_template,
         Some(engine_context.lifetime_manager.clone()),
-    )
-    .map(Some);
+    );
 
     print_info("The TradingEngine has been successfully launched");
 
