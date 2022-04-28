@@ -82,9 +82,8 @@ async fn launch_engine() -> anyhow::Result<()> {
     };
 
     let init_settings = InitSettings::Directly(settings);
-    let engine = launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy))
-        .await?
-        .expect("Failed to launch TradingEngine");
+    let engine =
+        launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy)).await?;
 
     let context = engine.context();
 

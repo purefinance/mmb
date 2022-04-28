@@ -18,7 +18,7 @@
 
 mod strategies;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use binance::binance::BinanceBuilder;
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_core::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
@@ -83,8 +83,7 @@ async fn main() -> Result<()> {
                     ctx,
                 ))
             })
-            .await?
-            .ok_or_else(|| anyhow!("Failed to launch_trading_engine"))?;
+            .await?;
 
         match engine.run().await {
             ActionAfterGracefulShutdown::Nothing => break,
