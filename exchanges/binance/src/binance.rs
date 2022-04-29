@@ -59,8 +59,8 @@ use serde::{Deserialize, Serialize};
 pub struct ErrorHandlerBinance;
 
 impl ErrorHandlerBinance {
-    pub fn new() -> Box<Self> {
-        Box::new(ErrorHandlerBinance {})
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -141,7 +141,7 @@ pub struct Binance {
     pub(super) subscribe_to_market_data: bool,
     pub(super) is_reducing_market_data: bool,
 
-    pub(super) rest_client: RestClient,
+    pub(super) rest_client: RestClient<ErrorHandlerBinance>,
 }
 
 impl Binance {

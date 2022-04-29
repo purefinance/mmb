@@ -11,7 +11,7 @@ use std::fmt::Write;
 pub type HttpParams = Vec<(String, String)>;
 
 /// Trait for specific exchange errors handling
-pub trait ErrorHandler {
+pub trait ErrorHandler: Sized {
     // To find out if there is any special exchange error in a rest outcome
     fn check_spec_rest_error(&self, _response: &RestRequestOutcome) -> Result<(), ExchangeError>;
 
@@ -21,12 +21,9 @@ pub trait ErrorHandler {
 
 pub struct ErrorHandlerEmpty;
 
-// TODO change to static dispatching from dynamic
-pub type BoxErrorHandler = Box<dyn ErrorHandler + Send + Sync>;
-
 impl ErrorHandlerEmpty {
-    pub fn new() -> Box<Self> {
-        Box::new(ErrorHandlerEmpty {})
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -38,22 +35,22 @@ impl ErrorHandler for ErrorHandlerEmpty {
     fn clarify_error_type(&self, _: &mut ExchangeError) {}
 }
 
-pub struct ErrorHandlerData {
+pub struct ErrorHandlerData<ErrHandler: ErrorHandler + Send + Sync + 'static> {
     empty_response_is_ok: bool,
     exchange_account_id: ExchangeAccountId,
-    error_handler: BoxErrorHandler,
+    error_handler: ErrHandler,
 }
 
-impl ErrorHandlerData {
+impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandler> {
     pub fn new(
         empty_response_is_ok: bool,
         exchange_account_id: ExchangeAccountId,
-        error_handler_trait: BoxErrorHandler,
+        error_handler: ErrHandler,
     ) -> Self {
         Self {
             empty_response_is_ok,
             exchange_account_id,
-            error_handler: error_handler_trait,
+            error_handler,
         }
     }
 
@@ -151,17 +148,17 @@ fn check_content(content: &str) -> CheckContent {
     }
 }
 
-pub struct RestClient {
+pub struct RestClient<ErrHandler: ErrorHandler + Send + Sync + 'static> {
     client: Client<HttpsConnector<HttpConnector>>,
-    error_handler: ErrorHandlerData,
+    error_handler: ErrorHandlerData<ErrHandler>,
 }
 
 const KEEP_ALIVE: &str = "keep-alive";
 // Inner Hyper types. Needed just for unified response handling in handle_response()
 type ResponseType = std::result::Result<Response<Body>, Error>;
 
-impl RestClient {
-    pub fn new(error_handler: ErrorHandlerData) -> Self {
+impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
+    pub fn new(error_handler: ErrorHandlerData<ErrHandler>) -> Self {
         Self {
             client: create_client(),
             error_handler,

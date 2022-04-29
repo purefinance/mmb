@@ -138,7 +138,7 @@ pub struct Serum {
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
-    pub(super) rest_client: RestClient,
+    pub(super) rest_client: RestClient<ErrorHandlerEmpty>,
     pub(super) rpc_client: Arc<SolanaClient>,
     pub(super) markets_data: RwLock<HashMap<CurrencyPair, MarketData>>,
     pub network_type: NetworkType,
