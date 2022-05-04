@@ -5,7 +5,6 @@ use jsonrpc_core::Value;
 use jsonrpc_core_client::transports::ipc;
 use mmb_core::config::parse_settings;
 use mmb_core::disposition_execution::{PriceSlot, TradingContext};
-use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_core::explanation::Explanation;
 use mmb_core::infrastructure::spawn_future_ok;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
@@ -85,8 +84,7 @@ async fn orders_cancelled() {
         }
     }
 
-    let config =
-        EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
+    let config = EngineBuildConfig::new(vec![Box::new(BinanceBuilder)]);
 
     let mut settings = parse_settings::<TestStrategySettings>(
         include_str!("control_panel.toml"),

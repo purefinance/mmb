@@ -5,13 +5,18 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 
 use crate::serum::common::{get_key_pair, get_network_type, get_timeout_manager};
-use mmb_core::exchanges::common::{Amount, ExchangeAccountId, Price};
-use mmb_core::exchanges::events::ExchangeEvent;
+use mmb_core::exchanges::common::{Amount, ExchangeAccountId, ExchangeId, Price};
+use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_core::exchanges::general::commission::Commission;
-use mmb_core::exchanges::general::exchange::Exchange;
-use mmb_core::exchanges::general::features::ExchangeFeatures;
+use mmb_core::exchanges::general::exchange::{BoxExchangeClient, Exchange};
+use mmb_core::exchanges::general::features::{
+    ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
+    RestFillsType, WebSocketOptions,
+};
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
+use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeClientBuilderResult};
 use mmb_core::infrastructure::init_lifetime_manager;
+use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::pool::OrdersPool;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
@@ -84,5 +89,52 @@ impl SerumBuilder {
             default_amount: dec!(0.01),
             rx,
         })
+    }
+}
+
+pub struct ExchangeSerumBuilder;
+
+impl ExchangeClientBuilder for ExchangeSerumBuilder {
+    fn create_exchange_client(
+        &self,
+        exchange_settings: ExchangeSettings,
+        events_channel: tokio::sync::broadcast::Sender<ExchangeEvent>,
+        lifetime_manager: Arc<AppLifetimeManager>,
+        orders: Arc<OrdersPool>,
+    ) -> ExchangeClientBuilderResult {
+        let exchange_account_id = exchange_settings.exchange_account_id;
+        let empty_response_is_ok = false;
+
+        let network_type = get_network_type().expect("Get network type");
+        ExchangeClientBuilderResult {
+            client: Box::new(Serum::new(
+                exchange_account_id,
+                exchange_settings,
+                events_channel,
+                lifetime_manager,
+                orders,
+                network_type,
+                empty_response_is_ok,
+            )) as BoxExchangeClient,
+            features: ExchangeFeatures::new(
+                OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::new(RestFillsType::None),
+                OrderFeatures::default(),
+                OrderTradeOption::default(),
+                WebSocketOptions::default(),
+                empty_response_is_ok,
+                false,
+                AllowedEventSourceType::All,
+                AllowedEventSourceType::All,
+            ),
+        }
+    }
+
+    fn get_timeout_arguments(&self) -> RequestTimeoutArguments {
+        RequestTimeoutArguments::from_requests_per_minute(240)
+    }
+
+    fn get_exchange_id(&self) -> ExchangeId {
+        "Serum".into()
     }
 }

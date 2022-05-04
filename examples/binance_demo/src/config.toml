@@ -2,6 +2,7 @@
 spread = 1000
 currency_pair = { base = "btc", quote = "usdt" }
 max_amount = 3
+exchange_account_id = "Binance_0"
 
 [[core.exchanges]]
 exchange_account_id = "Binance_0"

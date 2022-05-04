@@ -9,7 +9,8 @@ use tokio::sync::broadcast;
 use super::{
     common::CurrencyCode,
     common::{
-        ActivePosition, CurrencyPair, ExchangeAccountId, ExchangeError, SpecificCurrencyPair,
+        ActivePosition, CurrencyPair, ExchangeAccountId, ExchangeError, ExchangeId,
+        SpecificCurrencyPair,
     },
     common::{Amount, ClosedPosition, CurrencyId, Price},
     events::{ExchangeBalancesAndPositions, TradeId},
@@ -137,4 +138,6 @@ pub trait ExchangeClientBuilder {
     ) -> ExchangeClientBuilderResult;
 
     fn get_timeout_arguments(&self) -> RequestTimeoutArguments;
+
+    fn get_exchange_id(&self) -> ExchangeId;
 }

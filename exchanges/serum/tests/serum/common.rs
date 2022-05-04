@@ -36,7 +36,7 @@ pub fn get_network_type() -> Result<NetworkType> {
 }
 
 pub fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc<TimeoutManager> {
-    let exchange_client = Box::new(serum::serum::SerumBuilder) as Box<dyn ExchangeClientBuilder>;
+    let exchange_client = Box::new(serum::serum::SerumBuilder);
     let timeout_arguments = exchange_client.get_timeout_arguments();
     let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
         timeout_arguments,

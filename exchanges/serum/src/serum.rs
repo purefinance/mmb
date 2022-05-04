@@ -42,7 +42,7 @@ use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide, ToU128};
 use crate::market::{MarketData, MarketInfo, MarketMetaData, OpenOrderData};
 use crate::solana_client::{NetworkType, SolanaClient};
 use mmb_core::exchanges::common::{
-    CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, SpecificCurrencyPair,
+    CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, ExchangeId, SpecificCurrencyPair,
 };
 use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeBalance, ExchangeEvent};
 use mmb_core::exchanges::general::exchange::BoxExchangeClient;
@@ -838,5 +838,9 @@ impl ExchangeClientBuilder for SerumBuilder {
 
     fn get_timeout_arguments(&self) -> RequestTimeoutArguments {
         RequestTimeoutArguments::from_requests_per_minute(240)
+    }
+
+    fn get_exchange_id(&self) -> ExchangeId {
+        "Serum".into()
     }
 }

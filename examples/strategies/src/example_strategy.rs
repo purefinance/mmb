@@ -11,15 +11,49 @@ use mmb_core::balance_manager::balance_manager::BalanceManager;
 use mmb_core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
-use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId, MarketAccountId, MarketId};
+use mmb_core::exchanges::common::{
+    Amount, CurrencyPair, ExchangeAccountId, MarketAccountId, MarketId,
+};
 use mmb_core::exchanges::general::symbol::Round;
 use mmb_core::explanation::{Explanation, WithExplanation};
 use mmb_core::lifecycle::trading_engine::EngineContext;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::orders::order::{OrderRole, OrderSide, OrderSnapshot};
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use mmb_core::settings::{BaseStrategySettings, CurrencyPairSetting};
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_utils::cancellation_token::CancellationToken;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+pub struct ExampleStrategySettings {
+    pub spread: Decimal,
+    pub currency_pair: CurrencyPairSetting,
+    pub max_amount: Decimal,
+    pub exchange_account_id: ExchangeAccountId,
+}
+
+impl BaseStrategySettings for ExampleStrategySettings {
+    fn exchange_account_id(&self) -> ExchangeAccountId {
+        self.exchange_account_id
+    }
+
+    fn currency_pair(&self) -> CurrencyPair {
+        if let CurrencyPairSetting::Ordinary { base, quote } = self.currency_pair {
+            CurrencyPair::from_codes(base, quote)
+        } else {
+            panic!(
+                "Incorrect currency pair setting enum type {:?}",
+                self.currency_pair
+            );
+        }
+    }
+
+    // Max amount for orders that will be created
+    fn max_amount(&self) -> Amount {
+        self.max_amount
+    }
+}
 
 pub struct ExampleStrategy {
     target_eai: ExchangeAccountId,
