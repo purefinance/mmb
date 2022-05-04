@@ -5,7 +5,6 @@ use binance::binance::{BinanceBuilder, ErrorHandlerBinance};
 use function_name::named;
 use jsonrpc_core::Value;
 use mmb_core::exchanges::common::{Amount, Price};
-use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 
@@ -68,8 +67,7 @@ macro_rules! get_binance_credentials_or_exit {
 }
 
 pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc<TimeoutManager> {
-    let engine_build_config =
-        EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
+    let engine_build_config = EngineBuildConfig::new(vec![Box::new(BinanceBuilder)]);
     let timeout_arguments = engine_build_config.supported_exchange_clients
         [&ExchangeId::new("Binance".into())]
         .get_timeout_arguments();

@@ -1,5 +1,5 @@
 [package]
-name = "example"
+name = "strategies"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 itertools = "0.10"
-tokio = { version = "1", features = ["rt"]}
 anyhow = "1"
 
 rust_decimal = { version = "1" , features = ["maths"]}
@@ -15,6 +14,5 @@ rust_decimal_macros = "1"
 
 serde = { version = "1", features = ["derive", "rc"]}
 
-mmb_core = { path = "../core" }
-mmb_utils = { path = "../mmb_utils" }
-binance = { path = "../exchanges/binance" }
+mmb_core = { path = "../../core" }
+mmb_utils = { path = "../../mmb_utils" }

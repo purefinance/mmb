@@ -39,3 +39,6 @@ function_name = "0.2.0"
 
 [dev-dependencies]
 core_tests = { path = "../../core_tests" }
+mmb_core = { path = "../../core" }
+mmb_utils = { path = "../../mmb_utils" }
+strategies = { path = "../../examples/strategies" }

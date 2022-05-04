@@ -3,7 +3,6 @@ use binance::binance::BinanceBuilder;
 use mmb_core::config::parse_settings;
 use mmb_core::disposition_execution::{PriceSlot, TradingContext};
 use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId};
-use mmb_core::exchanges::traits::ExchangeClientBuilder;
 use mmb_core::explanation::Explanation;
 use mmb_core::infrastructure::spawn_future_ok;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
@@ -70,8 +69,7 @@ async fn launch_engine() -> anyhow::Result<()> {
         }
     }
 
-    let config =
-        EngineBuildConfig::standard(Box::new(BinanceBuilder) as Box<dyn ExchangeClientBuilder>);
+    let config = EngineBuildConfig::new(vec![Box::new(BinanceBuilder)]);
 
     let settings = match parse_settings::<TestStrategySettings>(
         include_str!("lifecycle.toml"),

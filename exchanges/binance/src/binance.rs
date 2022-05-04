@@ -19,7 +19,7 @@ use tokio::sync::broadcast;
 use super::support::{BinanceBalances, BinanceOrderInfo};
 use crate::support::BinanceAccountInfo;
 use mmb_core::exchanges::common::{
-    ActivePosition, Amount, ExchangeError, ExchangeErrorType, Price,
+    ActivePosition, Amount, ExchangeError, ExchangeErrorType, ExchangeId, Price,
 };
 use mmb_core::exchanges::events::{
     ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId,
@@ -1105,6 +1105,10 @@ impl ExchangeClientBuilder for BinanceBuilder {
 
     fn get_timeout_arguments(&self) -> RequestTimeoutArguments {
         RequestTimeoutArguments::from_requests_per_minute(1200)
+    }
+
+    fn get_exchange_id(&self) -> ExchangeId {
+        "Binance".into()
     }
 }
 

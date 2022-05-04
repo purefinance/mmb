@@ -28,11 +28,12 @@ use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use mmb_utils::infrastructure::{init_infrastructure, SpawnFutureFlags};
 use mmb_utils::logger::print_info;
-use mmb_utils::{hashmap, nothing_to_do};
+use mmb_utils::nothing_to_do;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 use std::time::Duration;
@@ -46,9 +47,11 @@ pub struct EngineBuildConfig {
 }
 
 impl EngineBuildConfig {
-    pub fn standard(client_builder: Box<dyn ExchangeClientBuilder>) -> Self {
-        let exchange_name = "Binance".into();
-        let supported_exchange_clients = hashmap![exchange_name => client_builder];
+    pub fn new(client_builders: Vec<Box<dyn ExchangeClientBuilder>>) -> Self {
+        let mut supported_exchange_clients = HashMap::new();
+        for builder in client_builders {
+            supported_exchange_clients.insert(builder.get_exchange_id(), builder);
+        }
 
         EngineBuildConfig {
             supported_exchange_clients,
@@ -267,16 +270,40 @@ where
 
 pub(crate) fn unwrap_or_handle_panic<T>(
     action_outcome: Result<T, Box<dyn Any + Send>>,
-    message_template: &str,
+    message_template: &'static str,
     lifetime_manager: Option<Arc<AppLifetimeManager>>,
 ) -> Result<T> {
-    action_outcome.map_err(|_| {
+    action_outcome.map_err(|err| {
         if let Some(lifetime_manager) = lifetime_manager {
             lifetime_manager
                 .spawn_graceful_shutdown("Panic during TradingEngine creation".to_owned());
         }
 
-        anyhow!(message_template.to_owned())
+        struct FullError(&'static str, Option<String>);
+        impl Debug for FullError {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.0)?;
+                if let Some(ref err) = self.1 {
+                    write!(f, ": {err}")?
+                }
+
+                Ok(())
+            }
+        }
+
+        impl Display for FullError {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{self:?}")
+            }
+        }
+
+        let full_error = FullError(message_template, err.downcast::<String>().ok().map(|x| *x));
+
+        if full_error.1.is_some() {
+            log::error!("{full_error}");
+        }
+
+        anyhow!(full_error)
     })
 }
 

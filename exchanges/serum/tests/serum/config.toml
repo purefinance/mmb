@@ -1,0 +1,19 @@
+[strategy]
+spread = 3
+currency_pair = { base = "sol", quote = "test" }
+max_amount = 3
+exchange_account_id = "Serum_0"
+
+[[core.exchanges]]
+exchange_account_id = "Serum_0"
+is_margin_trading = false
+request_trades = false
+websocket_channels = ["depth20"]
+subscribe_to_market_data = true
+
+currency_pairs = [
+    { base = "sol", quote = "test" },
+    { base = "eth", quote = "btc"  },
+    { base = "eos", quote = "btc"  },
+    { base = "btc", quote = "usdt"  }
+]
