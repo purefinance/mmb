@@ -416,7 +416,7 @@ pub fn send_event(
         Err(error) => {
             let msg = format!("Unable to send exchange event in {}: {}", id, error);
             log::error!("{}", msg);
-            lifetime_manager.spawn_graceful_shutdown(msg.clone());
+            lifetime_manager.spawn_graceful_shutdown(&msg);
             Err(anyhow!(msg))
         }
     }

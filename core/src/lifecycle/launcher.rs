@@ -275,19 +275,29 @@ pub(crate) fn unwrap_or_handle_panic<T>(
 ) -> Result<T> {
     action_outcome.map_err(|err| {
         if let Some(lifetime_manager) = lifetime_manager {
-            lifetime_manager
-                .spawn_graceful_shutdown("Panic during TradingEngine creation".to_owned());
+            lifetime_manager.spawn_graceful_shutdown("Panic during TradingEngine creation");
         }
 
-        struct FullError(&'static str, Option<String>);
+        enum ErrorMessage {
+            String(String),
+            ConstStr(&'static str),
+            // Unable convert panic message to readable string
+            None,
+        }
+        impl Display for ErrorMessage {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    ErrorMessage::String(ref str) => f.write_str(str),
+                    ErrorMessage::ConstStr(str) => f.write_str(str),
+                    ErrorMessage::None => f.write_str("Unable convert error to readable message"),
+                }
+            }
+        }
+
+        struct FullError(&'static str, ErrorMessage);
         impl Debug for FullError {
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-                write!(f, "{}", self.0)?;
-                if let Some(ref err) = self.1 {
-                    write!(f, ": {err}")?
-                }
-
-                Ok(())
+                write!(f, "{}: {}", self.0, self.1)
             }
         }
 
@@ -297,11 +307,17 @@ pub(crate) fn unwrap_or_handle_panic<T>(
             }
         }
 
-        let full_error = FullError(message_template, err.downcast::<String>().ok().map(|x| *x));
+        let error_msg = match err.downcast::<String>() {
+            Ok(msg) => ErrorMessage::String(*msg),
+            Err(err) => match err.downcast::<&'static str>() {
+                Ok(msg) => ErrorMessage::ConstStr(*msg),
+                Err(_) => ErrorMessage::None,
+            },
+        };
 
-        if full_error.1.is_some() {
-            log::error!("{full_error}");
-        }
+        let full_error = FullError(message_template, error_msg);
+
+        log::error!("{full_error}");
 
         anyhow!(full_error)
     })
@@ -341,7 +357,7 @@ where
         signal::ctrl_c().await.expect("failed to listen for event");
 
         print_info("Ctrl-C signal was received so graceful_shutdown will be started");
-        cloned_lifetime_manager.spawn_graceful_shutdown("Ctrl-C signal was received".to_owned());
+        cloned_lifetime_manager.spawn_graceful_shutdown("Ctrl-C signal was received");
     };
 
     let _ = spawn_future_ok(
