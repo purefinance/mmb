@@ -79,7 +79,7 @@ pub fn spawn_future_timed(
     flags: SpawnFutureFlags,
     duration: Duration,
     action: impl Future<Output = Result<()>> + Send + 'static,
-    graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
+    graceful_shutdown_spawner: impl FnOnce(String, &str) + 'static + Send,
     cancellation_token: CancellationToken,
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
@@ -114,7 +114,7 @@ pub fn spawn_future(
     action_name: &str,
     flags: SpawnFutureFlags,
     action: impl Future<Output = Result<()>> + Send + 'static,
-    graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
+    graceful_shutdown_spawner: impl FnOnce(String, &str) + 'static + Send,
     cancellation_token: CancellationToken,
 ) -> JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
@@ -137,7 +137,7 @@ async fn handle_action_outcome(
     future_id: Uuid,
     flags: SpawnFutureFlags,
     action: impl Future<Output = Result<()>> + Send + 'static,
-    graceful_shutdown_spawner: impl FnOnce(String, String),
+    graceful_shutdown_spawner: impl FnOnce(String, &str),
     cancellation_token: CancellationToken,
 ) -> FutureOutcome {
     let log_template = format!("Future '{}', with id {}", action_name, future_id);
@@ -177,10 +177,10 @@ async fn handle_action_outcome(
         },
         Err(panic_info) => {
             let msg = match panic_info.as_ref().downcast_ref::<&'static str>() {
-                Some(s) => *s,
+                Some(&s) => s,
                 None => match panic_info.as_ref().downcast_ref::<String>() {
-                    Some(s) => &s[..],
-                    None => "without readable message",
+                    Some(s) => s,
+                    None => "Panic without readable message",
                 },
             };
 
@@ -190,7 +190,7 @@ async fn handle_action_outcome(
                 flags,
                 graceful_shutdown_spawner,
                 log_template,
-                msg.into(),
+                msg,
             )
         }
     }
@@ -205,7 +205,7 @@ pub fn spawn_by_timer<F, Fut>(
     period: Duration,
     flags: SpawnFutureFlags,
     cancellation_token: CancellationToken,
-    graceful_shutdown_spawner: impl FnOnce(String, String) + 'static + Send,
+    graceful_shutdown_spawner: impl FnOnce(String, &str) + 'static + Send,
 ) -> JoinHandle<FutureOutcome>
 where
     F: Fn() -> Fut + Send + Sync + 'static,

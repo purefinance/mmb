@@ -99,7 +99,7 @@ pub fn spawn_future(
     )
 }
 
-fn spawn_graceful_shutdown(log_template: String, error_message: String) {
+fn spawn_graceful_shutdown(log_template: String, error_message: &str) {
     match LIFETIME_MANAGER.get() {
         Some(lifetime_manager) => {
             match &*lifetime_manager.lock() {

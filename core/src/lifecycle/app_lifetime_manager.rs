@@ -43,7 +43,7 @@ impl AppLifetimeManager {
         *engine_context_guard = Some(Arc::downgrade(&engine_context));
     }
 
-    pub fn spawn_graceful_shutdown(&self, reason: String) -> Option<JoinHandle<()>> {
+    pub fn spawn_graceful_shutdown(&self, reason: &str) -> Option<JoinHandle<()>> {
         self.spawn_graceful_shutdown_with_action(reason, ActionAfterGracefulShutdown::Nothing)
     }
 
@@ -51,7 +51,7 @@ impl AppLifetimeManager {
     /// without waiting for the operation to complete
     pub fn spawn_graceful_shutdown_with_action(
         &self,
-        reason: String,
+        reason: &str,
         action: ActionAfterGracefulShutdown,
     ) -> Option<JoinHandle<()>> {
         let engine_context_guard = match self.engine_context.try_lock() {
@@ -63,7 +63,7 @@ impl AppLifetimeManager {
 
         let handler = start_graceful_shutdown_inner(
             engine_context_guard,
-            &reason,
+            reason,
             action,
             self.futures_cancellation_token.clone(),
         )?;
