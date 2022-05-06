@@ -81,7 +81,7 @@ impl MoreOrEqualsAvailableRequestsCountTrigger {
         spawn_future_ok(
             "handle_inner for schedule_handler()",
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            self.clone().handle_inner(delay),
+            self.handle_inner(delay),
         );
     }
 

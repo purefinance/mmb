@@ -208,7 +208,7 @@ impl ServiceValueTree {
                                                         *service_name,
                                                         *service_configuration_key,
                                                     ),
-                                                    exchange_account_id.clone(),
+                                                    *exchange_account_id,
                                                     *currency_pair,
                                                     *currency_code,
                                                 ),

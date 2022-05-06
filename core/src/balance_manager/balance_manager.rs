@@ -870,7 +870,7 @@ impl BalanceManager {
     ) -> Option<Amount> {
         self.balance_reservation_manager
             .virtual_balance_holder
-            .get_exchange_balance(exchange_account_id, symbol.clone(), currency_code, None)
+            .get_exchange_balance(exchange_account_id, symbol, currency_code, None)
     }
 
     pub fn get_all_virtual_balance_diffs(&self) -> &ServiceValueTree {

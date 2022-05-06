@@ -90,7 +90,7 @@ async fn send_request(
     let rest_client = RestClient::new(ErrorHandlerData::new(
         false,
         exchange_account_id,
-        ErrorHandlerBinance::new(),
+        ErrorHandlerBinance::default(),
     ));
 
     let full_url = rest_client::build_uri(&hosts.rest_host, url_path, http_params)
