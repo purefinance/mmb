@@ -19,13 +19,8 @@ pub trait ErrorHandler: Sized {
     fn clarify_error_type(&self, _error: &mut ExchangeError);
 }
 
+#[derive(Default)]
 pub struct ErrorHandlerEmpty;
-
-impl ErrorHandlerEmpty {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl ErrorHandler for ErrorHandlerEmpty {
     fn check_spec_rest_error(&self, _: &RestRequestOutcome) -> Result<(), ExchangeError> {

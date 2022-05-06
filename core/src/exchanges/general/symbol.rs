@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -56,7 +56,7 @@ impl Precision {
 
 /// Metadata for a currency pair
 #[warn(clippy::derive_hash_xor_eq)] // FIXME temporary changed deny=>warn
-#[derive(Debug, Clone, Hash, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub struct Symbol {
     pub is_active: bool,
     pub is_derivative: bool,
@@ -386,6 +386,12 @@ impl Symbol {
 impl PartialEq for Symbol {
     fn eq(&self, other: &Self) -> bool {
         self.currency_pair() == other.currency_pair()
+    }
+}
+
+impl Hash for Symbol {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.currency_pair().hash(state)
     }
 }
 

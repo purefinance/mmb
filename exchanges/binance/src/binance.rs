@@ -56,13 +56,8 @@ use mmb_core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFill
 use mmb_utils::value_to_decimal::GetOrErr;
 use serde::{Deserialize, Serialize};
 
+#[derive(Default)]
 pub struct ErrorHandlerBinance;
-
-impl ErrorHandlerBinance {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl ErrorHandler for ErrorHandlerBinance {
     fn check_spec_rest_error(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
@@ -180,7 +175,7 @@ impl Binance {
             rest_client: RestClient::new(ErrorHandlerData::new(
                 empty_response_is_ok,
                 exchange_account_id,
-                ErrorHandlerBinance::new(),
+                ErrorHandlerBinance::default(),
             )),
         }
     }

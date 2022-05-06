@@ -174,7 +174,7 @@ impl Serum {
             rest_client: RestClient::new(ErrorHandlerData::new(
                 empty_response_is_ok,
                 exchange_account_id,
-                ErrorHandlerEmpty::new(),
+                ErrorHandlerEmpty::default(),
             )),
             rpc_client: Arc::new(SolanaClient::new(&network_type)),
             markets_data: Default::default(),

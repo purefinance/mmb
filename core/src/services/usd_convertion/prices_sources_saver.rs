@@ -8,6 +8,7 @@ use crate::{
     misc::{price_by_order_side::PriceByOrderSide, price_source_model::PriceSourceModel},
 };
 
+#[derive(Default)]
 pub struct PriceSourcesSaver {
     // TODO: implement when DataRecorder will be added
 // data_recorder: DataRecorder;
