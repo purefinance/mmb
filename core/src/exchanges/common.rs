@@ -251,12 +251,8 @@ impl ExchangeError {
         }
     }
 
-    pub fn parsing_error(message: &str) -> Self {
-        ExchangeError::new(
-            ExchangeErrorType::ParsingError,
-            format!("Unable to parse {}", message),
-            None,
-        )
+    pub fn parsing_error(message: String) -> Self {
+        ExchangeError::new(ExchangeErrorType::ParsingError, message, None)
     }
     pub fn unknown_error(message: &str) -> Self {
         Self {

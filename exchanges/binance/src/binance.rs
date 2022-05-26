@@ -69,21 +69,23 @@ impl ErrorHandler for ErrorHandlerBinance {
             return Ok(());
         }
 
-        let data: Value = serde_json::from_str(&response.content)
-            .map_err(|err| ExchangeError::parsing_error(&format!("response.content: {:?}", err)))?;
+        #[derive(Deserialize)]
+        struct Error {
+            msg: String,
+            code: i64,
+        }
 
-        let message = data["msg"]
-            .as_str()
-            .ok_or_else(|| ExchangeError::parsing_error("`msg` field"))?;
-
-        let code = data["code"]
-            .as_i64()
-            .ok_or_else(|| ExchangeError::parsing_error("`code` field"))?;
+        let error: Error = serde_json::from_str(&response.content).map_err(|err| {
+            ExchangeError::parsing_error(format!(
+                "Unable to parse response.content: {:?}\n{}",
+                err, response.content
+            ))
+        })?;
 
         Err(ExchangeError::new(
             ExchangeErrorType::Unknown,
-            message.to_string(),
-            Some(code),
+            error.msg,
+            Some(error.code),
         ))
     }
 
