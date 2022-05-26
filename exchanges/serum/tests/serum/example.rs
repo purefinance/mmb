@@ -17,6 +17,7 @@
 
 use mmb_core::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 
+use crate::serum::common::get_key_pair;
 use crate::serum::serum_builder::ExchangeSerumBuilder;
 use futures::FutureExt;
 use mmb_core::config::parse_settings;
@@ -31,11 +32,13 @@ use strategies::example_strategy::{ExampleStrategy, ExampleStrategySettings};
 async fn example() {
     let engine_config = EngineBuildConfig::new(vec![Box::new(ExchangeSerumBuilder)]);
 
-    let settings = parse_settings::<ExampleStrategySettings>(
-        include_str!("config.toml"),
-        include_str!("config.cred.toml"),
-    )
-    .expect("Error during settings loading");
+    let secret_key = get_key_pair().expect("Error getting solana keypair");
+    let credentials = format!("[Serum_0]\napi_key = \"serum\"\nsecret_key = \"{secret_key}\"");
+
+    let settings =
+        parse_settings::<ExampleStrategySettings>(include_str!("config.toml"), &credentials)
+            .expect("Error loading initial settings");
+
     let init_settings = InitSettings::Directly(settings);
     loop {
         let engine =

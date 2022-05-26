@@ -86,11 +86,13 @@ async fn orders_cancelled() {
 
     let config = EngineBuildConfig::new(vec![Box::new(BinanceBuilder)]);
 
-    let mut settings = parse_settings::<TestStrategySettings>(
-        include_str!("control_panel.toml"),
-        include_str!("control_panel.cred.toml"),
-    )
-    .expect("in test");
+    let credentials =
+        format!("[Binance_0]\napi_key = \"{api_key}\"\nsecret_key = \"{secret_key}\"");
+
+    let settings = include_str!("control_panel.toml");
+    let mut settings =
+        parse_settings::<TestStrategySettings>(settings, &credentials).expect("in test");
+
     let mut exchange_settings = &mut settings.core.exchanges[0];
     exchange_settings.api_key = api_key.clone();
     exchange_settings.secret_key = secret_key;
