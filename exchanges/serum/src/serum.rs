@@ -24,7 +24,6 @@ use solana_program::program_pack::Pack;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::account::Account;
 use solana_sdk::signature::{Keypair, Signer};
-use spl_token::state;
 use spl_token::state::Mint;
 use std::any::Any;
 use std::collections::HashMap;
@@ -791,10 +790,8 @@ impl Serum {
         )
         .context("Load data for mint addresses")?;
 
-        let coin_mint_data =
-            state::Mint::unpack_from_slice(&coin_data).context("Unpack coin data")?;
-        let price_mint_data =
-            state::Mint::unpack_from_slice(&pc_data).context("Unpack price data")?;
+        let coin_mint_data = Mint::unpack_from_slice(&coin_data).context("Unpack coin data")?;
+        let price_mint_data = Mint::unpack_from_slice(&pc_data).context("Unpack price data")?;
         Ok((coin_mint_data, price_mint_data))
     }
 }
@@ -805,7 +802,7 @@ impl ExchangeClientBuilder for SerumBuilder {
     fn create_exchange_client(
         &self,
         exchange_settings: ExchangeSettings,
-        events_channel: tokio::sync::broadcast::Sender<ExchangeEvent>,
+        events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
         orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult {

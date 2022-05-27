@@ -144,7 +144,7 @@ mod test {
     use super::*;
 
     fn exchange_account_id() -> ExchangeAccountId {
-        ExchangeAccountId::new("exchange_test_id".into(), 0)
+        ExchangeAccountId::new("exchange_test_id", 0)
     }
 
     fn market_account_id() -> MarketAccountId {

@@ -119,9 +119,10 @@ impl BalanceManagerBase {
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
         let (mock_object, mock_locker) = time::tests::init_mock(seconds_offset_in_mock.clone());
 
-        let exchange_id = Self::exchange_id().as_str().into();
-        let exchange_account_id_1 = ExchangeAccountId::new(exchange_id, 0);
-        let exchange_account_id_2 = ExchangeAccountId::new(exchange_id, 1);
+        let exchange_id = Self::exchange_id();
+        let exchange_id_str = exchange_id.as_str();
+        let exchange_account_id_1 = ExchangeAccountId::new(exchange_id_str, 0);
+        let exchange_account_id_2 = ExchangeAccountId::new(exchange_id_str, 1);
 
         Self {
             ten_digit_precision: dec!(0.0000000001),

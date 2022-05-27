@@ -1,6 +1,3 @@
-use mmb_core::exchanges::common::*;
-use mmb_core::exchanges::general::features::*;
-use mmb_core::exchanges::{events::AllowedEventSourceType, general::commission::Commission};
 use mmb_core::orders::event::OrderEventType;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
@@ -15,29 +12,11 @@ use core_tests::order::OrderProxy;
 async fn create_successfully() {
     init_logger_file_named("log.txt");
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let mut binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        Commission::default(),
-        true,
-    )
-    .await
-    {
+    let mut binance_builder = match BinanceBuilder::build_account_0().await {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
+    let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
     let order_proxy = OrderProxy::new(
         exchange_account_id,
@@ -78,29 +57,11 @@ async fn create_successfully() {
 async fn should_fail() {
     init_logger_file_named("log.txt");
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        Commission::default(),
-        true,
-    )
-    .await
-    {
+    let binance_builder = match BinanceBuilder::build_account_0().await {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
+    let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
     let mut order_proxy = OrderProxy::new(
         exchange_account_id,
@@ -116,14 +77,10 @@ async fn should_fail() {
         .create_order(binance_builder.exchange.clone())
         .await
     {
-        Ok(error) => {
-            assert!(false, "Create order failed with error {:?}.", error)
-        }
-        Err(error) => {
-            assert_eq!(
-                "Exchange error: Type: InvalidOrder Message: Precision is over the maximum defined for this asset. Code Some(-1111)",
-                error.to_string()
-            );
-        }
+        Ok(error) => assert!(false, "Create order failed with error {:?}.", error),
+        Err(error) => assert_eq!(
+            "Exchange error: Type: InvalidOrder Message: Precision is over the maximum defined for this asset. Code Some(-1111)",
+            error.to_string()
+        ),
     }
 }

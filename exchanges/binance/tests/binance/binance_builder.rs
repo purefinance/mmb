@@ -3,7 +3,7 @@ use binance::binance::Binance;
 use core_tests::order::OrderProxy;
 use mmb_core::balance_manager::balance_manager::BalanceManager;
 use mmb_core::exchanges::common::*;
-use mmb_core::exchanges::events::ExchangeEvent;
+use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use mmb_core::exchanges::general::exchange::*;
@@ -35,7 +35,29 @@ pub struct BinanceBuilder {
 }
 
 impl BinanceBuilder {
-    pub async fn try_new(
+    pub async fn build_account_0() -> Result<Self> {
+        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
+        BinanceBuilder::try_new(
+            exchange_account_id,
+            CancellationToken::default(),
+            ExchangeFeatures::new(
+                OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::default(),
+                OrderFeatures::default(),
+                OrderTradeOption::default(),
+                WebSocketOptions::default(),
+                true,
+                true,
+                AllowedEventSourceType::default(),
+                AllowedEventSourceType::default(),
+            ),
+            Commission::default(),
+            true,
+        )
+        .await
+    }
+
+    async fn try_new(
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,

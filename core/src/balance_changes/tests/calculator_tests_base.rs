@@ -70,11 +70,11 @@ pub mod tests {
         }
 
         pub fn exchange_account_id_1() -> ExchangeAccountId {
-            ExchangeAccountId::new("EXC1".into(), 0)
+            ExchangeAccountId::new("EXC1", 0)
         }
 
         pub fn exchange_account_id_2() -> ExchangeAccountId {
-            ExchangeAccountId::new("EXC2".into(), 0)
+            ExchangeAccountId::new("EXC2", 0)
         }
 
         pub fn base() -> CurrencyCode {

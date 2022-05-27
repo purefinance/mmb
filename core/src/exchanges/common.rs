@@ -45,9 +45,9 @@ pub struct ExchangeAccountId {
 
 impl ExchangeAccountId {
     #[inline]
-    pub fn new(exchange_id: ExchangeId, account_number: u8) -> Self {
+    pub fn new(exchange_id: impl Into<ExchangeId>, account_number: u8) -> Self {
         ExchangeAccountId {
-            exchange_id,
+            exchange_id: exchange_id.into(),
             account_number,
         }
     }
@@ -68,8 +68,7 @@ impl FromStr for ExchangeAccountId {
 
         let exchange_id = captures[1]
             .ok_or_else(|| ExchangeIdParseError("Invalid format".into()))?
-            .as_str()
-            .into();
+            .as_str();
 
         let number = captures[2]
             .ok_or_else(|| ExchangeIdParseError("Invalid format".into()))?
@@ -491,10 +490,7 @@ mod tests {
             let exchange_account_id = "Binance.test-hello-world111_0".parse::<ExchangeAccountId>();
             assert_eq!(
                 exchange_account_id,
-                Ok(ExchangeAccountId::new(
-                    "Binance.test-hello-world111".into(),
-                    0
-                ))
+                Ok(ExchangeAccountId::new("Binance.test-hello-world111", 0))
             );
         }
 

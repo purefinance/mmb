@@ -1,49 +1,18 @@
 use core_tests::order::OrderProxy;
-use mmb_core::exchanges::common::*;
-use mmb_core::exchanges::events::AllowedEventSourceType;
-use mmb_core::exchanges::general::commission::Commission;
-use mmb_core::exchanges::general::features::*;
-use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 
 use crate::binance::binance_builder::BinanceBuilder;
-use crate::get_binance_credentials_or_exit;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cancellation_waited_successfully() {
     init_logger_file_named("log.txt");
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let (api_key, secret_key) = get_binance_credentials_or_exit!();
-    let mut settings = ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
-
-    // Currency pair in settings are matter here because of need to check
-    // Symbol in check_order_fills() inside wait_cancel_order()
-    settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
-        base: "btc".into(),
-        quote: "usdt".into(),
-    }]);
-
-    let binance_builder = BinanceBuilder::try_new_with_settings(
-        settings.clone(),
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        Commission::default(),
-        true,
-    )
-    .await;
+    let binance_builder = match BinanceBuilder::build_account_0().await {
+        Ok(binance_builder) => binance_builder,
+        Err(_) => return,
+    };
+    let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
     let order_proxy = OrderProxy::new(
         exchange_account_id,
@@ -70,29 +39,11 @@ async fn cancellation_waited_successfully() {
 async fn cancellation_waited_failed_fallback() {
     init_logger_file_named("log.txt");
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::FallbackOnly,
-        ),
-        Commission::default(),
-        true,
-    )
-    .await
-    {
+    let binance_builder = match BinanceBuilder::build_account_0().await {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
+    let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
     let order_proxy = OrderProxy::new(
         exchange_account_id,

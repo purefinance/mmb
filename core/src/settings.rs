@@ -76,7 +76,7 @@ impl ExchangeSettings {
 impl Default for ExchangeSettings {
     fn default() -> Self {
         ExchangeSettings {
-            exchange_account_id: ExchangeAccountId::new("".into(), 0),
+            exchange_account_id: ExchangeAccountId::new("", 0),
             api_key: "".to_string(),
             secret_key: "".to_string(),
             is_margin_trading: false,
