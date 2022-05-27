@@ -11,7 +11,7 @@ use crate::{
 #[derive(Default)]
 pub struct PriceSourcesSaver {
     // TODO: implement when DataRecorder will be added
-// data_recorder: DataRecorder;
+    // data_recorder: DataRecorder;
 }
 
 impl PriceSourcesSaver {

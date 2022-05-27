@@ -1,4 +1,5 @@
 #![cfg(test)]
+use crate::get_binance_credentials_or_exit;
 use binance::binance::BinanceBuilder;
 use mmb_core::config::parse_settings;
 use mmb_core::disposition_execution::{PriceSlot, TradingContext};
@@ -41,7 +42,7 @@ impl BaseStrategySettings for TestStrategySettings {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn launch_engine() -> anyhow::Result<()> {
+async fn launch_engine() {
     struct TestStrategy;
 
     impl DispositionStrategy for TestStrategy {
@@ -71,20 +72,24 @@ async fn launch_engine() -> anyhow::Result<()> {
 
     let config = EngineBuildConfig::new(vec![Box::new(BinanceBuilder)]);
 
+    let (api_key, secret_key) = get_binance_credentials_or_exit!();
+    let credentials =
+        format!("[Binance_0]\napi_key = \"{api_key}\"\nsecret_key = \"{secret_key}\"");
+
     let settings = match parse_settings::<TestStrategySettings>(
         include_str!("lifecycle.toml"),
-        include_str!("lifecycle.cred.toml"),
+        &credentials,
     ) {
         Ok(settings) => settings,
-        Err(_) => return Ok(()), // For CI, while we cant setup keys on github
+        Err(_) => return, // For CI, while we cant setup keys on github
     };
 
     let init_settings = InitSettings::Directly(settings);
-    let engine =
-        launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy)).await?;
+    let engine = launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy))
+        .await
+        .expect("in tests");
 
     let context = engine.context();
-
     let action = async move {
         sleep(Duration::from_millis(200)).await;
         context.lifetime_manager.run_graceful_shutdown("test").await;
@@ -96,6 +101,4 @@ async fn launch_engine() -> anyhow::Result<()> {
     );
 
     engine.run().await;
-
-    Ok(())
 }
