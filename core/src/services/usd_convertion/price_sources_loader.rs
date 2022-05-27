@@ -7,7 +7,7 @@ use crate::{exchanges::common::MarketId, misc::price_by_order_side::PriceByOrder
 #[derive(Default)]
 pub struct PriceSourcesLoader {
     // TODO: fix when DatabaseManager will be added
-//database_manager: DatabaseManager
+    //database_manager: DatabaseManager
 }
 
 impl PriceSourcesLoader {
