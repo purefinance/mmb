@@ -106,12 +106,12 @@ impl BalanceManagerDerivative {
         let symbol = Arc::from(symbol);
         let exchange_1 = get_test_exchange_with_symbol_and_id(
             symbol.clone(),
-            ExchangeAccountId::new(BalanceManagerBase::exchange_id().as_str().into(), 0),
+            ExchangeAccountId::new(BalanceManagerBase::exchange_id().as_str(), 0),
         )
         .0;
         let exchange_2 = get_test_exchange_with_symbol_and_id(
             symbol.clone(),
-            ExchangeAccountId::new(BalanceManagerBase::exchange_id().as_str().into(), 1),
+            ExchangeAccountId::new(BalanceManagerBase::exchange_id().as_str(), 1),
         )
         .0;
 

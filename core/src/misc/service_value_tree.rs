@@ -274,7 +274,7 @@ mod test {
             ("acc_3", 3),
             ("acc_4", 4),
         ]
-        .map(|x| ExchangeAccountId::new(x.0.into(), x.1))
+        .map(|x| ExchangeAccountId::new(x.0, x.1))
         .to_vec()
     }
     fn get_configuration_keys() -> Vec<ServiceConfigurationKey> {
@@ -339,13 +339,13 @@ mod test {
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
-        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
 
         let new_service_configuration_key = "new_name".into();
-        let new_exchange_account_id = ExchangeAccountId::new("new_acc".into(), 0);
+        let new_exchange_account_id = ExchangeAccountId::new("new_acc", 0);
         let new_currency_pair = CurrencyPair::from_codes("new_code_b".into(), "new_code_q".into());
         let new_currency_code = CurrencyCode::new("new_code".into());
         let new_value = dec!(1);
@@ -467,7 +467,7 @@ mod test {
 
         let new_service_name = "new_service_name".into();
         let new_service_configuration_key = "new_service_configuration_key".into();
-        let new_exchange_account_id = ExchangeAccountId::new("new_exchange_account_id".into(), 0);
+        let new_exchange_account_id = ExchangeAccountId::new("new_exchange_account_id", 0);
         let new_currency_pair = CurrencyPair::from_codes(
             "new_currency_pair_b_0".into(),
             "new_currency_pair_q_0".into(),
@@ -506,7 +506,7 @@ mod test {
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
-        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
@@ -544,7 +544,7 @@ mod test {
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
-        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
@@ -582,7 +582,7 @@ mod test {
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
-        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
@@ -620,7 +620,7 @@ mod test {
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
-        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
@@ -658,7 +658,7 @@ mod test {
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
-        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
@@ -681,7 +681,7 @@ mod test {
             service_value_tree.get(),
             service_name,
             service_configuration_key,
-            ExchangeAccountId::new("acc_0".into(), 1),
+            ExchangeAccountId::new("acc_0", 1),
             currency_pair,
             currency_code,
             value,
@@ -696,7 +696,7 @@ mod test {
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
-        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);
@@ -734,7 +734,7 @@ mod test {
 
         let service_name = "name".into();
         let service_configuration_key = "name".into();
-        let exchange_account_id = ExchangeAccountId::new("acc_0".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
         let currency_code = CurrencyCode::new("0".into());
         let value = dec!(0);

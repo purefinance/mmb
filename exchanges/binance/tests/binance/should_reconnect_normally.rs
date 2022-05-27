@@ -1,38 +1,14 @@
 use anyhow::Result;
 use mmb_core::connectivity::{websocket_open, WebSocketParams, WebSocketRole};
-use mmb_core::exchanges::general::features::*;
-use mmb_core::{
-    exchanges::common::ExchangeAccountId, exchanges::events::AllowedEventSourceType,
-    exchanges::general::commission::Commission, exchanges::general::features::ExchangeFeatures,
-    exchanges::general::features::OpenOrdersType,
-};
-use mmb_utils::cancellation_token::CancellationToken;
+use mmb_core::exchanges::common::ExchangeAccountId;
 use mmb_utils::infrastructure::init_infrastructure;
 use tokio::time::{timeout, Duration};
 
 use crate::binance::binance_builder::BinanceBuilder;
 
 async fn init_test_stuff() -> Result<(ExchangeAccountId, WebSocketParams, WebSocketParams)> {
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let exchange = BinanceBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        Commission::default(),
-        true,
-    )
-    .await?
-    .exchange;
+    let exchange = BinanceBuilder::build_account_0().await?.exchange;
+    let exchange_account_id = exchange.exchange_account_id;
 
     let main = exchange
         .get_websocket_params(WebSocketRole::Main)

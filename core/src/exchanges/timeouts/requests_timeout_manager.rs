@@ -414,7 +414,7 @@ mod test {
     #[fixture]
     fn timeout_manager() -> Arc<RequestsTimeoutManager> {
         let requests_per_period = 5;
-        let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id".into(), 0);
+        let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id", 0);
         RequestsTimeoutManagerFactory::from_requests_per_period(
             RequestTimeoutArguments::from_requests_per_minute(requests_per_period),
             exchange_account_id,
@@ -2327,7 +2327,7 @@ mod test {
         #[fixture]
         fn timeout_manager() -> Arc<RequestsTimeoutManager> {
             let requests_per_period = 5;
-            let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id".into(), 0);
+            let exchange_account_id = ExchangeAccountId::new("test_exchange_account_id", 0);
             RequestsTimeoutManagerFactory::from_requests_per_period(
                 RequestTimeoutArguments::new(requests_per_period, Duration::milliseconds(1)),
                 exchange_account_id,

@@ -239,7 +239,7 @@ pub(crate) fn get_test_exchange_by_currency_codes(
 pub(crate) fn get_test_exchange_with_symbol(
     symbol: Arc<Symbol>,
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
-    let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id".into(), 0);
+    let exchange_account_id = ExchangeAccountId::new("local_exchange_account_id", 0);
     get_test_exchange_with_symbol_and_id(symbol, exchange_account_id)
 }
 pub(crate) fn get_test_exchange_with_symbol_and_id(

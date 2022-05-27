@@ -158,7 +158,7 @@ mod tests {
         let test_currency_pair = CurrencyPair::from_codes("base".into(), "quote".into());
         // Construct main object
         let market_account_id = MarketAccountId::new(
-            ExchangeAccountId::new(test_exchange_id.into(), 0),
+            ExchangeAccountId::new(test_exchange_id, 0),
             test_currency_pair,
         );
 

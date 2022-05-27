@@ -2,15 +2,8 @@ use crate::serum::common::retry_action;
 use crate::serum::serum_builder::SerumBuilder;
 use anyhow::anyhow;
 use core_tests::order::OrderProxyBuilder;
-use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId};
-use mmb_core::exchanges::events::AllowedEventSourceType;
-use mmb_core::exchanges::general::commission::Commission;
-use mmb_core::exchanges::general::features::{
-    ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
-    WebSocketOptions,
-};
+use mmb_core::exchanges::common::CurrencyPair;
 use mmb_core::orders::order::OrderSide;
-use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 use rust_decimal_macros::dec;
 use std::time::Duration;
@@ -20,25 +13,8 @@ use std::time::Duration;
 async fn get_order_info() {
     init_logger_file_named("log.txt");
 
-    let exchange_account_id: ExchangeAccountId = "Serum_0".parse().expect("Parsing error");
-    let serum_builder = SerumBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        Commission::default(),
-    )
-    .await
-    .expect("Failed to create SerumBuilder");
+    let serum_builder = SerumBuilder::build_account_0().await;
+    let exchange_account_id = serum_builder.exchange.exchange_account_id;
 
     let currency_pair = CurrencyPair::from_codes("sol".into(), "test".into());
     let order_proxy = OrderProxyBuilder::new(

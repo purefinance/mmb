@@ -4,7 +4,9 @@ use serum::serum::Serum;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::serum::common::{get_key_pair, get_network_type, get_timeout_manager};
+use crate::serum::common::{
+    get_additional_key_pair, get_key_pair, get_network_type, get_timeout_manager,
+};
 use mmb_core::exchanges::common::{Amount, ExchangeAccountId, ExchangeId, Price};
 use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_core::exchanges::general::commission::Commission;
@@ -29,13 +31,54 @@ pub struct SerumBuilder {
 }
 
 impl SerumBuilder {
-    pub async fn try_new(
+    pub async fn build_account_0() -> Self {
+        let exchange_account_id = ExchangeAccountId::new("Serum", 0); // Serum_0
+        let secret_key = get_key_pair().expect("Can't get key/pair for account `Serum_0`");
+        SerumBuilder::from_inner(exchange_account_id, secret_key)
+            .await
+            .expect("Failed to create SerumBuilder for account `Serum_0`")
+    }
+
+    pub async fn build_account_1() -> Self {
+        let exchange_account_id = ExchangeAccountId::new("Serum", 1); // Serum_1
+        let secret_key =
+            get_additional_key_pair().expect("Can't get key/pair for account `Serum_1`");
+        SerumBuilder::from_inner(exchange_account_id, secret_key)
+            .await
+            .expect("Failed to create SerumBuilder for account `Serum_1`")
+    }
+
+    async fn from_inner(
+        exchange_account_id: ExchangeAccountId,
+        secret_key: String,
+    ) -> Result<SerumBuilder> {
+        SerumBuilder::try_new(
+            exchange_account_id,
+            CancellationToken::default(),
+            ExchangeFeatures::new(
+                OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::default(),
+                OrderFeatures::default(),
+                OrderTradeOption::default(),
+                WebSocketOptions::default(),
+                false,
+                true,
+                AllowedEventSourceType::default(),
+                AllowedEventSourceType::default(),
+            ),
+            Commission::default(),
+            secret_key,
+        )
+        .await
+    }
+
+    async fn try_new(
         exchange_account_id: ExchangeAccountId,
         _cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
+        secret_key: String,
     ) -> Result<Self> {
-        let secret_key = get_key_pair()?;
         let mut settings =
             ExchangeSettings::new_short(exchange_account_id, "".to_string(), secret_key, false);
 
@@ -47,7 +90,7 @@ impl SerumBuilder {
         Self::try_new_with_settings(settings, exchange_account_id, features, commission).await
     }
 
-    pub async fn try_new_with_settings(
+    async fn try_new_with_settings(
         settings: ExchangeSettings,
         exchange_account_id: ExchangeAccountId,
         features: ExchangeFeatures,
@@ -98,7 +141,7 @@ impl ExchangeClientBuilder for ExchangeSerumBuilder {
     fn create_exchange_client(
         &self,
         exchange_settings: ExchangeSettings,
-        events_channel: tokio::sync::broadcast::Sender<ExchangeEvent>,
+        events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
         orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult {

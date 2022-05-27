@@ -861,7 +861,7 @@ mod tests {
     fn exchange_account_id() -> ExchangeAccountId {
         // TODO Make const way to create ExchangeAccountId
         //"ExchangeId0".parse().expect("test")
-        ExchangeAccountId::new("ExchangeId".into(), 0)
+        ExchangeAccountId::new("ExchangeId", 0)
     }
 
     fn exchange_blocker() -> Arc<ExchangeBlocker> {

@@ -1,7 +1,3 @@
-use mmb_core::exchanges::common::*;
-use mmb_core::exchanges::events::AllowedEventSourceType;
-use mmb_core::exchanges::general::commission::Commission;
-use mmb_core::exchanges::general::features::*;
 use mmb_core::orders::order::*;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
@@ -14,29 +10,11 @@ use mmb_core::exchanges::general::exchange::RequestResult;
 async fn cancelled_successfully() {
     init_logger_file_named("log.txt");
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            true,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        Commission::default(),
-        true,
-    )
-    .await
-    {
+    let binance_builder = match BinanceBuilder::build_account_0().await {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
+    let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
     let order_proxy = OrderProxy::new(
         exchange_account_id,
@@ -60,29 +38,11 @@ async fn cancelled_successfully() {
 async fn cancel_opened_orders_successfully() {
     init_logger_file_named("log.txt");
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            true,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        Commission::default(),
-        true,
-    )
-    .await
-    {
+    let binance_builder = match BinanceBuilder::build_account_0().await {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
+    let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
     let first_order_proxy = OrderProxy::new(
         exchange_account_id,
@@ -134,29 +94,11 @@ async fn cancel_opened_orders_successfully() {
 async fn nothing_to_cancel() {
     init_logger_file_named("log.txt");
 
-    let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::default(),
-        ),
-        Commission::default(),
-        true,
-    )
-    .await
-    {
+    let binance_builder = match BinanceBuilder::build_account_0().await {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
+    let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
     let order = OrderProxy::new(
         exchange_account_id,
