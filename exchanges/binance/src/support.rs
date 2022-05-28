@@ -130,20 +130,20 @@ impl Support for Binance {
 
     fn set_send_websocket_message_callback(&self, _callback: SendWebsocketMessageCb) {}
 
-    fn set_order_created_callback(&self, callback: OrderCreatedCb) {
-        *self.order_created_callback.lock() = callback;
+    fn set_order_created_callback(&mut self, callback: OrderCreatedCb) {
+        self.order_created_callback = callback;
     }
 
-    fn set_order_cancelled_callback(&self, callback: OrderCancelledCb) {
-        *self.order_cancelled_callback.lock() = callback;
+    fn set_order_cancelled_callback(&mut self, callback: OrderCancelledCb) {
+        self.order_cancelled_callback = callback;
     }
 
-    fn set_handle_order_filled_callback(&self, callback: HandleOrderFilledCb) {
-        *self.handle_order_filled_callback.lock() = callback;
+    fn set_handle_order_filled_callback(&mut self, callback: HandleOrderFilledCb) {
+        self.handle_order_filled_callback = callback;
     }
 
-    fn set_handle_trade_callback(&self, callback: HandleTradeCb) {
-        *self.handle_trade_callback.lock() = callback;
+    fn set_handle_trade_callback(&mut self, callback: HandleTradeCb) {
+        self.handle_trade_callback = callback;
     }
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
@@ -244,7 +244,7 @@ impl Binance {
             .as_i64()
             .context("Unable to get i64 from 'T' field json data")?;
 
-        (&self.handle_trade_callback).lock()(
+        (self.handle_trade_callback)(
             currency_pair,
             trade_id,
             price,

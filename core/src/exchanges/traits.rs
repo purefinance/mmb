@@ -70,15 +70,16 @@ pub trait ExchangeClient: Support {
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>>;
 }
 
-pub type OrderCancelledCb =
-    Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>;
-
 pub type OrderCreatedCb =
-    Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>;
+    Box<dyn Fn(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>;
+
+pub type OrderCancelledCb =
+    Box<dyn Fn(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>;
 
 pub type HandleTradeCb =
-    Box<dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>;
-pub type HandleOrderFilledCb = Box<dyn FnMut(FillEvent) + Send + Sync>;
+    Box<dyn Fn(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>;
+
+pub type HandleOrderFilledCb = Box<dyn Fn(FillEvent) + Send + Sync>;
 
 pub type SendWebsocketMessageCb = Box<dyn Fn(WebSocketRole, String) -> Result<()> + Send + Sync>;
 
@@ -88,13 +89,13 @@ pub trait Support: Send + Sync {
     fn on_connecting(&self) -> Result<()>;
     fn set_send_websocket_message_callback(&self, callback: SendWebsocketMessageCb);
 
-    fn set_order_created_callback(&self, callback: OrderCreatedCb);
+    fn set_order_created_callback(&mut self, callback: OrderCreatedCb);
 
-    fn set_order_cancelled_callback(&self, callback: OrderCancelledCb);
+    fn set_order_cancelled_callback(&mut self, callback: OrderCancelledCb);
 
-    fn set_handle_order_filled_callback(&self, callback: HandleOrderFilledCb);
+    fn set_handle_order_filled_callback(&mut self, callback: HandleOrderFilledCb);
 
-    fn set_handle_trade_callback(&self, callback: HandleTradeCb);
+    fn set_handle_trade_callback(&mut self, callback: HandleTradeCb);
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>);
 

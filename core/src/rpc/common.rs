@@ -130,10 +130,8 @@ pub(super) fn spawn_server_stopping_action<T>(
             }
 
             if let Some(lifetime_manager) = lifetime_manager {
-                lifetime_manager.spawn_graceful_shutdown_with_action(
-                    "Stop signal from RPC server".into(),
-                    action,
-                );
+                lifetime_manager
+                    .spawn_graceful_shutdown_with_action("Stop signal from RPC server", action);
             }
         });
     };

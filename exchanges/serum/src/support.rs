@@ -49,20 +49,20 @@ impl Support for Serum {
             .set_send_websocket_message_callback(callback);
     }
 
-    fn set_order_created_callback(&self, callback: OrderCreatedCb) {
-        *self.order_created_callback.lock() = callback;
+    fn set_order_created_callback(&mut self, callback: OrderCreatedCb) {
+        self.order_created_callback = callback;
     }
 
-    fn set_order_cancelled_callback(&self, callback: OrderCancelledCb) {
-        *self.order_cancelled_callback.lock() = callback;
+    fn set_order_cancelled_callback(&mut self, callback: OrderCancelledCb) {
+        self.order_cancelled_callback = callback;
     }
 
-    fn set_handle_order_filled_callback(&self, callback: HandleOrderFilledCb) {
-        *self.handle_order_filled_callback.lock() = callback;
+    fn set_handle_order_filled_callback(&mut self, callback: HandleOrderFilledCb) {
+        self.handle_order_filled_callback = callback;
     }
 
-    fn set_handle_trade_callback(&self, callback: HandleTradeCb) {
-        *self.handle_trade_callback.lock() = callback;
+    fn set_handle_trade_callback(&mut self, callback: HandleTradeCb) {
+        self.handle_trade_callback = callback;
     }
 
     fn set_traded_specific_currencies(&self, currencies: Vec<SpecificCurrencyPair>) {
@@ -178,7 +178,7 @@ impl Serum {
 
                             if OrderStatus::Created != serum_extension_data.actual_status {
                                 if let Some(order_from_event) = orders.get(client_order_id) {
-                                    (&self.order_created_callback).lock()(
+                                    (self.order_created_callback)(
                                         client_order_id.clone(),
                                         order_from_event.exchange_order_id.clone(),
                                         EventSourceType::WebSocket,
@@ -198,7 +198,7 @@ impl Serum {
                                         "Failed to get exchange order id for order {client_order_id}"
                                     )
                                 });
-                                (&self.order_cancelled_callback).lock()(
+                                (self.order_cancelled_callback)(
                                     client_order_id.clone(),
                                     exchange_order_id.clone(),
                                     EventSourceType::WebSocket,

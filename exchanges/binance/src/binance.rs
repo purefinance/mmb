@@ -119,10 +119,10 @@ pub struct Binance {
     pub settings: ExchangeSettings,
     pub hosts: Hosts,
     pub id: ExchangeAccountId,
-    pub order_created_callback: Mutex<OrderCreatedCb>,
-    pub order_cancelled_callback: Mutex<OrderCancelledCb>,
-    pub handle_order_filled_callback: Mutex<HandleOrderFilledCb>,
-    pub handle_trade_callback: Mutex<HandleTradeCb>,
+    pub order_created_callback: OrderCreatedCb,
+    pub order_cancelled_callback: OrderCancelledCb,
+    pub handle_order_filled_callback: HandleOrderFilledCb,
+    pub handle_trade_callback: HandleTradeCb,
 
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
@@ -159,10 +159,10 @@ impl Binance {
 
         Self {
             id,
-            order_created_callback: Mutex::new(Box::new(|_, _, _| {})),
-            order_cancelled_callback: Mutex::new(Box::new(|_, _, _| {})),
-            handle_order_filled_callback: Mutex::new(Box::new(|_| {})),
-            handle_trade_callback: Mutex::new(Box::new(|_, _, _, _, _, _| {})),
+            order_created_callback: Box::new(|_, _, _| {}),
+            order_cancelled_callback: Box::new(|_, _, _| {}),
+            handle_order_filled_callback: Box::new(|_| {}),
+            handle_trade_callback: Box::new(|_, _, _, _, _, _| {}),
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
@@ -353,7 +353,7 @@ impl Binance {
         match execution_type {
             "NEW" => match order_status {
                 "NEW" => {
-                    (&self.order_created_callback).lock()(
+                    (self.order_created_callback)(
                         client_order_id.into(),
                         exchange_order_id.into(),
                         EventSourceType::WebSocket,
@@ -367,7 +367,7 @@ impl Binance {
             },
             "CANCELED" => match order_status {
                 "CANCELED" => {
-                    (&self.order_cancelled_callback).lock()(
+                    (self.order_cancelled_callback)(
                         client_order_id.into(),
                         exchange_order_id.into(),
                         EventSourceType::WebSocket,
@@ -385,7 +385,7 @@ impl Binance {
             }
             "EXPIRED" => match time_in_force {
                 "GTX" => {
-                    (&self.order_cancelled_callback).lock()(
+                    (self.order_cancelled_callback)(
                         client_order_id.into(),
                         exchange_order_id.into(),
                         EventSourceType::WebSocket,
@@ -405,7 +405,7 @@ impl Binance {
                     exchange_order_id.into(),
                 )?;
 
-                (&self.handle_order_filled_callback).lock()(event_data);
+                (self.handle_order_filled_callback)(event_data);
             }
             _ => log::error!("Impossible execution type"),
         }
