@@ -7,6 +7,7 @@ use log::log;
 use mmb_utils::infrastructure::WithExpect;
 use std::convert::TryInto;
 use std::fmt::Write;
+use uuid::Uuid;
 
 pub type HttpParams = Vec<(String, String)>;
 
@@ -49,11 +50,12 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         }
     }
 
-    pub(super) fn request_log(&self, fn_name: &str) {
+    pub(super) fn request_log(&self, fn_name: &str, request_id: &Uuid) {
         log::trace!(
-            "{} request on exchange_account_id {}",
+            "{} request on exchange_account_id {}, request_id: {}",
             fn_name,
             self.exchange_account_id,
+            request_id,
         );
     }
 
@@ -62,13 +64,15 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         fn_name: &str,
         log_args: &str,
         response: &RestRequestOutcome,
+        request_id: &Uuid,
     ) {
         log::trace!(
-            "{} response on exchange_account_id {}: {:?}, params {}",
+            "{} response on exchange_account_id {}: {:?}, params {}, request_id: {}",
             fn_name,
             self.exchange_account_id,
             response,
             log_args,
+            request_id
         );
     }
 
@@ -76,6 +80,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         &self,
         response: &RestRequestOutcome,
         log_args: &str,
+        request_id: &Uuid,
     ) -> Option<ExchangeError> {
         use ExchangeErrorType::*;
 
@@ -115,8 +120,8 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         let mut msg = String::with_capacity(error.message.len() + extra_data_len);
         write!(
             &mut msg,
-            "Response has an error {:?}, on exchange_account_id {}: {:?}, params: {}",
-            error.error_type, self.exchange_account_id, error, log_args
+            "Response has an error {:?}, on exchange_account_id {}, request_id: {}: {:?}, params: {}",
+            error.error_type, self.exchange_account_id, request_id, error, log_args
         )
         .expect("Writing rest error");
 
@@ -124,7 +129,13 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
             RateLimit | Authentication | InsufficientFunds | InvalidOrder => log::Level::Error,
             _ => log::Level::Warn,
         };
-        log!(log_level, "{}. Response: {:?}", &msg, response);
+        log!(
+            log_level,
+            "Request_id: {}. Message: {}. Response: {:?}",
+            request_id,
+            &msg,
+            response
+        );
 
         Some(error)
     }
@@ -167,17 +178,23 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         action_name: &'static str,
         log_args: String,
     ) -> Result<RestRequestOutcome> {
-        self.error_handler.request_log(action_name);
+        let request_id = Uuid::new_v4();
+        self.error_handler.request_log(action_name, &request_id);
 
         let req = Request::get(url)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
-            .expect("Error during creation of http GET request");
+            .with_expect(|| {
+                format!(
+                    "Error during creation of http GET request, request_id: {}",
+                    &request_id
+                )
+            });
 
         let response = self.client.request(req).await;
 
-        self.handle_response(response, "GET", action_name, log_args)
+        self.handle_response(response, "GET", action_name, log_args, request_id)
             .await
     }
 
@@ -189,7 +206,8 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         action_name: &'static str,
         log_args: String,
     ) -> Result<RestRequestOutcome> {
-        self.error_handler.request_log(action_name);
+        let request_id = Uuid::new_v4();
+        self.error_handler.request_log(action_name, &request_id);
 
         let form_encoded = form_urlencoded::Serializer::new(String::new())
             .extend_pairs(http_params)
@@ -199,11 +217,16 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::from(form_encoded))
-            .expect("Error during creation of http delete request");
+            .with_expect(|| {
+                format!(
+                    "Error during creation of http POST request, request_id: {}",
+                    &request_id
+                )
+            });
 
         let response = self.client.request(req).await;
 
-        self.handle_response(response, "POST", action_name, log_args)
+        self.handle_response(response, "POST", action_name, log_args, request_id)
             .await
     }
 
@@ -214,17 +237,23 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         action_name: &'static str,
         log_args: String,
     ) -> Result<RestRequestOutcome> {
-        self.error_handler.request_log(action_name);
+        let request_id = Uuid::new_v4();
+        self.error_handler.request_log(action_name, &request_id);
 
         let req = Request::delete(url)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
-            .expect("Error during creation of http delete request");
+            .with_expect(|| {
+                format!(
+                    "Error during creation of http DELETE request, request_id: {}",
+                    &request_id
+                )
+            });
 
         let response = self.client.request(req).await;
 
-        self.handle_response(response, "DELETE", action_name, log_args)
+        self.handle_response(response, "DELETE", action_name, log_args, request_id)
             .await
     }
 
@@ -234,32 +263,43 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         rest_action: &'static str,
         action_name: &'static str,
         log_args: String,
+        request_id: Uuid,
     ) -> Result<RestRequestOutcome> {
-        let response = response.with_expect(|| format!("Unable to send {} request", rest_action));
+        let response = response.with_expect(|| {
+            format!(
+                "Unable to send {} request, request_id: {}",
+                rest_action, &request_id
+            )
+        });
         let response_status = response.status();
         let request_bytes = hyper::body::to_bytes(response.into_body())
             .await
-            .expect("Unable to convert response body to bytes");
+            .with_expect(|| {
+                format!(
+                    "Unable to convert response body to bytes, request_id: {}",
+                    &request_id
+                )
+            });
+
         let request_content = std::str::from_utf8(&request_bytes)
             .with_expect(|| {
                 format!(
-                    "Unable to convert response content from utf8: {:?}",
-                    request_bytes
+                    "Unable to convert response content from utf8: {:?}, request_id: {}",
+                    request_bytes, &request_id
                 )
             })
             .to_owned();
-
         let request_outcome = RestRequestOutcome {
             status: response_status,
             content: request_content,
         };
 
         self.error_handler
-            .response_log(action_name, &log_args, &request_outcome);
+            .response_log(action_name, &log_args, &request_outcome, &request_id);
 
-        if let Some(err) = self
-            .error_handler
-            .get_rest_error(&request_outcome, &log_args)
+        if let Some(err) =
+            self.error_handler
+                .get_rest_error(&request_outcome, &log_args, &request_id)
         {
             bail!(err);
         }
