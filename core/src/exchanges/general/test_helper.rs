@@ -8,7 +8,7 @@ use crate::{
             ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, CurrencyPair,
             ExchangeAccountId, ExchangeError, Price, SpecificCurrencyPair,
         },
-        events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent, TradeId},
+        events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent},
         general::{
             commission::{Commission, CommissionForType},
             exchange::Exchange,
@@ -22,14 +22,13 @@ use crate::{
             requests_timeout_manager_factory::RequestTimeoutArguments,
             timeout_manager::TimeoutManager,
         },
-        traits::{ExchangeClient, Support},
+        traits::{ExchangeClient, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, Support},
     },
     lifecycle::app_lifetime_manager::AppLifetimeManager,
     orders::{
-        fill::EventSourceType,
         order::{
-            ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderRole, OrderSide,
-            OrderSnapshot, OrderType,
+            ClientOrderId, OrderCancelling, OrderInfo, OrderRole, OrderSide, OrderSnapshot,
+            OrderType,
         },
         pool::{OrderRef, OrdersPool},
     },
@@ -122,27 +121,13 @@ impl Support for TestClient {
 
     fn set_send_websocket_message_callback(&self, _callback: SendWebsocketMessageCb) {}
 
-    fn set_order_created_callback(
-        &self,
-        _callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
-    ) {
-    }
+    fn set_order_created_callback(&mut self, _callback: OrderCreatedCb) {}
 
-    fn set_order_cancelled_callback(
-        &self,
-        _callback: Box<dyn FnMut(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>,
-    ) {
-    }
+    fn set_order_cancelled_callback(&mut self, _callback: OrderCancelledCb) {}
 
-    fn set_handle_order_filled_callback(&self, _callback: HandleOrderFilledCb) {}
+    fn set_handle_order_filled_callback(&mut self, _callback: HandleOrderFilledCb) {}
 
-    fn set_handle_trade_callback(
-        &self,
-        _callback: Box<
-            dyn FnMut(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync,
-        >,
-    ) {
-    }
+    fn set_handle_trade_callback(&mut self, _callback: HandleTradeCb) {}
 
     fn set_traded_specific_currencies(&self, _currencies: Vec<SpecificCurrencyPair>) {}
 

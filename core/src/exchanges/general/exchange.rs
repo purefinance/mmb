@@ -94,7 +94,7 @@ pub struct Exchange {
     pub currencies: Mutex<Vec<CurrencyCode>>,
     pub leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
     pub order_book_top: DashMap<CurrencyPair, OrderBookTop>,
-    pub(super) exchange_client: Box<dyn ExchangeClient>,
+    pub(super) exchange_client: BoxExchangeClient,
     pub(super) features: ExchangeFeatures,
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
     pub(super) lifetime_manager: Arc<AppLifetimeManager>,
@@ -138,7 +138,7 @@ pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
 impl Exchange {
     pub fn new(
         exchange_account_id: ExchangeAccountId,
-        exchange_client: BoxExchangeClient,
+        mut exchange_client: BoxExchangeClient,
         orders: Arc<OrdersPool>,
         features: ExchangeFeatures,
         timeout_arguments: RequestTimeoutArguments,
@@ -149,44 +149,45 @@ impl Exchange {
     ) -> Arc<Self> {
         let polling_timeout_manager = PollingTimeoutManager::new(timeout_arguments);
 
-        let exchange = Arc::new(Self {
-            exchange_account_id,
-            exchange_client,
-            orders,
-            ws_sender: Default::default(),
-            order_creation_events: DashMap::new(),
-            order_cancellation_events: DashMap::new(),
-            lifetime_manager,
-            features,
-            events_channel,
-            timeout_manager,
-            commission,
-            symbols: Default::default(),
-            currencies: Default::default(),
-            order_book_top: Default::default(),
-            wait_cancel_order: DashMap::new(),
-            wait_finish_order: DashMap::new(),
-            polling_trades_counts: DashMap::new(),
-            polling_timeout_manager,
-            orders_finish_events: DashMap::new(),
-            orders_created_events: DashMap::new(),
-            leverage_by_currency_pair: DashMap::new(),
-            last_trades_update_time: DashMap::new(),
-            last_trades: DashMap::new(),
-            balance_manager: Mutex::new(None),
-            buffered_fills_manager: Default::default(),
-            buffered_canceled_orders_manager: Default::default(),
-            auto_reconnect: AtomicBool::new(false),
-        });
-
-        exchange.setup_exchange_client();
-        exchange
+        Arc::new_cyclic(move |e| {
+            Self::setup_exchange_client(e.clone(), exchange_client.as_mut());
+            Self {
+                exchange_account_id,
+                exchange_client,
+                orders,
+                ws_sender: Default::default(),
+                order_creation_events: DashMap::new(),
+                order_cancellation_events: DashMap::new(),
+                lifetime_manager,
+                features,
+                events_channel,
+                timeout_manager,
+                commission,
+                symbols: Default::default(),
+                currencies: Default::default(),
+                order_book_top: Default::default(),
+                wait_cancel_order: DashMap::new(),
+                wait_finish_order: DashMap::new(),
+                polling_trades_counts: DashMap::new(),
+                polling_timeout_manager,
+                orders_finish_events: DashMap::new(),
+                orders_created_events: DashMap::new(),
+                leverage_by_currency_pair: DashMap::new(),
+                last_trades_update_time: DashMap::new(),
+                last_trades: DashMap::new(),
+                balance_manager: Mutex::new(None),
+                buffered_fills_manager: Default::default(),
+                buffered_canceled_orders_manager: Default::default(),
+                auto_reconnect: AtomicBool::new(false),
+            }
+        })
     }
 
-    fn setup_exchange_client(self: &Arc<Self>) {
-        let exchange_weak = Arc::downgrade(self);
-
-        self.exchange_client.set_order_created_callback(Box::new({
+    fn setup_exchange_client(
+        exchange_weak: Weak<Exchange>,
+        exchange_client: &mut (dyn ExchangeClient + Send + Sync + 'static),
+    ) {
+        exchange_client.set_order_created_callback(Box::new({
             let exchange_weak = exchange_weak.clone();
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
@@ -196,7 +197,7 @@ impl Exchange {
             }
         }));
 
-        self.exchange_client.set_order_cancelled_callback(Box::new({
+        exchange_client.set_order_cancelled_callback(Box::new({
             let exchange_weak = exchange_weak.clone();
             move |client_order_id, exchange_order_id, source_type| match exchange_weak.upgrade() {
                 Some(exchange) => {
@@ -206,16 +207,15 @@ impl Exchange {
             }
         }));
 
-        self.exchange_client
-            .set_handle_order_filled_callback(Box::new({
-                let exchange_weak = exchange_weak.clone();
-                move |event_data| match exchange_weak.upgrade() {
-                    Some(exchange) => exchange.handle_order_filled(event_data),
-                    None => log::info!("Unable to upgrade weak reference to Exchange instance"),
-                }
-            }));
+        exchange_client.set_handle_order_filled_callback(Box::new({
+            let exchange_weak = exchange_weak.clone();
+            move |event_data| match exchange_weak.upgrade() {
+                Some(exchange) => exchange.handle_order_filled(event_data),
+                None => log::info!("Unable to upgrade weak reference to Exchange instance"),
+            }
+        }));
 
-        self.exchange_client.set_handle_trade_callback(Box::new({
+        exchange_client.set_handle_trade_callback(Box::new({
             let exchange_weak = exchange_weak.clone();
             move |currency_pair, trade_id, price, quantity, order_side, transaction_time| {
                 match exchange_weak.upgrade() {
@@ -234,18 +234,17 @@ impl Exchange {
             }
         }));
 
-        self.exchange_client
-            .set_send_websocket_message_callback(Box::new(move |role, message| {
-                let exchange = match exchange_weak.upgrade() {
-                    None => {
-                        // some race during shutdown
-                        log::info!("Unable to upgrade weak reference to Exchange instance");
-                        return Err(ConnectivityError::NotConnected.into());
-                    }
-                    Some(exchange) => exchange,
-                };
-                exchange.forward_websocket_message(role, message)
-            }));
+        exchange_client.set_send_websocket_message_callback(Box::new(move |role, message| {
+            let exchange = match exchange_weak.upgrade() {
+                None => {
+                    // some race during shutdown
+                    log::info!("Unable to upgrade weak reference to Exchange instance");
+                    return Err(ConnectivityError::NotConnected.into());
+                }
+                Some(exchange) => exchange,
+            };
+            exchange.forward_websocket_message(role, message)
+        }));
     }
 
     fn on_websocket_message(&self, msg: &str) {
