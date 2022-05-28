@@ -21,7 +21,9 @@ impl BufferedFillsManager {
                 fill_amount,
                 total_filled_amount: total_fill_amount,
             } => (true, fill_amount, total_fill_amount),
-            FillAmount::Total { total_fill_amount } => (false, total_fill_amount, None),
+            FillAmount::Total {
+                total_filled_amount: total_fill_amount,
+            } => (false, total_fill_amount, None),
         };
 
         //likely we got a fill notification before an order creation notification

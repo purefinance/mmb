@@ -51,9 +51,11 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
         log::info!("Submitting order {:?}", &order_to_create);
-        let order = self
-            .orders
-            .add_simple_initial(order_to_create.header.clone(), Some(order_to_create.price));
+        let order = self.orders.add_simple_initial(
+            order_to_create.header.clone(),
+            Some(order_to_create.price),
+            self.exchange_client.get_initial_extension_data(),
+        );
 
         let linked_cancellation_token = cancellation_token.create_linked_token();
 

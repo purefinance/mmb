@@ -94,7 +94,7 @@ pub struct Exchange {
     pub currencies: Mutex<Vec<CurrencyCode>>,
     pub leverage_by_currency_pair: DashMap<CurrencyPair, Decimal>,
     pub order_book_top: DashMap<CurrencyPair, OrderBookTop>,
-    pub(super) exchange_client: BoxExchangeClient,
+    pub exchange_client: BoxExchangeClient,
     pub(super) features: ExchangeFeatures,
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
     pub(super) lifetime_manager: Arc<AppLifetimeManager>,

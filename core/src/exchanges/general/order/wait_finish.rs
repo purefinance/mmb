@@ -429,7 +429,7 @@ impl Exchange {
                             exchange_order_id,
                             fill_price: order_info.average_fill_price,
                             fill_amount: FillAmount::Total {
-                                total_fill_amount: order_info.filled_amount,
+                                total_filled_amount: order_info.filled_amount,
                             },
                             order_role: None,
                             commission_currency_code,

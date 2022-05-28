@@ -67,7 +67,7 @@ use mmb_utils::infrastructure::WithExpect;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SerumExtensionData {
-    pub owner: Pubkey,
+    pub owner: Option<Pubkey>,
     // actual status, used to prevent duplication of events
     pub actual_status: OrderStatus,
 }
@@ -476,7 +476,7 @@ impl Serum {
                         commission_rate: None,
                         commission_amount: None,
                         extension_data: Some(Box::new(SerumExtensionData {
-                            owner: market_info.owner_address,
+                            owner: Some(market_info.owner_address),
                             actual_status: OrderStatus::Created,
                         })),
                     })
@@ -553,7 +553,7 @@ impl Serum {
         };
         order.fn_mut(|order| {
             order.extension_data = Some(Box::new(SerumExtensionData {
-                owner: open_order_account,
+                owner: Some(open_order_account),
                 actual_status: OrderStatus::Creating,
             }))
         });
@@ -587,21 +587,26 @@ impl Serum {
         let exchange_order_id = order.exchange_order_id.clone();
         let extension_data = order.downcast_to_serum_extension_data();
 
-        let instructions = &[cancel_order(
-            &market_data.program_id,
-            &metadata.owner_address,
-            &metadata.bids_address,
-            &metadata.asks_address,
-            &extension_data.owner,
-            &self.payer.pubkey(),
-            &metadata.event_queue_address,
-            order.header.side.to_serum_side(),
-            exchange_order_id.to_u128(),
-        )?];
+        if let Some(open_orders_account) = extension_data.owner {
+            let instructions = &[cancel_order(
+                &market_data.program_id,
+                &metadata.owner_address,
+                &metadata.bids_address,
+                &metadata.asks_address,
+                &open_orders_account,
+                &self.payer.pubkey(),
+                &metadata.event_queue_address,
+                order.header.side.to_serum_side(),
+                exchange_order_id.to_u128(),
+            )?];
 
-        self.rpc_client
-            .send_instructions(&self.payer, instructions)
-            .await
+            self.rpc_client
+                .send_instructions(&self.payer, instructions)
+                .await
+        } else {
+            // TODO Implement waiting of getting owner pubkey
+            bail!("Order has not been created yet");
+        }
     }
 
     pub(super) async fn cancel_all_orders_core(&self, currency_pair: CurrencyPair) -> Result<()> {
@@ -614,18 +619,23 @@ impl Serum {
             .iter()
             .map(|order| {
                 let extension_data = order.downcast_to_serum_extension_data();
-                cancel_order(
-                    &market_data.program_id,
-                    &metadata.owner_address,
-                    &metadata.bids_address,
-                    &metadata.asks_address,
-                    &extension_data.owner,
-                    &self.payer.pubkey(),
-                    &metadata.event_queue_address,
-                    order.order_side.to_serum_side(),
-                    order.exchange_order_id.to_u128(),
-                )
-                .map_err(|error| anyhow!(error))
+                if let Some(open_orders_account) = extension_data.owner {
+                    cancel_order(
+                        &market_data.program_id,
+                        &metadata.owner_address,
+                        &metadata.bids_address,
+                        &metadata.asks_address,
+                        &open_orders_account,
+                        &self.payer.pubkey(),
+                        &metadata.event_queue_address,
+                        order.order_side.to_serum_side(),
+                        order.exchange_order_id.to_u128(),
+                    )
+                    .map_err(|error| anyhow!(error))
+                } else {
+                    // TODO Implement waiting of getting owner pubkey
+                    bail!("Order has not been created yet");
+                }
             })
             .try_collect()?;
 

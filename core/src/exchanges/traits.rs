@@ -26,7 +26,9 @@ use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::orders::fill::EventSourceType;
-use crate::orders::order::{ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo};
+use crate::orders::order::{
+    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData,
+};
 use crate::orders::pool::OrdersPool;
 use crate::settings::ExchangeSettings;
 use crate::{connectivity::WebSocketRole, orders::order::OrderSide};
@@ -68,6 +70,10 @@ pub trait ExchangeClient: Support {
     ) -> Result<RequestResult<Vec<OrderTrade>>>;
 
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>>;
+
+    fn get_initial_extension_data(&self) -> Option<Box<dyn OrderInfoExtensionData>> {
+        None
+    }
 }
 
 pub type OrderCreatedCb =

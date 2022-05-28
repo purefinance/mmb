@@ -1,4 +1,5 @@
 use crate::serum::{downcast_mut_to_serum_extension_data, Serum};
+use std::cmp::Ordering;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -11,17 +12,21 @@ use url::Url;
 
 use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::common::{
-    send_event, CurrencyCode, CurrencyId, CurrencyPair, SortedOrderData, SpecificCurrencyPair,
+    send_event, Amount, CurrencyCode, CurrencyId, CurrencyPair, SortedOrderData,
+    SpecificCurrencyPair,
 };
 use mmb_core::exchanges::events::ExchangeEvent;
+use mmb_core::exchanges::general::handlers::handle_order_filled::{FillAmount, FillEvent};
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
     Support,
 };
 use mmb_core::order_book::event::{EventType, OrderBookEvent};
 use mmb_core::order_book::order_book_data::OrderBookData;
-use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{ClientOrderId, OrderInfo, OrderSide, OrderStatus};
+use mmb_core::orders::fill::{EventSourceType, OrderFillType};
+use mmb_core::orders::order::{
+    ClientOrderId, OrderInfo, OrderRole, OrderSide, OrderSnapshot, OrderStatus,
+};
 use mmb_core::settings::ExchangeSettings;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::nothing_to_do;
@@ -159,6 +164,30 @@ impl Serum {
     }
 
     fn handle_order_event(&self, orders: &[OrderInfo], currency_pair: CurrencyPair) {
+        struct OrderFillData<'order>(Option<(&'order OrderInfo, Amount)>);
+        impl<'order> OrderFillData<'order> {
+            pub fn need_to_fill(
+                order_from_event: &'order OrderInfo,
+                local_order: &OrderSnapshot,
+            ) -> Self {
+                match local_order.amount().cmp(&order_from_event.amount) {
+                    Ordering::Greater => OrderFillData(Some((
+                        order_from_event,
+                        local_order.amount() - order_from_event.amount,
+                    ))),
+                    Ordering::Equal => OrderFillData(None),
+                    Ordering::Less => {
+                        log::error!(
+                            "Filled order amount {} more than created order amount {}",
+                            order_from_event.amount,
+                            local_order.amount()
+                        );
+                        OrderFillData(None)
+                    }
+                }
+            }
+        }
+
         let orders: DashMap<ClientOrderId, &OrderInfo> = orders
             .iter()
             .map(|order| (order.client_order_id.clone(), order))
@@ -169,6 +198,7 @@ impl Serum {
             .iter()
             .filter(|order| order.currency_pair() == currency_pair)
             .for_each(|order_ref| {
+                let mut order_fill_data = OrderFillData(None);
                 order_ref.fn_mut(|order| {
                     let client_order_id = &order.header.client_order_id;
                     match order.props.status {
@@ -176,16 +206,18 @@ impl Serum {
                             let serum_extension_data =
                                 downcast_mut_to_serum_extension_data(order.extension_data.as_deref_mut());
 
-                            if OrderStatus::Created != serum_extension_data.actual_status {
-                                if let Some(order_from_event) = orders.get(client_order_id) {
+                            if let Some(order_from_event) = orders.get(client_order_id) {
+                                if OrderStatus::Created != serum_extension_data.actual_status {
                                     (self.order_created_callback)(
                                         client_order_id.clone(),
                                         order_from_event.exchange_order_id.clone(),
-                                        EventSourceType::WebSocket,
+                                        EventSourceType::Rpc,
                                     );
 
                                     serum_extension_data.actual_status = OrderStatus::Created;
                                 }
+
+                                order_fill_data = OrderFillData::need_to_fill(order_from_event.value(), order);
                             }
                         }
                         OrderStatus::Canceling => {
@@ -201,15 +233,47 @@ impl Serum {
                                 (self.order_cancelled_callback)(
                                     client_order_id.clone(),
                                     exchange_order_id.clone(),
-                                    EventSourceType::WebSocket,
+                                    EventSourceType::Rpc,
                                 );
 
                                 serum_extension_data.actual_status = OrderStatus::Canceled;
                             }
                         }
+                        OrderStatus::Created => {
+                            if let Some(order_from_event) = orders.get(client_order_id) {
+                                order_fill_data = OrderFillData::need_to_fill(order_from_event.value(), order);
+                            }
+                        }
                         _ => nothing_to_do(),
                     }
                 });
+                if let Some((order_to_fill, total_filled_amount)) = order_fill_data.0 {
+                    self.handle_order_fill(order_to_fill, total_filled_amount);
+                }
             });
+    }
+
+    fn handle_order_fill(&self, order_from_event: &OrderInfo, total_filled_amount: Amount) {
+        (self.handle_order_filled_callback)(FillEvent {
+            source_type: EventSourceType::Rpc,
+            trade_id: None,
+            client_order_id: Some(order_from_event.client_order_id.clone()),
+            exchange_order_id: order_from_event.exchange_order_id.clone(),
+            fill_price: order_from_event.price,
+            fill_amount: FillAmount::Total {
+                total_filled_amount,
+            },
+            // TODO Need to find out is order maker or taker. Now it's impossible because order book accounts data has no info about it
+            order_role: Some(OrderRole::Maker),
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: OrderFillType::UserTrade,
+            trade_currency_pair: None,
+            order_side: Some(order_from_event.order_side),
+            order_amount: None,
+            // There is no information about exact time of order fill so we use current utc time
+            fill_date: Some(Utc::now()),
+        });
     }
 }
