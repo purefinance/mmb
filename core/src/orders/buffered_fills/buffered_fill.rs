@@ -85,7 +85,7 @@ impl BufferedFill {
             }
         } else {
             FillAmount::Total {
-                total_fill_amount: self.fill_amount,
+                total_filled_amount: self.fill_amount,
             }
         };
 

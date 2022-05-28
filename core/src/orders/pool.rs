@@ -12,7 +12,8 @@ use super::{
 };
 use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, MarketAccountId};
 use crate::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderHeader, OrderSimpleProps, OrderSnapshot, OrderStatus,
+    ClientOrderId, ExchangeOrderId, OrderHeader, OrderInfoExtensionData, OrderSimpleProps,
+    OrderSnapshot, OrderStatus,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,7 +142,12 @@ impl OrdersPool {
     }
 
     /// Create `OrderSnapshot` by specified `OrderHeader` + order price with default other properties and insert it in order pool.
-    pub fn add_simple_initial(&self, header: Arc<OrderHeader>, price: Option<Decimal>) -> OrderRef {
+    pub fn add_simple_initial(
+        &self,
+        header: Arc<OrderHeader>,
+        price: Option<Decimal>,
+        extension_data: Option<Box<dyn OrderInfoExtensionData>>,
+    ) -> OrderRef {
         match self.cache_by_client_id.get(&header.client_order_id) {
             None => {
                 let snapshot = Arc::new(RwLock::new(OrderSnapshot {
@@ -150,7 +156,7 @@ impl OrdersPool {
                     fills: Default::default(),
                     status_history: Default::default(),
                     internal_props: Default::default(),
-                    extension_data: None,
+                    extension_data,
                 }));
 
                 self.add_snapshot_initial(snapshot)

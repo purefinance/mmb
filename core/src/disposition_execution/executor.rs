@@ -739,9 +739,11 @@ impl DispositionExecutor {
 
         let exchange = self.exchange();
 
-        let new_order = exchange
-            .orders
-            .add_simple_initial(new_order_header.clone(), Some(new_disposition.price()));
+        let new_order = exchange.orders.add_simple_initial(
+            new_order_header.clone(),
+            Some(new_disposition.price()),
+            exchange.exchange_client.get_initial_extension_data(),
+        );
 
         price_slot.add_order(
             new_disposition.side(),

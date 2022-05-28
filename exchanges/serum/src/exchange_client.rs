@@ -1,4 +1,4 @@
-use crate::serum::Serum;
+use crate::serum::{Serum, SerumExtensionData};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures::future::join_all;
@@ -23,7 +23,7 @@ use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::traits::ExchangeClient;
 use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{OrderCancelling, OrderInfo};
+use mmb_core::orders::order::{OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderStatus};
 use mmb_core::orders::pool::OrderRef;
 use mmb_utils::DateTime;
 
@@ -183,5 +183,12 @@ impl ExchangeClient for Serum {
         self.subscribe_to_all_market().await;
 
         symbols
+    }
+
+    fn get_initial_extension_data(&self) -> Option<Box<dyn OrderInfoExtensionData>> {
+        Some(Box::new(SerumExtensionData {
+            owner: None,
+            actual_status: OrderStatus::Creating,
+        }))
     }
 }

@@ -48,11 +48,14 @@ type ArgsToLog = (
 #[derive(Debug, Clone, Copy)]
 pub enum FillAmount {
     Incremental {
+        // Volume of order fill for current event
         fill_amount: Amount,
+        // Summary volume of all executed order fills
         total_filled_amount: Option<Amount>,
     },
     Total {
-        total_fill_amount: Amount,
+        // Summary volume of all executed order fills
+        total_filled_amount: Amount,
     },
 }
 
@@ -60,10 +63,12 @@ impl FillAmount {
     pub fn total_filled_amount(&self) -> Option<Amount> {
         match self {
             FillAmount::Incremental {
-                total_filled_amount: total_fill_amount,
+                total_filled_amount: amount,
                 ..
-            } => *total_fill_amount,
-            FillAmount::Total { total_fill_amount } => Some(*total_fill_amount),
+            } => *amount,
+            FillAmount::Total {
+                total_filled_amount,
+            } => Some(*total_filled_amount),
         }
     }
 }
@@ -211,11 +216,13 @@ impl Exchange {
         order_ref: &OrderRef,
     ) -> bool {
         match fill_event.fill_amount {
-            FillAmount::Total { total_fill_amount } if order_filled_amount >= total_fill_amount => {
+            FillAmount::Total {
+                total_filled_amount,
+            } if order_filled_amount >= total_filled_amount => {
                 log::warn!(
                     "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
                     order_filled_amount,
-                    total_fill_amount,
+                    total_filled_amount,
                     order_ref.client_order_id(),
                     order_ref.exchange_order_id(),
                 );
@@ -270,9 +277,11 @@ impl Exchange {
         }
 
         let (last_fill_price, last_fill_amount, last_fill_cost) = match fill_event.fill_amount {
-            FillAmount::Total { total_fill_amount } if !order_fills.is_empty() => {
+            FillAmount::Total {
+                total_filled_amount,
+            } if !order_fills.is_empty() => {
                 let (_, last_fill_amount, last_fill_cost) =
-                    calc_last_fill(fill_event, total_fill_amount, symbol);
+                    calc_last_fill(fill_event, total_filled_amount, symbol);
 
                 let cost_diff = Self::calculate_cost_diff(order_fills, order_ref, last_fill_cost)?;
                 let (price, amount, cost) = Self::calculate_last_fill_data(
@@ -287,7 +296,7 @@ impl Exchange {
                 (price, amount, cost)
             }
             FillAmount::Total {
-                total_fill_amount: fill_amount,
+                total_filled_amount: fill_amount,
             }
             | FillAmount::Incremental { fill_amount, .. } => {
                 calc_last_fill(fill_event, fill_amount, symbol)
@@ -825,7 +834,7 @@ mod test {
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price: dec!(0),
                 fill_amount: FillAmount::Total {
-                    total_fill_amount: dec!(0),
+                    total_filled_amount: dec!(0),
                 },
                 order_role: None,
                 commission_currency_code: None,
@@ -852,7 +861,7 @@ mod test {
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price: dec!(0),
                 fill_amount: FillAmount::Total {
-                    total_fill_amount: dec!(0),
+                    total_filled_amount: dec!(0),
                 },
                 order_role: None,
                 commission_currency_code: None,
@@ -881,7 +890,7 @@ mod test {
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price: dec!(0),
                 fill_amount: FillAmount::Total {
-                    total_fill_amount: dec!(0),
+                    total_filled_amount: dec!(0),
                 },
                 order_role: None,
                 commission_currency_code: None,
@@ -910,7 +919,7 @@ mod test {
                 exchange_order_id: ExchangeOrderId::new("test".into()),
                 fill_price: dec!(0),
                 fill_amount: FillAmount::Total {
-                    total_fill_amount: dec!(0),
+                    total_filled_amount: dec!(0),
                 },
                 order_role: None,
                 commission_currency_code: None,
@@ -935,7 +944,7 @@ mod test {
             let order_role = None;
             let fill_price = dec!(0.2);
             let fill_amount = FillAmount::Total {
-                total_fill_amount: dec!(5),
+                total_filled_amount: dec!(5),
             };
 
             let fill_event = FillEvent {
@@ -988,7 +997,7 @@ mod test {
                 exchange_order_id: ExchangeOrderId::new("".into()),
                 fill_price: dec!(0),
                 fill_amount: FillAmount::Total {
-                    total_fill_amount: dec!(0),
+                    total_filled_amount: dec!(0),
                 },
                 order_role: None,
                 commission_currency_code: None,
@@ -1016,8 +1025,10 @@ mod test {
         let order_price = dec!(1);
         let order_amount = dec!(1);
         let trade_id = trade_id_from_str("test_trade_id");
-        let total_fill_amount = dec!(0.2);
-        let fill_amount = FillAmount::Total { total_fill_amount };
+        let total_filled_amount = dec!(0.2);
+        let fill_amount = FillAmount::Total {
+            total_filled_amount,
+        };
 
         let mut fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
@@ -1058,7 +1069,7 @@ mod test {
             OrderFillType::Liquidation,
             Some(trade_id),
             order_price,
-            total_fill_amount,
+            total_filled_amount,
             cost,
             OrderFillRole::Taker,
             CurrencyCode::new("test".into()),
@@ -1078,7 +1089,7 @@ mod test {
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
         let (_, order_filled_amount) = order_ref.get_fills();
-        assert_eq!(order_filled_amount, total_fill_amount);
+        assert_eq!(order_filled_amount, total_filled_amount);
     }
 
     #[test]
@@ -1168,8 +1179,10 @@ mod test {
         let currency_pair = CurrencyPair::from_codes("te".into(), "st".into());
         let order_side = OrderSide::Buy;
         let order_price = dec!(1);
-        let total_fill_amount = dec!(0.2);
-        let fill_amount = FillAmount::Total { total_fill_amount };
+        let total_filled_amount = dec!(0.2);
+        let fill_amount = FillAmount::Total {
+            total_filled_amount,
+        };
         let order_amount = dec!(1);
         let trade_id = Some(trade_id_from_str("test_trade_id"));
 
@@ -1212,7 +1225,7 @@ mod test {
             OrderFillType::Liquidation,
             Some(trade_id_from_str("different_trade_id")),
             order_price,
-            total_fill_amount,
+            total_filled_amount,
             cost,
             OrderFillRole::Taker,
             CurrencyCode::new("test".into()),
@@ -1232,7 +1245,7 @@ mod test {
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
 
         let (_, order_filled_amount) = order_ref.get_fills();
-        assert_eq!(order_filled_amount, total_fill_amount);
+        assert_eq!(order_filled_amount, total_filled_amount);
     }
 
     #[test]
@@ -1482,8 +1495,10 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
-        let total_fill_amount = dec!(5);
-        let fill_amount = FillAmount::Total { total_fill_amount };
+        let total_filled_amount = dec!(5);
+        let fill_amount = FillAmount::Total {
+            total_filled_amount,
+        };
         let order_amount = dec!(12);
         let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
@@ -1555,7 +1570,7 @@ mod test {
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(0.3),
             fill_amount: FillAmount::Total {
-                total_fill_amount: dec!(10),
+                total_filled_amount: dec!(10),
             },
             order_role: None,
             commission_currency_code: None,
@@ -1594,8 +1609,10 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
-        let total_fill_amount = dec!(5);
-        let fill_amount = FillAmount::Total { total_fill_amount };
+        let total_filled_amount = dec!(5);
+        let fill_amount = FillAmount::Total {
+            total_filled_amount,
+        };
         let order_amount = dec!(12);
         let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
@@ -1668,7 +1685,7 @@ mod test {
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(0.3),
             fill_amount: FillAmount::Total {
-                total_fill_amount: dec!(10),
+                total_filled_amount: dec!(10),
             },
             order_role: None,
             commission_currency_code: None,
@@ -1706,8 +1723,10 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
-        let total_fill_amount = dec!(5);
-        let fill_amount = FillAmount::Total { total_fill_amount };
+        let total_filled_amount = dec!(5);
+        let fill_amount = FillAmount::Total {
+            total_filled_amount,
+        };
         let order_amount = dec!(12);
         let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
@@ -1779,7 +1798,7 @@ mod test {
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(3000),
             fill_amount: FillAmount::Total {
-                total_fill_amount: dec!(10),
+                total_filled_amount: dec!(10),
             },
             order_role: None,
             commission_currency_code: None,
@@ -1823,8 +1842,10 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
-        let total_fill_amount = dec!(5);
-        let fill_amount = FillAmount::Total { total_fill_amount };
+        let total_filled_amount = dec!(5);
+        let fill_amount = FillAmount::Total {
+            total_filled_amount,
+        };
         let order_amount = dec!(12);
         let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
@@ -1896,7 +1917,7 @@ mod test {
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(3000),
             fill_amount: FillAmount::Total {
-                total_fill_amount: dec!(10),
+                total_filled_amount: dec!(10),
             },
             order_role: None,
             commission_currency_code: None,
@@ -1938,8 +1959,10 @@ mod test {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
-        let total_fill_amount = dec!(5);
-        let fill_amount = FillAmount::Total { total_fill_amount };
+        let total_filled_amount = dec!(5);
+        let fill_amount = FillAmount::Total {
+            total_filled_amount,
+        };
         let order_amount = dec!(12);
         let trade_id = Some(trade_id_from_str("test_trade_id"));
         let client_order_id = ClientOrderId::unique_id();
@@ -2011,7 +2034,7 @@ mod test {
             exchange_order_id: exchange_order_id.clone(),
             fill_price: dec!(0.3),
             fill_amount: FillAmount::Total {
-                total_fill_amount: dec!(10),
+                total_filled_amount: dec!(10),
             },
             order_role: None,
             commission_currency_code: None,
