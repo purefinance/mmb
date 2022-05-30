@@ -116,8 +116,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn set_balance_simple() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn set_balance_simple() {
         init_logger_file_named("log.txt");
         let mut test_obj = VirtualBalanceHolderTests::new();
 
@@ -134,8 +134,8 @@ mod tests {
         add_balance_and_check(&mut test_obj, &balance_request, dec!(10), Some(dec!(20)));
     }
 
-    #[test]
-    pub fn get_exchange_balance_multiple_currency_code() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_exchange_balance_multiple_currency_code() {
         init_logger_file_named("log.txt");
         let mut test_obj = VirtualBalanceHolderTests::new();
 
@@ -154,8 +154,8 @@ mod tests {
         add_balance_and_check(&mut test_obj, &balance_request, dec!(10), Some(dec!(10)));
     }
 
-    #[test]
-    pub fn get_all_balances_valid() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_all_balances_valid() {
         init_logger_file_named("log.txt");
         let mut test_obj = VirtualBalanceHolderTests::new();
 

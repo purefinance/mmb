@@ -1,7 +1,8 @@
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use super::commission::Commission;
 use crate::exchanges::events::ExchangeEvent;
+use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::launcher::EngineBuildConfig;
 use crate::orders::pool::OrdersPool;
@@ -48,6 +49,7 @@ pub async fn create_exchange(
     events_channel: broadcast::Sender<ExchangeEvent>,
     lifetime_manager: Arc<AppLifetimeManager>,
     timeout_manager: Arc<TimeoutManager>,
+    exchange_blocker: Weak<ExchangeBlocker>,
 ) -> Arc<Exchange> {
     let exchange_account_id = user_settings.exchange_account_id;
     let exchange_client_builder =
@@ -70,6 +72,7 @@ pub async fn create_exchange(
         events_channel,
         lifetime_manager,
         timeout_manager,
+        exchange_blocker,
         Commission::default(),
     );
 

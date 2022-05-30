@@ -45,6 +45,8 @@ use crate::balance_manager::balance_manager::BalanceManager;
 use crate::connectivity::{
     websocket_open, ConnectivityError, WebSocketParams, WebSocketRole, WsSender,
 };
+use crate::exchanges::block_reasons::WEBSOCKET_DISCONNECTED;
+use crate::exchanges::exchange_blocker::{BlockType, ExchangeBlocker};
 use crate::infrastructure::spawn_future;
 use crate::orders::order::ClientOrderId;
 use crate::{
@@ -129,6 +131,7 @@ pub struct Exchange {
             Option<oneshot::Receiver<CancelOrderResult>>,
         ),
     >,
+    exchange_blocker: Weak<ExchangeBlocker>,
     ws_sender: Mutex<Option<WsSender>>,
     auto_reconnect: AtomicBool,
 }
@@ -145,6 +148,7 @@ impl Exchange {
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
         timeout_manager: Arc<TimeoutManager>,
+        exchange_blocker: Weak<ExchangeBlocker>,
         commission: Commission,
     ) -> Arc<Self> {
         let polling_timeout_manager = PollingTimeoutManager::new(timeout_arguments);
@@ -177,6 +181,7 @@ impl Exchange {
                 last_trades: DashMap::new(),
                 balance_manager: Mutex::new(None),
                 buffered_fills_manager: Default::default(),
+                exchange_blocker,
                 buffered_canceled_orders_manager: Default::default(),
                 auto_reconnect: AtomicBool::new(false),
             }
@@ -279,6 +284,13 @@ impl Exchange {
 
     fn on_connected(&self) {
         log::info!("Exchange account id {} connected", self.exchange_account_id);
+        if let Some(exchange_blocker) = self.exchange_blocker.upgrade() {
+            exchange_blocker.block(
+                self.exchange_account_id,
+                WEBSOCKET_DISCONNECTED,
+                BlockType::Manual,
+            );
+        }
     }
 
     fn on_disconnected(self: &Arc<Self>) {
@@ -286,6 +298,11 @@ impl Exchange {
             "Exchange account id {} disconnected",
             self.exchange_account_id
         );
+
+        if let Some(x) = self.exchange_blocker.upgrade() {
+            x.unblock(self.exchange_account_id, WEBSOCKET_DISCONNECTED);
+        }
+
         // auto reconnect
         if !self.auto_reconnect.load(Ordering::SeqCst) {
             return;

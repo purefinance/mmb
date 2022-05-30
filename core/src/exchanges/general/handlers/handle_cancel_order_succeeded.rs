@@ -149,9 +149,9 @@ mod test {
     use rstest::rstest;
     use rust_decimal_macros::dec;
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(expected = "Received HandleOrderFilled with an empty exchangeOrderId")]
-    fn empty_exchange_order_id() {
+    async fn empty_exchange_order_id() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -171,7 +171,8 @@ mod test {
     #[case(OrderStatus::Completed, true)]
     #[case(OrderStatus::Canceled, true)]
     #[case(OrderStatus::Creating, false)]
-    fn order_already_closed(#[case] status: OrderStatus, #[case] expected: bool) {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn order_already_closed(#[case] status: OrderStatus, #[case] expected: bool) {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -183,8 +184,8 @@ mod test {
         assert_eq!(already_closed, expected);
     }
 
-    #[test]
-    fn return_if_order_already_closed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn return_if_order_already_closed() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -213,8 +214,8 @@ mod test {
         exchange.update_local_order(&order_ref, filled_amount, source_type, &exchange_order_id);
     }
 
-    #[test]
-    fn order_filled_amount_cancellation_updated() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn order_filled_amount_cancellation_updated() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -247,8 +248,8 @@ mod test {
         assert_eq!(changed_amount, expected);
     }
 
-    #[test]
-    fn order_status_updated() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn order_status_updated() {
         let (exchange, _rx) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -284,8 +285,8 @@ mod test {
         assert_eq!(order_event_source_type, source_type);
     }
 
-    #[test]
-    fn canceled_not_from_wait_cancel_order() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn canceled_not_from_wait_cancel_order() {
         let (exchange, mut event_receiver) = test_helper::get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();

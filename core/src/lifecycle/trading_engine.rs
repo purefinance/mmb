@@ -10,7 +10,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use dashmap::DashMap;
 use futures::future::join_all;
-use itertools::Itertools;
 use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::Duration;
@@ -58,21 +57,16 @@ impl EngineContext {
         exchanges: DashMap<ExchangeAccountId, Arc<Exchange>>,
         exchange_events: ExchangeEvents,
         finish_graceful_shutdown_sender: oneshot::Sender<ActionAfterGracefulShutdown>,
+        exchange_blocker: Arc<ExchangeBlocker>,
         timeout_manager: Arc<TimeoutManager>,
         lifetime_manager: Arc<AppLifetimeManager>,
         balance_manager: Arc<Mutex<BalanceManager>>,
     ) -> Arc<Self> {
-        let exchange_account_ids = app_settings
-            .exchanges
-            .iter()
-            .map(|x| x.exchange_account_id)
-            .collect_vec();
-
         let engine_context = Arc::new(EngineContext {
             app_settings,
             exchanges,
             shutdown_service: Default::default(),
-            exchange_blocker: ExchangeBlocker::new(exchange_account_ids),
+            exchange_blocker,
             lifetime_manager: lifetime_manager.clone(),
             timeout_manager,
             balance_manager,

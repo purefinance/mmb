@@ -238,6 +238,7 @@ mod tests {
     use crate::balance_manager::tests::balance_manager_base::BalanceManagerBase;
     use crate::exchanges::common::{Amount, CurrencyCode, Price};
     use crate::explanation::Explanation;
+    use crate::infrastructure::init_lifetime_manager;
 
     use crate::orders::order::{OrderSide, OrderStatus, ReservationId};
     use crate::orders::pool::OrdersPool;
@@ -296,6 +297,8 @@ mod tests {
         is_reversed: bool,
         symbol_currency_pair_amount: Option<Amount>,
     ) -> BalanceManagerDerivative {
+        init_lifetime_manager();
+
         let test_object = BalanceManagerDerivative::new(is_reversed);
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
@@ -345,8 +348,8 @@ mod tests {
         test_object
     }
 
-    #[test]
-    pub fn reservation_should_use_balance_currency() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_should_use_balance_currency() {
         init_logger_file_named("log.txt");
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), false);
@@ -399,8 +402,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_should_use_balance_currency_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_should_use_balance_currency_reversed() {
         init_logger_file_named("log.txt");
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), true);
@@ -461,7 +464,8 @@ mod tests {
     #[case(OrderSide::Sell, true)]
     #[case(OrderSide::Buy, false)]
     #[case(OrderSide::Sell, false)]
-    pub fn position_more_than_limit_should_log_error(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn position_more_than_limit_should_log_error(
         #[case] order_side: OrderSide,
         #[case] is_reversed: bool,
     ) {
@@ -511,7 +515,8 @@ mod tests {
     #[case(OrderSide::Sell, dec!(1),None, false)]
     #[case(OrderSide::Buy, dec!(1), Some(dec!(5)),false)]
     #[case(OrderSide::Sell, dec!(1),Some(dec!(5)), false)]
-    pub fn fill_should_change_position(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fill_should_change_position(
         #[case] order_side: OrderSide,
         #[case] expected_position: Decimal,
         #[case] leverage: Option<Decimal>,
@@ -562,8 +567,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fill_buy_should_commission_should_be_deducted_from_balance() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fill_buy_should_commission_should_be_deducted_from_balance() {
         init_logger_file_named("log.txt");
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(100), false);
@@ -616,8 +621,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fill_buy_should_commission_should_be_deducted_from_balance_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fill_buy_should_commission_should_be_deducted_from_balance_reversed() {
         init_logger_file_named("log.txt");
         let mut test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(100), true);
@@ -669,8 +674,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fill_sell_should_commission_should_be_deducted_from_balance() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fill_sell_should_commission_should_be_deducted_from_balance() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -723,8 +728,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fill_sell_should_commission_should_be_deducted_from_balance_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fill_sell_should_commission_should_be_deducted_from_balance_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -779,8 +784,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_after_fill_in_the_same_direction_buy_should_be_not_free() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_after_fill_in_the_same_direction_buy_should_be_not_free() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -893,8 +898,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_after_fill_in_the_same_direction_buy_should_be_not_free_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_after_fill_in_the_same_direction_buy_should_be_not_free_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -1009,8 +1014,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_after_fill_in_the_same_direction_sell_should_be_not_free() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_after_fill_in_the_same_direction_sell_should_be_not_free() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -1123,8 +1128,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_after_fill_in_the_same_direction_sell_should_be_not_free_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_after_fill_in_the_same_direction_sell_should_be_not_free_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -1239,8 +1244,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_after_fill_in_opposite_direction_buy_sell_should_be_partially_free() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_after_fill_in_opposite_direction_buy_sell_should_be_partially_free() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -1399,9 +1404,9 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_after_fill_in_opposite_direction_buy_sell_should_be_partially_free_reversed()
-    {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_after_fill_in_opposite_direction_buy_sell_should_be_partially_free_reversed(
+    ) {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -1562,8 +1567,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_after_fill_in_opposite_direction_sell_buy_should_be_partially_free() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_after_fill_in_opposite_direction_sell_buy_should_be_partially_free() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -1724,9 +1729,9 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn reservation_after_fill_in_opposite_direction_sell_buy_should_be_partially_free_reversed()
-    {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_after_fill_in_opposite_direction_sell_buy_should_be_partially_free_reversed(
+    ) {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -1891,8 +1896,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn clone_when_order_got_status_created_but_its_reservation_is_not_approved_possible_precision_error(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn clone_when_order_got_status_created_but_its_reservation_is_not_approved_possible_precision_error(
     ) {
         // This case may happen because parallel nature of handling orders
 
@@ -1966,8 +1971,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn clone_when_order_created() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn clone_when_order_created() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -2049,7 +2054,8 @@ mod tests {
     #[case(dec!(25), dec!(0.2), dec!(3), dec!(0.5), dec!(2) ,dec!(2) )] // Optimistic case: price1 < price2
     #[ignore] // Transfer
     #[case(dec!(25), dec!(0.5), dec!(3), dec!(0.2), dec!(2) ,dec!(2) )] // Pessimistic case: price1 > price2
-    pub fn transfer_reservation_different_price_success(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn transfer_reservation_different_price_success(
         #[case] src_balance: Amount,
         #[case] price_1: Price,
         #[case] amount_1: Amount,
@@ -2146,7 +2152,8 @@ mod tests {
     #[rstest]
     #[ignore] // Transfer
     #[case(dec!(20), dec!(0.5), dec!(3), dec!(0.2), dec!(2) ,dec!(2) )] // Pessimistic case: price1 > price2
-    pub fn transfer_reservation_different_price_failure(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn transfer_reservation_different_price_failure(
         #[case] src_balance: Amount,
         #[case] price_1: Price,
         #[case] amount_1: Amount,
@@ -2206,9 +2213,9 @@ mod tests {
         );
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ignore] // Transfer
-    pub fn transfer_reservations_amount_partial() {
+    pub async fn transfer_reservations_amount_partial() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let test_object =
@@ -2265,9 +2272,9 @@ mod tests {
         assert_eq!(reservation.unreserved_amount, dec!(2) + dec!(2));
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ignore] // Transfer
-    pub fn transfer_reservations_amount_partial_with_cost_diff_due_to_fill() {
+    pub async fn transfer_reservations_amount_partial_with_cost_diff_due_to_fill() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -2391,8 +2398,8 @@ mod tests {
         assert_eq!(reservation.cost, dec!(0.9) + dec!(2));
     }
 
-    #[test]
-    pub fn update_exchange_balance_should_use_cost_for_balance_filter_when_no_free_cost() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn update_exchange_balance_should_use_cost_for_balance_filter_when_no_free_cost() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let test_object =
@@ -2453,8 +2460,9 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn update_exchange_balance_should_use_cost_for_balance_filter_when_partially_free_cost() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn update_exchange_balance_should_use_cost_for_balance_filter_when_partially_free_cost(
+    ) {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
@@ -2522,8 +2530,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fills_and_reservations_no_limit_buy_enough_and_not_enough() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fills_and_reservations_no_limit_buy_enough_and_not_enough() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -2592,8 +2600,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fills_and_reservations_no_limit_buy_enough_and_not_enough_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fills_and_reservations_no_limit_buy_enough_and_not_enough_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -2674,8 +2682,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fills_and_reservations_no_limit_sell_enough_and_not_enough() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fills_and_reservations_no_limit_sell_enough_and_not_enough() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -2744,8 +2752,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fills_and_reservations_no_limit_sell_enough_and_not_enough_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fills_and_reservations_no_limit_sell_enough_and_not_enough_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -2828,8 +2836,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fills_and_reservations_limit_buy_enough_and_not_enough() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fills_and_reservations_limit_buy_enough_and_not_enough() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -2968,8 +2976,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fills_and_reservations_limit_buy_enough_and_not_enough_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fills_and_reservations_limit_buy_enough_and_not_enough_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -3112,8 +3120,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fills_and_reservations_limit_sell_enough_and_not_enough() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fills_and_reservations_limit_sell_enough_and_not_enough() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object =
@@ -3274,8 +3282,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn fills_and_reservations_limit_sell_enough_and_not_enough_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn fills_and_reservations_limit_sell_enough_and_not_enough_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object =
@@ -3435,8 +3443,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn can_reserve_no_limit_enough_and_not_enough() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn can_reserve_no_limit_enough_and_not_enough() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
@@ -3493,8 +3501,8 @@ mod tests {
             .can_reserve(&reserve_parameters, &mut None));
     }
 
-    #[test]
-    pub fn can_reserve_no_limit_enough_and_not_enough_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn can_reserve_no_limit_enough_and_not_enough_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
@@ -3559,8 +3567,8 @@ mod tests {
             .can_reserve(&reserve_parameters, &mut None));
     }
 
-    #[test]
-    pub fn can_reserve_limit_enough_and_not_enough() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn can_reserve_limit_enough_and_not_enough() {
         init_logger_file_named("log.txt");
         let is_reversed = false;
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
@@ -3618,8 +3626,8 @@ mod tests {
             .can_reserve(&reserve_parameters, &mut None));
     }
 
-    #[test]
-    pub fn can_reserve_limit_enough_and_not_enough_reversed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn can_reserve_limit_enough_and_not_enough_reversed() {
         init_logger_file_named("log.txt");
         let is_reversed = true;
         let mut test_object = create_test_obj_by_currency_code_and_symbol_currency_pair(
@@ -3699,7 +3707,8 @@ mod tests {
     #[case(OrderSide::Buy, false, false)]
     #[case(OrderSide::Sell, true, true)]
     #[case(OrderSide::Buy, false, true)]
-    pub fn can_reserve_when_out_of_limit_and_moving_to_the_limit(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn can_reserve_when_out_of_limit_and_moving_to_the_limit(
         #[case] order_side: OrderSide,
         #[case] expected_can_reserve: bool,
         #[case] is_reversed: bool,
@@ -3735,9 +3744,9 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_long_position()
-    {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_long_position(
+    ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(5);
         let is_reversed = false;
@@ -3795,8 +3804,8 @@ mod tests {
         assert_eq!(margin_sell, (dec!(5) + dec!(1.9)) / dec!(0.2) * dec!(0.2));
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_long_position_reversed(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_long_position_reversed(
     ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(5) / BalanceManagerDerivative::price();
@@ -3861,9 +3870,9 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_short_position()
-    {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_short_position(
+    ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(5);
         let is_reversed = false;
@@ -3921,8 +3930,8 @@ mod tests {
         assert_eq!(margin_sell, (dec!(5) - dec!(1.9)) / dec!(0.2) * dec!(0.2));
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_short_position_reversed(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_balance_is_more_than_limit_short_position_reversed(
     ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(5) / BalanceManagerDerivative::price();
@@ -3987,9 +3996,9 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_long_position()
-    {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_long_position(
+    ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(10);
         let is_reversed = false;
@@ -4054,8 +4063,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_long_position_reversed(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_long_position_reversed(
     ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(1000)
@@ -4131,9 +4140,9 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_short_position()
-    {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_short_position(
+    ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(10);
         let is_reversed = false;
@@ -4197,8 +4206,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_short_position_reversed(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_balance_is_less_than_limit_short_position_reversed(
     ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(1000)
@@ -4273,8 +4282,8 @@ mod tests {
         );
     }
 
-    #[test]
-    pub fn get_leveraged_balance_in_amount_currency_code_max_rounding_error() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn get_leveraged_balance_in_amount_currency_code_max_rounding_error() {
         //real-life case with a rounding error https://github.com/CryptoDreamTeam/CryptoLp/issues/1348
         init_logger_file_named("log.txt");
         let amount_limit = dec!(30);
@@ -4330,7 +4339,8 @@ mod tests {
     #[rstest]
     #[case(true)]
     #[case(false)]
-    pub fn update_exchange_balance_should_restore_position_on_all_exchanges(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn update_exchange_balance_should_restore_position_on_all_exchanges(
         #[case] is_reversed: bool,
     ) {
         init_logger_file_named("log.txt");
@@ -4380,7 +4390,8 @@ mod tests {
     #[rstest]
     #[case(true)]
     #[case(false)]
-    pub fn update_exchange_balance_should_change_fill_position_only_on_first_update(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn update_exchange_balance_should_change_fill_position_only_on_first_update(
         #[case] is_reversed: bool,
     ) {
         init_logger_file_named("log.txt");
@@ -4432,7 +4443,10 @@ mod tests {
     #[rstest]
     #[case(true)]
     #[case(false)]
-    pub fn reservation_over_limit_should_return_false_on_try_reserve(#[case] is_reversed: bool) {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn reservation_over_limit_should_return_false_on_try_reserve(
+        #[case] is_reversed: bool,
+    ) {
         init_logger_file_named("log.txt");
         let amount_limit = dec!(2);
 

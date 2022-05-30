@@ -870,178 +870,191 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
     async fn block_unblock_manual() {
-        let _ = init_lifetime_manager();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = exchange_blocker();
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = exchange_blocker();
 
-        let reason = "test_reason".into();
+            let reason = "test_reason".into();
 
-        exchange_blocker.block(exchange_account_id(), reason, Manual);
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
+            exchange_blocker.block(exchange_account_id(), reason, Manual);
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
-        exchange_blocker.unblock(exchange_account_id(), reason);
-        exchange_blocker
-            .wait_unblock(exchange_account_id(), cancellation_token)
-            .await;
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+            exchange_blocker.unblock(exchange_account_id(), reason);
+            exchange_blocker
+                .wait_unblock(exchange_account_id(), cancellation_token)
+                .await;
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+        })
+        .await;
     }
 
     #[tokio::test]
-    #[ntest::timeout(120000)]
     async fn block_unblock_future() {
-        let _ = init_lifetime_manager();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = exchange_blocker();
-        let signal = Signal::default();
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = exchange_blocker();
+            let signal = Signal::default();
 
-        let reason = "test_reason".into();
+            let reason = "test_reason".into();
 
-        exchange_blocker.block(exchange_account_id(), reason, Manual);
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
+            exchange_blocker.block(exchange_account_id(), reason, Manual);
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-        let _ = spawn_future_ok(
-            "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
-            SpawnFutureFlags::STOP_BY_TOKEN,
-            {
-                let exchange_blocker = exchange_blocker.clone();
-                let signal = signal.clone();
-                let cancellation_token = cancellation_token.clone();
-                async move {
-                    exchange_blocker
-                        .wait_unblock(exchange_account_id(), cancellation_token)
-                        .await;
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            let _ = spawn_future_ok(
+                "Run ExchangeBlocker::wait_unblock in block_unblock_future test",
+                SpawnFutureFlags::STOP_BY_TOKEN,
+                {
+                    let exchange_blocker = exchange_blocker.clone();
+                    let signal = signal.clone();
+                    let cancellation_token = cancellation_token.clone();
+                    async move {
+                        exchange_blocker
+                            .wait_unblock(exchange_account_id(), cancellation_token)
+                            .await;
 
-                    *signal.lock() = true;
-                    tx.send(()).await.expect("Failed to send message");
-                }
-            },
-        );
+                        *signal.lock() = true;
+                        tx.send(()).await.expect("Failed to send message");
+                    }
+                },
+            );
 
-        tokio::task::yield_now().await;
-        assert_eq!(*signal.lock(), false);
+            tokio::task::yield_now().await;
+            assert_eq!(*signal.lock(), false);
 
-        exchange_blocker.unblock(exchange_account_id(), reason);
-        exchange_blocker
-            .wait_unblock(exchange_account_id(), cancellation_token)
-            .await;
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+            exchange_blocker.unblock(exchange_account_id(), reason);
+            exchange_blocker
+                .wait_unblock(exchange_account_id(), cancellation_token)
+                .await;
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
 
-        with_timeout(Duration::from_secs(1), rx.recv()).await;
-        assert_eq!(*signal.lock(), true);
+            with_timeout(Duration::from_secs(1), rx.recv()).await;
+            assert_eq!(*signal.lock(), true);
+        })
+        .await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
     async fn block_duration() {
-        let _ = init_lifetime_manager();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = exchange_blocker();
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = exchange_blocker();
 
-        let reason = "timer_test_reason".into();
-        let duration = Duration::from_millis(50);
+            let reason = "timer_test_reason".into();
+            let duration = Duration::from_millis(50);
 
-        let timer = Instant::now();
+            let timer = Instant::now();
 
-        let action = async move {
-            exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
-            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
-            exchange_blocker
-                .wait_unblock(exchange_account_id(), cancellation_token)
-                .await;
-        };
-        let handle = spawn_future_ok(
-            "Run ExchangeBlocker::wait_unblock in block_duration test",
-            SpawnFutureFlags::STOP_BY_TOKEN,
-            action,
-        );
+            let action = async move {
+                exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
+                assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
+                exchange_blocker
+                    .wait_unblock(exchange_account_id(), cancellation_token)
+                    .await;
+            };
+            let handle = spawn_future_ok(
+                "Run ExchangeBlocker::wait_unblock in block_duration test",
+                SpawnFutureFlags::STOP_BY_TOKEN,
+                action,
+            );
 
-        let timeout_limit = duration + Duration::from_millis(30);
-        tokio::select! {
-            _ = handle => {
-                let elapsed = timer.elapsed();
-                assert!(elapsed > duration, "Exchange should be unblocked after {} ms, but was {} ms", duration.as_millis(), elapsed.as_millis())
-            },
-            _ = sleep(timeout_limit) => panic!("Timeout limit ({} ms) exceeded", timeout_limit.as_millis()),
-        }
+            let timeout_limit = duration + Duration::from_millis(30);
+            tokio::select! {
+                _ = handle => {
+                    let elapsed = timer.elapsed();
+                    assert!(elapsed > duration, "Exchange should be unblocked after {} ms, but was {} ms", duration.as_millis(), elapsed.as_millis())
+                },
+                _ = sleep(timeout_limit) => panic!("Timeout limit ({} ms) exceeded", timeout_limit.as_millis()),
+            }
+        }).await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
     async fn reblock_before_time_is_up() {
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = exchange_blocker();
+        with_timeout(Duration::from_secs(120), async {
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = exchange_blocker();
 
-        let reason = "timer_test_reason".into();
-        let duration = Duration::from_millis(50);
-        let duration_sleep = Duration::from_millis(20);
+            let reason = "timer_test_reason".into();
+            let duration = Duration::from_millis(50);
+            let duration_sleep = Duration::from_millis(20);
 
-        let timer = Instant::now();
+            let timer = Instant::now();
 
-        let action = async move {
-            exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
-            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
+            let action = async move {
+                exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
+                assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
-            sleep(duration_sleep).await;
+                sleep(duration_sleep).await;
 
-            exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
-            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
+                exchange_blocker.block(exchange_account_id(), reason, Timed(duration));
+                assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
 
-            exchange_blocker
-                .wait_unblock(exchange_account_id(), cancellation_token)
-                .await;
-        };
-        let handle = spawn_future_ok(
-            "Run ExchangeBlocker::wait_unblock in reblock_before_time_is_up test",
-            SpawnFutureFlags::STOP_BY_TOKEN,
-            action,
-        );
+                exchange_blocker
+                    .wait_unblock(exchange_account_id(), cancellation_token)
+                    .await;
+            };
+            let handle = spawn_future_ok(
+                "Run ExchangeBlocker::wait_unblock in reblock_before_time_is_up test",
+                SpawnFutureFlags::STOP_BY_TOKEN,
+                action,
+            );
 
-        let min_timeout = duration_sleep + duration;
-        let timeout_limit = min_timeout + Duration::from_millis(30);
+            let min_timeout = duration_sleep + duration;
+            let timeout_limit = min_timeout + Duration::from_millis(30);
 
-        let _ = with_timeout(timeout_limit, handle).await;
+            let _ = with_timeout(timeout_limit, handle).await;
 
-        let elapsed = timer.elapsed();
-        assert!(
-            elapsed > min_timeout,
-            "Exchange should be unblocked after {} ms, but was {} ms",
-            min_timeout.as_millis(),
-            elapsed.as_millis()
-        )
+            let elapsed = timer.elapsed();
+            assert!(
+                elapsed > min_timeout,
+                "Exchange should be unblocked after {} ms, but was {} ms",
+                min_timeout.as_millis(),
+                elapsed.as_millis()
+            )
+        })
+        .await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
     async fn block_with_multiple() {
-        let _ = init_lifetime_manager();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = &exchange_blocker();
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = &exchange_blocker();
 
-        let reason1 = "reason1".into();
-        let reason2 = "reason2".into();
+            let reason1 = "reason1".into();
+            let reason2 = "reason2".into();
 
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
 
-        exchange_blocker.block(exchange_account_id(), reason1, Manual);
-        assert_blocking_state(exchange_blocker, reason1, reason2, true, false, true);
+            exchange_blocker.block(exchange_account_id(), reason1, Manual);
+            assert_blocking_state(exchange_blocker, reason1, reason2, true, false, true);
 
-        exchange_blocker.block(exchange_account_id(), reason2, Manual);
-        assert_blocking_state(exchange_blocker, reason1, reason2, true, true, true);
+            exchange_blocker.block(exchange_account_id(), reason2, Manual);
+            assert_blocking_state(exchange_blocker, reason1, reason2, true, true, true);
 
-        exchange_blocker.unblock(exchange_account_id(), reason1);
-        exchange_blocker
-            .wait_unblock_with_reason(exchange_account_id(), reason1, cancellation_token.clone())
-            .await;
-        assert_blocking_state(exchange_blocker, reason1, reason2, false, true, true);
+            exchange_blocker.unblock(exchange_account_id(), reason1);
+            exchange_blocker
+                .wait_unblock_with_reason(
+                    exchange_account_id(),
+                    reason1,
+                    cancellation_token.clone(),
+                )
+                .await;
+            assert_blocking_state(exchange_blocker, reason1, reason2, false, true, true);
 
-        exchange_blocker.unblock(exchange_account_id(), reason2);
-        exchange_blocker
-            .wait_unblock(exchange_account_id(), cancellation_token)
-            .await;
-        assert_blocking_state(exchange_blocker, reason1, reason2, false, false, false);
+            exchange_blocker.unblock(exchange_account_id(), reason2);
+            exchange_blocker
+                .wait_unblock(exchange_account_id(), cancellation_token)
+                .await;
+            assert_blocking_state(exchange_blocker, reason1, reason2, false, false, false);
+        })
+        .await;
     }
 
     fn assert_blocking_state(
@@ -1061,168 +1074,237 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
     async fn block_with_handler() {
-        let _ = init_lifetime_manager();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = exchange_blocker();
-        let times_count = &Signal::<u8>::default();
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = exchange_blocker();
+            let times_count = &Signal::<u8>::default();
 
-        exchange_blocker.register_handler({
-            let times_count = times_count.clone();
-            Box::new(move |event, _| {
+            exchange_blocker.register_handler({
                 let times_count = times_count.clone();
-                async move {
-                    if event.moment == ExchangeBlockerMoment::Blocked
-                        && event.exchange_account_id == exchange_account_id()
-                    {
-                        *times_count.lock() += 1;
-                    }
-                }
-                .boxed()
-            })
-        });
-
-        let reason = "reason".into();
-
-        exchange_blocker.block(exchange_account_id(), reason, Manual);
-        exchange_blocker.unblock(exchange_account_id(), reason);
-        exchange_blocker
-            .wait_unblock(exchange_account_id(), cancellation_token)
-            .await;
-
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
-        sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
-        assert_eq!(*times_count.lock(), 1);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
-    async fn block_with_first_long_handler() {
-        let _ = init_lifetime_manager();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = exchange_blocker();
-        let times_count = &Signal::<u8>::default();
-        let wait_when_blocked = 40;
-
-        exchange_blocker.register_handler({
-            let times_count = times_count.clone();
-            Box::new(move |event, _| {
-                let times_count = times_count.clone();
-                async move {
-                    match event.moment {
-                        ExchangeBlockerMoment::Blocked => {
-                            sleep(Duration::from_millis(wait_when_blocked)).await;
+                Box::new(move |event, _| {
+                    let times_count = times_count.clone();
+                    async move {
+                        if event.moment == ExchangeBlockerMoment::Blocked
+                            && event.exchange_account_id == exchange_account_id()
+                        {
                             *times_count.lock() += 1;
                         }
-                        ExchangeBlockerMoment::BeforeUnblocked => *times_count.lock() += 1,
-                        _ => nothing_to_do(),
                     }
-                }
-                .boxed()
-            })
-        });
+                    .boxed()
+                })
+            });
 
-        let reason = "reason".into();
-
-        exchange_blocker.block(exchange_account_id(), reason, Manual);
-        exchange_blocker.unblock(exchange_account_id(), reason);
-        exchange_blocker
-            .wait_unblock(exchange_account_id(), cancellation_token)
-            .await;
-
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
-        sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
-        assert_eq!(*times_count.lock(), 2);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
-    async fn stop_blocker() {
-        let _ = init_lifetime_manager();
-        let exchange_blocker = exchange_blocker();
-
-        let max_timeout = Duration::from_millis(100);
-        tokio::select! {
-            _ = exchange_blocker.stop_blocker() => nothing_to_do(),
-            _ = sleep(max_timeout) => panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis()),
-        }
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
-    async fn block_with_handler_after_stop() {
-        let _ = init_lifetime_manager();
-        let exchange_blocker = exchange_blocker();
-        let times_count = &Signal::<u8>::default();
-
-        exchange_blocker.register_handler({
-            let times_count = times_count.clone();
-            Box::new(move |event, _| {
-                let times_count = times_count.clone();
-                async move {
-                    if event.moment == ExchangeBlockerMoment::Blocked
-                        && event.exchange_account_id == exchange_account_id()
-                    {
-                        *times_count.lock() += 1;
-                    }
-                }
-                .boxed()
-            })
-        });
-
-        exchange_blocker.stop_blocker().await;
-
-        let reason = "reason".into();
-        exchange_blocker.block(exchange_account_id(), reason, Manual);
-        exchange_blocker.unblock(exchange_account_id(), reason);
-        sleep(Duration::from_millis(1)).await;
-
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
-
-        sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
-        // should ignore all events
-        assert_eq!(*times_count.lock(), 0);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
-    async fn block_many_times() {
-        let _ = init_lifetime_manager();
-        async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
-            let reason = gen_reason(index);
+            let reason = "reason".into();
 
             exchange_blocker.block(exchange_account_id(), reason, Manual);
-            tokio::task::yield_now().await;
             exchange_blocker.unblock(exchange_account_id(), reason);
             exchange_blocker
-                .wait_unblock_with_reason(exchange_account_id(), reason, CancellationToken::new())
+                .wait_unblock(exchange_account_id(), cancellation_token)
                 .await;
-        }
 
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = &exchange_blocker();
-        let times_count = &Signal::<u32>::default();
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+            sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
+            assert_eq!(*times_count.lock(), 1);
+        })
+        .await;
+    }
 
-        exchange_blocker.register_handler({
-            let times_count = times_count.clone();
-            Box::new(move |event, _| {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn block_with_first_long_handler() {
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = exchange_blocker();
+            let times_count = &Signal::<u8>::default();
+            let wait_when_blocked = 40;
+
+            exchange_blocker.register_handler({
                 let times_count = times_count.clone();
-                async move {
-                    if event.moment == ExchangeBlockerMoment::Blocked
-                        && event.exchange_account_id == exchange_account_id()
-                    {
-                        *times_count.lock().deref_mut() += 1;
+                Box::new(move |event, _| {
+                    let times_count = times_count.clone();
+                    async move {
+                        match event.moment {
+                            ExchangeBlockerMoment::Blocked => {
+                                sleep(Duration::from_millis(wait_when_blocked)).await;
+                                *times_count.lock() += 1;
+                            }
+                            ExchangeBlockerMoment::BeforeUnblocked => *times_count.lock() += 1,
+                            _ => nothing_to_do(),
+                        }
                     }
-                }
-                .boxed()
-            })
-        });
+                    .boxed()
+                })
+            });
 
-        const TIMES_COUNT: u32 = 200;
-        const REASONS_COUNT: u32 = 20;
-        for _ in 0..(TIMES_COUNT / REASONS_COUNT) {
-            let jobs = (0..REASONS_COUNT)
+            let reason = "reason".into();
+
+            exchange_blocker.block(exchange_account_id(), reason, Manual);
+            exchange_blocker.unblock(exchange_account_id(), reason);
+            exchange_blocker
+                .wait_unblock(exchange_account_id(), cancellation_token)
+                .await;
+
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+            sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
+            assert_eq!(*times_count.lock(), 2);
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn stop_blocker() {
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let exchange_blocker = exchange_blocker();
+
+            with_timeout(Duration::from_millis(100), exchange_blocker.stop_blocker()).await;
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn block_with_handler_after_stop() {
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let exchange_blocker = exchange_blocker();
+            let times_count = &Signal::<u8>::default();
+
+            exchange_blocker.register_handler({
+                let times_count = times_count.clone();
+                Box::new(move |event, _| {
+                    let times_count = times_count.clone();
+                    async move {
+                        if event.moment == ExchangeBlockerMoment::Blocked
+                            && event.exchange_account_id == exchange_account_id()
+                        {
+                            *times_count.lock() += 1;
+                        }
+                    }
+                    .boxed()
+                })
+            });
+
+            exchange_blocker.stop_blocker().await;
+
+            let reason = "reason".into();
+            exchange_blocker.block(exchange_account_id(), reason, Manual);
+            exchange_blocker.unblock(exchange_account_id(), reason);
+            sleep(Duration::from_millis(1)).await;
+
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), true);
+
+            sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
+            // should ignore all events
+            assert_eq!(*times_count.lock(), 0);
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn block_many_times() {
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
+                let reason = gen_reason(index);
+
+                exchange_blocker.block(exchange_account_id(), reason, Manual);
+                tokio::task::yield_now().await;
+                exchange_blocker.unblock(exchange_account_id(), reason);
+                exchange_blocker
+                    .wait_unblock_with_reason(
+                        exchange_account_id(),
+                        reason,
+                        CancellationToken::new(),
+                    )
+                    .await;
+            }
+
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = &exchange_blocker();
+            let times_count = &Signal::<u32>::default();
+
+            exchange_blocker.register_handler({
+                let times_count = times_count.clone();
+                Box::new(move |event, _| {
+                    let times_count = times_count.clone();
+                    async move {
+                        if event.moment == ExchangeBlockerMoment::Blocked
+                            && event.exchange_account_id == exchange_account_id()
+                        {
+                            *times_count.lock().deref_mut() += 1;
+                        }
+                    }
+                    .boxed()
+                })
+            });
+
+            const TIMES_COUNT: u32 = 200;
+            const REASONS_COUNT: u32 = 20;
+            for _ in 0..(TIMES_COUNT / REASONS_COUNT) {
+                let jobs = (0..REASONS_COUNT)
+                    .zip(repeat_with(|| exchange_blocker.clone()))
+                    .map(|(i, b)| {
+                        spawn_future_ok(
+                            "do_action in block_many_times test",
+                            SpawnFutureFlags::STOP_BY_TOKEN,
+                            do_action(i, b),
+                        )
+                    });
+                join_all(jobs).await;
+            }
+
+            let max_timeout = Duration::from_secs(2);
+            tokio::select! {
+                _ = exchange_blocker.wait_unblock(exchange_account_id(), cancellation_token) => {
+                    sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
+                    assert_eq!(*times_count.lock(), TIMES_COUNT);
+                },
+                _ = sleep(max_timeout) => {
+                    print_blocked_reasons(exchange_blocker, REASONS_COUNT);
+                    panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis());
+                }
+            }
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn block_many_times_with_random_reasons() {
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
+                let reason = gen_reason(index);
+
+                exchange_blocker.block(exchange_account_id(), reason, Manual);
+                tokio::task::yield_now().await;
+                exchange_blocker.unblock(exchange_account_id(), reason);
+            }
+
+            let mut rng = rand::thread_rng();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = &exchange_blocker();
+            let times_count = Signal::<usize>::default();
+
+            exchange_blocker.register_handler({
+                let times_count = times_count.clone();
+                Box::new(move |event, _| {
+                    let times_count = times_count.clone();
+                    async move {
+                        if event.moment == ExchangeBlockerMoment::Blocked
+                            && event.exchange_account_id == exchange_account_id()
+                        {
+                            *times_count.lock() += 1;
+                        }
+                    }
+                    .boxed()
+                })
+            });
+
+            const TIMES_COUNT: usize = 200;
+            let jobs = repeat_with(|| rng.gen_range(0..10u32))
+                .take(TIMES_COUNT)
                 .zip(repeat_with(|| exchange_blocker.clone()))
                 .map(|(i, b)| {
                     spawn_future_ok(
@@ -1232,264 +1314,214 @@ mod tests {
                     )
                 });
             join_all(jobs).await;
-        }
 
-        let max_timeout = Duration::from_secs(2);
-        tokio::select! {
-            _ = exchange_blocker.wait_unblock(exchange_account_id(), cancellation_token) => {
-                sleep(WAIT_UNTIL_HANDLERS_CLOSE).await;
-                assert_eq!(*times_count.lock(), TIMES_COUNT);
-            },
-            _ = sleep(max_timeout) => {
-                print_blocked_reasons(exchange_blocker, REASONS_COUNT);
-                panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis());
-            }
-        }
+            // exchange blocker should be successfully unblocked
+            with_timeout(
+                Duration::from_secs(2),
+                exchange_blocker.wait_unblock(exchange_account_id(), cancellation_token),
+            )
+            .await;
+        })
+        .await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
-    async fn block_many_times_with_random_reasons() {
-        let _ = init_lifetime_manager();
-        async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
-            let reason = gen_reason(index);
-
-            exchange_blocker.block(exchange_account_id(), reason, Manual);
-            tokio::task::yield_now().await;
-            exchange_blocker.unblock(exchange_account_id(), reason);
-        }
-
-        let mut rng = rand::thread_rng();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = &exchange_blocker();
-        let times_count = Signal::<usize>::default();
-
-        exchange_blocker.register_handler({
-            let times_count = times_count.clone();
-            Box::new(move |event, _| {
-                let times_count = times_count.clone();
-                async move {
-                    if event.moment == ExchangeBlockerMoment::Blocked
-                        && event.exchange_account_id == exchange_account_id()
-                    {
-                        *times_count.lock() += 1;
-                    }
-                }
-                .boxed()
-            })
-        });
-
-        const TIMES_COUNT: usize = 200;
-        let jobs = repeat_with(|| rng.gen_range(0..10u32))
-            .take(TIMES_COUNT)
-            .zip(repeat_with(|| exchange_blocker.clone()))
-            .map(|(i, b)| {
-                spawn_future_ok(
-                    "do_action in block_many_times test",
-                    SpawnFutureFlags::STOP_BY_TOKEN,
-                    do_action(i, b),
-                )
-            });
-        join_all(jobs).await;
-
-        // exchange blocker should be successfully unblocked
-        let max_timeout = Duration::from_secs(2);
-        tokio::select! {
-            _ = exchange_blocker.wait_unblock(exchange_account_id(), cancellation_token) => nothing_to_do(),
-            _ = sleep(max_timeout) => panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis()),
-        }
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
     async fn block_many_times_with_stop_exchange_blocker() {
-        let _ = init_lifetime_manager();
-        async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
-            let reason = gen_reason(index);
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            async fn do_action(index: u32, exchange_blocker: Arc<ExchangeBlocker>) {
+                let reason = gen_reason(index);
 
-            exchange_blocker.block(exchange_account_id(), reason, Manual);
-            tokio::task::yield_now().await;
-            exchange_blocker.unblock(exchange_account_id(), reason);
-        }
+                exchange_blocker.block(exchange_account_id(), reason, Manual);
+                tokio::task::yield_now().await;
+                exchange_blocker.unblock(exchange_account_id(), reason);
+            }
 
-        let exchange_blocker = &exchange_blocker();
-        let (blocker_stop_started_tx, blocker_stop_started_rx) = oneshot::channel();
-        let (blocker_stopped_tx, blocker_stopped_rx) = oneshot::channel();
-        let spawn_actions_notify = Arc::new(Notify::new());
+            let exchange_blocker = &exchange_blocker();
+            let (blocker_stop_started_tx, blocker_stop_started_rx) = oneshot::channel();
+            let (blocker_stopped_tx, blocker_stopped_rx) = oneshot::channel();
+            let spawn_actions_notify = Arc::new(Notify::new());
 
-        {
-            let exchange_blocker = exchange_blocker.clone();
-            let action = async move {
-                sleep(Duration::from_millis(1)).await;
-                let _ = blocker_stop_started_tx.send(());
-                exchange_blocker.stop_blocker().await;
-                let _ = blocker_stopped_tx.send(());
-            };
-            let _ = spawn_future_ok(
-                "do_action in block_many_times test",
-                SpawnFutureFlags::STOP_BY_TOKEN,
-                action,
-            );
-        }
-
-        {
-            let exchange_blocker = exchange_blocker.clone();
-            let spawn_actions_notify = spawn_actions_notify.clone();
-            let action = async move {
-                const TIMES_COUNT: u32 = 1000;
-                const REASONS_COUNT: u32 = 10;
-                for i in 0..TIMES_COUNT {
-                    let exchange_blocker = exchange_blocker.clone();
-                    let _ = spawn_future_ok(
-                        "do_action in block_many_times_with_stop_exchange_blocker test",
-                        SpawnFutureFlags::STOP_BY_TOKEN,
-                        do_action(i % REASONS_COUNT, exchange_blocker.clone()),
-                    );
-                    if i % REASONS_COUNT == 0 {
-                        tokio::task::yield_now().await;
-                    }
-                }
-
-                spawn_actions_notify.notify_waiters();
-            };
-            let _ = spawn_future_ok(
-                "spawn_actions_notify in block_many_times_with_stop_exchange_blocker test",
-                SpawnFutureFlags::STOP_BY_TOKEN,
-                action,
-            );
-        };
-
-        {
-            let spawn_actions_notify = spawn_actions_notify.clone();
-            let action = async move {
-                tokio::select! {
-                    _ = spawn_actions_notify.notified() => panic!("spawn_actions finished before exchange blocker_block() started. It does not meet test case."),
-                    _ = blocker_stop_started_rx => nothing_to_do(),
-                }
-            };
-            let _ = spawn_future_ok(
-                "start checking when spawn_actions finished",
-                SpawnFutureFlags::STOP_BY_TOKEN,
-                action,
-            );
-        }
-
-        let max_timeout = Duration::from_secs(2);
-        tokio::select! {
-            _ = join(spawn_actions_notify.notified(), blocker_stopped_rx) => nothing_to_do(),
-            _ = sleep(max_timeout) => panic!("Timeout was exceeded ({} ms)", max_timeout.as_millis()),
-        }
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
-    async fn is_blocked_except_reason_full_cycle() {
-        let _ = init_lifetime_manager();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = &exchange_blocker();
-
-        let reason1 = "reason1".into();
-        let reason2 = "reason2".into();
-
-        // no blocked
-        assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, false);
-
-        exchange_blocker.block(exchange_account_id(), reason2, Manual);
-        // blocked with reason2
-        assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, false);
-
-        exchange_blocker.block(exchange_account_id(), reason2, Manual);
-        // blocked with reason2 again
-        assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, false);
-
-        exchange_blocker.block(exchange_account_id(), reason1, Manual);
-        // blocked with reason1 & reason2
-        assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, true);
-
-        exchange_blocker.unblock(exchange_account_id(), reason2);
-        exchange_blocker
-            .wait_unblock_with_reason(exchange_account_id(), reason2, cancellation_token.clone())
-            .await;
-        // blocked with reason 1
-        assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, true);
-
-        exchange_blocker.unblock(exchange_account_id(), reason1);
-        exchange_blocker
-            .wait_unblock_with_reason(exchange_account_id(), reason1, cancellation_token)
-            .await;
-        // no blocked
-        assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, false);
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
-    async fn wait_unblock_if_not_blocked() {
-        let _ = init_lifetime_manager();
-        let cancellation_token = CancellationToken::new();
-        let exchange_blocker = &exchange_blocker();
-
-        // no blocked
-        assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
-
-        exchange_blocker
-            .wait_unblock(exchange_account_id(), cancellation_token)
-            .await;
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ntest::timeout(120000)]
-    async fn wait_unblock_when_reblock_1_of_2_reasons() {
-        let _ = init_lifetime_manager();
-        let exchange_blocker = &exchange_blocker();
-        let wait_completed = Signal::<bool>::default();
-
-        let reason1 = "reason1".into();
-        let reason2 = "reason2".into();
-
-        exchange_blocker.block(exchange_account_id(), reason1, Manual);
-        exchange_blocker.block(exchange_account_id(), reason2, Manual);
-
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
-        let _ = spawn_future_ok(
-            "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
-            SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
             {
                 let exchange_blocker = exchange_blocker.clone();
-                let wait_completed = wait_completed.clone();
-                async move {
-                    exchange_blocker
-                        .wait_unblock(exchange_account_id(), CancellationToken::new())
-                        .await;
-                    *wait_completed.lock() = true;
-                    tx.send_expected(());
-                }
-            },
-        );
+                let action = async move {
+                    sleep(Duration::from_millis(1)).await;
+                    let _ = blocker_stop_started_tx.send(());
+                    exchange_blocker.stop_blocker().await;
+                    let _ = blocker_stopped_tx.send(());
+                };
+                let _ = spawn_future_ok(
+                    "do_action in block_many_times test",
+                    SpawnFutureFlags::STOP_BY_TOKEN,
+                    action,
+                );
+            }
 
-        tokio::task::yield_now().await;
-        assert_eq!(*wait_completed.lock(), false);
+            {
+                let exchange_blocker = exchange_blocker.clone();
+                let spawn_actions_notify = spawn_actions_notify.clone();
+                let action = async move {
+                    const TIMES_COUNT: u32 = 1000;
+                    const REASONS_COUNT: u32 = 10;
+                    for i in 0..TIMES_COUNT {
+                        let exchange_blocker = exchange_blocker.clone();
+                        let _ = spawn_future_ok(
+                            "do_action in block_many_times_with_stop_exchange_blocker test",
+                            SpawnFutureFlags::STOP_BY_TOKEN,
+                            do_action(i % REASONS_COUNT, exchange_blocker.clone()),
+                        );
+                        if i % REASONS_COUNT == 0 {
+                            tokio::task::yield_now().await;
+                        }
+                    }
 
-        // reblock reason1
-        exchange_blocker.unblock(exchange_account_id(), reason1);
-        exchange_blocker
-            .wait_unblock_with_reason(exchange_account_id(), reason1, CancellationToken::new())
-            .await;
-        exchange_blocker.block(exchange_account_id(), reason1, Manual);
+                    spawn_actions_notify.notify_waiters();
+                };
+                let _ = spawn_future_ok(
+                    "spawn_actions_notify in block_many_times_with_stop_exchange_blocker test",
+                    SpawnFutureFlags::STOP_BY_TOKEN,
+                    action,
+                );
+            };
 
-        exchange_blocker.unblock(exchange_account_id(), reason2);
+            {
+                let spawn_actions_notify = spawn_actions_notify.clone();
+                let action = async move {
+                    tokio::select! {
+                        _ = spawn_actions_notify.notified() => panic!("spawn_actions finished before exchange blocker_block() started. It does not meet test case."),
+                        _ = blocker_stop_started_rx => nothing_to_do(),
+                    }
+                };
+                let _ = spawn_future_ok(
+                    "start checking when spawn_actions finished",
+                    SpawnFutureFlags::STOP_BY_TOKEN,
+                    action,
+                );
+            }
 
-        exchange_blocker
-            .wait_unblock_with_reason(exchange_account_id(), reason2, CancellationToken::new())
-            .await;
-        assert_eq!(*wait_completed.lock(), false);
+            let _ = with_timeout(Duration::from_secs(2), join(spawn_actions_notify.notified(), blocker_stopped_rx)).await;
+        }).await;
+    }
 
-        exchange_blocker.unblock(exchange_account_id(), reason1);
-        exchange_blocker
-            .wait_unblock(exchange_account_id(), CancellationToken::new())
-            .await;
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn is_blocked_except_reason_full_cycle() {
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = &exchange_blocker();
 
-        with_timeout(Duration::from_secs(3), rx.recv()).await;
-        assert_eq!(*wait_completed.lock(), true);
+            let reason1 = "reason1".into();
+            let reason2 = "reason2".into();
+
+            // no blocked
+            assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, false);
+
+            exchange_blocker.block(exchange_account_id(), reason2, Manual);
+            // blocked with reason2
+            assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, false);
+
+            exchange_blocker.block(exchange_account_id(), reason2, Manual);
+            // blocked with reason2 again
+            assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, false);
+
+            exchange_blocker.block(exchange_account_id(), reason1, Manual);
+            // blocked with reason1 & reason2
+            assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, true, true);
+
+            exchange_blocker.unblock(exchange_account_id(), reason2);
+            exchange_blocker
+                .wait_unblock_with_reason(
+                    exchange_account_id(),
+                    reason2,
+                    cancellation_token.clone(),
+                )
+                .await;
+            // blocked with reason 1
+            assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, true);
+
+            exchange_blocker.unblock(exchange_account_id(), reason1);
+            exchange_blocker
+                .wait_unblock_with_reason(exchange_account_id(), reason1, cancellation_token)
+                .await;
+            // no blocked
+            assert_is_blocking_except_reason(exchange_blocker, reason1, reason2, false, false);
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn wait_unblock_if_not_blocked() {
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let cancellation_token = CancellationToken::new();
+            let exchange_blocker = &exchange_blocker();
+
+            // no blocked
+            assert_eq!(exchange_blocker.is_blocked(exchange_account_id()), false);
+
+            exchange_blocker
+                .wait_unblock(exchange_account_id(), cancellation_token)
+                .await;
+        })
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn wait_unblock_when_reblock_1_of_2_reasons() {
+        with_timeout(Duration::from_secs(120), async {
+            let _ = init_lifetime_manager();
+            let exchange_blocker = &exchange_blocker();
+            let wait_completed = Signal::<bool>::default();
+
+            let reason1 = "reason1".into();
+            let reason2 = "reason2".into();
+
+            exchange_blocker.block(exchange_account_id(), reason1, Manual);
+            exchange_blocker.block(exchange_account_id(), reason2, Manual);
+
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            let _ = spawn_future_ok(
+                "Run wait_unblock in wait_unblock_when_reblock_1_of_2_reasons test",
+                SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
+                {
+                    let exchange_blocker = exchange_blocker.clone();
+                    let wait_completed = wait_completed.clone();
+                    async move {
+                        exchange_blocker
+                            .wait_unblock(exchange_account_id(), CancellationToken::new())
+                            .await;
+                        *wait_completed.lock() = true;
+                        tx.send_expected(());
+                    }
+                },
+            );
+
+            tokio::task::yield_now().await;
+            assert_eq!(*wait_completed.lock(), false);
+
+            // reblock reason1
+            exchange_blocker.unblock(exchange_account_id(), reason1);
+            exchange_blocker
+                .wait_unblock_with_reason(exchange_account_id(), reason1, CancellationToken::new())
+                .await;
+            exchange_blocker.block(exchange_account_id(), reason1, Manual);
+
+            exchange_blocker.unblock(exchange_account_id(), reason2);
+
+            exchange_blocker
+                .wait_unblock_with_reason(exchange_account_id(), reason2, CancellationToken::new())
+                .await;
+            assert_eq!(*wait_completed.lock(), false);
+
+            exchange_blocker.unblock(exchange_account_id(), reason1);
+            exchange_blocker
+                .wait_unblock(exchange_account_id(), CancellationToken::new())
+                .await;
+
+            with_timeout(Duration::from_secs(3), rx.recv()).await;
+            assert_eq!(*wait_completed.lock(), true);
+        })
+        .await;
     }
 
     fn assert_is_blocking_except_reason(

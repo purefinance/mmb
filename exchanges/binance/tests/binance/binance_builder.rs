@@ -4,6 +4,7 @@ use core_tests::order::OrderProxy;
 use mmb_core::balance_manager::balance_manager::BalanceManager;
 use mmb_core::exchanges::common::*;
 use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
+use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;
 use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use mmb_core::exchanges::general::exchange::*;
@@ -118,6 +119,8 @@ impl BinanceBuilder {
 
         let hosts = binance.hosts.clone();
 
+        let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
+
         let timeout_manager = get_timeout_manager(exchange_account_id);
         let exchange = Exchange::new(
             exchange_account_id,
@@ -128,6 +131,7 @@ impl BinanceBuilder {
             tx.clone(),
             lifetime_manager,
             timeout_manager,
+            Arc::downgrade(&exchange_blocker),
             commission,
         );
         exchange.connect().await.with_expect(move || {
