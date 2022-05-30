@@ -42,6 +42,7 @@ use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 use url::Url;
 
+use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
@@ -241,6 +242,8 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
         CommissionForType::new(dec!(0.2), referral_reward),
     );
 
+    let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
+
     let exchange = Exchange::new(
         exchange_account_id,
         exchange_client,
@@ -260,6 +263,7 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
         tx,
         lifetime_manager,
         TimeoutManager::new(HashMap::new()),
+        Arc::downgrade(&exchange_blocker),
         commission,
     );
 

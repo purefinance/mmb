@@ -2,6 +2,7 @@ use crate::balance_manager::balance_manager::BalanceManager;
 use crate::config::{load_pretty_settings, try_load_settings};
 use crate::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
+use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::general::exchange_creation::create_exchange;
@@ -26,6 +27,7 @@ use anyhow::{anyhow, bail, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
+use itertools::Itertools;
 use mmb_utils::infrastructure::{init_infrastructure, SpawnFutureFlags};
 use mmb_utils::logger::print_info;
 use mmb_utils::nothing_to_do;
@@ -35,7 +37,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::panic::{self, AssertUnwindSafe};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -150,12 +152,22 @@ where
 
     let timeout_manager = create_timeout_manager(&settings.core, build_settings);
 
+    let exchange_account_ids = settings
+        .core
+        .exchanges
+        .iter()
+        .map(|x| x.exchange_account_id)
+        .collect_vec();
+
+    let exchange_blocker = ExchangeBlocker::new(exchange_account_ids);
+
     let exchanges = create_exchanges(
         &settings.core,
         build_settings,
         events_sender.clone(),
         lifetime_manager.clone(),
         &timeout_manager,
+        Arc::downgrade(&exchange_blocker),
     )
     .await;
 
@@ -186,11 +198,13 @@ where
     }
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
+
     let engine_context = EngineContext::new(
         settings.core.clone(),
         exchanges_map.clone(),
         exchange_events,
         finish_graceful_shutdown_tx,
+        exchange_blocker,
         timeout_manager,
         lifetime_manager.clone(),
         balance_manager,
@@ -422,6 +436,7 @@ pub async fn create_exchanges(
     events_channel: broadcast::Sender<ExchangeEvent>,
     lifetime_manager: Arc<AppLifetimeManager>,
     timeout_manager: &Arc<TimeoutManager>,
+    exchange_blocker: Weak<ExchangeBlocker>,
 ) -> Vec<Arc<Exchange>> {
     join_all(core_settings.exchanges.iter().map(|x| {
         create_exchange(
@@ -430,6 +445,7 @@ pub async fn create_exchanges(
             events_channel.clone(),
             lifetime_manager.clone(),
             timeout_manager.clone(),
+            exchange_blocker.clone(),
         )
     }))
     .await

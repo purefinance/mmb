@@ -18,6 +18,7 @@ pub mod tests {
     #[double]
     use crate::services::usd_convertion::usd_converter::UsdConverter;
 
+    use crate::infrastructure::init_lifetime_manager;
     use crate::misc::time;
     use crate::service_configuration::configuration_descriptor::{
         ServiceConfigurationKey, ServiceName,
@@ -179,6 +180,8 @@ pub mod tests {
         }
 
         pub fn new(is_derivative: bool, is_reversed: bool) -> Self {
+            init_lifetime_manager();
+
             let (usd_converter, usd_converter_locker) = Self::init_usd_converter(hashmap![
                 Self::base() => dec!(1000),
                 Self::quote() => dec!(1)

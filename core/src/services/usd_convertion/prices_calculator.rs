@@ -154,8 +154,8 @@ mod test {
         (currency_pair, price_source_chain, locker)
     }
 
-    #[test]
-    fn calculate_amount_now_using_one_step_with_price() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_amount_now_using_one_step_with_price() {
         let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
 
         let snapshot = order_book_data![
@@ -178,8 +178,8 @@ mod test {
         assert_eq!(dec!(1) / (dec!(12) / dec!(2)) * src_amount, price_now);
     }
 
-    #[test]
-    fn calculate_amount_now_using_one_step_without_price() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_amount_now_using_one_step_without_price() {
         let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let snapshot = order_book_data!().to_local_order_book_snapshot();
 
@@ -193,8 +193,8 @@ mod test {
         assert!(price_now.is_none());
     }
 
-    #[test]
-    fn calculate_amount_in_past_using_one_step_with_price() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_amount_in_past_using_one_step_with_price() {
         let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let time_in_past = Utc::now();
         let market_id = MarketId::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
@@ -210,8 +210,8 @@ mod test {
         assert_eq!(dec!(1) / (dec!(12) / dec!(2)) * src_amount, price_now);
     }
 
-    #[test]
-    fn calculate_amount_in_past_using_one_step_without_price() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_amount_in_past_using_one_step_without_price() {
         let (_, price_source_chain, _locker) = generate_one_step_setup();
         let time_in_past = Utc::now();
         let price_cache = HashMap::new();
@@ -222,8 +222,8 @@ mod test {
         assert!(price_now.is_none());
     }
 
-    #[test]
-    fn calculate_amount_with_current_cached_prices_using_one_step_with_price() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_amount_with_current_cached_prices_using_one_step_with_price() {
         let (currency_pair, price_source_chain, _locker) = generate_one_step_setup();
         let cached_price = dec!(6);
         let market_id = MarketId::new(PriceSourceServiceTestBase::exchange_id(), currency_pair);
@@ -235,9 +235,9 @@ mod test {
         assert_eq!(dec!(1) / cached_price * src_amount, price_now);
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(expected = "Invalid price cache")]
-    fn calculate_amount_with_current_cached_prices_using_one_step_without_price() {
+    async fn calculate_amount_with_current_cached_prices_using_one_step_without_price() {
         let (_, price_source_chain, _locker) = generate_one_step_setup();
         let price_cache = HashMap::new();
 
@@ -317,8 +317,8 @@ mod test {
         )
     }
 
-    #[test]
-    fn calculate_amount_with_current_cached_prices_using_two_step_with_price() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_amount_with_current_cached_prices_using_two_step_with_price() {
         let (setup, _locker) = generate_two_step_setup();
         let market_id_1 = MarketId::new(
             PriceSourceServiceTestBase::exchange_id(),
@@ -344,9 +344,9 @@ mod test {
         );
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(expected = "Invalid price cache")]
-    fn calculate_amount_with_current_cached_prices_using_two_step_without_one_price() {
+    async fn calculate_amount_with_current_cached_prices_using_two_step_without_one_price() {
         let (setup, _locker) = generate_two_step_setup();
         let market_id = MarketId::new(
             PriceSourceServiceTestBase::exchange_id(),

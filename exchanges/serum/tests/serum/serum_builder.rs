@@ -9,6 +9,7 @@ use crate::serum::common::{
 };
 use mmb_core::exchanges::common::{Amount, ExchangeAccountId, ExchangeId, Price};
 use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
+use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;
 use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::exchange::{BoxExchangeClient, Exchange};
 use mmb_core::exchanges::general::features::{
@@ -112,6 +113,8 @@ impl SerumBuilder {
             false,
         ));
 
+        let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
+
         let exchange = Exchange::new(
             exchange_account_id,
             serum,
@@ -121,6 +124,7 @@ impl SerumBuilder {
             tx.clone(),
             lifetime_manager,
             timeout_manager,
+            Arc::downgrade(&exchange_blocker),
             commission,
         );
         exchange.connect().await?;

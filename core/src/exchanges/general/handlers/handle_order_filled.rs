@@ -824,9 +824,9 @@ mod test {
     mod liquidation {
         use super::*;
 
-        #[test]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         #[should_panic(expected = "Currency pair should be set for liquidation trad")]
-        fn empty_currency_pair() {
+        async fn empty_currency_pair() {
             let fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
@@ -851,9 +851,9 @@ mod test {
             exchange.handle_order_filled(fill_event);
         }
 
-        #[test]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         #[should_panic(expected = "Side should be set for liquidation or close position trade")]
-        fn empty_order_side() {
+        async fn empty_order_side() {
             let fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
@@ -878,11 +878,11 @@ mod test {
             exchange.handle_order_filled(fill_event);
         }
 
-        #[test]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         #[should_panic(
             expected = "Client order id cannot be set for liquidation or close position trade"
         )]
-        fn not_empty_client_order_id() {
+        async fn not_empty_client_order_id() {
             let fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
@@ -907,11 +907,11 @@ mod test {
             exchange.handle_order_filled(fill_event);
         }
 
-        #[test]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         #[should_panic(
             expected = "Order amount should be set for liquidation or close position trade"
         )]
-        fn not_empty_order_amount() {
+        async fn not_empty_order_amount() {
             let fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
@@ -936,8 +936,8 @@ mod test {
             exchange.handle_order_filled(fill_event);
         }
 
-        #[test]
-        fn should_add_order() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn should_add_order() {
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
             let order_side = OrderSide::Buy;
             let order_amount = dec!(12);
@@ -987,9 +987,9 @@ mod test {
             assert_eq!(fills.get(0).expect("in test").price(), fill_price);
         }
 
-        #[test]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         #[should_panic(expected = "Received HandleOrderFilled with an empty exchangeOrderId")]
-        fn empty_exchange_order_id() {
+        async fn empty_exchange_order_id() {
             let fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
@@ -1015,8 +1015,8 @@ mod test {
         }
     }
 
-    #[test]
-    fn ignore_if_trade_was_already_received() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn ignore_if_trade_was_already_received() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1092,8 +1092,8 @@ mod test {
         assert_eq!(order_filled_amount, total_filled_amount);
     }
 
-    #[test]
-    fn ignore_diff_fill_after_non_diff() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn ignore_diff_fill_after_non_diff() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1171,8 +1171,8 @@ mod test {
         assert_eq!(order_filled_amount, incremental_fill_amount);
     }
 
-    #[test]
-    fn ignore_filled_amount_not_less_event_fill() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn ignore_filled_amount_not_less_event_fill() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1248,8 +1248,8 @@ mod test {
         assert_eq!(order_filled_amount, total_filled_amount);
     }
 
-    #[test]
-    fn ignore_diff_fill_if_filled_amount_is_zero() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn ignore_diff_fill_if_filled_amount_is_zero() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1326,9 +1326,9 @@ mod test {
         assert_eq!(order_filled_amount, dec!(0));
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(expected = "Fill was received for a FailedToCreate false")]
-    fn error_if_order_status_is_failed_to_create() {
+    async fn error_if_order_status_is_failed_to_create() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1380,9 +1380,9 @@ mod test {
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(expected = "Fill was received for a Completed false")]
-    fn error_if_order_status_is_completed() {
+    async fn error_if_order_status_is_completed() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1434,9 +1434,9 @@ mod test {
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(expected = "Fill was received for a Creating true")]
-    fn error_if_cancellation_event_was_raised() {
+    async fn error_if_cancellation_event_was_raised() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1490,8 +1490,8 @@ mod test {
     }
 
     // TODO Can be improved via testing only calculate_cost_diff_function
-    #[test]
-    fn calculate_cost_diff_on_buy_side() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_cost_diff_on_buy_side() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -1604,8 +1604,8 @@ mod test {
     }
 
     // TODO Can be improved via testing only calculate_cost_diff_function
-    #[test]
-    fn calculate_cost_diff_on_sell_side() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_cost_diff_on_sell_side() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -1718,8 +1718,8 @@ mod test {
         assert_eq!(second_fill.commission_amount(), dec!(0.02));
     }
 
-    #[test]
-    fn calculate_cost_diff_on_buy_side_derivative() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_cost_diff_on_buy_side_derivative() {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -1837,8 +1837,8 @@ mod test {
 
     // TODO Why do we need tests like this?
     // Nothing depends on order.side as I can see
-    #[test]
-    fn calculate_cost_diff_on_sell_side_derivative() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_cost_diff_on_sell_side_derivative() {
         let (exchange, _event_receiver) = get_test_exchange(true);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -1954,8 +1954,8 @@ mod test {
         assert_eq!(second_fill.commission_amount(), dec!(0.02));
     }
 
-    #[test]
-    fn ignore_non_diff_fill_with_second_cost_lesser() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn ignore_non_diff_fill_with_second_cost_lesser() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -2059,8 +2059,8 @@ mod test {
         assert_eq!(fills.len(), 1);
     }
 
-    #[test]
-    fn ignore_fill_if_total_filled_amount_is_incorrect() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn ignore_fill_if_total_filled_amount_is_incorrect() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2115,8 +2115,8 @@ mod test {
         assert!(fills.is_empty());
     }
 
-    #[test]
-    fn take_roll_from_fill_if_specified() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn take_roll_from_fill_if_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2175,8 +2175,8 @@ mod test {
         assert_eq!(fill.commission_amount(), right_value);
     }
 
-    #[test]
-    fn take_roll_from_order_if_not_specified() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn take_roll_from_order_if_not_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2235,9 +2235,9 @@ mod test {
         assert_eq!(fill.commission_amount(), right_value);
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(expected = "Fill has neither commission nor commission rate")]
-    fn error_if_unable_to_get_role() {
+    async fn error_if_unable_to_get_role() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2289,8 +2289,8 @@ mod test {
         Exchange::get_order_role(&mut fill_event, &order_ref);
     }
 
-    #[test]
-    fn use_commission_currency_code_from_fill_event() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn use_commission_currency_code_from_fill_event() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2351,8 +2351,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn commission_currency_code_from_base_currency_code() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn commission_currency_code_from_base_currency_code() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2414,8 +2414,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn commission_currency_code_from_quote_currency_code() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn commission_currency_code_from_quote_currency_code() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2484,8 +2484,8 @@ mod test {
         );
     }
 
-    #[test]
-    fn use_commission_amount_if_specified() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn use_commission_amount_if_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2544,8 +2544,8 @@ mod test {
         assert_eq!(first_fill.commission_amount(), commission_amount);
     }
 
-    #[test]
-    fn use_commission_rate_if_specified() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn use_commission_rate_if_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2605,8 +2605,8 @@ mod test {
         assert_eq!(first_fill.commission_amount(), result_value);
     }
 
-    #[test]
-    fn calculate_commission_rate_if_not_specified() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_commission_rate_if_not_specified() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2665,8 +2665,8 @@ mod test {
         assert_eq!(first_fill.commission_amount(), result_value);
     }
 
-    #[test]
-    fn calculate_commission_amount() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn calculate_commission_amount() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -2728,8 +2728,8 @@ mod test {
     mod get_commission_amount {
         use super::*;
 
-        #[test]
-        fn from_fill_event() -> Result<()> {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn from_fill_event() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(true);
 
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -2758,8 +2758,8 @@ mod test {
             Ok(())
         }
 
-        #[test]
-        fn via_commission_rate() -> Result<()> {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn via_commission_rate() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(true);
 
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -2790,8 +2790,8 @@ mod test {
     mod add_fill {
         use super::*;
 
-        #[test]
-        fn expected_commission_amount_equal_commission_amount() -> Result<()> {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn expected_commission_amount_equal_commission_amount() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
@@ -2852,8 +2852,8 @@ mod test {
             Ok(())
         }
 
-        #[test]
-        fn expected_commission_amount_not_equal_wrong_commission_amount() -> Result<()> {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn expected_commission_amount_not_equal_wrong_commission_amount() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
@@ -2912,8 +2912,8 @@ mod test {
             Ok(())
         }
 
-        #[test]
-        fn check_referral_reward_amount() -> Result<()> {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn check_referral_reward_amount() -> Result<()> {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
@@ -2975,9 +2975,9 @@ mod test {
     mod check_fill_amounts_conformity {
         use super::*;
 
-        #[test]
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         #[should_panic(expected = "filled_amount 13 > order.amount 12 fo")]
-        fn too_big_filled_amount() {
+        async fn too_big_filled_amount() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
@@ -3000,8 +3000,8 @@ mod test {
             exchange.panic_if_fill_amounts_conformity(fill_amount, &order_ref);
         }
 
-        #[test]
-        fn proper_filled_amount() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn proper_filled_amount() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
@@ -3029,8 +3029,8 @@ mod test {
         use super::*;
         use crate::exchanges::events::ExchangeEvent;
 
-        #[test]
-        fn order_completed_if_filled_completely() -> Result<()> {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn order_completed_if_filled_completely() -> Result<()> {
             let (exchange, mut event_receiver) = get_test_exchange(false);
             let client_order_id = ClientOrderId::unique_id();
             let currency_pair = CurrencyPair::from_codes("PHB".into(), "BTC".into());
@@ -3064,8 +3064,8 @@ mod test {
             Ok(())
         }
 
-        #[test]
-        fn order_not_filled() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn order_not_filled() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let client_order_id = ClientOrderId::unique_id();
@@ -3096,8 +3096,8 @@ mod test {
     mod update_commission_for_bnb_case {
         use super::*;
 
-        #[test]
-        fn using_top_bid() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn using_top_bid() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
@@ -3140,8 +3140,8 @@ mod test {
             assert_eq!(converted_commission_currency_code, right_currency_code);
         }
 
-        #[test]
-        fn using_top_ask() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn using_top_ask() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
@@ -3183,8 +3183,8 @@ mod test {
             assert_eq!(converted_commission_currency_code, right_currency_code);
         }
 
-        #[test]
-        fn fatal_error() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn fatal_error() {
             let (exchange, _event_receiver) = get_test_exchange(false);
 
             let commission_currency_code = CurrencyCode::new("BNB".into());
@@ -3215,8 +3215,8 @@ mod test {
         }
     }
 
-    #[test]
-    fn filled_amount_from_zero_to_completed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn filled_amount_from_zero_to_completed() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();

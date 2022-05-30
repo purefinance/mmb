@@ -142,8 +142,8 @@ mod test {
     use std::sync::Arc;
     use tokio::sync::broadcast::error::TryRecvError;
 
-    #[test]
-    fn no_such_order_in_local_pool() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn no_such_order_in_local_pool() {
         // Arrange
         let (exchange, mut event_receiver) = get_test_exchange(false);
         let exchange_order_id = ExchangeOrderId::new("test".into());
@@ -161,8 +161,8 @@ mod test {
 
     mod order_status {
         use super::*;
-        #[test]
-        fn order_canceled() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn order_canceled() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
             let exchange_order_id = &ExchangeOrderId::new("test".into());
@@ -223,8 +223,8 @@ mod test {
             }
         }
 
-        #[test]
-        fn order_completed() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn order_completed() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
             let exchange_order_id = ExchangeOrderId::new("test".into());
@@ -291,8 +291,8 @@ mod test {
         use crate::exchanges::events::ExchangeEvent;
         use std::mem::discriminant;
 
-        #[test]
-        fn error_type_not_found_no_event() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn error_type_not_found_no_event() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
             let exchange_order_id = ExchangeOrderId::new("test".into());
@@ -372,8 +372,8 @@ mod test {
             }
         }
 
-        #[test]
-        fn error_type_not_found_event_from_handler() {
+        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+        async fn error_type_not_found_event_from_handler() {
             // Arrange
             let (exchange, mut event_receiver) = get_test_exchange(false);
             let exchange_order_id = ExchangeOrderId::new("test".into());
@@ -460,8 +460,8 @@ mod test {
         }
     }
 
-    #[test]
-    fn order_completed() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn order_completed() {
         // Arrange
         let (exchange, mut event_receiver) = get_test_exchange(false);
         let exchange_order_id = ExchangeOrderId::new("test".into());
@@ -540,8 +540,8 @@ mod test {
         }
     }
 
-    #[test]
-    fn failed_to_cancel() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn failed_to_cancel() {
         // Arrange
         let (exchange, mut event_receiver) = get_test_exchange(false);
         let exchange_order_id = ExchangeOrderId::new("test".into());

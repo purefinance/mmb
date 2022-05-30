@@ -479,8 +479,8 @@ pub mod test {
         ))
     }
 
-    #[test]
-    fn when_start_equal_end() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn when_start_equal_end() {
         let usdt = "USDT".into();
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(usdt, usdt, Vec::new())];
 
@@ -498,8 +498,8 @@ pub mod test {
         assert_eq!(actual.first().expect("in test"), &expected);
     }
 
-    #[test]
-    fn when_start_equal_end_and_currency_pair() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn when_start_equal_end_and_currency_pair() {
         let usdt = "USDT".into();
         let price_source_settings = vec![CurrencyPriceSourceSettings::new(
             usdt,
@@ -524,8 +524,8 @@ pub mod test {
         assert_eq!(actual.first().expect("in test"), &expected);
     }
 
-    #[test]
-    fn when_one_currency_pair() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn when_one_currency_pair() {
         let base = "USDT".into();
         let quote = "BTC".into();
         let currency_pair = CurrencyPair::from_codes(base, quote);
@@ -584,7 +584,8 @@ pub mod test {
     #[case("EOS".into(), "BTC".into(), "USDT".into(), "BTC".into(), RebaseDirection::ToQuote, RebaseDirection::ToBase)] // eos_sell_btc_buy_usdt
     #[case("BTC".into(), "EOS".into(), "BTC".into(), "USDT".into(), RebaseDirection::ToBase, RebaseDirection::ToQuote)] // eos_buy_btc_sell_usdt
     #[case("BTC".into(), "EOS".into(), "USDT".into(), "BTC".into(), RebaseDirection::ToBase, RebaseDirection::ToBase)] // eos_buy_btc_buy_usdt
-    pub fn when_two_currency_pairs(
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    pub async fn when_two_currency_pairs(
         #[case] first_currency: CurrencyCode,
         #[case] second_currency: CurrencyCode,
         #[case] third_currency: CurrencyCode,
@@ -662,8 +663,8 @@ pub mod test {
         assert_eq!(actual.first().expect("in test"), &expected);
     }
 
-    #[test]
-    fn when_three_currency_pairs_karma_sell_eos_buy_btc_sell_usdt() {
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn when_three_currency_pairs_karma_sell_eos_buy_btc_sell_usdt() {
         let eos = "EOS".into();
         let btc = "BTC".into();
         let usdt = "USDT".into();
@@ -753,9 +754,9 @@ pub mod test {
         assert_eq!(actual.first().expect("in test"), &expected);
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(expected = "failed to get currency pair")]
-    fn throw_exception_when_more_currencies_then_needed() {
+    async fn throw_exception_when_more_currencies_then_needed() {
         let eos = "EOS".into();
         let btc = "BTC".into();
         let usdt = "USDT".into();
@@ -812,11 +813,11 @@ pub mod test {
         );
     }
 
-    #[test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[should_panic(
         expected = "Can't build correct chain of currency pairs of price sources for karma/usdt"
     )]
-    fn throw_exception_when_less_currencies_then_needed() {
+    async fn throw_exception_when_less_currencies_then_needed() {
         let eos = "EOS".into();
         let btc = "BTC".into();
         let usdt = "USDT".into();
