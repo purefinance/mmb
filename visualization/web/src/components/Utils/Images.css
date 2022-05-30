@@ -1,0 +1,32 @@
+.exchange-image {
+    border-radius: 50%;
+}
+
+.image-text {
+    padding-top: 5px;
+    vertical-align: middle;
+    text-align: center;
+    color: white;
+    font-size: 30px;
+    font-weight: bold;
+}
+
+.default-image-box {
+    display: none;
+    align-self: center;
+    margin-right: 16px;
+    border-radius: 50%;
+    background-color: grey;
+}
+
+.default-image-box.block {
+    display: block;
+}
+
+.coin-logo {
+    border-radius: 50%;
+}
+
+.coin-logo.none {
+    display: none;
+}

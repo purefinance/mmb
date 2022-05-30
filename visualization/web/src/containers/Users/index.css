@@ -1,0 +1,47 @@
+.top-div {
+    border-bottom: 1px solid #d8d8d8;
+    margin-bottom: 8px;
+}
+
+.title-user-screen {
+    padding-top: 20px;
+    padding-bottom: 20px;
+    font-size: 11px;
+    letter-spacing: 1.57px;
+    text-transform: uppercase;
+    font-family: "Open Sans", sans-serif;
+    color: #a7afb7;
+}
+
+.user-data-row {
+    margin-bottom: 16px;
+}
+
+.user-text {
+    font-size: 14px;
+    font-family: "Open Sans", sans-serif;
+    color: #373846;
+    align-self: center;
+}
+
+.user-text.name {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.custom-LadaButton {
+    padding: 10px 24px;
+    border-radius: 6px;
+    background-color: #f88710;
+    font-family: "Open Sans", sans-serif;
+    font-size: 14px;
+    color: #fff;
+}
+
+.custom-LadaButton:hover {
+    background-color: #ff9b33;
+}
+
+.custom-LadaButton[data-loading] {
+    background-color: #999;
+}
