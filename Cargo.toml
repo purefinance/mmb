@@ -9,5 +9,6 @@ members = [
     "exchanges/binance",
     "exchanges/serum",
     "mmb_rpc",
-    "mmb_utils"
+    "mmb_utils",
+    "visualization/api"
 ]

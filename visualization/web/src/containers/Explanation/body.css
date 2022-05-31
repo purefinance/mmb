@@ -1,0 +1,65 @@
+.bottom-border {
+    border-bottom: 1px dotted #dbe2ea;
+}
+
+.explanation.selected {
+    background-color: #dddddd;
+}
+
+.explanation:hover {
+    cursor: pointer;
+    background-color: #dddddd;
+}
+
+.explanation-row {
+    overflow: hidden;
+    height: 23px;
+    border-bottom: 1px dotted #dbe2ea;
+}
+
+.explanation-row.high {
+    height: auto;
+}
+
+.explanation-scroll-box {
+    max-height: calc(100vh - 400px);
+    overflow-y: auto;
+}
+
+.right-border {
+    border-right: 1px dotted #dbe2ea;
+}
+
+.arrowCol {
+    text-align: center;
+}
+
+.cursor {
+    cursor: pointer;
+}
+
+#root
+    > div.base-background.base-container.container
+    > div
+    > div.base-col
+    > div.base-row.explanation-row.row
+    > div.col-md-1
+    > i {
+    transition: transform 200ms;
+    display: block;
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+    transform-style: preserve-3d;
+}
+
+#root
+    > div.base-background.base-container.container
+    > div
+    > div.base-col
+    > div.base-row.explanation-row.high.row
+    > div.col-md-1
+    > i {
+    transition: transform 200ms;
+    display: block;
+    transform: rotateX(0deg) rotateY(0deg) rotateZ(180deg);
+    transform-style: preserve-3d;
+}

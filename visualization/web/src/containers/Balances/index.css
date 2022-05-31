@@ -1,0 +1,92 @@
+.currency-exchange-container {
+    margin-bottom: 16px;
+    z-index: 0;
+}
+
+.coin-logo {
+    margin-right: 16px;
+    align-self: center;
+}
+
+.currency-row {
+    margin: 0px;
+    padding-bottom: 16px;
+}
+
+.coin-name {
+    font-family: "Open Sans", sans-serif;
+    color: #373846;
+    font-weight: 600;
+}
+
+.market_row {
+    height: 53px;
+    border-bottom: 1px solid #f0f2f6;
+}
+
+.left-part {
+    padding-top: 8px;
+    padding-left: 32px;
+}
+
+.indicator-coin {
+    position: absolute;
+    height: 53px;
+    background-image: linear-gradient(180deg, #f7f8fa, #f7f8fa);
+}
+
+.indicator-coin.critical {
+    /* background-image: linear-gradient(90deg, #f76b1c, #faaa32); */
+}
+
+.coin-amount {
+    font-weight: 600;
+    text-align: right;
+}
+
+.bold-text {
+    color: #373846;
+    font-size: 15px;
+    line-height: 20px;
+    font-weight: 400;
+}
+
+.market-title {
+    margin-top: 0px;
+    margin-bottom: 0px;
+    font-family: "Open Sans", sans-serif;
+    color: #1a1a1e;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 700;
+}
+
+.market-title-semi-bold {
+    margin-top: 0px;
+    margin-bottom: 0px;
+    color: #373846;
+    font-weight: 600;
+}
+
+.percent {
+    font-family: "Open Sans", sans-serif;
+    color: #5d6267;
+    font-size: 11px;
+    line-height: 17px;
+}
+
+@media (max-width: 767px) {
+    .market-title-semi-bold {
+        font-size: 13px;
+    }
+}
+
+@media (max-width: 479px) {
+    .bold-text {
+        font-size: 14px;
+    }
+    .market-title-semi-bold {
+        font-size: 13px;
+        line-height: 17px;
+    }
+}

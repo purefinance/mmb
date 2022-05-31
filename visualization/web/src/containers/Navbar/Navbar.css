@@ -1,0 +1,138 @@
+.slidePanel {
+    height: 100%;
+    width: 0px;
+    position: fixed;
+    z-index: 1000;
+    top: 0;
+    left: calc(100%);
+    box-shadow: 2px 0 6px 0 rgba(93, 98, 103, 0.23);
+    background-image: linear-gradient(180deg, #fff, #fff);
+    overflow-x: hidden;
+    padding-top: 60px;
+    transition: 0.5s;
+}
+
+.slidePanel.open {
+    width: 200px;
+    left: calc(100% - 150px);
+}
+
+.navbar {
+    padding-top: 0px;
+    padding-bottom: 0px;
+    background-color: #fff;
+}
+
+.user-row {
+    padding-top: 16px;
+    width: 200px;
+}
+
+.user-name-text-bold {
+    margin-top: 20px;
+    margin-left: 10px;
+    color: #373846;
+    font-weight: 600;
+}
+
+.profile-image {
+    border: 1px none #dbdbe0;
+    border-radius: 6px;
+    margin-top: 10px;
+}
+
+.navbar-container {
+    margin-top: 8px;
+    margin-bottom: 0px;
+}
+
+.navbar-container.center {
+    justify-content: center;
+}
+
+.menu-button {
+    display: none;
+    position: absolute;
+    left: calc(100% - 80px);
+    padding: 26px;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 1001;
+}
+
+.menu-button.open {
+    position: fixed;
+}
+
+.nav-menu.open {
+    display: block !important;
+    position: absolute;
+}
+
+.w-nav-overlay {
+    position: absolute;
+    overflow: hidden;
+    display: none;
+    top: 0%;
+    left: 70%;
+    z-index: 1;
+}
+
+.nav-open {
+    transition: transform 2000ms;
+    display: block;
+    transform-style: preserve-3d;
+}
+
+.nav-close {
+    transition: transform 2000ms;
+    display: none;
+    transform: translateX(30%);
+    transform-style: preserve-3d;
+}
+
+.w-nav-overlay .w--nav-menu-open {
+    top: 0;
+}
+
+.icon {
+    color: #373846;
+    font-size: 32px;
+}
+
+.icon:before {
+    content: "\e602";
+}
+
+.w-icon-nav-menu:before {
+    content: "\e602";
+}
+
+@media (max-width: 767px) {
+    .profile-image {
+        display: none;
+    }
+    .navbar {
+        margin-bottom: 0px;
+    }
+    .navbar-container {
+        width: 100%;
+    }
+    .nav-menu {
+        display: none;
+    }
+    .menu-button {
+        display: block;
+    }
+}
+
+@media (max-width: 479px) {
+    .navbar {
+        margin-right: 10px;
+        margin-left: 10px;
+    }
+    .w-nav-overlay {
+        top: -15%;
+        left: 50%;
+    }
+}
