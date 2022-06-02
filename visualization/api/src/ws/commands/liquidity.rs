@@ -40,6 +40,7 @@ pub struct Transaction {
     pub amount: u64,
     pub hedged: u64,
     pub profit_loss_pct: f64,
+    pub status: String,
     pub trades: Vec<Trade>,
 }
 

@@ -30,20 +30,7 @@ class ExchangeContainer extends Container {
     }
 
     async loadExchanges() {
-        // emulate loading exchanges
-        // const res = await CryptolpAxios.getSupportedExchanges();
-
-        let res = {
-            supportedExchanges: [{
-                symbols: [{
-                    currencyCodePair: "$currencyCodePair",
-                    currencyPair: "$currencyPair"
-                }]
-            }],
-            shortStrategyNames: ["all"],
-            longStrategyNames: ["all"]
-        }
-
+        const res = await CryptolpAxios.getSupportedExchanges();
         await this.setState({
             exchanges: res.supportedExchanges,
             symbols: res.supportedExchanges[0].symbols,
@@ -53,10 +40,6 @@ class ExchangeContainer extends Container {
             longStrategyNames: res.longStrategyNames,
         });
         await this.updateSelected();
-
-        this.state.currencyPair = "$currencyPair"
-        this.state.currencyCodePair = "$currencyCodePair"
-        this.state.exchangeName = "$exchangeName"
     }
 
     async updateSelected() {
