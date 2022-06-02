@@ -3,6 +3,7 @@ use jsonwebtoken::errors::Error;
 use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::Serialize;
 
+#[derive(Clone)]
 pub struct AccountService {
     secret: String,
     access_token_lifetime_ms: i64,

@@ -1,14 +1,14 @@
 use actix::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Message)]
+#[derive(Serialize, Deserialize, Message, Clone)]
 #[rtype(result = "()")]
 #[serde(rename_all = "camelCase")]
-pub struct Liquidity {
+pub struct LiquidityResponseBody {
     pub orders_state_and_transactions: OrderStateAndTransactions,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct OrderStateAndTransactions {
     pub exchange_name: String,
@@ -19,19 +19,19 @@ pub struct OrderStateAndTransactions {
     pub transactions: Vec<Transaction>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Orders {
     pub orders: Vec<Order>,
     pub snapshot: Vec<(f64, u64)>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Order {
     pub amount: u64,
     pub price: f64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
     pub id: u64,
@@ -44,7 +44,7 @@ pub struct Transaction {
     pub trades: Vec<Trade>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Trade {
     pub exchange_name: String,
