@@ -83,7 +83,7 @@ export default class CryptolpAxios {
     }
 
     static getSupportedExchanges() {
-        return this.getResponse("supportedExchanges", `Liquidity/SupportedExchanges`);
+        return this.getResponse("supportedExchanges", `liquidity/supported-exchanges`);
     }
 
     static getBalances() {
@@ -140,7 +140,6 @@ export default class CryptolpAxios {
         localStorage.setItem("auth_token", data.token);
         localStorage.setItem("auth_expiration", data.expiration);
         localStorage.setItem("auth_role", data.role);
-        localStorage.setItem("auth_role", data.role);
         localStorage.setItem("client_type", clienttype);
         CryptolpAxios.token = data.token;
         CryptolpAxios.role = data.role;
@@ -174,36 +173,33 @@ export default class CryptolpAxios {
     };
 
     static loadToken = () => {
-        CryptolpAxios.isAuthorized = true;
-        // Disable auth
-
-        // CryptolpAxios.axiosInstance.interceptors.request.use((request) => {
-        //     return request;
-        // });
-        // CryptolpAxios.axiosInstance.interceptors.response.use(
-        //     (response) => {
-        //         return response;
-        //     },
-        //     (error) => {
-        //         if (
-        //             error.response &&
-        //             (error.response.status === 401 || error.response.status === 403) &&
-        //             CryptolpAxios.isAuthorized
-        //         ) {
-        //             localStorage.removeItem("auth_token");
-        //             localStorage.removeItem("auth_expiration");
-        //             localStorage.removeItem("auth_role");
-        //             window.location.href = "/login";
-        //         }
-        //         return error;
-        //     },
-        // );
-        // if (!CryptolpAxios.token) {
-        //     CryptolpAxios.token = localStorage.getItem("auth_token");
-        //     CryptolpAxios.expiration = localStorage.getItem("auth_expiration");
-        //     CryptolpAxios.role = localStorage.getItem("auth_role");
-        //     CryptolpAxios.clientType = localStorage.getItem("client_type");
-        // }
-        // if (CryptolpAxios.token) CryptolpAxios.loadUser();
+        CryptolpAxios.axiosInstance.interceptors.request.use((request) => {
+            return request;
+        });
+        CryptolpAxios.axiosInstance.interceptors.response.use(
+            (response) => {
+                return response;
+            },
+            (error) => {
+                if (
+                    error.response &&
+                    (error.response.status === 401 || error.response.status === 403) &&
+                    CryptolpAxios.isAuthorized
+                ) {
+                    localStorage.removeItem("auth_token");
+                    localStorage.removeItem("auth_expiration");
+                    localStorage.removeItem("auth_role");
+                    window.location.href = "/login";
+                }
+                return error;
+            },
+        );
+        if (!CryptolpAxios.token) {
+            CryptolpAxios.token = localStorage.getItem("auth_token");
+            CryptolpAxios.expiration = localStorage.getItem("auth_expiration");
+            CryptolpAxios.role = localStorage.getItem("auth_role");
+            CryptolpAxios.clientType = localStorage.getItem("client_type");
+        }
+        if (CryptolpAxios.token) CryptolpAxios.loadUser();
     };
 }

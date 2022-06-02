@@ -6,9 +6,12 @@ edition = "2021"
 [dependencies]
 actix = "0.13.0"
 actix-broker = "0.4.2"
+actix-cors = "0.6.1"
 actix-web = "4"
 actix-web-actors = "4.1"
+chrono = "0.4.19"
 env_logger = "0.9"
+jsonwebtoken = "8.1.0"
 log = "0.4"
 rand = "0.8.5"
 serde = { version = "1.0", features=["derive"]}

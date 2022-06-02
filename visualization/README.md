@@ -26,7 +26,9 @@ cd web
 npm install
 npm start
 
-# Open liquidity page
-http://localhost:3000/liquidity/now/Aax/BTC-USD
+# Open web
+http://localhost:3000/
+login/pass: admin/admin
+Click "Liquidity"
 
 ```
