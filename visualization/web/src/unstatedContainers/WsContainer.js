@@ -75,7 +75,7 @@ class WsContainer extends Container {
 
     initiateConnection () {
     // eslint-disable-next-line no-new
-        new Sockette(config.baseHubURL, {
+        this.wsConnection = new Sockette(config.baseHubURL, {
             timeout: 5e3,
             onopen: async e => {
                 console.log("Websocket connected!", e)
@@ -177,8 +177,7 @@ class WsContainer extends Container {
     async oneTimeInvoke (newState, method, ...props) {
         if (!this.isInvokeInProgress && this.state.isConnected) {
             this.isInvokeInProgress = true
-            // disable subscribe on server
-            // await wsConnection.invoke(method, ...props)
+            await this.wsConnection.send(`${method}|${props}`)
             await this.setState(newState)
             this.isInvokeInProgress = false
             console.log(method + " completed")
@@ -339,8 +338,7 @@ class WsContainer extends Container {
                         currencyCodePair
                     },
                     "SubscribeLiquidity",
-                    exchangeName,
-                    currencyCodePair
+                    JSON.stringify({exchangeId: exchangeName, currencyPair: currencyCodePair})
                 )
             }
         }
