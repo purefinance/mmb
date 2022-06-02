@@ -7,23 +7,13 @@ use serde_json::json;
 pub async fn supported_exchanges() -> Result<HttpResponse, Error> {
     Ok(HttpResponse::Ok().json(json!({
         "supportedExchanges": [
-            {"name": "Acx",
+            {"name": "Binance",
             "symbols": [
-                {   "currencyCodePair": "BTC-USD",
-                    "currencyPair": "BTC-USD"
+                {   "currencyCodePair": "btc/usdt",
+                    "currencyPair": "BTC/USDT"
                 },
-                {   "currencyCodePair": "BTC-EUR",
-                    "currencyPair": "BTC-EUR"
-                },
-            ]
-            },
-            {"name": "Aac",
-            "symbols": [
-                {   "currencyCodePair": "BTC-USD",
-                    "currencyPair": "BTC-USD"
-                },
-                {   "currencyCodePair": "BTC-RUB",
-                    "currencyPair": "BTC-RUB"
+                {   "currencyCodePair": "eth/btc",
+                    "currencyPair": "ETH/BTC"
                 },
             ]
             }

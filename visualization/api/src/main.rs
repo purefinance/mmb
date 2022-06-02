@@ -26,9 +26,17 @@ use crate::handlers::ws::ws_client;
 use crate::server::start;
 use crate::services::liquidity::LiquidityService;
 use crate::ws::broker_messages::NewLiquidityDataMessage;
+use std::env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    start(53938, "somesecretkey".to_string(), 31556952000).await
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    start(
+        53938,
+        "somesecretkey".to_string(),
+        31556952000,
+        &database_url,
+    )
+    .await
 }

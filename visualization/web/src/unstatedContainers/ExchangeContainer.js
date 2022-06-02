@@ -22,7 +22,6 @@ class ExchangeContainer extends Container {
         };
 
         this.loadExchanges();
-
         this.updateSelectedStrategy = this.updateSelectedStrategy.bind(this);
         this.updateSelectedExchange = this.updateSelectedExchange.bind(this);
         this.updateSelectedSymbol = this.updateSelectedSymbol.bind(this);
@@ -44,7 +43,6 @@ class ExchangeContainer extends Container {
 
     async updateSelected() {
         const {exchanges, symbols, selectedExchange, selectedSymbol, shortStrategyNames, selectedStrategy} = this.state;
-
         const exchangeName = selectedExchange === -1 ? "all" : exchanges[selectedExchange].name;
         const symbol = this.getSymbol(symbols, selectedSymbol);
         const strategyName =
