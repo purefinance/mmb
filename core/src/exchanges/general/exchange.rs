@@ -285,11 +285,7 @@ impl Exchange {
     fn on_connected(&self) {
         log::info!("Exchange account id {} connected", self.exchange_account_id);
         if let Some(exchange_blocker) = self.exchange_blocker.upgrade() {
-            exchange_blocker.block(
-                self.exchange_account_id,
-                WEBSOCKET_DISCONNECTED,
-                BlockType::Manual,
-            );
+            exchange_blocker.unblock(self.exchange_account_id, WEBSOCKET_DISCONNECTED);
         }
     }
 
@@ -300,7 +296,11 @@ impl Exchange {
         );
 
         if let Some(x) = self.exchange_blocker.upgrade() {
-            x.unblock(self.exchange_account_id, WEBSOCKET_DISCONNECTED);
+            x.block(
+                self.exchange_account_id,
+                WEBSOCKET_DISCONNECTED,
+                BlockType::Manual,
+            );
         }
 
         // auto reconnect
