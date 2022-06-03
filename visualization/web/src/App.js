@@ -1,9 +1,9 @@
-import React, {Component} from "react";
-import {Route, Switch, BrowserRouter, Redirect} from "react-router-dom";
-import {Subscribe} from "unstated";
+import React, { Component } from "react";
+import { Route, Switch, BrowserRouter, Redirect } from "react-router-dom";
+import { Subscribe } from "unstated";
 
 import CryptolpAxios from "./cryptolpaxios";
-import {GlobalErrorBoundary} from "./errorBoundaries";
+import { GlobalErrorBoundary } from "./errorBoundaries";
 import constants from "./constants.js";
 
 import Liquidity from "./containers/Liquidity";
@@ -40,356 +40,397 @@ import PLGraphContainer from "./unstatedContainers/PLGraphContainer";
 import PLGraph from "./containers/PLGraph";
 
 class App extends Component {
-    constructor() {
-        super();
-        CryptolpAxios.loadToken();
+  constructor() {
+    super();
+    CryptolpAxios.loadToken();
 
-        this.state = {
-            isAuthorized: CryptolpAxios.isAuthorized,
-            role: "",
-            priceIndicators: {},
-        };
+    this.state = {
+      isAuthorized: CryptolpAxios.isAuthorized,
+      role: "",
+      priceIndicators: {},
+    };
 
-        CryptolpAxios.userUpdatedListners.push(() => {
-            this.setState({
-                isAuthorized: CryptolpAxios.isAuthorized,
-                role: CryptolpAxios.role,
-            });
-        });
+    CryptolpAxios.userUpdatedListners.push(() => {
+      this.setState({
+        isAuthorized: CryptolpAxios.isAuthorized,
+        role: CryptolpAxios.role,
+      });
+    });
+  }
+
+  render() {
+    const isArbitrage =
+      CryptolpAxios.clientType === constants.clientType.arbitrage;
+    const isIco = CryptolpAxios.clientType === constants.clientType.ico;
+    const isSignals = CryptolpAxios.clientType === constants.clientType.signals;
+
+    const isAdmin =
+      CryptolpAxios.role &&
+      CryptolpAxios.role.toUpperCase() === constants.clientRoles.admin;
+    const isSuperAdmin =
+      CryptolpAxios.role &&
+      CryptolpAxios.role.toUpperCase() === constants.clientRoles.superAdmin;
+
+    let routes = null;
+    let headers = null;
+    if (this.state.isAuthorized) {
+      routes = (
+        <Switch>
+          {isAdmin && (
+            <Route
+              exact
+              path="/users"
+              render={(props) => (
+                <Subscribe to={[UserListContainer]}>
+                  {(userList) => <Users {...props} userList={userList} />}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isSuperAdmin && (
+            <Route
+              exact
+              path="/configuration"
+              render={() => (
+                <Subscribe to={[ConfigurationContainer]}>
+                  {(configuration) => (
+                    <Configuration configuration={configuration} />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isSuperAdmin && (
+            <Route
+              exact
+              path="/postponed-fills"
+              render={() => (
+                <Subscribe to={[PostponedFillsContainer]}>
+                  {(postponedFills) => (
+                    <PostponedFills postponedFills={postponedFills} />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isSuperAdmin && (
+            <Route
+              exact
+              path="/explanation/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer, ExplanationContainer]}>
+                  {(exchange, explanation) => (
+                    <Explanation
+                      exchange={exchange}
+                      explanation={explanation}
+                    />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isSuperAdmin && (
+            <Route
+              exact
+              path="/plgraph/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer, PLGraphContainer]}>
+                  {(exchange, data) => (
+                    <PLGraph exchange={exchange} data={data} />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {!isArbitrage && (
+            <Route
+              exact
+              path="/volume/:interval?/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe
+                  to={[ExchangeContainer, VolumeContainer, WsContainer]}
+                >
+                  {(exchange, volume, ws) => (
+                    <Volume exchange={exchange} volume={volume} ws={ws} />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isIco && (
+            <Route
+              exact
+              path="/price"
+              render={(props) => (
+                <Price
+                  {...props}
+                  preprocessedOrderBook={this.state.preprocessedOrderBook}
+                  priceIndicators={this.state.priceIndicators}
+                  interval={this.state.interval}
+                />
+              )}
+            />
+          )}
+
+          {isSignals && (
+            <Route
+              exact
+              path="/signals/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer, SignalsContainer]}>
+                  {(exchange, signals) => (
+                    <Signals exchange={exchange} signals={signals} />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {!isArbitrage && (
+            <Route
+              exact
+              path="/liquidity/:interval?/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe
+                  to={[ExchangeContainer, LiquidityContainer, WsContainer]}
+                >
+                  {(exchange, liquidity, ws) => (
+                    <Liquidity
+                      exchange={exchange}
+                      liquidity={liquidity}
+                      ws={ws}
+                    />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          <Route
+            exact
+            path="/rebalancing"
+            render={() => (
+              <Subscribe to={[WsContainer]}>
+                {(ws) => <Balances ws={ws} />}
+              </Subscribe>
+            )}
+          />
+
+          <Route
+            exact
+            path="/trade-signals"
+            render={() => (
+              <Subscribe to={[WsContainer]}>
+                {(ws) => <TradeSignals ws={ws} />}
+              </Subscribe>
+            )}
+          />
+
+          <Route
+            exact
+            path="/profits/:exchangeName?/:urlCurrencyCodePair?"
+            render={() => (
+              <Subscribe to={[ExchangeContainer, WsContainer]}>
+                {(exchange, ws) => <PL exchange={exchange} ws={ws} />}
+              </Subscribe>
+            )}
+          />
+
+          {isArbitrage && (
+            <Route
+              exact
+              path="/arbitrage/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer, WsContainer]}>
+                  {(exchange, ws) => (
+                    <LiquidityNow exchange={exchange} ws={ws} />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {!isArbitrage && (
+            <Route
+              exact
+              path="/"
+              render={() => (
+                <Subscribe to={[WsContainer]}>
+                  {(ws) => <Dashboard ws={ws} />}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          <Redirect to={!isArbitrage ? "/" : "/arbitrage"} />
+        </Switch>
+      );
+
+      headers = (
+        <Switch>
+          {!isArbitrage && (
+            <Route
+              exact
+              path="/volume/:interval?/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer]}>
+                  {(exchange) => (
+                    <Header
+                      path="/volume"
+                      exchange={exchange}
+                      isNeedInterval
+                      isNeedExchange
+                      isNeedCurrencyCodePair
+                    />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {!isArbitrage && (
+            <Route
+              exact
+              path="/liquidity/:interval?/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer]}>
+                  {(exchange) => (
+                    <Header
+                      path="/liquidity"
+                      exchange={exchange}
+                      isNeedInterval
+                      isNeedExchange
+                      isNeedCurrencyCodePair
+                    />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isSuperAdmin && (
+            <Route
+              exact
+              path="/explanation/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer]}>
+                  {(exchange) => (
+                    <Header
+                      path="/explanation"
+                      exchange={exchange}
+                      isNeedExchange
+                      isNeedCurrencyCodePair
+                    />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isSuperAdmin && (
+            <Route
+              exact
+              path="/plgraph/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer]}>
+                  {(exchange) => (
+                    <Header
+                      path="/plgraph"
+                      exchange={exchange}
+                      isNeedExchange
+                      isNeedCurrencyCodePair
+                    />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isArbitrage && (
+            <Route
+              exact
+              path="/arbitrage/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer]}>
+                  {(exchange) => (
+                    <Header
+                      path="/arbitrage"
+                      exchange={exchange}
+                      isNeedExchange
+                      isNeedCurrencyCodePair
+                    />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          {isSignals && (
+            <Route
+              exact
+              path="/signals/:exchangeName?/:urlCurrencyCodePair?"
+              render={() => (
+                <Subscribe to={[ExchangeContainer]}>
+                  {(exchange) => (
+                    <Header
+                      path="/signals"
+                      exchange={exchange}
+                      isNeedExchange
+                      isNeedCurrencyCodePair
+                    />
+                  )}
+                </Subscribe>
+              )}
+            />
+          )}
+
+          <Route
+            exact
+            path="/profits/:exchangeName?/:urlCurrencyCodePair?"
+            render={() => (
+              <Subscribe to={[ExchangeContainer]}>
+                {(exchange) => (
+                  <Header
+                    needAll
+                    path="/profits"
+                    exchange={exchange}
+                    isNeedExchange
+                    isNeedCurrencyCodePair
+                  />
+                )}
+              </Subscribe>
+            )}
+          />
+        </Switch>
+      );
     }
 
-    render() {
-        const isArbitrage = CryptolpAxios.clientType === constants.clientType.arbitrage;
-        const isIco = CryptolpAxios.clientType === constants.clientType.ico;
-        const isSignals = CryptolpAxios.clientType === constants.clientType.signals;
-
-        const isAdmin = CryptolpAxios.role && CryptolpAxios.role.toUpperCase() === constants.clientRoles.admin;
-        const isSuperAdmin =
-            CryptolpAxios.role && CryptolpAxios.role.toUpperCase() === constants.clientRoles.superAdmin;
-
-        let routes = null;
-        let headers = null;
-        if (this.state.isAuthorized) {
-            routes = (
-                <Switch>
-                    {isAdmin && (
-                        <Route
-                            exact
-                            path="/users"
-                            render={(props) => (
-                                <Subscribe to={[UserListContainer]}>
-                                    {(userList) => <Users {...props} userList={userList} />}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isSuperAdmin && (
-                        <Route
-                            exact
-                            path="/configuration"
-                            render={(props) => (
-                                <Subscribe to={[ConfigurationContainer]}>
-                                    {(configuration) => <Configuration configuration={configuration} />}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isSuperAdmin && (
-                        <Route
-                            exact
-                            path="/postponed-fills"
-                            render={(props) => (
-                                <Subscribe to={[PostponedFillsContainer]}>
-                                    {(postponedFills) => <PostponedFills postponedFills={postponedFills} />}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isSuperAdmin && (
-                        <Route
-                            exact
-                            path="/explanation/:exchangeName?/:urlCurrencyCodePair?"
-                            render={(props) => (
-                                <Subscribe to={[ExchangeContainer, ExplanationContainer]}>
-                                    {(exchange, explanation) => (
-                                        <Explanation exchange={exchange} explanation={explanation} />
-                                    )}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isSuperAdmin && (
-                        <Route
-                            exact
-                            path="/plgraph/:exchangeName?/:urlCurrencyCodePair?"
-                            render={(props) => (
-                                <Subscribe to={[ExchangeContainer, PLGraphContainer]}>
-                                    {(exchange, data) => <PLGraph exchange={exchange} data={data} />}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {!isArbitrage && (
-                        <Route
-                            exact
-                            path="/volume/:interval?/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer, VolumeContainer, WsContainer]}>
-                                    {(exchange, volume, ws) => <Volume exchange={exchange} volume={volume} ws={ws} />}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isIco && (
-                        <Route
-                            exact
-                            path="/price"
-                            render={(props) => (
-                                <Price
-                                    {...props}
-                                    preprocessedOrderBook={this.state.preprocessedOrderBook}
-                                    priceIndicators={this.state.priceIndicators}
-                                    interval={this.state.interval}
-                                />
-                            )}
-                        />
-                    )}
-
-                    {isSignals && (
-                        <Route
-                            exact
-                            path="/signals/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer, SignalsContainer]}>
-                                    {(exchange, signals) => <Signals exchange={exchange} signals={signals} />}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {!isArbitrage && (
-                        <Route
-                            exact
-                            path="/liquidity/:interval?/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer, LiquidityContainer, WsContainer]}>
-                                    {(exchange, liquidity, ws) => (
-                                        <Liquidity exchange={exchange} liquidity={liquidity} ws={ws} />
-                                    )}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    <Route
-                        exact
-                        path="/rebalancing"
-                        render={() => <Subscribe to={[WsContainer]}>{(ws) => <Balances ws={ws} />}</Subscribe>}
-                    />
-
-                    <Route
-                        exact
-                        path="/trade-signals"
-                        render={() => <Subscribe to={[WsContainer]}>{(ws) => <TradeSignals ws={ws} />}</Subscribe>}
-                    />
-
-                    <Route
-                        exact
-                        path="/profits/:exchangeName?/:urlCurrencyCodePair?"
-                        render={() => (
-                            <Subscribe to={[ExchangeContainer, WsContainer]}>
-                                {(exchange, ws) => <PL exchange={exchange} ws={ws} />}
-                            </Subscribe>
-                        )}
-                    />
-
-                    {isArbitrage && (
-                        <Route
-                            exact
-                            path="/arbitrage/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer, WsContainer]}>
-                                    {(exchange, ws) => <LiquidityNow exchange={exchange} ws={ws} />}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {!isArbitrage && (
-                        <Route
-                            exact
-                            path="/"
-                            render={() => <Subscribe to={[WsContainer]}>{(ws) => <Dashboard ws={ws} />}</Subscribe>}
-                        />
-                    )}
-
-                    <Redirect to={!isArbitrage ? "/" : "/arbitrage"} />
-                </Switch>
-            );
-
-            headers = (
-                <Switch>
-                    {!isArbitrage && (
-                        <Route
-                            exact
-                            path="/volume/:interval?/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer]}>
-                                    {(exchange) => (
-                                        <Header
-                                            path="/volume"
-                                            exchange={exchange}
-                                            isNeedInterval
-                                            isNeedExchange
-                                            isNeedCurrencyCodePair
-                                        />
-                                    )}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {!isArbitrage && (
-                        <Route
-                            exact
-                            path="/liquidity/:interval?/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer]}>
-                                    {(exchange) => (
-                                        <Header
-                                            path="/liquidity"
-                                            exchange={exchange}
-                                            isNeedInterval
-                                            isNeedExchange
-                                            isNeedCurrencyCodePair
-                                        />
-                                    )}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isSuperAdmin && (
-                        <Route
-                            exact
-                            path="/explanation/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer]}>
-                                    {(exchange) => (
-                                        <Header
-                                            path="/explanation"
-                                            exchange={exchange}
-                                            isNeedExchange
-                                            isNeedCurrencyCodePair
-                                        />
-                                    )}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isSuperAdmin && (
-                        <Route
-                            exact
-                            path="/plgraph/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer]}>
-                                    {(exchange) => (
-                                        <Header
-                                            path="/plgraph"
-                                            exchange={exchange}
-                                            isNeedExchange
-                                            isNeedCurrencyCodePair
-                                        />
-                                    )}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isArbitrage && (
-                        <Route
-                            exact
-                            path="/arbitrage/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer]}>
-                                    {(exchange) => (
-                                        <Header
-                                            path="/arbitrage"
-                                            exchange={exchange}
-                                            isNeedExchange
-                                            isNeedCurrencyCodePair
-                                        />
-                                    )}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    {isSignals && (
-                        <Route
-                            exact
-                            path="/signals/:exchangeName?/:urlCurrencyCodePair?"
-                            render={() => (
-                                <Subscribe to={[ExchangeContainer]}>
-                                    {(exchange) => (
-                                        <Header
-                                            path="/signals"
-                                            exchange={exchange}
-                                            isNeedExchange
-                                            isNeedCurrencyCodePair
-                                        />
-                                    )}
-                                </Subscribe>
-                            )}
-                        />
-                    )}
-
-                    <Route
-                        exact
-                        path="/profits/:exchangeName?/:urlCurrencyCodePair?"
-                        render={() => (
-                            <Subscribe to={[ExchangeContainer]}>
-                                {(exchange) => (
-                                    <Header
-                                        needAll
-                                        path="/profits"
-                                        exchange={exchange}
-                                        isNeedExchange
-                                        isNeedCurrencyCodePair
-                                    />
-                                )}
-                            </Subscribe>
-                        )}
-                    />
-                </Switch>
-            );
-        }
-
-        return (
-            <GlobalErrorBoundary>
-                <BrowserRouter>
-                    {this.state.isAuthorized ? (
-                        <React.Fragment>
-                            <Subscribe to={[AppContainer, ExchangeContainer]}>
-                                {(app, exchange) => <Navbar app={app} exchange={exchange} />}
-                            </Subscribe>
-                            {headers}
-                            {routes}
-                        </React.Fragment>
-                    ) : (
-                        <Subscribe to={[AppContainer]}>{(app) => <AuthenticationContainer app={app} />}</Subscribe>
-                    )}
-                </BrowserRouter>
-            </GlobalErrorBoundary>
-        );
-    }
+    return (
+      <GlobalErrorBoundary>
+        <BrowserRouter>
+          {this.state.isAuthorized ? (
+            <React.Fragment>
+              <Subscribe to={[AppContainer, ExchangeContainer]}>
+                {(app, exchange) => <Navbar app={app} exchange={exchange} />}
+              </Subscribe>
+              {headers}
+              {routes}
+            </React.Fragment>
+          ) : (
+            <Subscribe to={[AppContainer]}>
+              {(app) => <AuthenticationContainer app={app} />}
+            </Subscribe>
+          )}
+        </BrowserRouter>
+      </GlobalErrorBoundary>
+    );
+  }
 }
 
 export default App;

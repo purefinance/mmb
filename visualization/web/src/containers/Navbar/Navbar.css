@@ -1,6 +1,6 @@
 .slidePanel {
     height: 100%;
-    width: 0px;
+    width: 0;
     position: fixed;
     z-index: 1000;
     top: 0;
@@ -18,8 +18,8 @@
 }
 
 .navbar {
-    padding-top: 0px;
-    padding-bottom: 0px;
+    padding-top: 0;
+    padding-bottom: 0;
     background-color: #fff;
 }
 
@@ -43,7 +43,7 @@
 
 .navbar-container {
     margin-top: 8px;
-    margin-bottom: 0px;
+    margin-bottom: 0;
 }
 
 .navbar-container.center {
@@ -73,7 +73,7 @@
     position: absolute;
     overflow: hidden;
     display: none;
-    top: 0%;
+    top: 0;
     left: 70%;
     z-index: 1;
 }
@@ -113,7 +113,7 @@
         display: none;
     }
     .navbar {
-        margin-bottom: 0px;
+        margin-bottom: 0;
     }
     .navbar-container {
         width: 100%;
