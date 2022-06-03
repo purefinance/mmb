@@ -19,7 +19,7 @@ It connects to the API using the WS protocol and HTTP and get data from there.
 
 # 1. Run api on localhost:8080
 cd api
-cargo run
+DATABASE_URL="..." cargo run
 
 # 2. Run webapp on localhost:3000
 cd web

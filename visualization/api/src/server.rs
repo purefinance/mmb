@@ -12,6 +12,7 @@ use actix::{spawn, Actor};
 use actix_cors::Cors;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
+use sqlx::postgres::PgPoolOptions;
 use std::collections::HashSet;
 use std::time::Duration;
 
@@ -19,9 +20,15 @@ pub async fn start(
     port: u16,
     secret: String,
     access_token_lifetime_ms: i64,
+    database_url: &str,
 ) -> std::io::Result<()> {
     log::info!("Starting server at 127.0.0.1:{}", port);
-    let liquidity_service = LiquidityService::default();
+    let connection_pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(database_url)
+        .await
+        .expect("Unable to connect to DB");
+    let liquidity_service = LiquidityService::new(connection_pool);
     let new_data_listener = NewDataListener::default().start();
     let account_service = AccountService::new(secret, access_token_lifetime_ms);
     let subscription_manager = SubscriptionManager::default().start();
@@ -40,16 +47,25 @@ pub async fn start(
                 .send(GetLiquiditySubscriptions)
                 .await
                 .expect("Failure to execute subscription manager");
-            let liquidity_array =
-                liquidity_service.get_random_liquidity_data_by_subscriptions(subscriptions);
-            for liquidity_data in liquidity_array {
-                let _ = new_data_listener
-                    .send(NewLiquidityDataMessage {
-                        data: liquidity_data,
-                    })
-                    .await;
+            let liquidity_array = liquidity_service
+                .get_liquidity_data_by_subscriptions(&subscriptions)
+                .await;
+
+            match liquidity_array {
+                Ok(liquidity_array) => {
+                    for liquidity_data in liquidity_array {
+                        let _ = new_data_listener
+                            .send(NewLiquidityDataMessage {
+                                data: liquidity_data,
+                            })
+                            .await;
+                    }
+                }
+                Err(e) => {
+                    log::error!("Failure to load liquidity data from database. Filters: {subscriptions:?}. Error: {e:?}")
+                }
             }
-            sleep(Duration::new(1, 0)).await;
+            sleep(Duration::from_millis(200)).await;
         }
     });
 
