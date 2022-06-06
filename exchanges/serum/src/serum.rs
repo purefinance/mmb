@@ -13,7 +13,10 @@ use serde::{Deserialize, Serialize};
 use serum_dex::critbit::{Slab, SlabView};
 use serum_dex::instruction::{cancel_order, MarketInstruction};
 use serum_dex::matching::Side;
-use serum_dex::state::{gen_vault_signer_key, Market, MarketState};
+use serum_dex::state::{
+    gen_vault_signer_key, strip_header, Event, EventQueueHeader, Market, MarketState,
+};
+use serum_dex::state::{EventView, OpenOrders};
 use solana_account_decoder::UiAccount;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
@@ -417,7 +420,7 @@ impl Serum {
             .ok_or(anyhow!("Order not found for id {client_order_id}"))
     }
 
-    pub fn get_orders_from_ui_account(
+    pub(super) fn get_orders_from_order_book(
         &self,
         ui_account: UiAccount,
         market_info: &MarketMetaData,
@@ -444,6 +447,48 @@ impl Serum {
         };
 
         self.encode_orders(&slab, market_info, side, &currency_pair)
+    }
+
+    pub(super) fn get_event_queue_data(
+        &self,
+        ui_account: UiAccount,
+        market_info: &MarketMetaData,
+    ) -> Result<Vec<EventView>> {
+        if let Some(mut account) = ui_account.decode::<Account>() {
+            let account_info = (&market_info.event_queue_address, &mut account).into_account_info();
+            let (_, buf) = strip_header::<EventQueueHeader, Event>(&account_info, false)?;
+
+            Ok(buf
+                .iter()
+                .filter_map(|event| {
+                    event
+                        .as_view()
+                        .map_err(|err| {
+                            log::error!("Error during getting Serum event: {:#?}", err);
+                            err
+                        })
+                        .ok()
+                })
+                .collect())
+        } else {
+            bail!("Failed to decode ui account")
+        }
+    }
+
+    pub(super) fn get_orders_from_open_orders_account(
+        &self,
+        ui_account: UiAccount,
+        market: &MarketData,
+        _currency_pair: CurrencyPair,
+    ) -> Result<Vec<OpenOrders>> {
+        if let Some(mut account) = ui_account.decode::<Account>() {
+            let _account_info = (&market.address, &mut account).into_account_info();
+            // TODO Finish getting open orders
+            // let orders = Market::load(&account_info, &market.program_id, false)?
+            //     .load_orders_mut(&open_orders_account, None, &market.program_id, None, None)?;
+        }
+
+        Ok(vec![])
     }
 
     pub fn encode_orders(
@@ -575,9 +620,15 @@ impl Serum {
         instructions.extend(settle_funds_instructions);
         signers.push(&self.payer);
 
+        // TODO Uncomment during open orders account implementing
+        // self.rpc_client
+        //     .subscribe_to_open_order_account(&currency_pair, open_order_account)
+        //     .await;
+
         self.rpc_client
             .send_instructions(&self.payer, &instructions)
             .await?;
+
         self.get_order_id(&client_order_id, currency_pair).await
     }
 

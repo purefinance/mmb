@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
+bytemuck = "1.9"
 chrono = "0.4"
 dashmap = "4"
 futures = "0.3"
