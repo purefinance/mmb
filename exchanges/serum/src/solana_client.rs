@@ -26,12 +26,10 @@ use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
-use tokio::join;
 
 use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::common::CurrencyPair;
 use mmb_core::exchanges::traits::SendWebsocketMessageCb;
-use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{impl_u64_id, time::get_atomic_current_secs};
 
 pub const ALLOW_FLAG: bool = false;
@@ -118,10 +116,18 @@ enum WebsocketMessage {
     AccountNotification(AccountNotification),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum SubscriptionAccountType {
+    OrderBook,
+    EventQueue,
+    OpenOrders,
+}
+
 #[derive(Debug, Clone)]
 struct SubscriptionMarketData {
     currency_pair: CurrencyPair,
     side: Side,
+    account_type: SubscriptionAccountType,
 }
 
 impl_u64_id!(RequestId);
@@ -129,7 +135,7 @@ impl_u64_id!(RequestId);
 pub enum SolanaMessage {
     Unknown,
     Service,
-    AccountUpdated(CurrencyPair, Side, UiAccount),
+    AccountUpdated(CurrencyPair, Side, UiAccount, SubscriptionAccountType),
 }
 
 /// Wrapper for the solana rpc client with support for asynchronous methods
@@ -239,6 +245,7 @@ impl SolanaClient {
             SubscriptionMarketData {
                 currency_pair: *currency_pair,
                 side: Side::Ask,
+                account_type: SubscriptionAccountType::OrderBook,
             },
         );
 
@@ -248,13 +255,46 @@ impl SolanaClient {
             SubscriptionMarketData {
                 currency_pair: *currency_pair,
                 side: Side::Bid,
+                account_type: SubscriptionAccountType::OrderBook,
             },
         );
 
-        join!(
-            self.subscribe_to_address_changed(ask_request_id, &market_info.asks_address),
-            self.subscribe_to_address_changed(bid_request_id, &market_info.bids_address)
+        // join!(
+        //     self.subscribe_to_address_changed(ask_request_id, &market_info.asks_address),
+        //     self.subscribe_to_address_changed(bid_request_id, &market_info.bids_address)
+        // );
+
+        let event_queue_request_id = RequestId::generate();
+        self.subscription_requests.write().insert(
+            event_queue_request_id,
+            SubscriptionMarketData {
+                currency_pair: *currency_pair,
+                side: Side::Bid,
+                account_type: SubscriptionAccountType::EventQueue,
+            },
         );
+
+        self.subscribe_to_address_changed(event_queue_request_id, &market_info.event_queue_address)
+            .await;
+    }
+
+    pub async fn subscribe_to_open_order_account(
+        &self,
+        currency_pair: &CurrencyPair,
+        pubkey: Pubkey,
+    ) {
+        let wallet_request_id = RequestId::generate();
+        self.subscription_requests.write().insert(
+            wallet_request_id,
+            SubscriptionMarketData {
+                currency_pair: *currency_pair,
+                side: Side::Bid,
+                account_type: SubscriptionAccountType::OpenOrders,
+            },
+        );
+
+        self.subscribe_to_address_changed(wallet_request_id, &pubkey)
+            .await;
     }
 
     pub fn handle_on_message(&self, message: &str) -> SolanaMessage {
@@ -268,35 +308,39 @@ impl SolanaClient {
 
         match message {
             WebsocketMessage::SubscribeResult(subscribe_result) => {
-                let subscription_market_data = self
+                if let Some(subscription_market_data) = self
                     .subscription_requests
                     .write()
                     .remove(&subscribe_result.id)
-                    .with_expect(|| {
-                        format!(
-                            "Subscription request was not found for id {}",
-                            subscribe_result.id
-                        )
-                    });
-
-                self.subscriptions
-                    .write()
-                    .insert(subscribe_result.result, subscription_market_data);
-
+                {
+                    self.subscriptions
+                        .write()
+                        .insert(subscribe_result.result, subscription_market_data);
+                } else {
+                    // It is possible when we receive a message before subscribe was completed on Solana side
+                    // Non-critical so we just logging it
+                    // If we have not been subscribed to account yet we should think that all its messages are not for us
+                    log::trace!("Subscription was not found for id {}", subscribe_result.id);
+                }
                 SolanaMessage::Service
             }
             WebsocketMessage::AccountNotification(account_notification) => {
                 let subscription_id = account_notification.params.subscription;
                 let read_guard = self.subscriptions.read();
-                let subscription_market_data = read_guard
-                    .get(&subscription_id)
-                    .with_expect(|| format!("Subscription was not found for id {subscription_id}"));
-
-                SolanaMessage::AccountUpdated(
-                    subscription_market_data.currency_pair,
-                    subscription_market_data.side,
-                    account_notification.params.result.value,
-                )
+                if let Some(subscription_market_data) = read_guard.get(&subscription_id) {
+                    SolanaMessage::AccountUpdated(
+                        subscription_market_data.currency_pair,
+                        subscription_market_data.side,
+                        account_notification.params.result.value,
+                        subscription_market_data.account_type,
+                    )
+                } else {
+                    // It is possible when we receive a message before subscribe was completed on Solana side
+                    // Non-critical so we just logging it
+                    // If we have not been subscribed to account yet we should think that all its messages are not for us
+                    log::trace!("Subscription was not found for id {}", subscription_id);
+                    SolanaMessage::Unknown
+                }
             }
         }
     }

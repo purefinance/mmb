@@ -417,6 +417,7 @@ dependencies = [
  "actix-web-actors",
  "chrono",
  "env_logger",
+ "futures 0.3.21",
  "jsonwebtoken",
  "log",
  "rand 0.8.5",
@@ -533,7 +534,7 @@ dependencies = [
  "core_tests",
  "dashmap 4.0.2",
  "function_name",
- "futures 0.3.19",
+ "futures 0.3.21",
  "hex",
  "hmac 0.11.0",
  "hyper",
@@ -785,18 +786,18 @@ dependencies = [
 
 [[package]]
 name = "bytemuck"
-version = "1.8.0"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e851ca7c24871e7336801608a4797d7376545b6928a10d32d75685687141ead"
+checksum = "cdead85bdec19c194affaeeb670c0e41fe23de31459efd1c174d049269cf02cc"
 dependencies = [
  "bytemuck_derive",
 ]
 
 [[package]]
 name = "bytemuck_derive"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e215f8c2f9f79cb53c8335e687ffd07d5bfcb6fe5fc80723762d0be46e7cc54"
+checksum = "562e382481975bc61d11275ac5e62a19abd00b0547d99516a415336f183dcd0e"
 dependencies = [
  "proc-macro2 1.0.39",
  "quote 1.0.18",
@@ -978,7 +979,7 @@ dependencies = [
  "actix-server",
  "actix-web",
  "anyhow",
- "futures 0.3.19",
+ "futures 0.3.21",
  "jsonrpc-core",
  "jsonrpc-core-client",
  "jsonrpc-derive",
@@ -1028,7 +1029,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "futures 0.3.19",
+ "futures 0.3.21",
  "mmb_core",
  "mmb_utils",
  "rust_decimal",
@@ -1570,7 +1571,7 @@ dependencies = [
 name = "example_serum_demo"
 version = "0.1.0"
 dependencies = [
- "futures 0.3.19",
+ "futures 0.3.21",
  "mmb_core",
  "mmb_utils",
  "serum",
@@ -1716,9 +1717,9 @@ checksum = "3a471a38ef8ed83cd6e40aa59c1ffe17db6855c18e3604d9c4ed8c08ebc28678"
 
 [[package]]
 name = "futures"
-version = "0.3.19"
+version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28560757fe2bb34e79f907794bb6b22ae8b0e5c669b638a1132f2592b19035b4"
+checksum = "f73fe65f54d1e12b726f517d3e2135ca3125a437b6d998caf1962961f7172d9e"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -1747,9 +1748,9 @@ checksum = "0c09fd04b7e4073ac7156a9539b57a484a8ea920f79c7c675d05d289ab6110d3"
 
 [[package]]
 name = "futures-executor"
-version = "0.3.19"
+version = "0.3.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29d6d2ff5bb10fb95c85b8ce46538a2e5f5e7fdc755623a7d4529ab8a4ed9d2a"
+checksum = "9420b90cfa29e327d0429f19be13e7ddb68fa1cccb09d65e5706b8c7a749b8a6"
 dependencies = [
  "futures-core",
  "futures-task",
@@ -2245,7 +2246,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2b99d4207e2a04fb4581746903c2bb7eb376f88de9c699d0f3e10feeac0cd3a"
 dependencies = [
  "derive_more",
- "futures 0.3.19",
+ "futures 0.3.21",
  "jsonrpc-core",
  "jsonrpc-pubsub",
  "jsonrpc-server-utils",
@@ -2263,7 +2264,7 @@ version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "14f7f76aef2d054868398427f6c54943cf3d1caa9a7ec7d0c38d69df97a965eb"
 dependencies = [
- "futures 0.3.19",
+ "futures 0.3.21",
  "futures-executor",
  "futures-util",
  "log",
@@ -2278,7 +2279,7 @@ version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b51da17abecbdab3e3d4f26b01c5ec075e88d3abe3ab3b05dc9aa69392764ec0"
 dependencies = [
- "futures 0.3.19",
+ "futures 0.3.21",
  "jsonrpc-client-transports",
 ]
 
@@ -2300,7 +2301,7 @@ version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "382bb0206323ca7cda3dcd7e245cea86d37d02457a02a975e3378fb149a48845"
 dependencies = [
- "futures 0.3.19",
+ "futures 0.3.21",
  "jsonrpc-core",
  "jsonrpc-server-utils",
  "log",
@@ -2315,7 +2316,7 @@ version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "240f87695e6c6f62fb37f05c02c04953cf68d6408b8c1c89de85c7a0125b1011"
 dependencies = [
- "futures 0.3.19",
+ "futures 0.3.21",
  "jsonrpc-core",
  "lazy_static",
  "log",
@@ -2331,7 +2332,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa4fdea130485b572c39a460d50888beb00afb3e35de23ccd7fad8ff19f0e0d4"
 dependencies = [
  "bytes",
- "futures 0.3.19",
+ "futures 0.3.21",
  "globset",
  "jsonrpc-core",
  "lazy_static",
@@ -2622,7 +2623,7 @@ dependencies = [
  "dyn-clone",
  "enum-map",
  "form_urlencoded",
- "futures 0.3.19",
+ "futures 0.3.21",
  "hex",
  "hmac 0.11.0",
  "hyper",
@@ -2682,7 +2683,7 @@ dependencies = [
  "bitflags",
  "chrono",
  "fern",
- "futures 0.3.19",
+ "futures 0.3.21",
  "log",
  "mockall",
  "mockall_double",
@@ -3027,7 +3028,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9981e32fb75e004cc148f5fb70342f393830e0a4aa62e3cc93b50976218d42b6"
 dependencies = [
- "futures 0.3.19",
+ "futures 0.3.21",
  "libc",
  "log",
  "rand 0.7.3",
@@ -3842,11 +3843,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bytemuck",
  "chrono",
  "core_tests",
  "dashmap 4.0.2",
  "function_name",
- "futures 0.3.19",
+ "futures 0.3.21",
  "itertools 0.10.3",
  "log",
  "memoffset",
@@ -4150,7 +4152,7 @@ dependencies = [
  "bytes",
  "clap",
  "crossbeam-channel",
- "futures 0.3.19",
+ "futures 0.3.21",
  "futures-util",
  "indicatif",
  "itertools 0.10.3",
