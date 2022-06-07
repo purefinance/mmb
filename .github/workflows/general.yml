@@ -92,3 +92,16 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
+
+  web:
+    name: Web Check & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install dependencies & Build
+        run: |
+          cd visualization/web
+          npm install --no-audit
+          npm -g install eslint
+          eslint src/
+          npm run build
