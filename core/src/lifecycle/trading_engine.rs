@@ -15,6 +15,7 @@ use tokio::sync::{broadcast, oneshot};
 use tokio::time::Duration;
 
 use crate::balance_manager::balance_manager::BalanceManager;
+use crate::database::events::EventRecorder;
 use crate::exchanges::block_reasons;
 use crate::exchanges::common::ExchangeAccountId;
 use crate::exchanges::events::{ExchangeEvent, ExchangeEvents};
@@ -35,6 +36,9 @@ use super::launcher::unwrap_or_handle_panic;
 pub trait Service: Send + Sync + 'static {
     fn name(&self) -> &str;
 
+    /// Execute graceful shutdown for current service
+    /// Returns `Some(oneshot::Receiver)` that specified when service shutdowned or `None` if
+    /// service already finished its work
     fn graceful_shutdown(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>>;
 }
 
@@ -46,6 +50,7 @@ pub struct EngineContext {
     pub lifetime_manager: Arc<AppLifetimeManager>,
     pub timeout_manager: Arc<TimeoutManager>,
     pub balance_manager: Arc<Mutex<BalanceManager>>,
+    pub event_recorder: Arc<EventRecorder>,
     is_graceful_shutdown_started: AtomicBool,
     exchange_events: ExchangeEvents,
     finish_graceful_shutdown_sender: Mutex<Option<oneshot::Sender<ActionAfterGracefulShutdown>>>,
@@ -62,6 +67,8 @@ impl EngineContext {
         lifetime_manager: Arc<AppLifetimeManager>,
         balance_manager: Arc<Mutex<BalanceManager>>,
     ) -> Arc<Self> {
+        let event_recorder = EventRecorder::start(app_settings.database_url.clone());
+
         let engine_context = Arc::new(EngineContext {
             app_settings,
             exchanges,
@@ -70,6 +77,7 @@ impl EngineContext {
             lifetime_manager: lifetime_manager.clone(),
             timeout_manager,
             balance_manager,
+            event_recorder,
             is_graceful_shutdown_started: Default::default(),
             exchange_events,
             finish_graceful_shutdown_sender: Mutex::new(Some(finish_graceful_shutdown_sender)),

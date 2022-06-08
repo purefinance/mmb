@@ -21,6 +21,8 @@ where
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CoreSettings {
+    // TODO fix settings after implementing EventRecorder (remove option)
+    pub database_url: Option<String>,
     pub exchanges: Vec<ExchangeSettings>,
 }
 

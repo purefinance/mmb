@@ -31,6 +31,7 @@ impl AppLifetimeManager {
         })
     }
 
+    /// Cancellation token that provide signal about starting graceful shutdown
     pub fn stop_token(&self) -> CancellationToken {
         self.cancellation_token.clone()
     }

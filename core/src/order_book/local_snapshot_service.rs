@@ -27,6 +27,7 @@ impl LocalSnapshotsService {
 
     /// Create snapshot if it does not exist
     /// Update snapshot if suitable data arrive
+    /// Returns `Some(MarketAccountId)` if snapshot update succeeded, otherwise `None`
     pub fn update(&mut self, event: event::OrderBookEvent) -> Option<MarketAccountId> {
         let market_account_id = event.market_account_id();
         let market_id = market_account_id.market_id();

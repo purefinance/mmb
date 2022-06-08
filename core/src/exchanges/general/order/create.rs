@@ -122,12 +122,15 @@ impl Exchange {
                 // TODO DataRecorder.Save(order); Do we really need it here?
                 // Cause it's already performed in handle_create_order_succeeded
 
+                let (header, exchange_order_id) =
+                    result_order.fn_ref(|o| (o.header.clone(), o.props.exchange_order_id.clone()));
+
                 log::info!(
                     "Order was submitted {} {:?} {:?} on {}",
-                    result_order.client_order_id(),
-                    result_order.exchange_order_id(),
-                    result_order.reservation_id(),
-                    result_order.exchange_account_id()
+                    header.client_order_id.clone(),
+                    exchange_order_id,
+                    header.reservation_id,
+                    header.exchange_account_id,
                 );
 
                 Ok(result_order.clone())

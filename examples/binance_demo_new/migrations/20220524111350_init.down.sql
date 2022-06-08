@@ -1,0 +1,1 @@
+drop table liquidity_order_book;

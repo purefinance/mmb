@@ -30,6 +30,7 @@ pub mod statistic_service;
 pub mod strategies;
 
 pub mod config;
+pub mod database;
 pub mod disposition_execution;
 pub mod explanation;
 pub mod lifecycle;

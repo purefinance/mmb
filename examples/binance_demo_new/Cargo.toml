@@ -1,0 +1,20 @@
+[package]
+name = "example_binance_demo_new"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+itertools = "0.10"
+rust_decimal = "1"
+serde = "1"
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread"]}
+
+binance = { path = "../../exchanges/binance" }
+mmb_core = { path = "../../core" }
+mmb_database = { path = "../../mmb_database" }
+mmb_utils = { path = "../../mmb_utils" }
+strategies = { path = "../strategies" }

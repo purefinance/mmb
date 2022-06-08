@@ -56,7 +56,7 @@ impl PriceSourceEventLoop {
             let mut this = Self {
                 price_sources_saver,
                 all_market_ids: Self::map_to_used_market_ids(price_source_chains),
-                local_snapshot_service: LocalSnapshotsService::new(HashMap::new()),
+                local_snapshot_service: LocalSnapshotsService::default(),
                 price_cache: HashMap::new(),
                 rx_core,
                 convert_currency_notification_receiver,

@@ -16,7 +16,7 @@ itertools = "0.10"
 log = "0.4"
 mmb_core = { path = "../../core/" }
 mmb_utils = { path = "../../mmb_utils" }
-parking_lot = { version = "0.11", features = ["serde"]}
+parking_lot = { version = "0.12", features = ["serde"]}
 rust_decimal = { version = "1", features = ["maths"]}
 rust_decimal_macros = "1"
 serde = { version = "1", features = ["derive", "rc"]}
