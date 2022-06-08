@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     fill::OrderFill, order::OrderCancelling, order::OrderRole, order::OrderSide, order::OrderType,
-    order::ReservationId,
 };
 use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, MarketAccountId};
 use crate::orders::order::{
@@ -61,9 +60,6 @@ impl OrderRef {
     }
     pub fn exchange_account_id(&self) -> ExchangeAccountId {
         self.fn_ref(|x| x.header.exchange_account_id)
-    }
-    pub fn reservation_id(&self) -> Option<ReservationId> {
-        self.fn_ref(|x| x.header.reservation_id)
     }
     pub fn order_type(&self) -> OrderType {
         self.fn_ref(|x| x.header.order_type)

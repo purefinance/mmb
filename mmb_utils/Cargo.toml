@@ -16,7 +16,7 @@ futures = "0.3"
 log = "0.4"
 mockall_double = "0.2"
 once_cell = "1.8"
-parking_lot = { version = "0.11", features = ["serde"]}
+parking_lot = { version = "0.12", features = ["serde"]}
 paste = "1"
 rust_decimal = { version = "1", features = ["maths"]}
 rust_decimal_macros = "1"

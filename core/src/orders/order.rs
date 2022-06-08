@@ -18,7 +18,9 @@ use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
 use uuid::Uuid;
 
-use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, Price};
+use crate::exchanges::common::{
+    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, MarketAccountId, Price,
+};
 use crate::orders::fill::{EventSourceType, OrderFill};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash, Enum)]
@@ -37,7 +39,7 @@ impl OrderSide {
 }
 
 impl Display for OrderSide {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let side = match self {
             OrderSide::Buy => "Buy",
             OrderSide::Sell => "Sell",
@@ -542,7 +544,15 @@ impl OrderSnapshot {
     pub fn filled_amount(&self) -> Amount {
         self.fills.filled_amount
     }
+
     pub fn status(&self) -> OrderStatus {
         self.props.status
+    }
+
+    pub fn market_id_account(&self) -> MarketAccountId {
+        MarketAccountId {
+            exchange_account_id: self.header.exchange_account_id,
+            currency_pair: self.header.currency_pair,
+        }
     }
 }

@@ -57,7 +57,7 @@ async fn example() {
                                         println!("Event has been received: {:?}", event);
                                     }
                                     Err(err) => {
-                                        println!("Error occured: {:?}", err);
+                                        println!("Error occurred: {:?}", err);
                                         break;
                                     }
                                 };

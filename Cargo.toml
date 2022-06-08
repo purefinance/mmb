@@ -5,9 +5,11 @@ members = [
     "core_tests",
     "examples/binance_demo",
     "examples/serum_demo",
+    "examples/binance_demo_new",
     "examples/strategies",
     "exchanges/binance",
     "exchanges/serum",
+    "mmb_database",
     "mmb_rpc",
     "mmb_utils",
     "visualization/api"
