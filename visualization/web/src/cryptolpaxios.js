@@ -9,6 +9,7 @@ export default class CryptolpAxios {
   });
 
   static token = null;
+  static refreshToken = null;
   static userInfo = null;
   static expiration = null;
   static isAuthorized = false;
@@ -157,26 +158,34 @@ export default class CryptolpAxios {
     return CryptolpAxios.axiosInstance.post(`account/register`, user);
   }
 
+  static loginByRefreshToken(payload) {
+    return CryptolpAxios.axiosInstance.post("account/refresh_token", payload);
+  }
+
   static setToken(data, clienttype) {
     localStorage.setItem("auth_token", data.token);
     localStorage.setItem("auth_expiration", data.expiration);
     localStorage.setItem("auth_role", data.role);
     localStorage.setItem("client_type", clienttype);
+    localStorage.setItem("refresh_token", data.refreshToken);
     CryptolpAxios.token = data.token;
     CryptolpAxios.role = data.role;
     CryptolpAxios.expiration = data.expiration;
     CryptolpAxios.clientType = clienttype;
+    CryptolpAxios.refreshToken = data.refreshToken;
     CryptolpAxios.loadUser();
   }
 
   static logout = () => {
     CryptolpAxios.token = null;
+    CryptolpAxios.refreshToken = null;
     CryptolpAxios.userInfo = null;
     CryptolpAxios.expiration = null;
     CryptolpAxios.isAuthorized = false;
     localStorage.removeItem("auth_token");
     localStorage.removeItem("auth_expiration");
     localStorage.removeItem("auth_role");
+    localStorage.removeItem("refresh_token");
     CryptolpAxios.userUpdated();
   };
 
@@ -203,15 +212,31 @@ export default class CryptolpAxios {
         return response;
       },
       (error) => {
+        const originalRequest = error.config;
         if (
           error.response &&
           (error.response.status === 401 || error.response.status === 403) &&
-          CryptolpAxios.isAuthorized
+          CryptolpAxios.isAuthorized &&
+          !originalRequest._retry
         ) {
-          localStorage.removeItem("auth_token");
-          localStorage.removeItem("auth_expiration");
-          localStorage.removeItem("auth_role");
-          window.location.href = "/login";
+          originalRequest._retry = true;
+          let refreshToken = localStorage.getItem("refresh_token");
+          // Trying to authorize by refresh token
+          if (refreshToken) {
+            this.loginByRefreshToken({ refreshToken })
+              .then(async (response) => {
+                const clientType = await CryptolpAxios.getClientType();
+                CryptolpAxios.setToken(response.data, clientType);
+              })
+              .catch((err) => {
+                console.error(err);
+                CryptolpAxios.logout();
+                window.location.href = "/login";
+              });
+          } else {
+            CryptolpAxios.logout();
+            window.location.href = "/login";
+          }
         }
         return error;
       }
@@ -221,6 +246,7 @@ export default class CryptolpAxios {
       CryptolpAxios.expiration = localStorage.getItem("auth_expiration");
       CryptolpAxios.role = localStorage.getItem("auth_role");
       CryptolpAxios.clientType = localStorage.getItem("client_type");
+      CryptolpAxios.refreshToken = localStorage.getItem("refresh_token");
     }
     if (CryptolpAxios.token) CryptolpAxios.loadUser();
   };

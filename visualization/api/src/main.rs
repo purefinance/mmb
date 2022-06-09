@@ -32,10 +32,12 @@ use std::env;
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+
     start(
         53938,
         "somesecretkey".to_string(),
-        31556952000,
+        86400000,    // one day
+        31556952000, // one year
         &database_url,
     )
     .await
