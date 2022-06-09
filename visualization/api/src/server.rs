@@ -1,5 +1,6 @@
 use crate::routes::routes;
 use crate::services::account::AccountService;
+use crate::services::token::TokenService;
 use crate::ws::actors::new_data_listener::NewDataListener;
 use crate::ws::actors::subscription_manager::SubscriptionManager;
 use crate::ws::broker_messages::{
@@ -20,6 +21,7 @@ pub async fn start(
     port: u16,
     secret: String,
     access_token_lifetime_ms: i64,
+    refresh_token_lifetime_ms: i64,
     database_url: &str,
 ) -> std::io::Result<()> {
     log::info!("Starting server at 127.0.0.1:{}", port);
@@ -30,7 +32,9 @@ pub async fn start(
         .expect("Unable to connect to DB");
     let liquidity_service = LiquidityService::new(connection_pool);
     let new_data_listener = NewDataListener::default().start();
-    let account_service = AccountService::new(secret, access_token_lifetime_ms);
+    let account_service = AccountService::default();
+    let token_service =
+        TokenService::new(secret, access_token_lifetime_ms, refresh_token_lifetime_ms);
     let subscription_manager = SubscriptionManager::default().start();
 
     spawn(async move {
@@ -77,6 +81,7 @@ pub async fn start(
             .wrap(cors)
             .wrap(Logger::default())
             .app_data(web::Data::new(account_service.clone()))
+            .app_data(web::Data::new(token_service.clone()))
     })
     .workers(2)
     .bind(("127.0.0.1", port))?
