@@ -1,0 +1,13 @@
+p,guest,*,OPTIONS
+p,user,*,OPTIONS
+p,guest,/hub/,GET
+
+p,guest,/api/account/refresh-token,POST
+p,guest,/api/account/login,POST
+p,guest,/api/account/clientdomain,GET
+p,guest,/api/account/clienttype,GET
+
+p,user,/api/account/login,POST
+p,user,/api/account/clientdomain,GET
+p,user,/api/account/clienttype,GET
+p,user,/api/liquidity/supported-exchanges,GET

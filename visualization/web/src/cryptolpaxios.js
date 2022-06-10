@@ -159,7 +159,7 @@ export default class CryptolpAxios {
   }
 
   static loginByRefreshToken(payload) {
-    return CryptolpAxios.axiosInstance.post("account/refresh_token", payload);
+    return CryptolpAxios.axiosInstance.post("account/refresh-token", payload);
   }
 
   static setToken(data, clienttype) {
@@ -215,7 +215,9 @@ export default class CryptolpAxios {
         const originalRequest = error.config;
         if (
           error.response &&
-          (error.response.status === 401 || error.response.status === 403) &&
+          (error.response.status === 401 ||
+            error.response.status === 403 ||
+            !error.response.status) &&
           CryptolpAxios.isAuthorized &&
           !originalRequest._retry
         ) {
