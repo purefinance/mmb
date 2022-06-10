@@ -1,5 +1,7 @@
+use crate::middleware::auth::TokenAuth;
 use crate::routes::routes;
 use crate::services::account::AccountService;
+use crate::services::auth::AuthService;
 use crate::services::token::TokenService;
 use crate::ws::actors::new_data_listener::NewDataListener;
 use crate::ws::actors::subscription_manager::SubscriptionManager;
@@ -13,16 +15,20 @@ use actix::{spawn, Actor};
 use actix_cors::Cors;
 use actix_web::middleware::Logger;
 use actix_web::{web, App, HttpServer};
+use casbin::Enforcer;
 use sqlx::postgres::PgPoolOptions;
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 pub async fn start(
     port: u16,
-    secret: String,
+    access_token_secret: String,
+    refresh_token_secret: String,
     access_token_lifetime_ms: i64,
     refresh_token_lifetime_ms: i64,
     database_url: &str,
+    enforcer: Enforcer,
 ) -> std::io::Result<()> {
     log::info!("Starting server at 127.0.0.1:{}", port);
     let connection_pool = PgPoolOptions::new()
@@ -33,9 +39,14 @@ pub async fn start(
     let liquidity_service = LiquidityService::new(connection_pool);
     let new_data_listener = NewDataListener::default().start();
     let account_service = AccountService::default();
-    let token_service =
-        TokenService::new(secret, access_token_lifetime_ms, refresh_token_lifetime_ms);
+    let token_service = TokenService::new(
+        access_token_secret,
+        refresh_token_secret,
+        access_token_lifetime_ms,
+        refresh_token_lifetime_ms,
+    );
     let subscription_manager = SubscriptionManager::default().start();
+    let auth_service = Arc::new(AuthService::new(enforcer));
 
     spawn(async move {
         loop {
@@ -80,7 +91,9 @@ pub async fn start(
             .configure(routes)
             .wrap(cors)
             .wrap(Logger::default())
+            .wrap(TokenAuth::default())
             .app_data(web::Data::new(account_service.clone()))
+            .app_data(web::Data::new(auth_service.clone()))
             .app_data(web::Data::new(token_service.clone()))
     })
     .workers(2)

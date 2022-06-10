@@ -5,15 +5,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone)]
 pub struct TokenService {
-    secret: String,
+    access_token_secret: String,
+    refresh_token_secret: String,
     access_token_lifetime_ms: i64,
     refresh_token_lifetime_ms: i64,
 }
 
-#[derive(Serialize)]
-struct AccessTokenClaim {
-    username: String,
-    role: String,
+#[derive(Serialize, Deserialize)]
+pub struct AccessTokenClaim {
+    pub username: String,
+    pub role: String,
     exp: i64,
 }
 
@@ -26,12 +27,14 @@ pub struct RefreshTokenClaim {
 
 impl TokenService {
     pub fn new(
-        secret: String,
+        access_token_secret: String,
+        refresh_token_secret: String,
         access_token_lifetime_ms: i64,
         refresh_token_lifetime_ms: i64,
     ) -> Self {
         Self {
-            secret,
+            access_token_secret,
+            refresh_token_secret,
             access_token_lifetime_ms,
             refresh_token_lifetime_ms,
         }
@@ -52,7 +55,7 @@ impl TokenService {
         let token = encode(
             &Header::default(),
             &claim,
-            &EncodingKey::from_secret(self.secret.as_ref()),
+            &EncodingKey::from_secret(self.access_token_secret.as_ref()),
         )?;
         Ok((token, expiration))
     }
@@ -67,9 +70,21 @@ impl TokenService {
         let token = encode(
             &Header::default(),
             &claim,
-            &EncodingKey::from_secret(self.secret.as_ref()),
+            &EncodingKey::from_secret(self.refresh_token_secret.as_ref()),
         )?;
         Ok(token)
+    }
+
+    pub fn parse_access_token(
+        &self,
+        token: &str,
+    ) -> jsonwebtoken::errors::Result<AccessTokenClaim> {
+        let token = decode::<AccessTokenClaim>(
+            token,
+            &DecodingKey::from_secret(self.access_token_secret.as_ref()),
+            &Validation::default(),
+        )?;
+        Ok(token.claims)
     }
 
     pub fn parse_refresh_token(
@@ -78,7 +93,7 @@ impl TokenService {
     ) -> jsonwebtoken::errors::Result<RefreshTokenClaim> {
         let token = decode::<RefreshTokenClaim>(
             token,
-            &DecodingKey::from_secret(self.secret.as_ref()),
+            &DecodingKey::from_secret(self.refresh_token_secret.as_ref()),
             &Validation::default(),
         )?;
         Ok(token.claims)

@@ -40,7 +40,7 @@ pub struct RefreshTokenPayload {
     refresh_token: String,
 }
 
-#[post("/refresh_token")]
+#[post("/refresh-token")]
 pub async fn refresh_token(
     token_service: Data<TokenService>,
     payload: web::Json<RefreshTokenPayload>,
