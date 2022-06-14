@@ -35,8 +35,9 @@ use std::mem::size_of;
 use std::num::NonZeroU64;
 use std::ops::Deref;
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 
@@ -146,6 +147,7 @@ pub struct Serum {
     pub network_type: NetworkType,
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
     pub(super) lifetime_manager: Arc<AppLifetimeManager>,
+    trade_id_seed: AtomicU64,
 }
 
 impl Serum {
@@ -183,6 +185,12 @@ impl Serum {
             network_type,
             events_channel,
             lifetime_manager,
+            trade_id_seed: AtomicU64::new(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Failed to calc duration since UNIX start time")
+                    .as_secs(),
+            ),
         }
     }
 
@@ -417,7 +425,7 @@ impl Serum {
             .iter()
             .find(|order_info| order_info.client_order_id == client_order_id)
             .cloned()
-            .ok_or(anyhow!("Order not found for id {client_order_id}"))
+            .ok_or_else(|| anyhow!("Order not found for id {client_order_id}"))
     }
 
     pub(super) fn get_orders_from_order_book(
@@ -456,7 +464,8 @@ impl Serum {
     ) -> Result<Vec<EventView>> {
         if let Some(mut account) = ui_account.decode::<Account>() {
             let account_info = (&market_info.event_queue_address, &mut account).into_account_info();
-            let (_, buf) = strip_header::<EventQueueHeader, Event>(&account_info, false)?;
+            let (_, buf) = strip_header::<EventQueueHeader, Event>(&account_info, false)
+                .context("Failed to parse data from event queue account")?;
 
             Ok(buf
                 .iter()
@@ -854,6 +863,10 @@ impl Serum {
         let coin_mint_data = Mint::unpack_from_slice(&coin_data).context("Unpack coin data")?;
         let price_mint_data = Mint::unpack_from_slice(&pc_data).context("Unpack price data")?;
         Ok((coin_mint_data, price_mint_data))
+    }
+
+    pub(super) fn generate_trade_id(&self) -> u64 {
+        self.trade_id_seed.fetch_add(1, Ordering::Relaxed)
     }
 }
 

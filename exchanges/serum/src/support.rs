@@ -6,30 +6,36 @@ use async_trait::async_trait;
 use chrono::Utc;
 use dashmap::DashMap;
 use rust_decimal::Decimal;
+use rust_decimal::MathematicalOps;
+use rust_decimal_macros::dec;
 use serum_dex::matching::Side;
 use serum_dex::state::EventView;
 use solana_account_decoder::UiAccount;
 use url::Url;
 
 use crate::helpers::ToOrderSide;
+use crate::market::MarketMetaData;
 use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::common::{
     send_event, Amount, CurrencyCode, CurrencyId, CurrencyPair, Price, SortedOrderData,
     SpecificCurrencyPair,
 };
-use mmb_core::exchanges::events::ExchangeEvent;
+use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
 use mmb_core::exchanges::general::handlers::handle_order_filled::{FillAmount, FillEvent};
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
     Support,
 };
+use mmb_core::misc::time::time_manager;
 use mmb_core::order_book::event::{EventType, OrderBookEvent};
 use mmb_core::order_book::order_book_data::OrderBookData;
 use mmb_core::orders::fill::{EventSourceType, OrderFillType};
-use mmb_core::orders::order::{ClientOrderId, OrderInfo, OrderRole, OrderSide, OrderStatus};
+use mmb_core::orders::order::{
+    ClientOrderId, ExchangeOrderId, OrderInfo, OrderRole, OrderSide, OrderStatus,
+};
 use mmb_core::settings::ExchangeSettings;
 use mmb_utils::infrastructure::WithExpect;
-use mmb_utils::nothing_to_do;
+use mmb_utils::{nothing_to_do, DateTime};
 
 use crate::solana_client::{SolanaMessage, SubscriptionAccountType};
 
@@ -127,7 +133,7 @@ impl Serum {
             }
             SubscriptionAccountType::EventQueue => {
                 let events = self.get_event_queue_data(ui_account, market_info)?;
-                self.handle_order_fill_event(&events);
+                self.handle_event_queue_orders(&events, currency_pair, market_info)?;
             }
             SubscriptionAccountType::OpenOrders => {
                 let _orders =
@@ -176,37 +182,63 @@ impl Serum {
         )
     }
 
-    fn handle_order_fill_event(&self, events: &[EventView]) {
-        let events: DashMap<ClientOrderId, &EventView> = events
-            .iter()
-            .map(|event| {
-                let client_order_id_option = match event {
-                    &EventView::Fill {
-                        client_order_id, ..
-                    }
-                    | &EventView::Out {
-                        client_order_id, ..
-                    } => client_order_id,
+    fn handle_event_queue_orders(
+        &self,
+        events: &[EventView],
+        currency_pair: CurrencyPair,
+        market_metadata: &MarketMetaData,
+    ) -> Result<()> {
+        for event in events {
+            if let EventView::Fill {
+                side,
+                maker,
+                order_id,
+                native_qty_paid,
+                native_qty_received,
+                native_fee_or_rebate,
+                client_order_id: Some(client_order_id_value),
+                ..
+            } = *event
+            {
+                let (price, amount) = calc_order_fill_price_and_amount(
+                    side,
+                    maker,
+                    native_qty_paid,
+                    native_qty_received,
+                    native_fee_or_rebate,
+                    market_metadata,
+                );
+                let fill_data = OrderFillData {
+                    // Serum doesn't store trade id so we have to create it by ourself
+                    trade_id: TradeId::Number(self.generate_trade_id()),
+                    client_order_id: client_order_id_value.to_string().as_str().into(),
+                    exchange_order_id: order_id.to_string().as_str().into(),
+                    price,
+                    fill_amount: amount,
+                    order_role: if maker {
+                        OrderRole::Maker
+                    } else {
+                        OrderRole::Taker
+                    },
+                    fill_type: OrderFillType::UserTrade,
+                    currency_pair,
+                    order_side: side.to_order_side(),
+                    date: time_manager::now(),
                 };
-
-                if let Some(client_order_id) = client_order_id_option {
-                    (client_order_id.to_string().as_str().into(), event)
-                } else {
-                    ("0".into(), event)
+                if self
+                    .orders
+                    .cache_by_client_id
+                    .get(&fill_data.client_order_id)
+                    .is_some()
+                {
+                    self.handle_order_fill(&fill_data);
                 }
-            })
-            .collect();
-
-        self.orders.cache_by_client_id.iter().for_each(|order_ref| {
-            let (client_order_id, order_status) = order_ref
-                .fn_ref(|order| (order.header.client_order_id.clone(), order.props.status));
-            if OrderStatus::Creating == order_status || OrderStatus::Created == order_status {
-                if let Some(event) = events.get(&client_order_id) {
-                    self.handle_order_fill(event.value(), &client_order_id);
-                    // TODO Handle trades
-                }
+                self.handle_order_trade(&fill_data);
             }
-        });
+            // There is no point to return error cause it's ordinary situation when we received no one fill event
+        }
+
+        Ok(())
     }
 
     fn handle_order_event(&self, orders: &[OrderInfo], currency_pair: CurrencyPair) {
@@ -264,40 +296,80 @@ impl Serum {
             });
     }
 
-    fn handle_order_fill(&self, event: &EventView, client_order_id: &ClientOrderId) {
-        if let EventView::Fill {
-            side,
-            maker,
-            native_qty_received,
-            order_id,
-            ..
-        } = event
-        {
-            (self.handle_order_filled_callback)(FillEvent {
-                source_type: EventSourceType::Rpc,
-                trade_id: None,
-                client_order_id: Some(client_order_id.clone()),
-                exchange_order_id: order_id.to_string().as_str().into(),
-                fill_price: Price::into(Decimal::from(*native_qty_received)),
-                fill_amount: FillAmount::Incremental {
-                    fill_amount: Amount::into(Decimal::from(*native_qty_received)),
-                    total_filled_amount: None,
-                },
-                order_role: Some(if *maker {
-                    OrderRole::Maker
-                } else {
-                    OrderRole::Taker
-                }),
-                commission_currency_code: None,
-                commission_rate: None,
-                commission_amount: None,
-                fill_type: OrderFillType::UserTrade,
-                trade_currency_pair: None,
-                order_side: Some(side.to_order_side()),
-                order_amount: None,
-                // There is no information about exact time of order fill so we use current utc time
-                fill_date: Some(Utc::now()),
-            });
-        }
+    fn handle_order_fill(&self, fill_data: &OrderFillData) {
+        (self.handle_order_filled_callback)(FillEvent {
+            source_type: EventSourceType::Rpc,
+            trade_id: Some(fill_data.trade_id.clone()),
+            client_order_id: Some(fill_data.client_order_id.clone()),
+            exchange_order_id: fill_data.exchange_order_id.clone(),
+            fill_price: fill_data.price,
+            fill_amount: FillAmount::Incremental {
+                fill_amount: fill_data.fill_amount,
+                total_filled_amount: None,
+            },
+            order_role: Some(fill_data.order_role),
+            commission_currency_code: None,
+            commission_rate: None,
+            commission_amount: None,
+            fill_type: fill_data.fill_type,
+            trade_currency_pair: Some(fill_data.currency_pair),
+            order_side: Some(fill_data.order_side),
+            // TODO Add order amount value cause it can be new order
+            order_amount: None,
+            // There is no information about exact time of order fill so we use current utc time
+            fill_date: Some(fill_data.date),
+        });
     }
+
+    fn handle_order_trade(&self, fill_data: &OrderFillData) {
+        (self.handle_trade_callback)(
+            fill_data.currency_pair,
+            fill_data.trade_id.clone(),
+            fill_data.price,
+            fill_data.fill_amount,
+            fill_data.order_side,
+            fill_data.date,
+        );
+    }
+}
+
+struct OrderFillData {
+    trade_id: TradeId,
+    client_order_id: ClientOrderId,
+    exchange_order_id: ExchangeOrderId,
+    price: Price,
+    fill_amount: Amount,
+    order_role: OrderRole,
+    fill_type: OrderFillType,
+    currency_pair: CurrencyPair,
+    order_side: OrderSide,
+    date: DateTime,
+}
+
+fn calc_order_fill_price_and_amount(
+    side: Side,
+    maker: bool,
+    native_qty_paid: u64,
+    native_qty_received: u64,
+    native_fee_or_rebate: u64,
+    market_metadata: &MarketMetaData,
+) -> (Price, Amount) {
+    let signed_fee = if maker {
+        -(native_fee_or_rebate as i64)
+    } else {
+        native_fee_or_rebate as i64
+    };
+
+    let (price_before_fees, quantity) = if side == Side::Bid {
+        (native_qty_paid as i64 - signed_fee, native_qty_received)
+    } else {
+        (native_qty_received as i64 + signed_fee, native_qty_paid)
+    };
+
+    let price = Decimal::from(price_before_fees)
+        * dec!(10).powi(market_metadata.coin_decimal as i64 - market_metadata.price_decimal as i64)
+        / Decimal::from(quantity);
+    let amount = Decimal::from(quantity) / dec!(10).powi(market_metadata.coin_decimal as i64);
+
+    (price, amount)
 }
