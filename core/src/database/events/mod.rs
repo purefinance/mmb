@@ -1,3 +1,5 @@
+pub mod transaction;
+
 use crate::infrastructure::spawn_future;
 use crate::lifecycle::trading_engine::Service;
 use anyhow::{Context, Result};
@@ -120,8 +122,9 @@ async fn start_db_event_recorder(
             }
         }
     }
-    let mut events_map = HashMap::<_, EventsByTableName>::new();
+    let mut events_map = HashMap::<TableName, EventsByTableName>::new();
     loop {
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
         tokio::select! {
             _ = shutdown_signal_rx.recv() => break, // in any case we should correctly finish
             result = data_rx.recv() => {
@@ -130,7 +133,7 @@ async fn start_db_event_recorder(
                         let EventsByTableName{ ref mut events, ref mut last_time_to_save } = events_map.entry(table_name).or_default();
                         events.push(event);
 
-                        if last_time_to_save.elapsed() < SAVE_TIMEOUT ||
+                        if last_time_to_save.elapsed() > SAVE_TIMEOUT ||
                             events.len() >= BATCH_SIZE_TO_SAVE {
 
                             let events = mem::replace(events, create_batch_size_vec());
@@ -142,6 +145,16 @@ async fn start_db_event_recorder(
                     None => break, // in any case we should correctly finish
                 }
             },
+            _ = interval.tick() => {
+                for (table_name, EventsByTableName { ref mut events, ref mut last_time_to_save }) in &mut events_map {
+                    if last_time_to_save.elapsed() < SAVE_TIMEOUT {
+                        let events = mem::replace(events, create_batch_size_vec());
+                        save_batch(&mut client, table_name, events).await.context("from `start_db_event_recorder` in `save_batch`")?;
+
+                        *last_time_to_save = Instant::now();
+                    }
+                }
+            }
         }
     }
 

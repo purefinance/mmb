@@ -19,7 +19,7 @@ use smallstr::SmallString;
 use uuid::Uuid;
 
 use crate::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, MarketAccountId, Price,
+    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, MarketAccountId, MarketId, Price,
 };
 use crate::orders::fill::{EventSourceType, OrderFill};
 
@@ -204,6 +204,20 @@ impl OrderHeader {
 
     pub fn version(&self) -> u32 {
         self.version
+    }
+
+    pub fn market_account_id(&self) -> MarketAccountId {
+        MarketAccountId {
+            exchange_account_id: self.exchange_account_id,
+            currency_pair: self.currency_pair,
+        }
+    }
+
+    pub fn market_id(&self) -> MarketId {
+        MarketId {
+            exchange_id: self.exchange_account_id.exchange_id,
+            currency_pair: self.currency_pair,
+        }
     }
 }
 
@@ -459,6 +473,12 @@ pub struct OrderSnapshot {
 }
 
 impl OrderSnapshot {
+    pub fn side(&self) -> OrderSide {
+        self.header.side
+    }
+}
+
+impl OrderSnapshot {
     pub fn new(
         header: Arc<OrderHeader>,
         props: OrderSimpleProps,
@@ -549,10 +569,11 @@ impl OrderSnapshot {
         self.props.status
     }
 
-    pub fn market_id_account(&self) -> MarketAccountId {
-        MarketAccountId {
-            exchange_account_id: self.header.exchange_account_id,
-            currency_pair: self.header.currency_pair,
-        }
+    pub fn market_account_id(&self) -> MarketAccountId {
+        self.header.market_account_id()
+    }
+
+    pub fn market_id(&self) -> MarketId {
+        self.header.market_id()
     }
 }
