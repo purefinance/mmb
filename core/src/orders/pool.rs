@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     fill::OrderFill, order::OrderCancelling, order::OrderRole, order::OrderSide, order::OrderType,
 };
-use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, MarketAccountId};
+use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
 use crate::orders::order::{
     ClientOrderId, ExchangeOrderId, OrderHeader, OrderInfoExtensionData, OrderSimpleProps,
     OrderSnapshot, OrderStatus,
@@ -28,10 +28,6 @@ impl OrderRef {
     /// Lock order for write and provide mutate state of order
     pub fn fn_mut<T: 'static>(&self, f: impl FnOnce(&mut OrderSnapshot) -> T) -> T {
         f(self.0.write().borrow_mut())
-    }
-
-    pub fn market_account_id(&self) -> MarketAccountId {
-        self.fn_ref(|x| MarketAccountId::new(x.header.exchange_account_id, x.header.currency_pair))
     }
 
     pub fn price(&self) -> Decimal {

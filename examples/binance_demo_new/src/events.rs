@@ -24,7 +24,7 @@ struct PriceLevel {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LiquiditySnapshot {
+struct LiquiditySnapshot {
     asks: Vec<PriceLevel>,
     bids: Vec<PriceLevel>,
 }
@@ -39,7 +39,7 @@ pub struct LiquidityOrderBook {
 
 impl Event for LiquidityOrderBook {
     fn get_table_name(&self) -> TableName {
-        "liquidity_order_book"
+        "liquidity_order_books"
     }
 
     fn get_json(&self) -> serde_json::Result<Value> {

@@ -4,7 +4,6 @@ use chrono::{DateTime, Utc};
 use futures::pin_mut;
 use serde_json::Value as JsonValue;
 use std::fmt::{Display, Formatter};
-use std::future::Future;
 use tokio_postgres::binary_copy::BinaryCopyInWriter;
 use tokio_postgres::types::Type;
 
@@ -41,42 +40,40 @@ impl Display for InsertEvent {
     }
 }
 
-pub fn save_events_batch<'a>(
+pub async fn save_events_batch<'a>(
     client: &'a mut Client,
     table_name: TableName,
     events: &'a [InsertEvent],
-) -> impl Future<Output = Result<()>> + 'a {
-    async move {
-        let sql = format!("COPY {table_name} (insert_time, version, json) from stdin BINARY");
-        let sink = client
-            .0
-            .copy_in(&sql)
+) -> Result<()> {
+    let sql = format!("COPY {table_name} (insert_time, version, json) from stdin BINARY");
+    let sink = client
+        .0
+        .copy_in(&sql)
+        .await
+        .context("from `save_events_batch` on call `copy_in`")?;
+
+    let writer = BinaryCopyInWriter::new(sink, &EVENT_INSERT_TYPES_LIST);
+    pin_mut!(writer);
+    let now = Utc::now();
+    for event in events {
+        writer
+            .as_mut()
+            .write(&[&now, &event.version, &event.json])
             .await
-            .context("from `save_events_batch` on call `copy_in`")?;
-
-        let writer = BinaryCopyInWriter::new(sink, &EVENT_INSERT_TYPES_LIST);
-        pin_mut!(writer);
-        let now = Utc::now();
-        for event in events {
-            writer
-                .as_mut()
-                .write(&[&now, &event.version, &event.json])
-                .await
-                .context("from `save_events_batch` on CopyInWriter::write() row")?;
-        }
-
-        let added_rows_count = writer
-            .finish()
-            .await
-            .context("from `save_events_batch` CopyInWriter::finish()")?;
-
-        let events_count = events.len();
-        if added_rows_count as usize != events_count {
-            bail!("Only {added_rows_count} of {events_count} events was writen in Database");
-        }
-
-        Ok(())
+            .context("from `save_events_batch` on CopyInWriter::write() row")?;
     }
+
+    let added_rows_count = writer
+        .finish()
+        .await
+        .context("from `save_events_batch` CopyInWriter::finish()")?;
+
+    let events_count = events.len();
+    if added_rows_count as usize != events_count {
+        bail!("Only {added_rows_count} of {events_count} events was writen in Database");
+    }
+
+    Ok(())
 }
 
 pub async fn save_events_one_by_one(

@@ -1,1 +1,1 @@
-drop table liquidity_order_book;
+DROP TABLE liquidity_order_books;
