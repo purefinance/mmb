@@ -6,7 +6,7 @@ use itertools::Itertools;
 use mmb_utils::logger::print_info;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use tokio::time::{sleep, Duration};
+use tokio::time::{timeout, Duration};
 
 /// User side - for services that may be optional depending on the user's preference
 /// Core side - for the core services that provide the TradingEngine to work
@@ -132,9 +132,12 @@ impl ShutdownService {
             .collect_vec();
 
         const TIMEOUT: Duration = Duration::from_secs(3);
-        tokio::select! {
-            _ = join_all(finishing_services_futures) =>log::trace!("All services sent finished marker at given time"),
-            _ = sleep(TIMEOUT) =>log::error!("Not all services finished after timeout ({} sec)", TIMEOUT.as_secs()),
+        match timeout(TIMEOUT, join_all(finishing_services_futures)).await {
+            Ok(_) => log::trace!("All services sent finished marker at given time"),
+            Err(_) => log::error!(
+                "Not all services finished after timeout ({} sec)",
+                TIMEOUT.as_secs()
+            ),
         }
 
         log::trace!("Prepare to drop services in ShutdownService finished");

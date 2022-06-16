@@ -124,7 +124,7 @@ async fn start_db_event_recorder(
     }
     let mut events_map = HashMap::<TableName, EventsByTableName>::new();
     loop {
-        let mut interval = tokio::time::interval(Duration::from_secs(1));
+        let mut interval = tokio::time::interval(SAVE_TIMEOUT);
         tokio::select! {
             _ = shutdown_signal_rx.recv() => break, // in any case we should correctly finish
             result = data_rx.recv() => {

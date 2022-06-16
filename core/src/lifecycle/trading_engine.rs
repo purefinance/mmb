@@ -1,7 +1,6 @@
 use futures::FutureExt;
 use mmb_utils::logger::print_info;
 use mmb_utils::send_expected::SendExpected;
-use std::panic;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -12,7 +11,7 @@ use dashmap::DashMap;
 use futures::future::join_all;
 use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::{broadcast, oneshot};
-use tokio::time::Duration;
+use tokio::time::{timeout, Duration};
 
 use crate::balance_manager::balance_manager::BalanceManager;
 use crate::database::events::EventRecorder;
@@ -119,9 +118,14 @@ impl EngineContext {
         let cancellation_token = CancellationToken::default();
         const TIMEOUT: Duration = Duration::from_secs(5);
 
-        tokio::select! {
-            _ = cancel_opened_orders(&self.exchanges, cancellation_token.clone(), true) => (),
-            _ = tokio::time::sleep(TIMEOUT) => {
+        match timeout(
+            TIMEOUT,
+            cancel_opened_orders(&self.exchanges, cancellation_token.clone(), true),
+        )
+        .await
+        {
+            Ok(()) => (),
+            Err(_) => {
                 cancellation_token.cancel();
                 log::error!(
                     "Timeout {} secs is exceeded: cancel open orders has been stopped",

@@ -70,7 +70,7 @@ uuid = { version = "0.8", features = ["serde", "v4"]}
 [dev-dependencies]
 jsonrpc-core-client = { version = "18.0.0", features = ["ipc"] }
 mockall = "0.10.2"
-ntest = "0.7.3"
+ntest = "0.8.1"
 pretty_assertions = "1"
 rand = "0.8"
 rstest = "0.10"

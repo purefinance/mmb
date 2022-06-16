@@ -8,6 +8,7 @@ use std::time::Duration;
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
 use mmb_utils::nothing_to_do;
 use tokio::sync::{broadcast, oneshot};
+use tokio::time::timeout;
 
 use crate::exchanges::common::ToStdExpected;
 use crate::exchanges::common::{CurrencyCode, ExchangeErrorType};
@@ -156,12 +157,14 @@ impl Exchange {
                 };
 
                 if delay_till_fallback_request > Duration::ZERO {
-                    let sleep = tokio::time::sleep(delay_till_fallback_request);
-                    tokio::select! {
-                        _ = sleep => nothing_to_do(),
-                        _ = cancellation_token.when_cancelled() => {
-                            return Ok(());
-                        }
+                    match timeout(
+                        delay_till_fallback_request,
+                        cancellation_token.when_cancelled(),
+                    )
+                    .await
+                    {
+                        Ok(_) => return Ok(()),
+                        Err(_) => nothing_to_do(),
                     }
                 }
             } else {

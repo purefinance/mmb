@@ -41,6 +41,7 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc, oneshot};
+use tokio::time::timeout;
 
 use super::app_lifetime_manager::ActionAfterGracefulShutdown;
 
@@ -100,10 +101,11 @@ where
             Ok(settings) => {
                 wait_for_config.stop_server();
 
-                tokio::select! {
-                    _ = work_finished_receiver => nothing_to_do(),
-                    _ = tokio::time::sleep(Duration::from_secs(3)) => log::warn!("Failed to receive stop signal from ConfigWaiter"),
-                };
+                match timeout(Duration::from_secs(3), work_finished_receiver).await {
+                    Ok(_) => nothing_to_do(),
+                    Err(_) => log::warn!("Failed to receive stop signal from ConfigWaiter"),
+                }
+
                 return Some(settings);
             }
             Err(error) => {

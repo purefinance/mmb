@@ -7,6 +7,7 @@ use std::fmt::{Debug, Display};
 use std::panic;
 use std::time::Duration;
 use tokio::task::JoinHandle;
+use tokio::time::timeout;
 use uuid::Uuid;
 
 use crate::cancellation_token::CancellationToken;
@@ -96,15 +97,10 @@ pub fn spawn_future_timed(
     log::info!("Future {} with id {} started", action_name, future_id);
 
     tokio::spawn(async move {
-        tokio::select! {
-            _ = tokio::time::sleep(duration) => {
-                log::error!("Time in form of {:?} is over, but future {} is not completed yet", duration, action_name);
-                FutureOutcome::new(action_name, future_id, CompletionReason::TimeExpired)
-            }
-            action_outcome = action => {
-                action_outcome
-            }
-        }
+        timeout(duration, action).await.unwrap_or_else(|_| {
+            log::error!("Time in form of {duration:?} is over, but future {action_name} is not completed yet");
+            FutureOutcome::new(action_name, future_id, CompletionReason::TimeExpired)
+        })
     })
 }
 
@@ -217,7 +213,7 @@ where
         async move {
             tokio::time::sleep(delay).await;
             loop {
-                (callback)().await;
+                callback().await;
                 tokio::time::sleep(period).await;
             }
         },
@@ -230,9 +226,9 @@ pub async fn with_timeout<T, Fut>(timeout: Duration, fut: Fut) -> T
 where
     Fut: Future<Output = T>,
 {
-    tokio::select! {
-        result = fut => result,
-        _ = tokio::time::sleep(timeout) => panic!("Timeout {} ms is exceeded", timeout.as_millis()),
+    match tokio::time::timeout(timeout, fut).await {
+        Ok(res) => res,
+        Err(_) => panic!("Timeout {} ms is exceeded", timeout.as_millis()),
     }
 }
 
