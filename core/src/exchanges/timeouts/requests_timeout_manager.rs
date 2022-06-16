@@ -8,7 +8,7 @@ use mmb_utils::infrastructure::{FutureOutcome, SpawnFutureFlags};
 use mmb_utils::{DateTime, OPERATION_CANCELED_MSG};
 use parking_lot::Mutex;
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
+use tokio::time::timeout;
 use uuid::Uuid;
 
 use super::{
@@ -321,22 +321,22 @@ impl RequestsTimeoutManager {
     ) -> Result<()> {
         // Should never panic, because function wait_for_request_availability
         // has one call with guaranteed non-negative delay.
-        let delay: std::time::Duration = delay.to_std_expected();
+        let delay = delay.to_std_expected();
 
-        let sleep_future = sleep(delay);
-        let cancellation_token = cancellation_token.when_cancelled();
-
-        tokio::select! {
-            _ = sleep_future => {
+        match timeout(delay, cancellation_token.when_cancelled()).await {
+            Err(_) => {
                 let strong_self = Self::try_get_strong(weak_self)?;
                 (strong_self.inner.lock().time_has_come_for_request)(request)?;
             }
-
-            _ = cancellation_token => {
+            Ok(()) => {
                 let strong_self = Self::try_get_strong(weak_self)?;
                 let mut inner = strong_self.inner.lock();
                 (inner.time_has_come_for_request)(request.clone())?;
-                if let Some(position) = inner.requests.iter().position(|stored_request| *stored_request == request) {
+                if let Some(position) = inner
+                    .requests
+                    .iter()
+                    .position(|stored_request| *stored_request == request)
+                {
                     inner.requests.remove(position);
                 }
 
@@ -352,7 +352,7 @@ impl RequestsTimeoutManager {
     ) -> Result<Arc<RequestsTimeoutManager>> {
         weak_timeout_manager.upgrade().with_context(|| {
             let error_message = "Unable to upgrade weak reference to RequestsTimeoutManager instance. Probably it's dropped";
-           log::info!("{}", error_message);
+            log::info!("{}", error_message);
             anyhow!(error_message)
         })
     }
@@ -1908,9 +1908,8 @@ mod test {
 
                 drop(inner);
 
-                let sleep_future = sleep(std::time::Duration::from_millis(1000));
-                tokio::select! {
-                    _ = sleep_future => {
+                match timeout(std::time::Duration::from_millis(1000), &mut future_handler).await {
+                    Err(_) => {
                         cancellation_token.cancel();
 
                         let cancelled = future_handler.await?.into_result();
@@ -1922,10 +1921,7 @@ mod test {
                         assert_eq!(available_start_time, current_time + Duration::seconds(5));
                         assert_eq!(delay, Duration::seconds(5));
                     }
-
-                    _ = &mut future_handler => {
-                        bail!("Future completed")
-                    }
+                    Ok(_) => bail!("Future completed"),
                 };
             }
 
@@ -2323,6 +2319,7 @@ mod test {
 
         use super::*;
         use std::sync::Arc;
+        use tokio::time::sleep;
 
         #[fixture]
         fn timeout_manager() -> Arc<RequestsTimeoutManager> {

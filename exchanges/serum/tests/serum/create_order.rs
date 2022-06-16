@@ -8,7 +8,7 @@ use mmb_utils::nothing_to_do;
 use rust_decimal_macros::dec;
 use std::time::Duration;
 use tokio::sync::broadcast;
-use tokio::time::sleep;
+use tokio::time::timeout;
 
 #[ignore = "need solana keypair"]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -59,13 +59,13 @@ async fn receive_exchange_order_event(
 async fn check_exchange_order_event_is_succeed_or_panic(
     receiver: &mut broadcast::Receiver<ExchangeEvent>,
 ) {
-    tokio::select! {
-        order_event = receive_exchange_order_event(receiver) => {
-            match order_event.event_type {
-                OrderEventType::CreateOrderSucceeded => nothing_to_do(),
-                _ => panic!("Should receive CreateOrderSucceeded event type"),
-            }
-        },
-        _ = sleep(Duration::from_secs(2)) => panic!("Receiver exchange order event time is gone")
+    let receive_fut = receive_exchange_order_event(receiver);
+    let order_event = timeout(Duration::from_secs(2), receive_fut)
+        .await
+        .expect("Receiver exchange order event time is gone");
+
+    match order_event.event_type {
+        OrderEventType::CreateOrderSucceeded => nothing_to_do(),
+        _ => panic!("Should receive CreateOrderSucceeded event type"),
     }
 }
