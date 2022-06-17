@@ -10,11 +10,11 @@ use uuid::Uuid;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::balance_manager::tests::balance_manager_base::BalanceManagerBase;
+use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
 #[double]
 use crate::misc::time::time_manager;
 use crate::{
-    balance_manager::balance_manager::BalanceManager,
+    balance::manager::balance_manager::BalanceManager,
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
@@ -156,8 +156,8 @@ mod tests {
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
-    use crate::balance_manager::balance_manager::BalanceManager;
-    use crate::balance_manager::position_change::PositionChange;
+    use crate::balance::manager::balance_manager::BalanceManager;
+    use crate::balance::manager::position_change::PositionChange;
     use crate::exchanges::common::{Amount, CurrencyCode, MarketAccountId, Price};
     use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
     use crate::exchanges::general::symbol::{Precision, Symbol};
@@ -167,7 +167,7 @@ mod tests {
     };
     use crate::orders::pool::OrdersPool;
     use crate::{
-        balance_manager::tests::balance_manager_base::BalanceManagerBase,
+        balance::manager::tests::balance_manager_base::BalanceManagerBase,
         exchanges::common::ExchangeAccountId,
     };
 

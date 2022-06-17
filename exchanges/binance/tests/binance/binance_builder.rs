@@ -1,7 +1,7 @@
 use anyhow::Result;
 use binance::binance::Binance;
 use core_tests::order::OrderProxy;
-use mmb_core::balance_manager::balance_manager::BalanceManager;
+use mmb_core::balance::manager::balance_manager::BalanceManager;
 use mmb_core::exchanges::common::*;
 use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;

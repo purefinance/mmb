@@ -3,7 +3,7 @@ pub mod tests {
     use rust_decimal_macros::dec;
 
     use crate::{
-        balance_changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase,
+        balance::changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase,
         orders::order::OrderSide,
     };
 

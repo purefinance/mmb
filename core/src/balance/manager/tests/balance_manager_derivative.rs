@@ -9,9 +9,9 @@ use uuid::Uuid;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::balance_manager::tests::balance_manager_base::BalanceManagerBase;
+use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
 use crate::{
-    balance_manager::balance_manager::BalanceManager,
+    balance::manager::balance_manager::BalanceManager,
     exchanges::{
         common::{Amount, ExchangeAccountId, Price},
         general::{
@@ -234,8 +234,8 @@ mod tests {
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
-    use crate::balance_manager::balance_manager::BalanceManager;
-    use crate::balance_manager::tests::balance_manager_base::BalanceManagerBase;
+    use crate::balance::manager::balance_manager::BalanceManager;
+    use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
     use crate::exchanges::common::{Amount, CurrencyCode, Price};
     use crate::explanation::Explanation;
     use crate::infrastructure::init_lifetime_manager;

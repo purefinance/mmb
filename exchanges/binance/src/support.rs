@@ -78,7 +78,7 @@ impl Support for Binance {
         if let Some(stream) = data.get("stream") {
             let stream = stream
                 .as_str()
-                .ok_or(anyhow!("Unable to parse stream data"))?;
+                .ok_or_else(|| anyhow!("Unable to parse stream data"))?;
 
             if let Some(byte_index) = stream.find('@') {
                 let currency_pair = self.currency_pair_from_web_socket(&stream[..byte_index])?;
@@ -102,7 +102,7 @@ impl Support for Binance {
         // so it is userData stream
         let event_type = data["e"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse event_type"))?;
+            .ok_or_else(|| anyhow!("Unable to parse event_type"))?;
         if event_type == "executionReport" {
             self.handle_order_fill(msg, data)?;
         } else if event_type == "ORDER_TRADE_UPDATE" {
@@ -261,10 +261,10 @@ impl Binance {
         let last_update_id = last_update_id.trim_matches('"');
         let raw_asks = data["asks"]
             .as_array()
-            .ok_or(anyhow!("Unable to parse 'asks' in Binance"))?;
+            .ok_or_else(|| anyhow!("Unable to parse 'asks' in Binance"))?;
         let raw_bids = data["bids"]
             .as_array()
-            .ok_or(anyhow!("Unable to parse 'bids' in Binance"))?;
+            .ok_or_else(|| anyhow!("Unable to parse 'bids' in Binance"))?;
 
         let asks = get_order_book_side(raw_asks)?;
         let bids = get_order_book_side(raw_bids)?;
@@ -386,11 +386,11 @@ fn get_order_book_side(levels: &[Value]) -> Result<SortedOrderData> {
         .map(|x| {
             let price = x[0]
                 .as_str()
-                .ok_or(anyhow!("Unable parse price of order book side in Binance"))?
+                .ok_or_else(|| anyhow!("Unable parse price of order book side in Binance"))?
                 .parse()?;
             let amount = x[1]
                 .as_str()
-                .ok_or(anyhow!("Unable parse amount of order book side in Binance"))?
+                .ok_or_else(|| anyhow!("Unable parse amount of order book side in Binance"))?
                 .parse()?;
             Ok((price, amount))
         })

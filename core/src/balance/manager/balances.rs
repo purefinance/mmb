@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::balance_manager::{
+use crate::balance::manager::{
     balance_position_by_fill_amount::BalancePositionByFillAmount,
     balance_reservation::BalanceReservation,
 };

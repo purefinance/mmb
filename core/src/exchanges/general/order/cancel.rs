@@ -86,7 +86,7 @@ impl Exchange {
 
                 let order_to_cancel = order
                     .to_order_cancelling()
-                    .ok_or(anyhow!("Unable to convert order to order_to_cancel"))?;
+                    .ok_or_else(|| anyhow!("Unable to convert order to order_to_cancel"))?;
                 let order_cancellation_outcome =
                     self.cancel_order(order_to_cancel, cancellation_token).await;
 

@@ -36,6 +36,7 @@ impl PollingTimeoutManager {
         let delay_till_fallback_request = interval - time_since_last_request;
 
         if delay_till_fallback_request.num_milliseconds() > 0 {
+            #[allow(clippy::single_match)]
             match timeout(
                 delay_till_fallback_request.to_std_expected(),
                 cancellation_token.when_cancelled(),

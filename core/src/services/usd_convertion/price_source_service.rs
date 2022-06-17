@@ -186,16 +186,17 @@ impl PriceSourceService {
         rx_core: broadcast::Receiver<ExchangeEvent>,
         cancellation_token: CancellationToken,
     ) {
+        let receiver = self
+            .convert_currency_notification_receiver
+            .lock()
+            .take()
+            .expect("PriceSourceEventLoop::convert_currency_notification_receiver is none");
+
         PriceSourceEventLoop::run(
             self.price_source_chains.values().cloned().collect_vec(),
             price_sources_saver,
             rx_core,
-            self.convert_currency_notification_receiver
-                .lock()
-                .take()
-                .expect(
-                "Failed to run PriceSourceEventLoop convert_currency_notification_receiver is none",
-            ),
+            receiver,
             cancellation_token,
         )
         .await;

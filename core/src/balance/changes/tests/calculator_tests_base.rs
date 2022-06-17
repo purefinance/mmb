@@ -24,12 +24,12 @@ pub mod tests {
         ServiceConfigurationKey, ServiceName,
     };
     use crate::{
-        balance_changes::{
+        balance::changes::{
             balance_change_calculator_result::BalanceChangesCalculatorResult,
             balance_changes_calculator::BalanceChangesCalculator,
             profit_balance_changes_calculator, profit_loss_balance_change::ProfitLossBalanceChange,
         },
-        balance_manager::balance_request::BalanceRequest,
+        balance::manager::balance_request::BalanceRequest,
         exchanges::{
             common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
             general::{

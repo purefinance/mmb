@@ -9,15 +9,13 @@ use mmb_utils::DateTime;
 use mockall_double::double;
 use parking_lot::Mutex;
 
+use crate::balance::changes::profit_loss_balance_change::ProfitLossBalanceChange;
 #[double]
-use crate::balance_manager::balance_manager::BalanceManager;
+use crate::balance::manager::balance_manager::BalanceManager;
+use crate::balance::manager::position_change::PositionChange;
+use crate::exchanges::common::MarketAccountId;
 #[double]
 use crate::misc::time::time_manager;
-
-use crate::{
-    balance_changes::profit_loss_balance_change::ProfitLossBalanceChange,
-    balance_manager::position_change::PositionChange, exchanges::common::MarketAccountId,
-};
 
 pub(crate) struct BalanceChangePeriodSelector {
     pub(super) period: Duration,
@@ -149,7 +147,7 @@ mod tests {
     use mmb_utils::infrastructure::WithExpect;
     use rust_decimal_macros::dec;
 
-    use crate::balance_changes::profit_loss_stopper::test::{
+    use crate::balance::changes::profit_loss_stopper::test::{
         create_balance_change, create_balance_change_by_market_account_id, market_account_id,
     };
     use crate::exchanges::common::{CurrencyPair, ExchangeAccountId, ExchangeId};

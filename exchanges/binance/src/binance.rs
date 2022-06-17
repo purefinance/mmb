@@ -233,14 +233,14 @@ impl Binance {
         todo!("is_websocket_reconnecting")
     }
 
-    pub(super) fn to_server_order_side(side: OrderSide) -> String {
+    pub(super) fn get_server_order_side(side: OrderSide) -> String {
         match side {
             OrderSide::Buy => "BUY".to_owned(),
             OrderSide::Sell => "SELL".to_owned(),
         }
     }
 
-    pub(super) fn to_local_order_side(side: &str) -> OrderSide {
+    pub(super) fn get_local_order_side(side: &str) -> OrderSide {
         match side {
             "BUY" => OrderSide::Buy,
             "SELL" => OrderSide::Sell,
@@ -249,7 +249,7 @@ impl Binance {
         }
     }
 
-    fn to_local_order_status(status: &str) -> OrderStatus {
+    fn get_local_order_status(status: &str) -> OrderStatus {
         match status {
             "NEW" | "PARTIALLY_FILLED" => OrderStatus::Created,
             "FILLED" => OrderStatus::Completed,
@@ -260,7 +260,7 @@ impl Binance {
         }
     }
 
-    pub(super) fn to_server_order_type(order_type: OrderType) -> String {
+    pub(super) fn get_server_order_type(order_type: OrderType) -> String {
         match order_type {
             OrderType::Limit => "LIMIT".to_owned(),
             OrderType::Market => "MARKET".to_owned(),
@@ -313,8 +313,8 @@ impl Binance {
                 .expect("expected known currency pair"),
             specific.exchange_order_id.to_string().as_str().into(),
             specific.client_order_id.clone(),
-            Self::to_local_order_side(&specific.side),
-            Self::to_local_order_status(&specific.status),
+            Self::get_local_order_side(&specific.side),
+            Self::get_local_order_status(&specific.status),
             specific.price,
             specific.orig_quantity,
             specific.price,
@@ -328,12 +328,12 @@ impl Binance {
     pub(super) fn handle_order_fill(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
         let original_client_order_id = json_response["C"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse original client order id"))?;
+            .ok_or_else(|| anyhow!("Unable to parse original client order id"))?;
 
         let client_order_id = if original_client_order_id.is_empty() {
             json_response["c"]
                 .as_str()
-                .ok_or(anyhow!("Unable to parse client order id"))?
+                .ok_or_else(|| anyhow!("Unable to parse client order id"))?
         } else {
             original_client_order_id
         };
@@ -342,13 +342,13 @@ impl Binance {
         let exchange_order_id = exchange_order_id.trim_matches('"');
         let execution_type = json_response["x"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse execution type"))?;
+            .ok_or_else(|| anyhow!("Unable to parse execution type"))?;
         let order_status = json_response["X"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse order status"))?;
+            .ok_or_else(|| anyhow!("Unable to parse order status"))?;
         let time_in_force = json_response["f"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse time in force"))?;
+            .ok_or_else(|| anyhow!("Unable to parse time in force"))?;
 
         match execution_type {
             "NEW" => match order_status {
@@ -438,34 +438,34 @@ impl Binance {
         let trade_id = json_response["t"].clone().into();
         let last_filled_price = json_response["L"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse last filled price"))?;
+            .ok_or_else(|| anyhow!("Unable to parse last filled price"))?;
         let last_filled_amount = json_response["l"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse last filled amount"))?;
+            .ok_or_else(|| anyhow!("Unable to parse last filled amount"))?;
         let total_filled_amount = json_response["z"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse total filled amount"))?;
+            .ok_or_else(|| anyhow!("Unable to parse total filled amount"))?;
         let commission_amount = json_response["n"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse last commission amount"))?;
+            .ok_or_else(|| anyhow!("Unable to parse last commission amount"))?;
         let commission_currency = json_response["N"]
             .as_str()
-            .ok_or(anyhow!("Unable to parse last commission currency"))?;
+            .ok_or_else(|| anyhow!("Unable to parse last commission currency"))?;
         let commission_currency_code = self
             .get_currency_code(&commission_currency.into())
-            .ok_or(anyhow!("There are no suck supported currency code"))?;
+            .ok_or_else(|| anyhow!("There are no such supported currency code"))?;
         let is_maker = json_response["m"]
             .as_bool()
-            .ok_or(anyhow!("Unable to parse trade side"))?;
-        let order_side = Self::to_local_order_side(
+            .ok_or_else(|| anyhow!("Unable to parse trade side"))?;
+        let order_side = Self::get_local_order_side(
             json_response["S"]
                 .as_str()
-                .ok_or(anyhow!("Unable to parse last filled amount"))?,
+                .ok_or_else(|| anyhow!("Unable to parse last filled amount"))?,
         );
         let fill_date: DateTime = u64_to_date_time(
             json_response["E"]
                 .as_u64()
-                .ok_or(anyhow!("Unable to parse transaction time"))?,
+                .ok_or_else(|| anyhow!("Unable to parse transaction time"))?,
         );
 
         let fill_type = Self::get_fill_type(execution_type)?;
@@ -891,10 +891,10 @@ impl Binance {
                 "symbol".to_owned(),
                 specific_currency_pair.as_str().to_owned(),
             ),
-            ("side".to_owned(), Self::to_server_order_side(header.side)),
+            ("side".to_owned(), Self::get_server_order_side(header.side)),
             (
                 "type".to_owned(),
-                Self::to_server_order_type(header.order_type),
+                Self::get_server_order_type(header.order_type),
             ),
             ("quantity".to_owned(), header.amount.to_string()),
             (
@@ -956,7 +956,7 @@ impl Binance {
         let symbols = deserialized
             .get("symbols")
             .and_then(|symbols| symbols.as_array())
-            .ok_or(anyhow!("Unable to get symbols array from Binance"))?;
+            .ok_or_else(|| anyhow!("Unable to get symbols array from Binance"))?;
 
         let mut result = Vec::new();
         for symbol in symbols {

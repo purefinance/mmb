@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use crate::{
-    balance_manager::balance_request::BalanceRequest,
+    balance::manager::balance_request::BalanceRequest,
     exchanges::common::{Amount, CurrencyCode, ExchangeId, MarketAccountId, Price},
     orders::order::ClientOrderFillId,
 };

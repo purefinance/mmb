@@ -10,7 +10,7 @@ mod tests {
     #[double]
     use crate::services::usd_convertion::usd_converter::UsdConverter;
     use crate::{
-        balance_changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase,
+        balance::changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase,
         exchanges::common::{CurrencyCode, Price},
         orders::order::OrderSide,
     };

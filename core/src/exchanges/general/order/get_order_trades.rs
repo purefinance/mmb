@@ -28,6 +28,7 @@ pub struct OrderTrade {
 }
 
 impl OrderTrade {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         exchange_order_id: ExchangeOrderId,
         trade_id: TradeId,

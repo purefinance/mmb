@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::balance_manager::balance_request::BalanceRequest;
+use crate::balance::manager::balance_request::BalanceRequest;
 use crate::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId};
 use crate::service_configuration::configuration_descriptor::{
     ConfigurationDescriptor, ServiceConfigurationKey, ServiceName,

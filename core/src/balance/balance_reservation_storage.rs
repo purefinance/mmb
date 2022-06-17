@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
 
-use crate::balance_manager::balance_reservation::BalanceReservation;
+use crate::balance::manager::balance_reservation::BalanceReservation;
 use crate::orders::order::ReservationId;
 #[derive(Clone)]
 pub(crate) struct BalanceReservationStorage {
@@ -68,6 +68,7 @@ impl BalanceReservationStorage {
         })
     }
 
+    #[allow(clippy::needless_return)]
     fn update_metrics(&self) {
         if self.is_call_from_clone {
             // metrics should be saved only for original storage

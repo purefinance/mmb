@@ -10,14 +10,14 @@ use mockall_double::double;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-use crate::balance_manager::approved_part::ApprovedPart;
-use crate::balance_manager::balance_position_by_fill_amount::BalancePositionByFillAmount;
-use crate::balance_manager::balance_request::BalanceRequest;
-use crate::balance_manager::balance_reservation::BalanceReservation;
-use crate::balance_manager::balances::Balances;
-use crate::balance_manager::position_change::PositionChange;
-use crate::balances::balance_position_model::BalancePositionModel;
-use crate::balances::{
+use crate::balance::balance_position_model::BalancePositionModel;
+use crate::balance::manager::approved_part::ApprovedPart;
+use crate::balance::manager::balance_position_by_fill_amount::BalancePositionByFillAmount;
+use crate::balance::manager::balance_request::BalanceRequest;
+use crate::balance::manager::balance_reservation::BalanceReservation;
+use crate::balance::manager::balances::Balances;
+use crate::balance::manager::position_change::PositionChange;
+use crate::balance::{
     balance_reservation_storage::BalanceReservationStorage,
     virtual_balance_holder::VirtualBalanceHolder,
 };
@@ -356,6 +356,7 @@ impl BalanceReservationManager {
             .get_virtual_balance(&request, symbol, Some(price), &mut None)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn try_get_available_balance(
         &self,
         configuration_descriptor: ConfigurationDescriptor,
@@ -525,6 +526,7 @@ impl BalanceReservationManager {
         dec!(0).max(position - taken_amount)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn get_balance_with_applied_limits(
         &self,
         request: &BalanceRequest,
@@ -937,6 +939,7 @@ impl BalanceReservationManager {
         dec!(1).min(dec!(0).max(position.position / limit))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn handle_position_fill_amount_change(
         &mut self,
         side: OrderSide,
@@ -1088,6 +1091,7 @@ impl BalanceReservationManager {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn handle_position_fill_amount_change_commission(
         &mut self,
         commission_currency_code: CurrencyCode,

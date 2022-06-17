@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc};
 #[double]
 use crate::misc::time::time_manager;
 use crate::{
-    balance_manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
+    balance::manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
     exchanges::{common::Price, events::ExchangeBalance},
     exchanges::{
         common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId},

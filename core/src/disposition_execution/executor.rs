@@ -61,6 +61,7 @@ pub struct DispositionExecutorService {
 }
 
 impl DispositionExecutorService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         engine_ctx: Arc<EngineContext>,
         events_receiver: broadcast::Receiver<ExchangeEvent>,
@@ -129,6 +130,7 @@ struct DispositionExecutor {
 }
 
 impl DispositionExecutor {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         engine_ctx: Arc<EngineContext>,
         events_receiver: broadcast::Receiver<ExchangeEvent>,
@@ -168,7 +170,7 @@ impl DispositionExecutor {
             let event = tokio::select! {
                 event_res = self.events_receiver.recv() => event_res.context("Error during receiving event in DispositionExecutor::start()")?,
                 _ = self.cancellation_token.when_cancelled() => {
-                    let _ = self.work_finished_sender.take().ok_or(anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
+                    let _ = self.work_finished_sender.take().ok_or_else(|| anyhow!("Can't take `work_finished_sender` in DispositionExecutor"))?.send(Ok(()));
                     return Ok(());
                 }
             };

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::balance_manager::position_change::PositionChange;
+use crate::balance::manager::position_change::PositionChange;
 use crate::exchanges::common::{CurrencyPair, ExchangeAccountId, MarketAccountId};
 use crate::orders::order::ClientOrderFillId;
 
