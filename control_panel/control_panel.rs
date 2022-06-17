@@ -16,11 +16,12 @@ use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::{spawn_future, FutureOutcome, SpawnFutureFlags};
 use tokio::task::JoinHandle;
 
-pub type WebMmbRpcClient = Data<Arc<Mutex<Option<MmbRpcClient>>>>;
+pub type WebMmbRpcClient = Arc<tokio::sync::Mutex<Option<MmbRpcClient>>>;
+pub type DataWebMmbRpcClient = Data<WebMmbRpcClient>;
 
 pub(crate) struct ControlPanel {
     address: String,
-    client: Arc<Mutex<Option<MmbRpcClient>>>,
+    client: WebMmbRpcClient,
     server_stopper_tx: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     work_finished_sender: Arc<Mutex<Option<oneshot::Sender<Result<()>>>>>,
     work_finished_receiver: Arc<Mutex<Option<oneshot::Receiver<Result<()>>>>>,
@@ -29,7 +30,7 @@ pub(crate) struct ControlPanel {
 impl ControlPanel {
     pub(crate) async fn new(address: &str) -> Arc<Self> {
         let (work_finished_sender, work_finished_receiver) = oneshot::channel();
-        let client = Arc::new(Mutex::new(Self::build_rpc_client().await));
+        let client = Arc::new(tokio::sync::Mutex::new(Self::build_rpc_client().await));
 
         Arc::new(Self {
             address: address.to_owned(),
@@ -146,23 +147,23 @@ fn handle_rpc_error(error: RpcError) -> HttpResponse {
 }
 
 pub async fn send_request(
-    client: WebMmbRpcClient,
+    client: DataWebMmbRpcClient,
     action: impl Fn(&MmbRpcClient) -> BoxFuture<Result<String, RpcError>>,
 ) -> HttpResponse {
     let mut try_counter = 1;
 
-    async fn try_reconnect(client: WebMmbRpcClient, try_counter: i32) {
+    async fn try_reconnect(client: DataWebMmbRpcClient, try_counter: i32) {
         log::warn!(
             "Failed to send request {}, trying to reconnect...",
             try_counter
         );
-        *client.lock() = ControlPanel::build_rpc_client().await;
+        *client.lock().await = ControlPanel::build_rpc_client().await;
     }
 
     loop {
         log::info!("Trying to send request attempt {}...", try_counter);
 
-        if let Some(client) = &*client.lock() {
+        if let Some(client) = &*client.lock().await {
             match (action)(client).await {
                 Ok(response) => return HttpResponse::Ok().body(response),
                 Err(err) => {

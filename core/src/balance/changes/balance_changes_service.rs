@@ -17,7 +17,7 @@ use crate::misc::time::time_manager;
 use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
-    balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
+    balance::changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
     lifecycle::app_lifetime_manager::AppLifetimeManager,
     orders::{

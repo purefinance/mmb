@@ -173,6 +173,7 @@ pub struct OrderHeader {
 }
 
 impl OrderHeader {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         client_order_id: ClientOrderId,
         init_time: DateTime,
@@ -417,6 +418,7 @@ pub struct OrderInfo {
 }
 
 impl OrderInfo {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         currency_pair: CurrencyPair,
         exchange_order_id: ExchangeOrderId,
@@ -497,6 +499,7 @@ impl OrderSnapshot {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn with_params(
         client_order_id: ClientOrderId,
         order_type: OrderType,

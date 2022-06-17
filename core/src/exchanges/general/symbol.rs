@@ -88,6 +88,7 @@ impl Symbol {
         self.quote_currency_code
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         is_active: bool,
         is_derivative: bool,

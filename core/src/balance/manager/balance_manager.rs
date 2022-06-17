@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use crate::balance_changes::balance_changes_service::BalanceChangesService;
-use crate::balance_manager::balance_reservation::BalanceReservation;
-use crate::balance_manager::position_change::PositionChange;
-use crate::balances::balance_reservation_manager::BalanceReservationManager;
+use crate::balance::balance_reservation_manager::BalanceReservationManager;
+use crate::balance::changes::balance_changes_service::BalanceChangesService;
+use crate::balance::manager::balance_reservation::BalanceReservation;
+use crate::balance::manager::position_change::PositionChange;
 use crate::exchanges::common::{Amount, Price};
 use crate::exchanges::common::{CurrencyCode, CurrencyPair, MarketAccountId};
 use crate::exchanges::events::ExchangeBalancesAndPositions;
@@ -20,7 +20,7 @@ use crate::orders::order::{
 };
 use crate::orders::pool::OrderRef;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use crate::{balance_manager::balances::Balances, exchanges::common::ExchangeAccountId};
+use crate::{balance::manager::balances::Balances, exchanges::common::ExchangeAccountId};
 
 use anyhow::{bail, Context, Result};
 use futures::future::join_all;

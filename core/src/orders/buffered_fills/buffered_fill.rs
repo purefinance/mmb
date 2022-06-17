@@ -35,6 +35,7 @@ pub struct BufferedFill {
 }
 
 impl BufferedFill {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         exchange_account_id: ExchangeAccountId,
         trade_id: TradeId,

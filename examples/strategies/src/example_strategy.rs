@@ -7,7 +7,7 @@ use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-use mmb_core::balance_manager::balance_manager::BalanceManager;
+use mmb_core::balance::manager::balance_manager::BalanceManager;
 use mmb_core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };

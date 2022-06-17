@@ -2,8 +2,8 @@ use mmb_utils::hashmap;
 
 use std::sync::Arc;
 
-use crate::balance_manager::balance_request::BalanceRequest;
-use crate::balances::virtual_balance_holder::VirtualBalanceHolder;
+use crate::balance::manager::balance_request::BalanceRequest;
+use crate::balance::virtual_balance_holder::VirtualBalanceHolder;
 use crate::exchanges::common::{CurrencyCode, CurrencyPair};
 use crate::exchanges::general::symbol::Symbol;
 use crate::exchanges::general::test_helper::get_test_exchange_by_currency_codes_and_amount_code;
@@ -92,7 +92,7 @@ mod tests {
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
 
-    use crate::balance_manager::balance_request::BalanceRequest;
+    use crate::balance::manager::balance_request::BalanceRequest;
 
     use super::VirtualBalanceHolderTests;
 

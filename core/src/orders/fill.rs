@@ -54,6 +54,7 @@ pub struct OrderFill {
 }
 
 impl OrderFill {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: Uuid,
         client_order_fill_id: Option<ClientOrderFillId>,

@@ -8,7 +8,7 @@ use mockall_double::double;
 use parking_lot::Mutex;
 
 #[double]
-use crate::balance_manager::balance_manager::BalanceManager;
+use crate::balance::manager::balance_manager::BalanceManager;
 #[double]
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 #[double]
@@ -17,7 +17,7 @@ use crate::exchanges::general::engine_api::EngineApi;
 use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
-    balance_changes::balance_changes_accumulator::BalanceChangeAccumulator,
+    balance::changes::balance_changes_accumulator::BalanceChangeAccumulator,
     exchanges::common::MarketAccountId,
     settings::{ProfitLossStopperSettings, TimePeriodKind},
 };

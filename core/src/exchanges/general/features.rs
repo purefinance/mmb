@@ -122,6 +122,7 @@ pub struct ExchangeFeatures {
 }
 
 impl ExchangeFeatures {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         open_orders_type: OpenOrdersType,
         rest_fills_features: RestFillsFeatures,

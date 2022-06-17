@@ -13,7 +13,7 @@ use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::{timeout, Duration};
 
-use crate::balance_manager::balance_manager::BalanceManager;
+use crate::balance::manager::balance_manager::BalanceManager;
 use crate::database::events::EventRecorder;
 use crate::exchanges::block_reasons;
 use crate::exchanges::common::ExchangeAccountId;
@@ -56,6 +56,7 @@ pub struct EngineContext {
 }
 
 impl EngineContext {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         app_settings: CoreSettings,
         exchanges: DashMap<ExchangeAccountId, Arc<Exchange>>,

@@ -76,12 +76,11 @@ pub fn save_settings(settings: &str, config_path: &str, credentials_path: &str) 
     // Write credentials in their own config file
     let mut credentials_per_exchange = HashMap::new();
 
-    let exchanges = get_exchanges_mut(&mut serialized_settings).ok_or(anyhow!(
-        "Unable to get core.exchanges array from gotten settings"
-    ))?;
+    let exchanges = get_exchanges_mut(&mut serialized_settings)
+        .ok_or_else(|| anyhow!("Unable to get core.exchanges array from gotten settings"))?;
     for exchange_settings in exchanges.iter_mut() {
         let (exchange_account_id, api_key, secret_key) = get_credentials_data(exchange_settings)
-            .ok_or(anyhow!("Unable to get credentials data for exchange"))?;
+            .ok_or_else(|| anyhow!("Unable to get credentials data for exchange"))?;
 
         let creds = hashmap![
             API_KEY => api_key,
@@ -120,24 +119,26 @@ fn parse_toml_settings(settings: &str, credentials: &str) -> Result<Document> {
             let exchange_account_id = exchange
                 .get(EXCHANGE_ACCOUNT_ID)
                 .and_then(|v| v.as_str())
-                .ok_or(anyhow!(
+                .ok_or_else(|| {
+                    anyhow!(
                 "Unable get 'exchange_account_id' for one of 'core.exchanges' from the settings"
-            ))?;
+            )
+                })?;
 
             let api_key = credentials
                 .get(exchange_account_id)
                 .and_then(|v| v.get(API_KEY))
                 .and_then(|v| v.as_str())
-                .ok_or(anyhow!(
-                    "Unable get 'api_key' for one of 'core.exchanges' from the settings"
-                ))?;
+                .ok_or_else(|| {
+                    anyhow!("Unable get 'api_key' for one of 'core.exchanges' from the settings")
+                })?;
             let secret_key = credentials
                 .get(exchange_account_id)
                 .and_then(|v| v.get(SECRET_KEY))
                 .and_then(|v| v.as_str())
-                .ok_or(anyhow!(
-                    "Unable get 'secret_key' for one of 'core.exchanges' from the settings"
-                ))?;
+                .ok_or_else(|| {
+                    anyhow!("Unable get 'secret_key' for one of 'core.exchanges' from the settings")
+                })?;
 
             if api_key.is_empty() || secret_key.is_empty() {
                 bail!("Unable to parse settings: api or secret key is empty")

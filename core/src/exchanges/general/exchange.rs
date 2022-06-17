@@ -41,7 +41,7 @@ use crate::{
     lifecycle::app_lifetime_manager::AppLifetimeManager,
 };
 
-use crate::balance_manager::balance_manager::BalanceManager;
+use crate::balance::manager::balance_manager::BalanceManager;
 use crate::connectivity::{
     websocket_open, ConnectivityError, WebSocketParams, WebSocketRole, WsSender,
 };
@@ -139,6 +139,7 @@ pub struct Exchange {
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
 
 impl Exchange {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         exchange_account_id: ExchangeAccountId,
         mut exchange_client: BoxExchangeClient,

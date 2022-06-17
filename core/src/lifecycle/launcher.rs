@@ -1,4 +1,4 @@
-use crate::balance_manager::balance_manager::BalanceManager;
+use crate::balance::manager::balance_manager::BalanceManager;
 use crate::config::{load_pretty_settings, try_load_settings};
 use crate::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
@@ -222,6 +222,7 @@ where
     ))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_services<'a, StrategySettings>(
     engine_context: Arc<EngineContext>,
     events_sender: broadcast::Sender<ExchangeEvent>,

@@ -520,6 +520,7 @@ impl Exchange {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn add_fill(
         &self,
         trade_id: &Option<TradeId>,

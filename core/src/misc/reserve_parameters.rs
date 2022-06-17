@@ -1,7 +1,7 @@
 use std::hash::Hash;
 use std::sync::Arc;
 
-use crate::balance_manager::balance_reservation::BalanceReservation;
+use crate::balance::manager::balance_reservation::BalanceReservation;
 use crate::exchanges::common::{Amount, ExchangeAccountId, Price};
 use crate::exchanges::general::symbol::Symbol;
 use crate::orders::order::OrderSide;

@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use tokio::task::JoinHandle;
 
 #[double]
-use crate::balance_manager::balance_manager::BalanceManager;
+use crate::balance::manager::balance_manager::BalanceManager;
 #[double]
 use crate::exchanges::general::engine_api::EngineApi;
 

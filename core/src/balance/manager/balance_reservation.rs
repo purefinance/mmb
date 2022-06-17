@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::balance_manager::approved_part::ApprovedPart;
+use crate::balance::manager::approved_part::ApprovedPart;
 use crate::exchanges::common::Amount;
 use crate::exchanges::common::CurrencyCode;
 use crate::exchanges::common::ExchangeAccountId;
@@ -36,6 +36,7 @@ pub struct BalanceReservation {
 }
 
 impl BalanceReservation {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         configuration_descriptor: ConfigurationDescriptor,
         exchange_account_id: ExchangeAccountId,

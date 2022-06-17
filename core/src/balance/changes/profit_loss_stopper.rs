@@ -5,7 +5,7 @@ use mockall_double::double;
 use parking_lot::Mutex;
 
 #[double]
-use crate::balance_manager::balance_manager::BalanceManager;
+use crate::balance::manager::balance_manager::BalanceManager;
 #[double]
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 #[double]
@@ -140,12 +140,12 @@ pub(crate) mod test {
     use crate::misc::time::time_manager;
     use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
     use crate::{
-        balance_changes::{
+        balance::changes::{
             balance_change_usd_periodic_calculator::BalanceChangeUsdPeriodicCalculator,
             balance_changes_accumulator::BalanceChangeAccumulator,
             profit_loss_balance_change::{ProfitLossBalanceChange, ProfitLossBalanceChangeId},
         },
-        balance_manager::position_change::PositionChange,
+        balance::manager::position_change::PositionChange,
         exchanges::common::{
             Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId,
         },

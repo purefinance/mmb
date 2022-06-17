@@ -9,12 +9,12 @@ use mockall_double::double;
 use parking_lot::Mutex;
 
 #[double]
-use crate::balance_manager::balance_manager::BalanceManager;
+use crate::balance::manager::balance_manager::BalanceManager;
 #[double]
 use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
-    balance_changes::{
+    balance::changes::{
         balance_changes_accumulator::BalanceChangeAccumulator, profit_balance_changes_calculator,
         profit_loss_balance_change::ProfitLossBalanceChange,
     },

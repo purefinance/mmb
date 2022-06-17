@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
 use crate::{
-    balance_manager::balance_request::BalanceRequest,
+    balance::manager::balance_request::BalanceRequest,
     exchanges::general::symbol::Symbol,
     misc::service_value_tree::ServiceValueTree,
     orders::{

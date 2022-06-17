@@ -153,9 +153,11 @@ impl InnerRequestsTimeoutManager {
     }
 
     pub(super) fn get_last_request(&self) -> Result<Request> {
-        self.requests.last().cloned().ok_or(anyhow!(
+        self.requests.last().cloned().ok_or_else(|| {
+            anyhow!(
             "There are no stored request at all in TimeoutManager, so unable to get the last one"
-        ))
+        )
+        })
     }
 
     pub(super) fn get_available_requests_count_at_present(&self, current_time: DateTime) -> usize {
@@ -247,7 +249,7 @@ impl InnerRequestsTimeoutManager {
     pub(super) fn remove_outdated_requests(&mut self, current_time: DateTime) -> Result<()> {
         let deadline = current_time
             .checked_sub_signed(self.period_duration)
-            .ok_or(anyhow!("Unable to subtract time periods"))?;
+            .ok_or_else(|| anyhow!("Unable to subtract time periods"))?;
         self.requests
             .retain(|request| request.allowed_start_time >= deadline);
 
