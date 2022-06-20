@@ -1,4 +1,5 @@
 pub mod events;
+pub mod migrator;
 
 use anyhow::Result;
 use tokio_postgres::tls::NoTlsStream;

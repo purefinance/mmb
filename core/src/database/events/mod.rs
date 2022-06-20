@@ -205,8 +205,8 @@ mod tests {
     use serde::{Deserialize, Serialize};
     use tokio_postgres::NoTls;
 
-    const DATABASE_URL: &'static str = "postgres://dev:dev@localhost/tests";
-    pub const TABLE_NAME: &str = "persons";
+    const DATABASE_URL: &str = "postgres://dev:dev@localhost/tests";
+    const TABLE_NAME: &str = "persons";
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     struct Address {
