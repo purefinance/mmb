@@ -2684,10 +2684,12 @@ dependencies = [
  "futures 0.3.21",
  "itertools 0.10.3",
  "log",
+ "ntest",
  "once_cell",
  "parking_lot 0.12.1",
  "scopeguard",
  "serde_json",
+ "sqlx",
  "tokio",
  "tokio-postgres",
 ]
@@ -5083,7 +5085,6 @@ version = "0.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4db708cd3e459078f85f39f96a00960bd841f66ee2a669e90bf36907f5a79aae"
 dependencies = [
- "actix-rt",
  "once_cell",
  "tokio",
  "tokio-rustls 0.22.0",
