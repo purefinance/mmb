@@ -27,6 +27,7 @@ use crate::server::start;
 use crate::services::liquidity::LiquidityService;
 use crate::ws::broker_messages::NewLiquidityDataMessage;
 use casbin::{CoreApi, Enforcer};
+use chrono::Duration;
 use std::env;
 
 #[actix_web::main]
@@ -41,8 +42,8 @@ async fn main() -> std::io::Result<()> {
         53938,
         "somesecretkey1".to_string(),
         "somesecretkey2".to_string(),
-        86400000,    // one day
-        31556952000, // one year
+        Duration::days(1).num_seconds(),   // one day
+        Duration::days(365).num_seconds(), // one year
         &database_url,
         enforcer,
     )

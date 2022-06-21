@@ -3,6 +3,7 @@ import Sockette from "sockette";
 import config from "../config.js";
 import { groupBy } from "../controls/functions";
 import { delay } from "q";
+import CryptolpAxios from "../cryptolpaxios";
 
 class WsContainer extends Container {
   constructor(props) {
@@ -32,11 +33,17 @@ class WsContainer extends Container {
       subscribedDashboard: false,
       subscribedBalances: false,
       subscribedTradeSignals: false,
+      auth: false,
     };
   }
 
   async router(command, message) {
     switch (command) {
+      case "Authorized": {
+        console.log("Authorized message");
+        await this.processAuthorized(message);
+        break;
+      }
       case "UpdateOrdersState": {
         console.log("OrderState update");
         await this.updateOrderState(message);
@@ -80,6 +87,7 @@ class WsContainer extends Container {
       onopen: async (e) => {
         console.log("Websocket connected!", e);
         await this.setState({ isConnected: true });
+        await this.auth(localStorage.getItem("auth_token"));
       },
       onmessage: async (e) => {
         console.log("Websocket received data:", e);
@@ -119,6 +127,16 @@ class WsContainer extends Container {
     // });
   }
 
+  async auth(token) {
+    await this.retryInvoke(
+      false,
+      "auth",
+      { auth: true },
+      "Auth",
+      JSON.stringify({ token })
+    );
+  }
+
   async updateVolume(data) {
     if (this.state.subscribedVolume) {
       await this.setState({ volumeNow: data });
@@ -136,8 +154,10 @@ class WsContainer extends Container {
       const grouped = groupBy(data.balances, (d) => d.currencyCode);
       // calculate total per currency
       Object.keys(grouped).forEach((curr) => {
-        const sum = grouped[curr].exchanges.reduce((a, b) => a + b.value, 0);
-        grouped[curr].total = sum;
+        grouped[curr].total = grouped[curr].exchanges.reduce(
+          (a, b) => a + b.value,
+          0
+        );
       });
       // grouping by currency
       await this.setState({ balances: grouped });
@@ -187,7 +207,7 @@ class WsContainer extends Container {
   async retryInvoke(bool, checkField, ...props) {
     while (bool ? this.state[checkField] : !this.state[checkField]) {
       await this.oneTimeInvoke(...props);
-      await delay(100);
+      await delay(1000);
     }
   }
 
@@ -413,6 +433,30 @@ class WsContainer extends Container {
       currencyPair,
       currencyCodePair,
     });
+  }
+
+  async processAuthorized(isAuth) {
+    if (!isAuth) {
+      this.state.auth = false;
+      let refreshToken = localStorage.getItem("refresh_token");
+      if (!refreshToken) {
+        this.wsConnection.close();
+        CryptolpAxios.logout();
+        return;
+      }
+
+      await CryptolpAxios.loginByRefreshToken({ refreshToken })
+        .then(async (response) => {
+          const clientType = await CryptolpAxios.getClientType();
+          CryptolpAxios.setToken(response.data, clientType);
+          await this.auth(CryptolpAxios.token);
+        })
+        .catch((err) => {
+          console.error(err);
+          this.wsConnection.close();
+          CryptolpAxios.logout();
+        });
+    }
   }
 }
 

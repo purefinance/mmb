@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct TokenService {
     access_token_secret: String,
     refresh_token_secret: String,
-    access_token_lifetime_ms: i64,
-    refresh_token_lifetime_ms: i64,
+    access_token_lifetime: i64,
+    refresh_token_lifetime: i64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -29,14 +29,14 @@ impl TokenService {
     pub fn new(
         access_token_secret: String,
         refresh_token_secret: String,
-        access_token_lifetime_ms: i64,
-        refresh_token_lifetime_ms: i64,
+        access_token_lifetime: i64,
+        refresh_token_lifetime: i64,
     ) -> Self {
         Self {
             access_token_secret,
             refresh_token_secret,
-            access_token_lifetime_ms,
-            refresh_token_lifetime_ms,
+            access_token_lifetime,
+            refresh_token_lifetime,
         }
     }
 
@@ -45,8 +45,7 @@ impl TokenService {
         username: &str,
         role: &str,
     ) -> Result<(String, i64), Error> {
-        let expiration =
-            (Utc::now() + Duration::milliseconds(self.access_token_lifetime_ms)).timestamp_millis();
+        let expiration = (Utc::now() + Duration::seconds(self.access_token_lifetime)).timestamp();
         let claim = AccessTokenClaim {
             username: username.into(),
             role: role.into(),
@@ -61,11 +60,11 @@ impl TokenService {
     }
 
     pub fn generate_refresh_token(&self, username: &str, role: &str) -> Result<String, Error> {
-        let dt = Utc::now() + Duration::milliseconds(self.refresh_token_lifetime_ms);
+        let expiration = (Utc::now() + Duration::seconds(self.refresh_token_lifetime)).timestamp();
         let claim = RefreshTokenClaim {
             username: username.into(),
             role: role.into(),
-            exp: dt.timestamp_millis(),
+            exp: expiration,
         };
         let token = encode(
             &Header::default(),

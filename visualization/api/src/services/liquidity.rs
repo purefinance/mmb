@@ -33,7 +33,7 @@ pub struct LiquidityRecord {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LiquidityOrderRecord {
-    pub client_order_id: i64,
+    pub client_order_id: String,
     pub price: String,
     pub amount: String,
     pub remaining_amount: String,

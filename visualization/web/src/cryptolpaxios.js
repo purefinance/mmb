@@ -187,6 +187,7 @@ export default class CryptolpAxios {
     localStorage.removeItem("auth_role");
     localStorage.removeItem("refresh_token");
     CryptolpAxios.userUpdated();
+    window.location.href = "/login";
   };
 
   static userUpdated = () => {
@@ -233,11 +234,9 @@ export default class CryptolpAxios {
               .catch((err) => {
                 console.error(err);
                 CryptolpAxios.logout();
-                window.location.href = "/login";
               });
           } else {
             CryptolpAxios.logout();
-            window.location.href = "/login";
           }
         }
         return error;
