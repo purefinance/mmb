@@ -3,13 +3,27 @@ use crate::ws::broker_messages::{
 };
 use actix::{Actor, ActorContext, AsyncContext, Handler, MessageResult, StreamHandler};
 use actix_broker::{BrokerIssue, BrokerSubscribe};
+use actix_web::web::Data;
 
+use crate::services::token::TokenService;
 use crate::ws::subscribes::liquidity::LiquiditySubscription;
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
+use serde::Deserialize;
 
-#[derive(Default)]
 pub struct WsClientSession {
     subscribed_liquidity: Option<LiquiditySubscription>,
+    token_service: Data<TokenService>,
+    is_auth: bool,
+}
+
+impl WsClientSession {
+    pub fn new(token_service: Data<TokenService>) -> Self {
+        Self {
+            subscribed_liquidity: None,
+            token_service,
+            is_auth: false,
+        }
+    }
 }
 
 /// Websocket client session
@@ -109,9 +123,15 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsClientSession {
     }
 }
 
+#[derive(Clone, Deserialize)]
+struct Auth {
+    token: String,
+}
+
 impl WsClientSession {
     fn route(&mut self, command: &str, body: &str, ctx: &mut WebsocketContext<WsClientSession>) {
         match command {
+            "Auth" => self.auth(ctx, body),
             "SubscribeLiquidity" => self.subscribe_liquidity(ctx, body),
             "UnsubscribeLiquidity" => self.unsubscribe_liquidity(),
             _ => {
@@ -120,14 +140,36 @@ impl WsClientSession {
         };
     }
 
+    fn auth(&mut self, ctx: &mut WebsocketContext<WsClientSession>, body: &str) {
+        match serde_json::from_str::<Auth>(body) {
+            Ok(auth) => {
+                let res = self.token_service.parse_access_token(&auth.token);
+                self.is_auth = res.is_ok();
+                let message = format!("Authorized|{}", self.is_auth);
+                ctx.text(message);
+            }
+            Err(e) => {
+                ctx.stop();
+                log::error!("Failed to create Auth from: {}.  Error: {:?}", body, e)
+            }
+        };
+    }
+
     fn subscribe_liquidity(&mut self, ctx: &mut WebsocketContext<WsClientSession>, body: &str) {
+        if !self.is_auth {
+            return;
+        }
         match serde_json::from_str::<LiquiditySubscription>(body) {
             Ok(subscription) => {
                 self.subscribed_liquidity = Some(subscription);
             }
-            Err(_) => {
+            Err(e) => {
                 ctx.stop();
-                log::error!("Failed to create LiquiditySubscription from: {}", body)
+                log::error!(
+                    "Failed to create LiquiditySubscription from: {}. Error: {:?}",
+                    body,
+                    e
+                )
             }
         };
     }

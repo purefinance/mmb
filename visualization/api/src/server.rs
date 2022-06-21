@@ -25,8 +25,8 @@ pub async fn start(
     port: u16,
     access_token_secret: String,
     refresh_token_secret: String,
-    access_token_lifetime_ms: i64,
-    refresh_token_lifetime_ms: i64,
+    access_token_lifetime: i64,
+    refresh_token_lifetime: i64,
     database_url: &str,
     enforcer: Enforcer,
 ) -> std::io::Result<()> {
@@ -42,8 +42,8 @@ pub async fn start(
     let token_service = TokenService::new(
         access_token_secret,
         refresh_token_secret,
-        access_token_lifetime_ms,
-        refresh_token_lifetime_ms,
+        access_token_lifetime,
+        refresh_token_lifetime,
     );
     let subscription_manager = SubscriptionManager::default().start();
     let auth_service = Arc::new(AuthService::new(enforcer));
@@ -80,7 +80,7 @@ pub async fn start(
                     log::error!("Failure to load liquidity data from database. Filters: {subscriptions:?}. Error: {e:?}")
                 }
             }
-            sleep(Duration::from_millis(200)).await;
+            sleep(Duration::from_millis(1000)).await;
         }
     });
 
