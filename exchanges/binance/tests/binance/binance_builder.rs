@@ -58,7 +58,7 @@ impl BinanceBuilder {
         .await
     }
 
-    async fn try_new(
+    pub async fn try_new(
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,
