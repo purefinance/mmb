@@ -27,6 +27,7 @@ use crate::settings::CoreSettings;
 use crate::{
     infrastructure::unset_lifetime_manager, lifecycle::app_lifetime_manager::AppLifetimeManager,
 };
+use mmb_utils::nothing_to_do;
 use parking_lot::Mutex;
 
 use super::app_lifetime_manager::ActionAfterGracefulShutdown;
@@ -88,7 +89,7 @@ impl EngineContext {
         engine_context
     }
 
-    pub(crate) async fn graceful(
+    pub(crate) async fn graceful_shutdown(
         self: Arc<Self>,
         action: ActionAfterGracefulShutdown,
         futures_cancellation_token: CancellationToken,
@@ -136,6 +137,12 @@ impl EngineContext {
         }
 
         self.shutdown_service.core_lvl_shutdown().await;
+
+        match timeout(Duration::from_secs(5), self.event_recorder.flush_and_stop()).await {
+            Err(_) => log::error!("In graceful shutdown EventRecorder::flush_and_stop() was not finished during 5 seconds"),
+            Ok(Err(err)) => log::error!("In graceful shutdown error from EventRecorder::flush_and_stop(): {err:?}"),
+            Ok(Ok(())) => nothing_to_do(),
+        }
 
         let disconnect_websockets = self
             .exchanges

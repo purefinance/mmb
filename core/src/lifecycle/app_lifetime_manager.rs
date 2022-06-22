@@ -115,6 +115,6 @@ fn start_graceful_shutdown_inner(
             log::warn!("Can't execute graceful shutdown with reason '{}', because 'engine_context' was dropped already", reason);
             None
         }
-        Some(ctx) => Some(ctx.graceful(action, futures_cancellation_token)),
+        Some(ctx) => Some(ctx.graceful_shutdown(action, futures_cancellation_token)),
     }
 }
