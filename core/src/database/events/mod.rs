@@ -1,8 +1,7 @@
 pub mod transaction;
 
 use crate::infrastructure::spawn_future;
-use crate::lifecycle::trading_engine::Service;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use mmb_database::postgres_db;
 use mmb_database::postgres_db::events::{
     save_events_batch, save_events_one_by_one, Event, InsertEvent, TableName,
@@ -19,10 +18,10 @@ use tokio::sync::{mpsc, oneshot};
 
 const BATCH_MAX_SIZE: usize = 65_536;
 const BATCH_SIZE_TO_SAVE: usize = 250;
-const SAVE_TIMEOUT: Duration = Duration::from_secs(1);
+const SAVING_TIMEOUT: Duration = Duration::from_secs(1);
 
 pub struct EventRecorder {
-    data_tx: mpsc::Sender<(InsertEvent, TableName)>,
+    data_tx: mpsc::Sender<(TableName, InsertEvent)>,
     shutdown_signal_tx: mpsc::UnboundedSender<()>,
     shutdown_rx: Mutex<Option<oneshot::Receiver<Result<()>>>>,
 }
@@ -63,36 +62,35 @@ impl EventRecorder {
         if !self.data_tx.is_closed() {
             self.data_tx
                 .try_send((
+                    table_name,
                     InsertEvent {
                         version: event.get_version(),
                         json: event
                             .get_json()
                             .context("serialization to json in `EventRecorder::save()`")?,
                     },
-                    table_name,
                 ))
                 .context("failed EventRecorder::save()")?
         }
 
         Ok(())
     }
-}
 
-impl Service for EventRecorder {
-    fn name(&self) -> &str {
-        "EventRecorder"
-    }
-
-    fn graceful_shutdown(self: Arc<Self>) -> Option<oneshot::Receiver<Result<()>>> {
+    pub async fn flush_and_stop(&self) -> Result<()> {
         let _ = self.shutdown_signal_tx.send(());
-
-        self.shutdown_rx.lock().take()
+        let receiver = self.shutdown_rx.lock().take();
+        match receiver {
+            None => bail!("Called method EventRecorder::flush_and_stop() with shutdown_rx=None"),
+            Some(shutdown_rx) => shutdown_rx.await.unwrap_or_else(|_| {
+                bail!("EventRecorder shutdown_tx dropped without sending any result")
+            }),
+        }
     }
 }
 
 async fn start_db_event_recorder(
     database_url: String,
-    mut data_rx: mpsc::Receiver<(InsertEvent, TableName)>,
+    mut data_rx: mpsc::Receiver<(TableName, InsertEvent)>,
     mut shutdown_signal_rx: mpsc::UnboundedReceiver<()>,
     shutdown_tx: oneshot::Sender<Result<()>>,
 ) -> Result<()> {
@@ -110,6 +108,8 @@ async fn start_db_event_recorder(
     fn create_batch_size_vec() -> Vec<InsertEvent> {
         Vec::<InsertEvent>::with_capacity(BATCH_MAX_SIZE)
     }
+
+    #[derive(Debug)]
     struct EventsByTableName {
         events: Vec<InsertEvent>,
         last_time_to_save: Instant,
@@ -124,16 +124,16 @@ async fn start_db_event_recorder(
     }
     let mut events_map = HashMap::<TableName, EventsByTableName>::new();
     loop {
-        let mut interval = tokio::time::interval(SAVE_TIMEOUT);
+        let mut interval = tokio::time::interval(SAVING_TIMEOUT);
         tokio::select! {
             _ = shutdown_signal_rx.recv() => break, // in any case we should correctly finish
             result = data_rx.recv() => {
                 match result {
-                    Some((event, table_name)) => {
+                    Some((table_name, event)) => {
                         let EventsByTableName{ ref mut events, ref mut last_time_to_save } = events_map.entry(table_name).or_default();
                         events.push(event);
 
-                        if last_time_to_save.elapsed() > SAVE_TIMEOUT ||
+                        if last_time_to_save.elapsed() > SAVING_TIMEOUT ||
                             events.len() >= BATCH_SIZE_TO_SAVE {
 
                             let events = mem::replace(events, create_batch_size_vec());
@@ -147,7 +147,7 @@ async fn start_db_event_recorder(
             },
             _ = interval.tick() => {
                 for (table_name, EventsByTableName { ref mut events, ref mut last_time_to_save }) in &mut events_map {
-                    if last_time_to_save.elapsed() < SAVE_TIMEOUT {
+                    if last_time_to_save.elapsed() < SAVING_TIMEOUT {
                         let events = mem::replace(events, create_batch_size_vec());
                         save_batch(&mut client, table_name, events).await.context("from `start_db_event_recorder` in `save_batch`")?;
 
@@ -158,7 +158,27 @@ async fn start_db_event_recorder(
         }
     }
 
-    let _ = shutdown_tx.send(Ok(()));
+    async fn flush_all_events(
+        client: &mut Client,
+        mut data_rx: mpsc::Receiver<(TableName, InsertEvent)>,
+        mut events_map: HashMap<TableName, EventsByTableName>,
+    ) -> Result<()> {
+        while let Ok((table_name, event)) = data_rx.try_recv() {
+            events_map.entry(table_name).or_default().events.push(event);
+        }
+
+        for (table_name, EventsByTableName { events, .. }) in events_map {
+            save_batch(client, table_name, events)
+                .await
+                .context("from `flush_all_events` in `save_batch`")?;
+        }
+
+        Ok(())
+    }
+
+    let flush_result = flush_all_events(&mut client, data_rx, events_map).await;
+
+    let _ = shutdown_tx.send(flush_result);
 
     Ok(())
 }
@@ -198,12 +218,12 @@ mod tests {
     use crate::database::events::EventRecorder;
     use mmb_database::postgres_db::events::{Event, TableName};
     use serde_json::Value;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
     use tokio::time::sleep;
 
     use crate::infrastructure::init_lifetime_manager;
     use serde::{Deserialize, Serialize};
-    use tokio_postgres::NoTls;
+    use tokio_postgres::{Client, NoTls};
 
     const DATABASE_URL: &str = "postgres://dev:dev@localhost/tests";
     const TABLE_NAME: &str = "persons";
@@ -221,6 +241,31 @@ mod tests {
         last_name: String,
         address: Address,
         phone_numbers: Vec<String>,
+    }
+
+    async fn init_test() -> Client {
+        init_lifetime_manager();
+
+        let (client, connection) = tokio_postgres::connect(DATABASE_URL, NoTls)
+            .await
+            .expect("connect to DB in test");
+
+        tokio::spawn(async move {
+            if let Err(e) = connection.await {
+                eprintln!("connection error: {}", e);
+            }
+        });
+
+        truncate_table(&client).await;
+
+        client
+    }
+
+    async fn truncate_table(client: &Client) {
+        let _ = client
+            .execute(&format!("truncate table {TABLE_NAME}"), &[])
+            .await
+            .expect("truncate persons");
     }
 
     impl Event for Person {
@@ -249,29 +294,14 @@ mod tests {
     #[ignore = "need postgres initialized for tests"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn save_1_event() {
-        init_lifetime_manager();
-
-        let (client, connection) = tokio_postgres::connect(DATABASE_URL, NoTls)
-            .await
-            .expect("connect to DB in test");
-
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
-
-        let _ = client
-            .execute(&format!("truncate table {TABLE_NAME}"), &[])
-            .await
-            .expect("truncate persons");
+        let client = init_test().await;
 
         let event_recorder = EventRecorder::start(Some(DATABASE_URL.to_string()));
 
         let person = test_person();
         event_recorder.save(person).expect("in test");
 
-        sleep(Duration::from_secs(2)).await;
+        sleep(Duration::from_millis(1_500)).await;
 
         let rows = client
             .query("select * from persons", &[])
@@ -284,24 +314,9 @@ mod tests {
     #[ignore = "need postgres initialized for tests"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn not_save_1_event_without_db_initialization() {
+        let client = init_test().await;
+
         // arrange
-        init_lifetime_manager();
-
-        let (client, connection) = tokio_postgres::connect(DATABASE_URL, NoTls)
-            .await
-            .expect("connect to DB in test");
-
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
-
-        let _ = client
-            .execute(&format!("truncate table {TABLE_NAME}"), &[])
-            .await
-            .expect("truncate persons");
-
         let person = test_person();
 
         let database_url = None; // database_url is not initialized
@@ -320,5 +335,42 @@ mod tests {
             .expect("select persons in test");
 
         assert_eq!(rows.len(), 0);
+    }
+
+    #[ignore = "need postgres initialized for tests"]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn simple_flush_and_stop() {
+        let client = init_test().await;
+
+        // arrange
+        let person = test_person();
+
+        // act
+        let event_recorder = EventRecorder::start(Some(DATABASE_URL.to_string()));
+
+        let timer = Instant::now();
+        event_recorder.save(person).expect("in test");
+
+        event_recorder
+            .flush_and_stop()
+            .await
+            .expect("failed flush_and_stop in test");
+
+        let saving_event_time = timer.elapsed();
+
+        // assert
+        assert!(
+            saving_event_time < Duration::from_secs(1),
+            "expected fast execution ({saving_event_time:?} < 1sec)"
+        );
+
+        let rows = client
+            .query("select * from persons", &[])
+            .await
+            .expect("select persons in test");
+
+        assert_eq!(rows.len(), 1);
+
+        truncate_table(&client).await;
     }
 }
