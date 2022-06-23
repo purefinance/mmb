@@ -51,7 +51,6 @@ impl Actor for WsClientSession {
 /// Global message handler. Intercepting raised LiquidityResponseMessage event
 impl Handler<LiquidityResponseMessage> for WsClientSession {
     type Result = ();
-
     fn handle(
         &mut self,
         msg: LiquidityResponseMessage,
@@ -131,8 +130,11 @@ struct Auth {
 impl WsClientSession {
     fn route(&mut self, command: &str, body: &str, ctx: &mut WebsocketContext<WsClientSession>) {
         match command {
+            // Authorization
             "Auth" => self.auth(ctx, body),
+            // Subscription for one record of order book (20 orders) and last 20 transactions
             "SubscribeLiquidity" => self.subscribe_liquidity(ctx, body),
+            // Unsubscribe from "SubscribeLiquidity"
             "UnsubscribeLiquidity" => self.unsubscribe_liquidity(),
             _ => {
                 log::error!("Unknown command: {}, body: {}", command, body);

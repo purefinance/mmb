@@ -36,6 +36,7 @@ pub async fn start(
         .connect(database_url)
         .await
         .expect("Unable to connect to DB");
+
     let liquidity_service = LiquidityService::new(connection_pool);
     let new_data_listener = NewDataListener::default().start();
     let account_service = AccountService::default();

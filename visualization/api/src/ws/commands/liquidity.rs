@@ -1,4 +1,4 @@
-use crate::services::liquidity::{LiquidityData, LiquidityOrderSide};
+use crate::services::liquidity::{LiquidityData, LiquidityOrderSide, TransactionOrderSide};
 use actix::prelude::*;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -13,14 +13,14 @@ pub struct LiquidityResponseBody {
 impl From<LiquidityData> for LiquidityResponseBody {
     fn from(liquidity_data: LiquidityData) -> Self {
         let sell_shapshot = liquidity_data
-            .record
+            .order_book
             .snapshot
             .asks
             .into_iter()
             .map(|price_level| (price_level.amount, price_level.price))
             .collect_vec();
         let buy_snapshot = liquidity_data
-            .record
+            .order_book
             .snapshot
             .bids
             .into_iter()
@@ -31,7 +31,7 @@ impl From<LiquidityData> for LiquidityResponseBody {
         let mut sell_orders: Vec<Order> = vec![];
 
         liquidity_data
-            .record
+            .order_book
             .orders
             .into_iter()
             .for_each(|order| match order.side {
@@ -45,6 +45,39 @@ impl From<LiquidityData> for LiquidityResponseBody {
                 }),
             });
 
+        let transactions = liquidity_data
+            .transactions
+            .into_iter()
+            .map(|t| {
+                let direction = match t.side {
+                    TransactionOrderSide::Buy => 1,
+                    TransactionOrderSide::Sell => 0,
+                };
+                let trades = t
+                    .trades
+                    .into_iter()
+                    .map(|tr| Trade {
+                        exchange_name: tr.exchange_id,
+                        date_time: t.transaction_creation_time.clone(),
+                        price: tr.price,
+                        amount: tr.amount,
+                        exchange_order_id: tr.exchange_order_id,
+                        direction,
+                    })
+                    .collect_vec();
+                Transaction {
+                    id: t.transaction_id,
+                    date_time: t.transaction_creation_time,
+                    price: t.price,
+                    amount: t.amount,
+                    hedged: t.hedged,
+                    profit_loss_pct: t.profit_loss_pct,
+                    status: t.status,
+                    trades,
+                }
+            })
+            .collect_vec();
+
         let state = OrderStateAndTransactions {
             exchange_name: liquidity_data.exchange_id,
             currency_code_pair: liquidity_data.currency_pair,
@@ -57,7 +90,7 @@ impl From<LiquidityData> for LiquidityResponseBody {
                 orders: buy_orders,
                 snapshot: buy_snapshot,
             },
-            transactions: vec![],
+            transactions,
         };
 
         Self {
@@ -92,12 +125,12 @@ pub struct Order {
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Transaction {
-    pub id: u64,
+    pub id: String,
     pub date_time: String,
-    pub price: f64,
-    pub amount: u64,
-    pub hedged: u64,
-    pub profit_loss_pct: f64,
+    pub price: String,
+    pub amount: String,
+    pub hedged: Option<String>,
+    pub profit_loss_pct: Option<String>,
     pub status: String,
     pub trades: Vec<Trade>,
 }
@@ -107,8 +140,8 @@ pub struct Transaction {
 pub struct Trade {
     pub exchange_name: String,
     pub date_time: String,
-    pub price: f64,
-    pub amount: u64,
+    pub price: String,
+    pub amount: String,
     pub exchange_order_id: String,
     pub direction: u8,
 }
