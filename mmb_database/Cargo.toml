@@ -11,7 +11,6 @@ chrono = { version = "0.4", features = ["serde"] }
 futures = "0.3"
 itertools = "0.10"
 log = "0.4"
-ntest = "0.8"
 tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-chrono-0_4"] }
 serde_json = "1"
 # In the project with workspaces threre is conflict between features `runtime-tokio-rustls` and `runtime-actix-rustls`.
@@ -19,6 +18,7 @@ serde_json = "1"
 sqlx = { version = "0.5.13", features = [ "chrono", "macros", "postgres", "runtime-tokio-rustls" ] }
 
 [dev-dependencies]
+ntest = "0.8"
 once_cell = "1.8"
 parking_lot = { version = "0.12", features = ["serde"]}
 scopeguard = "1.1"

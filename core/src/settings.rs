@@ -1,5 +1,6 @@
 use crate::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 pub trait BaseStrategySettings {
     fn exchange_account_id(&self) -> ExchangeAccountId;
@@ -21,9 +22,14 @@ where
 
 #[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct CoreSettings {
-    // TODO fix settings after implementing EventRecorder (remove option)
-    pub database_url: Option<String>,
+    pub database: Option<DbSettings>,
     pub exchanges: Vec<ExchangeSettings>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+pub struct DbSettings {
+    pub url: String,
+    pub migrations: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -37,7 +43,7 @@ pub enum CurrencyPairSetting {
 }
 
 // Field order are matter for serialization:
-// Simple values must be emmited before struct with custom serialization
+// Simple values must be emitted before struct with custom serialization
 // https://github.com/alexcrichton/toml-rs/issues/142#issuecomment-278970591
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct ExchangeSettings {
