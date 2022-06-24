@@ -43,7 +43,7 @@ pub trait Service: Send + Sync + 'static {
 }
 
 pub struct EngineContext {
-    pub app_settings: CoreSettings,
+    pub core_settings: CoreSettings,
     pub exchanges: DashMap<ExchangeAccountId, Arc<Exchange>>,
     pub shutdown_service: Arc<ShutdownService>,
     pub exchange_blocker: Arc<ExchangeBlocker>,
@@ -59,7 +59,7 @@ pub struct EngineContext {
 impl EngineContext {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
-        app_settings: CoreSettings,
+        core_settings: CoreSettings,
         exchanges: DashMap<ExchangeAccountId, Arc<Exchange>>,
         exchange_events: ExchangeEvents,
         finish_graceful_shutdown_sender: oneshot::Sender<ActionAfterGracefulShutdown>,
@@ -67,11 +67,10 @@ impl EngineContext {
         timeout_manager: Arc<TimeoutManager>,
         lifetime_manager: Arc<AppLifetimeManager>,
         balance_manager: Arc<Mutex<BalanceManager>>,
+        event_recorder: Arc<EventRecorder>,
     ) -> Arc<Self> {
-        let event_recorder = EventRecorder::start(app_settings.database_url.clone());
-
         let engine_context = Arc::new(EngineContext {
-            app_settings,
+            core_settings,
             exchanges,
             shutdown_service: Default::default(),
             exchange_blocker,

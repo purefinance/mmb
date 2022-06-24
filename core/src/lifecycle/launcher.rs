@@ -1,5 +1,6 @@
 use crate::balance::manager::balance_manager::BalanceManager;
 use crate::config::{load_pretty_settings, try_load_settings};
+use crate::database::events::EventRecorder;
 use crate::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
@@ -23,11 +24,12 @@ use crate::strategies::disposition_strategy::DispositionStrategy;
 use crate::{
     disposition_execution::executor::DispositionExecutorService, infrastructure::spawn_future,
 };
-use anyhow::{anyhow, bail, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use itertools::Itertools;
+use mmb_database::postgres_db::migrator::apply_migrations;
 use mmb_utils::infrastructure::{init_infrastructure, SpawnFutureFlags};
 use mmb_utils::logger::print_info;
 use mmb_utils::nothing_to_do;
@@ -201,6 +203,18 @@ where
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
 
+    let database_url = if let Some(db) = &settings.core.database {
+        apply_migrations(&db.url, db.migrations.clone())
+            .await
+            .context("unable apply db migrations")?;
+
+        Some(db.url.clone())
+    } else {
+        None
+    };
+
+    let event_recorder = EventRecorder::start(database_url);
+
     let engine_context = EngineContext::new(
         settings.core.clone(),
         exchanges_map.clone(),
@@ -210,6 +224,7 @@ where
         timeout_manager,
         lifetime_manager.clone(),
         balance_manager,
+        event_recorder,
     );
 
     Ok((
