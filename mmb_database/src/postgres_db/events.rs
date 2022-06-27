@@ -1,15 +1,18 @@
-use crate::postgres_db::Client;
+use crate::postgres_db::PgPool;
 use anyhow::{bail, Context, Result};
+use bb8_postgres::bb8::PooledConnection;
+use bb8_postgres::PostgresConnectionManager;
 use chrono::{DateTime, Utc};
 use futures::pin_mut;
 use serde_json::Value as JsonValue;
 use std::fmt::{Display, Formatter};
 use tokio_postgres::binary_copy::BinaryCopyInWriter;
 use tokio_postgres::types::Type;
+use tokio_postgres::{NoTls, Statement};
 
 pub type TableName = &'static str;
 
-const EVENT_INSERT_TYPES_LIST: [Type; 3] = [Type::TIMESTAMPTZ, Type::INT4, Type::JSONB];
+const EVENT_INSERT_TYPES_LIST: [Type; 2] = [Type::INT4, Type::JSONB];
 
 pub trait Event {
     fn get_table_name(&self) -> TableName;
@@ -41,24 +44,26 @@ impl Display for InsertEvent {
 }
 
 pub async fn save_events_batch<'a>(
-    client: &'a mut Client,
+    pool: &'a PgPool,
     table_name: TableName,
     events: &'a [InsertEvent],
 ) -> Result<()> {
-    let sql = format!("COPY {table_name} (insert_time, version, json) from stdin BINARY");
-    let sink = client
+    let sql = format!("COPY {table_name} (version, json) from stdin BINARY");
+    let sink = pool
         .0
+        .get()
+        .await
+        .context("getting db connection from pool")?
         .copy_in(&sql)
         .await
         .context("from `save_events_batch` on call `copy_in`")?;
 
     let writer = BinaryCopyInWriter::new(sink, &EVENT_INSERT_TYPES_LIST);
     pin_mut!(writer);
-    let now = Utc::now();
     for event in events {
         writer
             .as_mut()
-            .write(&[&now, &event.version, &event.json])
+            .write(&[&event.version, &event.json])
             .await
             .context("from `save_events_batch` on CopyInWriter::write() row")?;
     }
@@ -77,28 +82,42 @@ pub async fn save_events_batch<'a>(
 }
 
 pub async fn save_events_one_by_one(
-    client: &mut Client,
+    pool: &PgPool,
     table_name: TableName,
     events: Vec<InsertEvent>,
 ) -> (Result<()>, Vec<InsertEvent>) {
-    let sql = format!("INSERT INTO {table_name} (insert_time, version, json) VALUES($1, $2, $3)");
-    let sql_statement = match client
-        .0
-        .prepare_typed(&sql, &EVENT_INSERT_TYPES_LIST)
-        .await
-        .context("from `save_events_by_1` on client.prepare_types")
-    {
+    async fn prepare_connection(
+        pool: &PgPool,
+        table_name: TableName,
+    ) -> Result<(
+        PooledConnection<'_, PostgresConnectionManager<NoTls>>,
+        Statement,
+    )> {
+        let sql = format!("INSERT INTO {table_name} (version, json) VALUES($1, $2)");
+
+        let connection = pool
+            .0
+            .get()
+            .await
+            .context("getting db connection from pool")?;
+
+        let statement = connection
+            .prepare_typed(&sql, &EVENT_INSERT_TYPES_LIST)
+            .await
+            .context("from `save_events_by_1` on client.prepare_types")?;
+
+        Ok((connection, statement))
+    }
+
+    let (connection, sql_statement) = match prepare_connection(pool, table_name).await {
         Ok(v) => v,
         Err(err) => return (Err(err), events),
     };
 
-    let now = Utc::now();
-
     let mut failed_events = vec![];
     for event in events {
-        let insert_result = client
-            .0
-            .execute(&sql_statement, &[&now, &event.version, &event.json])
+        let insert_result = connection
+            .execute(&sql_statement, &[&event.version, &event.json])
             .await;
 
         match insert_result {
@@ -127,20 +146,33 @@ pub async fn save_events_one_by_one(
 
 #[cfg(test)]
 mod tests {
-    use crate::postgres_db::events::{save_events_batch, InsertEvent};
-    use crate::postgres_db::Client;
+    use crate::postgres_db::events::{save_events_batch, save_events_one_by_one, InsertEvent};
+    use crate::postgres_db::PgPool;
+    use bb8_postgres::bb8::PooledConnection;
+    use bb8_postgres::PostgresConnectionManager;
     use serde_json::json;
+    use tokio_postgres::NoTls;
 
     const DATABASE_URL: &str = "postgres://dev:dev@localhost/tests";
     const TABLE_NAME: &str = "persons";
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ignore = "need postgres initialized for tests"]
-    async fn save_batch_events_1_item() {
-        // arrange
-        let client = connect().await;
+    async fn get_pool() -> PgPool {
+        crate::postgres_db::create_connections_pool(DATABASE_URL, 2)
+            .await
+            .expect("connect to db")
+    }
 
-        let _ = client
+    async fn get_connection<'a>(
+        pool: &'a PgPool,
+    ) -> PooledConnection<'a, PostgresConnectionManager<NoTls>> {
+        pool.0.get().await.expect("getting db connection from pool")
+    }
+
+    async fn init_test() -> PgPool {
+        let pool = get_pool().await;
+        let connection = get_connection(&pool).await;
+
+        let _ = connection
             .batch_execute(
                 &include_str!("./sql/create_or_truncate_table.sql")
                     .replace("TABLE_NAME", TABLE_NAME),
@@ -148,25 +180,35 @@ mod tests {
             .await
             .expect("truncate persons");
 
+        drop(connection);
+
+        pool
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "need postgres initialized for tests"]
+    async fn save_batch_events_1_item() {
+        let pool = init_test().await;
+
+        // arrange
         let expected_json = json!({
-            "first_name": "Иван",
-            "last_name": "Иванов",
+            "first_name": "Ivan",
+            "last_name": "Ivanov",
         });
         let item = InsertEvent {
             version: 1,
             json: expected_json.clone(),
         };
 
-        let mut client = Client(client);
-
         // act
-        save_events_batch(&mut client, TABLE_NAME, &[item])
+        save_events_batch(&pool, TABLE_NAME, &[item])
             .await
             .expect("in test");
 
         // assert
-        let rows = client
-            .0
+        let connection = get_connection(&pool).await;
+
+        let rows = connection
             .query(&format!("select * from {TABLE_NAME}"), &[])
             .await
             .expect("select persons");
@@ -179,15 +221,40 @@ mod tests {
         assert_eq!(json, expected_json);
     }
 
-    async fn connect() -> tokio_postgres::Client {
-        let (Client(client), connection) = crate::postgres_db::connect(DATABASE_URL)
-            .await
-            .expect("connect to db");
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "need postgres initialized for tests"]
+    async fn save_one_by_one_events_1_item() {
+        let pool = init_test().await;
 
-        let _ =
-            tokio::spawn(
-                async move { connection.handle().await.expect("connection error in test") },
-            );
-        client
+        // arrange
+        let expected_json = json!({
+            "first_name": "Ivan",
+            "last_name": "Ivanov",
+        });
+        let item = InsertEvent {
+            version: 1,
+            json: expected_json.clone(),
+        };
+
+        // act
+        let (results, failed_events) = save_events_one_by_one(&pool, TABLE_NAME, vec![item]).await;
+        results.expect("in test");
+
+        // assert
+        assert_eq!(failed_events.len(), 0, "there are failed saving events");
+
+        let connection = get_connection(&pool).await;
+
+        let rows = connection
+            .query(&format!("select * from {TABLE_NAME}"), &[])
+            .await
+            .expect("select persons");
+
+        assert_eq!(rows.len(), 1);
+        let row = rows.first().expect("in test");
+        let version: i32 = row.get("version");
+        let json: serde_json::Value = row.get("json");
+        assert_eq!(version, 1);
+        assert_eq!(json, expected_json);
     }
 }

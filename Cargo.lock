@@ -533,6 +533,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dea908e7347a8c64e378c17e30ef880ad73e3b4498346b055c2c00ea342f3179"
 
 [[package]]
+name = "bb8"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1627eccf3aa91405435ba240be23513eeca466b5dc33866422672264de061582"
+dependencies = [
+ "async-trait",
+ "futures-channel",
+ "futures-util",
+ "parking_lot 0.12.1",
+ "tokio",
+]
+
+[[package]]
+name = "bb8-postgres"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0a22f6e28b0cf30a1861b69e3defedad0b98991a5bc54ab11bb0c2e20927686"
+dependencies = [
+ "async-trait",
+ "bb8",
+ "tokio",
+ "tokio-postgres",
+]
+
+[[package]]
 name = "binance"
 version = "0.1.0"
 dependencies = [
@@ -2723,6 +2748,7 @@ name = "mmb_database"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bb8-postgres",
  "chrono",
  "futures 0.3.21",
  "itertools 0.10.3",
