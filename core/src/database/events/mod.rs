@@ -6,7 +6,7 @@ use mmb_database::postgres_db;
 use mmb_database::postgres_db::events::{
     save_events_batch, save_events_one_by_one, Event, InsertEvent, TableName,
 };
-use mmb_database::postgres_db::Client;
+use mmb_database::postgres_db::PgPool;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use mmb_utils::logger::print_info;
 use parking_lot::Mutex;
@@ -94,16 +94,11 @@ async fn start_db_event_recorder(
     mut shutdown_signal_rx: mpsc::UnboundedReceiver<()>,
     shutdown_tx: oneshot::Sender<Result<()>>,
 ) -> Result<()> {
-    let (mut client, connection) =
-        postgres_db::connect(&database_url).await.with_context(|| {
+    let pool = postgres_db::create_connections_pool(&database_url, 5)
+        .await
+        .with_context(|| {
             format!("from `start_db_event_recorder` with connection_string: {database_url}")
         })?;
-
-    let _ = spawn_future(
-        "Db connection handler",
-        SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
-        connection.handle(),
-    );
 
     fn create_batch_size_vec() -> Vec<InsertEvent> {
         Vec::<InsertEvent>::with_capacity(BATCH_MAX_SIZE)
@@ -137,7 +132,7 @@ async fn start_db_event_recorder(
                             events.len() >= BATCH_SIZE_TO_SAVE {
 
                             let events = mem::replace(events, create_batch_size_vec());
-                            save_batch(&mut client, table_name, events).await.context("from `start_db_event_recorder` in `save_batch`")?;
+                            save_batch(&pool, table_name, events).await.context("from `start_db_event_recorder` in `save_batch`")?;
 
                             *last_time_to_save = Instant::now();
                         }
@@ -149,7 +144,7 @@ async fn start_db_event_recorder(
                 for (table_name, EventsByTableName { ref mut events, ref mut last_time_to_save }) in &mut events_map {
                     if last_time_to_save.elapsed() < SAVING_TIMEOUT {
                         let events = mem::replace(events, create_batch_size_vec());
-                        save_batch(&mut client, table_name, events).await.context("from `start_db_event_recorder` in `save_batch`")?;
+                        save_batch(&pool, table_name, events).await.context("from `start_db_event_recorder` in `save_batch`")?;
 
                         *last_time_to_save = Instant::now();
                     }
@@ -159,7 +154,7 @@ async fn start_db_event_recorder(
     }
 
     async fn flush_all_events(
-        client: &mut Client,
+        pool: &PgPool,
         mut data_rx: mpsc::Receiver<(TableName, InsertEvent)>,
         mut events_map: HashMap<TableName, EventsByTableName>,
     ) -> Result<()> {
@@ -168,7 +163,7 @@ async fn start_db_event_recorder(
         }
 
         for (table_name, EventsByTableName { events, .. }) in events_map {
-            save_batch(client, table_name, events)
+            save_batch(pool, table_name, events)
                 .await
                 .context("from `flush_all_events` in `save_batch`")?;
         }
@@ -176,24 +171,20 @@ async fn start_db_event_recorder(
         Ok(())
     }
 
-    let flush_result = flush_all_events(&mut client, data_rx, events_map).await;
+    let flush_result = flush_all_events(&pool, data_rx, events_map).await;
 
     let _ = shutdown_tx.send(flush_result);
 
     Ok(())
 }
 
-async fn save_batch(
-    client: &mut Client,
-    table_name: TableName,
-    events: Vec<InsertEvent>,
-) -> Result<()> {
-    match save_events_batch(client, table_name, &events).await {
+async fn save_batch(pool: &PgPool, table_name: TableName, events: Vec<InsertEvent>) -> Result<()> {
+    match save_events_batch(pool, table_name, &events).await {
         Ok(()) => return Ok(()),
         Err(err) => log::error!("Failed to save batch of events with error: {err:?}"),
     }
 
-    let (saving_result, failed_events) = save_events_one_by_one(client, table_name, events).await;
+    let (saving_result, failed_events) = save_events_one_by_one(pool, table_name, events).await;
     match saving_result {
         Ok(()) => {
             if !failed_events.is_empty() {
@@ -280,11 +271,11 @@ mod tests {
 
     fn test_person() -> Person {
         Person {
-            first_name: "Иван".to_string(),
-            last_name: "Иванов".to_string(),
+            first_name: "Ivan".to_string(),
+            last_name: "Ivanov".to_string(),
             address: Address {
-                street_address: "Московское ш., 101, кв.101".to_string(),
-                city: "Ленинград".to_string(),
+                street_address: "Moscow st, 101".to_string(),
+                city: "Petersburg".to_string(),
                 postal_code: 101101,
             },
             phone_numbers: vec!["812 123-1234".to_string(), "916 123-4567".to_string()],

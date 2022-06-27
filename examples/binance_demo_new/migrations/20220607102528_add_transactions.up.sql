@@ -1,6 +1,6 @@
 CREATE TABLE transactions (
     id bigserial PRIMARY KEY,
-    insert_time timestamp WITH TIME ZONE NOT NULL,
+    insert_time timestamp WITH TIME ZONE NOT NULL DEFAULT now(),
     version int,
     json jsonb NOT NULL
 );
