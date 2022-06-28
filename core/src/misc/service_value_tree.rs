@@ -341,13 +341,13 @@ mod test {
         let service_configuration_key = "name".into();
         let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
-        let currency_code = CurrencyCode::new("0".into());
+        let currency_code = CurrencyCode::new("0");
         let value = dec!(0);
 
         let new_service_configuration_key = "new_name".into();
         let new_exchange_account_id = ExchangeAccountId::new("new_acc", 0);
         let new_currency_pair = CurrencyPair::from_codes("new_code_b".into(), "new_code_q".into());
-        let new_currency_code = CurrencyCode::new("new_code".into());
+        let new_currency_code = CurrencyCode::new("new_code");
         let new_value = dec!(1);
 
         service_value_tree.set_by_service_name(
@@ -411,7 +411,7 @@ mod test {
             Some("trees remain identical after changing 'currency_code'"),
         );
 
-        let new_map = hashmap![new_currency_pair => new_map.clone()];
+        let new_map = hashmap![new_currency_pair => new_map];
         service_value_tree.set_by_exchange_account_id(
             service_name,
             service_configuration_key,
@@ -429,7 +429,7 @@ mod test {
             Some("trees remain identical after changing 'currency_pair'"),
         );
 
-        let new_map = hashmap![new_exchange_account_id => new_map.clone()];
+        let new_map = hashmap![new_exchange_account_id => new_map];
         service_value_tree.set_by_configuration_key(
             service_name,
             service_configuration_key,
@@ -446,8 +446,8 @@ mod test {
             Some("trees remain identical after changing 'exchange_account_id'"),
         );
 
-        let new_map = hashmap![new_service_configuration_key => new_map.clone()];
-        service_value_tree.set_by_service_name(service_name, new_map.clone());
+        let new_map = hashmap![new_service_configuration_key => new_map];
+        service_value_tree.set_by_service_name(service_name, new_map);
         assert_tree_item_eq_with_message(
             service_value_tree.get(),
             service_name,
@@ -472,7 +472,7 @@ mod test {
             "new_currency_pair_b_0".into(),
             "new_currency_pair_q_0".into(),
         );
-        let new_currency_code = CurrencyCode::new("0".into());
+        let new_currency_code = CurrencyCode::new("0");
         let new_value = dec!(0);
 
         let mut new_tree = ServiceValueTree::default();
@@ -508,7 +508,7 @@ mod test {
         let service_configuration_key = "name".into();
         let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
-        let currency_code = CurrencyCode::new("0".into());
+        let currency_code = CurrencyCode::new("0");
         let value = dec!(0);
 
         service_value_tree.set_by_service_name(
@@ -546,7 +546,7 @@ mod test {
         let service_configuration_key = "name".into();
         let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
-        let currency_code = CurrencyCode::new("0".into());
+        let currency_code = CurrencyCode::new("0");
         let value = dec!(0);
 
         service_value_tree.set_by_service_name(
@@ -584,7 +584,7 @@ mod test {
         let service_configuration_key = "name".into();
         let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
-        let currency_code = CurrencyCode::new("0".into());
+        let currency_code = CurrencyCode::new("0");
         let value = dec!(0);
 
         service_value_tree.set_by_service_name(
@@ -607,7 +607,7 @@ mod test {
             service_configuration_key,
             exchange_account_id,
             currency_pair,
-            CurrencyCode::new("1".into()),
+            CurrencyCode::new("1"),
             value,
         );
     }
@@ -622,7 +622,7 @@ mod test {
         let service_configuration_key = "name".into();
         let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
-        let currency_code = CurrencyCode::new("0".into());
+        let currency_code = CurrencyCode::new("0");
         let value = dec!(0);
 
         service_value_tree.set_by_service_name(
@@ -660,7 +660,7 @@ mod test {
         let service_configuration_key = "name".into();
         let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
-        let currency_code = CurrencyCode::new("0".into());
+        let currency_code = CurrencyCode::new("0");
         let value = dec!(0);
 
         service_value_tree.set_by_service_name(
@@ -698,7 +698,7 @@ mod test {
         let service_configuration_key = "name".into();
         let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
-        let currency_code = CurrencyCode::new("0".into());
+        let currency_code = CurrencyCode::new("0");
         let value = dec!(0);
 
         service_value_tree.set_by_service_name(
@@ -736,7 +736,7 @@ mod test {
         let service_configuration_key = "name".into();
         let exchange_account_id = ExchangeAccountId::new("acc_0", 0);
         let currency_pair = CurrencyPair::from_codes("b_0".into(), "q_0".into());
-        let currency_code = CurrencyCode::new("0".into());
+        let currency_code = CurrencyCode::new("0");
         let value = dec!(0);
 
         service_value_tree.set_by_service_name(
@@ -785,6 +785,7 @@ mod test {
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn assert_tree_item_eq_with_message(
         tree: &ConfigurationKeyByServiceName,
         service_name: ServiceName,

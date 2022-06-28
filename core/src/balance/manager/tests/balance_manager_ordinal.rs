@@ -252,14 +252,12 @@ mod tests {
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         if let Some(limit) = limit {
-            let configuration_descriptor = test_object
-                .balance_manager_base
-                .configuration_descriptor
-                .clone();
-            let symbol = test_object.balance_manager_base.symbol().clone();
+            let configuration_descriptor =
+                test_object.balance_manager_base.configuration_descriptor;
+            let symbol = test_object.balance_manager_base.symbol();
 
             test_object.balance_manager().set_target_amount_limit(
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
                 symbol,
                 limit,
@@ -291,24 +289,18 @@ mod tests {
     pub async fn balance_was_received_not_existing_exchange_account_id() {
         init_logger_file_named("log.txt");
         let test_object = BalanceManagerOrdinal::new();
-        assert_eq!(
-            test_object
-                .balance_manager()
-                .balance_was_received(ExchangeAccountId::new("NotExistingExchangeId", 0)),
-            false
-        );
+        assert!(!test_object
+            .balance_manager()
+            .balance_was_received(ExchangeAccountId::new("NotExistingExchangeId", 0)));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     pub async fn balance_was_received_existing_exchange_account_id_without_currency() {
         init_logger_file_named("log.txt");
         let test_object = BalanceManagerOrdinal::new();
-        assert_eq!(
-            test_object
-                .balance_manager()
-                .balance_was_received(test_object.balance_manager_base.exchange_account_id_1),
-            false
-        );
+        assert!(!test_object
+            .balance_manager()
+            .balance_was_received(test_object.balance_manager_base.exchange_account_id_1));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -402,12 +394,9 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_balance_by_side(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 exchange_account_id,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 side,
                 dec!(1),
             ),
@@ -436,12 +425,9 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_balance_by_side(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 exchange_account_id,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 side,
                 dec!(1),
             ),
@@ -460,12 +446,9 @@ mod tests {
             dec!(5),
         );
 
-        assert_eq!(
-            test_object
-                .balance_manager()
-                .can_reserve(&reserve_parameters, &mut None),
-            false
-        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
 
         assert_eq!(
             test_object
@@ -509,12 +492,9 @@ mod tests {
             dec!(5),
         );
 
-        assert_eq!(
-            test_object
-                .balance_manager()
-                .can_reserve(&reserve_parameters, &mut None),
-            false
-        );
+        assert!(!test_object
+            .balance_manager()
+            .can_reserve(&reserve_parameters, &mut None));
 
         assert_eq!(
             test_object
@@ -552,10 +532,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(0.5));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -574,10 +555,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -615,10 +597,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(0.5));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -637,10 +620,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -677,22 +661,20 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters, &mut None)
             .expect("in test");
 
-        assert_eq!(
-            test_object
-                .balance_manager()
-                .try_update_reservation(reservation_id, dec!(0.3)),
-            false
-        );
+        assert!(!test_object
+            .balance_manager()
+            .try_update_reservation(reservation_id, dec!(0.3)));
         assert_eq!(
             test_object
                 .balance_manager()
@@ -711,10 +693,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.5));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -742,10 +725,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1.1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -779,10 +763,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5.0));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -809,15 +794,17 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_eth_btc_test_obj(dec!(0.0), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -844,15 +831,17 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_eth_btc_test_obj(dec!(3), dec!(0));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -879,15 +868,17 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_eth_btc_test_obj(dec!(1), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let (reservation_id_1, reservation_id_2) = test_object
             .balance_manager()
@@ -949,26 +940,29 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_eth_btc_test_obj(dec!(0.0), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(4))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(4),
+        );
 
-        let reserve_parameters_3 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
-            .clone();
+        let reserve_parameters_3 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(1),
+        );
 
         assert!(test_object
             .balance_manager()
             .try_reserve_three(
                 reserve_parameters_1.clone(),
-                reserve_parameters_2.clone(),
+                reserve_parameters_2,
                 reserve_parameters_3.clone(),
             )
             .is_none());
@@ -993,26 +987,29 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_eth_btc_test_obj(dec!(1), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(6))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(6),
+        );
 
-        let reserve_parameters_3 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
-            .clone();
+        let reserve_parameters_3 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(1),
+        );
 
         assert!(test_object
             .balance_manager()
             .try_reserve_three(
                 reserve_parameters_1.clone(),
-                reserve_parameters_2.clone(),
+                reserve_parameters_2,
                 reserve_parameters_3.clone(),
             )
             .is_none());
@@ -1037,26 +1034,29 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_eth_btc_test_obj(dec!(1), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_3 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
-            .clone();
+        let reserve_parameters_3 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(1),
+        );
 
         assert!(test_object
             .balance_manager()
             .try_reserve_three(
                 reserve_parameters_1.clone(),
-                reserve_parameters_2.clone(),
+                reserve_parameters_2,
                 reserve_parameters_3.clone(),
             )
             .is_none());
@@ -1080,26 +1080,29 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_eth_btc_test_obj(dec!(1), dec!(6));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
-        let reserve_parameters_3 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(1))
-            .clone();
+        let reserve_parameters_3 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(1),
+        );
 
         let (reservation_id_1, reservation_id_2, reservation_id_3) = test_object
             .balance_manager()
             .try_reserve_three(
                 reserve_parameters_1.clone(),
-                reserve_parameters_2.clone(),
+                reserve_parameters_2,
                 reserve_parameters_3.clone(),
             )
             .expect("in test");
@@ -1124,7 +1127,7 @@ mod tests {
             || balance_manager.get_reservation(reservation_id_2).is_none()
             || balance_manager.get_reservation(reservation_id_3).is_none()
         {
-            assert!(false);
+            panic!();
         }
 
         let reservation = balance_manager.get_reservation_expected(reservation_id_1);
@@ -1184,10 +1187,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1216,10 +1220,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1249,10 +1254,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1264,17 +1270,14 @@ mod tests {
             .unreserve(reservation_id, dec!(5))
             .expect("in test");
 
-        match test_object
+        let error = test_object
             .balance_manager()
             .unreserve(reservation_id, dec!(5))
-        {
-            Ok(_) => assert!(false),
-            Err(error) => {
-                if !error.to_string().contains("Can't find reservation_id=") {
-                    assert!(false, "{:?}", error)
-                }
-            }
-        };
+            .expect_err("should be error");
+
+        if !error.to_string().contains("Can't find reservation_id=") {
+            panic!("{:?}", error)
+        }
 
         assert!(test_object
             .balance_manager()
@@ -1310,15 +1313,9 @@ mod tests {
         ));
 
         let reserve_parameters = ReserveParameters::new(
-            test_object
-                .balance_manager_base
-                .configuration_descriptor
-                .clone(),
-            test_object
-                .balance_manager_base
-                .exchange_account_id_1
-                .clone(),
-            symbol.clone(),
+            test_object.balance_manager_base.configuration_descriptor,
+            test_object.balance_manager_base.exchange_account_id_1,
+            symbol,
             OrderSide::Sell,
             dec!(0.2),
             dec!(1),
@@ -1354,10 +1351,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1387,10 +1385,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1420,10 +1419,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1453,10 +1453,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1486,10 +1487,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::btc(), dec!(1));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1524,10 +1526,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1576,8 +1579,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(side, price_1, amount_1)
-            .clone();
+            .create_reserve_parameters(side, price_1, amount_1);
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
@@ -1592,8 +1594,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(side, price_2, amount_2)
-            .clone();
+            .create_reserve_parameters(side, price_2, amount_2);
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -1652,8 +1653,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(side, price_1, amount_1)
-            .clone();
+            .create_reserve_parameters(side, price_1, amount_1);
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
@@ -1668,8 +1668,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(side, price_2, amount_2)
-            .clone();
+            .create_reserve_parameters(side, price_2, amount_2);
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -1714,15 +1713,17 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
 
         let reservation_id_1 = test_object
             .balance_manager()
@@ -1766,15 +1767,17 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
 
         let reservation_id_1 = test_object
             .balance_manager()
@@ -1824,14 +1827,12 @@ mod tests {
         let reserve_parameters_1 = test_object
             .lock()
             .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3));
 
         let reserve_parameters_2 = test_object
             .lock()
             .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2));
 
         let reservation_id_1 = test_object
             .lock()
@@ -1854,8 +1855,8 @@ mod tests {
             );
         });
 
-        if let Ok(_) = handle.join() {
-            assert!(false);
+        if handle.join().is_ok() {
+            panic!();
         }
 
         assert_eq!(
@@ -1889,10 +1890,11 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(0))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(0),
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -1915,19 +1917,21 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -1974,19 +1978,21 @@ mod tests {
         init_logger_file_named("log.txt");
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2071,19 +2077,21 @@ mod tests {
         init_logger_file_named("log.txt");
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2128,19 +2136,21 @@ mod tests {
         init_logger_file_named("log.txt");
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2181,19 +2191,21 @@ mod tests {
         init_logger_file_named("log.txt");
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2211,19 +2223,21 @@ mod tests {
         init_logger_file_named("log.txt");
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2301,19 +2315,21 @@ mod tests {
         init_logger_file_named("log.txt");
         let mut test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2401,21 +2417,16 @@ mod tests {
             dec!(5),
         );
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         let reserve_parameters_2 = ReserveParameters::new(
-            test_object
-                .balance_manager_base
-                .configuration_descriptor
-                .clone(),
-            test_object
-                .balance_manager_base
-                .exchange_account_id_2
-                .clone(),
-            test_object.balance_manager_base.symbol().clone(),
+            test_object.balance_manager_base.configuration_descriptor,
+            test_object.balance_manager_base.exchange_account_id_2,
+            test_object.balance_manager_base.symbol(),
             OrderSide::Sell,
             dec!(0.2),
             dec!(5),
@@ -2465,10 +2476,7 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_balance_by_side(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 ExchangeAccountId::new("unknown_id", 0),
                 test_object.balance_manager_base.symbol(),
                 OrderSide::Buy,
@@ -2485,10 +2493,7 @@ mod tests {
 
         assert_eq!(
             test_object.balance_manager().get_balance_by_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 test_object.balance_manager_base.exchange_account_id_1,
                 test_object.balance_manager_base.symbol(),
                 "not_existing_currency_code".into(),
@@ -2518,10 +2523,11 @@ mod tests {
             ],
         );
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            dec!(5),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -2586,10 +2592,11 @@ mod tests {
         let amount = dec!(5);
         let client_order_id = ClientOrderId::unique_id();
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, dec!(0.2), amount)
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            dec!(0.2),
+            amount,
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -2663,10 +2670,11 @@ mod tests {
         let approved_amount = amount / dec!(2);
         let client_order_id = ClientOrderId::unique_id();
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, price, amount)
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            price,
+            amount,
+        );
 
         let reservation_id = test_object
             .balance_manager()
@@ -2739,10 +2747,7 @@ mod tests {
             dec!(2.5),
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
             .order_was_filled(configuration_descriptor, &order);
@@ -2800,13 +2805,10 @@ mod tests {
             dec!(2.5),
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -2860,12 +2862,9 @@ mod tests {
             dec!(1),
             dec!(2.5),
         ));
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object.balance_manager().order_was_filled_with_fill(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             &order,
             order.fills.fills.first().expect("in test"),
         );
@@ -2922,12 +2921,9 @@ mod tests {
             dec!(5),
             dec!(2.5),
         ));
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object.balance_manager().order_was_filled_with_fill(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             &order,
             order.fills.fills.first().expect("in test"),
         );
@@ -2986,13 +2982,10 @@ mod tests {
         ));
         order.fills.filled_amount = dec!(6);
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order);
+            .order_was_finished(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -3047,13 +3040,10 @@ mod tests {
         ));
         order.fills.filled_amount = dec!(6);
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order);
+            .order_was_finished(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -3108,13 +3098,10 @@ mod tests {
         ));
         order.fills.filled_amount = dec!(6);
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order);
+            .order_was_finished(configuration_descriptor, &order);
 
         let mut order = test_object
             .balance_manager_base
@@ -3131,13 +3118,10 @@ mod tests {
         ));
         order.fills.filled_amount = dec!(6);
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order);
+            .order_was_finished(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -3184,10 +3168,11 @@ mod tests {
         order.fills.filled_amount = order.amount() / dec!(2);
         order.set_status(OrderStatus::Creating, Utc::now());
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(order.header.side, price, order.amount())
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            order.header.side,
+            price,
+            order.amount(),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -3287,10 +3272,11 @@ mod tests {
         order.set_status(OrderStatus::Created, Utc::now());
         let price = dec!(1.5) * order.price();
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(order.header.side, price, order.amount())
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            order.header.side,
+            price,
+            order.amount(),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -3307,7 +3293,7 @@ mod tests {
                 .as_ref()
                 .expect("in test")
                 .clone(),
-            Some(vec![order_ref.clone()]),
+            Some(vec![order_ref]),
         )
         .expect("in test");
 
@@ -3399,10 +3385,11 @@ mod tests {
         order.set_status(OrderStatus::Created, Utc::now());
         let price = dec!(0.2);
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(order.header.side, price, order.amount())
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            order.header.side,
+            price,
+            order.amount(),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -3514,10 +3501,11 @@ mod tests {
             .balance_manager_base
             .create_order(OrderSide::Buy, ReservationId::generate());
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(order.header.side, price, order.amount())
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            order.header.side,
+            price,
+            order.amount(),
+        );
 
         assert!(test_object
             .balance_manager()
@@ -3618,10 +3606,11 @@ mod tests {
 
         let price = dec!(0.2);
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, price, dec!(5))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            price,
+            dec!(5),
+        );
         let reservation_id = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters, &mut None)
@@ -4378,13 +4367,10 @@ mod tests {
             fill_amount,
             fill_price,
         ));
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         let position_by_fill_amount = test_object
             .balance_manager()
@@ -4406,9 +4392,9 @@ mod tests {
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         assert_eq!(
             test_object.balance_manager().get_balance_by_side(
-                configuration_descriptor.clone(),
+                configuration_descriptor,
                 exchange_account_id,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 OrderSide::Buy,
                 fill_price
             ),
@@ -4545,13 +4531,10 @@ mod tests {
 
         order.set_status(OrderStatus::Canceled, Utc::now());
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order);
+            .order_was_finished(configuration_descriptor, &order);
 
         let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(10));
@@ -4875,13 +4858,10 @@ mod tests {
         ));
         order.set_status(OrderStatus::Completed, Utc::now());
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order);
+            .order_was_finished(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -4964,13 +4944,10 @@ mod tests {
             dec!(1),
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         let mut balance_map: HashMap<CurrencyCode, Amount> = HashMap::new();
         balance_map.insert(BalanceManagerBase::btc(), dec!(9));
@@ -5039,10 +5016,7 @@ mod tests {
         let price = dec!(0.2);
         let limit = dec!(10);
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
 
         test_object.balance_manager().set_target_amount_limit(
             configuration_descriptor,
@@ -5224,7 +5198,7 @@ mod tests {
                 .balance_manager()
                 .get_last_position_change_before_period(&market_account_id, test_object.now)
                 .expect("in test"),
-            PositionChange::new(order_fill_id_1.clone(), test_object.now, dec!(1))
+            PositionChange::new(order_fill_id_1, test_object.now, dec!(1))
         );
 
         test_object.timer_add_second();
@@ -5283,7 +5257,7 @@ mod tests {
                 )
                 .expect("in test"),
             PositionChange::new(
-                order_fill_id_3.clone(),
+                order_fill_id_3,
                 test_object.now
                     + chrono::Duration::from_std(Duration::from_secs(2)).expect("in test"),
                 dec!(3) / dec!(4)
@@ -5304,7 +5278,7 @@ mod tests {
                 )
                 .expect("in test"),
             PositionChange::new(
-                order_fill_id_6.clone(),
+                order_fill_id_6,
                 test_object.now
                     + chrono::Duration::from_std(Duration::from_secs(5)).expect("in test"),
                 dec!(3) / dec!(5)
@@ -5327,7 +5301,7 @@ mod tests {
                 )
                 .expect("in test"),
             PositionChange::new(
-                order_fill_id_8.clone(),
+                order_fill_id_8,
                 test_object.now
                     + chrono::Duration::from_std(Duration::from_secs(6)).expect("in test"),
                 dec!(0)
@@ -5347,18 +5321,15 @@ mod tests {
             .expect("in test")
             .set_client_order_fill_id(order_fill_id.clone());
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         let order_fill = order.fills.fills.first().expect("in test");
         test_object.balance_manager().order_was_filled_with_fill(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             order,
             order_fill,
         );
 
-        return order_fill_id;
+        order_fill_id
     }
 
     fn check_position(test_object: &BalanceManagerOrdinal, position: Decimal) {

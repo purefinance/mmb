@@ -38,7 +38,7 @@ pub(crate) mod tests {
         time_manager_mock_object.expect().returning(move || {
             chrono::Utc
                 .ymd(2021, 9, 20)
-                .and_hms(0, 0, seconds_offset.lock().clone())
+                .and_hms(0, 0, *seconds_offset.lock())
         });
 
         (time_manager_mock_object, mock_locker)

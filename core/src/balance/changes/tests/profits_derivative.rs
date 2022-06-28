@@ -28,7 +28,7 @@ mod tests {
                     return Some(amount);
                 }
 
-                let price = prices.get(&from).expect("in test").clone();
+                let price = *prices.get(&from).expect("in test");
                 Some(amount * price)
             })
             .times(2);

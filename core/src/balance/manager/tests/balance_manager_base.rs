@@ -40,6 +40,12 @@ pub struct BalanceManagerBase {
     _mock_locker: ReentrantMutexGuard<'static, ()>,
 }
 
+impl Default for BalanceManagerBase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BalanceManagerBase {
     pub fn exchange_id() -> String {
         "local_exchange_id".into()
@@ -73,8 +79,8 @@ impl BalanceManagerBase {
                     balances: balances_by_currency_code
                         .iter()
                         .map(|x| ExchangeBalance {
-                            currency_code: x.0.clone(),
-                            balance: x.1.clone(),
+                            currency_code: *x.0,
+                            balance: *x.1,
                         })
                         .collect(),
                     positions: None,

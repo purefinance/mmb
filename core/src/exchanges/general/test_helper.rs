@@ -306,7 +306,7 @@ pub(crate) fn create_order_ref(
     order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
     let order_ref = order_pool
         .cache_by_client_id
-        .get(&client_order_id)
+        .get(client_order_id)
         .expect("in test");
 
     order_ref.clone()
@@ -317,6 +317,6 @@ pub(crate) fn try_add_snapshot_by_exchange_id(exchange: &Exchange, order_ref: &O
         let _ = exchange
             .orders
             .cache_by_exchange_id
-            .insert(exchange_order_id.clone(), order_ref.clone());
+            .insert(exchange_order_id, order_ref.clone());
     }
 }

@@ -113,7 +113,7 @@ pub mod tests {
                         return Some(amount);
                     }
 
-                    let price = prices.get(&from).expect("in test").clone();
+                    let price = *prices.get(&from).expect("in test");
                     Some(amount * price)
                 });
             (usd_converter, usd_converter_locker)
@@ -263,6 +263,7 @@ pub mod tests {
             this
         }
 
+        #[allow(clippy::too_many_arguments)]
         pub fn create_order_with_commission_amount(
             exchange_account_id: ExchangeAccountId,
             currency_pair: CurrencyPair,

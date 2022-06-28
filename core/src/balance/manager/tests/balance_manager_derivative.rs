@@ -55,6 +55,7 @@ impl BalanceManagerDerivative {
         dec!(1)
     }
 
+    #[allow(clippy::type_complexity)]
     fn create_balance_manager(
         is_reversed: bool,
     ) -> (
@@ -182,7 +183,7 @@ impl BalanceManagerDerivative {
         amount: Option<Amount>,
         is_reversed: bool,
     ) {
-        let price = price.unwrap_or(BalanceManagerDerivative::price());
+        let price = price.unwrap_or_else(BalanceManagerDerivative::price);
 
         let amount = match amount {
             Some(amount) => amount,
@@ -212,7 +213,7 @@ impl BalanceManagerDerivative {
             dec!(0),
             is_reversed,
         ));
-        let configuration_descriptor = self.balance_manager_base.configuration_descriptor.clone();
+        let configuration_descriptor = self.balance_manager_base.configuration_descriptor;
         self.balance_manager()
             .order_was_filled(configuration_descriptor, &order);
         self.balance_manager()
@@ -304,11 +305,9 @@ mod tests {
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         if let Some(limit) = limit {
-            let configuration_descriptor = test_object
-                .balance_manager_base
-                .configuration_descriptor
-                .clone();
-            let symbol = test_object.balance_manager_base.symbol().clone();
+            let configuration_descriptor =
+                test_object.balance_manager_base.configuration_descriptor;
+            let symbol = test_object.balance_manager_base.symbol();
 
             test_object.balance_manager().set_target_amount_limit(
                 configuration_descriptor,
@@ -476,16 +475,13 @@ mod tests {
         let limit = dec!(2);
         let fill_amount = dec!(3);
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
         let symbol = test_object.balance_manager_base.symbol();
 
         test_object.balance_manager().set_target_amount_limit(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol,
             limit,
@@ -503,7 +499,7 @@ mod tests {
         ));
         test_object
             .balance_manager()
-            .order_was_finished(configuration_descriptor.clone(), &order);
+            .order_was_finished(configuration_descriptor, &order);
     }
 
     #[rstest]
@@ -549,13 +545,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         assert_eq!(
             test_object.balance_manager().get_position(
@@ -594,13 +587,10 @@ mod tests {
             dec!(-0.025) / dec!(100),
             false,
         ));
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -648,13 +638,10 @@ mod tests {
             dec!(-0.025) / dec!(100),
             true,
         ));
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -703,13 +690,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         assert_eq!(
             test_object
@@ -757,13 +741,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         let multiplier = BalanceManagerDerivative::reversed_amount_multiplier();
         assert_eq!(
@@ -840,13 +821,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         test_object
             .balance_manager()
@@ -955,13 +933,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         test_object
             .balance_manager()
@@ -1070,13 +1045,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         test_object
             .balance_manager()
@@ -1185,13 +1157,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         test_object
             .balance_manager()
@@ -1299,13 +1268,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         test_object
             .balance_manager()
@@ -1461,13 +1427,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         test_object
             .balance_manager()
@@ -1622,13 +1585,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         test_object
             .balance_manager()
@@ -1786,13 +1746,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         test_object
             .balance_manager()
@@ -2069,10 +2026,10 @@ mod tests {
 
         let side = OrderSide::Sell;
 
-        let common_params = test_object
-            .balance_manager_base
-            .create_reserve_parameters(side, price_1, dec!(0))
-            .clone();
+        let common_params =
+            test_object
+                .balance_manager_base
+                .create_reserve_parameters(side, price_1, dec!(0));
         let initial_balance = test_object
             .balance_manager()
             .get_balance_by_reserve_parameters(&common_params)
@@ -2080,8 +2037,7 @@ mod tests {
 
         let reserve_parameters_1 = test_object
             .balance_manager_base
-            .create_reserve_parameters(side, price_1, amount_1)
-            .clone();
+            .create_reserve_parameters(side, price_1, amount_1);
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
@@ -2101,8 +2057,7 @@ mod tests {
 
         let reserve_parameters_2 = test_object
             .balance_manager_base
-            .create_reserve_parameters(side, price_2, amount_2)
-            .clone();
+            .create_reserve_parameters(side, price_2, amount_2);
         let reservation_id_2 = balance_manager
             .try_reserve(&reserve_parameters_2, &mut None)
             .expect("in test");
@@ -2166,10 +2121,11 @@ mod tests {
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), src_balance, is_reversed);
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, price_1, amount_1)
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            price_1,
+            amount_1,
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
@@ -2182,10 +2138,11 @@ mod tests {
             Some(balance_1)
         );
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, price_2, amount_2)
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            price_2,
+            amount_2,
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2221,19 +2178,21 @@ mod tests {
         let test_object =
             create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(30), is_reversed);
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, dec!(0.2), dec!(2))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            dec!(0.2),
+            dec!(2),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2282,10 +2241,11 @@ mod tests {
 
         let price = dec!(0.2);
 
-        let reserve_parameters_1 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, price, dec!(3))
-            .clone();
+        let reserve_parameters_1 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            price,
+            dec!(3),
+        );
         let reservation_id_1 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_1, &mut None)
@@ -2298,10 +2258,11 @@ mod tests {
             dec!(3)
         );
 
-        let buy_reservation_params = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, price, dec!(1))
-            .clone();
+        let buy_reservation_params = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            price,
+            dec!(1),
+        );
 
         assert_eq!(
             test_object
@@ -2326,13 +2287,10 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
 
         assert_eq!(
             test_object.balance_manager().get_position(
@@ -2347,10 +2305,11 @@ mod tests {
             .unreserve(buy_reservation_id, order.amount())
             .expect("in test");
 
-        let reserve_parameters_2 = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, price, dec!(1.9))
-            .clone();
+        let reserve_parameters_2 = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            price,
+            dec!(1.9),
+        );
         let reservation_id_2 = test_object
             .balance_manager()
             .try_reserve(&reserve_parameters_2, &mut None)
@@ -2407,10 +2366,11 @@ mod tests {
 
         let price = dec!(0.2);
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, price, dec!(2))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            price,
+            dec!(2),
+        );
         assert!(test_object
             .balance_manager()
             .try_reserve(&reserve_parameters, &mut None)
@@ -2428,7 +2388,7 @@ mod tests {
                 .balance_manager()
                 .get_exchange_balance(
                     exchange_account_id,
-                    test_object.balance_manager_base.symbol().clone(),
+                    test_object.balance_manager_base.symbol(),
                     BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
@@ -2452,7 +2412,7 @@ mod tests {
                 .balance_manager()
                 .get_exchange_balance(
                     exchange_account_id,
-                    test_object.balance_manager_base.symbol().clone(),
+                    test_object.balance_manager_base.symbol(),
                     BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
@@ -2475,10 +2435,11 @@ mod tests {
 
         let price = dec!(0.2);
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, price, dec!(2))
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            price,
+            dec!(2),
+        );
         assert!(test_object
             .balance_manager()
             .try_reserve(&reserve_parameters, &mut None)
@@ -2496,7 +2457,7 @@ mod tests {
                 .balance_manager()
                 .get_exchange_balance(
                     exchange_account_id,
-                    test_object.balance_manager_base.symbol().clone(),
+                    test_object.balance_manager_base.symbol(),
                     BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
@@ -2522,7 +2483,7 @@ mod tests {
                 .balance_manager()
                 .get_exchange_balance(
                     exchange_account_id,
-                    test_object.balance_manager_base.symbol().clone(),
+                    test_object.balance_manager_base.symbol(),
                     BalanceManagerBase::eth(),
                 )
                 .expect("in test"),
@@ -2845,14 +2806,11 @@ mod tests {
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let symbol = test_object.balance_manager_base.symbol();
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
 
         let amount_limit = dec!(2);
         test_object.balance_manager().set_target_amount_limit(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.clone(),
             amount_limit,
@@ -2872,10 +2830,11 @@ mod tests {
             hashmap![BalanceManagerBase::eth()=> dec!(1000)],
         );
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, price, BalanceManagerDerivative::amount())
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            price,
+            BalanceManagerDerivative::amount(),
+        );
 
         let balance_before_reservation = amount_limit / BalanceManagerDerivative::leverage();
 
@@ -2915,7 +2874,7 @@ mod tests {
 
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
         test_object
             .balance_manager()
             .unreserve(reservation_id, reserved_amount)
@@ -2937,7 +2896,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_balance_by_side(
-                    configuration_descriptor.clone(),
+                    configuration_descriptor,
                     exchange_account_id,
                     symbol.clone(),
                     OrderSide::Buy,
@@ -2956,9 +2915,9 @@ mod tests {
                     test_object
                         .balance_manager()
                         .get_balance_by_side(
-                            configuration_descriptor.clone(),
+                            configuration_descriptor,
                             exchange_account_id,
-                            symbol.clone(),
+                            symbol,
                             OrderSide::Sell,
                             price
                         )
@@ -2985,10 +2944,7 @@ mod tests {
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let symbol = test_object.balance_manager_base.symbol();
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
 
         let price = BalanceManagerDerivative::price();
         let amount = BalanceManagerDerivative::amount_reversed();
@@ -2996,7 +2952,7 @@ mod tests {
         let amount_limit = dec!(2);
         let adjusted_amount_limit = amount_limit / price / amount_multiplier;
         test_object.balance_manager().set_target_amount_limit(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.clone(),
             adjusted_amount_limit,
@@ -3015,10 +2971,11 @@ mod tests {
             hashmap![BalanceManagerBase::btc()=> dec!(1000)],
         );
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Buy, price, amount)
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Buy,
+            price,
+            amount,
+        );
 
         let balance_before_reservation = amount_limit / BalanceManagerDerivative::leverage();
 
@@ -3058,7 +3015,7 @@ mod tests {
 
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
         test_object
             .balance_manager()
             .unreserve(reservation_id, reserved_amount)
@@ -3080,7 +3037,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_balance_by_side(
-                    configuration_descriptor.clone(),
+                    configuration_descriptor,
                     exchange_account_id,
                     symbol.clone(),
                     OrderSide::Buy,
@@ -3099,9 +3056,9 @@ mod tests {
                     test_object
                         .balance_manager()
                         .get_balance_by_side(
-                            configuration_descriptor.clone(),
+                            configuration_descriptor,
                             exchange_account_id,
-                            symbol.clone(),
+                            symbol,
                             OrderSide::Sell,
                             price
                         )
@@ -3129,14 +3086,11 @@ mod tests {
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let symbol = test_object.balance_manager_base.symbol();
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
 
         let amount_limit = dec!(2);
         test_object.balance_manager().set_target_amount_limit(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.clone(),
             amount_limit,
@@ -3156,10 +3110,11 @@ mod tests {
             hashmap![BalanceManagerBase::eth()=> dec!(1000)],
         );
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, price, BalanceManagerDerivative::amount())
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            price,
+            BalanceManagerDerivative::amount(),
+        );
 
         let balance_before_reservation =
             amount_limit / BalanceManagerDerivative::leverage() / price;
@@ -3218,7 +3173,7 @@ mod tests {
 
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
         test_object
             .balance_manager()
             .unreserve(reservation_id, reserved_amount)
@@ -3240,7 +3195,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_balance_by_side(
-                    configuration_descriptor.clone(),
+                    configuration_descriptor,
                     exchange_account_id,
                     symbol.clone(),
                     OrderSide::Buy,
@@ -3262,9 +3217,9 @@ mod tests {
                     test_object
                         .balance_manager()
                         .get_balance_by_side(
-                            configuration_descriptor.clone(),
+                            configuration_descriptor,
                             exchange_account_id,
-                            symbol.clone(),
+                            symbol,
                             OrderSide::Sell,
                             price
                         )
@@ -3291,10 +3246,7 @@ mod tests {
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let symbol = test_object.balance_manager_base.symbol();
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
 
         let price = BalanceManagerDerivative::price();
         let amount = BalanceManagerDerivative::amount_reversed();
@@ -3302,7 +3254,7 @@ mod tests {
         let amount_limit = dec!(2);
         let adjusted_amount_limit = amount_limit / price / amount_multiplier;
         test_object.balance_manager().set_target_amount_limit(
-            configuration_descriptor.clone(),
+            configuration_descriptor,
             exchange_account_id,
             symbol.clone(),
             adjusted_amount_limit,
@@ -3321,10 +3273,11 @@ mod tests {
             hashmap![BalanceManagerBase::btc() => dec!(1000)],
         );
 
-        let reserve_parameters = test_object
-            .balance_manager_base
-            .create_reserve_parameters(OrderSide::Sell, price, amount)
-            .clone();
+        let reserve_parameters = test_object.balance_manager_base.create_reserve_parameters(
+            OrderSide::Sell,
+            price,
+            amount,
+        );
 
         let balance_before_reservation =
             amount_limit / BalanceManagerDerivative::leverage() / price;
@@ -3383,7 +3336,7 @@ mod tests {
 
         test_object
             .balance_manager()
-            .order_was_filled(configuration_descriptor.clone(), &order);
+            .order_was_filled(configuration_descriptor, &order);
         test_object
             .balance_manager()
             .unreserve(reservation_id, reserved_amount)
@@ -3405,7 +3358,7 @@ mod tests {
             test_object
                 .balance_manager()
                 .get_balance_by_side(
-                    configuration_descriptor.clone(),
+                    configuration_descriptor,
                     exchange_account_id,
                     symbol.clone(),
                     OrderSide::Buy,
@@ -3425,9 +3378,9 @@ mod tests {
                     test_object
                         .balance_manager()
                         .get_balance_by_side(
-                            configuration_descriptor.clone(),
+                            configuration_descriptor,
                             exchange_account_id,
-                            symbol.clone(),
+                            symbol,
                             OrderSide::Sell,
                             price
                         )
@@ -3773,13 +3726,10 @@ mod tests {
         let margin_buy = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -3790,13 +3740,10 @@ mod tests {
         let margin_sell = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -3833,13 +3780,10 @@ mod tests {
         let margin_buy = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -3853,13 +3797,10 @@ mod tests {
         let margin_sell = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -3899,13 +3840,10 @@ mod tests {
         let margin_buy = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -3916,13 +3854,10 @@ mod tests {
         let margin_sell = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -3959,13 +3894,10 @@ mod tests {
         let margin_buy = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -3979,13 +3911,10 @@ mod tests {
         let margin_sell = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4025,13 +3954,10 @@ mod tests {
         let margin_buy = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4045,13 +3971,10 @@ mod tests {
         let margin_sell = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4094,13 +4017,10 @@ mod tests {
         let margin_buy = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4121,13 +4041,10 @@ mod tests {
         let margin_sell = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4169,13 +4086,10 @@ mod tests {
         let margin_buy = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4189,13 +4103,10 @@ mod tests {
         let margin_sell = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4237,13 +4148,10 @@ mod tests {
         let margin_buy = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Buy,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut None,
             )
@@ -4258,13 +4166,10 @@ mod tests {
         let margin_sell = test_object
             .balance_manager()
             .get_leveraged_balance_in_amount_currency_code(
-                test_object
-                    .balance_manager_base
-                    .configuration_descriptor
-                    .clone(),
+                test_object.balance_manager_base.configuration_descriptor,
                 OrderSide::Sell,
                 test_object.balance_manager_base.exchange_account_id_1,
-                test_object.balance_manager_base.symbol().clone(),
+                test_object.balance_manager_base.symbol(),
                 BalanceManagerDerivative::price(),
                 &mut Some(Explanation::default()),
             )
@@ -4300,10 +4205,7 @@ mod tests {
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
         let symbol = test_object.balance_manager_base.symbol();
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .exchanges_by_id
             .get_mut(&exchange_account_id)
@@ -4355,16 +4257,13 @@ mod tests {
         );
 
         let exchange_account_id_1 = test_object.balance_manager_base.exchange_account_id_1;
-        let exchange_account_id_2 = test_object
-            .balance_manager_base
-            .exchange_account_id_2
-            .clone();
+        let exchange_account_id_2 = test_object.balance_manager_base.exchange_account_id_2;
         let symbol_currency_pair = test_object.balance_manager_base.symbol().currency_pair();
         BalanceManagerBase::update_balance_with_positions(
             &mut *test_object.balance_manager(),
             exchange_account_id_2,
             hashmap![BalanceManagerBase::eth() => dec!(0)],
-            hashmap![symbol_currency_pair.clone() => position],
+            hashmap![symbol_currency_pair => position],
         );
 
         let positions = test_object
@@ -4424,7 +4323,7 @@ mod tests {
             &mut *test_object.balance_manager(),
             exchange_account_id,
             hashmap![BalanceManagerBase::eth() => dec!(1)],
-            hashmap![symbol_currency_pair.clone() => dec!(3)],
+            hashmap![symbol_currency_pair => dec!(3)],
         );
 
         let positions = test_object
@@ -4469,10 +4368,7 @@ mod tests {
             is_reversed,
         ));
 
-        let configuration_descriptor = test_object
-            .balance_manager_base
-            .configuration_descriptor
-            .clone();
+        let configuration_descriptor = test_object.balance_manager_base.configuration_descriptor;
         test_object
             .balance_manager()
             .order_was_filled(configuration_descriptor, &order);

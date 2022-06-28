@@ -156,7 +156,7 @@ pub(crate) mod test {
     use super::ProfitLossStopper;
 
     fn exchange_id() -> ExchangeId {
-        ExchangeId::new("exchange_test_id".into())
+        ExchangeId::new("exchange_test_id")
     }
 
     fn exchange_account_id() -> ExchangeAccountId {
@@ -198,6 +198,7 @@ pub(crate) mod test {
     }
 
     impl TestContext {
+        #[allow(clippy::too_many_arguments)]
         pub fn new(
             _exchange_blocker: Arc<ExchangeBlocker>,
             balance_change_usd_periodic_calculator: Arc<BalanceChangeUsdPeriodicCalculator>,

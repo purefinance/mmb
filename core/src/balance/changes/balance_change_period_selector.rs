@@ -160,8 +160,7 @@ mod tests {
         let (mut balance_manager, _locker) = BalanceManager::init_mock();
 
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
-        let (_time_manager_context, _tm_locker) =
-            time::tests::init_mock(seconds_offset_in_mock.clone());
+        let (_time_manager_context, _tm_locker) = time::tests::init_mock(seconds_offset_in_mock);
         let expect_position_change = Some(PositionChange::new(
             ClientOrderFillId::new("client_order_id_test".into()),
             time_manager::now() - Duration::minutes(30),
@@ -200,8 +199,7 @@ mod tests {
         let (mut balance_manager, _locker) = BalanceManager::init_mock();
 
         let seconds_offset_in_mock = Arc::new(Mutex::new(0u32));
-        let (_time_manager_context, _tm_locker) =
-            time::tests::init_mock(seconds_offset_in_mock.clone());
+        let (_time_manager_context, _tm_locker) = time::tests::init_mock(seconds_offset_in_mock);
 
         balance_manager
             .expect_get_last_position_change_before_period()
@@ -217,7 +215,7 @@ mod tests {
                 (0..5)
                     .map(|_| {
                         let market_account_id = MarketAccountId::new(
-                            ExchangeAccountId::new(ExchangeId::new("exchange_test_id".into()), i),
+                            ExchangeAccountId::new(ExchangeId::new("exchange_test_id"), i),
                             CurrencyPair::from_codes("BTC".into(), "ETH".into()),
                         );
                         let balance_change = create_balance_change_by_market_account_id(

@@ -73,14 +73,13 @@ async fn should_fail() {
     order_proxy.amount = dec!(1);
     order_proxy.price = dec!(0.0000000000000000001);
 
-    match order_proxy
+    let error = order_proxy
         .create_order(binance_builder.exchange.clone())
         .await
-    {
-        Ok(error) => assert!(false, "Create order failed with error {:?}.", error),
-        Err(error) => assert_eq!(
-            "Exchange error: Type: InvalidOrder Message: Precision is over the maximum defined for this asset. Code Some(-1111)",
-            error.to_string()
-        ),
-    }
+        .expect_err("should be error");
+
+    assert_eq!(
+        "Exchange error: Type: InvalidOrder Message: Precision is over the maximum defined for this asset. Code Some(-1111)",
+        error.to_string()
+    );
 }
