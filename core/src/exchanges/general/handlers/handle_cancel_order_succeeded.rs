@@ -315,7 +315,7 @@ mod test {
 
         let canceled_not_from_wait_cancel_order =
             order_ref.fn_ref(|x| x.internal_props.canceled_not_from_wait_cancel_order);
-        assert_eq!(canceled_not_from_wait_cancel_order, true);
+        assert!(canceled_not_from_wait_cancel_order);
 
         let event = match event_receiver.try_recv().expect("Event was not received") {
             ExchangeEvent::OrderEvent(v) => v,

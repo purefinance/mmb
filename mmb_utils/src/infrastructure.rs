@@ -380,7 +380,7 @@ mod test {
         let _ = future_outcome.await;
 
         // Assert
-        assert_eq!(*test_value.lock(), false);
+        assert!(!*test_value.lock());
     }
 
     #[tokio::test]
@@ -409,7 +409,7 @@ mod test {
         let _ = future_outcome.await;
 
         // Assert
-        assert_eq!(*test_value.lock(), false);
+        assert!(!*test_value.lock());
     }
 
     mod with_timer {
@@ -517,7 +517,7 @@ mod test {
             tokio::time::sleep(Duration::from_millis(500)).await;
 
             // Assert
-            assert_eq!(*test_value.lock(), false);
+            assert!(!*test_value.lock());
         }
 
         #[tokio::test]

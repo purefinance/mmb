@@ -1884,29 +1884,29 @@ mod test {
                         cancellation_token.create_linked_token(),
                     )?;
 
-                let inner = timeout_manager.inner.lock();
+                {
+                    let inner = timeout_manager.inner.lock();
 
-                assert_eq!(inner.requests.len(), 3);
+                    assert_eq!(inner.requests.len(), 3);
 
-                let first_request = inner.requests.first().expect("in test");
-                assert_eq!(first_request.request_type, RequestType::CreateOrder);
-                assert_eq!(first_request.allowed_start_time, before_current);
-                assert_eq!(first_request.group_id, None);
+                    let first_request = inner.requests.first().expect("in test");
+                    assert_eq!(first_request.request_type, RequestType::CreateOrder);
+                    assert_eq!(first_request.allowed_start_time, before_current);
+                    assert_eq!(first_request.group_id, None);
 
-                let second_request = inner.requests[1].clone();
-                assert_eq!(second_request.request_type, RequestType::CreateOrder);
-                assert_eq!(second_request.allowed_start_time, before_current);
-                assert_eq!(second_request.group_id, None);
+                    let second_request = inner.requests[1].clone();
+                    assert_eq!(second_request.request_type, RequestType::CreateOrder);
+                    assert_eq!(second_request.allowed_start_time, before_current);
+                    assert_eq!(second_request.group_id, None);
 
-                let third_request = inner.requests[2].clone();
-                assert_eq!(third_request.request_type, RequestType::CreateOrder);
-                assert_eq!(
-                    third_request.allowed_start_time,
-                    current_time + Duration::seconds(5)
-                );
-                assert_eq!(third_request.group_id, None);
-
-                drop(inner);
+                    let third_request = inner.requests[2].clone();
+                    assert_eq!(third_request.request_type, RequestType::CreateOrder);
+                    assert_eq!(
+                        third_request.allowed_start_time,
+                        current_time + Duration::seconds(5)
+                    );
+                    assert_eq!(third_request.group_id, None);
+                }
 
                 match timeout(std::time::Duration::from_millis(1000), &mut future_handler).await {
                     Err(_) => {

@@ -153,10 +153,8 @@ mod test {
         exchange.handle_cancel_order_failed(&exchange_order_id, error, EventSourceType::WebSocket);
 
         // Assert
-        match event_receiver.try_recv() {
-            Ok(_) => assert!(false),
-            Err(error) => assert_eq!(error, TryRecvError::Empty),
-        }
+        let error = event_receiver.try_recv().expect_err("should be error");
+        assert_eq!(error, TryRecvError::Empty);
     }
 
     mod order_status {
@@ -176,7 +174,7 @@ mod test {
             let order_role = OrderRole::Maker;
 
             let header = OrderHeader::new(
-                client_order_id.clone(),
+                client_order_id,
                 Utc::now(),
                 exchange.exchange_account_id,
                 currency_pair,
@@ -217,10 +215,8 @@ mod test {
             );
 
             // Assert
-            match event_receiver.try_recv() {
-                Ok(_) => assert!(false),
-                Err(error) => assert_eq!(error, TryRecvError::Empty),
-            }
+            let error = event_receiver.try_recv().expect_err("should be error");
+            assert_eq!(error, TryRecvError::Empty);
         }
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -238,7 +234,7 @@ mod test {
             let order_role = OrderRole::Maker;
 
             let header = OrderHeader::new(
-                client_order_id.clone(),
+                client_order_id,
                 Utc::now(),
                 exchange.exchange_account_id,
                 currency_pair,
@@ -279,10 +275,8 @@ mod test {
             );
 
             // Assert
-            match event_receiver.try_recv() {
-                Ok(_) => assert!(false),
-                Err(error) => assert_eq!(error, TryRecvError::Empty),
-            }
+            let error = event_receiver.try_recv().expect_err("should be error");
+            assert_eq!(error, TryRecvError::Empty);
         }
     }
 
@@ -304,7 +298,7 @@ mod test {
             let order_role = OrderRole::Maker;
 
             let header = OrderHeader::new(
-                client_order_id.clone(),
+                client_order_id,
                 Utc::now(),
                 exchange.exchange_account_id,
                 currency_pair,
@@ -366,10 +360,8 @@ mod test {
                 EventSourceType::WebSocket,
             );
 
-            match event_receiver.try_recv() {
-                Ok(_) => assert!(false),
-                Err(error) => assert_eq!(error, TryRecvError::Empty),
-            }
+            let error = event_receiver.try_recv().expect_err("should be error");
+            assert_eq!(error, TryRecvError::Empty);
         }
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -385,7 +377,7 @@ mod test {
             let order_role = OrderRole::Maker;
 
             let header = OrderHeader::new(
-                client_order_id.clone(),
+                client_order_id,
                 Utc::now(),
                 exchange.exchange_account_id,
                 currency_pair,
@@ -473,7 +465,7 @@ mod test {
         let order_role = OrderRole::Maker;
 
         let header = OrderHeader::new(
-            client_order_id.clone(),
+            client_order_id,
             Utc::now(),
             exchange.exchange_account_id,
             currency_pair,
@@ -534,10 +526,8 @@ mod test {
             EventSourceType::WebSocket,
         );
 
-        match event_receiver.try_recv() {
-            Ok(_) => assert!(false),
-            Err(error) => assert_eq!(error, TryRecvError::Empty),
-        }
+        let error = event_receiver.try_recv().expect_err("should be error");
+        assert_eq!(error, TryRecvError::Empty);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -553,7 +543,7 @@ mod test {
         let order_role = OrderRole::Maker;
 
         let header = OrderHeader::new(
-            client_order_id.clone(),
+            client_order_id,
             Utc::now(),
             exchange.exchange_account_id,
             currency_pair,

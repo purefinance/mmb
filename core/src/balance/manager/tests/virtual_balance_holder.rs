@@ -76,7 +76,7 @@ impl VirtualBalanceHolderTests {
 
     fn create_balance_request(&self, currency_code: CurrencyCode) -> BalanceRequest {
         BalanceRequest::new(
-            self.configuration_descriptor.clone(),
+            self.configuration_descriptor,
             self.exchange_account_id,
             VirtualBalanceHolderTests::currency_pair(),
             currency_code,
@@ -104,10 +104,10 @@ mod tests {
     ) {
         test_obj
             .virtual_balance_holder
-            .add_balance(&balance_request, balance_to_add);
+            .add_balance(balance_request, balance_to_add);
         assert_eq!(
             test_obj.virtual_balance_holder.get_virtual_balance(
-                &balance_request,
+                balance_request,
                 test_obj.symbol.clone(),
                 None,
                 &mut None,
