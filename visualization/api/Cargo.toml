@@ -17,7 +17,7 @@ itertools = "0.10.3"
 jsonwebtoken = "8.1.0"
 log = "0.4"
 rand = "0.8.5"
-serde = { version = "1.0", features=["derive"]}
+serde = { version = "1", features=["derive"]}
 serde_json = "1.0"
 sqlx = { version = "0.5.13", features = [ "chrono", "macros", "postgres", "runtime-tokio-rustls" ] }
 tokio = { version = "1.10.0", features = ["fs", "io-util"] }

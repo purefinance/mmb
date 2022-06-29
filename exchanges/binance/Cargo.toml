@@ -19,7 +19,7 @@ mmb_utils = { path = "../../mmb_utils" }
 parking_lot = { version = "0.12", features = ["serde"]}
 rust_decimal = { version = "1", features = ["maths"]}
 rust_decimal_macros = "1"
-serde = { version = "1", features = ["derive", "rc"]}
+serde = { version = "1", features = ["derive"]}
 serde_json = "1"
 sha2 = "0.9"
 tokio = { version = "1" }

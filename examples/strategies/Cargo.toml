@@ -12,7 +12,7 @@ anyhow = "1"
 rust_decimal = { version = "1" , features = ["maths"]}
 rust_decimal_macros = "1"
 
-serde = { version = "1", features = ["derive", "rc"]}
+serde = { version = "1", features = ["derive"]}
 
 mmb_core = { path = "../../core" }
 mmb_utils = { path = "../../mmb_utils" }
