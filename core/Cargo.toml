@@ -52,7 +52,7 @@ rust_decimal = { version = "1", features = ["maths"]}
 rust_decimal_macros = "1"
 
 scopeguard = "1.1"
-serde = { version = "1", features = ["derive", "rc"]}
+serde = { version = "1", features = ["derive"]}
 serde_json = "1"
 sha2 = "0.9"
 smallstr = { version = "0.2", features = ["serde"]}
