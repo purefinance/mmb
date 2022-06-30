@@ -21,6 +21,7 @@ use mmb_core::exchanges::common::{
     SpecificCurrencyPair,
 };
 use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
+use mmb_core::exchanges::general::commission::Percent;
 use mmb_core::exchanges::general::handlers::handle_order_filled::{FillAmount, FillEvent};
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
@@ -192,10 +193,10 @@ impl Serum {
             if let EventView::Fill {
                 side,
                 maker,
-                order_id,
                 native_qty_paid,
                 native_qty_received,
                 native_fee_or_rebate,
+                order_id,
                 client_order_id: Some(client_order_id_value),
                 ..
             } = *event
@@ -219,6 +220,10 @@ impl Serum {
                         OrderRole::Maker
                     } else {
                         OrderRole::Taker
+                    },
+                    commission: OrderTradeCommission {
+                        currency_code: currency_pair.to_codes().quote,
+                        amount: calc_order_fee(maker, native_fee_or_rebate, market_metadata),
                     },
                     fill_type: OrderFillType::UserTrade,
                     currency_pair,
@@ -308,9 +313,9 @@ impl Serum {
                 total_filled_amount: None,
             },
             order_role: Some(fill_data.order_role),
-            commission_currency_code: None,
+            commission_currency_code: Some(fill_data.commission.currency_code),
             commission_rate: None,
-            commission_amount: None,
+            commission_amount: Some(fill_data.commission.amount),
             fill_type: fill_data.fill_type,
             trade_currency_pair: Some(fill_data.currency_pair),
             order_side: Some(fill_data.order_side),
@@ -340,10 +345,16 @@ struct OrderFillData {
     price: Price,
     fill_amount: Amount,
     order_role: OrderRole,
+    commission: OrderTradeCommission,
     fill_type: OrderFillType,
     currency_pair: CurrencyPair,
     order_side: OrderSide,
     date: DateTime,
+}
+
+struct OrderTradeCommission {
+    currency_code: CurrencyCode,
+    amount: Amount,
 }
 
 fn calc_order_fill_price_and_amount(
@@ -372,4 +383,70 @@ fn calc_order_fill_price_and_amount(
     let amount = Decimal::from(quantity) / dec!(10).powi(market_metadata.coin_decimal as i64);
 
     (price, amount)
+}
+
+fn calc_order_fee(
+    maker: bool,
+    native_fee_or_rebate: u64,
+    market_meta_data: &MarketMetaData,
+) -> Amount {
+    let fee_rate = if maker { dec!(-1) } else { dec!(1) };
+
+    (Decimal::from(native_fee_or_rebate) / dec!(10).powi(market_meta_data.price_decimal as i64))
+        * fee_rate
+}
+
+// There is no public method for fee rate calculation so we use getFeeRates() from serum-js
+// https://github.com/project-serum/serum-js/blob/312672d845f780d08ba827ace21555d571359d63/src/fees.ts#L8
+// Function is never used cause we need either commission amount or rate and we use amount
+// But it may be possible in future to use this code
+#[allow(dead_code)]
+fn calc_fee_rate(fee_tier: u8, maker: bool) -> Percent {
+    Percent::try_from(
+        (if maker {
+            -0.0003
+        } else {
+            match fee_tier.into() {
+                FeeTier::Srm2 => 0.002,
+                FeeTier::Srm3 => 0.0018,
+                FeeTier::Srm4 => 0.0016,
+                FeeTier::Srm5 => 0.0014,
+                FeeTier::Srm6 => 0.0012,
+                FeeTier::Msrm => 0.001,
+                // Note that there is one case for Base and Stable in JS code but in serum-dex Rust code they have different values
+                _ => 0.0022,
+            }
+        }) * 100., // All numbers above are rates so we have to get percents
+    )
+    // We are sure that all numbers are correct so panic is impossible
+    .expect("Unable to convert float number to Decimal")
+}
+
+// Copied from serum-dex source cause fees.rs is not public module and we get FeeTier enum from event data
+// https://github.com/project-serum/serum-dex/blob/0c23a513403d20cc21e47f8ddde3eb90fbb302bb/dex/src/fees.rs#L32
+enum FeeTier {
+    Base,
+    Srm2,
+    Srm3,
+    Srm4,
+    Srm5,
+    Srm6,
+    Msrm,
+    Stable,
+}
+
+impl From<u8> for FeeTier {
+    fn from(number: u8) -> Self {
+        use FeeTier::*;
+        match number {
+            1 => Srm2,
+            2 => Srm3,
+            3 => Srm4,
+            4 => Srm5,
+            5 => Srm6,
+            6 => Msrm,
+            7 => Stable,
+            _ => Base,
+        }
+    }
 }
