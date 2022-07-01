@@ -154,6 +154,7 @@ fn save_transaction(
         exchange_id: order.header.exchange_account_id.exchange_id,
         price: Some(fill.price()),
         amount: fill.amount(),
+        side: fill.side(),
     });
 
     transaction_service::save(&mut transaction, status, &ctx.event_recorder)

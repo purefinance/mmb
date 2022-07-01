@@ -552,6 +552,14 @@ impl Exchange {
 
         let rounded_fill_price = symbol.price_round(last_fill_price, Round::ToNearest);
 
+        let (client_order_id, exchange_order_id, side) = order_ref.fn_ref(|order| {
+            (
+                order.header.client_order_id.clone(),
+                order.props.exchange_order_id.clone(),
+                order.header.side,
+            )
+        });
+
         let order_fill = OrderFill::new(
             Uuid::new_v4(),
             Some(ClientOrderFillId::unique_id()),
@@ -570,15 +578,8 @@ impl Exchange {
             expected_converted_commission_amount,
             is_diff,
             None,
-            None,
+            Some(side),
         );
-
-        let (client_order_id, exchange_order_id) = order_ref.fn_ref(|order| {
-            (
-                order.header.client_order_id.clone(),
-                order.props.exchange_order_id.clone(),
-            )
-        });
 
         log::info!(
             "Adding a fill {} {:?} {} {:?} {:?}",

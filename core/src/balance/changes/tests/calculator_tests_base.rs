@@ -306,7 +306,7 @@ pub mod tests {
                     commission_amount,
                     true,
                     None,
-                    None,
+                    Some(order.side()),
                 ));
             }
 

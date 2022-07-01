@@ -4,19 +4,30 @@ import { Row, Col } from "react-bootstrap";
 
 const getTradeFillRows = (transactionSide, trades) => {
   return trades.map((trade, index) => {
-    const isBuy = transactionSide === 1;
-    const isLong = trade.direction === 0 ? isBuy : !isBuy; // 0 -> Target, 1 -> Hedged
+    let rowStyle;
+    switch (trade.side) {
+      case "Sell": {
+        rowStyle = "row-short";
+        break;
+      }
+      case "Buy": {
+        rowStyle = "row-long";
+        break;
+      }
+      default: {
+        rowStyle = "";
+      }
+    }
+    // const isLong = trade.direction === 0 ? isBuy : !isBuy; // 0 -> Target, 1 -> Hedged
+
     return (
-      <Row
-        className={`base-row bottom-line row-${isLong ? "long" : "short"}`}
-        key={index}
-      >
+      <Row className={`base-row bottom-line ${rowStyle}`} key={index}>
         <Col className="base-col center" title={trade.exchangeOrderId}>
           {trade.exchangeOrderId ? trade.exchangeOrderId.slice(-10) : "--"}
         </Col>
         <Col className="base-col center">{trade.exchangeName}</Col>
-        <Col className="base-col center">{trade.price}</Col>
-        <Col className="base-col center">{trade.amount}</Col>
+        <Col className="base-col center">{Number(trade.price)}</Col>
+        <Col className="base-col center">{Number(trade.amount)}</Col>
         <Col className="base-col center" title={trade.dateTime}>
           {utils.toLocalTime(trade.dateTime)}
         </Col>
@@ -44,7 +55,22 @@ function TradeRow(props) {
   );
 
   const trades = getAllTradeFillRows(props.transaction);
-  const isBuy = props.transaction.side === 1;
+
+  const side = props.transaction.side;
+  let sideStyle;
+  let sideText;
+
+  switch (side) {
+    case "Sell": {
+      sideStyle = "sell-color";
+      sideText = "Sell";
+      break;
+    }
+    case "Buy": {
+      sideStyle = "buy-color";
+      sideText = "Buy";
+    }
+  }
 
   return (
     <React.Fragment>
@@ -68,11 +94,13 @@ function TradeRow(props) {
           {!props.dashboard && arrow}
           {utils.toLocalDateTime(props.transaction.dateTime)}
         </Col>
-        <Col className={`base-col side_item ${isBuy ? "buy" : "sell"}-color`}>
-          {isBuy ? "Buy" : "Sell"}
+        <Col className={`base-col side_item ${sideStyle}`}>{sideText}</Col>
+        <Col className="base-col price_item">
+          {Number(props.transaction.price)}
         </Col>
-        <Col className="base-col price_item">{props.transaction.price}</Col>
-        <Col className="base-col amount_item">{props.transaction.amount}</Col>
+        <Col className="base-col amount_item">
+          {Number(props.transaction.amount)}
+        </Col>
         <Col
           className={`base-col hedged_item ${
             props.transaction.hedged < 1 ? "orange-hedged" : ""
