@@ -9,6 +9,10 @@ and also makes it possible to fetch data via HTTP
 
 Based on actix, sqlx
 
+Casbin is used for authentication.
+Rules for route permissions are located in [api/policy/policy.csv](api/policy/policy.csv)
+https://github.com/casbin/casbin-rs#how-it-works
+
 #### [Web](web)
 Web application based on React. 
 It connects to the API using the WS protocol and HTTP and get data from there.
@@ -23,7 +27,8 @@ DATABASE_URL="..." cargo run
 
 # 2. Run webapp on localhost:3000
 cd web
-npm install
+npm i
+npm i -D
 npm start
 
 # Open web

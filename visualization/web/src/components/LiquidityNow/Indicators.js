@@ -14,10 +14,19 @@ function Indicators(props) {
       data.volumePct = utils.round(indicators.volumePct, 0);
       data.bidPct = utils.round(indicators.bidPct, 0);
       data.askPct = utils.round(indicators.askPct, 0);
-      data.spread = utils.round(indicators.spread, 1);
-      data.totalVolume = utils.round(indicators.totalVolume, 3);
-      data.totalBid = utils.round(indicators.totalBid, 3);
-      data.totalAsk = utils.round(indicators.totalAsk, 3);
+
+      data.spread = indicators.spread
+        ? utils.round(indicators.spread, 1)
+        : "--";
+      data.totalVolume = utils.round(indicators.totalVolume, 3)
+        ? utils.round(indicators.volumePct, 0)
+        : "-–";
+      data.totalBid = indicators.totalBid
+        ? utils.round(indicators.totalBid, 3)
+        : "--";
+      data.totalAsk = indicators.totalAsk
+        ? utils.round(indicators.totalAsk, 3)
+        : "--";
     }
     data.symbol = props.symbol ? props.symbol.amountCurrencyCode : "";
   }

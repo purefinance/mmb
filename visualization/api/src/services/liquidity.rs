@@ -1,9 +1,13 @@
 use crate::ws::subscribes::liquidity::LiquiditySubscription;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use serde_aux::prelude::*;
 use serde_json::Value;
 use sqlx::{Pool, Postgres};
 use std::collections::HashSet;
 
+pub type Amount = Decimal;
+pub type Price = Decimal;
 /// Data Provider for Liquidity
 #[derive(Clone)]
 pub struct LiquidityService {
@@ -35,13 +39,16 @@ pub struct OrderBookRecord {
 #[derive(Debug, Clone, Deserialize)]
 pub struct LiquidityOrderRecord {
     pub client_order_id: String,
-    pub price: String,
-    pub amount: String,
-    pub remaining_amount: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub price: Price,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub amount: Amount,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub remaining_amount: Amount,
     pub side: LiquidityOrderSide,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, PartialEq)]
 pub enum LiquidityOrderSide {
     Buy,
     Sell,
@@ -58,15 +65,19 @@ pub struct OrderBookOrderRecord;
 
 #[derive(Deserialize, Clone)]
 pub struct PriceLevelRecord {
-    pub price: String,
-    pub amount: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub price: Price,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub amount: Amount,
 }
 
 #[derive(Deserialize, Clone)]
 pub struct TransactionRecord {
     pub side: TransactionOrderSide,
-    pub price: String,
-    pub amount: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub price: Price,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub amount: Amount,
     pub hedged: Option<String>,
     pub status: String,
     pub revision: i64,
@@ -78,7 +89,7 @@ pub struct TransactionRecord {
     pub market_id: MarketIdRecord,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum TransactionOrderSide {
     Buy,
     Sell,
@@ -92,10 +103,19 @@ pub struct MarketIdRecord {
 
 #[derive(Deserialize, Clone)]
 pub struct TransactionTradesRecord {
-    pub price: String,
-    pub amount: String,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub price: Price,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub amount: Amount,
     pub exchange_id: String,
     pub exchange_order_id: String,
+    pub side: Option<TransactionTradeSide>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum TransactionTradeSide {
+    Buy,
+    Sell,
 }
 
 impl LiquidityService {

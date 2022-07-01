@@ -19,6 +19,7 @@ pub struct TransactionTrade {
     pub exchange_id: ExchangeId,
     pub price: Option<Price>,
     pub amount: Amount,
+    pub side: Option<OrderSide>,
 }
 
 pub type TransactionId = Uuid;
