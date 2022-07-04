@@ -647,26 +647,27 @@ impl Serum {
         let exchange_order_id = order.exchange_order_id.clone();
         let extension_data = order.downcast_to_serum_extension_data();
 
-        if let Some(open_orders_account) = extension_data.owner {
-            let instructions = &[cancel_order(
-                &market_data.program_id,
-                &metadata.owner_address,
-                &metadata.bids_address,
-                &metadata.asks_address,
-                &open_orders_account,
-                &self.payer.pubkey(),
-                &metadata.event_queue_address,
-                order.header.side.to_serum_side(),
-                exchange_order_id.to_u128(),
-            )?];
+        // Panic here cause there is an impossible situation:
+        // we always get open orders account pubkey before getting exchange order id
+        // and cancel_orders() is called always after getting exchange order id
+        let open_orders_account = extension_data
+            .owner
+            .expect("Still not received open orders account pubkey");
+        let instructions = &[cancel_order(
+            &market_data.program_id,
+            &metadata.owner_address,
+            &metadata.bids_address,
+            &metadata.asks_address,
+            &open_orders_account,
+            &self.payer.pubkey(),
+            &metadata.event_queue_address,
+            order.header.side.to_serum_side(),
+            exchange_order_id.to_u128(),
+        )?];
 
-            self.rpc_client
-                .send_instructions(&self.payer, instructions)
-                .await
-        } else {
-            // TODO Implement waiting of getting owner pubkey
-            bail!("Order has not been created yet");
-        }
+        self.rpc_client
+            .send_instructions(&self.payer, instructions)
+            .await
     }
 
     pub(super) async fn cancel_all_orders_core(&self, currency_pair: CurrencyPair) -> Result<()> {
