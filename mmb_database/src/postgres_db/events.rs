@@ -4,6 +4,7 @@ use bb8_postgres::bb8::PooledConnection;
 use bb8_postgres::PostgresConnectionManager;
 use chrono::{DateTime, Utc};
 use futures::pin_mut;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::fmt::{Display, Formatter};
 use tokio_postgres::binary_copy::BinaryCopyInWriter;
@@ -11,8 +12,24 @@ use tokio_postgres::types::Type;
 use tokio_postgres::{NoTls, Statement};
 
 pub type TableName = &'static str;
+pub type TableNameRef<'a> = &'a str;
 
 const EVENT_INSERT_TYPES_LIST: [Type; 2] = [Type::INT4, Type::JSONB];
+
+#[macro_export]
+macro_rules! impl_event {
+    ($ty:ty, $table_name:expr) => {
+        impl mmb_database::postgres_db::events::Event for $ty {
+            fn get_table_name(&self) -> TableName {
+                $table_name
+            }
+
+            fn get_json(&self) -> serde_json::Result<serde_json::Value> {
+                serde_json::to_value(self)
+            }
+        }
+    };
+}
 
 pub trait Event {
     fn get_table_name(&self) -> TableName;
@@ -31,7 +48,7 @@ pub struct DbEvent {
     pub json: JsonValue,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct InsertEvent {
     pub version: i32,
     pub json: JsonValue,
@@ -45,10 +62,11 @@ impl Display for InsertEvent {
 
 pub async fn save_events_batch<'a>(
     pool: &'a PgPool,
-    table_name: TableName,
+    table_name: &str,
     events: &'a [InsertEvent],
 ) -> Result<()> {
     let sql = format!("COPY {table_name} (version, json) from stdin BINARY");
+
     let sink = pool
         .0
         .get()
@@ -83,14 +101,14 @@ pub async fn save_events_batch<'a>(
 
 pub async fn save_events_one_by_one(
     pool: &PgPool,
-    table_name: TableName,
+    table_name: &'_ str,
     events: Vec<InsertEvent>,
 ) -> (Result<()>, Vec<InsertEvent>) {
-    async fn prepare_connection(
-        pool: &PgPool,
-        table_name: TableName,
+    async fn prepare_connection<'a>(
+        pool: &'a PgPool,
+        table_name: &'_ str,
     ) -> Result<(
-        PooledConnection<'_, PostgresConnectionManager<NoTls>>,
+        PooledConnection<'a, PostgresConnectionManager<NoTls>>,
         Statement,
     )> {
         let sql = format!("INSERT INTO {table_name} (version, json) VALUES($1, $2)");
@@ -148,29 +166,17 @@ pub async fn save_events_one_by_one(
 mod tests {
     use crate::postgres_db::events::{save_events_batch, save_events_one_by_one, InsertEvent};
     use crate::postgres_db::PgPool;
-    use bb8_postgres::bb8::PooledConnection;
-    use bb8_postgres::PostgresConnectionManager;
     use serde_json::json;
-    use tokio_postgres::NoTls;
 
     const DATABASE_URL: &str = "postgres://dev:dev@localhost/tests";
     const TABLE_NAME: &str = "persons";
 
-    async fn get_pool() -> PgPool {
-        crate::postgres_db::create_connections_pool(DATABASE_URL, 2)
-            .await
-            .expect("connect to db")
-    }
-
-    async fn get_connection<'a>(
-        pool: &'a PgPool,
-    ) -> PooledConnection<'a, PostgresConnectionManager<NoTls>> {
-        pool.0.get().await.expect("getting db connection from pool")
-    }
-
     async fn init_test() -> PgPool {
-        let pool = get_pool().await;
-        let connection = get_connection(&pool).await;
+        let pool = PgPool::create(DATABASE_URL, 2)
+            .await
+            .expect("connect to db");
+
+        let connection = pool.get_connection_expected().await;
 
         let _ = connection
             .batch_execute(
@@ -206,10 +212,10 @@ mod tests {
             .expect("in test");
 
         // assert
-        let connection = get_connection(&pool).await;
+        let connection = pool.get_connection_expected().await;
 
         let rows = connection
-            .query(&format!("select * from {TABLE_NAME}"), &[])
+            .query(&format!("SELECT * FROM {TABLE_NAME}"), &[])
             .await
             .expect("select persons");
 
@@ -243,10 +249,10 @@ mod tests {
         // assert
         assert_eq!(failed_events.len(), 0, "there are failed saving events");
 
-        let connection = get_connection(&pool).await;
+        let connection = pool.get_connection_expected().await;
 
         let rows = connection
-            .query(&format!("select * from {TABLE_NAME}"), &[])
+            .query(&format!("SELECT * FROM {TABLE_NAME}"), &[])
             .await
             .expect("select persons");
 

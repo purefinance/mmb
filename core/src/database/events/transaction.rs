@@ -1,10 +1,10 @@
 use crate::exchanges::common::{Amount, ExchangeId, MarketId, Price};
 use crate::misc::time::time_manager;
 use crate::orders::order::{ExchangeOrderId, OrderSide};
-use mmb_database::postgres_db::events::{Event, TableName};
+use mmb_database::impl_event;
+use mmb_database::postgres_db::events::TableName;
 use mmb_utils::DateTime;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,6 +69,8 @@ pub struct TransactionSnapshot {
     pub trades: Vec<TransactionTrade>,
 }
 
+impl_event!(&mut TransactionSnapshot, "transactions");
+
 impl TransactionSnapshot {
     pub fn new(
         market_id: MarketId,
@@ -111,19 +113,9 @@ impl TransactionSnapshot {
     }
 }
 
-impl Event for &mut TransactionSnapshot {
-    fn get_table_name(&self) -> TableName {
-        "transactions"
-    }
-
-    fn get_json(&self) -> serde_json::Result<Value> {
-        serde_json::to_value(self)
-    }
-}
-
 pub mod transaction_service {
+    use crate::database::events::recorder::EventRecorder;
     use crate::database::events::transaction::{TransactionSnapshot, TransactionStatus};
-    use crate::database::events::EventRecorder;
     use anyhow::Context;
 
     pub fn save(

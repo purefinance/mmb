@@ -1,7 +1,7 @@
 [strategy]
-spread = 1000
+spread = 1
 currency_pair = { base = "btc", quote = "usdt" }
-max_amount = 3
+max_amount = 0.001
 exchange_account_id = "Binance_0"
 
 [core.database]

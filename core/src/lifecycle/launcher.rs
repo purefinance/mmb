@@ -1,6 +1,6 @@
 use crate::balance::manager::balance_manager::BalanceManager;
 use crate::config::{load_pretty_settings, try_load_settings};
-use crate::database::events::EventRecorder;
+use crate::database::events::recorder::{DbSettings, EventRecorder};
 use crate::exchanges::common::{ExchangeAccountId, ExchangeId};
 use crate::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
@@ -203,17 +203,22 @@ where
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
 
-    let database_url = if let Some(db) = &settings.core.database {
+    let database = if let Some(db) = &settings.core.database {
         apply_migrations(&db.url, db.migrations.clone())
             .await
             .context("unable apply db migrations")?;
 
-        Some(db.url.clone())
+        Some(DbSettings {
+            database_url: db.url.clone(),
+            postponed_events_dir: db.postponed_events_dir.clone(),
+        })
     } else {
         None
     };
 
-    let event_recorder = EventRecorder::start(database_url);
+    let event_recorder = EventRecorder::start(database)
+        .await
+        .context("can't start EventRecorder")?;
 
     let engine_context = EngineContext::new(
         settings.core.clone(),

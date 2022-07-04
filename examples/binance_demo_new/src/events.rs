@@ -3,9 +3,9 @@ use mmb_core::exchanges::common::{Amount, CurrencyPair, ExchangeId, MarketId, Pr
 use mmb_core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use mmb_core::orders::order::{ClientOrderId, OrderSide, OrderStatus};
 use mmb_core::orders::pool::OrdersPool;
-use mmb_database::postgres_db::events::{Event, TableName};
+use mmb_database::impl_event;
+use mmb_database::postgres_db::events::TableName;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,15 +37,7 @@ pub struct LiquidityOrderBook {
     orders: Vec<LiquidityOrder>,
 }
 
-impl Event for LiquidityOrderBook {
-    fn get_table_name(&self) -> TableName {
-        "liquidity_order_books"
-    }
-
-    fn get_json(&self) -> serde_json::Result<Value> {
-        serde_json::to_value(self)
-    }
-}
+impl_event!(LiquidityOrderBook, "liquidity_order_books");
 
 pub fn create_liquidity_order_book_snapshot(
     order_book_snapshot: &LocalOrderBookSnapshot,
