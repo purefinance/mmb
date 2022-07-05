@@ -1,16 +1,20 @@
 use crate::ws::broker_messages::{
-    ClientConnected, ClientDisconnected, GetSessionLiquiditySubscription, LiquidityResponseMessage,
+    ClientConnected, ClientDisconnected, ClientErrorResponseMessage,
+    GetSessionLiquiditySubscription, LiquidityResponseMessage,
 };
 use actix::{Actor, ActorContext, AsyncContext, Handler, MessageResult, StreamHandler};
 use actix_broker::{BrokerIssue, BrokerSubscribe};
 use actix_web::web::Data;
+use std::collections::HashSet;
 
 use crate::services::token::TokenService;
-use crate::ws::subscribes::liquidity::LiquiditySubscription;
+use crate::ws::subscribes::liquidity::{LiquiditySubscription, Subscription};
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
 use serde::Deserialize;
+use serde_json::Value;
 
 pub struct WsClientSession {
+    subscriptions: HashSet<u64>,
     subscribed_liquidity: Option<LiquiditySubscription>,
     token_service: Data<TokenService>,
     is_auth: bool,
@@ -19,6 +23,7 @@ pub struct WsClientSession {
 impl WsClientSession {
     pub fn new(token_service: Data<TokenService>) -> Self {
         Self {
+            subscriptions: HashSet::new(),
             subscribed_liquidity: None,
             token_service,
             is_auth: false,
@@ -32,6 +37,7 @@ impl Actor for WsClientSession {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.subscribe_system_async::<LiquidityResponseMessage>(ctx);
+        self.subscribe_system_async::<ClientErrorResponseMessage>(ctx);
         let message = ClientConnected {
             data: ctx.address(),
         };
@@ -59,18 +65,33 @@ impl Handler<LiquidityResponseMessage> for WsClientSession {
         match &self.subscribed_liquidity {
             None => return,
             Some(subscribed_liquidity) => {
-                if subscribed_liquidity.exchange_id != msg.exchange_id
-                    || subscribed_liquidity.currency_pair != msg.currency_pair
-                {
+                if &msg.subscription != subscribed_liquidity {
                     return;
                 }
             }
-        }
+        };
 
-        let body = serde_json::to_string(&msg.body).expect("Failed to convert json");
-        let message = format!("{}|{}", &msg.command, &body);
-        ctx.text(message);
-        log::info!("Sent to client: command={}, body={:?}", &msg.command, body);
+        match serde_json::to_value(&msg.body) {
+            Ok(body) => {
+                send_message(ctx, msg.command, &body);
+            }
+            Err(e) => {
+                log::error!("Failure convert to json. Error: {e:?}")
+            }
+        };
+    }
+}
+
+impl Handler<ClientErrorResponseMessage> for WsClientSession {
+    type Result = ();
+    fn handle(
+        &mut self,
+        msg: ClientErrorResponseMessage,
+        ctx: &mut WebsocketContext<Self>,
+    ) -> Self::Result {
+        if self.subscriptions.contains(&msg.subscription) {
+            send_message(ctx, msg.command, &msg.content);
+        }
     }
 }
 
@@ -93,7 +114,7 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsClientSession {
         let msg = match msg {
             Ok(message) => message,
             Err(err) => {
-                log::error!("Failure to read message from socket: Error: {:?}", err);
+                log::error!("Failure to read message from socket: Error: {err:?}");
                 ctx.stop();
                 return;
             }
@@ -102,7 +123,7 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsClientSession {
         let msg = match msg {
             Message::Text(message) => message.to_string(),
             _ => {
-                log::error!("Incorrect message type: Message: {:?}", msg);
+                log::error!("Incorrect message type: Message: {msg:?}");
                 ctx.stop();
                 return;
             }
@@ -114,7 +135,7 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsClientSession {
 
         match command {
             None => {
-                log::error!("Failure get command from message: Message: {:?}", msg);
+                log::error!("Failure get command from message: Message: {msg:?}");
                 ctx.stop();
             }
             Some(command) => self.route(command, body, ctx),
@@ -137,7 +158,7 @@ impl WsClientSession {
             // Unsubscribe from "SubscribeLiquidity"
             "UnsubscribeLiquidity" => self.unsubscribe_liquidity(),
             _ => {
-                log::error!("Unknown command: {}, body: {}", command, body);
+                log::error!("Unknown command: {command}, body: {body}");
             }
         };
     }
@@ -152,7 +173,7 @@ impl WsClientSession {
             }
             Err(e) => {
                 ctx.stop();
-                log::error!("Failed to create Auth from: {}.  Error: {:?}", body, e)
+                log::error!("Failed to create Auth from: {body}.  Error: {e:?}")
             }
         };
     }
@@ -163,20 +184,29 @@ impl WsClientSession {
         }
         match serde_json::from_str::<LiquiditySubscription>(body) {
             Ok(subscription) => {
+                self.subscriptions.insert(subscription.get_hash());
                 self.subscribed_liquidity = Some(subscription);
             }
             Err(e) => {
                 ctx.stop();
-                log::error!(
-                    "Failed to create LiquiditySubscription from: {}. Error: {:?}",
-                    body,
-                    e
-                )
+                log::error!("Failed to create LiquiditySubscription from: {body}. Error: {e:?}")
             }
         };
     }
 
     fn unsubscribe_liquidity(&mut self) {
-        self.subscribed_liquidity = None
+        match &self.subscribed_liquidity {
+            None => {}
+            Some(subscription) => {
+                self.subscriptions.remove(&subscription.get_hash());
+                self.subscribed_liquidity = None;
+            }
+        }
     }
+}
+
+fn send_message(ctx: &mut WebsocketContext<WsClientSession>, command: &str, content: &Value) {
+    let message = format!("{}|{}", command, content);
+    ctx.text(message);
+    log::info!("Sent to client: command={}, body={:?}", command, content);
 }

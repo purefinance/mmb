@@ -4,6 +4,8 @@ import config from "../config.js";
 import { groupBy } from "../controls/functions";
 import { delay } from "q";
 import CryptolpAxios from "../cryptolpaxios";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 class WsContainer extends Container {
   constructor(props) {
@@ -74,6 +76,12 @@ class WsContainer extends Container {
         await this.updateVolume(message);
         break;
       }
+      case "Error": {
+        console.log("Error message received", message);
+        toast.error(message.message);
+        toast.clearWaitingQueue();
+        break;
+      }
       default: {
         console.error("Command not supported:", command, message);
       }
@@ -103,28 +111,11 @@ class WsContainer extends Container {
         console.log("Websocket closed!", e);
         await this.setState(this.emptyState());
       },
-      onerror: (e) => console.log("Error:", e),
+      onerror: (e) => {
+        console.error("Error:", e);
+        toast.error("Connection problem");
+      },
     });
-
-    // wsConnection = new HubConnectionBuilder()
-    //     .withUrl(config.baseHubURL + "Main", {accessTokenFactory: async () => CryptolpAxios.token})
-    //     .withAutomaticReconnect({
-    //         nextRetryDelayInMilliseconds: (retryContext) => {
-    //             return Math.random() * 10000;
-    //         },
-    //     })
-    //     .build();
-
-    // wsConnection.on("TokenExpired", async (message) => {
-    //     console.log("Authorization token expired. Please Login in the System.");
-    //
-    //     wsConnection.stop();
-    //
-    //     localStorage.removeItem("auth_token");
-    //     localStorage.removeItem("auth_expiration");
-    //     localStorage.removeItem("auth_role");
-    //     window.location.href = "/login";
-    // });
   }
 
   async auth(token) {

@@ -71,7 +71,7 @@ impl Handler<GatherSubscriptions> for SubscriptionManager {
                                 // client doesn't have liquidity subscription
                             }
                         },
-                        Err(e) => log::error!("Invalid subscription message {:?}", e),
+                        Err(e) => log::error!("Invalid subscription message {e:?}"),
                     }
                 }
             })

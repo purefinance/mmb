@@ -84,11 +84,7 @@ where
             Ok(true) => self.service.call(req).boxed_local(),
             Ok(false) => async { Err(ErrorForbidden("")) }.boxed_local(),
             Err(err) => {
-                log::error!(
-                    "Failure to execute enforcer Error:{:?}. Request: {:?}",
-                    err,
-                    req
-                );
+                log::error!("Failure to execute enforcer Error: {err:?}. Request: {req:?}");
                 async { Err(ErrorInternalServerError("")) }.boxed_local()
             }
         }

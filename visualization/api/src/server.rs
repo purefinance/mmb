@@ -3,18 +3,20 @@ use crate::routes::routes;
 use crate::services::account::AccountService;
 use crate::services::auth::AuthService;
 use crate::services::token::TokenService;
+use crate::ws::actors::error_listener::ErrorListener;
 use crate::ws::actors::new_data_listener::NewDataListener;
 use crate::ws::actors::subscription_manager::SubscriptionManager;
 use crate::ws::broker_messages::{
-    ClearSubscriptions, GatherSubscriptions, GetLiquiditySubscriptions,
+    ClearSubscriptions, GatherSubscriptions, GetLiquiditySubscriptions, SubscriptionErrorMessage,
 };
-use crate::ws::subscribes::liquidity::LiquiditySubscription;
+use crate::ws::subscribes::liquidity::{LiquiditySubscription, Subscription};
 use crate::{LiquidityService, NewLiquidityDataMessage};
 use actix::clock::sleep;
 use actix::{spawn, Actor};
 use actix_cors::Cors;
 use actix_web::middleware::Logger;
-use actix_web::{web, App, HttpServer};
+use actix_web::web::Data;
+use actix_web::{App, HttpServer};
 use casbin::Enforcer;
 use sqlx::postgres::PgPoolOptions;
 use std::collections::HashSet;
@@ -39,6 +41,7 @@ pub async fn start(
 
     let liquidity_service = LiquidityService::new(connection_pool);
     let new_data_listener = NewDataListener::default().start();
+    let error_listener = ErrorListener::default().start();
     let account_service = AccountService::default();
     let token_service = TokenService::new(
         access_token_secret,
@@ -63,24 +66,32 @@ pub async fn start(
                 .send(GetLiquiditySubscriptions)
                 .await
                 .expect("Failure to execute subscription manager");
-            let liquidity_array = liquidity_service
-                .get_liquidity_data_by_subscriptions(&subscriptions)
-                .await;
 
-            match liquidity_array {
-                Ok(liquidity_array) => {
-                    for liquidity_data in liquidity_array {
+            for sub in subscriptions {
+                let liquidity_data = liquidity_service
+                    .get_liquidity_data(&sub.exchange_id, &sub.currency_pair, 20)
+                    .await;
+                match liquidity_data {
+                    Ok(liquidity_data) => {
                         let _ = new_data_listener
                             .send(NewLiquidityDataMessage {
+                                subscription: sub,
                                 data: liquidity_data,
                             })
                             .await;
                     }
-                }
-                Err(e) => {
-                    log::error!("Failure to load liquidity data from database. Filters: {subscriptions:?}. Error: {e:?}")
+                    Err(e) => {
+                        log::error!("Failure to load liquidity data from database. Filters: {sub:?}. Error: {e:?}");
+
+                        let message = SubscriptionErrorMessage {
+                            subscription: sub.get_hash(),
+                            message: "Internal Server Error".to_string(),
+                        };
+                        let _ = error_listener.send(message).await;
+                    }
                 }
             }
+
             sleep(Duration::from_millis(1000)).await;
         }
     });
@@ -93,9 +104,9 @@ pub async fn start(
             .wrap(cors)
             .wrap(Logger::default())
             .wrap(TokenAuth::default())
-            .app_data(web::Data::new(account_service.clone()))
-            .app_data(web::Data::new(auth_service.clone()))
-            .app_data(web::Data::new(token_service.clone()))
+            .app_data(Data::new(account_service.clone()))
+            .app_data(Data::new(auth_service.clone()))
+            .app_data(Data::new(token_service.clone()))
     })
     .workers(2)
     .bind(("127.0.0.1", port))?

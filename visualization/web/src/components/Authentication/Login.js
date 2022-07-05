@@ -35,7 +35,7 @@ class Login extends Component {
     try {
       const loginResponse = await CryptolpAxios.login(this.state);
       await this.setState({ submitting: false });
-      if (loginResponse.response && loginResponse.response.data.error) {
+      if (loginResponse.data && loginResponse.data.error) {
         const errors = parseError(loginResponse);
         await this.setState({ ...errors });
       } else {
