@@ -28,14 +28,15 @@ class AuthenticationContainer extends Component {
             >
               Log In
             </NavLink>
-            <NavLink
-              to="/signup"
-              exact
-              className="auth-tab"
-              activeClassName="current"
-            >
-              Sign Up
-            </NavLink>
+            {/*!TODO Enable when sign up is implemented */}
+            {/*<NavLink*/}
+            {/*  to="/signup"*/}
+            {/*  exact*/}
+            {/*  className="auth-tab"*/}
+            {/*  activeClassName="current"*/}
+            {/*>*/}
+            {/*  Sign Up*/}
+            {/*</NavLink>*/}
           </Row>
           <Switch>
             <Route exact path="/login" component={Login} />
