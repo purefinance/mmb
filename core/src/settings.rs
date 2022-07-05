@@ -30,6 +30,9 @@ pub struct CoreSettings {
 pub struct DbSettings {
     pub url: String,
     pub migrations: Vec<PathBuf>,
+    /// Path to directory for creating temporary directory for save events that was not saved to
+    /// database by any reason and will be resaved to db late
+    pub postponed_events_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

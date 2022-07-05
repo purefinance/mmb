@@ -13,6 +13,7 @@ itertools = "0.10"
 log = "0.4"
 tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-chrono-0_4"] }
 bb8-postgres = { version = "0.8", features = ["with-serde_json-1", "with-chrono-0_4"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # In the project with workspaces threre is conflict between features `runtime-tokio-rustls` and `runtime-actix-rustls`.
 # According  https://github.com/launchbadge/sqlx/issues/894#issuecomment-747821912 , for postgres db, we will have same result using only feature `runtime-tokio-rustls`.

@@ -14,7 +14,7 @@ use tokio::sync::{broadcast, oneshot};
 use tokio::time::{timeout, Duration};
 
 use crate::balance::manager::balance_manager::BalanceManager;
-use crate::database::events::EventRecorder;
+use crate::database::events::recorder::EventRecorder;
 use crate::exchanges::block_reasons;
 use crate::exchanges::common::ExchangeAccountId;
 use crate::exchanges::events::{ExchangeEvent, ExchangeEvents};
