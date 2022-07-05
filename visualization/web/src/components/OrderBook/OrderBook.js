@@ -21,7 +21,7 @@ function OrderBook(props) {
         titleClass="red_title"
         symbol={props.symbol}
         orders={props.orderState.sell}
-        desiredAmount={props.orderState.desiredAmount}
+        desiredAmount={Number(props.orderState.desiredAmount)}
         leftSide
       />
       <Orders
@@ -30,7 +30,7 @@ function OrderBook(props) {
         highlightClass="indicator_instant_buy"
         symbol={props.symbol}
         orders={props.orderState.buy}
-        desiredAmount={props.orderState.desiredAmount}
+        desiredAmount={Number(props.orderState.desiredAmount)}
       />
     </Row>
   );

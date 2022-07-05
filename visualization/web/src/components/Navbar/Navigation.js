@@ -139,13 +139,14 @@ class Navdropdown extends Component {
       if (CryptolpAxios.clientType === constants.clientType.arbitrage)
         navElements.push(this.navArbitrage);
       else {
-        navElements.push(this.navDashboard);
+        // !TODO uncomment these comments if you want to enable Nav buttons
+        // navElements.push(this.navDashboard);
         navElements.push(this.navLiquidity);
-        navElements.push(this.navVolume);
+        // navElements.push(this.navVolume);
       }
-      navElements.push(this.navPL);
-      navElements.push(this.navBalances);
-      navElements.push(this.navTradeSignals);
+      // navElements.push(this.navPL);
+      // navElements.push(this.navBalances);
+      // navElements.push(this.navTradeSignals);
       if (CryptolpAxios.clientType === constants.clientType.signals)
         navElements.push(this.navSignals);
       if (CryptolpAxios.clientType === constants.clientType.ico)
@@ -159,10 +160,10 @@ class Navdropdown extends Component {
         navElements.push(this.navConfigurations);
         navElements.push(this.navExplanation);
         navElements.push(this.navPostponedFills);
-        navElements.push(this.navPLGraph);
+        // navElements.push(this.navPLGraph);
       }
       const navDropdown = [];
-      //First time we take 2 elements for general length navMenu 5
+      // First time we take 2 elements for general length navMenu 5
       if (navElements.length > 5)
         while (navElements.length >= 5) {
           navDropdown.push(navElements.pop());

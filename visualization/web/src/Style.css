@@ -33,7 +33,9 @@ a:hover {
     color: #727f8d;
     padding: 20px 5px;
     text-align: left;
-    margin-left: auto;
+    /* !TODO remove if you have more than one nav */
+    margin-left: 50px !important;
+    /*margin-left: auto;*/
     margin-right: auto;
 }
 

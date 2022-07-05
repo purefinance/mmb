@@ -19,7 +19,7 @@ function Orders(props) {
           highlightClass={props.highlightClass}
           snapshot={snapshot}
           currentAmount={currentAmount}
-          desiredAmount={props.desiredAmount}
+          desiredAmount={Number(props.desiredAmount)}
           leftSide={props.leftSide}
         />
       );

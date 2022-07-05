@@ -24,7 +24,7 @@ import Navbar from "./containers/Navbar";
 import Price from "./components/Price/Price";
 
 import "./Style.css";
-import Dashboard from "./containers/Dashboard";
+// import Dashboard from "./containers/Dashboard";
 import Header from "./containers/Header";
 import WsContainer from "./unstatedContainers/WsContainer";
 import Signals from "./containers/Signals";
@@ -38,6 +38,9 @@ import Explanation from "./containers/Explanation";
 import AppContainer from "./unstatedContainers/AppContainer";
 import PLGraphContainer from "./unstatedContainers/PLGraphContainer";
 import PLGraph from "./containers/PLGraph";
+import { ToastContainer } from "react-toastify";
+
+import "react-toastify/dist/ReactToastify.css";
 
 class App extends Component {
   constructor() {
@@ -260,11 +263,15 @@ class App extends Component {
             <Route
               exact
               path="/"
-              render={() => (
-                <Subscribe to={[WsContainer]}>
-                  {(ws) => <Dashboard ws={ws} />}
-                </Subscribe>
-              )}
+              render={() => {
+                window.location.href = "/liquidity/now/";
+              }}
+              // !TODO uncomment it if you want to enable Dashboard
+              // render={() => (
+              //   <Subscribe to={[WsContainer]}>
+              //     {(ws) => <Dashboard ws={ws} />}
+              //   </Subscribe>
+              // )}
             />
           )}
 
@@ -413,6 +420,18 @@ class App extends Component {
 
     return (
       <GlobalErrorBoundary>
+        <ToastContainer
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={true}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          limit={1}
+        />
         <BrowserRouter>
           {this.state.isAuthorized ? (
             <React.Fragment>

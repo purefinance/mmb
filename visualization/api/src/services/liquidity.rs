@@ -1,10 +1,8 @@
-use crate::ws::subscribes::liquidity::LiquiditySubscription;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 use serde_json::Value;
 use sqlx::{Pool, Postgres};
-use std::collections::HashSet;
 
 pub type Amount = Decimal;
 pub type Price = Decimal;
@@ -16,8 +14,6 @@ pub struct LiquidityService {
 
 #[derive(Clone)]
 pub struct LiquidityData {
-    pub exchange_id: String,
-    pub currency_pair: String,
     pub order_book: OrderBookRecord,
     pub transactions: Vec<TransactionRecord>,
 }
@@ -123,29 +119,22 @@ impl LiquidityService {
         Self { pool }
     }
 
-    pub async fn get_liquidity_data_by_subscriptions(
+    pub async fn get_liquidity_data(
         &self,
-        subscriptions: &HashSet<LiquiditySubscription>,
-    ) -> Result<Vec<LiquidityData>, sqlx::Error> {
-        let mut result: Vec<LiquidityData> = vec![];
-        for sub in subscriptions {
-            let order_book = self
-                .get_order_book(&sub.exchange_id, &sub.currency_pair)
-                .await?;
+        exchange_id: &str,
+        currency_pair: &str,
+        transaction_limit: i32,
+    ) -> Result<LiquidityData, sqlx::Error> {
+        let order_book = self.get_order_book(exchange_id, currency_pair).await?;
 
-            let transactions = self
-                .get_transactions(&sub.exchange_id, &sub.currency_pair, 20)
-                .await?;
+        let transactions = self
+            .get_transactions(exchange_id, currency_pair, transaction_limit)
+            .await?;
 
-            let liquidity_data = LiquidityData {
-                exchange_id: sub.exchange_id.clone(),
-                currency_pair: sub.currency_pair.clone(),
-                order_book,
-                transactions,
-            };
-            result.push(liquidity_data);
-        }
-        Ok(result)
+        Ok(LiquidityData {
+            order_book,
+            transactions,
+        })
     }
 }
 

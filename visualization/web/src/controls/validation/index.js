@@ -1,6 +1,6 @@
 function parseError(e) {
   try {
-    const errorData = JSON.parse(e.response.data.error);
+    const errorData = JSON.parse(e.data.error);
     const errors = [];
     if (errorData.errorFields)
       errorData.errorFields.forEach((e) => {
@@ -8,7 +8,7 @@ function parseError(e) {
       });
     return { error: errorData.message, errorFields: errors };
   } catch (er) {
-    return { error: e.response.data.error };
+    return { error: e.data.error };
   }
 }
 

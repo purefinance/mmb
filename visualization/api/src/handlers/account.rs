@@ -18,7 +18,8 @@ pub async fn login(
     token_service: Data<TokenService>,
 ) -> Result<HttpResponse, Error> {
     if !account_service.authorize(&payload.username, &payload.password) {
-        return Ok(HttpResponse::Unauthorized().finish());
+        let error = json!({"error": "Incorrect username or password"});
+        return Ok(HttpResponse::Ok().json(error));
     }
     let role = "user";
     success_login_response(&token_service, &payload.username, role)
@@ -72,13 +73,13 @@ fn success_login_response(
                     "refreshToken": new_refresh_token
                 }))),
                 Err(e) => {
-                    log::error!("{:?}", e);
+                    log::error!("{e:?}");
                     Ok(HttpResponse::InternalServerError().finish())
                 }
             }
         }
         Err(e) => {
-            log::error!("{:?}", e);
+            log::error!("{e:?}");
             Ok(HttpResponse::InternalServerError().finish())
         }
     }

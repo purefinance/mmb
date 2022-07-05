@@ -91,8 +91,8 @@ impl From<LiquidityData> for LiquidityResponseBody {
             .collect_vec();
 
         let state = OrderStateAndTransactions {
-            exchange_name: liquidity_data.exchange_id,
-            currency_code_pair: liquidity_data.currency_pair,
+            exchange_name: liquidity_data.order_book.exchange_id,
+            currency_code_pair: liquidity_data.order_book.currency_pair,
             desired_amount,
             sell: Orders {
                 orders: sell_orders,

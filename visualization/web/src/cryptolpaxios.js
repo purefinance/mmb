@@ -2,6 +2,7 @@ import axios from "axios";
 import decode from "jwt-decode";
 import config from "./config.js";
 import { delay } from "q";
+import { toast } from "react-toastify";
 
 export default class CryptolpAxios {
   static axiosInstance = axios.create({
@@ -214,30 +215,42 @@ export default class CryptolpAxios {
       },
       (error) => {
         const originalRequest = error.config;
-        if (
-          error.response &&
-          (error.response.status === 401 ||
-            error.response.status === 403 ||
-            !error.response.status) &&
-          CryptolpAxios.isAuthorized &&
-          !originalRequest._retry
-        ) {
-          originalRequest._retry = true;
-          let refreshToken = localStorage.getItem("refresh_token");
-          // Trying to authorize by refresh token
-          if (refreshToken) {
-            this.loginByRefreshToken({ refreshToken })
-              .then(async (response) => {
-                const clientType = await CryptolpAxios.getClientType();
-                CryptolpAxios.setToken(response.data, clientType);
-              })
-              .catch((err) => {
-                console.error(err);
-                CryptolpAxios.logout();
-              });
+        console.error(error);
+        if (error.response) {
+          console.log(error.response);
+          if (
+            (error.response.status === 401 || error.response.status === 403) &&
+            CryptolpAxios.isAuthorized &&
+            !originalRequest._retry
+          ) {
+            originalRequest._retry = true;
+            let refreshToken = localStorage.getItem("refresh_token");
+            // Trying to authorize by refresh token
+            if (refreshToken) {
+              this.loginByRefreshToken({ refreshToken })
+                .then(async (response) => {
+                  const clientType = await CryptolpAxios.getClientType();
+                  CryptolpAxios.setToken(response.data, clientType);
+                })
+                .catch((err) => {
+                  console.error(err);
+                  CryptolpAxios.logout();
+                });
+            } else {
+              CryptolpAxios.logout();
+            }
           } else {
-            CryptolpAxios.logout();
+            if (error.response.status === 0) {
+              toast.error("Connection problem");
+              toast.clearWaitingQueue();
+            }
           }
+        } else if (error.request) {
+          toast.error("Connection problem");
+          toast.clearWaitingQueue();
+        } else {
+          toast.error("Something wrong");
+          toast.clearWaitingQueue();
         }
         return error;
       }

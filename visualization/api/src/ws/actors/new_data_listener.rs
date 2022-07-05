@@ -23,14 +23,11 @@ impl Handler<NewLiquidityDataMessage> for NewDataListener {
     type Result = ();
 
     fn handle(&mut self, data: NewLiquidityDataMessage, _ctx: &mut Context<Self>) -> Self::Result {
-        let exchange_id = data.data.exchange_id.clone();
-        let currency_pair = data.data.currency_pair.clone();
         let body: LiquidityResponseBody = LiquidityResponseBody::from(data.data);
         let liquidity_response_message = LiquidityResponseMessage {
             command: "UpdateOrdersState",
             body,
-            exchange_id,
-            currency_pair,
+            subscription: data.subscription,
         };
         self.issue_system_async(liquidity_response_message);
     }
