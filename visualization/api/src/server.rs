@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub async fn start(
-    port: u16,
+    address: &str,
     access_token_secret: String,
     refresh_token_secret: String,
     access_token_lifetime: i64,
@@ -32,7 +32,7 @@ pub async fn start(
     database_url: &str,
     enforcer: Enforcer,
 ) -> std::io::Result<()> {
-    log::info!("Starting server at 127.0.0.1:{}", port);
+    log::info!("Starting server at {address}");
     let connection_pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(database_url)
@@ -109,7 +109,7 @@ pub async fn start(
             .app_data(Data::new(token_service.clone()))
     })
     .workers(2)
-    .bind(("127.0.0.1", port))?
+    .bind(address)?
     .run()
     .await
 }
