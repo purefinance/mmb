@@ -34,12 +34,13 @@ use std::env;
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let address = env::var("ADDRESS").unwrap_or_else(|_| "127.0.0.1:53938".to_string());
     let enforcer = Enforcer::new("policy/model.conf", "policy/policy.csv")
         .await
         .expect("Failure to load enforcer policy");
 
     start(
-        53938,
+        &address,
         "somesecretkey1".to_string(),
         "somesecretkey2".to_string(),
         Duration::days(1).num_seconds(),   // one day
