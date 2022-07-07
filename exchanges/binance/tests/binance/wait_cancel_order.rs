@@ -87,8 +87,7 @@ async fn cancellation_waited_failed_fallback() {
         .exchange
         .wait_cancel_order(order_ref, None, true, CancellationToken::new())
         .await
-        .err()
-        .expect("Error was expected while trying wait_cancel_order()");
+        .expect_err("Error was expected while trying wait_cancel_order()");
 
     assert_eq!(
         "Order was expected to cancel explicitly via Rest or Web Socket but got timeout instead",

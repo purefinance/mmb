@@ -270,7 +270,7 @@ mod tests {
         )
         .replace("TABLE_NAME", TABLE_NAME);
 
-        let _ = connection
+        connection
             .batch_execute(&sql)
             .await
             .expect("recreate table persons");

@@ -55,7 +55,7 @@ pub(crate) fn get_binance_credentials() -> Result<(String, String)> {
 #[macro_export]
 macro_rules! get_binance_credentials_or_exit {
     () => {{
-        match crate::binance::common::get_binance_credentials() {
+        match $crate::binance::common::get_binance_credentials() {
             Ok((api_key, secret_key)) => (api_key, secret_key),
             Err(error) => {
                 dbg!("{:?}", error);
