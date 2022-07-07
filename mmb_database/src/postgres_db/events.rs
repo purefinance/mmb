@@ -178,7 +178,7 @@ mod tests {
 
         let connection = pool.get_connection_expected().await;
 
-        let _ = connection
+        connection
             .batch_execute(
                 &include_str!("./sql/create_or_truncate_table.sql")
                     .replace("TABLE_NAME", TABLE_NAME),

@@ -155,7 +155,7 @@ async fn orders_cancelled() {
             amount,
         );
         let created_order = order.create_order(exchange.clone()).await.expect("in test");
-        let _ = order
+        order
             .cancel_order_or_fail(&created_order, exchange.clone())
             .await;
     } else {

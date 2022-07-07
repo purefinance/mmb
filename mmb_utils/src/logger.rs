@@ -26,7 +26,7 @@ pub fn init_logger_file_named(log_file: &str) {
     static INIT_LOGGER: Once = Once::new();
 
     INIT_LOGGER.call_once(|| {
-        let _ = fern::Dispatch::new()
+        fern::Dispatch::new()
             .format(|out, message, record| {
                 out.finish(format_args!(
                     "[{}][{}][{}] {}",

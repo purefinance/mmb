@@ -53,7 +53,7 @@ async fn open_orders_exists() {
         .await
         .expect("in test");
 
-    let _ = binance_builder
+    binance_builder
         .exchange
         .cancel_opened_orders(CancellationToken::default(), true)
         .await;
@@ -127,7 +127,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         .await
         .expect("in test");
 
-    let _ = binance_builder
+    binance_builder
         .exchange
         .cancel_opened_orders(CancellationToken::default(), true)
         .await;

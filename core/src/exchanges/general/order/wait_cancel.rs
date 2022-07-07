@@ -50,16 +50,15 @@ impl Exchange {
                 let (tx, _) = broadcast::channel(1);
                 let _ = *vacant_entry.insert(tx.clone());
 
-                let outcome = self
-                    .wait_cancel_order_work(
-                        &order,
-                        pre_reservation_group_id,
-                        check_order_fills,
-                        cancellation_token.clone(),
-                    )
-                    .await?;
+                self.wait_cancel_order_work(
+                    &order,
+                    pre_reservation_group_id,
+                    check_order_fills,
+                    cancellation_token.clone(),
+                )
+                .await?;
 
-                let _ = tx.send(outcome);
+                let _ = tx.send(());
                 None
             }
         };
