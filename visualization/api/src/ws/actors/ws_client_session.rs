@@ -62,6 +62,9 @@ impl Handler<LiquidityResponseMessage> for WsClientSession {
         msg: LiquidityResponseMessage,
         ctx: &mut WebsocketContext<Self>,
     ) -> Self::Result {
+        if !self.is_auth {
+            return;
+        }
         match &self.subscribed_liquidity {
             None => return,
             Some(subscribed_liquidity) => {
@@ -179,9 +182,6 @@ impl WsClientSession {
     }
 
     fn subscribe_liquidity(&mut self, ctx: &mut WebsocketContext<WsClientSession>, body: &str) {
-        if !self.is_auth {
-            return;
-        }
         match serde_json::from_str::<LiquiditySubscription>(body) {
             Ok(subscription) => {
                 self.subscriptions.insert(subscription.get_hash());
