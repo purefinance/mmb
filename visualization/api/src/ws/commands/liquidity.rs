@@ -160,7 +160,7 @@ fn calc_indicators(
         _ => Decimal::zero(),
     };
 
-    let ask_pct = match (total_bid, desired_amount.is_zero()) {
+    let ask_pct = match (total_ask, desired_amount.is_zero()) {
         (Some(value), false) => value / desired_amount * dec!(100),
         _ => Decimal::zero(),
     };
