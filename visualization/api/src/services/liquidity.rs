@@ -16,6 +16,7 @@ pub struct LiquidityService {
 pub struct LiquidityData {
     pub order_book: OrderBookRecord,
     pub transactions: Vec<TransactionRecord>,
+    pub desired_amount: Amount,
 }
 
 #[derive(sqlx::FromRow, Serialize, Clone)]
@@ -134,6 +135,7 @@ impl LiquidityService {
         Ok(LiquidityData {
             order_book,
             transactions,
+            desired_amount: Default::default(),
         })
     }
 }

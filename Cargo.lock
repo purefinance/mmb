@@ -418,6 +418,7 @@ dependencies = [
  "casbin",
  "chrono",
  "env_logger",
+ "fern",
  "futures 0.3.21",
  "itertools 0.10.3",
  "jsonwebtoken",
@@ -430,6 +431,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tokio",
+ "toml",
 ]
 
 [[package]]

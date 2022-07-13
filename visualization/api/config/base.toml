@@ -1,0 +1,18 @@
+address = "127.0.0.1:53938"
+database_url = "postgresql://postgres:1234@localhost:5432/postgres"
+refresh_data_interval_ms = 1_000
+
+[[markets]]
+exchange_id = "Binance"
+
+[[markets.info]]
+currency_pair = "btc/usdt"
+max_amount = 0.001
+
+[[markets.info]]
+currency_pair = "eth/btc"
+max_amount = 0
+
+[[markets.info]]
+currency_pair = "eos/btc"
+max_amount = 0
