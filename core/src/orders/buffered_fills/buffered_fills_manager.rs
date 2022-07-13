@@ -15,7 +15,7 @@ pub struct BufferedFillsManager {
 }
 
 impl BufferedFillsManager {
-    pub fn add_fill(&mut self, exchange_account_id: ExchangeAccountId, fill_event: FillEvent) {
+    pub fn add_fill(&mut self, exchange_account_id: ExchangeAccountId, fill_event: &FillEvent) {
         let (is_diff, fill_amount, total_filled_amount) = match fill_event.fill_amount {
             FillAmount::Incremental {
                 fill_amount,
@@ -29,7 +29,11 @@ impl BufferedFillsManager {
         //likely we got a fill notification before an order creation notification
         let buffered_fill = BufferedFill::new(
             exchange_account_id,
-            fill_event.trade_id.expect("trade_id is None"),
+            fill_event
+                .trade_id
+                .as_ref()
+                .expect("trade_id is None")
+                .clone(),
             fill_event.exchange_order_id.clone(),
             fill_event.fill_price,
             fill_amount,
@@ -61,7 +65,7 @@ impl BufferedFillsManager {
             "Buffered a fill for an order which is not in the system {:?}",
             (
                 exchange_account_id,
-                fill_event.exchange_order_id,
+                &fill_event.exchange_order_id,
                 fill_event.fill_price,
                 fill_event.fill_amount,
                 fill_event.order_role,

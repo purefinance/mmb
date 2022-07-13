@@ -1,5 +1,4 @@
 use chrono::Utc;
-use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::DateTime;
 use parking_lot::RwLock;
 use rust_decimal::Decimal;
@@ -126,34 +125,18 @@ impl Exchange {
             .get(&fill_event.exchange_order_id)
         {
             None => {
-                if let Some(client_order_id) = &fill_event.client_order_id {
-                    self.handle_create_order_succeeded(
-                        self.exchange_account_id,
-                        client_order_id,
-                        &fill_event.exchange_order_id,
-                        &fill_event.source_type,
-                    )
-                    .with_expect(|| {
-                        format!("Error handle create order succeeded for clientOrderId {client_order_id}")
-                    });
-
-                    let order_ref = self.orders.cache_by_exchange_id.get(&fill_event.exchange_order_id).
-                        expect("Order should be inserted in orders.cache_by_exchange_id by handle_create_order_succeeded called above");
-                    return self.create_and_add_order_fill(&mut fill_event, &order_ref);
-                }
-
                 log::info!("Received a fill for not existing order {:?}", &args_to_log);
-
-                let source_type = fill_event.source_type;
-                let exchange_order_id = fill_event.exchange_order_id.clone();
-                let client_or_order_id = fill_event.client_order_id.clone();
 
                 self.buffered_fills_manager
                     .lock()
-                    .add_fill(self.exchange_account_id, fill_event);
+                    .add_fill(self.exchange_account_id, &fill_event);
 
-                if let Some(client_order_id) = client_or_order_id {
-                    self.raise_order_created(&client_order_id, &exchange_order_id, source_type);
+                if let Some(client_order_id) = fill_event.client_order_id {
+                    self.raise_order_created(
+                        &client_order_id,
+                        &fill_event.exchange_order_id,
+                        fill_event.source_type,
+                    );
                 }
             }
             Some(order_ref) => self.create_and_add_order_fill(&mut fill_event, &order_ref),
@@ -748,7 +731,7 @@ impl Exchange {
                         self.exchange_account_id,
                         &order_ref.client_order_id(),
                         &fill_event.exchange_order_id,
-                        &fill_event.source_type,
+                        fill_event.source_type,
                     )
                     .expect("Error handle create order succeeded");
                 }

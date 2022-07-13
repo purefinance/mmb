@@ -1,4 +1,5 @@
 use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::infrastructure::WithExpect;
 use tokio::sync::oneshot;
 
 use crate::orders::pool::OrderRef;
@@ -65,6 +66,16 @@ impl Exchange {
             {
                 log::error!("Unable to send thru oneshot channel: {:?}", error);
             }
+        } else {
+            self.handle_create_order_succeeded(
+                self.exchange_account_id,
+                client_order_id,
+                exchange_order_id,
+                source_type,
+            )
+            .with_expect(|| {
+                format!("Error handle create order succeeded for clientOrderId {client_order_id}")
+            });
         }
     }
 }

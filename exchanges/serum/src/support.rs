@@ -1,4 +1,5 @@
 use crate::serum::{downcast_mut_to_serum_extension_data, Serum};
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -110,7 +111,7 @@ impl Support for Serum {
     }
 
     fn get_settings(&self) -> &ExchangeSettings {
-        todo!()
+        &self.settings
     }
 }
 
@@ -129,12 +130,12 @@ impl Serum {
             SubscriptionAccountType::OrderBook => {
                 let orders =
                     self.get_orders_from_order_book(ui_account, market_info, side, currency_pair)?;
-                self.handle_order_book_snapshot(&orders, currency_pair)?;
                 self.handle_order_event(&orders, currency_pair);
+                self.handle_order_book_snapshot(&orders, currency_pair)?;
             }
             SubscriptionAccountType::EventQueue => {
                 let events = self.get_event_queue_data(ui_account, market_info)?;
-                self.handle_event_queue_orders(&events, currency_pair, market_info)?;
+                self.handle_event_queue_orders(events, currency_pair, market_info)?;
             }
             SubscriptionAccountType::OpenOrders => {
                 let _orders =
@@ -185,49 +186,35 @@ impl Serum {
 
     fn handle_event_queue_orders(
         &self,
-        events: &[EventView],
+        events: HashSet<FillEventView>,
         currency_pair: CurrencyPair,
-        market_metadata: &MarketMetaData,
+        market_meta_data: &MarketMetaData,
     ) -> Result<()> {
-        for event in events {
-            if let EventView::Fill {
-                side,
-                maker,
-                native_qty_paid,
-                native_qty_received,
-                native_fee_or_rebate,
-                order_id,
-                client_order_id: Some(client_order_id_value),
-                ..
-            } = *event
-            {
-                let (price, amount) = calc_order_fill_price_and_amount(
-                    side,
-                    maker,
-                    native_qty_paid,
-                    native_qty_received,
-                    native_fee_or_rebate,
-                    market_metadata,
-                );
+        // Same fill events are repeated in Solana blocks several times so we have to filter which have been already handled
+        self.fill_events_cache.lock().prune_events(&events);
+        for fill_event in events {
+            if !self.fill_events_cache.lock().has_event(&fill_event) {
+                let (price, fill_amount) =
+                    calc_order_fill_price_and_amount(&fill_event, market_meta_data);
                 let fill_data = OrderFillData {
                     // Serum doesn't store trade id so we have to create it by ourself
                     trade_id: TradeId::Number(self.generate_trade_id()),
-                    client_order_id: client_order_id_value.to_string().as_str().into(),
-                    exchange_order_id: order_id.to_string().as_str().into(),
+                    client_order_id: fill_event.client_order_id.clone(),
+                    exchange_order_id: fill_event.exchange_order_id.clone(),
                     price,
-                    fill_amount: amount,
-                    order_role: if maker {
-                        OrderRole::Maker
-                    } else {
-                        OrderRole::Taker
-                    },
+                    fill_amount,
+                    order_role: fill_event.order_role,
                     commission: OrderTradeCommission {
                         currency_code: currency_pair.to_codes().quote,
-                        amount: calc_order_fee(maker, native_fee_or_rebate, market_metadata),
+                        amount: calc_order_fee(
+                            fill_event.order_role,
+                            fill_event.native_fee_or_rebate,
+                            market_meta_data,
+                        ),
                     },
                     fill_type: OrderFillType::UserTrade,
                     currency_pair,
-                    order_side: side.to_order_side(),
+                    order_side: fill_event.side,
                     date: time_manager::now(),
                 };
                 if self
@@ -239,6 +226,7 @@ impl Serum {
                     self.handle_order_fill(&fill_data);
                 }
                 self.handle_order_trade(&fill_data);
+                self.fill_events_cache.lock().add_event(fill_event);
             }
             // There is no point to return error cause it's ordinary situation when we received no one fill event
         }
@@ -338,6 +326,7 @@ impl Serum {
     }
 }
 
+#[derive(Debug)]
 struct OrderFillData {
     trade_id: TradeId,
     client_order_id: ClientOrderId,
@@ -352,29 +341,30 @@ struct OrderFillData {
     date: DateTime,
 }
 
+#[derive(Debug)]
 struct OrderTradeCommission {
     currency_code: CurrencyCode,
     amount: Amount,
 }
 
 fn calc_order_fill_price_and_amount(
-    side: Side,
-    maker: bool,
-    native_qty_paid: u64,
-    native_qty_received: u64,
-    native_fee_or_rebate: u64,
+    fill_event_view: &FillEventView,
     market_metadata: &MarketMetaData,
 ) -> (Price, Amount) {
-    let signed_fee = if maker {
-        -(native_fee_or_rebate as i64)
-    } else {
-        native_fee_or_rebate as i64
+    let signed_fee = match fill_event_view.order_role {
+        OrderRole::Maker => -(fill_event_view.native_fee_or_rebate as i64),
+        OrderRole::Taker => fill_event_view.native_fee_or_rebate as i64,
     };
 
-    let (price_before_fees, quantity) = if side == Side::Bid {
-        (native_qty_paid as i64 - signed_fee, native_qty_received)
-    } else {
-        (native_qty_received as i64 + signed_fee, native_qty_paid)
+    let (price_before_fees, quantity) = match fill_event_view.side {
+        OrderSide::Buy => (
+            fill_event_view.native_qty_paid as i64 - signed_fee,
+            fill_event_view.native_qty_received,
+        ),
+        OrderSide::Sell => (
+            fill_event_view.native_qty_received as i64 + signed_fee,
+            fill_event_view.native_qty_paid,
+        ),
     };
 
     let price = Decimal::from(price_before_fees)
@@ -386,14 +376,17 @@ fn calc_order_fill_price_and_amount(
 }
 
 fn calc_order_fee(
-    maker: bool,
+    role: OrderRole,
     native_fee_or_rebate: u64,
     market_meta_data: &MarketMetaData,
 ) -> Amount {
-    let fee_rate = if maker { dec!(-1) } else { dec!(1) };
+    let fee_module =
+        Decimal::from(native_fee_or_rebate) / dec!(10).powi(market_meta_data.price_decimal as i64);
 
-    (Decimal::from(native_fee_or_rebate) / dec!(10).powi(market_meta_data.price_decimal as i64))
-        * fee_rate
+    match role {
+        OrderRole::Maker => -fee_module,
+        OrderRole::Taker => fee_module,
+    }
 }
 
 // There is no public method for fee rate calculation so we use getFeeRates() from serum-js
@@ -447,6 +440,50 @@ impl From<u8> for FeeTier {
             6 => Msrm,
             7 => Stable,
             _ => Base,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Debug)]
+pub(super) struct FillEventView {
+    side: OrderSide,
+    order_role: OrderRole,
+    native_qty_paid: u64,
+    native_qty_received: u64,
+    native_fee_or_rebate: u64,
+    exchange_order_id: ExchangeOrderId,
+    client_order_id: ClientOrderId,
+}
+
+impl FillEventView {
+    pub(super) fn try_from_event_view(event: &EventView) -> Option<FillEventView> {
+        // We use only these fields of event fill variant cause they are exhaustive for unique trade definition
+        if let &EventView::Fill {
+            side,
+            maker,
+            native_qty_paid,
+            native_qty_received,
+            native_fee_or_rebate,
+            order_id,
+            client_order_id: Some(client_order_id_value),
+            ..
+        } = event
+        {
+            Some(Self {
+                side: side.to_order_side(),
+                order_role: if maker {
+                    OrderRole::Maker
+                } else {
+                    OrderRole::Taker
+                },
+                native_qty_paid,
+                native_qty_received,
+                native_fee_or_rebate,
+                exchange_order_id: order_id.to_string().as_str().into(),
+                client_order_id: client_order_id_value.to_string().as_str().into(),
+            })
+        } else {
+            None
         }
     }
 }
