@@ -16,37 +16,58 @@
     clippy::unwrap_used
 )]
 
+mod config;
 mod handlers;
 mod middleware;
 mod routes;
 mod server;
 mod services;
 mod ws;
+
+use crate::config::load_config;
 use crate::handlers::ws::ws_client;
 use crate::server::start;
 use crate::services::liquidity::LiquidityService;
 use crate::ws::broker_messages::NewLiquidityDataMessage;
 use casbin::{CoreApi, Enforcer};
 use chrono::Duration;
-use std::env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let address = env::var("ADDRESS").unwrap_or_else(|_| "127.0.0.1:53938".to_string());
+    configure_logger();
+    let config = load_config("config/base.toml");
     let enforcer = Enforcer::new("policy/model.conf", "policy/policy.csv")
         .await
         .expect("Failure to load enforcer policy");
 
     start(
-        &address,
+        &config.address,
         "somesecretkey1".to_string(),
         "somesecretkey2".to_string(),
         Duration::days(1).num_seconds(),   // one day
         Duration::days(365).num_seconds(), // one year
-        &database_url,
+        &config.database_url,
         enforcer,
+        config.markets,
+        config.refresh_data_interval_ms,
     )
     .await
+}
+
+fn configure_logger() {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Info)
+        .chain(std::io::stdout())
+        .chain(fern::log_file("visualization.log").expect("Failure create log file"))
+        .apply()
+        .expect("Failure configure logger");
 }

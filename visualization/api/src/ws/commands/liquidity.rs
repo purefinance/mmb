@@ -52,12 +52,11 @@ impl From<LiquidityData> for LiquidityResponseBody {
             });
 
         // !TODO desired amount should be loaded from config
-        let desired_amount = Decimal::zero();
         let indicators = calc_indicators(
             &liquidity_data,
             &buy_snapshot,
             &sell_snapshot,
-            desired_amount,
+            liquidity_data.desired_amount,
         );
 
         let transactions = liquidity_data
@@ -93,7 +92,7 @@ impl From<LiquidityData> for LiquidityResponseBody {
         let state = OrderStateAndTransactions {
             exchange_name: liquidity_data.order_book.exchange_id,
             currency_code_pair: liquidity_data.order_book.currency_pair,
-            desired_amount,
+            desired_amount: liquidity_data.desired_amount,
             sell: Orders {
                 orders: sell_orders,
                 snapshot: sell_snapshot,
