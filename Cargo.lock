@@ -4133,6 +4133,7 @@ dependencies = [
  "rust_decimal",
  "rust_decimal_macros",
  "safe-transmute",
+ "scopeguard",
  "serde",
  "serde_json",
  "serum_dex",

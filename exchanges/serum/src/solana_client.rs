@@ -26,6 +26,7 @@ use solana_sdk::commitment_config::{CommitmentConfig, CommitmentLevel};
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
+use tokio::join;
 
 use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::common::CurrencyPair;
@@ -259,11 +260,6 @@ impl SolanaClient {
             },
         );
 
-        // join!(
-        //     self.subscribe_to_address_changed(ask_request_id, &market_info.asks_address),
-        //     self.subscribe_to_address_changed(bid_request_id, &market_info.bids_address)
-        // );
-
         let event_queue_request_id = RequestId::generate();
         self.subscription_requests.write().insert(
             event_queue_request_id,
@@ -274,8 +270,14 @@ impl SolanaClient {
             },
         );
 
-        self.subscribe_to_address_changed(event_queue_request_id, &market_info.event_queue_address)
-            .await;
+        join!(
+            self.subscribe_to_address_changed(ask_request_id, &market_info.asks_address),
+            self.subscribe_to_address_changed(bid_request_id, &market_info.bids_address),
+            self.subscribe_to_address_changed(
+                event_queue_request_id,
+                &market_info.event_queue_address
+            )
+        );
     }
 
     pub async fn subscribe_to_open_order_account(

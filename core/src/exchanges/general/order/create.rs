@@ -162,7 +162,7 @@ impl Exchange {
                         self.exchange_account_id,
                         &client_order_id,
                         exchange_order_id,
-                        &created_order.source_type,
+                        created_order.source_type,
                     )?;
                 }
                 Error(exchange_error) => {
@@ -171,7 +171,7 @@ impl Exchange {
                             self.exchange_account_id,
                             &client_order_id,
                             exchange_error,
-                            &created_order.source_type,
+                            created_order.source_type,
                         )?
                     }
                 }
@@ -188,7 +188,7 @@ impl Exchange {
         exchange_account_id: ExchangeAccountId,
         client_order_id: &ClientOrderId,
         exchange_error: &ExchangeError,
-        source_type: &EventSourceType,
+        source_type: EventSourceType,
     ) -> Result<()> {
         // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
 
@@ -226,7 +226,7 @@ impl Exchange {
         &self,
         order_ref: &OrderRef,
         args_to_log: (ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
-        _source_type: &EventSourceType,
+        _source_type: EventSourceType,
         exchange_error: &ExchangeError,
     ) -> Result<()> {
         let status = order_ref.status();
@@ -288,7 +288,7 @@ impl Exchange {
         exchange_account_id: ExchangeAccountId,
         client_order_id: &ClientOrderId,
         exchange_order_id: &ExchangeOrderId,
-        source_type: &EventSourceType,
+        source_type: EventSourceType,
     ) -> Result<()> {
         // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
 
@@ -333,7 +333,7 @@ impl Exchange {
         &self,
         order_ref: &OrderRef,
         args_to_log: (ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
-        source_type: &EventSourceType,
+        source_type: EventSourceType,
     ) -> Result<()> {
         let status = order_ref.status();
         let exchange_order_id = args_to_log.2;
@@ -371,7 +371,7 @@ impl Exchange {
 
                 order_ref.fn_mut(|order| {
                     order.set_status(OrderStatus::Created, Utc::now());
-                    order.internal_props.creation_event_source_type = Some(*source_type);
+                    order.internal_props.creation_event_source_type = Some(source_type);
                 });
 
                 self.orders
@@ -427,7 +427,7 @@ impl Exchange {
                         Some(&client_order_id),
                         exchange_order_id,
                         None,
-                        *source_type,
+                        source_type,
                     );
                     buffered_canceled_orders_manager.remove_order(exchange_order_id);
                 }

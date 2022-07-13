@@ -13,10 +13,10 @@ use serde::{Deserialize, Serialize};
 use serum_dex::critbit::{Slab, SlabView};
 use serum_dex::instruction::{cancel_order, MarketInstruction};
 use serum_dex::matching::Side;
+use serum_dex::state::OpenOrders;
 use serum_dex::state::{
     gen_vault_signer_key, strip_header, Event, EventQueueHeader, Market, MarketState,
 };
-use serum_dex::state::{EventView, OpenOrders};
 use solana_account_decoder::UiAccount;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
 use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
@@ -29,7 +29,7 @@ use solana_sdk::account::Account;
 use solana_sdk::signature::{Keypair, Signer};
 use spl_token::state::Mint;
 use std::any::Any;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::mem::size_of;
 use std::num::NonZeroU64;
@@ -37,13 +37,14 @@ use std::ops::Deref;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 use tokio::time::sleep;
 
 use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide, ToU128};
 use crate::market::{MarketData, MarketInfo, MarketMetaData, OpenOrderData};
 use crate::solana_client::{NetworkType, SolanaClient};
+use crate::support::FillEventView;
 use mmb_core::exchanges::common::{
     CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, ExchangeId, SpecificCurrencyPair,
 };
@@ -147,6 +148,7 @@ pub struct Serum {
     pub network_type: NetworkType,
     pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
     pub(super) lifetime_manager: Arc<AppLifetimeManager>,
+    pub(super) fill_events_cache: Mutex<FillEventsCache>,
     trade_id_seed: AtomicU64,
 }
 
@@ -185,6 +187,7 @@ impl Serum {
             network_type,
             events_channel,
             lifetime_manager,
+            fill_events_cache: FillEventsCache::new().into(),
             trade_id_seed: AtomicU64::new(
                 SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -461,7 +464,7 @@ impl Serum {
         &self,
         ui_account: UiAccount,
         market_info: &MarketMetaData,
-    ) -> Result<Vec<EventView>> {
+    ) -> Result<HashSet<FillEventView>> {
         if let Some(mut account) = ui_account.decode::<Account>() {
             let account_info = (&market_info.event_queue_address, &mut account).into_account_info();
             let (_, buf) = strip_header::<EventQueueHeader, Event>(&account_info, false)
@@ -478,6 +481,7 @@ impl Serum {
                         })
                         .ok()
                 })
+                .filter_map(|view| FillEventView::try_from_event_view(&view))
                 .collect())
         } else {
             bail!("Failed to decode ui account")
@@ -914,5 +918,46 @@ impl ExchangeClientBuilder for SerumBuilder {
 
     fn get_exchange_id(&self) -> ExchangeId {
         "Serum".into()
+    }
+}
+
+pub(super) struct FillEventsCache {
+    events: HashSet<FillEventView>,
+    last_prune_time: Instant,
+}
+
+impl FillEventsCache {
+    fn new() -> Self {
+        FillEventsCache {
+            events: Default::default(),
+            last_prune_time: Instant::now(),
+        }
+    }
+
+    pub(super) fn has_event(&self, event: &FillEventView) -> bool {
+        self.events.contains(event)
+    }
+
+    pub(super) fn add_event(&mut self, event: FillEventView) {
+        self.events.insert(event);
+    }
+
+    pub(super) fn prune_events(&mut self, current_events: &HashSet<FillEventView>) {
+        const PRUNE_EVENTS_INTERVAL: Duration = Duration::from_secs(60);
+
+        if self.events.is_empty() {
+            self.update_timer();
+        } else {
+            let duration_from_last_time = self.last_prune_time.elapsed();
+            if PRUNE_EVENTS_INTERVAL <= duration_from_last_time {
+                self.events
+                    .retain(|event| current_events.get(event).is_some());
+                self.update_timer();
+            }
+        }
+    }
+
+    fn update_timer(&mut self) {
+        self.last_prune_time = Instant::now();
     }
 }
