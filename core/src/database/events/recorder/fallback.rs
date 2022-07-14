@@ -234,7 +234,7 @@ mod tests {
     use std::fs;
     use tokio_postgres::NoTls;
 
-    const DATABASE_URL: &str = "postgres://dev:dev@localhost/tests";
+    const DATABASE_URL: &str = "postgres://postgres:postgres@localhost/tests";
     const TABLE_NAME: &str = "fallback_events";
 
     #[derive(Debug, Serialize, Deserialize)]

@@ -284,7 +284,7 @@ mod tests {
     use tokio::time::sleep;
     use tokio_postgres::{Client, NoTls};
 
-    const DATABASE_URL: &str = "postgres://dev:dev@localhost/tests";
+    const DATABASE_URL: &str = "postgres://postgres:postgres@localhost/tests";
     const TABLE_NAME: &str = "persons";
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

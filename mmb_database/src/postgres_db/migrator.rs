@@ -69,7 +69,7 @@ mod tests {
     use std::env;
     use std::path::PathBuf;
 
-    const DATABASE_URL: &str = "postgres://dev:dev@localhost/tests";
+    const DATABASE_URL: &str = "postgres://postgres:postgres@localhost/tests";
     const TABLE_NAME1: &str = "test_mig1";
     const TABLE_NAME2: &str = "test_mig2";
 

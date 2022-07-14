@@ -168,7 +168,7 @@ mod tests {
     use crate::postgres_db::PgPool;
     use serde_json::json;
 
-    const DATABASE_URL: &str = "postgres://dev:dev@localhost/tests";
+    const DATABASE_URL: &str = "postgres://postgres:postgres@localhost/tests";
     const TABLE_NAME: &str = "persons";
 
     async fn init_test() -> PgPool {
@@ -184,7 +184,7 @@ mod tests {
                     .replace("TABLE_NAME", TABLE_NAME),
             )
             .await
-            .expect("truncate persons");
+            .expect("TRUNCATE persons");
 
         drop(connection);
 
