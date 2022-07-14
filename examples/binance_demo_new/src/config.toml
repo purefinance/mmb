@@ -5,7 +5,7 @@ max_amount = 0.001
 exchange_account_id = "Binance_0"
 
 [core.database]
-url = "postgres://dev:dev@localhost/tests"
+url = "postgres://postgres:postgres@localhost/tests"
 migrations = [ "../migrations" ]
 
 [[core.exchanges]]
