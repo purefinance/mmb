@@ -18,8 +18,8 @@ function Indicators(props) {
       data.spread = indicators.spread
         ? utils.round(indicators.spread, 1)
         : "--";
-      data.totalVolume = utils.round(indicators.totalVolume, 3)
-        ? utils.round(indicators.volumePct, 0)
+      data.totalVolume = indicators.totalVolume
+        ? utils.round(indicators.totalVolume, 3)
         : "-–";
       data.totalBid = indicators.totalBid
         ? utils.round(indicators.totalBid, 3)

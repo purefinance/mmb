@@ -1,5 +1,7 @@
 use crate::config::Market;
 use crate::services::liquidity::Amount;
+use itertools::Itertools;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -10,10 +12,31 @@ pub struct MarketInfo {
 #[derive(Clone)]
 pub struct MarketSettingsService {
     pub exchanges: HashMap<String, HashMap<String, MarketInfo>>,
+    pub supported_exchanges: Vec<Value>,
 }
 
 impl From<Vec<Market>> for MarketSettingsService {
     fn from(markets: Vec<Market>) -> Self {
+        let supported_exchanges = markets
+            .iter()
+            .map(|it| {
+                let symbols = it
+                    .info
+                    .iter()
+                    .map(|it| {
+                        json!({
+                            "currencyCodePair": it.currency_pair,
+                            "currencyPair": it.currency_pair.to_uppercase()
+                        })
+                    })
+                    .collect_vec();
+                json!({
+                    "name": it.exchange_id,
+                    "symbols": symbols
+                })
+            })
+            .collect_vec();
+
         let mut exchanges = HashMap::new();
         for market in markets.into_iter() {
             let mut currency_pairs = HashMap::new();
@@ -27,7 +50,10 @@ impl From<Vec<Market>> for MarketSettingsService {
             }
             exchanges.insert(market.exchange_id, currency_pairs);
         }
-        Self { exchanges }
+        Self {
+            exchanges,
+            supported_exchanges,
+        }
     }
 }
 
