@@ -6,7 +6,7 @@ export default {
     arbitrage: "Arbitrage",
   },
   clientRoles: {
+    user: "USER",
     admin: "ADMIN",
-    superAdmin: "SUPERADMIN",
   },
 };

@@ -11,3 +11,11 @@ p,user,/api/account/login,POST
 p,user,/api/account/clientdomain,GET
 p,user,/api/account/clienttype,GET
 p,user,/api/liquidity/supported-exchanges,GET
+
+p,admin,/api/account/login,POST
+p,admin,/api/account/clientdomain,GET
+p,admin,/api/account/clienttype,GET
+p,admin,/api/configuration,GET
+p,admin,/api/configuration,PUT
+p,admin,/api/configuration/validate,POST
+p,admin,/api/liquidity/supported-exchanges,GET

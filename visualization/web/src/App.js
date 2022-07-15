@@ -67,19 +67,19 @@ class App extends Component {
     const isIco = CryptolpAxios.clientType === constants.clientType.ico;
     const isSignals = CryptolpAxios.clientType === constants.clientType.signals;
 
+    const isUser =
+      CryptolpAxios.role &&
+      CryptolpAxios.role.toUpperCase() === constants.clientRoles.user;
     const isAdmin =
       CryptolpAxios.role &&
       CryptolpAxios.role.toUpperCase() === constants.clientRoles.admin;
-    const isSuperAdmin =
-      CryptolpAxios.role &&
-      CryptolpAxios.role.toUpperCase() === constants.clientRoles.superAdmin;
 
     let routes = null;
     let headers = null;
     if (this.state.isAuthorized) {
       routes = (
         <Switch>
-          {isAdmin && (
+          {isUser && (
             <Route
               exact
               path="/users"
@@ -91,7 +91,7 @@ class App extends Component {
             />
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Route
               exact
               path="/configuration"
@@ -105,7 +105,7 @@ class App extends Component {
             />
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Route
               exact
               path="/postponed-fills"
@@ -119,7 +119,7 @@ class App extends Component {
             />
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Route
               exact
               path="/explanation/:exchangeName?/:urlCurrencyCodePair?"
@@ -136,7 +136,7 @@ class App extends Component {
             />
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Route
               exact
               path="/plgraph/:exchangeName?/:urlCurrencyCodePair?"
@@ -321,7 +321,7 @@ class App extends Component {
             />
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Route
               exact
               path="/explanation/:exchangeName?/:urlCurrencyCodePair?"
@@ -340,7 +340,7 @@ class App extends Component {
             />
           )}
 
-          {isSuperAdmin && (
+          {isAdmin && (
             <Route
               exact
               path="/plgraph/:exchangeName?/:urlCurrencyCodePair?"
