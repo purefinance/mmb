@@ -4,13 +4,15 @@ members = [
     "core",
     "core_tests",
     "examples/binance_demo",
-    "examples/serum_demo",
     "examples/binance_demo_new",
     "examples/strategies",
     "exchanges/binance",
-    "exchanges/serum",
     "mmb_database",
     "mmb_rpc",
     "mmb_utils",
     "visualization/api"
+]
+exclude = [
+    "examples/serum_demo",
+    "exchanges/serum",
 ]
