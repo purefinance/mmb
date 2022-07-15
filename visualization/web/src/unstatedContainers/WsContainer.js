@@ -2,7 +2,6 @@ import { Container } from "unstated";
 import Sockette from "sockette";
 import config from "../config.js";
 import { groupBy } from "../controls/functions";
-import { delay } from "q";
 import CryptolpAxios from "../cryptolpaxios";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -186,7 +185,7 @@ class WsContainer extends Container {
   static isInvokeInProgress = false;
 
   async oneTimeInvoke(newState, method, ...props) {
-    if (!this.isInvokeInProgress && this.state.isConnected) {
+    if (this.state.isConnected) {
       this.isInvokeInProgress = true;
       await this.wsConnection.send(`${method}|${props}`);
       await this.setState(newState);
@@ -196,10 +195,7 @@ class WsContainer extends Container {
   }
 
   async retryInvoke(bool, checkField, ...props) {
-    while (bool ? this.state[checkField] : !this.state[checkField]) {
-      await this.oneTimeInvoke(...props);
-      await delay(1000);
-    }
+    await this.oneTimeInvoke(...props);
   }
 
   async subscribeDashboard() {

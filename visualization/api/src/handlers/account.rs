@@ -21,7 +21,7 @@ pub async fn login(
         let error = json!({"error": "Incorrect username or password"});
         return Ok(HttpResponse::Ok().json(error));
     }
-    let role = "user";
+    let role = "admin";
     success_login_response(&token_service, &payload.username, role)
 }
 

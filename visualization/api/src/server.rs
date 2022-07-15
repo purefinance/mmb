@@ -4,6 +4,7 @@ use crate::routes::routes;
 use crate::services::account::AccountService;
 use crate::services::auth::AuthService;
 use crate::services::market_settings::MarketSettingsService;
+use crate::services::settings::SettingsService;
 use crate::services::token::TokenService;
 use crate::ws::actors::error_listener::ErrorListener;
 use crate::ws::actors::new_data_listener::NewDataListener;
@@ -44,7 +45,7 @@ pub async fn start(
         .await
         .expect("Unable to connect to DB");
 
-    let liquidity_service = LiquidityService::new(connection_pool);
+    let liquidity_service = LiquidityService::new(connection_pool.clone());
     let new_data_listener = NewDataListener::default().start();
     let error_listener = ErrorListener::default().start();
     let account_service = AccountService::default();
@@ -57,6 +58,7 @@ pub async fn start(
     let subscription_manager = SubscriptionManager::default().start();
     let auth_service = Arc::new(AuthService::new(enforcer));
     let market_settings_service = Arc::new(MarketSettingsService::from(markets));
+    let settings_service = Arc::new(SettingsService::new(connection_pool));
 
     spawn(data_provider(
         subscription_manager,
@@ -79,6 +81,7 @@ pub async fn start(
             .app_data(Data::new(auth_service.clone()))
             .app_data(Data::new(token_service.clone()))
             .app_data(Data::new(market_settings_service.clone()))
+            .app_data(Data::new(settings_service.clone()))
     })
     .workers(2)
     .bind(address)?

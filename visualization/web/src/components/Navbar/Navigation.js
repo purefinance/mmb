@@ -151,15 +151,13 @@ class Navdropdown extends Component {
         navElements.push(this.navSignals);
       if (CryptolpAxios.clientType === constants.clientType.ico)
         navElements.push(this.navPrice);
-      if (CryptolpAxios.role.toUpperCase() === constants.clientRoles.admin) {
+      if (CryptolpAxios.role.toUpperCase() === constants.clientRoles.user) {
         navElements.push(this.navUsers);
       }
-      if (
-        CryptolpAxios.role.toUpperCase() === constants.clientRoles.superAdmin
-      ) {
+      if (CryptolpAxios.role.toUpperCase() === constants.clientRoles.admin) {
         navElements.push(this.navConfigurations);
-        navElements.push(this.navExplanation);
-        navElements.push(this.navPostponedFills);
+        // navElements.push(this.navExplanation);
+        // navElements.push(this.navPostponedFills);
         // navElements.push(this.navPLGraph);
       }
       const navDropdown = [];

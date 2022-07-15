@@ -93,7 +93,7 @@ class PostponedFills extends React.Component {
     if (!json) return;
     return (
       <div
-        className="jsoneditor-container"
+        className="editor-container"
         ref={(elem) => {
           if (!elem) return;
           this.jsoneditor = new JSONEditor(

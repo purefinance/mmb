@@ -52,7 +52,13 @@ export default class CryptolpAxios {
   }
 
   static saveConfig(config) {
-    return CryptolpAxios.axiosInstance.put(`Configuration`, config);
+    return CryptolpAxios.axiosInstance.put(`configuration`, config);
+  }
+
+  static validateConfig(config) {
+    return CryptolpAxios.axiosInstance.post(`configuration/validate`, {
+      config,
+    });
   }
 
   static getTrades(strategyNames, exchangeName, currencyCodePair, skip, count) {
@@ -66,7 +72,7 @@ export default class CryptolpAxios {
   }
 
   static getConfig() {
-    return this.getResponse("config", `Configuration`);
+    return this.getResponse("config", `configuration`);
   }
 
   static getPostponedFills() {
@@ -217,7 +223,6 @@ export default class CryptolpAxios {
         const originalRequest = error.config;
         console.error(error);
         if (error.response) {
-          console.log(error.response);
           if (
             (error.response.status === 401 || error.response.status === 403) &&
             CryptolpAxios.isAuthorized &&
@@ -252,7 +257,7 @@ export default class CryptolpAxios {
           toast.error("Something wrong");
           toast.clearWaitingQueue();
         }
-        return error;
+        return Promise.reject(error);
       }
     );
     if (!CryptolpAxios.token) {
