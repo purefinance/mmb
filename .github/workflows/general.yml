@@ -104,4 +104,5 @@ jobs:
           npm install --no-audit
           npm -g install eslint
           eslint src/
+          npm run test a
           npm run build
