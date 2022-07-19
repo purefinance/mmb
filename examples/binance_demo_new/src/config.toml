@@ -1,7 +1,7 @@
 [strategy]
-spread = 1
+spread = 5
 currency_pair = { base = "btc", quote = "usdt" }
-max_amount = 0.001
+max_amount = 0.0014
 exchange_account_id = "Binance_0"
 
 [core.database]
@@ -18,5 +18,6 @@ subscribe_to_market_data = true
 currency_pairs = [
     { base = "eth", quote = "btc"  },
     { base = "eos", quote = "btc"  },
-    { base = "btc", quote = "usdt"  }
+    { base = "btc", quote = "usdt" },
+    { base = "bnb", quote = "usdt" },
 ]

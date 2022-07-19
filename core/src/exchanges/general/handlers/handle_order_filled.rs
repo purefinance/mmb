@@ -459,9 +459,8 @@ impl Exchange {
                             *converted_commission_currency_code = symbol.quote_currency_code();
                         }
                         None => log::error!(
-                            "Top bids and asks for {} and currency pair {:?} do not exist",
+                            "Top bids and asks for {} and currency pair {currency_pair:?} do not exist",
                             self.exchange_account_id,
-                            currency_pair
                         ),
                     }
                 }

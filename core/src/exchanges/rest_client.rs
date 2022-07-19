@@ -2,7 +2,7 @@ use super::common::*;
 use anyhow::{bail, Context, Result};
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error, Request, Response, StatusCode, Uri};
-use hyper_tls::HttpsConnector;
+use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use log::log;
 use mmb_utils::infrastructure::WithExpect;
 use std::convert::TryInto;
@@ -309,7 +309,12 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
 }
 
 fn create_client() -> Client<HttpsConnector<HttpConnector>> {
-    let https = HttpsConnector::new();
+    let https = HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .https_only()
+        .enable_http1()
+        .enable_http2()
+        .build();
     Client::builder().build::<_, Body>(https)
 }
 

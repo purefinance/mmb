@@ -284,7 +284,8 @@ impl Symbol {
             return amount_in_amount_currency_code * currency_pair_price;
         }
 
-        panic!("Currency code outside currency pair is not supported yet");
+        let currency_pair = self.currency_pair();
+        panic!("Currency code {to_currency_code} outside currency pair {currency_pair} is not supported");
     }
 
     pub fn convert_amount_from_balance_currency_code(
@@ -304,11 +305,8 @@ impl Symbol {
             return amount * currency_pair_price;
         }
 
-        panic!(
-            "Currency code {} outside currency pair {} is not supported",
-            to_currency_code,
-            self.currency_pair()
-        );
+        let currency_pair = self.currency_pair();
+        panic!("Currency code {to_currency_code} outside currency pair {currency_pair} is not supported");
     }
 
     pub fn convert_amount_into_amount_currency_code(
