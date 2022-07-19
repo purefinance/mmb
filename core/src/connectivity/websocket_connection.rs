@@ -183,10 +183,7 @@ impl ReaderHandle {
             let result = tokio::select! {
                 biased; // check in provided order
                 _ = self.cancel.cancelled() => {
-                    log::debug!(
-                        "Websocket {} reader received cancel signal",
-                        self.meta,
-                    );
+                    log::debug!("Websocket {} reader received cancel signal", self.meta);
                     break;
                 }
                 res = timeout_at(next_heartbeat_ts, self.reader.next()) => res,
@@ -242,13 +239,10 @@ impl ReaderHandle {
                         return;
                     }
                 }
-                Message::Binary(bytes) => {
-                    log::trace!(
-                        "Websocket {} reader received binary message: {:x?}",
-                        self.meta,
-                        bytes
-                    );
-                }
+                Message::Binary(bytes) => log::trace!(
+                    "Websocket {} reader received binary message: {bytes:x?}",
+                    self.meta,
+                ),
                 Message::Ping(msg) => {
                     if (self.send_pong(Message::Pong(msg))).is_err() {
                         log::trace!(
@@ -263,12 +257,16 @@ impl ReaderHandle {
                 }
                 Message::Close(reason) => {
                     log::trace!(
-                        "Websocket {} reader received close with reason: {:?}",
-                        self.meta,
-                        reason
+                        "Websocket {} reader received close with reason: {reason:?}",
+                        self.meta
                     );
+
                     break;
                 }
+                Message::Frame(frame) => log::trace!(
+                    "Websocket {} reader received close with reason: {frame:?}",
+                    self.meta
+                ),
             }
         }
         log::debug!("Websocket {} reader finished", self.meta);

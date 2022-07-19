@@ -26,8 +26,8 @@ futures = "0.3"
 
 hex = "0.4"
 hmac = "0.11"
-hyper = { version = "0.14", features = ["http1", "runtime", "client", "tcp"] }
-hyper-tls = "0.5"
+hyper = { version = "0.14", features = ["http1", "http2", "runtime", "client", "tcp"] }
+hyper-rustls = { version = "0.23", features = ["http2"] }
 
 itertools = "0.10"
 
@@ -59,7 +59,7 @@ smallstr = { version = "0.2", features = ["serde"]}
 
 thiserror = "1"
 tokio = { version = "1", features = ["macros", "time", "sync", "rt-multi-thread", "signal"]}
-tokio-tungstenite = { version = "0.16", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.17", features = ["rustls-tls-native-roots"] }
 tokio-util = "0.7"
 toml_edit = { version = "0.12", features = ["serde"] }
 typetag = "0.1.8"
