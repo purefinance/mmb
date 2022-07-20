@@ -1,13 +1,15 @@
+use crate::exchanges::common::ExchangeError;
+use crate::exchanges::common::ExchangeErrorType;
+use crate::exchanges::general::exchange::Exchange;
+use crate::exchanges::general::handlers::should_ignore_event;
+use crate::orders::event::OrderEventType;
+use crate::orders::fill::EventSourceType;
+use crate::orders::order::ExchangeOrderId;
+use crate::orders::order::OrderStatus;
+use crate::orders::pool::OrderRef;
 use chrono::Utc;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::nothing_to_do;
-
-use crate::{
-    exchanges::common::ExchangeError, exchanges::common::ExchangeErrorType,
-    exchanges::general::exchange::Exchange, orders::event::OrderEventType,
-    orders::fill::EventSourceType, orders::order::ExchangeOrderId, orders::order::OrderStatus,
-    orders::pool::OrderRef,
-};
 
 impl Exchange {
     pub(crate) fn handle_cancel_order_failed(
@@ -16,7 +18,7 @@ impl Exchange {
         error: ExchangeError,
         event_source_type: EventSourceType,
     ) {
-        if Self::should_ignore_event(
+        if should_ignore_event(
             self.features.allowed_cancel_event_source_type,
             event_source_type,
         ) {
@@ -95,7 +97,10 @@ impl Exchange {
                     // TODO Some metrics
                 }
 
-                order.fn_mut(|order| order.set_status(OrderStatus::FailedToCancel, Utc::now()));
+                let (client_order_id, exchange_order_id) = order.fn_mut(|x| {
+                    x.set_status(OrderStatus::FailedToCancel, Utc::now());
+                    (x.client_order_id(), x.exchange_order_id())
+                });
                 self.add_event_on_order_change(order, OrderEventType::CancelOrderFailed)
                     .with_expect(|| {
                         format!(
@@ -105,9 +110,7 @@ impl Exchange {
                     });
 
                 log::warn!(
-                    "Order cancellation failed: {} {:?} on {} with error: {:?} {:?} {}",
-                    order.client_order_id(),
-                    order.exchange_order_id(),
+                    "Order cancellation failed: {client_order_id} {exchange_order_id:?} on {} with error: {:?} {:?} {}",
                     self.exchange_account_id,
                     error.code,
                     error.error_type,

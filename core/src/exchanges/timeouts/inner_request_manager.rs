@@ -281,6 +281,10 @@ impl InnerRequestsTimeoutManager {
 
         Ok(())
     }
+
+    pub(super) fn get_period_duration(&self) -> Duration {
+        self.period_duration
+    }
 }
 
 #[derive(Default)]

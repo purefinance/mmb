@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::SpawnFutureFlags;
+use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -295,9 +295,10 @@ impl Exchange {
         cancellation_token: CancellationToken,
     ) -> Result<()> {
         let currency_pair = order.currency_pair();
-        let symbol = self.symbols.get(&currency_pair).with_context(|| {
-            format!("No such symbol for given currency_pair {}", currency_pair,)
-        })?;
+        let symbol = self
+            .symbols
+            .get(&currency_pair)
+            .with_expect(|| format!("No symbol {currency_pair} for check_order_fills"));
 
         let rest_fills_type = &self.features.rest_fills_features.fills_type;
         let request_type_to_use = match rest_fills_type {
@@ -383,11 +384,10 @@ impl Exchange {
             )?
             .await;
 
-        log::info!("Checking request_type {:?} in check_order_fills with client_order_id {}, exchange_order_id {:?}, on {}",
-            request_type,
-            order.client_order_id(),
-            order.exchange_order_id(),
-            self.exchange_account_id);
+        let (client_order_id, exchange_order_id) =
+            order.fn_ref(|o| (o.client_order_id(), o.exchange_order_id()));
+
+        log::info!("Checking request_type {request_type:?} in check_order_fills with client_order_id {client_order_id}, exchange_order_id {exchange_order_id:?}, on {}", self.exchange_account_id);
 
         match request_type {
             RequestType::GetOrderTrades => {
@@ -456,10 +456,7 @@ impl Exchange {
                     RequestResult::Error(error) => Ok(RequestResult::Error(error)),
                 }
             }
-            _ => bail!(
-                "Unsupported request type {:?} in check_order_fills",
-                request_type
-            ),
+            _ => bail!("Unsupported request type {request_type:?} in check_order_fills"),
         }
     }
 

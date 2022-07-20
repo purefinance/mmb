@@ -1,5 +1,5 @@
 #![cfg(test)]
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     connectivity::WebSocketRole,
@@ -36,6 +36,7 @@ use crate::{
 };
 use anyhow::Result;
 use async_trait::async_trait;
+use chrono::Duration;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
@@ -46,8 +47,9 @@ use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
+use crate::exchanges::timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory;
 use crate::exchanges::traits::{HandleOrderFilledCb, SendWebsocketMessageCb};
-use mmb_utils::{cancellation_token::CancellationToken, DateTime};
+use mmb_utils::{cancellation_token::CancellationToken, hashmap, DateTime};
 
 use super::{order::get_order_trades::OrderTrade, symbol::BeforeAfter};
 
@@ -244,6 +246,13 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
 
     let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
 
+    let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
+        RequestTimeoutArguments::new(100, Duration::minutes(1)),
+        exchange_account_id,
+    );
+    let timeout_managers = hashmap![exchange_account_id => request_timeout_manager];
+    let timeout_manager = TimeoutManager::new(timeout_managers);
+
     let exchange = Exchange::new(
         exchange_account_id,
         exchange_client,
@@ -251,18 +260,21 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
         ExchangeFeatures::new(
             OpenOrdersType::AllCurrencyPair,
             RestFillsFeatures::default(),
-            OrderFeatures::default(),
+            OrderFeatures {
+                supports_get_order_info_by_client_order_id: true,
+                ..OrderFeatures::default()
+            },
             OrderTradeOption::default(),
             WebSocketOptions::default(),
             false,
-            true,
+            AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
         RequestTimeoutArguments::from_requests_per_minute(1200),
         tx,
         lifetime_manager,
-        TimeoutManager::new(HashMap::new()),
+        timeout_manager,
         Arc::downgrade(&exchange_blocker),
         commission,
     );

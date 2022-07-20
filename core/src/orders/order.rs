@@ -544,6 +544,10 @@ impl OrderSnapshot {
         self.fills.fills.push(fill);
     }
 
+    pub fn status(&self) -> OrderStatus {
+        self.props.status
+    }
+
     pub fn set_status(&mut self, new_status: OrderStatus, time: DateTime) {
         self.props.status = new_status;
         self.status_history.status_changes.push(OrderStatusChange {
@@ -551,6 +555,10 @@ impl OrderSnapshot {
             status: new_status,
             time,
         })
+    }
+
+    pub fn is_finished(&self) -> bool {
+        self.props.is_finished()
     }
 
     pub fn price(&self) -> Price {
@@ -568,15 +576,23 @@ impl OrderSnapshot {
         self.fills.filled_amount
     }
 
-    pub fn status(&self) -> OrderStatus {
-        self.props.status
-    }
-
     pub fn market_account_id(&self) -> MarketAccountId {
         self.header.market_account_id()
     }
 
     pub fn market_id(&self) -> MarketId {
         self.header.market_id()
+    }
+
+    pub fn client_order_id(&self) -> ClientOrderId {
+        self.header.client_order_id.clone()
+    }
+
+    pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
+        self.props.exchange_order_id.clone()
+    }
+
+    pub fn init_time(&self) -> DateTime {
+        self.header.init_time
     }
 }

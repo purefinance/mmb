@@ -901,11 +901,14 @@ impl ExchangeClientBuilder for SerumBuilder {
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::new(RestFillsType::None),
-                OrderFeatures::default(),
+                OrderFeatures {
+                    supports_get_order_info_by_client_order_id: true,
+                    ..OrderFeatures::default()
+                },
                 OrderTradeOption::default(),
                 WebSocketOptions::default(),
                 empty_response_is_ok,
-                false,
+                AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
             ),

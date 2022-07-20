@@ -33,3 +33,4 @@ futures = "0.3"
 jsonrpc-core = "18.0.0"
 jsonrpc-core-client = { version = "18.0.0", features = ["ipc"] }
 mmb_rpc = { path = "../../mmb_rpc" }
+rstest = "0.15"

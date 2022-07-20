@@ -44,13 +44,47 @@ impl BinanceBuilder {
             ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::default(),
-                OrderFeatures::default(),
+                OrderFeatures {
+                    supports_get_order_info_by_client_order_id: true,
+                    ..OrderFeatures::default()
+                },
                 OrderTradeOption::default(),
                 WebSocketOptions::default(),
                 true,
+                AllowedEventSourceType::default(),
+                AllowedEventSourceType::default(),
+                AllowedEventSourceType::default(),
+            ),
+            Commission::default(),
+            true,
+        )
+        .await
+    }
+
+    pub async fn build_account_0_with_source_types(
+        allowed_create_event_source_type: AllowedEventSourceType,
+        allowed_cancel_event_source_type: AllowedEventSourceType,
+    ) -> Result<Self> {
+        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
+        BinanceBuilder::try_new(
+            exchange_account_id,
+            CancellationToken::default(),
+            ExchangeFeatures::new(
+                OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::default(),
+                OrderFeatures {
+                    supports_get_order_info_by_client_order_id: true,
+                    ..OrderFeatures::default()
+                },
+                OrderTradeOption::default(),
+                WebSocketOptions {
+                    cancellation_notification: true,
+                    ..WebSocketOptions::default()
+                },
                 true,
+                allowed_create_event_source_type,
                 AllowedEventSourceType::default(),
-                AllowedEventSourceType::default(),
+                allowed_cancel_event_source_type,
             ),
             Commission::default(),
             true,

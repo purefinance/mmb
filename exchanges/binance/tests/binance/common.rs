@@ -121,7 +121,7 @@ pub(crate) async fn get_default_price(
         "/api/v3/depth",
         &vec![
             ("symbol".to_owned(), currency_pair.to_string()),
-            ("limit".to_owned(), "10".to_owned()),
+            ("limit".to_owned(), "20".to_owned()),
         ],
         exchange_account_id,
     )
@@ -130,13 +130,8 @@ pub(crate) async fn get_default_price(
     let value: OrderBook = serde_json::from_str(data.as_str())
         .with_expect(|| format!("failed to deserialize data: {}", data));
 
-    value
-        .bids
-        .iter()
-        .last()
-        .with_expect(|| {
-            format!("unable get bid from the {currency_pair} order book because it's empty")
-        })
+    let last = value.bids.iter().last();
+    last.with_expect(|| format!("can't get bid from {currency_pair} orderbook because it's empty"))
         .0
 }
 

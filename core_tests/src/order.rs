@@ -55,7 +55,7 @@ pub struct OrderProxy {
 
     pub price: Price,
     pub cancellation_token: CancellationToken,
-    timeout: Duration,
+    pub timeout: Duration,
 }
 
 impl OrderProxy {

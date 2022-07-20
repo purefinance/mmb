@@ -78,10 +78,6 @@ impl OrderRef {
         self.fn_ref(|order| (order.fills.fills.clone(), order.fills.filled_amount))
     }
 
-    pub fn is_external_order(&self) -> bool {
-        self.fn_ref(|s| s.header.order_type.is_external_order())
-    }
-
     pub fn to_order_cancelling(&self) -> Option<OrderCancelling> {
         self.fn_ref(|order| {
             order

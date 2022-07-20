@@ -50,7 +50,7 @@ impl ExchangeClient for Binance {
         let order_header = order.header.clone();
 
         match self.request_cancel_order(order).await {
-            Ok(_) => CancelOrderResult::successed(
+            Ok(_) => CancelOrderResult::succeed(
                 order_header.client_order_id.clone(),
                 EventSourceType::Rest,
                 None,

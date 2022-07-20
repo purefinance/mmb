@@ -1,21 +1,27 @@
+use crate::binance::binance_builder::BinanceBuilder;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::common::ExchangeAccountId;
 use mmb_core::exchanges::events::AllowedEventSourceType;
-use mmb_core::exchanges::general::commission::Commission;
-use mmb_core::exchanges::general::features::{
-    ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
-    WebSocketOptions,
-};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
+use rstest::rstest;
 
-use crate::binance::binance_builder::BinanceBuilder;
-
+#[rstest]
+#[case::all(AllowedEventSourceType::All)]
+#[case::fallback_only(AllowedEventSourceType::FallbackOnly)]
+#[case::non_fallback(AllowedEventSourceType::NonFallback)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn cancellation_waited_successfully() {
+async fn cancellation_waited_successfully(
+    #[case] allowed_cancel_event_source_type: AllowedEventSourceType,
+) {
     init_logger_file_named("log.txt");
 
-    let binance_builder = match BinanceBuilder::build_account_0().await {
+    let binance_builder = match BinanceBuilder::build_account_0_with_source_types(
+        AllowedEventSourceType::All,
+        allowed_cancel_event_source_type,
+    )
+    .await
+    {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
@@ -47,22 +53,9 @@ async fn cancellation_waited_failed_fallback() {
     init_logger_file_named("log.txt");
 
     let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-    let binance_builder = match BinanceBuilder::try_new(
-        exchange_account_id,
-        CancellationToken::default(),
-        ExchangeFeatures::new(
-            OpenOrdersType::AllCurrencyPair,
-            RestFillsFeatures::default(),
-            OrderFeatures::default(),
-            OrderTradeOption::default(),
-            WebSocketOptions::default(),
-            false,
-            true,
-            AllowedEventSourceType::default(),
-            AllowedEventSourceType::FallbackOnly,
-        ),
-        Commission::default(),
-        true,
+    let binance_builder = match BinanceBuilder::build_account_0_with_source_types(
+        AllowedEventSourceType::All,
+        AllowedEventSourceType::FallbackOnly,
     )
     .await
     {

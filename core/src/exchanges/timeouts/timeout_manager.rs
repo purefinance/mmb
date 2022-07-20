@@ -2,11 +2,12 @@ use futures::future::ready;
 use futures::future::Either;
 use futures::FutureExt;
 use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::infrastructure::{CompletionReason, FutureOutcome};
+use mmb_utils::infrastructure::{CompletionReason, FutureOutcome, WithExpect};
 use mmb_utils::DateTime;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -112,6 +113,13 @@ impl TimeoutManager {
 
         let result = inner.reserve_when_available(request_type, now, cancellation_token)?;
         Ok(Either::Left(convert(result.0)))
+    }
+
+    pub fn get_period_duration(&self, exchange_account_id: ExchangeAccountId) -> Duration {
+        self.inner
+            .get(&exchange_account_id)
+            .with_expect(|| format!("Can't find timeout manger for {exchange_account_id}"))
+            .get_period_duration()
     }
 }
 

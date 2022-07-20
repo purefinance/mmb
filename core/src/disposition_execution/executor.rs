@@ -192,11 +192,11 @@ impl DispositionExecutor {
                 let _ = self.local_snapshots_service.update(order_book_event);
             }
             ExchangeEvent::OrderEvent(order_event) => {
-                if order_event.order.is_external_order() {
+                let order = &order_event.order;
+                if order.fn_ref(|s| s.header.order_type.is_external_order()) {
                     return Ok(());
                 }
 
-                let order = &order_event.order;
                 match order_event.event_type {
                     OrderEventType::CreateOrderSucceeded => nothing_to_do(),
                     OrderEventType::CreateOrderFailed => {

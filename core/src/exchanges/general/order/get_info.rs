@@ -7,7 +7,10 @@ use anyhow::*;
 impl Exchange {
     pub async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
         if order.exchange_order_id().is_none()
-            && self.features.allows_to_get_order_info_by_client_order_id
+            && !self
+                .features
+                .order_features
+                .supports_get_order_info_by_client_order_id
         {
             let error_msg = "exchange_order_id should be set when exchange does not support getting order info by client order id"
                 .to_owned();
