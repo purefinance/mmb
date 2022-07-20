@@ -342,24 +342,22 @@ impl Exchange {
                         .await
                     }
                 }
-            } else {
-                if let Some(error) = &error {
-                    //ToDo: Here we need to try to find a similar order #
-                    self.handle_create_order_failed(
-                        &order.client_order_id(),
-                        error,
-                        EventSourceType::RestFallback,
+            } else if let Some(error) = &error {
+                //ToDo: Here we need to try to find a similar order #
+                self.handle_create_order_failed(
+                    &order.client_order_id(),
+                    error,
+                    EventSourceType::RestFallback,
+                )
+                .unwrap_or_else(|err| {
+                    log::error!(
+                        "Failed handle_create_order_failed in check_order_creation: {err:?}"
                     )
-                    .unwrap_or_else(|err| {
-                        log::error!(
-                            "Failed handle_create_order_failed in check_order_creation: {err:?}"
-                        )
-                    })
-                } else {
-                    tokio::select! {
-                        _ = sleep(Duration::from_millis(25)) => nothing_to_do(),
-                        _ = cancellation_token.when_cancelled() => nothing_to_do(),
-                    }
+                })
+            } else {
+                tokio::select! {
+                    _ = sleep(Duration::from_millis(25)) => nothing_to_do(),
+                    _ = cancellation_token.when_cancelled() => nothing_to_do(),
                 }
             }
         }
@@ -441,13 +439,13 @@ impl Exchange {
             OrderStatus::FailedToCreate => {
                 log_status(
                     status,
-                    &client_order_id,
-                    &exchange_order_id,
+                    client_order_id,
+                    exchange_order_id,
                     &self.exchange_account_id,
                 );
 
                 self.handle_create_order_failed(
-                    &client_order_id,
+                    client_order_id,
                     &ExchangeError::unknown_error("Fallback"),
                     EventSourceType::RestFallback,
                 )
@@ -456,8 +454,8 @@ impl Exchange {
             OrderStatus::Canceled => {
                 log_status(
                     status,
-                    &client_order_id,
-                    &exchange_order_id,
+                    client_order_id,
+                    exchange_order_id,
                     &self.exchange_account_id,
                 );
 
@@ -465,8 +463,8 @@ impl Exchange {
                     .as_ref()
                     .expect("exchange_order_id should be known when order status is `Canceled`");
                 self.handle_cancel_order_succeeded(
-                    Some(&client_order_id),
-                    &exchange_order_id,
+                    Some(client_order_id),
+                    exchange_order_id,
                     Some(order_info.filled_amount),
                     EventSourceType::RestFallback,
                 )
@@ -474,13 +472,13 @@ impl Exchange {
             OrderStatus::Created | OrderStatus::Completed => {
                 log_status(
                     status,
-                    &client_order_id,
-                    &exchange_order_id,
+                    client_order_id,
+                    exchange_order_id,
                     &self.exchange_account_id,
                 );
 
                 self.raise_order_created(
-                    &client_order_id,
+                    client_order_id,
                     &order_info.exchange_order_id,
                     EventSourceType::RestFallback,
                 );
@@ -584,9 +582,12 @@ impl Exchange {
                 log::error!("{error_msg}");
                 bail!(error_msg)
             }
-            OrderStatus::FailedToCreate => Ok(log::warn!(
-                "CreateOrderFailed was received for a FailedToCreate order {args_to_log:?}"
-            )),
+            OrderStatus::FailedToCreate => {
+                log::warn!(
+                    "CreateOrderFailed was received for a FailedToCreate order {args_to_log:?}"
+                );
+                Ok(())
+            }
             OrderStatus::Creating => {
                 // TODO RestFallback and some metrics
 
@@ -638,7 +639,10 @@ impl Exchange {
         }
 
         match self.orders.cache_by_client_id.get(client_order_id) {
-            None => Ok(log::warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {args_to_log:?}")),
+            None => {
+                log::warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {args_to_log:?}");
+                Ok(())
+            }
             Some(order_ref) => {
                 order_ref.fn_mut(|order| {
                     order.props.exchange_order_id = Some(exchange_order_id.clone());
@@ -671,9 +675,12 @@ impl Exchange {
             | OrderStatus::Canceling
             | OrderStatus::Canceled
             | OrderStatus::Completed
-            | OrderStatus::FailedToCancel => Ok(log::warn!(
-                "CreateOrderSucceeded was received for a {status:?} order {args_to_log:?}"
-            )),
+            | OrderStatus::FailedToCancel => {
+                log::warn!(
+                    "CreateOrderSucceeded was received for a {status:?} order {args_to_log:?}"
+                );
+                Ok(())
+            }
             OrderStatus::Creating => {
                 if self
                     .orders
