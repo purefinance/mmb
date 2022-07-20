@@ -45,7 +45,7 @@ impl ExchangeClient for Serum {
     async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
         // TODO Possible handle ExchangeError in create_order_core
         match self.cancel_order_core(&order).await {
-            Ok(_) => CancelOrderResult::successed(
+            Ok(_) => CancelOrderResult::succeed(
                 order.header.client_order_id.clone(),
                 EventSourceType::Rpc,
                 None,

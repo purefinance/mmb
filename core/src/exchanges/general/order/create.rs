@@ -1,12 +1,22 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Utc;
+use futures::pin_mut;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::{nothing_to_do, OPERATION_CANCELED_MSG};
+use std::borrow::Cow;
+use std::time::Duration;
 use tokio::sync::oneshot;
+use tokio::time::{sleep, timeout};
 
+use crate::exchanges::common::ToStdExpected;
+use crate::exchanges::events::AllowedEventSourceType;
 use crate::exchanges::general::exchange::RequestResult::{Error, Success};
+use crate::exchanges::general::handlers::should_ignore_event;
+use crate::exchanges::general::request_type::RequestType;
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::misc::time::time_manager;
 use crate::orders::event::OrderEventType;
+use crate::orders::order::OrderInfo;
 use crate::{
     exchanges::common::ExchangeAccountId,
     exchanges::common::ExchangeError,
@@ -50,100 +60,435 @@ impl Exchange {
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> Result<OrderRef> {
-        log::info!("Submitting order {:?}", &order_to_create);
+        use AllowedEventSourceType::*;
+
+        log::info!("Submitting order {order_to_create:?}");
+
         let order = self.orders.add_simple_initial(
             order_to_create.header.clone(),
             Some(order_to_create.price),
             self.exchange_client.get_initial_extension_data(),
         );
 
-        let linked_cancellation_token = cancellation_token.create_linked_token();
+        let linked_ct = cancellation_token.create_linked_token();
 
-        let create_order_future = self.create_order_base(&order, linked_cancellation_token);
+        let create_order_fut = self.create_order_base(&order, linked_ct.clone());
 
-        // TODO if AllowedCreateEventSourceType != AllowedEventSourceType.OnlyFallback
-        // TODO self.poll_order_create(order, pre_reservation_group_id, _linked_cancellation_token)
+        let duration = Duration::from_secs(5 * 60);
+        let poll_creation_fut = {
+            let order = order.clone();
+            let linked_ct = linked_ct.clone();
+            async move {
+                timeout(duration, self.poll_order_create(order, pre_reservation_group_id, linked_ct)).await.unwrap_or_else(|_| bail!("Time in form of {duration:?} is over, but future `poll order create` is not completed yet"))
+            }
+        };
 
-        tokio::select! {
-            created_order_outcome = create_order_future => {
-                match created_order_outcome {
-                    Ok(created_order_result) => {
-                        self.match_created_order_outcome( &created_order_result.outcome, pre_reservation_group_id, cancellation_token).await
+        async fn handle_create_order_res(
+            this: &Exchange,
+            order: &OrderRef,
+            pre_reservation_group_id: Option<RequestGroupId>,
+            created_order_result: Result<CreateOrderResult>,
+            linked_ct: CancellationToken,
+            cancellation_token: CancellationToken,
+        ) -> Result<()> {
+            linked_ct.cancel();
+
+            let created_order_result = created_order_result.context("failed create_order")?;
+
+            match created_order_result.outcome {
+                Success(exchange_order_id) => {
+                    let exchange_order_id_from_pool = order
+                        .exchange_order_id()
+                        .expect("exchange_order_id should exists after check_order_creation");
+                    if exchange_order_id_from_pool != exchange_order_id {
+                        panic!("exchange_order_id {exchange_order_id:?} from create order request is different from exchange order from orders pool {exchange_order_id_from_pool:?}");
                     }
-                    Err(exchange_error) => {
-                        bail!("Exchange error: {:?}", exchange_error)
+                }
+                Error(exchange_error) => {
+                    if exchange_error.error_type == ExchangeErrorType::ParsingError {
+                        this.check_order_creation(
+                            order.clone(),
+                            Some(exchange_error),
+                            pre_reservation_group_id,
+                            cancellation_token.clone(),
+                        )
+                        .await;
+
+                        order
+                            .exchange_order_id()
+                            .expect("exchange_order_id should exists after check_order_creation");
+                    } else {
+                        bail!("failed create_order: {}", exchange_error.message);
                     }
                 }
             }
-            // TODO other future to create order
+
+            Ok(())
+        }
+
+        fn handle_poll_creation_order_res(
+            order: &OrderRef,
+            poll_result: Result<()>,
+            linked_ct: CancellationToken,
+        ) -> Result<()> {
+            linked_ct.cancel();
+            poll_result.context("failed create_order fallback polling")?;
+            order
+                .exchange_order_id()
+                .expect("exchange_order_id should exists after poll_order_create");
+            Ok(())
+        }
+
+        match self.features.allowed_create_event_source_type {
+            All => {
+                tokio::select! {
+                    created_order_result = create_order_fut => {
+                        handle_create_order_res(
+                            self,
+                            &order,
+                            pre_reservation_group_id,
+                            created_order_result,
+                            linked_ct.clone(),
+                            cancellation_token.clone(),
+                        ).await?;
+                    },
+                    poll_result = poll_creation_fut => handle_poll_creation_order_res(&order, poll_result, linked_ct)?,
+                };
+            }
+            FallbackOnly => {
+                pin_mut!(poll_creation_fut);
+                let need_poll = tokio::select! {
+                    _ = create_order_fut => true,
+                    poll_result = &mut poll_creation_fut => {
+                        handle_poll_creation_order_res(&order, poll_result, linked_ct.clone())?;
+                        false
+                    },
+                };
+
+                if need_poll {
+                    let poll_result = poll_creation_fut.await;
+                    handle_poll_creation_order_res(&order, poll_result, linked_ct)?;
+                }
+            }
+            NonFallback => {
+                let created_order_result = create_order_fut.await;
+                handle_create_order_res(
+                    self,
+                    &order,
+                    pre_reservation_group_id,
+                    created_order_result,
+                    linked_ct.clone(),
+                    cancellation_token.clone(),
+                )
+                .await?;
+            }
+        }
+
+        self.handle_created_order(&order, pre_reservation_group_id, cancellation_token)
+            .await
+            .unwrap_or_else(|err| log::error!("failed handle_created_order: {err}"));
+
+        Ok(order)
+    }
+
+    async fn handle_created_order(
+        &self,
+        order: &OrderRef,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
+    ) -> Result<()> {
+        let (is_rest_fallback, is_failed_to_created) = order.fn_ref(|x| {
+            (
+                x.internal_props.creation_event_source_type == Some(EventSourceType::RestFallback),
+                x.status() != OrderStatus::FailedToCreate,
+            )
+        });
+
+        if is_rest_fallback && is_failed_to_created {
+            self.check_order_fills(order, false, pre_reservation_group_id, cancellation_token)
+                .await?;
+        }
+
+        let (status, client_order_id) = order.fn_ref(|o| (o.status(), o.client_order_id()));
+
+        if status == OrderStatus::Creating {
+            log::error!("OrderStatus of order {client_order_id} is Creating at the end of create order procedure");
+        }
+
+        // TODO DataRecorder.Save(order); Do we really need it here?
+        // Cause it's already performed in handle_create_order_succeeded
+
+        let (header, exchange_order_id) =
+            order.fn_ref(|o| (o.header.clone(), o.props.exchange_order_id.clone()));
+
+        log::info!(
+            "Order was submitted {client_order_id} {exchange_order_id:?} {:?} on {}",
+            header.reservation_id,
+            header.exchange_account_id,
+        );
+
+        Ok(())
+    }
+
+    async fn poll_order_create(
+        &self,
+        order: OrderRef,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
+    ) -> Result<()> {
+        loop {
+            let (status, last_order_creation_status_request_time) = order.fn_ref(|o| {
+                (
+                    o.status(),
+                    o.internal_props.last_order_creation_status_request_time,
+                )
+            });
+
+            if cancellation_token.is_cancellation_requested() || status != OrderStatus::Creating {
+                break;
+            }
+
+            let now = time_manager::now();
+            let order_creation_status_request_period = chrono::Duration::seconds(5);
+            let delay_till_fallback_request = match last_order_creation_status_request_time {
+                None => Some(order_creation_status_request_period.to_std_expected()),
+                Some(last_request_time) => (order_creation_status_request_period
+                    - (now - last_request_time))
+                    .to_std()
+                    .ok(),
+            };
+
+            if let Some(delay) = delay_till_fallback_request {
+                sleep(delay).await;
+            }
+
+            self.check_order_creation(
+                order.clone(),
+                None,
+                pre_reservation_group_id,
+                cancellation_token.clone(),
+            )
+            .await;
+        }
+
+        Ok(())
+    }
+
+    async fn check_order_creation(
+        &self,
+        order: OrderRef,
+        error: Option<ExchangeError>,
+        pre_reservation_group_id: Option<RequestGroupId>,
+        cancellation_token: CancellationToken,
+    ) {
+        while !cancellation_token.is_cancellation_requested() {
+            let (status, client_order_id, exchange_order_id) =
+                order.fn_ref(|o| (o.status(), o.client_order_id(), o.exchange_order_id()));
+
+            if status != OrderStatus::Creating {
+                return;
+            }
+
+            if self
+                .features
+                .order_features
+                .supports_get_order_info_by_client_order_id
+            {
+                order.fn_mut(|o| {
+                    o.internal_props.last_order_creation_status_request_time =
+                        Some(time_manager::now())
+                });
+
+                log::trace!("Checking order info in CheckOrderCreation {client_order_id} {exchange_order_id:?} {}", self.exchange_account_id);
+
+                self.timeout_manager
+                    .reserve_when_available(
+                        self.exchange_account_id,
+                        RequestType::GetOrderInfo,
+                        pre_reservation_group_id,
+                        cancellation_token.clone(),
+                    )
+                    .expect("Failed to reserve timeout_manager for close_position")
+                    .await;
+
+                let order_info_res = self.get_order_info(&order).await;
+
+                let (status, client_order_id, exchange_order_id) =
+                    order.fn_ref(|o| (o.status(), o.client_order_id(), o.exchange_order_id()));
+
+                //In case order's status has changed while we were receiving OrderInfo
+                if status != OrderStatus::Creating {
+                    return;
+                }
+
+                match order_info_res {
+                    Ok(order_info) => {
+                        self.handle_creating_order_from_check_order_info(
+                            status,
+                            &client_order_id,
+                            &exchange_order_id,
+                            &order_info,
+                        );
+
+                        return;
+                    }
+                    Err(err) => {
+                        self.handle_error_from_check_order_info(
+                            &order,
+                            &client_order_id,
+                            &error,
+                            err,
+                        )
+                        .await
+                    }
+                }
+            } else {
+                if let Some(error) = &error {
+                    //ToDo: Here we need to try to find a similar order #
+                    self.handle_create_order_failed(
+                        &order.client_order_id(),
+                        error,
+                        EventSourceType::RestFallback,
+                    )
+                    .unwrap_or_else(|err| {
+                        log::error!(
+                            "Failed handle_create_order_failed in check_order_creation: {err:?}"
+                        )
+                    })
+                } else {
+                    tokio::select! {
+                        _ = sleep(Duration::from_millis(25)) => nothing_to_do(),
+                        _ = cancellation_token.when_cancelled() => nothing_to_do(),
+                    }
+                }
+            }
         }
     }
 
-    async fn match_created_order_outcome(
+    async fn handle_error_from_check_order_info(
         &self,
-        outcome: &RequestResult<ExchangeOrderId>,
-        pre_reservation_group_id: Option<RequestGroupId>,
-        cancellation_token: CancellationToken,
-    ) -> Result<OrderRef> {
-        match outcome {
-            Success(exchange_order_id) => {
-                let result_order = &*self
-                    .orders
-                    .cache_by_exchange_id
-                    .get(exchange_order_id).ok_or_else(||
-                        anyhow!("Impossible situation: order was created, but missing in local orders pool")
-                    )?;
+        order: &OrderRef,
+        client_order_id: &ClientOrderId,
+        error: &Option<ExchangeError>,
+        get_order_info_error: ExchangeError,
+    ) {
+        log::trace!(
+            "CheckOrderCreation GetOrderInfo response err {get_order_info_error:?} for {client_order_id} on {}",
+            self.exchange_account_id
+        );
 
-                // TODO create_order_cancellation_token_source.cancel();
+        // TODO hack for aax
 
-                let is_rest_fallback = result_order.fn_ref(|x| {
-                    x.internal_props.creation_event_source_type
-                        == Some(EventSourceType::RestFallback)
-                });
-                let failed_to_create = result_order.status() == OrderStatus::FailedToCreate;
+        match get_order_info_error.error_type {
+            ExchangeErrorType::OrderNotFound => {
+                let (client_order_id, init_time) =
+                    order.fn_ref(|o| (o.client_order_id(), o.init_time()));
 
-                if is_rest_fallback && !failed_to_create {
-                    self.check_order_fills(
-                        result_order,
-                        false,
-                        pre_reservation_group_id,
-                        cancellation_token,
-                    )
-                    .await?;
-                }
+                let now = time_manager::now();
+                let min_timeout_for_failed_to_create_order = chrono::Duration::minutes(1);
 
-                if result_order.status() == OrderStatus::Creating {
-                    log::error!(
-                        "OrderStatus of order {} is Creating at the end of create order procedure",
-                        result_order.client_order_id()
+                if now - init_time > min_timeout_for_failed_to_create_order {
+                    let new_error = match &error {
+                        None => Cow::Owned(ExchangeError::unknown_error("Creation fallback did not find an order by clientOrderId, so we're assuming this order was not created")),
+                        Some(error) => Cow::Borrowed(error),
+                    };
+
+                    log::warn!(
+                        "{} {client_order_id} on {}",
+                        new_error.message,
+                        self.exchange_account_id
                     );
+
+                    self.handle_create_order_failed(
+                        &client_order_id,
+                        &new_error,
+                        EventSourceType::RestFallback,
+                    )
+                    .unwrap_or_else(|err| {
+                        log::error!(
+                            "failed handle_create_order_failed in check_order_creation: {err:?}"
+                        )
+                    })
                 }
+            }
+            ExchangeErrorType::RateLimit | ExchangeErrorType::ServiceUnavailable => {
+                // TODO Integrate ExchangeBlocker to wait_order_finish/wait_cancel_order fallbacks #641
+                let delay = self.get_timeout();
+                // TODO fix for AAX
+                sleep(delay).await;
+            }
+            _ => nothing_to_do(),
+        }
+    }
 
-                // TODO DataRecorder.Save(order); Do we really need it here?
-                // Cause it's already performed in handle_create_order_succeeded
+    fn handle_creating_order_from_check_order_info(
+        &self,
+        status: OrderStatus,
+        client_order_id: &ClientOrderId,
+        exchange_order_id: &Option<ExchangeOrderId>,
+        order_info: &OrderInfo,
+    ) {
+        fn log_status(
+            status: OrderStatus,
+            client_order_id: &ClientOrderId,
+            exchange_order_id: &Option<ExchangeOrderId>,
+            exchange_account_id: &ExchangeAccountId,
+        ) {
+            log::warn!("CheckOrderCreation fallback found a {status:?} order {client_order_id} {exchange_order_id:?} on {exchange_account_id}");
+        }
 
-                let (header, exchange_order_id) =
-                    result_order.fn_ref(|o| (o.header.clone(), o.props.exchange_order_id.clone()));
-
-                log::info!(
-                    "Order was submitted {} {:?} {:?} on {}",
-                    header.client_order_id.clone(),
-                    exchange_order_id,
-                    header.reservation_id,
-                    header.exchange_account_id,
+        match order_info.order_status {
+            OrderStatus::FailedToCreate => {
+                log_status(
+                    status,
+                    &client_order_id,
+                    &exchange_order_id,
+                    &self.exchange_account_id,
                 );
 
-                Ok(result_order.clone())
+                self.handle_create_order_failed(
+                    &client_order_id,
+                    &ExchangeError::unknown_error("Fallback"),
+                    EventSourceType::RestFallback,
+                )
+                .unwrap_or_else(|err| log::error!("Failed 'check_order_creation' for order status 'FailedToCreate' with error: {err:?}"));
             }
-            Error(exchange_error) => {
-                if exchange_error.error_type == ExchangeErrorType::ParsingError {
-                    // TODO Error handling should be placed in self.check_order_creation().await
-                    // TODO strange order handling there
-                    // self.check_order_creation().await?;
-                }
-                // TODO delete it in the future
-                bail!("Exchange error: {}", exchange_error.message)
+            OrderStatus::Canceled => {
+                log_status(
+                    status,
+                    &client_order_id,
+                    &exchange_order_id,
+                    &self.exchange_account_id,
+                );
+
+                let exchange_order_id = exchange_order_id
+                    .as_ref()
+                    .expect("exchange_order_id should be known when order status is `Canceled`");
+                self.handle_cancel_order_succeeded(
+                    Some(&client_order_id),
+                    &exchange_order_id,
+                    Some(order_info.filled_amount),
+                    EventSourceType::RestFallback,
+                )
             }
+            OrderStatus::Created | OrderStatus::Completed => {
+                log_status(
+                    status,
+                    &client_order_id,
+                    &exchange_order_id,
+                    &self.exchange_account_id,
+                );
+
+                self.raise_order_created(
+                    &client_order_id,
+                    &order_info.exchange_order_id,
+                    EventSourceType::RestFallback,
+                );
+            }
+            _ => log::warn!(
+                "Unknown order status {status:?} {client_order_id} {exchange_order_id:?} on {}",
+                self.exchange_account_id
+            ),
         }
     }
 
@@ -168,7 +513,6 @@ impl Exchange {
                 Error(exchange_error) => {
                     if exchange_error.error_type != ExchangeErrorType::ParsingError {
                         self.handle_create_order_failed(
-                            self.exchange_account_id,
                             &client_order_id,
                             exchange_error,
                             created_order.source_type,
@@ -185,37 +529,34 @@ impl Exchange {
 
     fn handle_create_order_failed(
         &self,
-        exchange_account_id: ExchangeAccountId,
         client_order_id: &ClientOrderId,
         exchange_error: &ExchangeError,
         source_type: EventSourceType,
     ) -> Result<()> {
-        // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
+        if should_ignore_event(self.features.allowed_create_event_source_type, source_type) {
+            return Ok(());
+        }
 
-        let args_to_log = (exchange_account_id, client_order_id);
+        let args_to_log = (self.exchange_account_id, client_order_id);
 
         if client_order_id.as_str().is_empty() {
-            let error_msg = format!(
-                "Order was created but client_order_id is empty. Order: {:?}",
-                args_to_log
-            );
+            let error_msg =
+                format!("Order was created but client_order_id is empty. Order: {args_to_log:?}");
 
-            log::error!("{}", error_msg);
-            bail!("{}", error_msg);
+            log::error!("{error_msg}");
+            bail!("{error_msg}");
         }
 
         let order_ref = self.orders.cache_by_client_id.get(client_order_id).with_context(|| {
             let error_msg = format!(
-                "CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}",
-                args_to_log
-            );
+                "CreateOrderSucceeded was received for an order which is not in the local orders pool {args_to_log:?}");
 
-           log::error!("{}", error_msg);
+           log::error!("{error_msg}");
             error_msg
         })?;
 
         let args_to_log = (
-            exchange_account_id,
+            self.exchange_account_id,
             client_order_id,
             &order_ref.exchange_order_id(),
         );
@@ -231,20 +572,21 @@ impl Exchange {
     ) -> Result<()> {
         let status = order_ref.status();
         match status {
-            OrderStatus::Created => Self::log_error_and_propagate("Created", args_to_log),
-            OrderStatus::FailedToCreate => {
-                log::warn!(
-                    "CreateOrderFailed was received for a FaildeToCreate order {:?}",
-                    args_to_log
+            OrderStatus::Created
+            | OrderStatus::Canceling
+            | OrderStatus::Canceled
+            | OrderStatus::Completed
+            | OrderStatus::FailedToCancel => {
+                let error_msg = format!(
+                    "CreateOrderFailed was received for a {status:?} order {args_to_log:?}"
                 );
-                Ok(())
+
+                log::error!("{error_msg}");
+                bail!(error_msg)
             }
-            OrderStatus::Canceling => Self::log_error_and_propagate("Canceling", args_to_log),
-            OrderStatus::Canceled => Self::log_error_and_propagate("Canceled", args_to_log),
-            OrderStatus::Completed => Self::log_error_and_propagate("Completed", args_to_log),
-            OrderStatus::FailedToCancel => {
-                Self::log_error_and_propagate("FailedToCancel", args_to_log)
-            }
+            OrderStatus::FailedToCreate => Ok(log::warn!(
+                "CreateOrderFailed was received for a FailedToCreate order {args_to_log:?}"
+            )),
             OrderStatus::Creating => {
                 // TODO RestFallback and some metrics
 
@@ -259,28 +601,11 @@ impl Exchange {
 
                 // TODO DataRecorder.Save(order)
 
-                log::warn!(
-                    "Order creation failed {:?}, with error: {:?}",
-                    args_to_log,
-                    exchange_error
-                );
+                log::warn!("Order creation failed {args_to_log:?}, with error: {exchange_error:?}");
 
                 Ok(())
             }
         }
-    }
-
-    fn log_error_and_propagate(
-        template: &str,
-        args_to_log: (ExchangeAccountId, &ClientOrderId, &Option<ExchangeOrderId>),
-    ) -> Result<()> {
-        let error_msg = format!(
-            "CreateOrderFailed was received for a {} order {:?}",
-            template, args_to_log
-        );
-
-        log::error!("{}", error_msg);
-        bail!("{}", error_msg)
     }
 
     pub(crate) fn handle_create_order_succeeded(
@@ -290,36 +615,30 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         source_type: EventSourceType,
     ) -> Result<()> {
-        // TODO implement should_ignore_event() in the future cause there are some fallbacks handling
+        if should_ignore_event(self.features.allowed_create_event_source_type, source_type) {
+            return Ok(());
+        }
 
         let args_to_log = (exchange_account_id, client_order_id, exchange_order_id);
 
         if client_order_id.as_str().is_empty() {
-            let error_msg = format!(
-                "Order was created but client_order_id is empty. Order: {:?}",
-                args_to_log
-            );
+            let error_msg =
+                format!("Order was created but client_order_id is empty. Order: {args_to_log:?}");
 
-            log::error!("{}", error_msg);
-            bail!("{}", error_msg);
+            log::error!("{error_msg}");
+            bail!("{error_msg}");
         }
 
         if exchange_order_id.as_str().is_empty() {
-            let error_msg = format!(
-                "Order was created but exchange_order_id is empty. Order: {:?}",
-                args_to_log
-            );
+            let error_msg =
+                format!("Order was created but exchange_order_id is empty. Order: {args_to_log:?}");
 
-            log::error!("{}", error_msg);
-            bail!("{}", error_msg);
+            log::error!("{error_msg}");
+            bail!("{error_msg}");
         }
 
         match self.orders.cache_by_client_id.get(client_order_id) {
-            None => {
-                log::warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {:?}", args_to_log);
-
-                Ok(())
-            }
+            None => Ok(log::warn!("CreateOrderSucceeded was received for an order which is not in the local orders pool {args_to_log:?}")),
             Some(order_ref) => {
                 order_ref.fn_mut(|order| {
                     order.props.exchange_order_id = Some(exchange_order_id.clone());
@@ -345,14 +664,16 @@ impl Exchange {
                                 args_to_log
                 );
 
-                log::error!("{}", error_msg);
-                bail!("{}", error_msg)
+                log::error!("{error_msg}");
+                bail!(error_msg)
             }
-            OrderStatus::Created => log_warn("Created", args_to_log),
-            OrderStatus::Canceling => log_warn("Canceling", args_to_log),
-            OrderStatus::Canceled => log_warn("Canceled", args_to_log),
-            OrderStatus::Completed => log_warn("Completed", args_to_log),
-            OrderStatus::FailedToCancel => log_warn("FailedToCancel", args_to_log),
+            OrderStatus::Created
+            | OrderStatus::Canceling
+            | OrderStatus::Canceled
+            | OrderStatus::Completed
+            | OrderStatus::FailedToCancel => Ok(log::warn!(
+                "CreateOrderSucceeded was received for a {status:?} order {args_to_log:?}"
+            )),
             OrderStatus::Creating => {
                 if self
                     .orders
@@ -383,7 +704,7 @@ impl Exchange {
                 if order_ref.order_type() != OrderType::Liquidation {
                     match header.reservation_id {
                         None => {
-                            log::warn!("Created order {} without reservation_id", client_order_id)
+                            log::warn!("Created order {client_order_id} without reservation_id")
                         }
                         Some(reservation_id) => {
                             let bm_lock = self.balance_manager.lock();
@@ -442,7 +763,7 @@ impl Exchange {
         }
     }
 
-    pub(super) async fn create_order_created_task(
+    pub(super) async fn create_order_created_fut(
         &self,
         order: &OrderRef,
         cancellation_token: CancellationToken,
@@ -489,16 +810,4 @@ impl Exchange {
             let _ = tx.send(());
         }
     }
-}
-
-fn log_warn(
-    template: &str,
-    args_to_log: (ExchangeAccountId, &ClientOrderId, &ExchangeOrderId),
-) -> Result<()> {
-    log::warn!(
-        "CreateOrderSucceeded was received for a {} order {:?}",
-        template,
-        args_to_log
-    );
-    Ok(())
 }

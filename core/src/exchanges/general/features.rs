@@ -115,10 +115,14 @@ pub struct ExchangeFeatures {
     pub trade_option: OrderTradeOption,
     pub websocket_options: WebSocketOptions,
     pub empty_response_is_ok: bool,
-    pub allows_to_get_order_info_by_client_order_id: bool,
-    pub allowed_fill_event_source_type: AllowedEventSourceType,
-    pub allowed_cancel_event_source_type: AllowedEventSourceType,
     pub balance_position_option: BalancePositionOption,
+
+    // used only for debug
+    pub allowed_create_event_source_type: AllowedEventSourceType,
+    // used only for debug
+    pub allowed_fill_event_source_type: AllowedEventSourceType,
+    // used only for debug
+    pub allowed_cancel_event_source_type: AllowedEventSourceType,
 }
 
 impl ExchangeFeatures {
@@ -130,7 +134,7 @@ impl ExchangeFeatures {
         trade_option: OrderTradeOption,
         websocket_options: WebSocketOptions,
         empty_response_is_ok: bool,
-        allows_to_get_order_info_by_client_order_id: bool,
+        allowed_create_event_source_type: AllowedEventSourceType,
         allowed_fill_event_source_type: AllowedEventSourceType,
         allowed_cancel_event_source_type: AllowedEventSourceType,
     ) -> Self {
@@ -141,7 +145,7 @@ impl ExchangeFeatures {
             trade_option,
             websocket_options,
             empty_response_is_ok,
-            allows_to_get_order_info_by_client_order_id,
+            allowed_create_event_source_type,
             allowed_fill_event_source_type,
             allowed_cancel_event_source_type,
             balance_position_option: BalancePositionOption::NonDerivative,

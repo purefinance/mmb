@@ -1,10 +1,10 @@
 use anyhow::{anyhow, Result};
-use chrono::Utc;
 use futures::future::join_all;
 use itertools::Itertools;
 use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::oneshot;
 
+use crate::misc::time::time_manager;
 use crate::{
     exchanges::common::Amount,
     exchanges::common::ExchangeError,
@@ -28,7 +28,7 @@ pub struct CancelOrderResult {
 }
 
 impl CancelOrderResult {
-    pub fn successed(
+    pub fn succeed(
         client_order_id: ClientOrderId,
         source_type: EventSourceType,
         filled_amount: Option<Amount>,
@@ -75,7 +75,7 @@ impl Exchange {
                 Ok(None)
             }
             _ => {
-                order.fn_mut(|order| order.set_status(OrderStatus::Canceling, Utc::now()));
+                order.fn_mut(|order| order.set_status(OrderStatus::Canceling, time_manager::now()));
 
                 log::info!(
                     "Submitting order cancellation {} {:?} on {}",
@@ -112,7 +112,7 @@ impl Exchange {
         let order_cancellation_outcome = self.cancel_order_core(order, cancellation_token).await;
 
         // Option is returning when cancel_order_core is stopped by CancellationToken
-        // So approptiate Handler was already called in a fallback
+        // So appropriate Handler was already called in a fallback
         if let Some(ref cancel_outcome) = order_cancellation_outcome {
             match &cancel_outcome.outcome {
                 RequestResult::Success(client_order_id) => self.handle_cancel_order_succeeded(
@@ -190,7 +190,7 @@ impl Exchange {
         let filled_amount = None;
         match self.order_cancellation_events.remove(&exchange_order_id) {
             Some((_, (tx, _))) => {
-                if let Err(error) = tx.send(CancelOrderResult::successed(
+                if let Err(error) = tx.send(CancelOrderResult::succeed(
                     client_order_id,
                     source_type,
                     filled_amount,

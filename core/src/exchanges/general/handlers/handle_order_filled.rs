@@ -6,6 +6,7 @@ use rust_decimal_macros::dec;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::exchanges::general::handlers::should_ignore_event;
 use crate::{
     exchanges::{
         common::Amount,
@@ -102,7 +103,7 @@ impl Exchange {
             fill_event.source_type,
         );
 
-        if Self::should_ignore_event(
+        if should_ignore_event(
             self.features.allowed_fill_event_source_type,
             fill_event.source_type,
         ) {
@@ -764,21 +765,6 @@ impl Exchange {
 
         self.orders
             .add_snapshot_initial(Arc::new(RwLock::new(order_instance)))
-    }
-
-    pub(super) fn should_ignore_event(
-        allowed_event_source_type: AllowedEventSourceType,
-        source_type: EventSourceType,
-    ) -> bool {
-        if allowed_event_source_type == AllowedEventSourceType::FallbackOnly
-            && source_type != EventSourceType::RestFallback
-        {
-            return true;
-        }
-
-        allowed_event_source_type == AllowedEventSourceType::NonFallback
-            && source_type != EventSourceType::Rest
-            && source_type != EventSourceType::WebSocket
     }
 }
 

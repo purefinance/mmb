@@ -74,7 +74,7 @@ async fn cancel_opened_orders_successfully() {
         .await
         .expect("Opened orders not found for exchange account id:");
 
-    assert_ne!(orders.len(), 0);
+    assert_eq!(orders.len(), 2);
     binance_builder
         .exchange
         .clone()

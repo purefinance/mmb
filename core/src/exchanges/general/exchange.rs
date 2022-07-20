@@ -134,6 +134,9 @@ pub struct Exchange {
     exchange_blocker: Weak<ExchangeBlocker>,
     ws_sender: Mutex<Option<WsSender>>,
     auto_reconnect: AtomicBool,
+
+    // Temporary fix before integration ExchangeBlocker to wait_order_finish/wait_cancel_order fallbacks #641
+    timeout: Duration,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -156,6 +159,8 @@ impl Exchange {
 
         Arc::new_cyclic(move |e| {
             Self::setup_exchange_client(e.clone(), exchange_client.as_mut());
+
+            let timeout = timeout_manager.get_period_duration(exchange_account_id);
             Self {
                 exchange_account_id,
                 exchange_client,
@@ -185,6 +190,7 @@ impl Exchange {
                 exchange_blocker,
                 buffered_canceled_orders_manager: Default::default(),
                 auto_reconnect: AtomicBool::new(false),
+                timeout,
             }
         })
     }
@@ -821,6 +827,10 @@ impl Exchange {
         // {
         //     DataRecorder.Save(liquidationPrice);
         // }
+    }
+
+    pub(crate) fn get_timeout(&self) -> Duration {
+        self.timeout
     }
 }
 

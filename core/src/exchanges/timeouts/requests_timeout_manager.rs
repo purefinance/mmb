@@ -399,6 +399,10 @@ impl RequestsTimeoutManager {
             .less_or_equals_requests_count_triggers
             .push(Box::new(trigger));
     }
+
+    pub fn get_period_duration(&self) -> std::time::Duration {
+        self.inner.lock().get_period_duration().to_std_expected()
+    }
 }
 
 #[cfg(test)]

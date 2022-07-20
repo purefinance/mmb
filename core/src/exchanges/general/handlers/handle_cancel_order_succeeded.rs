@@ -1,6 +1,7 @@
 use chrono::Utc;
 use mmb_utils::infrastructure::WithExpect;
 
+use crate::exchanges::general::handlers::should_ignore_event;
 use crate::{
     exchanges::common::Amount,
     exchanges::general::exchange::Exchange,
@@ -25,7 +26,7 @@ impl Exchange {
             source_type,
         );
 
-        if Self::should_ignore_event(self.features.allowed_cancel_event_source_type, source_type) {
+        if should_ignore_event(self.features.allowed_cancel_event_source_type, source_type) {
             log::info!("Ignoring fill {:?}", args_to_log);
             return;
         }
@@ -44,12 +45,8 @@ impl Exchange {
                     .add_order(self.exchange_account_id, exchange_order_id.clone());
 
                 match client_order_id {
-                    Some(client_order_id) =>
-                        self.raise_order_created(client_order_id, exchange_order_id, source_type),
-                    None =>
-                        log::error!("cancel_order_succeeded was received for an order which is not in the system {} {:?}",
-                            self.exchange_account_id,
-                            exchange_order_id),
+                    Some(client_order_id) => self.raise_order_created(client_order_id, exchange_order_id, source_type),
+                    None => log::error!("cancel_order_succeeded was received for an order which is not in the system {} {exchange_order_id:?}", self.exchange_account_id),
                 }
             }
             Some(order_ref) => {

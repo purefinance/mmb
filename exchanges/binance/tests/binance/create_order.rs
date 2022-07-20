@@ -1,30 +1,40 @@
+use crate::binance::binance_builder::BinanceBuilder;
+use core_tests::order::OrderProxy;
+use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_core::orders::event::OrderEventType;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
+use rstest::rstest;
 use rust_decimal_macros::*;
+use std::time::Duration;
 
-use mmb_core::exchanges::events::ExchangeEvent;
-
-use crate::binance::binance_builder::BinanceBuilder;
-use core_tests::order::OrderProxy;
-
+#[rstest]
+#[case::all(AllowedEventSourceType::All)]
+#[case::fallback_only(AllowedEventSourceType::FallbackOnly)]
+#[case::non_fallback(AllowedEventSourceType::NonFallback)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn create_successfully() {
+async fn create_successfully(#[case] allowed_create_event_source_type: AllowedEventSourceType) {
     init_logger_file_named("log.txt");
 
-    let mut binance_builder = match BinanceBuilder::build_account_0().await {
+    let binance_builder = BinanceBuilder::build_account_0_with_source_types(
+        allowed_create_event_source_type,
+        AllowedEventSourceType::default(),
+    );
+
+    let mut binance_builder = match binance_builder.await {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
     let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
-    let order_proxy = OrderProxy::new(
+    let mut order_proxy = OrderProxy::new(
         exchange_account_id,
         Some("FromCreateSuccessfullyTest".to_owned()),
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
     );
+    order_proxy.timeout = Duration::from_secs(15);
 
     let order_ref = order_proxy
         .create_order(binance_builder.exchange.clone())
@@ -79,7 +89,7 @@ async fn should_fail() {
         .expect_err("should be error");
 
     assert_eq!(
-        "Exchange error: Type: InvalidOrder Message: Precision is over the maximum defined for this asset. Code Some(-1111)",
+        "failed create_order: Type: InvalidOrder Message: Precision is over the maximum defined for this asset. Code Some(-1111)",
         error.to_string()
     );
 }

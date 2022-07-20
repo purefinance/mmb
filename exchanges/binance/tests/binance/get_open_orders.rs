@@ -82,11 +82,14 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         ExchangeFeatures::new(
             OpenOrdersType::OneCurrencyPair,
             RestFillsFeatures::default(),
-            OrderFeatures::default(),
+            OrderFeatures {
+                supports_get_order_info_by_client_order_id: true,
+                ..OrderFeatures::default()
+            },
             OrderTradeOption::default(),
             WebSocketOptions::default(),
             true,
-            true,
+            AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
             AllowedEventSourceType::default(),
         ),
