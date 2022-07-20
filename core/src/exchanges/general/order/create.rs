@@ -732,21 +732,19 @@ impl Exchange {
                 let mut buffered_fills_manager = self.buffered_fills_manager.lock();
                 if let Some(buffered_fills) = buffered_fills_manager.get_fills(exchange_order_id) {
                     log::trace!(
-                        "Found buffered fills for an order {} {} {} {:?}",
+                        "Found buffered fills for an order {client_order_id} {exchange_order_id} on {}:\n{buffered_fills:?}",
                         self.exchange_account_id,
-                        client_order_id,
-                        exchange_order_id,
-                        buffered_fills
                     );
 
                     for buffered_fill in buffered_fills {
-                        self.handle_order_filled(
-                            buffered_fill.to_fill_event_data(None, client_order_id.clone()),
-                        );
+                        let mut fill_event =
+                            buffered_fill.to_fill_event_data(client_order_id.clone());
+                        self.handle_order_filled(&mut fill_event);
                     }
 
                     buffered_fills_manager.remove_fills(exchange_order_id);
                 }
+                drop(buffered_fills_manager);
 
                 let mut buffered_canceled_orders_manager =
                     self.buffered_canceled_orders_manager.lock();
@@ -759,11 +757,12 @@ impl Exchange {
                     );
                     buffered_canceled_orders_manager.remove_order(exchange_order_id);
                 }
+                drop(buffered_canceled_orders_manager);
 
                 // TODO DataRecorder.Save(order); Do we really need it here?
                 // Cause it's already performed in handle_create_order_succeeded
 
-                log::info!("Order was created: {:?}", args_to_log);
+                log::info!("Order was created: {args_to_log:?}");
 
                 Ok(())
             }

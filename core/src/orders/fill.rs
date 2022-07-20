@@ -17,6 +17,13 @@ pub enum OrderFillType {
     ClosePosition = 4,
 }
 
+impl OrderFillType {
+    pub fn is_special(&self) -> bool {
+        use OrderFillType::*;
+        matches!(self, Liquidation | ClosePosition)
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum EventSourceType {
     RestFallback = 1,

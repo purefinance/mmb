@@ -457,11 +457,7 @@ impl Binance {
         let is_maker = json_response["m"]
             .as_bool()
             .ok_or_else(|| anyhow!("Unable to parse trade side"))?;
-        let order_side = Self::get_local_order_side(
-            json_response["S"]
-                .as_str()
-                .ok_or_else(|| anyhow!("Unable to parse last filled amount"))?,
-        );
+
         let fill_date: DateTime = u64_to_date_time(
             json_response["E"]
                 .as_u64()
@@ -492,9 +488,7 @@ impl Binance {
             commission_rate: None,
             commission_amount: Some(commission_amount.parse()?),
             fill_type,
-            trade_currency_pair: None,
-            order_side: Some(order_side),
-            order_amount: None,
+            special_order_data: None,
             fill_date: Some(fill_date),
         };
 

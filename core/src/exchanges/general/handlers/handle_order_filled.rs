@@ -74,6 +74,14 @@ impl FillAmount {
 }
 
 #[derive(Debug, Clone)]
+pub struct SpecialOrderData {
+    // For ClosePosition order currency pair can be empty string
+    pub currency_pair: CurrencyPair,
+    pub order_side: OrderSide,
+    pub order_amount: Amount,
+}
+
+#[derive(Debug, Clone)]
 pub struct FillEvent {
     pub source_type: EventSourceType,
     pub trade_id: Option<TradeId>,
@@ -86,14 +94,12 @@ pub struct FillEvent {
     pub commission_rate: Option<Percent>,
     pub commission_amount: Option<Amount>,
     pub fill_type: OrderFillType,
-    pub trade_currency_pair: Option<CurrencyPair>,
-    pub order_side: Option<OrderSide>,
-    pub order_amount: Option<Amount>,
+    pub special_order_data: Option<SpecialOrderData>,
     pub fill_date: Option<DateTime>,
 }
 
 impl Exchange {
-    pub fn handle_order_filled(&self, mut fill_event: FillEvent) {
+    pub fn handle_order_filled(&self, fill_event: &mut FillEvent) {
         let args_to_log = (
             self.exchange_account_id,
             fill_event.trade_id.clone(),
@@ -107,18 +113,15 @@ impl Exchange {
             self.features.allowed_fill_event_source_type,
             fill_event.source_type,
         ) {
-            log::info!("Ignoring fill {:?}", args_to_log);
+            log::info!("Ignoring fill {args_to_log:?}");
             return;
         }
 
         if fill_event.exchange_order_id.is_empty() {
-            panic!(
-                "Received HandleOrderFilled with an empty exchangeOrderId {:?}",
-                &args_to_log
-            );
+            panic!("Received HandleOrderFilled with an empty exchangeOrderId {args_to_log:?}",);
         }
 
-        self.add_external_order(&mut fill_event, &args_to_log);
+        self.add_special_order_if_need(fill_event, &args_to_log);
 
         match self
             .orders
@@ -126,21 +129,21 @@ impl Exchange {
             .get(&fill_event.exchange_order_id)
         {
             None => {
-                log::info!("Received a fill for not existing order {:?}", &args_to_log);
+                log::info!("Received a fill for not existing order {args_to_log:?}",);
 
                 self.buffered_fills_manager
                     .lock()
                     .add_fill(self.exchange_account_id, &fill_event);
 
-                if let Some(client_order_id) = fill_event.client_order_id {
+                if let Some(client_order_id) = &fill_event.client_order_id {
                     self.raise_order_created(
-                        &client_order_id,
+                        client_order_id,
                         &fill_event.exchange_order_id,
                         fill_event.source_type,
                     );
                 }
             }
-            Some(order_ref) => self.create_and_add_order_fill(&mut fill_event, &order_ref),
+            Some(order_ref) => self.create_and_add_order_fill(fill_event, &order_ref),
         }
     }
 
@@ -309,12 +312,7 @@ impl Exchange {
         let total_filled_cost: Decimal = order_fills.iter().map(|fill| fill.cost()).sum();
         let cost_diff = last_fill_cost - total_filled_cost;
         if cost_diff <= dec!(0) {
-            log::warn!(
-                "cost_diff is {} which is <= 0 for {:?}",
-                cost_diff,
-                order_ref
-            );
-
+            log::warn!("cost_diff is {cost_diff} which is <= 0 for {order_ref:?}");
             return None;
         }
 
@@ -351,18 +349,22 @@ impl Exchange {
         }
     }
 
-    fn panic_if_wrong_status_or_cancelled(order_ref: &OrderRef, fill_event: &FillEvent) {
-        if order_ref.status() == OrderStatus::FailedToCreate
-            || order_ref.status() == OrderStatus::Completed
-            || order_ref.was_cancellation_event_raised()
-        {
+    fn panic_if_wrong_status_or_cancelled(order_ref: &OrderRef, fill_event: &FillEvent) -> bool {
+        let (status, was_cancellation_event_raised) =
+            order_ref.fn_ref(|o| (o.status(), o.internal_props.was_cancellation_event_raised));
+
+        if matches!(status, OrderStatus::FailedToCreate | OrderStatus::Completed) {
             panic!(
-                "Fill was received for a {:?} {} {:?}",
-                order_ref.status(),
-                order_ref.was_cancellation_event_raised(),
-                fill_event
+                "Fill was received for a {status:?} {was_cancellation_event_raised} {fill_event:?}"
             );
         }
+
+        if was_cancellation_event_raised {
+            log::warn!(
+                "Fill was received for a {status:?} {was_cancellation_event_raised} {fill_event:?}"
+            );
+        }
+        return was_cancellation_event_raised;
     }
 
     fn get_order_role(fill_event: &FillEvent, order_ref: &OrderRef) -> OrderRole {
@@ -565,12 +567,8 @@ impl Exchange {
         );
 
         log::info!(
-            "Adding a fill {} {:?} {} {:?} {:?}",
-            self.exchange_account_id,
-            trade_id,
-            client_order_id,
-            exchange_order_id,
-            &order_fill
+            "Adding a fill {} {trade_id:?} {client_order_id} {exchange_order_id:?} {order_fill:?}",
+            self.exchange_account_id
         );
 
         order_ref.fn_mut(move |order| order.add_fill(order_fill));
@@ -609,14 +607,11 @@ impl Exchange {
             return;
         }
 
-        Self::panic_if_wrong_status_or_cancelled(order_ref, fill_event);
+        if Self::panic_if_wrong_status_or_cancelled(order_ref, fill_event) {
+            return;
+        }
 
-        log::info!(
-            "Received fill {:?} {} {}",
-            fill_event,
-            last_fill_price,
-            last_fill_amount
-        );
+        log::info!("Received fill {fill_event:?} {last_fill_price} {last_fill_amount}");
 
         let commission_currency_code = fill_event
             .commission_currency_code
@@ -680,85 +675,78 @@ impl Exchange {
         // TODO DataRecorder.save(order)
     }
 
-    fn add_external_order(&self, fill_event: &mut FillEvent, args_to_log: &ArgsToLog) {
+    fn add_special_order_if_need(&self, fill_event: &mut FillEvent, args_to_log: &ArgsToLog) {
+        if !(fill_event.fill_type.is_special()) {
+            return;
+        }
+
+        let special = fill_event
+            .special_order_data
+            .as_ref()
+            .unwrap_or_else(|| {
+                panic!("Special order data should be set for liquidation trade {args_to_log:?}");
+            })
+            .clone();
+
         if fill_event.fill_type == OrderFillType::Liquidation
-            || fill_event.fill_type == OrderFillType::ClosePosition
+            && special.currency_pair.as_str().is_empty()
         {
-            if fill_event.fill_type == OrderFillType::Liquidation
-                && fill_event.trade_currency_pair.is_none()
-            {
-                panic!(
-                    "Currency pair should be set for liquidation trade {:?}",
-                    &args_to_log
+            panic!("Currency pair should be set for liquidation trade {args_to_log:?}");
+        }
+
+        if fill_event.client_order_id.is_some() {
+            panic!("Client order id cannot be set for liquidation or close position trade {args_to_log:?}");
+        }
+
+        match self
+            .orders
+            .cache_by_exchange_id
+            .get(&fill_event.exchange_order_id)
+        {
+            Some(order_ref) => fill_event.client_order_id = Some(order_ref.client_order_id()),
+            None => {
+                let order_type = match fill_event.fill_type == OrderFillType::ClosePosition {
+                    true => OrderType::ClosePosition,
+                    false => OrderType::Liquidation,
+                };
+
+                // Liquidation and ClosePosition are always Takers
+                let order_ref = self.create_special_order_in_pool(
+                    special,
+                    fill_event.fill_price,
+                    order_type,
+                    OrderRole::Taker,
                 );
-            }
 
-            if fill_event.order_side.is_none() {
-                panic!(
-                    "Side should be set for liquidation or close position trade {:?}",
-                    &args_to_log
-                );
-            }
-
-            if fill_event.client_order_id.is_some() {
-                panic!(
-                    "Client order id cannot be set for liquidation or close position trade {:?}",
-                    &args_to_log
-                );
-            }
-
-            if fill_event.order_amount.is_none() {
-                panic!(
-                    "Order amount should be set for liquidation or close position trade {:?}",
-                    &args_to_log
-                );
-            }
-
-            match self
-                .orders
-                .cache_by_exchange_id
-                .get(&fill_event.exchange_order_id)
-            {
-                Some(order_ref) => {
-                    fill_event.client_order_id = Some(order_ref.client_order_id());
-                }
-                None => {
-                    // Liquidation and ClosePosition are always Takers
-                    let order_ref = self.create_order_in_pool(fill_event, OrderRole::Taker);
-
-                    fill_event.client_order_id = Some(order_ref.client_order_id());
-                    self.handle_create_order_succeeded(
-                        self.exchange_account_id,
-                        &order_ref.client_order_id(),
-                        &fill_event.exchange_order_id,
-                        fill_event.source_type,
-                    )
-                    .expect("Error handle create order succeeded");
-                }
+                fill_event.client_order_id = Some(order_ref.client_order_id());
+                self.handle_create_order_succeeded(
+                    self.exchange_account_id,
+                    &order_ref.client_order_id(),
+                    &fill_event.exchange_order_id,
+                    fill_event.source_type,
+                )
+                .expect("Error handle create order succeeded");
             }
         }
     }
 
-    fn create_order_in_pool(&self, fill_event: &FillEvent, order_role: OrderRole) -> OrderRef {
-        let currency_pair = fill_event
-            .trade_currency_pair
-            .expect("'currency_pair' are checked above already");
-        let order_amount = fill_event
-            .order_amount
-            .expect("'amount' are checked above already");
-        let order_side = fill_event
-            .order_side
-            .expect("'order_side' are checked above already");
-
+    // Create special order (Liquidation or ClosePosition) in pool
+    fn create_special_order_in_pool(
+        &self,
+        special: SpecialOrderData,
+        fill_price: Price,
+        order_type: OrderType,
+        order_role: OrderRole,
+    ) -> OrderRef {
         let order_instance = OrderSnapshot::with_params(
             ClientOrderId::unique_id(),
-            OrderType::Liquidation,
+            order_type,
             Some(order_role),
             self.exchange_account_id,
-            currency_pair,
-            fill_event.fill_price,
-            order_amount,
-            order_side,
+            special.currency_pair,
+            fill_price,
+            special.order_amount,
+            special.order_side,
             None,
             "Unknown order from handle_order_filled()",
         );
@@ -795,9 +783,9 @@ mod test {
         use super::*;
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-        #[should_panic(expected = "Currency pair should be set for liquidation trad")]
-        async fn empty_currency_pair() {
-            let fill_event = FillEvent {
+        #[should_panic(expected = "Special order data should be set for liquidation trade")]
+        async fn empty_special_order_data() {
+            let mut fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: None,
@@ -811,41 +799,12 @@ mod test {
                 commission_rate: None,
                 commission_amount: None,
                 fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: None,
-                order_side: None,
-                order_amount: None,
+                special_order_data: None,
                 fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
-            exchange.handle_order_filled(fill_event);
-        }
-
-        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-        #[should_panic(expected = "Side should be set for liquidation or close position trade")]
-        async fn empty_order_side() {
-            let fill_event = FillEvent {
-                source_type: EventSourceType::WebSocket,
-                trade_id: Some(trade_id_from_str("empty")),
-                client_order_id: None,
-                exchange_order_id: ExchangeOrderId::new("test".into()),
-                fill_price: dec!(0),
-                fill_amount: FillAmount::Total {
-                    total_filled_amount: dec!(0),
-                },
-                order_role: None,
-                commission_currency_code: None,
-                commission_rate: None,
-                commission_amount: None,
-                fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
-                order_side: None,
-                order_amount: None,
-                fill_date: None,
-            };
-
-            let (exchange, _) = get_test_exchange(false);
-            exchange.handle_order_filled(fill_event);
+            exchange.handle_order_filled(&mut fill_event);
         }
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -853,7 +812,7 @@ mod test {
             expected = "Client order id cannot be set for liquidation or close position trade"
         )]
         async fn not_empty_client_order_id() {
-            let fill_event = FillEvent {
+            let mut fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: Some(ClientOrderId::unique_id()),
@@ -867,43 +826,16 @@ mod test {
                 commission_rate: None,
                 commission_amount: None,
                 fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
-                order_side: Some(OrderSide::Buy),
-                order_amount: None,
+                special_order_data: Some(SpecialOrderData {
+                    currency_pair: CurrencyPair::from_codes("te".into(), "st".into()),
+                    order_side: OrderSide::Buy,
+                    order_amount: dec!(7),
+                }),
                 fill_date: None,
             };
 
             let (exchange, _) = get_test_exchange(false);
-            exchange.handle_order_filled(fill_event);
-        }
-
-        #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-        #[should_panic(
-            expected = "Order amount should be set for liquidation or close position trade"
-        )]
-        async fn not_empty_order_amount() {
-            let fill_event = FillEvent {
-                source_type: EventSourceType::WebSocket,
-                trade_id: Some(trade_id_from_str("empty")),
-                client_order_id: None,
-                exchange_order_id: ExchangeOrderId::new("test".into()),
-                fill_price: dec!(0),
-                fill_amount: FillAmount::Total {
-                    total_filled_amount: dec!(0),
-                },
-                order_role: None,
-                commission_currency_code: None,
-                commission_rate: None,
-                commission_amount: None,
-                fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
-                order_side: Some(OrderSide::Buy),
-                order_amount: None,
-                fill_date: None,
-            };
-
-            let (exchange, _) = get_test_exchange(false);
-            exchange.handle_order_filled(fill_event);
+            exchange.handle_order_filled(&mut fill_event);
         }
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -917,7 +849,7 @@ mod test {
                 total_filled_amount: dec!(5),
             };
 
-            let fill_event = FillEvent {
+            let mut fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: None,
@@ -929,14 +861,16 @@ mod test {
                 commission_rate: None,
                 commission_amount: None,
                 fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(currency_pair),
-                order_side: Some(order_side),
-                order_amount: Some(order_amount),
+                special_order_data: Some(SpecialOrderData {
+                    currency_pair,
+                    order_side,
+                    order_amount,
+                }),
                 fill_date: None,
             };
 
             let (exchange, _event_received) = get_test_exchange(false);
-            exchange.handle_order_filled(fill_event);
+            exchange.handle_order_filled(&mut fill_event);
 
             let order = exchange
                 .orders
@@ -960,7 +894,7 @@ mod test {
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         #[should_panic(expected = "Received HandleOrderFilled with an empty exchangeOrderId")]
         async fn empty_exchange_order_id() {
-            let fill_event = FillEvent {
+            let mut fill_event = FillEvent {
                 source_type: EventSourceType::WebSocket,
                 trade_id: Some(trade_id_from_str("empty")),
                 client_order_id: None,
@@ -974,14 +908,16 @@ mod test {
                 commission_rate: None,
                 commission_amount: None,
                 fill_type: OrderFillType::Liquidation,
-                trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
-                order_side: Some(OrderSide::Buy),
-                order_amount: Some(dec!(0)),
+                special_order_data: Some(SpecialOrderData {
+                    currency_pair: CurrencyPair::from_codes("te".into(), "st".into()),
+                    order_side: OrderSide::Buy,
+                    order_amount: dec!(0),
+                }),
                 fill_date: None,
             };
 
             let (exchange, _event_receiver) = get_test_exchange(false);
-            exchange.handle_order_filled(fill_event);
+            exchange.handle_order_filled(&mut fill_event);
         }
     }
 
@@ -1012,9 +948,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair: CurrencyPair::from_codes("te".into(), "st".into()),
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -1091,9 +1029,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair: CurrencyPair::from_codes("te".into(), "st".into()),
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -1168,9 +1108,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(CurrencyPair::from_codes("te".into(), "st".into())),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair: CurrencyPair::from_codes("te".into(), "st".into()),
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -1246,9 +1188,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -1324,9 +1268,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -1378,9 +1324,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -1405,8 +1353,7 @@ mod test {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[should_panic(expected = "Fill was received for a Creating true")]
-    async fn error_if_cancellation_event_was_raised() {
+    async fn do_not_add_fill_if_cancellation_event_was_raised() {
         let (exchange, _event_receiver) = get_test_exchange(false);
 
         let client_order_id = ClientOrderId::unique_id();
@@ -1433,9 +1380,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -1457,6 +1406,8 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
 
         exchange.create_and_add_order_fill(&mut fill_event, &order_ref);
+
+        assert!(order_ref.get_fills().0.is_empty());
     }
 
     // TODO Can be improved via testing only calculate_cost_diff_function
@@ -1513,7 +1464,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let first_fill_event = FillEvent {
+        let mut first_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
@@ -1525,15 +1476,17 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.01)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(first_fill_event);
+        exchange.handle_order_filled(&mut first_fill_event);
 
-        let second_fill_event = FillEvent {
+        let mut second_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
@@ -1547,13 +1500,15 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.03)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(second_fill_event);
+        exchange.handle_order_filled(&mut second_fill_event);
 
         let order_ref = exchange
             .orders
@@ -1628,7 +1583,7 @@ mod test {
 
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let first_fill_event = FillEvent {
+        let mut first_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
@@ -1640,15 +1595,17 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.01)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(first_fill_event);
+        exchange.handle_order_filled(&mut first_fill_event);
 
-        let second_fill_event = FillEvent {
+        let mut second_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
@@ -1662,13 +1619,15 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.03)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(second_fill_event);
+        exchange.handle_order_filled(&mut second_fill_event);
 
         let order_ref = exchange
             .orders
@@ -1741,7 +1700,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let first_fill_event = FillEvent {
+        let mut first_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
@@ -1753,15 +1712,17 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.01)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(first_fill_event);
+        exchange.handle_order_filled(&mut first_fill_event);
 
-        let second_fill_event = FillEvent {
+        let mut second_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
@@ -1775,13 +1736,15 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.03)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(second_fill_event);
+        exchange.handle_order_filled(&mut second_fill_event);
 
         let order_ref = exchange
             .orders
@@ -1860,7 +1823,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let first_fill_event = FillEvent {
+        let mut first_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
@@ -1872,15 +1835,17 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.01)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(first_fill_event);
+        exchange.handle_order_filled(&mut first_fill_event);
 
-        let second_fill_event = FillEvent {
+        let mut second_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
@@ -1894,13 +1859,15 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.03)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(second_fill_event);
+        exchange.handle_order_filled(&mut second_fill_event);
 
         let order_ref = exchange
             .orders
@@ -1977,7 +1944,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let first_fill_event = FillEvent {
+        let mut first_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id,
             client_order_id: None,
@@ -1989,15 +1956,17 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.01)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(first_fill_event);
+        exchange.handle_order_filled(&mut first_fill_event);
 
-        let second_fill_event = FillEvent {
+        let mut second_fill_event = FillEvent {
             source_type: EventSourceType::WebSocket,
             trade_id: Some(trade_id_from_str("another_trade_id")),
             client_order_id: None,
@@ -2011,13 +1980,15 @@ mod test {
             commission_rate: None,
             commission_amount: Some(dec!(0.03)),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
-        exchange.handle_order_filled(second_fill_event);
+        exchange.handle_order_filled(&mut second_fill_event);
 
         let order_ref = exchange
             .orders
@@ -2056,9 +2027,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2112,9 +2085,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2172,9 +2147,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2233,9 +2210,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2287,9 +2266,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2349,9 +2330,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2411,9 +2394,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2482,9 +2467,11 @@ mod test {
             commission_rate: None,
             commission_amount: Some(commission_amount),
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2543,9 +2530,11 @@ mod test {
             commission_rate: Some(commission_rate),
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2603,9 +2592,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -2663,9 +2654,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(OrderSide::Buy),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -3229,9 +3222,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -3258,9 +3253,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
@@ -3287,9 +3284,11 @@ mod test {
             commission_rate: None,
             commission_amount: None,
             fill_type: OrderFillType::Liquidation,
-            trade_currency_pair: Some(currency_pair),
-            order_side: Some(order_side),
-            order_amount: Some(dec!(0)),
+            special_order_data: Some(SpecialOrderData {
+                currency_pair,
+                order_side: OrderSide::Buy,
+                order_amount: dec!(0),
+            }),
             fill_date: None,
         };
 
