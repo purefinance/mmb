@@ -221,8 +221,8 @@ impl Exchange {
 
         exchange_client.set_handle_order_filled_callback(Box::new({
             let exchange_weak = exchange_weak.clone();
-            move |event_data| match exchange_weak.upgrade() {
-                Some(exchange) => exchange.handle_order_filled(event_data),
+            move |mut event_data| match exchange_weak.upgrade() {
+                Some(exchange) => exchange.handle_order_filled(&mut event_data),
                 None => log::info!("Unable to upgrade weak reference to Exchange instance"),
             }
         }));

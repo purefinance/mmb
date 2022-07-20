@@ -4,13 +4,13 @@ use rust_decimal::Decimal;
 use crate::exchanges::general::handlers::handle_order_filled::FillAmount;
 use crate::{
     exchanges::{
-        common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
+        common::{Amount, CurrencyCode, ExchangeAccountId, Price},
         events::TradeId,
         general::handlers::handle_order_filled::FillEvent,
     },
     orders::{
         fill::{EventSourceType, OrderFillType},
-        order::{ClientOrderId, ExchangeOrderId, OrderRole, OrderSide},
+        order::{ClientOrderId, ExchangeOrderId, OrderRole},
     },
 };
 
@@ -27,9 +27,7 @@ pub struct BufferedFill {
     pub commission_currency_code: CurrencyCode,
     pub commission_rate: Option<Decimal>,
     pub commission_amount: Option<Amount>,
-    pub side: Option<OrderSide>,
     pub fill_type: OrderFillType,
-    pub trade_currency_pair: CurrencyPair,
     pub fill_date: Option<DateTime>,
     pub event_source_type: EventSourceType,
 }
@@ -48,9 +46,7 @@ impl BufferedFill {
         commission_currency_code: CurrencyCode,
         commission_rate: Option<Decimal>,
         commission_amount: Option<Amount>,
-        side: Option<OrderSide>,
         fill_type: OrderFillType,
-        trade_currency_pair: CurrencyPair,
         fill_date: Option<DateTime>,
         event_source_type: EventSourceType,
     ) -> Self {
@@ -66,19 +62,13 @@ impl BufferedFill {
             commission_currency_code,
             commission_rate,
             commission_amount,
-            side,
             fill_type,
-            trade_currency_pair,
             fill_date,
             event_source_type,
         }
     }
 
-    pub fn to_fill_event_data(
-        &self,
-        order_amount: Option<Decimal>,
-        client_order_id: ClientOrderId,
-    ) -> FillEvent {
+    pub fn to_fill_event_data(&self, client_order_id: ClientOrderId) -> FillEvent {
         let fill_amount = if self.is_diff {
             FillAmount::Incremental {
                 fill_amount: self.fill_amount,
@@ -102,9 +92,7 @@ impl BufferedFill {
             commission_rate: self.commission_rate,
             commission_amount: self.commission_amount,
             fill_type: self.fill_type,
-            trade_currency_pair: Some(self.trade_currency_pair),
-            order_side: self.side,
-            order_amount,
+            special_order_data: None,
             fill_date: self.fill_date,
         }
     }

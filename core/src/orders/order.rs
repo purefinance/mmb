@@ -157,6 +157,7 @@ pub struct OrderHeader {
 
     pub exchange_account_id: ExchangeAccountId,
 
+    // For ClosePosition order currency pair can be empty string
     pub currency_pair: CurrencyPair,
 
     pub order_type: OrderType,

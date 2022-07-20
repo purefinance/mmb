@@ -45,21 +45,15 @@ impl BufferedFillsManager {
                 .expect("commission_currency_code is None"),
             fill_event.commission_rate,
             fill_event.commission_amount,
-            fill_event.order_side,
             fill_event.fill_type,
-            fill_event
-                .trade_currency_pair
-                .expect("trade_currency_pair is None"),
             fill_event.fill_date,
             fill_event.source_type,
         );
 
-        let buffered_fill_vec = self
-            .buffered_fills
+        self.buffered_fills
             .entry(fill_event.exchange_order_id.clone())
-            .or_default();
-
-        buffered_fill_vec.push(buffered_fill);
+            .or_default()
+            .push(buffered_fill);
 
         log::trace!(
             "Buffered a fill for an order which is not in the system {:?}",

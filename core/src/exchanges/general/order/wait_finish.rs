@@ -395,16 +395,16 @@ impl Exchange {
 
                 if let RequestResult::Success(ref order_trades) = order_trades {
                     for order_trade in order_trades {
-                        if order.get_fills().0.into_iter().any(|order_fill| {
-                            order_fill
-                                .trade_id()
-                                .map(|fill_trade_id| fill_trade_id == &order_trade.trade_id)
-                                .unwrap_or(false)
-                        }) {
+                        let trade_id = Some(&order_trade.trade_id);
+                        let is_fill_exists = order.fn_ref(|o| {
+                            o.fills.fills.iter().any(|fill| fill.trade_id() == trade_id)
+                        });
+
+                        if is_fill_exists {
                             continue;
                         };
 
-                        self.handle_order_filled_for_restfallback(order, order_trade);
+                        self.handle_order_filled_for_rest_fallback(order, order_trade);
                     }
                 }
 
@@ -425,7 +425,7 @@ impl Exchange {
                             .clone()
                             .map(|currency_code| CurrencyCode::new(&currency_code));
 
-                        let fill_event = FillEvent {
+                        let mut fill_event = FillEvent {
                             source_type: EventSourceType::RestFallback,
                             trade_id: None,
                             client_order_id: Some(order.client_order_id()),
@@ -439,12 +439,10 @@ impl Exchange {
                             commission_rate: order_info.commission_rate,
                             commission_amount: order_info.commission_amount,
                             fill_type: OrderFillType::UserTrade,
-                            trade_currency_pair: None,
-                            order_side: None,
-                            order_amount: None,
+                            special_order_data: None,
                             fill_date: None,
                         };
-                        self.handle_order_filled(fill_event);
+                        self.handle_order_filled(&mut fill_event);
 
                         RequestResult::Success(order_info)
                     }
@@ -460,15 +458,16 @@ impl Exchange {
         }
     }
 
-    pub(crate) fn handle_order_filled_for_restfallback(
+    pub(crate) fn handle_order_filled_for_rest_fallback(
         &self,
         order: &OrderRef,
         order_trade: &OrderTrade,
     ) {
         let exchange_order_id = order
             .exchange_order_id()
-            .expect("No exchange_order_id in order while handle_order_filled_for_restfallback");
-        let fill_event = FillEvent {
+            .expect("No exchange_order_id in order while handle_order_filled_for_rest_fallback");
+
+        let mut fill_event = FillEvent {
             source_type: EventSourceType::RestFallback,
             trade_id: Some(order_trade.trade_id.clone()),
             client_order_id: Some(order.client_order_id()),
@@ -483,13 +482,11 @@ impl Exchange {
             commission_rate: order_trade.fee_rate,
             commission_amount: order_trade.fee_amount,
             fill_type: OrderFillType::UserTrade,
-            trade_currency_pair: None,
-            order_side: None,
-            order_amount: None,
+            special_order_data: None,
             fill_date: Some(order_trade.datetime),
         };
 
-        self.handle_order_filled(fill_event)
+        self.handle_order_filled(&mut fill_event)
     }
 
     pub(super) async fn create_order_finish_future(
@@ -497,12 +494,12 @@ impl Exchange {
         order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        if order.is_finished() {
+        let (status, client_order_id, exchange_order_id) =
+            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
+
+        if status.is_finished() {
             log::info!(
-                "Instantly exiting create_order_finish_future() because status is {:?} {} {:?} {}",
-                order.status(),
-                order.client_order_id(),
-                order.exchange_order_id(),
+                "Instantly exiting create_order_finish_future() because status is {status:?} {client_order_id} {exchange_order_id:?} {}",
                 self.exchange_account_id
             );
 
@@ -550,6 +547,7 @@ fn is_finished(
     order: &OrderRef,
     exit_on_order_is_finished_even_if_fills_didnt_received: bool,
 ) -> bool {
-    order.status() == OrderStatus::Completed
-        || order.is_finished() && exit_on_order_is_finished_even_if_fills_didnt_received
+    let status = order.status();
+    status == OrderStatus::Completed
+        || status.is_finished() && exit_on_order_is_finished_even_if_fills_didnt_received
 }
