@@ -51,6 +51,7 @@ impl Handler<ClientDisconnected> for SubscriptionManager {
 impl Handler<GatherSubscriptions> for SubscriptionManager {
     type Result = ();
     fn handle(&mut self, _msg: GatherSubscriptions, ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!("GatherSubscriptions executed");
         let futures = self
             .clients
             .iter()
@@ -76,6 +77,7 @@ impl Handler<GatherSubscriptions> for SubscriptionManager {
                 }
             })
             .wait(ctx);
+        log::debug!("GatherSubscriptions finished");
     }
 }
 

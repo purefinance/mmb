@@ -99,24 +99,28 @@ async fn data_provider(
 ) {
     let mut interval = time::interval(Duration::from_millis(refresh_data_interval_ms));
     loop {
+        log::debug!("Data provider loop");
         subscription_manager
             .send(ClearSubscriptions)
             .await
             .expect("Failure to execute subscription manager");
+        log::debug!("Clear subscriptions ok");
         subscription_manager
             .send(GatherSubscriptions)
             .await
             .expect("Failure to execute subscription manager");
+        log::debug!("Gather subscriptions ok");
         let subscriptions: HashSet<LiquiditySubscription> = subscription_manager
             .send(GetLiquiditySubscriptions)
             .await
             .expect("Failure to execute subscription manager");
-
+        log::debug!("Get subscriptions ok. Count: {}", subscriptions.len());
         for sub in subscriptions {
+            log::debug!("Trying to get liquidity data");
             let liquidity_data = liquidity_service
                 .get_liquidity_data(&sub.exchange_id, &sub.currency_pair, 20)
                 .await;
-
+            log::debug!("Liquidity data received");
             match liquidity_data {
                 Ok(mut liquidity_data) => {
                     let desired_amount = market_settings_service
