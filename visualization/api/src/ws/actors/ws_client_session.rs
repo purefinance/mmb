@@ -206,7 +206,7 @@ impl WsClientSession {
 }
 
 fn send_message(ctx: &mut WebsocketContext<WsClientSession>, command: &str, content: &Value) {
-    let message = format!("{}|{}", command, content);
+    let message = format!("{command}|{content}");
     ctx.text(message);
-    log::info!("Sent to client: command={}, body={:?}", command, content);
+    log::trace!("Sent to client: command={command}, body={content}");
 }
