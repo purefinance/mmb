@@ -54,14 +54,18 @@ pub fn init_logger_file_named(log_file: &str) {
                     .level_for("tungstenite", LevelFilter::Warn)
                     .level_for("tokio_tungstenite", LevelFilter::Warn)
                     .level_for("tokio_postgres", LevelFilter::Warn)
-                    .chain(
-                        std::fs::OpenOptions::new()
-                            .write(true)
-                            .create(true)
-                            .truncate(true)
-                            .open(path.clone())
-                            .expect("Unable to open log file"),
-                    ),
+                    .chain({
+                        let mut options = std::fs::OpenOptions::new();
+                        if cfg!(debug_assertions) {
+                            options.truncate(true)
+                        } else {
+                            &mut options
+                        }
+                        .write(true)
+                        .create(true)
+                        .open(path.clone())
+                        .expect("Unable to open log file")
+                    }),
             )
             .apply()
             .expect("Unable to set up logger");
