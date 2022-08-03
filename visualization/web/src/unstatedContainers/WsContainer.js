@@ -422,8 +422,8 @@ class WsContainer extends Container {
     });
   }
 
-  async processAuthorized(isAuth) {
-    if (!isAuth) {
+  async processAuthorized(message) {
+    if (!message.value) {
       this.state.auth = false;
       let refreshToken = localStorage.getItem("refresh_token");
       if (!refreshToken) {

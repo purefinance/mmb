@@ -11,7 +11,7 @@ use crate::services::token::TokenService;
 use crate::ws::subscribes::liquidity::{LiquiditySubscription, Subscription};
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub struct WsClientSession {
     subscriptions: HashSet<u64>,
@@ -76,7 +76,7 @@ impl Handler<LiquidityResponseMessage> for WsClientSession {
 
         match serde_json::to_value(&msg.body) {
             Ok(body) => {
-                send_message(ctx, msg.command, &body);
+                send_message(ctx, msg.command, body);
             }
             Err(e) => {
                 log::error!("Failure convert to json. Error: {e:?}")
@@ -93,7 +93,7 @@ impl Handler<ClientErrorResponseMessage> for WsClientSession {
         ctx: &mut WebsocketContext<Self>,
     ) -> Self::Result {
         if self.subscriptions.contains(&msg.subscription) {
-            send_message(ctx, msg.command, &msg.content);
+            send_message(ctx, msg.command, msg.content);
         }
     }
 }
@@ -125,8 +125,13 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsClientSession {
 
         let msg = match msg {
             Message::Text(message) => message.to_string(),
+            Message::Close(reason) => {
+                log::info!("Socket close message: Reason: {reason:?}");
+                ctx.stop();
+                return;
+            }
             _ => {
-                log::error!("Incorrect message type: Message: {msg:?}");
+                log::error!("Unhandled socket message: {msg:?}");
                 ctx.stop();
                 return;
             }
@@ -171,8 +176,7 @@ impl WsClientSession {
             Ok(auth) => {
                 let res = self.token_service.parse_access_token(&auth.token);
                 self.is_auth = res.is_ok();
-                let message = format!("Authorized|{}", self.is_auth);
-                ctx.text(message);
+                send_message(ctx, "Authorized", json!({"value": self.is_auth}));
             }
             Err(e) => {
                 ctx.stop();
@@ -205,7 +209,7 @@ impl WsClientSession {
     }
 }
 
-fn send_message(ctx: &mut WebsocketContext<WsClientSession>, command: &str, content: &Value) {
+fn send_message(ctx: &mut WebsocketContext<WsClientSession>, command: &str, content: Value) {
     let message = format!("{command}|{content}");
     ctx.text(message);
     log::trace!("Sent to client: command={command}, body={content}");

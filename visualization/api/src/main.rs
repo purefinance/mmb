@@ -65,7 +65,7 @@ fn configure_logger() {
                 message
             ))
         })
-        .level(log::LevelFilter::Info)
+        .level(log::LevelFilter::Trace)
         .chain(std::io::stdout())
         .chain(fern::log_file("visualization.log").expect("Failure create log file"))
         .apply()
