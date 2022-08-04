@@ -36,6 +36,7 @@ impl Handler<ClientConnected> for SubscriptionManager {
     type Result = ();
     fn handle(&mut self, msg: ClientConnected, _ctx: &mut Context<Self>) {
         self.clients.insert(msg.data);
+        log::debug!("Client added to subscription manager")
     }
 }
 
@@ -44,6 +45,7 @@ impl Handler<ClientDisconnected> for SubscriptionManager {
 
     fn handle(&mut self, msg: ClientDisconnected, _ctx: &mut Context<Self>) {
         self.clients.remove(&msg.data);
+        log::debug!("Client removed from subscription manager")
     }
 }
 
@@ -85,6 +87,7 @@ impl Handler<GatherSubscriptions> for SubscriptionManager {
 impl Handler<ClearSubscriptions> for SubscriptionManager {
     type Result = ();
     fn handle(&mut self, _msg: ClearSubscriptions, _ctx: &mut Context<Self>) -> Self::Result {
+        log::debug!("ClearSubscriptions executed");
         self.liquidity_subscriptions.clear();
     }
 }
@@ -96,6 +99,7 @@ impl Handler<GetLiquiditySubscriptions> for SubscriptionManager {
         _msg: GetLiquiditySubscriptions,
         _ctx: &mut Context<Self>,
     ) -> Self::Result {
+        log::debug!("GetLiquiditySubscriptions executed");
         MessageResult(self.liquidity_subscriptions.clone())
     }
 }
