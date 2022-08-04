@@ -26,23 +26,10 @@ impl ExchangeClient for Binance {
     async fn create_order(&self, order: &OrderRef) -> CreateOrderResult {
         match self.request_create_order(order).await {
             Ok(request_outcome) => match self.get_order_id(&request_outcome) {
-                Ok(created_order_id) => {
-                    CreateOrderResult::successed(&created_order_id, EventSourceType::Rest)
-                }
-                Err(error) => {
-                    let exchange_error = ExchangeError::new(
-                        ExchangeErrorType::ParsingError,
-                        error.to_string(),
-                        None,
-                    );
-                    CreateOrderResult::failed(exchange_error, EventSourceType::Rest)
-                }
+                Ok(order_id) => CreateOrderResult::succeed(&order_id, EventSourceType::Rest),
+                Err(error) => CreateOrderResult::failed(error, EventSourceType::Rest),
             },
-            Err(error) => {
-                let exchange_error =
-                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
-                return CreateOrderResult::failed(exchange_error, EventSourceType::Rest);
-            }
+            Err(err) => CreateOrderResult::failed(err, EventSourceType::Rest),
         }
     }
 
@@ -55,11 +42,7 @@ impl ExchangeClient for Binance {
                 EventSourceType::Rest,
                 None,
             ),
-            Err(error) => {
-                let exchange_error =
-                    ExchangeError::new(ExchangeErrorType::SendError, error.to_string(), None);
-                return CancelOrderResult::failed(exchange_error, EventSourceType::Rest);
-            }
+            Err(err) => CancelOrderResult::failed(err, EventSourceType::Rest),
         }
     }
 
@@ -76,7 +59,7 @@ impl ExchangeClient for Binance {
         )];
         self.add_authentification_headers(&mut http_params)?;
 
-        let full_url = rest_client::build_uri(host, path_to_delete, &http_params)?;
+        let full_url = rest_client::build_uri(host, path_to_delete, &http_params);
 
         self.rest_client
             .delete(
@@ -162,7 +145,7 @@ impl ExchangeClient for Binance {
         match self.request_my_trades(symbol, last_date_time).await {
             Ok(response) => match self.parse_get_my_trades(&response, last_date_time) {
                 Ok(data) => Ok(RequestResult::Success(data)),
-                Err(_) => Ok(RequestResult::Error(ExchangeError::unknown_error(
+                Err(_) => Ok(RequestResult::Error(ExchangeError::unknown(
                     &response.content,
                 ))),
             },

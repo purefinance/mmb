@@ -1,11 +1,3 @@
-use std::sync::Arc;
-
-use anyhow::Result;
-use async_trait::async_trait;
-use dashmap::DashMap;
-use mmb_utils::DateTime;
-use tokio::sync::broadcast;
-
 use super::{
     common::CurrencyCode,
     common::{
@@ -33,6 +25,12 @@ use crate::orders::pool::OrdersPool;
 use crate::settings::ExchangeSettings;
 use crate::{connectivity::WebSocketRole, orders::order::OrderSide};
 use crate::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
+use anyhow::Result;
+use async_trait::async_trait;
+use dashmap::DashMap;
+use mmb_utils::DateTime;
+use std::sync::Arc;
+use tokio::sync::broadcast;
 use url::Url;
 
 // Implementation of rest API client
@@ -70,10 +68,6 @@ pub trait ExchangeClient: Support {
     ) -> Result<RequestResult<Vec<OrderTrade>>>;
 
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>>;
-
-    fn get_initial_extension_data(&self) -> Option<Box<dyn OrderInfoExtensionData>> {
-        None
-    }
 }
 
 pub type OrderCreatedCb =
@@ -128,6 +122,10 @@ pub trait Support: Send + Sync {
     }
 
     fn get_settings(&self) -> &ExchangeSettings;
+
+    fn get_initial_extension_data(&self) -> Option<Box<dyn OrderInfoExtensionData>> {
+        None
+    }
 }
 
 pub struct ExchangeClientBuilderResult {

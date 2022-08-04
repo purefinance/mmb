@@ -38,7 +38,7 @@ pub struct CreateOrderResult {
 }
 
 impl CreateOrderResult {
-    pub fn successed(order_id: &ExchangeOrderId, source_type: EventSourceType) -> Self {
+    pub fn succeed(order_id: &ExchangeOrderId, source_type: EventSourceType) -> Self {
         CreateOrderResult {
             outcome: Success(order_id.clone()),
             source_type,
@@ -387,7 +387,7 @@ impl Exchange {
 
                 if now - init_time > min_timeout_for_failed_to_create_order {
                     let new_error = match &error {
-                        None => Cow::Owned(ExchangeError::unknown_error("Creation fallback did not find an order by clientOrderId, so we're assuming this order was not created")),
+                        None => Cow::Owned(ExchangeError::unknown("Creation fallback did not find an order by clientOrderId, so we're assuming this order was not created")),
                         Some(error) => Cow::Borrowed(error),
                     };
 
@@ -446,7 +446,7 @@ impl Exchange {
 
                 self.handle_create_order_failed(
                     client_order_id,
-                    &ExchangeError::unknown_error("Fallback"),
+                    &ExchangeError::unknown("Fallback"),
                     EventSourceType::RestFallback,
                 )
                 .unwrap_or_else(|err| log::error!("Failed 'check_order_creation' for order status 'FailedToCreate' with error: {err:?}"));

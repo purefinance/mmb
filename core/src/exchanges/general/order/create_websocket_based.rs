@@ -33,24 +33,14 @@ impl Exchange {
                         // TODO if ExchangeFeatures.Order.CreationResponseFromRestOnlyForError
                         Some(create_order_result)
                     }
-                    RequestResult::Success(_) => {
-                        tokio::select! {
-                            websocket_outcome = &mut websocket_event_receiver => {
-                                websocket_outcome.ok()
-                            }
-                            _ = cancellation_token.when_cancelled() => {
-                                None
-                            }
-                        }
-                    }
+                    RequestResult::Success(_) => tokio::select! {
+                            websocket_outcome = &mut websocket_event_receiver => websocket_outcome.ok(),
+                            _ = cancellation_token.when_cancelled() => None,
+                        },
                 }
             }
-            _ = cancellation_token.when_cancelled() => {
-                None
-            }
-            websocket_outcome = &mut websocket_event_receiver => {
-                websocket_outcome.ok()
-            }
+            _ = cancellation_token.when_cancelled() => None,
+            websocket_outcome = &mut websocket_event_receiver => websocket_outcome.ok(),
         }
     }
 
@@ -61,10 +51,9 @@ impl Exchange {
         source_type: EventSourceType,
     ) {
         if let Some((_, (tx, _))) = self.order_creation_events.remove(client_order_id) {
-            if let Err(error) =
-                tx.send(CreateOrderResult::successed(exchange_order_id, source_type))
+            if let Err(error) = tx.send(CreateOrderResult::succeed(exchange_order_id, source_type))
             {
-                log::error!("Unable to send thru oneshot channel: {:?}", error);
+                log::error!("Unable to send thru oneshot channel: {error:?}");
             }
         } else {
             self.handle_create_order_succeeded(
@@ -73,9 +62,7 @@ impl Exchange {
                 exchange_order_id,
                 source_type,
             )
-            .with_expect(|| {
-                format!("Error handle create order succeeded for clientOrderId {client_order_id}")
-            });
+            .with_expect(|| format!("Error handle create order succeeded for {client_order_id:?}"));
         }
     }
 }

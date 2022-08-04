@@ -1,5 +1,5 @@
 use super::common::*;
-use anyhow::{bail, Context, Result};
+use anyhow::Result;
 use hyper::client::HttpConnector;
 use hyper::{Body, Client, Error, Request, Response, StatusCode, Uri};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
@@ -74,7 +74,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         response: &RestRequestOutcome,
         log_args: &str,
         request_id: &Uuid,
-    ) -> Option<ExchangeError> {
+    ) -> Result<(), ExchangeError> {
         use ExchangeErrorType::*;
 
         let error = match response.status {
@@ -90,13 +90,13 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
             _ => match check_content(&response.content) {
                 CheckContent::Empty => {
                     if self.empty_response_is_ok {
-                        return None;
+                        return Ok(());
                     }
 
-                    ExchangeError::unknown_error("Empty response")
+                    ExchangeError::unknown("Empty response")
                 }
                 CheckContent::Usable => match self.error_handler.check_spec_rest_error(response) {
-                    Ok(_) => return None,
+                    Ok(_) => return Ok(()),
                     Err(mut err) => {
                         // TODO For Aax Pending time should be received inside clarify_error_type
                         err.error_type = self.error_handler.clarify_error_type(&err);
@@ -124,7 +124,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
             "Request_id: {request_id}. Message: {msg}. Response: {response:?}"
         );
 
-        Some(error)
+        Err(error)
     }
 }
 
@@ -147,7 +147,7 @@ pub struct RestClient<ErrHandler: ErrorHandler + Send + Sync + 'static> {
 
 const KEEP_ALIVE: &str = "keep-alive";
 // Inner Hyper types. Needed just for unified response handling in handle_response()
-type ResponseType = std::result::Result<Response<Body>, Error>;
+type ResponseType = Result<Response<Body>, Error>;
 
 impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
     pub fn new(error_handler: ErrorHandlerData<ErrHandler>) -> Self {
@@ -163,7 +163,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         api_key: &str,
         action_name: &'static str,
         log_args: String,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
@@ -188,7 +188,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         http_params: &HttpParams,
         action_name: &'static str,
         log_args: String,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
@@ -216,7 +216,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         api_key: &str,
         action_name: &'static str,
         log_args: String,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
@@ -241,7 +241,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         action_name: &'static str,
         log_args: String,
         request_id: Uuid,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let response = response.with_expect(|| {
             format!("Unable to send {rest_action} request, request_id: {request_id}")
         });
@@ -260,11 +260,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
 
         let err_handler_data = &self.error_handler;
         err_handler_data.response_log(action_name, &log_args, &request_outcome, &request_id);
-
-        if let Some(err) = err_handler_data.get_rest_error(&request_outcome, &log_args, &request_id)
-        {
-            bail!(err);
-        }
+        err_handler_data.get_rest_error(&request_outcome, &log_args, &request_id)?;
 
         Ok(request_outcome)
     }
@@ -280,7 +276,7 @@ fn create_client() -> Client<HttpsConnector<HttpConnector>> {
     Client::builder().build::<_, Body>(https)
 }
 
-pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Result<Uri> {
+pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Uri {
     let mut url = String::with_capacity(1024);
     url.push_str(host);
     url.push_str(path);
@@ -301,7 +297,9 @@ pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Result<Uri
         is_first = false;
     }
 
-    url.try_into().context("Unable create url")
+    url.as_str()
+        .try_into()
+        .unwrap_or_else(|err| panic!("Unable create url from {url}: {err:?}"))
 }
 
 pub fn to_http_string(parameters: &HttpParams) -> String {
@@ -331,7 +329,7 @@ mod tests {
             .map(|(k, v)| (k.to_owned(), v.to_owned()))
             .collect();
 
-        let uri = build_uri(host, path, &params).expect("in test");
+        let uri = build_uri(host, path, &params);
 
         let expected: Uri = "https://host.com/path?key=value&key2=value2"
             .try_into()
@@ -345,7 +343,7 @@ mod tests {
         let path = "/path";
         let params: HttpParams = HttpParams::new();
 
-        let uri = build_uri(host, path, &params).expect("in test");
+        let uri = build_uri(host, path, &params);
 
         let expected: Uri = "https://host.com/path".try_into().expect("in test");
         assert_eq!(uri, expected)
