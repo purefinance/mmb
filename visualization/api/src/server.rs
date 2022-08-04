@@ -25,6 +25,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
+use tokio::time::timeout;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn start(
@@ -83,7 +84,6 @@ pub async fn start(
             .app_data(Data::new(market_settings_service.clone()))
             .app_data(Data::new(settings_service.clone()))
     })
-    .workers(2)
     .bind(address)?
     .run()
     .await
@@ -100,21 +100,52 @@ async fn data_provider(
     let mut interval = time::interval(Duration::from_millis(refresh_data_interval_ms));
     loop {
         log::debug!("Data provider loop");
-        subscription_manager
-            .send(ClearSubscriptions)
-            .await
-            .expect("Failure to execute subscription manager");
-        log::debug!("Clear subscriptions ok");
-        subscription_manager
-            .send(GatherSubscriptions)
-            .await
-            .expect("Failure to execute subscription manager");
-        log::debug!("Gather subscriptions ok");
-        let subscriptions: HashSet<LiquiditySubscription> = subscription_manager
-            .send(GetLiquiditySubscriptions)
-            .await
-            .expect("Failure to execute subscription manager");
-        log::debug!("Get subscriptions ok. Count: {}", subscriptions.len());
+        match subscription_manager.try_send(ClearSubscriptions) {
+            Ok(()) => {
+                log::debug!("ClearSubscriptions ok");
+            }
+            Err(e) => {
+                log::error!("Failure to ClearSubscriptions. {e:?}");
+                interval.tick().await;
+                continue;
+            }
+        }
+
+        match subscription_manager.try_send(GatherSubscriptions) {
+            Ok(()) => {
+                log::debug!("GatherSubscriptions ok");
+            }
+            Err(e) => {
+                log::error!("Failure GatherSubscriptions. {e:?}");
+                interval.tick().await;
+                continue;
+            }
+        }
+
+        let subscriptions_request = subscription_manager.send(GetLiquiditySubscriptions);
+
+        let response = timeout(Duration::from_millis(1000), subscriptions_request).await;
+
+        let subscriptions: HashSet<LiquiditySubscription>;
+        match response {
+            Err(_) => {
+                log::error!("GetLiquiditySubscriptions timeout");
+                interval.tick().await;
+                continue;
+            }
+            Ok(response) => match response {
+                Ok(response) => {
+                    log::debug!("GetLiquiditySubscriptions ok. Count: {}", response.len());
+                    subscriptions = response
+                }
+                Err(e) => {
+                    log::error!("Failure GetLiquiditySubscriptions. {e:?}");
+                    interval.tick().await;
+                    continue;
+                }
+            },
+        };
+
         for sub in subscriptions {
             log::debug!("Trying to get liquidity data");
             let liquidity_data = liquidity_service
@@ -137,16 +168,23 @@ async fn data_provider(
                                 subscription: sub.get_hash(),
                                 message: "Bad request".to_string(),
                             };
-                            let _ = error_listener.send(message).await;
+                            error_listener.try_send(message).unwrap_or_else(|e| {
+                                log::error!("Send error message failure {e:?}")
+                            });
                         }
                         Some(desired_amount) => {
                             liquidity_data.desired_amount = desired_amount;
-                            let _ = new_data_listener
-                                .send(NewLiquidityDataMessage {
-                                    subscription: sub,
-                                    data: liquidity_data,
-                                })
-                                .await;
+                            match new_data_listener.try_send(NewLiquidityDataMessage {
+                                subscription: sub,
+                                data: liquidity_data,
+                            }) {
+                                Ok(()) => {
+                                    log::debug!("NewLiquidityDataMessage ok");
+                                }
+                                Err(e) => {
+                                    log::error!("NewLiquidityDataMessage failure {e:?}");
+                                }
+                            }
                         }
                     }
                 }
@@ -156,7 +194,10 @@ async fn data_provider(
                         subscription: sub.get_hash(),
                         message: "Internal server error".to_string(),
                     };
-                    let _ = error_listener.send(message).await;
+
+                    error_listener
+                        .try_send(message)
+                        .unwrap_or_else(|e| log::error!("Send error message failure {e:?}"));
                 }
             }
         }
