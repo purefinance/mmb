@@ -17,7 +17,7 @@ pub trait ErrorHandler: Sized {
     fn check_spec_rest_error(&self, _response: &RestRequestOutcome) -> Result<(), ExchangeError>;
 
     // Some of special errors should be classified to further handling depending on error type
-    fn clarify_error_type(&self, _error: &mut ExchangeError);
+    fn clarify_error_type(&self, _error: &ExchangeError) -> ExchangeErrorType;
 }
 
 #[derive(Default)]
@@ -28,7 +28,9 @@ impl ErrorHandler for ErrorHandlerEmpty {
         Ok(())
     }
 
-    fn clarify_error_type(&self, _: &mut ExchangeError) {}
+    fn clarify_error_type(&self, _: &ExchangeError) -> ExchangeErrorType {
+        ExchangeErrorType::Unknown
+    }
 }
 
 pub struct ErrorHandlerData<ErrHandler: ErrorHandler + Send + Sync + 'static> {
@@ -52,10 +54,8 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
 
     pub(super) fn request_log(&self, fn_name: &str, request_id: &Uuid) {
         log::trace!(
-            "{} request on exchange_account_id {}, request_id: {}",
-            fn_name,
-            self.exchange_account_id,
-            request_id,
+            "{fn_name} request on exchange_account_id {}, request_id: {request_id}",
+            self.exchange_account_id
         );
     }
 
@@ -66,14 +66,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         response: &RestRequestOutcome,
         request_id: &Uuid,
     ) {
-        log::trace!(
-            "{} response on exchange_account_id {}: {:?}, params {}, request_id: {}",
-            fn_name,
-            self.exchange_account_id,
-            response,
-            log_args,
-            request_id
-        );
+        log::trace!("{fn_name} response on exchange_account_id {}: {response:?}, params {log_args}, request_id: {request_id}", self.exchange_account_id);
     }
 
     pub(super) fn get_rest_error(
@@ -100,18 +93,15 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
                         return None;
                     }
 
-                    ExchangeError::new(Unknown, "Empty response".to_owned(), None)
+                    ExchangeError::unknown_error("Empty response")
                 }
                 CheckContent::Usable => match self.error_handler.check_spec_rest_error(response) {
                     Ok(_) => return None,
-                    Err(mut error) => match error.error_type {
-                        ParsingError => error,
-                        _ => {
-                            // TODO For Aax Pending time should be received inside clarify_error_type
-                            self.error_handler.clarify_error_type(&mut error);
-                            error
-                        }
-                    },
+                    Err(mut err) => {
+                        // TODO For Aax Pending time should be received inside clarify_error_type
+                        err.error_type = self.error_handler.clarify_error_type(&err);
+                        err
+                    }
                 },
             },
         };
@@ -119,9 +109,9 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         let extra_data_len = 512; // just apriori estimation
         let mut msg = String::with_capacity(error.message.len() + extra_data_len);
         write!(
-            &mut msg,
-            "Response has an error {:?}, on exchange_account_id {}, request_id: {}: {:?}, params: {}",
-            error.error_type, self.exchange_account_id, request_id, error, log_args
+            msg,
+            "Response has an error {:?}, on exchange_account_id {}, request_id: {request_id}: {error:?}, params: {log_args}",
+            error.error_type, self.exchange_account_id,
         )
         .expect("Writing rest error");
 
@@ -131,10 +121,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         };
         log!(
             log_level,
-            "Request_id: {}. Message: {}. Response: {:?}",
-            request_id,
-            &msg,
-            response
+            "Request_id: {request_id}. Message: {msg}. Response: {response:?}"
         );
 
         Some(error)
@@ -147,10 +134,9 @@ enum CheckContent {
 }
 
 fn check_content(content: &str) -> CheckContent {
-    if content.is_empty() {
-        CheckContent::Empty
-    } else {
-        CheckContent::Usable
+    match content.is_empty() {
+        true => CheckContent::Empty,
+        false => CheckContent::Usable,
     }
 }
 
@@ -186,10 +172,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
             .with_expect(|| {
-                format!(
-                    "Error during creation of http GET request, request_id: {}",
-                    &request_id
-                )
+                format!("Error during creation of http GET request, request_id: {request_id}")
             });
 
         let response = self.client.request(req).await;
@@ -218,10 +201,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
             .header("X-MBX-APIKEY", api_key)
             .body(Body::from(form_encoded))
             .with_expect(|| {
-                format!(
-                    "Error during creation of http POST request, request_id: {}",
-                    &request_id
-                )
+                format!("Error during creation of http POST request, request_id: {request_id}")
             });
 
         let response = self.client.request(req).await;
@@ -245,10 +225,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
             .with_expect(|| {
-                format!(
-                    "Error during creation of http DELETE request, request_id: {}",
-                    &request_id
-                )
+                format!("Error during creation of http DELETE request, request_id: {request_id}",)
             });
 
         let response = self.client.request(req).await;
@@ -266,40 +243,25 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         request_id: Uuid,
     ) -> Result<RestRequestOutcome> {
         let response = response.with_expect(|| {
-            format!(
-                "Unable to send {} request, request_id: {}",
-                rest_action, &request_id
-            )
+            format!("Unable to send {rest_action} request, request_id: {request_id}")
         });
-        let response_status = response.status();
+        let status = response.status();
         let request_bytes = hyper::body::to_bytes(response.into_body())
             .await
             .with_expect(|| {
-                format!(
-                    "Unable to convert response body to bytes, request_id: {}",
-                    &request_id
-                )
+                format!("Unable to convert response body to bytes, request_id: {request_id}")
             });
 
-        let request_content = std::str::from_utf8(&request_bytes)
-            .with_expect(|| {
-                format!(
-                    "Unable to convert response content from utf8: {:?}, request_id: {}",
-                    request_bytes, &request_id
-                )
-            })
+        let content = std::str::from_utf8(&request_bytes)
+            .with_expect(|| format!("Unable to convert response content from utf8: {request_bytes:?}, request_id: {request_id}"))
             .to_owned();
-        let request_outcome = RestRequestOutcome {
-            status: response_status,
-            content: request_content,
-        };
 
-        self.error_handler
-            .response_log(action_name, &log_args, &request_outcome, &request_id);
+        let request_outcome = RestRequestOutcome { status, content };
 
-        if let Some(err) =
-            self.error_handler
-                .get_rest_error(&request_outcome, &log_args, &request_id)
+        let err_handler_data = &self.error_handler;
+        err_handler_data.response_log(action_name, &log_args, &request_outcome, &request_id);
+
+        if let Some(err) = err_handler_data.get_rest_error(&request_outcome, &log_args, &request_id)
         {
             bail!(err);
         }

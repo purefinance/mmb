@@ -10,6 +10,7 @@ use chrono::Utc;
 use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;
 use itertools::Itertools;
+use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::DateTime;
 use mmb_utils::{impl_str_id, impl_u64_id, time::get_atomic_current_secs};
 use once_cell::sync::Lazy;
@@ -563,11 +564,10 @@ impl OrderSnapshot {
     }
 
     pub fn price(&self) -> Price {
-        let error_msg = format!(
-            "Cannot get price from order {}",
-            self.header.client_order_id.as_str()
-        );
-        self.props.raw_price.expect(&error_msg)
+        self.props.raw_price.with_expect(|| {
+            let client_order_id = self.header.client_order_id.as_str();
+            format!("Cannot get price from order {client_order_id}")
+        })
     }
 
     pub fn amount(&self) -> Amount {
