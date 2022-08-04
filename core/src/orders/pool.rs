@@ -37,7 +37,7 @@ impl OrderRef {
         self.fn_ref(|x| x.header.amount)
     }
     pub fn status(&self) -> OrderStatus {
-        self.fn_ref(|x| x.props.status)
+        self.fn_ref(|x| x.status())
     }
     pub fn role(&self) -> Option<OrderRole> {
         self.fn_ref(|x| x.props.role)

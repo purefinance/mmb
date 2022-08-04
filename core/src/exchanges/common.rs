@@ -233,6 +233,21 @@ impl Serialize for MarketAccountId {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
+pub enum ExchangeErrorType {
+    Unknown,
+    SendError,
+    RateLimit,
+    OrderNotFound,
+    OrderCompleted,
+    InsufficientFunds,
+    InvalidOrder,
+    Authentication,
+    ParsingError,
+    PendingError(Duration),
+    ServiceUnavailable,
+}
+
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Error)]
 #[error("Type: {error_type:?} Message: {message} Code {code:?}")]
 pub struct ExchangeError {
@@ -250,10 +265,14 @@ impl ExchangeError {
         }
     }
 
-    pub fn parsing_error(message: String) -> Self {
+    pub fn send(err: anyhow::Error) -> Self {
+        ExchangeError::new(ExchangeErrorType::SendError, err.to_string(), None)
+    }
+
+    pub fn parsing(message: String) -> Self {
         ExchangeError::new(ExchangeErrorType::ParsingError, message, None)
     }
-    pub fn unknown_error(message: &str) -> Self {
+    pub fn unknown(message: &str) -> Self {
         Self {
             error_type: ExchangeErrorType::Unknown,
             message: message.to_owned(),
@@ -266,19 +285,10 @@ impl ExchangeError {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
-pub enum ExchangeErrorType {
-    Unknown,
-    SendError,
-    RateLimit,
-    OrderNotFound,
-    OrderCompleted,
-    InsufficientFunds,
-    InvalidOrder,
-    Authentication,
-    ParsingError,
-    PendingError(Duration),
-    ServiceUnavailable,
+impl From<anyhow::Error> for ExchangeError {
+    fn from(err: anyhow::Error) -> Self {
+        ExchangeError::send(err)
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

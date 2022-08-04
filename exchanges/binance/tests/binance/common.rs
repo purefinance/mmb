@@ -91,8 +91,7 @@ async fn send_request(
         ErrorHandlerBinance::default(),
     ));
 
-    let full_url = rest_client::build_uri(hosts.rest_host, url_path, http_params)
-        .expect("build_uri is failed");
+    let full_url = rest_client::build_uri(hosts.rest_host, url_path, http_params);
 
     rest_client
         .get(full_url, api_key, function_name!(), "".to_string())

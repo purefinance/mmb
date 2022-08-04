@@ -55,32 +55,28 @@ impl Exchange {
         order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Result<Option<CancelOrderResult>> {
-        match order.status() {
+        let (status, client_order_id, exchange_order_id) =
+            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
+        match status {
             OrderStatus::Canceled => {
                 log::info!(
-                    "This order {} {:?} are already canceled",
-                    order.client_order_id(),
-                    order.exchange_order_id()
+                    "Order {client_order_id} {exchange_order_id:?} are already canceled on {}",
+                    self.exchange_account_id
                 );
-
                 Ok(None)
             }
             OrderStatus::Completed => {
                 log::info!(
-                    "This order {} {:?} are already completed",
-                    order.client_order_id(),
-                    order.exchange_order_id()
+                    "Order {client_order_id} {exchange_order_id:?} are already completed on {}",
+                    self.exchange_account_id
                 );
-
                 Ok(None)
             }
             _ => {
                 order.fn_mut(|order| order.set_status(OrderStatus::Canceling, time_manager::now()));
 
                 log::info!(
-                    "Submitting order cancellation {} {:?} on {}",
-                    order.client_order_id(),
-                    order.exchange_order_id(),
+                    "Submitting order cancellation {client_order_id} {exchange_order_id:?} on {}",
                     self.exchange_account_id
                 );
 
@@ -91,12 +87,7 @@ impl Exchange {
                     self.cancel_order(order_to_cancel, cancellation_token).await;
 
                 log::info!(
-                    "Submitted order cancellation {} {:?} on {}: {:?}",
-                    order.client_order_id(),
-                    order.exchange_order_id(),
-                    self.exchange_account_id,
-                    order_cancellation_outcome
-                );
+                    "Submitted order cancellation {client_order_id} {exchange_order_id:?} on {}: {order_cancellation_outcome:?}", self.exchange_account_id);
 
                 Ok(order_cancellation_outcome)
             }
@@ -162,22 +153,14 @@ impl Exchange {
                     }
                     RequestResult::Success(_) => {
                         tokio::select! {
-                            websocket_outcome = &mut websocket_event_receiver => {
-                                websocket_outcome.ok()
-                            }
-                            _ = cancellation_token.when_cancelled() => {
-                                None
-                            }
+                            websocket_outcome = &mut websocket_event_receiver => websocket_outcome.ok(),
+                            _ = cancellation_token.when_cancelled() => None,
                         }
                     }
                 }
             }
-            _ = cancellation_token.when_cancelled() => {
-                None
-            }
-            websocket_outcome = &mut websocket_event_receiver => {
-                websocket_outcome.ok()
-            }
+            _ = cancellation_token.when_cancelled() => None,
+            websocket_outcome = &mut websocket_event_receiver => websocket_outcome.ok(),
         }
     }
 
@@ -190,15 +173,13 @@ impl Exchange {
         let filled_amount = None;
         match self.order_cancellation_events.remove(&exchange_order_id) {
             Some((_, (tx, _))) => {
-                if let Err(error) = tx.send(CancelOrderResult::succeed(
+                let send_res = tx.send(CancelOrderResult::succeed(
                     client_order_id,
                     source_type,
                     filled_amount,
-                )) {
-                    log::error!(
-                        "raise_order_cancelled failed: unable to send thru oneshot channel: {:?}",
-                        error
-                    );
+                ));
+                if let Err(err) = send_res {
+                    log::error!("raise_order_cancelled failed: unable to send thru oneshot channel: {err:?}");
                 }
             }
             None => self.handle_cancel_order_succeeded(

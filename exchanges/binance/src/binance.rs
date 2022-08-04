@@ -76,7 +76,7 @@ impl ErrorHandler for ErrorHandlerBinance {
         }
 
         let error: Error = serde_json::from_str(&response.content).map_err(|err| {
-            ExchangeError::parsing_error(format!(
+            ExchangeError::parsing(format!(
                 "Unable to parse response.content: {err:?}\n{}",
                 response.content
             ))
@@ -193,12 +193,12 @@ impl Binance {
         }
     }
 
-    pub(super) async fn get_listen_key(&self) -> Result<RestRequestOutcome> {
+    pub(super) async fn get_listen_key(&self) -> Result<RestRequestOutcome, ExchangeError> {
         let full_url = rest_client::build_uri(
             self.hosts.rest_host,
             self.get_url_path("/sapi/v1/userDataStream", "/api/v3/userDataStream"),
             &vec![],
-        )?;
+        );
         let http_params = rest_client::HttpParams::new();
 
         self.rest_client
@@ -523,13 +523,15 @@ impl Binance {
         todo!("implement it later")
     }
 
-    pub(super) fn get_order_id(&self, response: &RestRequestOutcome) -> Result<ExchangeOrderId> {
+    pub(super) fn get_order_id(
+        &self,
+        response: &RestRequestOutcome,
+    ) -> Result<ExchangeOrderId, ExchangeError> {
         let deserialized: OrderId = serde_json::from_str(&response.content)
-            .expect("Unable to parse orderId from response content");
+            .map_err(|err| ExchangeError::parsing(format!("Unable to parse orderId: {err:?}")))?;
 
-        Ok(ExchangeOrderId::new(
-            deserialized.order_id.to_string().into(),
-        ))
+        let order_id_str = deserialized.order_id.to_string().into();
+        Ok(ExchangeOrderId::new(order_id_str))
     }
 
     pub(super) fn get_url_path<'a>(
@@ -547,12 +549,12 @@ impl Binance {
     pub(crate) async fn request_open_orders_by_http_header(
         &self,
         http_params: Vec<(String, String)>,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let full_url = rest_client::build_uri(
             self.hosts.rest_host,
             self.get_url_path("/fapi/v1/openOrders", "/api/v3/openOrders"),
             &http_params,
-        )?;
+        );
 
         self.rest_client
             .get(
@@ -565,7 +567,10 @@ impl Binance {
     }
 
     #[named]
-    pub(super) async fn request_order_info(&self, order: &OrderRef) -> Result<RestRequestOutcome> {
+    pub(super) async fn request_order_info(
+        &self,
+        order: &OrderRef,
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(order.currency_pair());
 
         let mut http_params = vec![
@@ -584,7 +589,7 @@ impl Binance {
             self.hosts.rest_host,
             self.get_url_path("/fapi/v1/order", "/api/v3/order"),
             &http_params,
-        )?;
+        );
 
         let order_header = order.fn_ref(|order| order.header.clone());
 
@@ -602,7 +607,7 @@ impl Binance {
         self.specific_order_info_to_unified(&specific_order)
     }
 
-    pub(super) async fn request_open_orders(&self) -> Result<RestRequestOutcome> {
+    pub(super) async fn request_open_orders(&self) -> Result<RestRequestOutcome, ExchangeError> {
         let mut http_params = rest_client::HttpParams::new();
         self.add_authentification_headers(&mut http_params)?;
 
@@ -612,7 +617,7 @@ impl Binance {
     pub(super) async fn request_open_orders_by_currency_pair(
         &self,
         currency_pair: CurrencyPair,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
         let mut http_params = vec![(
             "symbol".to_owned(),
@@ -638,7 +643,7 @@ impl Binance {
         &self,
         position: &ActivePosition,
         price: Option<Price>,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let side = match position.derivative.side {
             Some(side) => side.change_side().to_string(),
             None => "0".to_string(), // unknown side
@@ -672,7 +677,7 @@ impl Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let url_path = "/fapi/v1/order";
-        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params);
 
         let log_args =
             format_args!("Close position response for {:?} {:?}", position, price).to_string();
@@ -689,12 +694,12 @@ impl Binance {
     }
 
     #[named]
-    pub(super) async fn request_get_position(&self) -> Result<RestRequestOutcome> {
+    pub(super) async fn request_get_position(&self) -> Result<RestRequestOutcome, ExchangeError> {
         let mut http_params = Vec::new();
         self.add_authentification_headers(&mut http_params)?;
 
         let url_path = "/fapi/v2/positionRisk";
-        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params)?;
+        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params);
 
         self.rest_client
             .get(
@@ -707,14 +712,14 @@ impl Binance {
     }
 
     #[named]
-    pub(super) async fn request_get_balance(&self) -> Result<RestRequestOutcome> {
+    pub(super) async fn request_get_balance(&self) -> Result<RestRequestOutcome, ExchangeError> {
         let mut http_params = Vec::new();
         self.add_authentification_headers(&mut http_params)?;
         let full_url = rest_client::build_uri(
             self.hosts.rest_host,
             self.get_url_path("/fapi/v2/account", "/api/v3/account"),
             &http_params,
-        )?;
+        );
 
         self.rest_client
             .get(
@@ -748,7 +753,7 @@ impl Binance {
     pub(super) async fn request_cancel_order(
         &self,
         order: OrderCancelling,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
 
         let mut http_params = vec![
@@ -764,7 +769,7 @@ impl Binance {
         self.add_authentification_headers(&mut http_params)?;
 
         let path = self.get_url_path("/fapi/v1/order", "/api/v3/order");
-        let full_url = rest_client::build_uri(self.hosts.rest_host, path, &http_params)?;
+        let full_url = rest_client::build_uri(self.hosts.rest_host, path, &http_params);
 
         let log_args = format!("Cancel order for {}", order.header.client_order_id);
         self.rest_client
@@ -777,7 +782,7 @@ impl Binance {
         &self,
         symbol: &Symbol,
         _last_date_time: Option<DateTime>,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(symbol.currency_pair());
         let mut http_params = vec![(
             "symbol".to_owned(),
@@ -789,7 +794,7 @@ impl Binance {
             self.hosts.rest_host,
             self.get_url_path("/fapi/v1/userTrades", "/api/v3/myTrades"),
             &http_params,
-        )?;
+        );
 
         self.rest_client
             .get(
@@ -866,7 +871,7 @@ impl Binance {
     pub(super) async fn request_create_order(
         &self,
         order: &OrderRef,
-    ) -> Result<RestRequestOutcome> {
+    ) -> Result<RestRequestOutcome, ExchangeError> {
         let (header, price) = order.fn_ref(|order| (order.header.clone(), order.price()));
 
         let specific_currency_pair = self.get_specific_currency_pair(header.currency_pair);
@@ -901,7 +906,7 @@ impl Binance {
             self.hosts.rest_host,
             self.get_url_path("/fapi/v1/order", "/api/v3/order"),
             &vec![],
-        )?;
+        );
 
         let log_args = format!("Create order for {:?}", header);
 
@@ -917,10 +922,10 @@ impl Binance {
     }
 
     #[named]
-    pub(super) async fn request_all_symbols(&self) -> Result<RestRequestOutcome> {
+    pub(super) async fn request_all_symbols(&self) -> Result<RestRequestOutcome, ExchangeError> {
         // In current versions works only with Spot market
         let url_path = "/api/v3/exchangeInfo";
-        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &vec![])?;
+        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &vec![]);
 
         self.rest_client
             .get(
