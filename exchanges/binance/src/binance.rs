@@ -77,8 +77,8 @@ impl ErrorHandler for ErrorHandlerBinance {
 
         let error: Error = serde_json::from_str(&response.content).map_err(|err| {
             ExchangeError::parsing_error(format!(
-                "Unable to parse response.content: {:?}\n{}",
-                err, response.content
+                "Unable to parse response.content: {err:?}\n{}",
+                response.content
             ))
         })?;
 
@@ -89,29 +89,24 @@ impl ErrorHandler for ErrorHandlerBinance {
         ))
     }
 
-    fn clarify_error_type(&self, error: &mut ExchangeError) {
+    fn clarify_error_type(&self, error: &ExchangeError) -> ExchangeErrorType {
+        use ExchangeErrorType::*;
         // -1010 ERROR_MSG_RECEIVED
         // -2010 NEW_ORDER_REJECTED
         // -2011 CANCEL_REJECTED
-        let error_type = match error.message.as_str() {
-            "Unknown order sent." | "Order does not exist." => ExchangeErrorType::OrderNotFound,
-            "Account has insufficient balance for requested action." => {
-                ExchangeErrorType::InsufficientFunds
-            }
+        match error.message.as_str() {
+            "Unknown order sent." | "Order does not exist." => OrderNotFound,
+            "Account has insufficient balance for requested action." => InsufficientFunds,
             "Invalid quantity."
             | "Filter failure: MIN_NOTIONAL"
             | "Filter failure: LOT_SIZE"
             | "Filter failure: PRICE_FILTER"
             | "Filter failure: PERCENT_PRICE"
             | "Quantity less than zero."
-            | "Precision is over the maximum defined for this asset." => {
-                ExchangeErrorType::InvalidOrder
-            }
-            msg if msg.contains("Too many requests;") => ExchangeErrorType::RateLimit,
-            _ => ExchangeErrorType::Unknown,
-        };
-
-        error.error_type = error_type;
+            | "Precision is over the maximum defined for this asset." => InvalidOrder,
+            msg if msg.contains("Too many requests;") => RateLimit,
+            _ => Unknown,
+        }
     }
 }
 
@@ -768,14 +763,10 @@ impl Binance {
         ];
         self.add_authentification_headers(&mut http_params)?;
 
-        let full_url = rest_client::build_uri(
-            self.hosts.rest_host,
-            self.get_url_path("/fapi/v1/order", "/api/v3/order"),
-            &http_params,
-        )?;
+        let path = self.get_url_path("/fapi/v1/order", "/api/v3/order");
+        let full_url = rest_client::build_uri(self.hosts.rest_host, path, &http_params)?;
 
-        let log_args =
-            format_args!("Cancel order for {}", order.header.client_order_id).to_string();
+        let log_args = format!("Cancel order for {}", order.header.client_order_id);
         self.rest_client
             .delete(full_url, &self.settings.api_key, function_name!(), log_args)
             .await

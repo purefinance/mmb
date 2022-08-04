@@ -49,10 +49,10 @@ impl OrderRef {
         self.fn_ref(|x| x.internal_props.was_cancellation_event_raised)
     }
     pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
-        self.fn_ref(|x| x.props.exchange_order_id.clone())
+        self.fn_ref(|x| x.exchange_order_id())
     }
     pub fn client_order_id(&self) -> ClientOrderId {
-        self.fn_ref(|x| x.header.client_order_id.clone())
+        self.fn_ref(|x| x.client_order_id())
     }
     pub fn exchange_account_id(&self) -> ExchangeAccountId {
         self.fn_ref(|x| x.header.exchange_account_id)

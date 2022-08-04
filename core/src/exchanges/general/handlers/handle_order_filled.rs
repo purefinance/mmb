@@ -133,7 +133,7 @@ impl Exchange {
 
                 self.buffered_fills_manager
                     .lock()
-                    .add_fill(self.exchange_account_id, &fill_event);
+                    .add_fill(self.exchange_account_id, fill_event);
 
                 if let Some(client_order_id) = &fill_event.client_order_id {
                     self.raise_order_created(
@@ -364,7 +364,7 @@ impl Exchange {
                 "Fill was received for a {status:?} {was_cancellation_event_raised} {fill_event:?}"
             );
         }
-        return was_cancellation_event_raised;
+        was_cancellation_event_raised
     }
 
     fn get_order_role(fill_event: &FillEvent, order_ref: &OrderRef) -> OrderRole {

@@ -55,7 +55,6 @@ impl Precision {
 }
 
 /// Metadata for a currency pair
-#[warn(clippy::derive_hash_xor_eq)] // FIXME temporary changed deny=>warn
 #[derive(Debug, Clone, Eq)]
 pub struct Symbol {
     pub is_active: bool,

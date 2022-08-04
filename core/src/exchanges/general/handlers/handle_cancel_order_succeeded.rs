@@ -27,15 +27,12 @@ impl Exchange {
         );
 
         if should_ignore_event(self.features.allowed_cancel_event_source_type, source_type) {
-            log::info!("Ignoring fill {:?}", args_to_log);
+            log::info!("Ignoring fill {args_to_log:?}");
             return;
         }
 
         if exchange_order_id.is_empty() {
-            panic!(
-                "Received HandleOrderFilled with an empty exchangeOrderId {:?}",
-                &args_to_log
-            );
+            panic!("Received HandleOrderFilled with an empty exchangeOrderId {args_to_log:?}",);
         }
 
         match self.orders.cache_by_exchange_id.get(exchange_order_id) {
@@ -61,21 +58,13 @@ impl Exchange {
         client_order_id: &ClientOrderId,
         exchange_order_id: &ExchangeOrderId,
     ) -> bool {
-        let arg_to_log = match status {
-            OrderStatus::Canceled => "Canceled",
-            OrderStatus::Completed => "Completed",
-            _ => return false,
-        };
-
-        log::warn!(
-            "CancelOrderSucceeded received for {} order {} {:?} {}",
-            arg_to_log,
-            client_order_id,
-            exchange_order_id,
-            self.exchange_account_id
-        );
-
-        true
+        match status {
+            OrderStatus::Canceled | OrderStatus::Completed => {
+                log::warn!("CancelOrderSucceeded received for {status:?} order {client_order_id} {:?} {exchange_order_id}", self.exchange_account_id);
+                true
+            }
+            _ => false,
+        }
     }
 
     fn update_local_order(
@@ -85,9 +74,9 @@ impl Exchange {
         source_type: EventSourceType,
         exchange_order_id: &ExchangeOrderId,
     ) {
-        let client_order_id = order_ref.client_order_id();
+        let (status, client_order_id) = order_ref.fn_ref(|x| (x.status(), x.client_order_id()));
 
-        if self.order_already_closed(order_ref.status(), &client_order_id, exchange_order_id) {
+        if self.order_already_closed(status, &client_order_id, exchange_order_id) {
             return;
         }
 
@@ -96,8 +85,8 @@ impl Exchange {
         }
 
         let is_canceling_from_wait_cancel_order = order_ref.fn_mut(|order| {
-            order.internal_props.filled_amount_after_cancellation = filled_amount;
             order.set_status(OrderStatus::Canceled, Utc::now());
+            order.internal_props.filled_amount_after_cancellation = filled_amount;
             order.internal_props.cancellation_event_source_type = Some(source_type);
             order.internal_props.is_canceling_from_wait_cancel_order
         });
@@ -107,27 +96,20 @@ impl Exchange {
         // Usually we raise CancelOrderSucceeded in WaitCancelOrder after a check for fills via fallback
         // but in this particular case the cancellation is triggered by exchange itself, so WaitCancelOrder was never called
         if !is_canceling_from_wait_cancel_order {
-            log::info!("Adding CancelOrderSucceeded event from handle_cancel_order_succeeded() {:?} {:?} on {}",
-                client_order_id,
-                exchange_order_id,
-                self.exchange_account_id);
+            log::info!("Adding CancelOrderSucceeded event from handle_cancel_order_succeeded() {client_order_id:?} {exchange_order_id:?} on {}", self.exchange_account_id);
 
             // Sometimes we start WaitCancelOrder at about the same time when as get an "order was refused/canceled" notification from an exchange (i. e. MakerOnly),
             // and we can Add CancelOrderSucceeded event here (outside WaitCancelOrder) and later from WaitCancelOrder as
             // when we check order.WasFinished in the beginning on WaitCancelOrder, the status is not set to Canceled yet
             // To avoid this situation we set CanceledNotFromWaitCancelOrder to true and then don't raise an event in WaitCancelOrder for the 2nd time
-            order_ref.fn_mut(|order| {
-                order.internal_props.canceled_not_from_wait_cancel_order = true;
-            });
+            order_ref.fn_mut(|x| x.internal_props.canceled_not_from_wait_cancel_order = true);
 
             self.add_event_on_order_change(order_ref, OrderEventType::CancelOrderSucceeded)
                 .with_expect(|| format!("Failed to add event CancelOrderSucceeded on order change {client_order_id}"));
         }
 
         log::info!(
-            "Order was successfully cancelled {:?} {:?} on {}",
-            client_order_id,
-            exchange_order_id,
+            "Order was successfully cancelled {client_order_id:?} {exchange_order_id:?} on {}",
             self.exchange_account_id
         );
 

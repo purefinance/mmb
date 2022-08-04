@@ -4,8 +4,8 @@ use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::general::handlers::should_ignore_event;
 use crate::orders::event::OrderEventType;
 use crate::orders::fill::EventSourceType;
-use crate::orders::order::ExchangeOrderId;
 use crate::orders::order::OrderStatus;
+use crate::orders::order::{ClientOrderId, ExchangeOrderId};
 use crate::orders::pool::OrderRef;
 use chrono::Utc;
 use mmb_utils::infrastructure::WithExpect;
@@ -18,25 +18,14 @@ impl Exchange {
         error: ExchangeError,
         event_source_type: EventSourceType,
     ) {
-        if should_ignore_event(
-            self.features.allowed_cancel_event_source_type,
-            event_source_type,
-        ) {
+        let allowed_cancel_event_source_type = self.features.allowed_cancel_event_source_type;
+        if should_ignore_event(allowed_cancel_event_source_type, event_source_type) {
             return;
         }
 
         match self.orders.cache_by_exchange_id.get(exchange_order_id) {
-            None => {
-                log::error!("cancel_order_failed was called for an order which is not in the local order pool: {:?} on {}",
-                    exchange_order_id,
-                    self.exchange_account_id);
-            }
-            Some(order) => self.react_based_on_order_status(
-                &order,
-                error,
-                exchange_order_id,
-                event_source_type,
-            ),
+            None => log::error!("cancel_order_failed was called for an order which is not in the local order pool: {exchange_order_id:?} on {}", self.exchange_account_id),
+            Some(order) => self.react_based_on_order_status(&order, error, exchange_order_id, event_source_type),
         }
     }
 
@@ -47,30 +36,16 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         event_source_type: EventSourceType,
     ) {
-        match order.status() {
-            OrderStatus::Canceled => {
-                log::warn!(
-                    "cancel_order_failed was called for already Canceled order: {} {:?} on {}",
-                    order.client_order_id(),
-                    order.exchange_order_id(),
-                    self.exchange_account_id,
-                );
-            }
-            OrderStatus::Completed => {
-                log::warn!(
-                    "cancel_order_failed was called for already Completed order: {} {:?} on {}",
-                    order.client_order_id(),
-                    order.exchange_order_id(),
-                    self.exchange_account_id,
-                );
-            }
+        let (status, client_order_id) = order.fn_ref(|x| (x.status(), x.client_order_id()));
+        match status {
+            OrderStatus::Canceled | OrderStatus::Completed => log::warn!("cancel_order_failed was called for already {status:?} order: {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id),
             _ => {
                 order.fn_mut(|order| {
                     order.internal_props.last_cancellation_error = Some(error.error_type);
                     order.internal_props.cancellation_event_source_type = Some(event_source_type);
                 });
 
-                self.react_based_on_error_type(order, error, exchange_order_id, event_source_type);
+                self.react_based_on_error_type(order, &client_order_id, exchange_order_id, error, event_source_type);
             }
         }
     }
@@ -78,18 +53,14 @@ impl Exchange {
     fn react_based_on_error_type(
         &self,
         order: &OrderRef,
-        error: ExchangeError,
+        client_order_id: &ClientOrderId,
         exchange_order_id: &ExchangeOrderId,
+        error: ExchangeError,
         event_source_type: EventSourceType,
     ) {
         match error.error_type {
             ExchangeErrorType::OrderNotFound => {
-                self.handle_cancel_order_succeeded(
-                    None,
-                    exchange_order_id,
-                    None,
-                    event_source_type,
-                );
+                self.handle_cancel_order_succeeded(None, exchange_order_id, None, event_source_type)
             }
             ExchangeErrorType::OrderCompleted => nothing_to_do(),
             _ => {
@@ -97,17 +68,10 @@ impl Exchange {
                     // TODO Some metrics
                 }
 
-                let (client_order_id, exchange_order_id) = order.fn_mut(|x| {
-                    x.set_status(OrderStatus::FailedToCancel, Utc::now());
-                    (x.client_order_id(), x.exchange_order_id())
-                });
+                order.fn_mut(|x| x.set_status(OrderStatus::FailedToCancel, Utc::now()));
+
                 self.add_event_on_order_change(order, OrderEventType::CancelOrderFailed)
-                    .with_expect(|| {
-                        format!(
-                            "Failed to add event CancelOrderFailed on order change {:?}",
-                            order.client_order_id()
-                        )
-                    });
+                    .with_expect(|| format!("Failed to add event CancelOrderFailed on order change {client_order_id:?}"));
 
                 log::warn!(
                     "Order cancellation failed: {client_order_id} {exchange_order_id:?} on {} with error: {:?} {:?} {}",
