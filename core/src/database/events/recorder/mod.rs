@@ -279,12 +279,11 @@ mod tests {
     use crate::infrastructure::init_lifetime_manager;
     use mmb_database::impl_event;
     use mmb_database::postgres_db::events::TableName;
+    use mmb_database::postgres_db::tests::{get_database_url, PgPoolMutex};
     use serde::{Deserialize, Serialize};
     use std::time::{Duration, Instant};
     use tokio::time::sleep;
-    use tokio_postgres::{Client, NoTls};
 
-    const DATABASE_URL: &str = "postgres://postgres:postgres@localhost/tests";
     const TABLE_NAME: &str = "persons";
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -302,29 +301,23 @@ mod tests {
         phone_numbers: Vec<String>,
     }
 
-    async fn init_test() -> Client {
+    async fn init_test() -> PgPoolMutex {
         init_lifetime_manager();
 
-        let (client, connection) = tokio_postgres::connect(DATABASE_URL, NoTls)
+        let pool_mutex = PgPoolMutex::create(&get_database_url(), 1).await;
+        let connection = pool_mutex.pool.get_connection_expected().await;
+        connection
+            .batch_execute(
+                &include_str!(
+                    "../../../../../mmb_database/src/postgres_db/sql/create_or_truncate_table.sql"
+                )
+                .replace("TABLE_NAME", TABLE_NAME),
+            )
             .await
-            .expect("connect to DB in test");
+            .expect("TRUNCATE persons");
 
-        tokio::spawn(async move {
-            if let Err(e) = connection.await {
-                eprintln!("connection error: {}", e);
-            }
-        });
-
-        truncate_table(&client).await;
-
-        client
-    }
-
-    async fn truncate_table(client: &Client) {
-        let _ = client
-            .execute(&format!("truncate table {TABLE_NAME}"), &[])
-            .await
-            .expect("truncate persons");
+        drop(connection);
+        pool_mutex
     }
 
     impl_event!(Person, TABLE_NAME);
@@ -342,13 +335,13 @@ mod tests {
         }
     }
 
-    #[ignore = "need postgres initialized for tests"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn save_1_event() {
-        let client = init_test().await;
+        let pool_mutex = init_test().await;
+        let connection = pool_mutex.pool.get_connection_expected().await;
 
         let event_recorder = EventRecorder::start(Some(DbSettings {
-            database_url: DATABASE_URL.to_string(),
+            database_url: get_database_url(),
             postponed_events_dir: None,
         }))
         .await
@@ -359,7 +352,7 @@ mod tests {
 
         sleep(Duration::from_millis(1_500)).await;
 
-        let rows = client
+        let rows = connection
             .query("select * from persons", &[])
             .await
             .expect("select persons in test");
@@ -367,25 +360,23 @@ mod tests {
         assert_eq!(rows.len(), 1);
     }
 
-    #[ignore = "need postgres initialized for tests"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn not_save_1_event_without_db_initialization() {
-        let client = init_test().await;
+        let pool_mutex = init_test().await;
+        let connection = pool_mutex.pool.get_connection_expected().await;
 
         // arrange
         let person = test_person();
 
-        let database_url = None; // database_url is not initialized
-
         // act
-        let event_recorder = EventRecorder::start(database_url).await.expect("in test");
+        let event_recorder = EventRecorder::start(None).await.expect("in test");
 
         event_recorder.save(person).expect("in test");
 
         sleep(Duration::from_secs(2)).await;
 
         // assert
-        let rows = client
+        let rows = connection
             .query("select * from persons", &[])
             .await
             .expect("select persons in test");
@@ -393,16 +384,16 @@ mod tests {
         assert_eq!(rows.len(), 0);
     }
 
-    #[ignore = "need postgres initialized for tests"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn simple_flush_and_stop() {
-        let client = init_test().await;
+        let pool_mutex = init_test().await;
+        let connection = pool_mutex.pool.get_connection_expected().await;
 
         // arrange
         let person = test_person();
 
         let db_settings = DbSettings {
-            database_url: DATABASE_URL.to_string(),
+            database_url: get_database_url(),
             postponed_events_dir: None,
         };
 
@@ -427,13 +418,11 @@ mod tests {
             "expected fast execution ({saving_event_time:?} < 1sec)"
         );
 
-        let rows = client
+        let rows = connection
             .query("select * from persons", &[])
             .await
             .expect("select persons in test");
 
         assert_eq!(rows.len(), 1);
-
-        truncate_table(&client).await;
     }
 }

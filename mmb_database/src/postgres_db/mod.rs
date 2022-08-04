@@ -1,5 +1,6 @@
 pub mod events;
 pub mod migrator;
+pub mod tests;
 
 use anyhow::{Context, Result};
 use bb8_postgres::bb8::{Pool, PooledConnection};

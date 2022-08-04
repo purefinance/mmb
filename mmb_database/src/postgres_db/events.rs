@@ -10,7 +10,6 @@ use std::fmt::{Display, Formatter};
 use tokio_postgres::binary_copy::BinaryCopyInWriter;
 use tokio_postgres::types::Type;
 use tokio_postgres::{NoTls, Statement};
-
 pub type TableName = &'static str;
 pub type TableNameRef<'a> = &'a str;
 
@@ -165,19 +164,14 @@ pub async fn save_events_one_by_one(
 #[cfg(test)]
 mod tests {
     use crate::postgres_db::events::{save_events_batch, save_events_one_by_one, InsertEvent};
-    use crate::postgres_db::PgPool;
+    use crate::postgres_db::tests::{get_database_url, PgPoolMutex};
     use serde_json::json;
 
-    const DATABASE_URL: &str = "postgres://postgres:postgres@localhost/tests";
     const TABLE_NAME: &str = "persons";
 
-    async fn init_test() -> PgPool {
-        let pool = PgPool::create(DATABASE_URL, 2)
-            .await
-            .expect("connect to db");
-
-        let connection = pool.get_connection_expected().await;
-
+    async fn init_test() -> PgPoolMutex {
+        let pool_mutex = PgPoolMutex::create(&get_database_url(), 1).await;
+        let connection = pool_mutex.pool.get_connection_expected().await;
         connection
             .batch_execute(
                 &include_str!("./sql/create_or_truncate_table.sql")
@@ -187,12 +181,10 @@ mod tests {
             .expect("TRUNCATE persons");
 
         drop(connection);
-
-        pool
+        pool_mutex
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ignore = "need postgres initialized for tests"]
     async fn save_batch_events_1_item() {
         let pool = init_test().await;
 
@@ -207,12 +199,12 @@ mod tests {
         };
 
         // act
-        save_events_batch(&pool, TABLE_NAME, &[item])
+        save_events_batch(&pool.pool, TABLE_NAME, &[item])
             .await
             .expect("in test");
 
         // assert
-        let connection = pool.get_connection_expected().await;
+        let connection = pool.pool.get_connection_expected().await;
 
         let rows = connection
             .query(&format!("SELECT * FROM {TABLE_NAME}"), &[])
@@ -228,9 +220,8 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    #[ignore = "need postgres initialized for tests"]
     async fn save_one_by_one_events_1_item() {
-        let pool = init_test().await;
+        let pool_mutex = init_test().await;
 
         // arrange
         let expected_json = json!({
@@ -243,13 +234,14 @@ mod tests {
         };
 
         // act
-        let (results, failed_events) = save_events_one_by_one(&pool, TABLE_NAME, vec![item]).await;
+        let (results, failed_events) =
+            save_events_one_by_one(&pool_mutex.pool, TABLE_NAME, vec![item]).await;
         results.expect("in test");
 
         // assert
         assert_eq!(failed_events.len(), 0, "there are failed saving events");
 
-        let connection = pool.get_connection_expected().await;
+        let connection = pool_mutex.pool.get_connection_expected().await;
 
         let rows = connection
             .query(&format!("SELECT * FROM {TABLE_NAME}"), &[])

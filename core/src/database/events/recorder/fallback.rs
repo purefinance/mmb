@@ -227,14 +227,13 @@ mod tests {
     use chrono::Utc;
     use mmb_database::impl_event;
     use mmb_database::postgres_db::events::{Event, InsertEvent, TableName};
-    use mmb_database::postgres_db::PgPool;
+    use mmb_database::postgres_db::tests::{get_database_url, PgPoolMutex};
     use mmb_utils::DateTime;
     use scopeguard::defer;
     use serde::{Deserialize, Serialize};
     use std::fs;
     use tokio_postgres::NoTls;
 
-    const DATABASE_URL: &str = "postgres://postgres:postgres@localhost/tests";
     const TABLE_NAME: &str = "fallback_events";
 
     #[derive(Debug, Serialize, Deserialize)]
@@ -248,18 +247,12 @@ mod tests {
         TestEvent { date: Utc::now() }
     }
 
-    async fn init_test() -> PgPool {
-        let pool = PgPool::create(DATABASE_URL, 2)
-            .await
-            .expect("connect to db");
-
-        let connection = pool.get_connection_expected().await;
-
+    async fn init_test() -> PgPoolMutex {
+        let pool_mutex = PgPoolMutex::create(&get_database_url(), 1).await;
+        let connection = pool_mutex.pool.get_connection_expected().await;
         recreate_table(&connection).await;
-
         drop(connection);
-
-        pool
+        pool_mutex
     }
 
     async fn recreate_table<'a>(
@@ -327,18 +320,9 @@ mod tests {
         pretty_assertions::assert_eq!(file_format, expected);
     }
 
-    #[ignore = "need postgres initialized for tests"]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn restore_postponed_events_in_db() {
-        // arrange
-        let pool = init_test().await;
-        defer! {
-            let pool = pool.clone();
-            let _ = tokio::spawn(async move {
-                let connection = pool.get_connection_expected().await;
-                connection.execute(&format!("DROP TABLE IF EXISTS {TABLE_NAME}"), &[]).await.expect("drop table");
-            });
-        };
+        let pool_mutex = init_test().await;
 
         let fallback = EventRecorderFallback::new(None).expect("in test");
         defer! {
@@ -374,11 +358,11 @@ mod tests {
             .expect("in test");
 
         fallback
-            .try_restore_to_db_postponed_events(&pool, &file_names)
+            .try_restore_to_db_postponed_events(&pool_mutex.pool, &file_names)
             .await;
 
         // check saved event to db
-        let connection = pool.get_connection_expected().await;
+        let connection = pool_mutex.pool.get_connection_expected().await;
         let rows = connection
             .query(&format!("SELECT * FROM {TABLE_NAME}"), &[])
             .await
