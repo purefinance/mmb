@@ -63,6 +63,7 @@ async fn create_connection_pool(
 mod tests {
     use super::apply_migrations;
     use crate::postgres_db::migrator::create_connection_pool;
+    use crate::postgres_db::tests::get_database_url;
     use itertools::Itertools;
     use ntest::timeout;
     use sqlx::{Pool, Postgres};
@@ -73,7 +74,6 @@ mod tests {
     const TABLE_NAME1: &str = "test_mig1";
     const TABLE_NAME2: &str = "test_mig2";
 
-    #[ignore("needed db initialization")]
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[timeout(20_000)]
     async fn test_apply_undo_migrations() {
@@ -89,11 +89,11 @@ mod tests {
         .map(|p| sql_dir.clone().join(p))
         .collect_vec();
 
-        apply_migrations(DATABASE_URL, sources)
+        apply_migrations(&get_database_url(), sources)
             .await
             .expect("failed apply_migrations in test");
 
-        let pool = create_connection_pool(DATABASE_URL, 2)
+        let pool = create_connection_pool(&get_database_url(), 2)
             .await
             .expect("failed create_connection_pool in test");
 
@@ -123,7 +123,7 @@ mod tests {
     }
 
     async fn init_test() {
-        let pool = create_connection_pool(DATABASE_URL, 2)
+        let pool = create_connection_pool(&get_database_url(), 2)
             .await
             .expect("failed create_connection_pool in test");
 
