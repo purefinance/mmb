@@ -1,34 +1,30 @@
-use std::sync::{Arc, Weak};
-
-use anyhow::{bail, Context, Result};
-use dashmap::DashMap;
-use itertools::Itertools;
-use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::send_expected::SendExpectedByRef;
-use mmb_utils::{nothing_to_do, DateTime};
-use parking_lot::Mutex;
-use rust_decimal::Decimal;
-use tokio::sync::{broadcast, oneshot};
-
 use super::commission::Commission;
 use super::polling_timeout_manager::PollingTimeoutManager;
 use super::symbol::Symbol;
+use crate::balance::manager::balance_manager::BalanceManager;
+use crate::connectivity::{
+    websocket_open, ConnectivityError, WebSocketParams, WebSocketRole, WsSender,
+};
+use crate::exchanges::block_reasons::WEBSOCKET_DISCONNECTED;
 use crate::exchanges::common::{ActivePosition, ClosedPosition, MarketId, SpecificCurrencyPair};
 use crate::exchanges::events::{
     BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
     LiquidationPriceEvent, Trade,
 };
+use crate::exchanges::exchange_blocker::{BlockType, ExchangeBlocker};
 use crate::exchanges::general::features::{BalancePositionOption, ExchangeFeatures};
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::exchanges::general::request_type::RequestType;
 use crate::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
+use crate::infrastructure::spawn_future;
 use crate::misc::derivative_position::DerivativePosition;
 use crate::misc::time::time_manager;
 use crate::orders::buffered_fills::buffered_canceled_orders_manager::BufferedCanceledOrdersManager;
 use crate::orders::buffered_fills::buffered_fills_manager::BufferedFillsManager;
 use crate::orders::event::OrderEventType;
+use crate::orders::order::ClientOrderId;
 use crate::orders::order::OrderSide;
 use crate::orders::pool::OrdersPool;
 use crate::orders::{order::ExchangeOrderId, pool::OrderRef};
@@ -40,25 +36,27 @@ use crate::{
     },
     lifecycle::app_lifetime_manager::AppLifetimeManager,
 };
-
-use crate::balance::manager::balance_manager::BalanceManager;
-use crate::connectivity::{
-    websocket_open, ConnectivityError, WebSocketParams, WebSocketRole, WsSender,
-};
-use crate::exchanges::block_reasons::WEBSOCKET_DISCONNECTED;
-use crate::exchanges::exchange_blocker::{BlockType, ExchangeBlocker};
-use crate::infrastructure::spawn_future;
-use crate::orders::order::ClientOrderId;
 use crate::{
     exchanges::common::{Amount, CurrencyCode, Price},
     orders::event::OrderEvent,
 };
+use anyhow::{bail, Context, Result};
+use dashmap::DashMap;
+use function_name::named;
 use futures::FutureExt;
+use itertools::Itertools;
+use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::SpawnFutureFlags;
+use mmb_utils::send_expected::SendExpectedByRef;
+use mmb_utils::{nothing_to_do, DateTime};
+use parking_lot::Mutex;
+use rust_decimal::Decimal;
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Weak};
 use std::time::Duration;
+use tokio::sync::{broadcast, oneshot};
 use tokio::time::sleep;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -319,7 +317,7 @@ impl Exchange {
         let self_weak = Arc::downgrade(self);
         let future = async move {
             if let Some(self_strong) = self_weak.upgrade() {
-                if let Err(e) = self_strong.connect().await {
+                if let Err(e) = self_strong.connect_ws().await {
                     log::error!("Exchange account id {} failed to reconnect: {:?}", id, e)
                 }
             }
@@ -343,13 +341,18 @@ impl Exchange {
         *self.balance_manager.lock() = Some(Arc::downgrade(&balance_manager));
     }
 
-    pub async fn disconnect(self: Arc<Self>) {
+    pub async fn reconnect_ws(self: &Arc<Self>) -> Result<()> {
+        self.disconnect_ws().await;
+        self.connect_ws().await
+    }
+
+    pub async fn disconnect_ws(&self) {
         // prevent auto reconnect
         self.auto_reconnect.store(false, Ordering::SeqCst);
         self.ws_sender.lock().take();
     }
 
-    pub async fn connect(self: &Arc<Self>) -> Result<()> {
+    pub async fn connect_ws(self: &Arc<Self>) -> Result<()> {
         // fire connecting callback
         self.on_connecting();
         // do connect
@@ -360,7 +363,7 @@ impl Exchange {
                 spawn_future(
                     &format!("Exchange account id {} reader", self.exchange_account_id),
                     SpawnFutureFlags::STOP_BY_TOKEN,
-                    Self::reader_future(Arc::downgrade(self), reader).boxed(),
+                    Self::reader_future(Arc::downgrade(self), reader),
                 );
                 self.on_connected();
                 Ok(())
@@ -536,6 +539,7 @@ impl Exchange {
             .get_balance_reservation_currency_code(symbol, side)
     }
 
+    #[named]
     pub async fn close_position(
         &self,
         position: &ActivePosition,
@@ -565,7 +569,7 @@ impl Exchange {
                 Err(error) => {
                     print_warn(
                         retry_attempt,
-                        "close_position",
+                        function_name!(),
                         &self.exchange_account_id,
                         error,
                     );
@@ -583,6 +587,7 @@ impl Exchange {
         None
     }
 
+    #[named]
     pub async fn get_active_positions(
         &self,
         cancellation_token: CancellationToken,
@@ -603,7 +608,7 @@ impl Exchange {
                 Err(error) => {
                     print_warn(
                         retry_attempt,
-                        "get_active_positions",
+                        function_name!(),
                         &self.exchange_account_id,
                         error,
                     );
@@ -747,10 +752,11 @@ impl Exchange {
         balances_and_positions
     }
 
+    #[named]
     pub async fn get_balance(
-        &self,
+        self: &Arc<Self>,
         cancellation_token: CancellationToken,
-    ) -> Option<ExchangeBalancesAndPositions> {
+    ) -> Result<ExchangeBalancesAndPositions> {
         for retry_attempt in 1..=5 {
             let balances_and_positions = self
                 .get_balance_and_positions(cancellation_token.clone())
@@ -764,34 +770,33 @@ impl Exchange {
                     if balances.is_empty() {
                         print_warn(
                             retry_attempt,
-                            "get_balance",
+                            function_name!(),
                             &self.exchange_account_id,
                             "balances is empty",
                         );
                         continue;
                     }
 
-                    return Some(self.handle_balances_and_positions(
+                    return Ok(self.handle_balances_and_positions(
                         self.remove_unknown_currency_pairs(positions, balances),
                     ));
                 }
                 Err(error) => print_warn(
                     retry_attempt,
-                    "get_balance",
+                    function_name!(),
                     &self.exchange_account_id,
                     error,
                 ),
             };
         }
 
-        log::warn!(
-            "GetBalance for {} reached maximum retries - reconnecting",
-            self.exchange_account_id
-        );
+        let exchange_account_id = self.exchange_account_id;
+        log::warn!("GetBalance for {exchange_account_id} reached maximum retries - reconnecting");
 
-        // TODO: uncomment it after implementation reconnect function
-        // await Reconnect();
-        None
+        match self.reconnect_ws().await {
+            Ok(()) => bail!("Can't get balances, but reconnected ws succeed"),
+            Err(err) => bail!("Can't get balances and can't reconnect ws: {err:?}"),
+        }
     }
 
     fn handle_liquidation_price(
@@ -850,11 +855,5 @@ fn print_warn(
     exchange_account_id: &ExchangeAccountId,
     error: impl Debug,
 ) {
-    log::warn!(
-        "Failed to {} for {} on retry {}: {:?}",
-        fn_name,
-        exchange_account_id,
-        retry_attempt,
-        error
-    );
+    log::warn!("Failed to {fn_name} for {exchange_account_id} on retry {retry_attempt}: {error:?}");
 }

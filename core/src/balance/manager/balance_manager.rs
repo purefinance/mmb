@@ -125,7 +125,7 @@ impl BalanceManager {
         let amount = self
             .balance_reservation_manager
             .get_reservation(reservation_id)
-            .with_context(|| format!("Can't find reservation_id: {}", reservation_id))?
+            .with_context(|| format!("Can't find reservation_id: {reservation_id}"))?
             .unreserved_amount;
 
         self.unreserve(reservation_id, amount)
@@ -217,12 +217,7 @@ impl BalanceManager {
                 .balance_reservation_manager
                 .exchanges_by_id()
                 .get(&exchange_account_id)
-                .with_context(|| {
-                    format!(
-                        "symbol not found for exchange with account id {:?} and currency pair {}",
-                        exchange_account_id, currency_pair,
-                    )
-                })?
+                .with_context(|| { format!("symbol not found for exchange with account id {exchange_account_id:?} and currency pair {currency_pair}") })?
                 .get_symbol(currency_pair)?;
 
             if symbol.is_derivative {
@@ -245,12 +240,10 @@ impl BalanceManager {
             self.exchange_id_with_restored_positions
                 .insert(exchange_account_id);
         } else {
-            let fill_positions =
-                self.get_balances()
-                    .position_by_fill_amount
-                    .with_context(|| {
-                        "Failed to get fill_positions while restoring fill amount positions"
-                    })?;
+            let fill_positions = self
+                .get_balances()
+                .position_by_fill_amount
+                .context("Failed to get fill_positions while restoring fill amount positions")?;
             let symbols = position_info_by_symbol.keys().cloned().collect_vec();
 
             let expected_positions_by_currency_pair: HashMap<CurrencyPair, Decimal> =
@@ -308,16 +301,10 @@ impl BalanceManager {
                 } else {
                     log::Level::Warn
                 };
-                log!(
-                    log_level,
-                    "Position on {} differs from local {:?} {:?}",
-                    exchange_account_id,
-                    expected_positions_by_currency_pair,
-                    actual_positions_by_currency_pair
-                );
+                log!(log_level, "Position on {exchange_account_id} differs from local {expected_positions_by_currency_pair:?} {actual_positions_by_currency_pair:?}");
 
                 if any_at_max_times {
-                    bail!("Position on {} differs from local", exchange_account_id);
+                    bail!("Position on {exchange_account_id} differs from local");
                 }
             } else {
                 position_differs_times_in_row_by_exchange_id.remove(&exchange_account_id);
@@ -340,21 +327,20 @@ impl BalanceManager {
                 .balance_reservation_manager
                 .exchanges_by_id()
                 .get(&exchange_account_id)
-                .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
+                .with_context(|| format!("Failed to get exchange with id {exchange_account_id}"))?
                 .currencies
                 .lock()
                 .clone();
 
-            for exchange_balance in &balances_and_positions.balances {
+            for balance in &balances_and_positions.balances {
                 //We skip currencies with zero balances if they are not part of Exchange currency pairs
-                if exchange_balance.balance.is_zero()
-                    && !exchange_currencies.contains(&exchange_balance.currency_code)
+                if balance.balance.is_zero()
+                    && !exchange_currencies.contains(&balance.currency_code)
                 {
                     continue;
                 }
 
-                filtered_exchange_balances
-                    .insert(exchange_balance.currency_code, exchange_balance.balance);
+                filtered_exchange_balances.insert(balance.currency_code, balance.balance);
             }
         }
 
@@ -363,7 +349,7 @@ impl BalanceManager {
         self.balance_reservation_manager
             .exchanges_by_id()
             .get(&exchange_account_id)
-            .with_context(|| format!("Failed to get exchange with id {}", exchange_account_id))?
+            .with_context(|| format!("Failed to get exchange with id {exchange_account_id}"))?
             .currencies
             .lock()
             .iter()
@@ -376,7 +362,7 @@ impl BalanceManager {
             .balance_reservation_storage
             .get_all_raw_reservations()
             .values()
-            .filter(move |&x| x.exchange_account_id == exchange_account_id)
+            .filter(|&x| x.exchange_account_id == exchange_account_id)
             .collect_vec();
 
         for reservation in &reservations_by_exchange_account_id {
@@ -396,13 +382,7 @@ impl BalanceManager {
 
         let whole_balances_after = self.calculate_whole_balances()?;
 
-        log::info!(
-            "Updated balances for {} {:?} {:?} {:?}",
-            exchange_account_id,
-            balances_and_positions,
-            reservations_by_exchange_account_id,
-            filtered_exchange_balances
-        );
+        log::info!("Updated balances for {exchange_account_id} {balances_and_positions:?} {reservations_by_exchange_account_id:?} {filtered_exchange_balances:?}");
 
         self.save_balances();
         self.save_balance_update(whole_balances_before, whole_balances_after);
@@ -1033,11 +1013,11 @@ impl BalanceManager {
                     let balances_and_positions = exchange
                         .get_balance(cancellation_token.clone())
                         .await
-                        .with_expect_args(|f| {
-                            f(&format_args!(
-                                "failed to get balance for {}",
+                        .unwrap_or_else(|err| {
+                            panic!(
+                                "failed to get balance for {}: {err:?}",
                                 exchange.exchange_account_id
-                            ))
+                            )
                         });
 
                     this.lock()

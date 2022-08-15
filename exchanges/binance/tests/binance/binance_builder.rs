@@ -168,7 +168,7 @@ impl BinanceBuilder {
             Arc::downgrade(&exchange_blocker),
             commission,
         );
-        exchange.connect().await.with_expect(move || {
+        exchange.connect_ws().await.with_expect(move || {
             "Failed to connect to websockets on exchange {exchange_account_id}"
         });
         exchange.build_symbols(&settings.currency_pairs).await;

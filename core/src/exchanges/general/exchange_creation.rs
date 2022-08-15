@@ -79,7 +79,7 @@ pub async fn create_exchange(
     exchange.build_symbols(&user_settings.currency_pairs).await;
 
     exchange
-        .connect()
+        .connect_ws()
         .await
         .with_expect(move || "Failed to connect to websockets on exchange {exchange_account_id}");
 

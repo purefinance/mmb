@@ -21,6 +21,8 @@ dyn-clone = "1"
 
 enum-map = "1.1.1"
 
+function_name = "0.3.0"
+
 form_urlencoded = "1"
 futures = "0.3"
 
