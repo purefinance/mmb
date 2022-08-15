@@ -12,13 +12,18 @@ use crate::ws::subscribes::liquidity::{LiquiditySubscription, Subscription};
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::time::{Duration, Instant};
 
 pub struct WsClientSession {
     subscriptions: HashSet<u64>,
     subscribed_liquidity: Option<LiquiditySubscription>,
     token_service: Data<TokenService>,
     is_auth: bool,
+    hb: Instant,
 }
+
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(1);
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(3);
 
 impl WsClientSession {
     pub fn new(token_service: Data<TokenService>) -> Self {
@@ -27,7 +32,18 @@ impl WsClientSession {
             subscribed_liquidity: None,
             token_service,
             is_auth: false,
+            hb: Instant::now(),
         }
+    }
+
+    fn hb(&mut self, ctx: &mut <Self as Actor>::Context) {
+        ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
+            if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
+                ctx.stop();
+                return;
+            }
+            ctx.ping(b"");
+        });
     }
 }
 
@@ -43,6 +59,7 @@ impl Actor for WsClientSession {
         };
         self.issue_system_async(message);
         log::info!("Websocket client connected");
+        self.hb(ctx);
     }
 
     fn stopped(&mut self, ctx: &mut Self::Context) {
@@ -128,6 +145,10 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsClientSession {
             Message::Close(reason) => {
                 log::info!("Socket close message: Reason: {reason:?}");
                 ctx.stop();
+                return;
+            }
+            Message::Pong(_) => {
+                self.hb = Instant::now();
                 return;
             }
             _ => {

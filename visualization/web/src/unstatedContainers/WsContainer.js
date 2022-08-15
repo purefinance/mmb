@@ -112,6 +112,7 @@ class WsContainer extends Container {
       },
       onerror: (e) => {
         console.error("Error:", e);
+        toast.clearWaitingQueue();
         toast.error("Connection problem");
       },
     });
