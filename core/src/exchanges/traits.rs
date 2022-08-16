@@ -12,10 +12,11 @@ use super::{
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
 use crate::exchanges::events::ExchangeEvent;
-use crate::exchanges::general::exchange::RequestResult;
+use crate::exchanges::general::exchange::{Exchange, RequestResult};
 use crate::exchanges::general::features::ExchangeFeatures;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
+use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::orders::fill::EventSourceType;
 use crate::orders::order::{
@@ -29,6 +30,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
 use mmb_utils::DateTime;
+use std::any::Any;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use url::Url;
@@ -85,8 +87,14 @@ pub type SendWebsocketMessageCb = Box<dyn Fn(WebSocketRole, String) -> Result<()
 
 #[async_trait]
 pub trait Support: Send + Sync {
+    /// Needed to call the `downcast_ref` method
+    fn as_any(&self) -> &(dyn Any + Send + Sync + 'static);
+
+    async fn initialized(self: &Self, _exchange: Arc<Exchange>) {}
+
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
     fn on_connecting(&self) -> Result<()>;
+    fn on_disconnected(&self) -> Result<()>;
     fn set_send_websocket_message_callback(&self, callback: SendWebsocketMessageCb);
 
     fn set_order_created_callback(&mut self, callback: OrderCreatedCb);
@@ -110,7 +118,7 @@ pub trait Support: Send + Sync {
     fn should_log_message(&self, message: &str) -> bool;
 
     fn log_unknown_message(&self, exchange_account_id: ExchangeAccountId, message: &str) {
-        log::info!("Unknown message for {}: {}", exchange_account_id, message);
+        log::info!("Unknown message for {exchange_account_id}: {message}");
     }
 
     fn get_balance_reservation_currency_code(
@@ -139,6 +147,7 @@ pub trait ExchangeClientBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        timeout_manager: Arc<TimeoutManager>,
         orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult;
 

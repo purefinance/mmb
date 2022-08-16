@@ -25,7 +25,7 @@ const WRITE_DEADLINE_TIMEOUT: Duration = Duration::from_secs(1);
 
 const PING_MESSAGE: &[u8; 9] = b"heartbeat";
 
-type TrySendResult = std::result::Result<(), tokio::sync::mpsc::error::TrySendError<Message>>;
+type TrySendResult = std::result::Result<(), mpsc::error::TrySendError<Message>>;
 
 /// Compound log records key
 #[derive(Copy, Clone)]

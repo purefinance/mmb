@@ -32,6 +32,7 @@ use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::{ErrorHandler, ErrorHandlerData, RestClient};
+use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{
     ExchangeClientBuilderResult, HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb,
     OrderCreatedCb, Support,
@@ -55,6 +56,8 @@ use mmb_core::settings::ExchangeSettings;
 use mmb_core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use mmb_utils::value_to_decimal::GetOrErr;
 use serde::{Deserialize, Serialize};
+
+const LISTEN_KEY: &str = "listenKey";
 
 #[derive(Default)]
 pub struct ErrorHandlerBinance;
@@ -122,8 +125,11 @@ pub struct Binance {
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
+    pub(super) timeout_manager: Arc<TimeoutManager>,
+
     // Currencies used for trading according to user settings
-    pub traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
+    pub(super) traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
+
     pub(super) last_trade_ids: DashMap<CurrencyPair, TradeId>,
 
     pub(super) lifetime_manager: Arc<AppLifetimeManager>,
@@ -134,6 +140,9 @@ pub struct Binance {
     pub(super) is_reducing_market_data: bool,
 
     pub(super) rest_client: RestClient<ErrorHandlerBinance>,
+
+    // NOTE: None when websocket is disconnected
+    pub(super) listen_key: RwLock<Option<String>>,
 }
 
 impl Binance {
@@ -142,6 +151,7 @@ impl Binance {
         settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        timeout_manager: Arc<TimeoutManager>,
         is_reducing_market_data: bool,
         empty_response_is_ok: bool,
     ) -> Self {
@@ -164,6 +174,7 @@ impl Binance {
             traded_specific_currencies: Default::default(),
             last_trade_ids: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
+            timeout_manager,
             is_reducing_market_data,
             settings,
             hosts,
@@ -174,6 +185,7 @@ impl Binance {
                 exchange_account_id,
                 ErrorHandlerBinance::default(),
             )),
+            listen_key: Default::default(),
         }
     }
 
@@ -193,23 +205,42 @@ impl Binance {
         }
     }
 
-    pub(super) async fn get_listen_key(&self) -> Result<RestRequestOutcome, ExchangeError> {
-        let full_url = rest_client::build_uri(
-            self.hosts.rest_host,
-            self.get_url_path("/sapi/v1/userDataStream", "/api/v3/userDataStream"),
-            &vec![],
-        );
-        let http_params = rest_client::HttpParams::new();
+    #[named]
+    pub(super) async fn request_listen_key(&self) -> Result<RestRequestOutcome, ExchangeError> {
+        let path = self.get_url_path("/fapi/v1/userDataStream", "/api/v3/userDataStream");
+        let url = rest_client::build_uri(self.hosts.rest_host, path, &vec![]);
 
+        let api_key = &self.settings.api_key;
+        let http_params = &rest_client::HttpParams::new();
         self.rest_client
-            .post(
-                full_url,
-                &self.settings.api_key,
-                &http_params,
-                "get_listen_key",
-                "".to_string(),
-            )
+            .post(url, api_key, http_params, function_name!(), "".to_string())
             .await
+    }
+
+    pub(super) fn parse_listen_key(request_outcome: &RestRequestOutcome) -> Result<String> {
+        let data: Value = serde_json::from_str(&request_outcome.content)
+            .context("Unable to parse listen key response for Binance")?;
+
+        let listen_key = data[LISTEN_KEY]
+            .as_str()
+            .context("Unable to parse listen key field for Binance")?
+            .to_string();
+
+        Ok(listen_key)
+    }
+
+    #[named]
+    pub async fn request_update_listen_key(&self, listen_key: String) -> Result<(), ExchangeError> {
+        let http_param = vec![(LISTEN_KEY.to_string(), listen_key)];
+
+        let path = self.get_url_path("/fapi/v1/listenKey", "/api/v3/userDataStream");
+        let url = rest_client::build_uri(self.hosts.rest_host, path, &http_param);
+
+        let api_key = &self.settings.api_key;
+        self.rest_client
+            .put(url, api_key, function_name!(), "".to_string())
+            .await
+            .map(|_| ())
     }
 
     // TODO Change to pub(super) or pub(crate) after implementation if possible
@@ -221,17 +252,17 @@ impl Binance {
         specific_currency_pair: &SpecificCurrencyPair,
         channel: &str,
     ) -> String {
-        format!("{}@{}", specific_currency_pair.as_str(), channel)
+        format!("{specific_currency_pair}@{channel}")
     }
 
     fn _is_websocket_reconnecting(&self) -> bool {
         todo!("is_websocket_reconnecting")
     }
 
-    pub(super) fn get_server_order_side(side: OrderSide) -> String {
+    pub(super) fn get_server_order_side(side: OrderSide) -> &'static str {
         match side {
-            OrderSide::Buy => "BUY".to_owned(),
-            OrderSide::Sell => "SELL".to_owned(),
+            OrderSide::Buy => "BUY",
+            OrderSide::Sell => "SELL",
         }
     }
 
@@ -255,11 +286,11 @@ impl Binance {
         }
     }
 
-    pub(super) fn get_server_order_type(order_type: OrderType) -> String {
+    pub(super) fn get_server_order_type(order_type: OrderType) -> &'static str {
         match order_type {
-            OrderType::Limit => "LIMIT".to_owned(),
-            OrderType::Market => "MARKET".to_owned(),
-            unexpected_variant => panic!("{:?} are not expected", unexpected_variant),
+            OrderType::Limit => "LIMIT",
+            OrderType::Market => "MARKET",
+            unexpected_variant => panic!("{unexpected_variant:?} are not expected"),
         }
     }
 
@@ -293,13 +324,8 @@ impl Binance {
         self.specific_to_unified
             .read()
             .get(currency_pair)
-            .with_context(|| {
-                format!(
-                    "Not found currency pair '{:?}' in {}",
-                    currency_pair, self.id
-                )
-            })
-            .map(Clone::clone)
+            .cloned()
+            .with_context(|| format!("Not found currency pair '{currency_pair:?}' in {}", self.id))
     }
 
     pub(super) fn specific_order_info_to_unified(&self, specific: &BinanceOrderInfo) -> OrderInfo {
@@ -354,11 +380,7 @@ impl Binance {
                         EventSourceType::WebSocket,
                     );
                 }
-                _ => log::error!(
-                    "execution_type is NEW but order_status is {} for message {}",
-                    order_status,
-                    msg_to_log
-                ),
+                _ => log::error!("execution_type is NEW but order_status is {order_status} for message {msg_to_log}"),
             },
             "CANCELED" => match order_status {
                 "CANCELED" => {
@@ -368,11 +390,7 @@ impl Binance {
                         EventSourceType::WebSocket,
                     );
                 }
-                _ => log::error!(
-                    "execution_type is CANCELED but order_status is {} for message {}",
-                    order_status,
-                    msg_to_log
-                ),
+                _ => log::error!("execution_type is CANCELED but order_status is {order_status} for message {msg_to_log}"),
             },
             "REJECTED" => {
                 // TODO: May be not handle error in Rest but move it here to make it unified?
@@ -386,11 +404,7 @@ impl Binance {
                         EventSourceType::WebSocket,
                     );
                 }
-                _ => log::error!(
-                    "Order {} was expired, message: {}",
-                    client_order_id,
-                    msg_to_log
-                ),
+                _ => log::error!("Order {client_order_id} was expired, message: {msg_to_log}"),
             },
             "TRADE" | "CALCULATED" => {
                 let event_data = self.prepare_data_for_fill_handler(
@@ -417,8 +431,8 @@ impl Binance {
     pub(crate) fn get_currency_code_expected(&self, currency_id: &CurrencyId) -> CurrencyCode {
         self.get_currency_code(currency_id).with_expect(|| {
             format!(
-                "Failed to convert CurrencyId({}) to CurrencyCode for {}",
-                currency_id, self.id
+                "Failed to convert CurrencyId({currency_id}) to CurrencyCode for {}",
+                self.id
             )
         })
     }
@@ -556,13 +570,9 @@ impl Binance {
             &http_params,
         );
 
+        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(
-                full_url,
-                &self.settings.api_key,
-                function_name!(),
-                "".to_string(),
-            )
+            .get(full_url, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -682,14 +692,9 @@ impl Binance {
         let log_args =
             format_args!("Close position response for {position:?} {price:?}").to_string();
 
+        let api_key = &self.settings.api_key;
         self.rest_client
-            .post(
-                full_url,
-                &self.settings.api_key,
-                &http_params,
-                function_name!(),
-                log_args,
-            )
+            .post(full_url, api_key, &http_params, function_name!(), log_args)
             .await
     }
 
@@ -701,13 +706,9 @@ impl Binance {
         let url_path = "/fapi/v2/positionRisk";
         let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params);
 
+        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(
-                full_url,
-                &self.settings.api_key,
-                function_name!(),
-                "".to_string(),
-            )
+            .get(full_url, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -721,13 +722,9 @@ impl Binance {
             &http_params,
         );
 
+        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(
-                full_url,
-                &self.settings.api_key,
-                function_name!(),
-                "".to_string(),
-            )
+            .get(full_url, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -796,13 +793,9 @@ impl Binance {
             &http_params,
         );
 
+        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(
-                full_url,
-                &self.settings.api_key,
-                function_name!(),
-                "".to_string(),
-            )
+            .get(full_url, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -881,10 +874,13 @@ impl Binance {
                 "symbol".to_owned(),
                 specific_currency_pair.as_str().to_owned(),
             ),
-            ("side".to_owned(), Self::get_server_order_side(header.side)),
+            (
+                "side".to_owned(),
+                Self::get_server_order_side(header.side).to_string(),
+            ),
             (
                 "type".to_owned(),
-                Self::get_server_order_type(header.order_type),
+                Self::get_server_order_type(header.order_type).to_string(),
             ),
             ("quantity".to_owned(), header.amount.to_string()),
             (
@@ -927,13 +923,9 @@ impl Binance {
         let url_path = "/api/v3/exchangeInfo";
         let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &vec![]);
 
+        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(
-                full_url,
-                &self.settings.api_key,
-                function_name!(),
-                "".to_string(),
-            )
+            .get(full_url, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -1062,6 +1054,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        timeout_manager: Arc<TimeoutManager>,
         _orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;
@@ -1073,6 +1066,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 exchange_settings,
                 events_channel,
                 lifetime_manager,
+                timeout_manager,
                 false,
                 empty_response_is_ok,
             )) as BoxExchangeClient,
@@ -1105,7 +1099,26 @@ impl ExchangeClientBuilder for BinanceBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory;
+    use mmb_core::lifecycle::launcher::EngineBuildConfig;
     use mmb_utils::cancellation_token::CancellationToken;
+    use mmb_utils::hashmap;
+
+    pub(crate) fn get_timeout_manager(
+        exchange_account_id: ExchangeAccountId,
+    ) -> Arc<TimeoutManager> {
+        let engine_build_config = EngineBuildConfig::new(vec![Box::new(BinanceBuilder)]);
+        let timeout_arguments = engine_build_config.supported_exchange_clients
+            [&exchange_account_id.exchange_id]
+            .get_timeout_arguments();
+
+        let request_timeout_manager = RequestsTimeoutManagerFactory::from_requests_per_period(
+            timeout_arguments,
+            exchange_account_id,
+        );
+
+        TimeoutManager::new(hashmap![exchange_account_id => request_timeout_manager])
+    }
 
     #[test]
     fn generate_signature() {
@@ -1127,6 +1140,7 @@ mod tests {
             settings,
             tx,
             AppLifetimeManager::new(CancellationToken::default()),
+            get_timeout_manager(exchange_account_id),
             false,
             false,
         );

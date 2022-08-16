@@ -151,7 +151,7 @@ impl Exchange {
                     RequestType::CancelOrder,
                     pre_reservation_group_id,
                     order_is_finished_token.clone(),
-                )?
+                )
                 .await
                 .into_result()?;
 
@@ -345,7 +345,7 @@ impl Exchange {
                     RequestType::CancelOrder,
                     pre_reservation_group_id,
                     cancellation_token.clone(),
-                )?
+                )
                 .await
                 .into_result()?;
 

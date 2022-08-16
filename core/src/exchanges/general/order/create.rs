@@ -308,7 +308,6 @@ impl Exchange {
                         pre_reservation_group_id,
                         cancellation_token.clone(),
                     )
-                    .expect("Failed to reserve timeout_manager for close_position")
                     .await;
 
                 let order_info_res = self.get_order_info(&order).await;

@@ -171,13 +171,33 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
-            .with_expect(|| {
-                format!("Error during creation of http GET request, request_id: {request_id}")
-            });
+            .with_expect(|| format!("Error during creation of http GET request {request_id}"));
 
         let response = self.client.request(req).await;
 
         self.handle_response(response, "GET", action_name, log_args, request_id)
+            .await
+    }
+
+    pub async fn put(
+        &self,
+        url: Uri,
+        api_key: &str,
+        action_name: &'static str,
+        log_args: String,
+    ) -> Result<RestRequestOutcome, ExchangeError> {
+        let request_id = Uuid::new_v4();
+        self.error_handler.request_log(action_name, &request_id);
+
+        let req = Request::put(url)
+            .header(hyper::header::CONNECTION, KEEP_ALIVE)
+            .header("X-MBX-APIKEY", api_key)
+            .body(Body::empty())
+            .with_expect(|| format!("Error during creation of http PUT request {request_id}"));
+
+        let response = self.client.request(req).await;
+
+        self.handle_response(response, "PUT", action_name, log_args, request_id)
             .await
     }
 
@@ -200,9 +220,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::from(form_encoded))
-            .with_expect(|| {
-                format!("Error during creation of http POST request, request_id: {request_id}")
-            });
+            .with_expect(|| format!("Error during creation of http POST request {request_id}"));
 
         let response = self.client.request(req).await;
 
@@ -224,9 +242,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
-            .with_expect(|| {
-                format!("Error during creation of http DELETE request, request_id: {request_id}",)
-            });
+            .with_expect(|| format!("Error during creation of http DELETE request {request_id}",));
 
         let response = self.client.request(req).await;
 

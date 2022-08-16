@@ -1,6 +1,6 @@
 use super::binance::Binance;
 use crate::support::{BinanceOrderInfo, BinancePosition};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use function_name::named;
 use itertools::Itertools;
@@ -12,6 +12,7 @@ use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
+use mmb_core::exchanges::general::request_type::RequestType;
 use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::rest_client;
 use mmb_core::exchanges::traits::{ExchangeClient, Support};
@@ -61,13 +62,9 @@ impl ExchangeClient for Binance {
 
         let full_url = rest_client::build_uri(host, path_to_delete, &http_params);
 
+        let api_key = &self.settings.api_key;
         self.rest_client
-            .delete(
-                full_url,
-                &self.settings.api_key,
-                function_name!(),
-                "".to_string(),
-            )
+            .delete(full_url, api_key, function_name!(), "".to_string())
             .await?;
 
         Ok(())
@@ -159,7 +156,75 @@ impl ExchangeClient for Binance {
 
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {
         let response = &self.request_all_symbols().await?;
-
         self.parse_all_symbols(response)
+    }
+}
+
+impl Binance {
+    #[named]
+    async fn get_listen_key(&self) -> Result<String> {
+        let request_outcome = self
+            .request_listen_key()
+            .await
+            .context(concat!("request in ", function_name!()))?;
+
+        Self::parse_listen_key(&request_outcome).context(concat!("parse in ", function_name!()))
+    }
+
+    pub(super) async fn receive_listen_key(&self) -> String {
+        const MAX_ATTEMPTS_COUNT: u8 = 10;
+        for attempt in 0..MAX_ATTEMPTS_COUNT {
+            self.timeout_manager
+                .reserve_when_available(
+                    self.settings.exchange_account_id.clone(),
+                    RequestType::GetListenKey,
+                    None,
+                    self.lifetime_manager.stop_token(),
+                )
+                .await;
+
+            match self.get_listen_key().await {
+                Ok(listen_key) => return listen_key,
+                Err(err) if attempt < MAX_ATTEMPTS_COUNT => {
+                    log::warn!("Failed get_listen_key attempt {attempt}: {err:?}")
+                }
+                Err(err) => panic!("Failed get_listen_key attempt {attempt}: {err:?}"),
+            }
+        }
+
+        unreachable!()
+    }
+
+    pub(crate) async fn ping_listen_key(&self) {
+        // TODO check is_trading
+
+        let exchange_account_id = self.settings.exchange_account_id;
+        log::trace!("Updating listenKey {exchange_account_id}");
+        if self.listen_key.read().is_none() {
+            log::warn!("Skipping listenKey update when websocket is not connected on {exchange_account_id}");
+            return;
+        }
+
+        self.timeout_manager
+            .reserve_when_available(
+                exchange_account_id,
+                RequestType::UpdateListenKey,
+                None,
+                self.lifetime_manager.stop_token(),
+            )
+            .await;
+
+        let listen_key = match self.listen_key.read().clone() {
+            None => {
+                log::warn!("Skipping listenKey update when websocket is not connected on {exchange_account_id}");
+                return;
+            }
+            Some(v) => v,
+        };
+
+        match self.request_update_listen_key(listen_key).await {
+            Ok(_) => log::trace!("Updated listenKey"),
+            Err(err) => log::warn!("Failed to update listenKey {err}"),
+        }
     }
 }

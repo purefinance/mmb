@@ -587,10 +587,7 @@ impl DispositionExecutor {
         let new_price = new_disposition.order.price;
         let found = self.find_new_order_crossing_existing_orders(new_price, side);
         if let Some(crossed_order) = found {
-            let msg = format!("Finished `try_create_order` because there is order {} with price {} that crossing current price {}", crossed_order.client_order_id(),
-                                 crossed_order.price(),
-                                 new_price
-            );
+            let msg = format!("Finished `try_create_order` because there is order {} with price {} that crossing current price {new_price}", crossed_order.client_order_id(), crossed_order.price());
             return log_trace(msg, explanation);
         }
 
@@ -617,7 +614,7 @@ impl DispositionExecutor {
             self.exchange_account_id,
             GROUP_REQUESTS_COUNT,
             DISPOSITION_EXECUTOR_REQUESTS_GROUP.to_string(),
-        )?;
+        );
 
         let requests_group_id = match requests_group_id {
             None => {
@@ -656,13 +653,7 @@ impl DispositionExecutor {
                 None => {
                     self.engine_ctx
                         .timeout_manager
-                        .remove_group(self.exchange_account_id, requests_group_id)
-                        .with_expect(|| {
-                            format!(
-                                "failed to remove_group for {} {requests_group_id}",
-                                self.exchange_account_id,
-                            )
-                        });
+                        .remove_group(self.exchange_account_id, requests_group_id);
 
                     return log_trace(format!("Finished try_create_order because can't reserve balance {new_order_amount}"),
                         &mut explanation.expect(explanation_err_msg),
@@ -677,7 +668,7 @@ impl DispositionExecutor {
             self.exchange_account_id,
             RequestType::CancelOrder,
             Some(requests_group_id),
-        )? {
+        ) {
             self.engine_ctx
                 .balance_manager
                 .lock()
@@ -689,7 +680,7 @@ impl DispositionExecutor {
             let _ = self
                 .engine_ctx
                 .timeout_manager
-                .remove_group(self.exchange_account_id, requests_group_id)?;
+                .remove_group(self.exchange_account_id, requests_group_id);
 
             return log_trace(
                 "Finished `try_create_order` because can't reserve requests",
@@ -760,6 +751,7 @@ impl DispositionExecutor {
         }
 
         log::trace!("Begin try_create_order {new_client_order_id}");
+
         Ok(())
     }
 
@@ -826,7 +818,7 @@ impl DispositionExecutor {
         let client_order_id = order.client_order_id();
         log::trace!("Started DispositionExecutor::finish_order {client_order_id}");
         self.unreserve_order_amount(order, price_slot);
-        self.remove_request_group(order, price_slot)?;
+        self.remove_request_group(order, price_slot);
 
         price_slot.remove_order(order);
 
@@ -853,15 +845,14 @@ impl DispositionExecutor {
             });
     }
 
-    fn remove_request_group(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
+    fn remove_request_group(&self, order: &OrderRef, price_slot: &PriceSlot) {
         let request_group_id =
             price_slot.order.borrow().orders[&order.client_order_id()].request_group_id;
 
         let _ = self
             .engine_ctx
             .timeout_manager
-            .remove_group(self.exchange_account_id, request_group_id)?;
-        Ok(())
+            .remove_group(self.exchange_account_id, request_group_id);
     }
 
     fn handle_order_fill(

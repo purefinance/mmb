@@ -58,9 +58,9 @@ impl RequestsTimeoutManager {
             pre_reserved_groups: Default::default(),
             last_time: None,
             delay_to_next_time_period: Duration::milliseconds(1),
-            group_was_reserved: Box::new(|_| Ok(())),
-            group_was_removed: Box::new(|_| Ok(())),
-            time_has_come_for_request: Box::new(|_| Ok(())),
+            group_was_reserved: Box::new(|_| {}),
+            group_was_removed: Box::new(|_| {}),
+            time_has_come_for_request: Box::new(|_| {}),
             less_or_equals_requests_count_triggers: Default::default(),
             more_or_equals_available_requests_count_trigger_scheduler,
         };
@@ -76,18 +76,18 @@ impl RequestsTimeoutManager {
         current_time: DateTime,
         requests_count: usize,
         // call_source: SourceInfo, // TODO not needed until DataRecorder is ready
-    ) -> Result<Option<RequestGroupId>> {
+    ) -> Option<RequestGroupId> {
         let mut inner = self.inner.lock();
 
         let current_time = inner.get_non_decreasing_time(current_time);
-        inner.remove_outdated_requests(current_time)?;
+        inner.remove_outdated_requests(current_time);
 
         let _all_available_requests_count = inner.get_all_available_requests_count();
         let available_requests_count = inner.get_available_requests_count_at_present(current_time);
 
         if available_requests_count < requests_count {
             // TODO save to DataRecorder
-            return Ok(None);
+            return None;
         }
 
         let group_id = RequestGroupId::generate();
@@ -104,12 +104,12 @@ impl RequestsTimeoutManager {
 
         inner.last_time = Some(current_time);
 
-        (inner.group_was_reserved)(group)?;
+        (inner.group_was_reserved)(group);
 
-        Ok(Some(group_id))
+        Some(group_id)
     }
 
-    pub fn remove_group(&self, group_id: RequestGroupId, _current_time: DateTime) -> Result<bool> {
+    pub fn remove_group(&self, group_id: RequestGroupId, _current_time: DateTime) -> bool {
         let mut inner = self.inner.lock();
 
         let _all_available_requests_count = inner.get_all_available_requests_count();
@@ -120,26 +120,23 @@ impl RequestsTimeoutManager {
 
         match stored_group {
             None => {
-                log::error!("Cannot find PreReservedGroup {} for removing", { group_id });
+                log::error!("Cannot find PreReservedGroup {group_id} for removing");
                 // TODO save to DataRecorder
 
-                Ok(false)
+                false
             }
             Some(group_index) => {
                 let group = inner.pre_reserved_groups[group_index].clone();
                 let pre_reserved_requests_count = group.pre_reserved_requests_count;
                 inner.pre_reserved_groups.remove(group_index);
 
-                log::info!(
-                    "PreReservedGroup with group_id {} and pre_reserved_requests_count {} was removed",
-                    group_id, pre_reserved_requests_count
-                );
+                log::info!("PreReservedGroup with group_id {group_id} and pre_reserved_requests_count {pre_reserved_requests_count} was removed");
 
                 // TODO save to DataRecorder
 
-                (inner.group_was_removed)(group)?;
+                (inner.group_was_removed)(group);
 
-                Ok(true)
+                true
             }
         }
     }
@@ -149,7 +146,7 @@ impl RequestsTimeoutManager {
         request_type: RequestType,
         current_time: DateTime,
         pre_reserved_group_id: Option<RequestGroupId>,
-    ) -> Result<bool> {
+    ) -> bool {
         match pre_reserved_group_id {
             Some(pre_reserved_group_id) => {
                 self.try_reserve_group_instant(request_type, current_time, pre_reserved_group_id)
@@ -163,7 +160,7 @@ impl RequestsTimeoutManager {
         request_type: RequestType,
         current_time: DateTime,
         pre_reserved_group_id: RequestGroupId,
-    ) -> Result<bool> {
+    ) -> bool {
         let mut inner = self.inner.lock();
         let group = inner
             .pre_reserved_groups
@@ -172,11 +169,7 @@ impl RequestsTimeoutManager {
 
         match group {
             None => {
-                log::error!(
-                    "Cannot find PreReservedGroup {} for reserve requests instant {:?}",
-                    pre_reserved_group_id,
-                    request_type
-                );
+                log::error!("Cannot find PreReservedGroup {pre_reserved_group_id} for reserve requests instant {request_type:?}");
 
                 // TODO save to DataRecorder
 
@@ -185,7 +178,7 @@ impl RequestsTimeoutManager {
             Some(group) => {
                 let group = group.clone();
                 let current_time = inner.get_non_decreasing_time(current_time);
-                inner.remove_outdated_requests(current_time)?;
+                inner.remove_outdated_requests(current_time);
 
                 let all_available_requests_count = inner.get_all_available_requests_count();
                 let available_requests_count_without_group =
@@ -205,28 +198,23 @@ impl RequestsTimeoutManager {
                 if available_requests_count == 0 {
                     // TODO save to DataRecorder
 
-                    return Ok(false);
+                    return false;
                 }
 
-                let request = inner.add_request(request_type, current_time, Some(group.id))?;
+                let request = inner.add_request(request_type, current_time, Some(group.id));
 
                 log::info!(
-                    "Request {:?} reserved for group with pre_reserved_group_id {},
-                    all_available_requests_count {},
+                    "Request {request_type:?} reserved for group with pre_reserved_group_id {pre_reserved_group_id},
+                    all_available_requests_count {all_available_requests_count},
                     pre_reserved_groups.len() {},
-                    available_requests_count_without_group {},
-                    in time {}",
-                    request_type,
-                    pre_reserved_group_id,
-                    all_available_requests_count,
+                    available_requests_count_without_group {available_requests_count_without_group},
+                    in time {current_time}",
                     inner.pre_reserved_groups.len(),
-                    available_requests_count_without_group,
-                    current_time
                 );
 
-                (inner.time_has_come_for_request)(request)?;
+                (inner.time_has_come_for_request)(request);
 
-                Ok(true)
+                true
             }
         }
     }
@@ -235,7 +223,7 @@ impl RequestsTimeoutManager {
         &self,
         request_type: RequestType,
         current_time: DateTime,
-    ) -> Result<bool> {
+    ) -> bool {
         self.inner
             .lock()
             .try_reserve_request_instant(request_type, current_time)
@@ -246,7 +234,7 @@ impl RequestsTimeoutManager {
         request_type: RequestType,
         current_time: DateTime,
         cancellation_token: CancellationToken,
-    ) -> Result<(JoinHandle<FutureOutcome>, DateTime, Duration)> {
+    ) -> (JoinHandle<FutureOutcome>, DateTime, Duration) {
         // Note: calculation doesn't support request cancellation
         // Note: suppose that exchange restriction work as your have n request on period and n request from beginning of next period and so on
 
@@ -257,39 +245,35 @@ impl RequestsTimeoutManager {
         let mut inner = self.inner.lock();
 
         let current_time = inner.get_non_decreasing_time(current_time);
-        inner.remove_outdated_requests(current_time)?;
+        inner.remove_outdated_requests(current_time);
 
         let _available_requests_count = inner.get_all_available_requests_count();
 
         let mut request_start_time;
         let delay;
         let available_requests_count_for_period;
-        let request = if inner.requests.is_empty() {
+        let request = if let Some(last_request) = inner.requests.last() {
+            let last_request_start_time = last_request.allowed_start_time;
+
+            available_requests_count_for_period =
+                inner.get_available_requests_count_in_last_period(last_request_start_time);
+            request_start_time = if available_requests_count_for_period == 0 {
+                last_request_start_time + inner.period_duration + inner.delay_to_next_time_period
+            } else {
+                last_request_start_time
+            };
+
+            request_start_time = request_start_time.max(current_time);
+            delay = request_start_time - current_time;
+            inner.add_request(request_type, request_start_time, None)
+        } else {
             request_start_time = current_time;
             delay = Duration::zero();
             // available_requests_count_for_period = inner.requests_per_period;
-            inner.add_request(request_type, current_time, None)?
-        } else {
-            let last_request = inner.get_last_request()?;
-            let last_requests_start_time = last_request.allowed_start_time;
-
-            available_requests_count_for_period = inner.get_available_requests_in_last_period()?;
-            request_start_time = if available_requests_count_for_period == 0 {
-                last_requests_start_time + inner.period_duration + inner.delay_to_next_time_period
-            } else {
-                last_requests_start_time
-            };
-
-            request_start_time = std::cmp::max(request_start_time, current_time);
-            delay = request_start_time - current_time;
-            inner.add_request(request_type, request_start_time, None)?
+            inner.add_request(request_type, current_time, None)
         };
 
-        log::info!(
-            "Request {:?} reserved, available in request_start_time {}",
-            request_type,
-            request_start_time
-        );
+        log::info!("Request {request_type:?} reserved, available in request_start_time {request_start_time}");
 
         // TODO save to DataRecorder. Delete drop
         // drop(available_requests_count_for_period);
@@ -310,7 +294,7 @@ impl RequestsTimeoutManager {
             action,
         );
 
-        Ok((request_availability, request_start_time, delay))
+        (request_availability, request_start_time, delay)
     }
 
     async fn wait_for_request_availability(
@@ -326,12 +310,12 @@ impl RequestsTimeoutManager {
         match timeout(delay, cancellation_token.when_cancelled()).await {
             Err(_) => {
                 let strong_self = Self::try_get_strong(weak_self)?;
-                (strong_self.inner.lock().time_has_come_for_request)(request)?;
+                (strong_self.inner.lock().time_has_come_for_request)(request);
             }
             Ok(()) => {
                 let strong_self = Self::try_get_strong(weak_self)?;
                 let mut inner = strong_self.inner.lock();
-                (inner.time_has_come_for_request)(request.clone())?;
+                (inner.time_has_come_for_request)(request.clone());
                 if let Some(position) = inner
                     .requests
                     .iter()
@@ -352,7 +336,7 @@ impl RequestsTimeoutManager {
     ) -> Result<Arc<RequestsTimeoutManager>> {
         weak_timeout_manager.upgrade().with_context(|| {
             let error_message = "Unable to upgrade weak reference to RequestsTimeoutManager instance. Probably it's dropped";
-            log::info!("{}", error_message);
+            log::info!("{error_message}");
             anyhow!(error_message)
         })
     }
@@ -374,7 +358,7 @@ impl RequestsTimeoutManager {
     pub fn register_trigger_on_less_or_equals(
         &self,
         available_requests_count_threshold: usize,
-        handler: Box<dyn Fn() -> Result<()> + Send>,
+        handler: Box<dyn Fn() + Send>,
     ) -> Result<()> {
         let mut inner = self.inner.lock();
 
@@ -388,10 +372,7 @@ impl RequestsTimeoutManager {
         Ok(())
     }
 
-    pub fn register_trigger_on_every_change(
-        &self,
-        handler: Box<dyn Fn(usize) -> Result<()> + Send>,
-    ) {
+    pub fn register_trigger_on_every_change(&self, handler: Box<dyn Fn(usize) + Send>) {
         let mut inner = self.inner.lock();
 
         let trigger = EveryRequestsCountChangeTrigger::new(handler);
@@ -436,9 +417,9 @@ mod test {
 
             // Act
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
 
             // Assert
             assert!(first_group_id.is_some());
@@ -468,13 +449,13 @@ mod test {
             let group_type = "GroupType".to_owned();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
 
             // Act
             let third_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 1)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 1);
 
             // Assert
             assert!(first_group_id.is_some());
@@ -504,17 +485,17 @@ mod test {
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
 
             let remove_result =
-                timeout_manager.remove_group(second_group_id.expect("in test"), current_time)?;
+                timeout_manager.remove_group(second_group_id.expect("in test"), current_time);
             assert!(remove_result);
 
             // Act
             let third_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
 
             // Assert
             assert!(third_group_id.is_none());
@@ -538,12 +519,12 @@ mod test {
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
 
             // Act
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
 
             // Assert
             assert!(first_group_id.is_some());
@@ -571,12 +552,12 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
 
             // Act
-            timeout_manager.remove_group(second_group_id.expect("in test"), current_time)?;
+            timeout_manager.remove_group(second_group_id.expect("in test"), current_time);
 
             // Assert
             assert!(first_group_id.is_some());
@@ -600,7 +581,7 @@ mod test {
 
             // Act
             let removing_result =
-                timeout_manager.remove_group(RequestGroupId::generate(), current_time)?;
+                timeout_manager.remove_group(RequestGroupId::generate(), current_time);
 
             // Assert
             assert!(!removing_result);
@@ -622,16 +603,10 @@ mod test {
             let current_time = Utc::now();
 
             // Act
-            let first_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            let second_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let second_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
 
             // Assert
             assert!(first_reserved);
@@ -668,24 +643,21 @@ mod test {
                 RequestType::CreateOrder,
                 before_now,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_now,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_now,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Act
-            let reserve_result = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let reserve_result =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
 
             // Assert
             assert!(!reserve_result);
@@ -729,21 +701,12 @@ mod test {
             let current_time = Utc::now();
 
             // Act
-            let first_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            let second_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            let third_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let second_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let third_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
 
             // Assert
             assert!(first_reserved);
@@ -778,8 +741,8 @@ mod test {
                 RequestType::CreateOrder,
                 before_now - Duration::seconds(1),
                 None,
-            )?;
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, before_now, None)?;
+            );
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, before_now, None);
 
             let inner = timeout_manager.inner.lock();
 
@@ -802,21 +765,12 @@ mod test {
             drop(inner);
 
             // Act
-            let first_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            let second_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            let third_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let second_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let third_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
 
             // Assert
             assert!(first_reserved);
@@ -847,36 +801,24 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
-            let reserve_result = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
+            let reserve_result =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(!reserve_result);
 
             let remove_result =
-                timeout_manager.remove_group(second_group_id.expect("in test"), current_time)?;
+                timeout_manager.remove_group(second_group_id.expect("in test"), current_time);
             assert!(remove_result);
 
             // Act
-            let first_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            let second_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            let third_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let second_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let third_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
 
             // Assert
             assert!(first_reserved);
@@ -905,19 +847,16 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             assert!(first_group_id.is_some());
 
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert_eq!(timeout_manager.inner.lock().requests.len(), 2);
 
             // Act
-            let reserved_instant = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let reserved_instant =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
 
             // Assert
             assert!(!reserved_instant);
@@ -944,16 +883,13 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             assert!(first_group_id.is_some());
 
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
-            let reserved_instant = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let reserved_instant =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(!reserved_instant);
             assert_eq!(timeout_manager.inner.lock().requests.len(), 2);
 
@@ -962,7 +898,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
 
             // Assert
             assert!(reserved_instant);
@@ -989,34 +925,31 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             assert!(first_group_id.is_some());
 
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
-            let third_reserve_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let third_reserve_attempt =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(!third_reserve_attempt);
             let fourth_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(fourth_reserve_attempt);
             let fifth_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(fifth_reserve_attempt);
             let sixth_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(sixth_reserve_attempt);
 
             assert_eq!(timeout_manager.inner.lock().requests.len(), 5);
@@ -1026,7 +959,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
 
             // Assert
             assert!(!reserved_instant);
@@ -1052,34 +985,31 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 3);
             assert!(first_group_id.is_some());
 
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
-            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None)?;
-            let third_reserve_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let third_reserve_attempt =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(!third_reserve_attempt);
             let fourth_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(fourth_reserve_attempt);
             let fifth_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(fifth_reserve_attempt);
             let sixth_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(sixth_reserve_attempt);
 
             assert_eq!(timeout_manager.inner.lock().requests.len(), 5);
@@ -1092,7 +1022,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time + period_duration + delay_to_next_time_period,
                 first_group_id,
-            )?;
+            );
 
             // Assert
             assert!(reserved_instant);
@@ -1124,7 +1054,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 Some(RequestGroupId::generate()),
-            )?;
+            );
 
             // Assert
             assert!(reserved_instant);
@@ -1147,9 +1077,9 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
             assert!(first_group_id.is_some());
             assert!(second_group_id.is_some());
 
@@ -1157,13 +1087,13 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(first_reserve_attempt);
             let second_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(second_reserve_attempt);
 
             assert_eq!(timeout_manager.inner.lock().requests.len(), 2);
@@ -1173,7 +1103,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
 
             // Assert
             assert!(!reserved_instant);
@@ -1210,32 +1140,26 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
             assert!(first_group_id.is_some());
 
-            let first_reserve_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserve_attempt =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(first_reserve_attempt);
-            let second_reserve_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let second_reserve_attempt =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(second_reserve_attempt);
 
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CancelOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
             let first_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(first_reserve_attempt);
 
             assert_eq!(timeout_manager.inner.lock().requests.len(), 4);
@@ -1245,7 +1169,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
 
             // Assert
             assert!(reserved_instant);
@@ -1274,9 +1198,9 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 1)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 1);
             assert!(first_group_id.is_some());
             assert!(second_group_id.is_some());
 
@@ -1284,25 +1208,25 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(first_reserve_attempt);
             let second_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(second_reserve_attempt);
             let third_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
             assert!(third_reserve_attempt);
             let fourth_reserve_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 second_group_id,
-            )?;
+            );
             assert!(fourth_reserve_attempt);
 
             assert_eq!(timeout_manager.inner.lock().requests.len(), 4);
@@ -1312,7 +1236,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 second_group_id,
-            )?;
+            );
 
             // Assert
             assert!(!reserved_instant);
@@ -1358,7 +1282,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -1391,7 +1315,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time - Duration::seconds(61),
                 None,
-            )?;
+            );
 
             let inner = timeout_manager.inner.lock();
 
@@ -1411,7 +1335,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -1444,19 +1368,19 @@ mod test {
                 RequestType::CreateOrder,
                 current_time - Duration::seconds(35),
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time - Duration::seconds(10),
                 CancellationToken::default(),
-            )?;
+            );
 
             // Act
             let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -1506,17 +1430,17 @@ mod test {
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
 
             let inner = timeout_manager.inner.lock();
 
@@ -1544,7 +1468,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -1601,39 +1525,39 @@ mod test {
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Act
             let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -1722,24 +1646,24 @@ mod test {
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Act
             let (_, available_start_time, delay) = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -1800,7 +1724,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -1832,12 +1756,9 @@ mod test {
             cancellation_token.cancel();
 
             // Act
-            let (future_handler, available_start_time, delay) =
-                timeout_manager.clone().reserve_when_available(
-                    RequestType::CreateOrder,
-                    current_time,
-                    cancellation_token,
-                )?;
+            let (future_handler, available_start_time, delay) = timeout_manager
+                .clone()
+                .reserve_when_available(RequestType::CreateOrder, current_time, cancellation_token);
 
             let cancelled = future_handler.await?.into_result();
 
@@ -1869,12 +1790,12 @@ mod test {
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 before_current,
                 CancellationToken::default(),
-            )?;
+            );
 
             let cancellation_token = CancellationToken::new();
 
@@ -1886,7 +1807,7 @@ mod test {
                         RequestType::CreateOrder,
                         current_time,
                         cancellation_token.create_linked_token(),
-                    )?;
+                    );
 
                 {
                     let inner = timeout_manager.inner.lock();
@@ -1958,37 +1879,20 @@ mod test {
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
 
-            let group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
+            let group_id = timeout_manager.try_reserve_group(group_type.clone(), current_time, 4);
             assert!(group_id.is_some());
 
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
-            timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                group_id,
-            )?;
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, group_id);
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, group_id);
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, group_id);
+            timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, group_id);
 
             // Act
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::new(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -2040,15 +1944,11 @@ mod test {
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
 
-            let group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
+            let group_id = timeout_manager.try_reserve_group(group_type.clone(), current_time, 4);
             assert!(group_id.is_some());
 
-            let reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let reserve_instant_attempt =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(reserve_instant_attempt);
 
             // Act
@@ -2056,7 +1956,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::new(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -2097,21 +1997,17 @@ mod test {
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
 
-            let group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 4)?;
+            let group_id = timeout_manager.try_reserve_group(group_type.clone(), current_time, 4);
             assert!(group_id.is_some());
 
             let first_reserve_instant_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 group_id,
-            )?;
+            );
             assert!(first_reserve_instant_attempt);
-            let second_reserve_instant_attempt = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let second_reserve_instant_attempt =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(second_reserve_instant_attempt);
 
             // Act
@@ -2119,7 +2015,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::new(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -2165,33 +2061,32 @@ mod test {
             let current_time = Utc::now();
             let group_type = "GroupType".to_owned();
 
-            let group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 5)?;
+            let group_id = timeout_manager.try_reserve_group(group_type.clone(), current_time, 5);
             assert!(group_id.is_some());
 
             let first_reserve_instant_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 group_id,
-            )?;
+            );
             assert!(first_reserve_instant_attempt);
             let second_reserve_instant_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 group_id,
-            )?;
+            );
             assert!(second_reserve_instant_attempt);
             let third_reserve_instant_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 group_id,
-            )?;
+            );
             assert!(third_reserve_instant_attempt);
             let fourth_reserve_instant_attempt = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 group_id,
-            )?;
+            );
             assert!(fourth_reserve_instant_attempt);
 
             // Act
@@ -2199,7 +2094,7 @@ mod test {
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::new(),
-            )?;
+            );
 
             // Assert
             let inner = timeout_manager.inner.lock();
@@ -2257,34 +2152,31 @@ mod test {
             let current_time = Utc::now();
 
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
             let second_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
             assert!(first_group_id.is_some());
             assert!(second_group_id.is_some());
 
             // Act
-            let first_reserved_instant = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved_instant =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             let _ = timeout_manager.clone().reserve_when_available(
                 RequestType::CreateOrder,
                 current_time,
                 CancellationToken::default(),
-            )?;
+            );
             let second_reserved_instant = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
 
             let third_reserved_instant = timeout_manager.try_reserve_instant(
                 RequestType::CreateOrder,
                 current_time,
                 first_group_id,
-            )?;
+            );
 
             // Assert
             assert!(!first_reserved_instant);
@@ -2371,16 +2263,10 @@ mod test {
             let current_time = Utc::now();
 
             // Act
-            let first_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
-            let second_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
+            let second_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
 
             // Assert
             sleep(std::time::Duration::from_millis(50)).await;
@@ -2427,23 +2313,14 @@ mod test {
             let current_time = Utc::now();
 
             // Act
-            let first_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(first_reserved);
-            let second_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let second_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(second_reserved);
-            let third_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let third_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(third_reserved);
 
             // Assert
@@ -2493,29 +2370,17 @@ mod test {
             let current_time = Utc::now();
 
             // Act
-            let first_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(first_reserved);
-            let second_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let second_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(second_reserved);
-            let third_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let third_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(third_reserved);
-            let fourth_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let fourth_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(fourth_reserved);
 
             // Assert
@@ -2572,13 +2437,10 @@ mod test {
 
             // Act
             let first_group_id =
-                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2)?;
+                timeout_manager.try_reserve_group(group_type.clone(), current_time, 2);
             assert!(first_group_id.is_some());
-            let first_reserved = timeout_manager.try_reserve_instant(
-                RequestType::CreateOrder,
-                current_time,
-                None,
-            )?;
+            let first_reserved =
+                timeout_manager.try_reserve_instant(RequestType::CreateOrder, current_time, None);
             assert!(first_reserved);
 
             // Assert

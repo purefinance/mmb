@@ -253,7 +253,7 @@ impl Exchange {
                 RequestType::GetOrderInfo,
                 pre_reservation_group_id,
                 cancellation_token,
-            )?
+            )
             .await;
 
         let order_info_result = self.get_order_info(order).await;
@@ -381,7 +381,7 @@ impl Exchange {
                 request_type,
                 pre_reservation_group_id,
                 cancellation_token,
-            )?
+            )
             .await;
 
         let (client_order_id, exchange_order_id) =

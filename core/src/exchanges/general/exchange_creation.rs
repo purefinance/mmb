@@ -60,6 +60,7 @@ pub async fn create_exchange(
         user_settings.clone(),
         events_channel.clone(),
         lifetime_manager.clone(),
+        timeout_manager.clone(),
         orders.clone(),
     );
 
@@ -82,6 +83,8 @@ pub async fn create_exchange(
         .connect_ws()
         .await
         .with_expect(move || "Failed to connect to websockets on exchange {exchange_account_id}");
+
+    exchange.exchange_client.initialized(exchange.clone()).await;
 
     exchange
 }

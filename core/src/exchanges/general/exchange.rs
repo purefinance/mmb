@@ -43,7 +43,6 @@ use crate::{
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
 use function_name::named;
-use futures::FutureExt;
 use itertools::Itertools;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::SpawnFutureFlags;
@@ -300,6 +299,15 @@ impl Exchange {
             self.exchange_account_id
         );
 
+        self.exchange_client
+            .on_disconnected()
+            .unwrap_or_else(|err| {
+                log::error!(
+                    "error handling exchange client on_disconnected on {}: {err:?}",
+                    self.exchange_account_id
+                )
+            });
+
         if let Some(x) = self.exchange_blocker.upgrade() {
             x.block(
                 self.exchange_account_id,
@@ -322,8 +330,7 @@ impl Exchange {
                 }
             }
             Ok(())
-        }
-        .boxed();
+        };
         spawn_future(&action, SpawnFutureFlags::STOP_BY_TOKEN, future);
     }
 
@@ -556,7 +563,6 @@ impl Exchange {
                     None,
                     cancellation_token.clone(),
                 )
-                .expect("Failed to reserve timeout_manager for close_position")
                 .await;
 
             log::info!("Closing position request reserved {}", position.id);
@@ -600,7 +606,6 @@ impl Exchange {
                     None,
                     cancellation_token.clone(),
                 )
-                .expect("Failed to reserve timeout_manager for get_active_positions")
                 .await;
 
             match self.get_active_positions_by_features().await {
@@ -656,7 +661,7 @@ impl Exchange {
                 RequestType::GetBalance,
                 None,
                 cancellation_token.clone(),
-            )?
+            )
             .await;
 
         let balance_result = match self.features.balance_position_option {
@@ -677,7 +682,7 @@ impl Exchange {
                         RequestType::GetActivePositions,
                         None,
                         cancellation_token.clone(),
-                    )?
+                    )
                     .await;
 
                 let position_result = self.exchange_client.get_active_positions().await?;

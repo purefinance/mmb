@@ -1,5 +1,6 @@
 use mmb_core::misc::derivative_position::DerivativePosition;
-use mmb_utils::infrastructure::WithExpect;
+use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
+use std::any::Any;
 
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
@@ -11,6 +12,7 @@ use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
+use std::time::Duration;
 use url::Url;
 
 use super::binance::Binance;
@@ -18,10 +20,12 @@ use mmb_core::connectivity::WebSocketRole;
 use mmb_core::exchanges::common::{send_event, ActivePosition, SortedOrderData};
 use mmb_core::exchanges::common::{Amount, CurrencyPair, Price, SpecificCurrencyPair};
 use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
+use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
 };
 use mmb_core::exchanges::{common::CurrencyCode, common::CurrencyId, traits::Support};
+use mmb_core::infrastructure::spawn_by_timer;
 use mmb_core::order_book::event::{EventType, OrderBookEvent};
 use mmb_core::order_book::order_book_data::OrderBookData;
 use mmb_core::orders::order::*;
@@ -71,6 +75,14 @@ pub(super) struct BinancePosition {
 
 #[async_trait]
 impl Support for Binance {
+    fn as_any(&self) -> &(dyn Any + Send + Sync + 'static) {
+        self
+    }
+
+    async fn initialized(&self, exchange: Arc<Exchange>) {
+        start_updating_listen_key(&exchange);
+    }
+
     fn on_websocket_message(&self, msg: &str) -> Result<()> {
         let mut data: Value =
             serde_json::from_str(msg).context("Unable to parse websocket message")?;
@@ -128,6 +140,12 @@ impl Support for Binance {
         Ok(())
     }
 
+    fn on_disconnected(&self) -> Result<()> {
+        *self.listen_key.write() = None;
+
+        Ok(())
+    }
+
     fn set_send_websocket_message_callback(&self, _callback: SendWebsocketMessageCb) {}
 
     fn set_order_created_callback(&mut self, callback: OrderCreatedCb) {
@@ -171,8 +189,8 @@ impl Support for Binance {
             ),
         };
 
-        Url::parse(&format!("{}{}", host, path))
-            .with_context(|| format!("Unable parse websocket {:?} uri", role))
+        Url::parse(&format!("{host}{path}"))
+            .with_context(|| format!("Unable parse websocket {role:?} uri"))
     }
 
     fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair {
@@ -192,7 +210,7 @@ impl Support for Binance {
         exchange_account_id: mmb_core::exchanges::common::ExchangeAccountId,
         message: &str,
     ) {
-        log::info!("Unknown message for {}: {}", exchange_account_id, message);
+        log::info!("Unknown message for {exchange_account_id}: {message}");
     }
 
     fn get_settings(&self) -> &ExchangeSettings {
@@ -206,20 +224,12 @@ impl Binance {
 
         let mut trade_id_from_lasts =
             self.last_trade_ids.get_mut(&currency_pair).with_expect(|| {
-                format!(
-                    "There are no last_trade_id for given currency_pair {}",
-                    currency_pair
-                )
+                format!("There are no last_trade_id for given currency_pair {currency_pair}")
             });
 
         if self.is_reducing_market_data && trade_id_from_lasts.get_number() >= trade_id.get_number()
         {
-            log::info!(
-                "Current last_trade_id for currency_pair {} is {} >= trade_id {}",
-                currency_pair,
-                *trade_id_from_lasts,
-                trade_id
-            );
+            log::info!("Current last_trade_id for currency_pair {currency_pair} is {} >= trade_id {trade_id}", *trade_id_from_lasts);
 
             return Ok(());
         }
@@ -330,22 +340,17 @@ impl Binance {
                 results
             })
             .join("/");
-        let ws_path = format!("/stream?streams={}", stream_names);
+        let ws_path = format!("/stream?streams={stream_names}");
         ws_path.to_lowercase()
     }
 
     async fn build_ws_secondary_path(&self) -> Result<String> {
-        let request_outcome = self
-            .get_listen_key()
-            .await
-            .context("Unable to get listen key for Binance")?;
-        let data: Value = serde_json::from_str(&request_outcome.content)
-            .context("Unable to parse listen key response for Binance")?;
-        let listen_key = data["listenKey"]
-            .as_str()
-            .context("Unable to parse listen key field for Binance")?;
+        let listen_key = self.receive_listen_key().await;
 
-        let ws_path = format!("{}{}", "/ws/", listen_key);
+        let ws_path = format!("/ws/{listen_key}");
+
+        *self.listen_key.write() = Some(listen_key);
+
         Ok(ws_path)
     }
 
@@ -356,10 +361,8 @@ impl Binance {
         let currency_pair = self
             .get_unified_currency_pair(&binance_position.specific_currency_pair)
             .with_expect(|| {
-                format!(
-                    "Failed to get_unified_currency_pair for {:?}",
-                    binance_position.specific_currency_pair
-                )
+                let specific_currency_pair = binance_position.specific_currency_pair;
+                format!("Failed to get_unified_currency_pair for {specific_currency_pair:?}")
             });
 
         let side = match binance_position.position_side > dec!(0) {
@@ -378,6 +381,34 @@ impl Binance {
 
         ActivePosition::new(derivative_position)
     }
+}
+
+fn start_updating_listen_key(exchange: &Arc<Exchange>) {
+    let exchange_wk = Arc::downgrade(&exchange);
+    let period = Duration::from_secs(20 * 60);
+    spawn_by_timer(
+        "Update listen key",
+        period,
+        period,
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+        move || {
+            let exchange_wk = exchange_wk.clone();
+            async move {
+                let exchange = match exchange_wk.upgrade() {
+                    None => return,
+                    Some(v) => v,
+                };
+
+                exchange
+                    .exchange_client
+                    .as_any()
+                    .downcast_ref::<Binance>()
+                    .expect("received non Binance exchange client in method of updating listen keys by timer")
+                    .ping_listen_key()
+                    .await;
+            }
+        },
+    );
 }
 
 fn get_order_book_side(levels: &[Value]) -> Result<SortedOrderData> {
