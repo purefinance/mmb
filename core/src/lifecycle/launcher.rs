@@ -33,6 +33,7 @@ use mmb_database::postgres_db::migrator::apply_migrations;
 use mmb_utils::infrastructure::{init_infrastructure, SpawnFutureFlags};
 use mmb_utils::logger::print_info;
 use mmb_utils::nothing_to_do;
+use parking_lot::Mutex;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -201,22 +202,7 @@ where
             .setup_balance_manager(balance_manager.clone())
     }
 
-    spawn_by_timer(
-        "Update balances",
-        Duration::ZERO,
-        Duration::from_secs(60),
-        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-        {
-            let balance_manager = balance_manager.clone();
-            let stop_token = lifetime_manager.stop_token();
-            move || {
-                BalanceManager::update_balances_for_exchanges(
-                    balance_manager.clone(),
-                    stop_token.clone(),
-                )
-            }
-        },
-    );
+    start_updating_balances(&lifetime_manager, &balance_manager);
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
 
@@ -257,6 +243,28 @@ where
         engine_context,
         finish_graceful_shutdown_rx,
     ))
+}
+
+fn start_updating_balances(
+    lifetime_manager: &Arc<AppLifetimeManager>,
+    balance_manager: &Arc<Mutex<BalanceManager>>,
+) {
+    spawn_by_timer(
+        "Update balances",
+        Duration::from_secs(60),
+        Duration::from_secs(60),
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+        {
+            let balance_manager = balance_manager.clone();
+            let stop_token = lifetime_manager.stop_token();
+            move || {
+                BalanceManager::update_balances_for_exchanges(
+                    balance_manager.clone(),
+                    stop_token.clone(),
+                )
+            }
+        },
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
