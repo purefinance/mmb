@@ -1,4 +1,6 @@
 #![cfg(test)]
+
+use std::any::Any;
 use std::sync::Arc;
 
 use crate::{
@@ -115,10 +117,18 @@ impl ExchangeClient for TestClient {
 
 #[async_trait]
 impl Support for TestClient {
+    fn as_any(&self) -> &(dyn Any + Sync + Send + 'static) {
+        self
+    }
+
     fn on_websocket_message(&self, _msg: &str) -> Result<()> {
         unimplemented!("doesn't need in UT")
     }
     fn on_connecting(&self) -> Result<()> {
+        unimplemented!("doesn't need in UT")
+    }
+
+    fn on_disconnected(&self) -> Result<()> {
         unimplemented!("doesn't need in UT")
     }
 

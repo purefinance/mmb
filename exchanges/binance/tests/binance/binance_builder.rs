@@ -147,6 +147,7 @@ impl BinanceBuilder {
             settings.clone(),
             tx.clone(),
             lifetime_manager.clone(),
+            get_timeout_manager(exchange_account_id),
             false,
             false,
         ));
@@ -173,9 +174,8 @@ impl BinanceBuilder {
         });
         exchange.build_symbols(&settings.currency_pairs).await;
 
-        let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(
-            hashmap![ exchange_account_id => exchange.clone()  ],
-        );
+        let currency_pair_to_symbol_converter =
+            CurrencyPairToSymbolConverter::new(hashmap![ exchange_account_id => exchange.clone() ]);
 
         let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
 
@@ -191,13 +191,9 @@ impl BinanceBuilder {
 
         let currency_pair = OrderProxy::default_currency_pair();
         let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
-        let default_price = get_default_price(
-            specific_currency_pair,
-            &hosts,
-            &settings.api_key,
-            exchange_account_id,
-        )
-        .await;
+        let api_key = &settings.api_key;
+        let default_price =
+            get_default_price(specific_currency_pair, &hosts, api_key, exchange_account_id).await;
 
         let symbol = exchange
             .symbols
@@ -209,7 +205,7 @@ impl BinanceBuilder {
         let min_amount = get_min_amount(
             specific_currency_pair,
             &hosts,
-            &settings.api_key,
+            api_key,
             default_price,
             &symbol,
             exchange_account_id,

@@ -37,26 +37,25 @@ impl Exchange {
 
     async fn request_symbols_with_retries(&self) -> Vec<Arc<Symbol>> {
         const MAX_RETRIES: u8 = 5;
-        let mut retry = 0;
-        loop {
+        for retry in 0..=MAX_RETRIES {
             match self.exchange_client.build_all_symbols().await {
                 Ok(result_symbols) => return result_symbols,
                 Err(error) => {
                     let error_message = format!(
-                        "Unable to get symbol for {}: {:?}",
-                        self.exchange_account_id, error
+                        "Unable to get symbol for {}: {error:?}",
+                        self.exchange_account_id
                     );
 
                     if retry < MAX_RETRIES {
-                        log::warn!("{}", error_message);
+                        log::warn!("{error_message}");
                     } else {
-                        panic!("{}", error_message);
+                        panic!("{error_message}");
                     }
                 }
             }
-
-            retry += 1;
         }
+
+        unreachable!()
     }
 
     fn setup_supported_currencies(&self, supported_currencies: DashMap<CurrencyCode, CurrencyId>) {
@@ -134,22 +133,9 @@ fn get_matched_currency_pair(
         .collect_vec();
 
     match filtered_symbol.as_slice() {
-        [] => {
-            log::error!(
-                "Unsupported symbol {:?} on exchange {}",
-                currency_pair_setting,
-                exchange_account_id
-            );
-        }
+        [] => log::error!("Unsupported symbol {currency_pair_setting:?} on exchange {exchange_account_id}"),
         [symbol] => return Some(symbol.clone()),
-        _ => {
-            log::error!(
-                    "Found more then 1 symbol for currency pair {:?} on exchange {}. Found symbols: {:?}",
-                    currency_pair_setting,
-                    exchange_account_id,
-                    filtered_symbol
-                );
-        }
+        _ => log::error!("Found more then 1 symbol for currency pair {currency_pair_setting:?} on exchange {exchange_account_id}. Found symbols: {filtered_symbol:?}"),
     };
 
     None

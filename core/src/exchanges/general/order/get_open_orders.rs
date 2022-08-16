@@ -50,7 +50,7 @@ impl Exchange {
                         RequestType::GetOpenOrders,
                         None,
                         CancellationToken::default(),
-                    )?
+                    )
                     .await
                     .into_result()?;
 
@@ -65,7 +65,7 @@ impl Exchange {
                                 RequestType::GetOpenOrders,
                                 None,
                                 CancellationToken::default(),
-                            )?
+                            )
                             .await
                             .into_result()?;
                         self.exchange_client
