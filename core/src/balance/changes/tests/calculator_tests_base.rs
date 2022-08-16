@@ -138,7 +138,6 @@ pub mod tests {
             };
 
             let mut symbol = Symbol::new(
-                false,
                 is_derivative,
                 Self::base().as_str().into(),
                 Self::base(),

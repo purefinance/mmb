@@ -98,13 +98,17 @@ pub(crate) async fn get_default_price(
     hosts: &Hosts,
     api_key: &str,
     exchange_account_id: ExchangeAccountId,
+    is_margin_trading: bool,
 ) -> Price {
     #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
     struct OrderBook {
         pub bids: Vec<(Decimal, Decimal)>,
     }
 
-    let mut builder = UriBuilder::from_path("/api/v3/depth");
+    let mut builder = UriBuilder::from_path(match is_margin_trading {
+        true => "/fapi/v1/depth",
+        false => "/api/v3/depth",
+    });
     builder.add_kv("symbol", &currency_pair);
     builder.add_kv("limit", "20");
     let uri = builder.build_uri(hosts.rest_uri_host(), true);
@@ -127,8 +131,12 @@ pub(crate) async fn get_min_amount(
     price: Price,
     symbol: &Symbol,
     exchange_account_id: ExchangeAccountId,
+    is_margin_trading: bool,
 ) -> Amount {
-    let mut builder = UriBuilder::from_path("/api/v3/exchangeInfo");
+    let mut builder = UriBuilder::from_path(match is_margin_trading {
+        true => "/fapi/v1/exchangeInfo",
+        false => "/api/v3/exchangeInfo",
+    });
     builder.add_kv("symbol", &currency_pair);
     let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
@@ -154,7 +162,10 @@ pub(crate) async fn get_min_amount(
         .expect("Failed to get min_notional_filter");
 
     let min_notional = min_notional_filter
-        .get_as_decimal("minNotional")
+        .get_as_decimal(match is_margin_trading {
+            true => "notional",
+            false => "minNotional",
+        })
         .expect("Failed to get min_notional");
 
     symbol.amount_round(min_notional / price, Round::Ceiling)

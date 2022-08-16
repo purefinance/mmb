@@ -815,7 +815,6 @@ impl Serum {
         let base_currency_code = base_currency_id.into();
         let quote_currency_code = quote_currency_id.into();
 
-        let is_active = true;
         let is_derivative = false;
 
         let pc_lot_size = Decimal::from(market_state.pc_lot_size);
@@ -836,7 +835,6 @@ impl Serum {
         let amount_precision = Precision::tick_from_precision(coin_mint_data.decimals as i8);
 
         Ok(Symbol::new(
-            is_active,
             is_derivative,
             base_currency_id.into(),
             base_currency_code,

@@ -136,38 +136,38 @@ impl ExchangeClient for Serum {
         todo!()
     }
 
-    async fn get_balance(&self, is_spot: bool) -> Result<ExchangeBalancesAndPositions> {
-        if !is_spot {
-            // price_mint_address and coin_mint_address are the same for different currency pairs and corresponding CurrencyCode
-            let mint_addresses: HashMap<CurrencyCode, Pubkey> = self
-                .markets_data
-                .read()
-                .iter()
-                .flat_map(|(pair, market)| {
-                    let pair_codes = pair.to_codes();
-                    let market_metadata = market.metadata;
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
+        // price_mint_address and coin_mint_address are the same for different currency pairs and corresponding CurrencyCode
+        let mint_addresses: HashMap<CurrencyCode, Pubkey> = self
+            .markets_data
+            .read()
+            .iter()
+            .flat_map(|(pair, market)| {
+                let pair_codes = pair.to_codes();
+                let market_metadata = market.metadata;
 
-                    [
-                        (pair_codes.base, market_metadata.price_mint_address),
-                        (pair_codes.quote, market_metadata.coin_mint_address),
-                    ]
-                })
-                .collect();
-
-            let balances = join_all(mint_addresses.iter().map(|(currency_code, mint_address)| {
-                self.get_exchange_balance_from_account(currency_code, mint_address)
-            }))
-            .await
-            .into_iter()
-            .try_collect()?;
-
-            Ok(ExchangeBalancesAndPositions {
-                balances,
-                positions: None,
+                [
+                    (pair_codes.base, market_metadata.price_mint_address),
+                    (pair_codes.quote, market_metadata.coin_mint_address),
+                ]
             })
-        } else {
-            unimplemented!()
-        }
+            .collect();
+
+        let balances = join_all(mint_addresses.iter().map(|(currency_code, mint_address)| {
+            self.get_exchange_balance_from_account(currency_code, mint_address)
+        }))
+        .await
+        .into_iter()
+        .try_collect()?;
+
+        Ok(ExchangeBalancesAndPositions {
+            balances,
+            positions: None,
+        })
+    }
+
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
+        todo!()
     }
 
     async fn get_my_trades(

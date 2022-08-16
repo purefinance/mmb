@@ -636,7 +636,7 @@ impl Exchange {
                 self.exchange_client.get_active_positions().await
             }
             BalancePositionOption::SingleRequest => {
-                let result = self.exchange_client.get_balance(true).await?;
+                let result = self.exchange_client.get_balance_and_positions().await?;
                 Ok(result
                     .positions
                     .context("Positions is none.")?
@@ -666,11 +666,13 @@ impl Exchange {
 
         let balance_result = match self.features.balance_position_option {
             BalancePositionOption::NonDerivative => {
-                return self.exchange_client.get_balance(false).await
+                return self.exchange_client.get_balance().await
             }
-            BalancePositionOption::SingleRequest => self.exchange_client.get_balance(true).await?,
+            BalancePositionOption::SingleRequest => {
+                self.exchange_client.get_balance_and_positions().await?
+            }
             BalancePositionOption::IndividualRequests => {
-                let balances_result = self.exchange_client.get_balance(false).await?;
+                let balances_result = self.exchange_client.get_balance().await?;
 
                 if balances_result.positions.is_some() {
                     bail!("Exchange supports SingleRequest but Individual is used")

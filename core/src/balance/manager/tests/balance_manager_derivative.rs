@@ -85,7 +85,6 @@ impl BalanceManagerDerivative {
         };
 
         let mut symbol = Symbol::new(
-            false,
             true,
             base.as_str().into(),
             base,

@@ -127,6 +127,7 @@ async fn orders_cancelled() {
             &Binance::make_hosts(is_margin_trading),
             &api_key,
             exchange_account_id,
+            is_margin_trading,
         )
         .await;
 
@@ -144,6 +145,7 @@ async fn orders_cancelled() {
             price,
             &symbol,
             exchange_account_id,
+            is_margin_trading,
         )
         .await;
 

@@ -57,7 +57,6 @@ impl Precision {
 /// Metadata for a currency pair
 #[derive(Debug, Clone, Eq)]
 pub struct Symbol {
-    pub is_active: bool,
     pub is_derivative: bool,
     pub base_currency_id: CurrencyId,
     pub base_currency_code: CurrencyCode,
@@ -89,7 +88,6 @@ impl Symbol {
 
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        is_active: bool,
         is_derivative: bool,
         base_currency_id: CurrencyId,
         base_currency_code: CurrencyCode,
@@ -106,7 +104,6 @@ impl Symbol {
         amount_precision: Precision,
     ) -> Self {
         Self {
-            is_active,
             is_derivative,
             base_currency_id,
             base_currency_code,
@@ -421,7 +418,6 @@ mod test {
         let balance_currency_code = CurrencyCode::new("ETH");
 
         let symbol = Symbol::new(
-            false,
             is_derivative,
             base_currency.into(),
             base_currency.into(),
@@ -546,7 +542,6 @@ mod test {
         let base_code = CurrencyCode::new(base_currency);
         let quote_code = CurrencyCode::new(quote_currency);
         let symbol = Symbol::new(
-            false,
             is_derivative,
             base_currency.into(),
             base_code,
