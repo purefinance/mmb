@@ -384,7 +384,7 @@ impl Binance {
 }
 
 fn start_updating_listen_key(exchange: &Arc<Exchange>) {
-    let exchange_wk = Arc::downgrade(&exchange);
+    let exchange_wk = Arc::downgrade(exchange);
     let period = Duration::from_secs(20 * 60);
     spawn_by_timer(
         "Update listen key",

@@ -826,7 +826,7 @@ impl Binance {
 
         self.add_authentification(&mut builder);
 
-        let (uri, query) = builder.build_uri_and_query(&self.hosts.rest_uri_host(), false);
+        let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
 
         let log_args = format!("Create order for {header:?}");
         let api_key = &self.settings.api_key;

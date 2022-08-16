@@ -401,7 +401,7 @@ mod tests {
         let query = builder.query();
         assert_eq!(query, b"key=value&key2=32&key3=42");
 
-        let path_and_query = builder.build_uri(&host, true);
+        let path_and_query = builder.build_uri(host, true);
         assert_eq!(
             path_and_query,
             Uri::from_static("https://host.com/path?key=value&key2=32&key3=42")
@@ -420,7 +420,7 @@ mod tests {
         let query = builder.query();
         assert_eq!(query, b"key=value&key2=32&key3=42");
 
-        let path_and_query = builder.build_uri(&host, false);
+        let path_and_query = builder.build_uri(host, false);
         assert_eq!(path_and_query, Uri::from_static("https://host.com/path"))
     }
 
@@ -433,7 +433,7 @@ mod tests {
         let query = builder.query();
         assert_eq!(query, b"");
 
-        let path_and_query = builder.build_uri(&host, true);
+        let path_and_query = builder.build_uri(host, true);
         assert_eq!(path_and_query, Uri::from_static("https://host.com/path"))
     }
 }

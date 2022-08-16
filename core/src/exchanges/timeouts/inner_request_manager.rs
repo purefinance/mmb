@@ -133,12 +133,10 @@ impl InnerRequestsTimeoutManager {
             .requests_count
             .saturating_sub(reserved_requests_count.reserved_in_groups_requests_count);
 
-        let requests_difference = self.requests_per_period.saturating_sub(
+        self.requests_per_period.saturating_sub(
             reserved_requests_counts_without_group
                 + reserved_requests_count.vacant_and_reserved_in_groups_requests_count,
-        );
-
-        requests_difference
+        )
     }
 
     fn get_requests_count_at_last_request_time(

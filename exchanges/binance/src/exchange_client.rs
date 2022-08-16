@@ -55,7 +55,7 @@ impl ExchangeClient for Binance {
         builder.add_kv("symbol", &specific_currency_pair);
         self.add_authentification(&mut builder);
 
-        let uri = builder.build_uri(&self.hosts.rest_uri_host(), true);
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
         let api_key = &self.settings.api_key;
         self.rest_client
@@ -161,7 +161,7 @@ impl Binance {
         for attempt in 0..MAX_ATTEMPTS_COUNT {
             self.timeout_manager
                 .reserve_when_available(
-                    self.settings.exchange_account_id.clone(),
+                    self.settings.exchange_account_id,
                     RequestType::GetListenKey,
                     None,
                     self.lifetime_manager.stop_token(),
