@@ -325,6 +325,7 @@ impl Exchange {
                         self.handle_creating_order_from_check_order_info(
                             &client_order_id,
                             &exchange_order_id,
+                            &order,
                             &order_info,
                         );
 
@@ -421,26 +422,22 @@ impl Exchange {
         &self,
         client_order_id: &ClientOrderId,
         exchange_order_id: &Option<ExchangeOrderId>,
+        order: &OrderRef,
         order_info: &OrderInfo,
     ) {
         fn log_status(
+            this: &Exchange,
             status: OrderStatus,
             client_order_id: &ClientOrderId,
             exchange_order_id: &Option<ExchangeOrderId>,
-            exchange_account_id: &ExchangeAccountId,
         ) {
-            log::warn!("CheckOrderCreation fallback found a {status:?} order {client_order_id} {exchange_order_id:?} on {exchange_account_id}");
+            log::warn!("CheckOrderCreation fallback found a {status:?} order {client_order_id} {exchange_order_id:?} on {}", this.exchange_account_id);
         }
 
         let status = order_info.order_status;
         match status {
             OrderStatus::FailedToCreate => {
-                log_status(
-                    status,
-                    client_order_id,
-                    exchange_order_id,
-                    &self.exchange_account_id,
-                );
+                log_status(self, status, client_order_id, exchange_order_id);
 
                 self.handle_create_order_failed(
                     client_order_id,
@@ -450,12 +447,7 @@ impl Exchange {
                 .unwrap_or_else(|err| log::error!("Failed 'check_order_creation' for order status 'FailedToCreate' with error: {err:?}"));
             }
             OrderStatus::Canceled => {
-                log_status(
-                    status,
-                    client_order_id,
-                    exchange_order_id,
-                    &self.exchange_account_id,
-                );
+                log_status(self, status, client_order_id, exchange_order_id);
 
                 let exchange_order_id = exchange_order_id
                     .as_ref()
@@ -468,12 +460,14 @@ impl Exchange {
                 )
             }
             OrderStatus::Created | OrderStatus::Completed => {
-                log_status(
-                    status,
-                    client_order_id,
-                    exchange_order_id,
-                    &self.exchange_account_id,
-                );
+                log_status(self, status, client_order_id, exchange_order_id);
+
+                order.fn_mut(|x| {
+                    let filled_amount = Some(order_info.filled_amount);
+                    if x.internal_props.filled_amount_after_cancellation < filled_amount {
+                        x.internal_props.filled_amount_after_cancellation = filled_amount
+                    }
+                });
 
                 self.raise_order_created(
                     client_order_id,
