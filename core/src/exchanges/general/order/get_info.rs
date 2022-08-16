@@ -6,7 +6,8 @@ use anyhow::*;
 
 impl Exchange {
     pub async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
-        if order.exchange_order_id().is_none()
+        let (client_order_id, exchange_order_id) = order.order_ids();
+        if exchange_order_id.is_none()
             && !self
                 .features
                 .order_features
@@ -22,9 +23,7 @@ impl Exchange {
         }
 
         log::info!(
-            "get_order_info response: {}, {:?} on {}",
-            order.client_order_id(),
-            order.exchange_order_id(),
+            "get_order_info response: {client_order_id}, {exchange_order_id:?} on {}",
             self.exchange_account_id
         );
 

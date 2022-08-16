@@ -9,7 +9,6 @@ use std::vec::Vec;
 use chrono::Utc;
 use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;
-use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::DateTime;
 use mmb_utils::{impl_str_id, impl_u64_id, time::get_atomic_current_secs};
@@ -134,16 +133,6 @@ impl OrderStatus {
 
 // Id for reserved amount
 impl_u64_id!(ReservationId);
-
-pub trait ReservationIdVecToStringExt {
-    fn to_string(&self) -> String;
-}
-
-impl ReservationIdVecToStringExt for Vec<ReservationId> {
-    fn to_string(&self) -> String {
-        self.iter().join(", ")
-    }
-}
 
 pub const CURRENT_ORDER_VERSION: u32 = 1;
 

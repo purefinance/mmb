@@ -201,10 +201,7 @@ impl DispositionExecutor {
                     OrderEventType::CreateOrderSucceeded => nothing_to_do(),
                     OrderEventType::CreateOrderFailed => {
                         let client_order_id = order.client_order_id();
-                        log::trace!(
-                            "Started handling event CreateOrderFailed {} in DispositionExecutor",
-                            client_order_id
-                        );
+                        log::trace!("Started handling event CreateOrderFailed {client_order_id} in DispositionExecutor");
                         let price_slot = self.get_price_slot(order);
                         let price_slot = match price_slot {
                             None => return Ok(()),
@@ -212,10 +209,7 @@ impl DispositionExecutor {
                         };
 
                         self.finish_order(order, price_slot)?;
-                        log::trace!(
-                            "Finished handling event CreateOrderFailed {} in DispositionExecutor",
-                            client_order_id
-                        );
+                        log::trace!("Finished handling event CreateOrderFailed {client_order_id} in DispositionExecutor");
                     }
                     OrderEventType::OrderFilled { ref cloned_order } => {
                         log::trace!(
@@ -257,10 +251,7 @@ impl DispositionExecutor {
                     }
                     OrderEventType::CancelOrderSucceeded => {
                         let client_order_id = order.client_order_id();
-                        log::trace!(
-                            "Started handling event CancelOrderSucceeded {} in DispositionExecutor",
-                            client_order_id
-                        );
+                        log::trace!("Started handling event CancelOrderSucceeded {client_order_id} in DispositionExecutor");
 
                         let price_slot = self.get_price_slot(order);
                         let price_slot = match price_slot {
@@ -269,10 +260,7 @@ impl DispositionExecutor {
                         };
 
                         self.finish_order(order, price_slot)?;
-                        log::trace!(
-                            "Finished handling event CancelOrderSucceeded {} in DispositionExecutor",
-                            client_order_id
-                        );
+                        log::trace!("Finished handling event CancelOrderSucceeded {client_order_id} in DispositionExecutor");
                     }
                     OrderEventType::CancelOrderFailed => {
                         //We should use WaitCancelOrder everywhere, so we don't need to
@@ -403,8 +391,7 @@ impl DispositionExecutor {
         let composite_order_ref = composite_order.borrow();
         if composite_order_ref.side != new_estimating_disposition.side() {
             panic!(
-                "Unmatched orders side. New disposition {:?}. Current composite order {:?}",
-                new_estimating_disposition, composite_order_ref
+                "Unmatched orders side. New disposition {new_estimating_disposition:?}. Current composite order {composite_order_ref:?}"
             );
         }
 
@@ -433,10 +420,7 @@ impl DispositionExecutor {
                     desired_amount * (dec!(1) + ALLOWED_AMOUNT_DEVIATION_RATE);
 
                 if remaining_amount > desired_amount_with_allowed_deviation {
-                    explanation.add_reason(format!(
-                        "Existing amount ({}) > desired amount + allowed deviation ({})",
-                        remaining_amount, desired_amount_with_allowed_deviation
-                    ));
+                    explanation.add_reason(format!("Existing amount ({remaining_amount}) > desired amount + allowed deviation ({desired_amount_with_allowed_deviation})"));
 
                     drop(composite_order_ref);
                     let mut composite_order_mut = price_slot.order.borrow_mut();
@@ -454,7 +438,7 @@ impl DispositionExecutor {
 
                     return Ok(());
                 } else {
-                    explanation.add_reason(format!("Desired amount  ({}) <= existing amount ({}) <= desired amount + allowed deviation ({})", desired_amount, remaining_amount, desired_amount_with_allowed_deviation));
+                    explanation.add_reason(format!("Desired amount  ({desired_amount}) <= existing amount ({remaining_amount}) <= desired amount + allowed deviation ({desired_amount_with_allowed_deviation})"));
                 }
             }
 
@@ -513,7 +497,7 @@ impl DispositionExecutor {
         let orders_records = composite_order.orders.values_mut();
 
         self.start_cancelling_orders(
-            &format!("Cancelling all orders because {}", cause),
+            &format!("Cancelling all orders because {cause}"),
             orders_records,
             explanation,
         )
@@ -527,11 +511,11 @@ impl DispositionExecutor {
     ) {
         explanation.add_reason(explanation_msg);
 
-        log::trace!("start_cancelling_orders: begin ({})", explanation_msg);
+        log::trace!("start_cancelling_orders: begin ({explanation_msg})");
 
         order_records.for_each(|or| self.cancel_order(or, explanation));
 
-        log::trace!("start_cancelling_orders: Finish ({})", explanation_msg);
+        log::trace!("start_cancelling_orders: Finish ({explanation_msg})");
     }
 
     fn cancel_order(&self, order_record: &mut OrderRecord, explanation: &mut Explanation) {
@@ -545,25 +529,24 @@ impl DispositionExecutor {
         order_record.is_cancellation_requested = true;
 
         let order = order_record.order.clone();
+        let client_order_id = order.client_order_id();
         explanation.add_reason(format!(
-            "Cancelling order {} {}",
-            order.client_order_id(),
+            "Cancelling order {client_order_id} {}",
             order.exchange_account_id()
         ));
 
-        log::trace!("Begin cancel_order {}", order.client_order_id());
+        log::trace!("Begin cancel_order {client_order_id}");
 
-        let client_order_id = order.client_order_id();
         let request_group_id = order_record.request_group_id;
         let exchange = self.exchange();
         let cancellation_token = self.cancellation_token.clone();
 
         let action = async move {
-            log::trace!("Begin wait_cancel_order {}", client_order_id);
+            log::trace!("Begin wait_cancel_order {client_order_id}");
             exchange
                 .wait_cancel_order(order, Some(request_group_id), false, cancellation_token)
                 .await?;
-            log::trace!("Finished wait_cancel_order {}", client_order_id);
+            log::trace!("Finished wait_cancel_order {client_order_id}");
 
             Ok(())
         };
@@ -581,7 +564,7 @@ impl DispositionExecutor {
         explanation: &mut Explanation,
     ) {
         self.start_cancelling_orders(
-            &format!("Cancelling orders because {}", cause),
+            &format!("Cancelling orders because {cause}"),
             order_records,
             explanation,
         )
@@ -623,7 +606,7 @@ impl DispositionExecutor {
             is_enough_amount_and_cost(new_disposition, new_order_amount, true, &self.symbol)
         {
             return log_trace(
-                format!("Finished `try_create_order` by reason: {}", reason),
+                format!("Finished `try_create_order` by reason: {reason}"),
                 explanation,
             );
         }
@@ -676,16 +659,12 @@ impl DispositionExecutor {
                         .remove_group(self.exchange_account_id, requests_group_id)
                         .with_expect(|| {
                             format!(
-                                "failed to remove_group for {} {}",
-                                self.exchange_account_id, requests_group_id,
+                                "failed to remove_group for {} {requests_group_id}",
+                                self.exchange_account_id,
                             )
                         });
 
-                    return log_trace(
-                        format!(
-                            "Finished try_create_order because can't reserve balance {}",
-                            new_order_amount
-                        ),
+                    return log_trace(format!("Finished try_create_order because can't reserve balance {new_order_amount}"),
                         &mut explanation.expect(explanation_err_msg),
                     );
                 }
@@ -705,12 +684,7 @@ impl DispositionExecutor {
                 .unreserve_rest(
                     reservation_id,
                 )
-                .with_expect(|| {
-                    format!(
-                        "DispositionExecutor::try_create_order() failed to unreserve_rest for: {:?}",
-                        reservation_id
-                    )
-                });
+                .with_expect(|| format!("DispositionExecutor::try_create_order() failed to unreserve_rest for: {reservation_id:?}"));
 
             let _ = self
                 .engine_ctx
@@ -754,7 +728,7 @@ impl DispositionExecutor {
             requests_group_id,
         );
 
-        explanation.add_reason(format!("Creating order {}", new_client_order_id));
+        explanation.add_reason(format!("Creating order {new_client_order_id}"));
 
         self.cancellation_token.error_if_cancellation_requested()?;
 
@@ -763,7 +737,7 @@ impl DispositionExecutor {
             let cancellation_token = self.cancellation_token.clone();
 
             let action = async move {
-                log::trace!("Begin create_order {}", new_client_order_id);
+                log::trace!("Begin create_order {new_client_order_id}");
 
                 let order_creating = OrderCreating {
                     header: new_order_header,
@@ -774,7 +748,7 @@ impl DispositionExecutor {
                     .create_order(order_creating, None, cancellation_token)
                     .await?;
 
-                log::trace!("Finished create_order {}", new_client_order_id);
+                log::trace!("Finished create_order {new_client_order_id}");
 
                 Ok(())
             };
@@ -785,7 +759,7 @@ impl DispositionExecutor {
             );
         }
 
-        log::trace!("Begin try_create_order {}", new_client_order_id);
+        log::trace!("Begin try_create_order {new_client_order_id}");
         Ok(())
     }
 
@@ -828,23 +802,21 @@ impl DispositionExecutor {
         let balance_quota = max_amount - total_remaining_amount;
         let new_amount = desired_amount.min(balance_quota).max(dec!(0)) - high_priority_amount;
 
-        explanation.add_reason(format!(
-                "max_amount {} total_remaining_amount {} high_priority_amount {} balance_quota {} new_order_amount {}",
-                max_amount, total_remaining_amount, high_priority_amount, balance_quota, new_amount));
+        explanation.add_reason(format!("max_amount {max_amount} total_remaining_amount {total_remaining_amount} high_priority_amount {high_priority_amount} balance_quota {balance_quota} new_order_amount {new_amount}"));
 
         new_amount
     }
 
     fn get_price_slot(&self, order: &OrderRef) -> Option<&PriceSlot> {
-        let side = order.side();
-        let price_slot = self.orders_state.by_side[side].find_price_slot(order);
+        let header = order.fn_ref(|x| x.header.clone());
+        let price_slot = self.orders_state.by_side[header.side].find_price_slot(order);
         if price_slot.is_some() {
             return price_slot;
         }
 
         log::error!(
             "Can't find order with client_order_id {} {} in orders state of DispositionExecutor",
-            order.client_order_id(),
+            header.client_order_id,
             self.exchange_account_id
         );
         None
@@ -852,19 +824,13 @@ impl DispositionExecutor {
 
     fn finish_order(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
         let client_order_id = order.client_order_id();
-        log::trace!(
-            "Started DispositionExecutor::finish_order {}",
-            client_order_id
-        );
+        log::trace!("Started DispositionExecutor::finish_order {client_order_id}");
         self.unreserve_order_amount(order, price_slot);
         self.remove_request_group(order, price_slot)?;
 
         price_slot.remove_order(order);
 
-        log::trace!(
-            "Finished DispositionExecutor::finish_order {}",
-            client_order_id
-        );
+        log::trace!("Finished DispositionExecutor::finish_order {client_order_id}");
         Ok(())
     }
 
@@ -877,15 +843,14 @@ impl DispositionExecutor {
             )
         });
 
+        let reservation_id = reservation_id.expect("InternalEventsLoop: ReservationId is None");
         self.engine_ctx
             .balance_manager
             .lock()
-            .unreserve_by_client_order_id(
-                reservation_id.expect("InternalEventsLoop: ReservationId is None"),
-                client_order_id,
-                amount,
-            )
-            .with_expect(|| format!("InternalEventsLoop: failed to unreserve order {:?}", order));
+            .unreserve_by_client_order_id(reservation_id, client_order_id.clone(), amount)
+            .with_expect(|| {
+                format!("InternalEventsLoop: failed to unreserve order {client_order_id:?}")
+            });
     }
 
     fn remove_request_group(&self, order: &OrderRef, price_slot: &PriceSlot) -> Result<()> {
@@ -1012,8 +977,7 @@ fn now() -> DateTime {
 #[inline(always)]
 fn log_trace(msg: impl AsRef<str>, explanation: &mut Explanation) -> Result<()> {
     let msg = msg.as_ref();
-
-    log::trace!("{}", msg);
+    log::trace!("{msg}");
     explanation.add_reason(msg);
 
     Ok(())

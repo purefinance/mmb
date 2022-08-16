@@ -32,8 +32,8 @@ use crate::misc::reserve_parameters::ReserveParameters;
 use crate::misc::service_value_tree::ServiceValueTree;
 #[double]
 use crate::misc::time::time_manager;
+use crate::orders::order::ReservationId;
 use crate::orders::order::{ClientOrderFillId, ClientOrderId, OrderSide};
-use crate::orders::order::{ReservationId, ReservationIdVecToStringExt};
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 
 use super::balance_reservation_preset::BalanceReservationPreset;
@@ -171,23 +171,14 @@ impl BalanceReservationManager {
                     // Due to async nature of our trading engine we may receive in Clone reservation_ids which are already removed,
                     // so we need to ignore them instead of throwing an exception
                     log::error!(
-                        "Can't find reservation {} ({}) for BalanceReservationManager::unreserve {} in list: {}",
-                        reservation_id,
+                        "Can't find reservation {reservation_id} ({}) for BalanceReservationManager::unreserve {amount} in list: {}",
                         self.is_call_from_clone,
-                        amount,
-                        reservation_ids
-                        .to_string()
+                        reservation_ids.iter().join(", ")
                     );
                     return Ok(());
                 }
 
-                bail!(
-                    "Can't find reservation_id={} for BalanceReservationManager::unreserve({}) attempt in list: {}",
-                    reservation_id,
-                    amount,
-                    reservation_ids
-                    .to_string()
-                )
+                bail!("Can't find reservation_id={reservation_id} for BalanceReservationManager::unreserve({amount}) attempt in list: {}", reservation_ids.iter().join(", "));
             }
         };
 
@@ -466,10 +457,7 @@ impl BalanceReservationManager {
         }
 
         explanation.with_reason(|| {
-            format!(
-                "balance_in_currency_code with limit: {}",
-                balance_in_currency_code
-            )
+            format!("balance_in_currency_code with limit: {balance_in_currency_code}")
         });
 
         // isLeveraged is used when we need to know how much funds we can use for orders
@@ -477,12 +465,7 @@ impl BalanceReservationManager {
             balance_in_currency_code *= leverage;
             balance_in_currency_code /= symbol.amount_multiplier;
 
-            explanation.with_reason(|| {
-                format!(
-                    "balance_in_currency_code with leverage and multiplier: {}",
-                    balance_in_currency_code
-                )
-            });
+            explanation.with_reason(|| format!("balance_in_currency_code with leverage and multiplier: {balance_in_currency_code}"));
         }
         Some(balance_in_currency_code)
     }
@@ -546,10 +529,7 @@ impl BalanceReservationManager {
 
         let position_amount_in_amount_currency = position.position;
         explanation.with_reason(|| {
-            format!(
-                "position_amount_in_amount_currency: {}",
-                position_amount_in_amount_currency
-            )
+            format!("position_amount_in_amount_currency: {position_amount_in_amount_currency}")
         });
 
         let reserved_amount_in_amount_currency = self
@@ -558,36 +538,26 @@ impl BalanceReservationManager {
             .unwrap_or(dec!(0));
 
         explanation.with_reason(|| {
-            format!(
-                "reserved_amount_in_amount_currency: {}",
-                reserved_amount_in_amount_currency
-            )
+            format!("reserved_amount_in_amount_currency: {reserved_amount_in_amount_currency}")
         });
 
         let reservation_with_fills_in_amount_currency =
             reserved_amount_in_amount_currency + position_amount_in_amount_currency;
         explanation.with_reason(|| {
-            format!(
-                "reservation_with_fills_in_amount_currency: {}",
-                reservation_with_fills_in_amount_currency
-            )
+            format!("reservation_with_fills_in_amount_currency: {reservation_with_fills_in_amount_currency}")
         });
 
         let total_amount_limit_in_amount_currency = position.limit.unwrap_or(dec!(0));
         explanation.with_reason(|| {
             format!(
-                "total_amount_limit_in_amount_currency: {}",
-                total_amount_limit_in_amount_currency
+                "total_amount_limit_in_amount_currency: {total_amount_limit_in_amount_currency}"
             )
         });
 
         let limit_left_in_amount_currency =
             total_amount_limit_in_amount_currency - reservation_with_fills_in_amount_currency;
         explanation.with_reason(|| {
-            format!(
-                "limit_left_in_amount_currency: {}",
-                limit_left_in_amount_currency
-            )
+            format!("limit_left_in_amount_currency: {limit_left_in_amount_currency}")
         });
 
         //AmountLimit is applied to full amount
@@ -595,8 +565,7 @@ impl BalanceReservationManager {
         balance_in_currency_code /= symbol.amount_multiplier;
         explanation.with_reason(|| {
             format!(
-                "balance_in_currency_code with leverage and multiplier: {}",
-                balance_in_currency_code
+                "balance_in_currency_code with leverage and multiplier: {balance_in_currency_code}"
             )
         });
 
@@ -606,19 +575,13 @@ impl BalanceReservationManager {
             price,
         );
         explanation.with_reason(|| {
-            format!(
-                "balance_in_amount_currency with leverage and multiplier: {}",
-                balance_in_amount_currency
-            )
+            format!("balance_in_amount_currency with leverage and multiplier: {balance_in_amount_currency}")
         });
 
         let limited_balance_in_amount_currency =
             balance_in_amount_currency.min(limit_left_in_amount_currency);
         explanation.with_reason(|| {
-            format!(
-                "limited_balance_in_amount_currency: {}",
-                limited_balance_in_amount_currency
-            )
+            format!("limited_balance_in_amount_currency: {limited_balance_in_amount_currency}")
         });
 
         let mut limited_balance_in_currency_code = symbol.convert_amount_from_amount_currency_code(
@@ -627,33 +590,18 @@ impl BalanceReservationManager {
             price,
         );
         explanation.with_reason(|| {
-            format!(
-                "limited_balance_in_currency_code: {}",
-                limited_balance_in_currency_code
-            )
+            format!("limited_balance_in_currency_code: {limited_balance_in_currency_code}")
         });
 
         //converting back to pure balance
         limited_balance_in_currency_code /= leverage;
         limited_balance_in_currency_code *= symbol.amount_multiplier;
         explanation.with_reason(|| {
-            format!(
-                "limited_balance_in_currency_code without leverage and multiplier: {}",
-                limited_balance_in_currency_code
-            )
+            format!("limited_balance_in_currency_code without leverage and multiplier: {limited_balance_in_currency_code}")
         });
 
         if limited_balance_in_currency_code < dec!(0) {
-            log::warn!(
-                "Balance {} < 0 ({} - ({} + {}) {} for {:?} {:?}",
-                limited_balance_in_currency_code,
-                total_amount_limit_in_amount_currency,
-                reserved_amount_in_amount_currency,
-                position_amount_in_amount_currency,
-                balance_in_amount_currency,
-                request,
-                symbol
-            );
+            log::warn!("Balance {limited_balance_in_currency_code} < 0 ({total_amount_limit_in_amount_currency} - ({reserved_amount_in_amount_currency} + {position_amount_in_amount_currency}) {balance_in_amount_currency} for {request:?} {symbol:?}");
         };
 
         dec!(0).max(limited_balance_in_currency_code)
@@ -752,10 +700,7 @@ impl BalanceReservationManager {
                 if reservation.not_approved_amount < dec!(0)
                     && reservation.unreserved_amount > amount_to_unreserve
                 {
-                    bail!(
-                        "Possibly BalanceReservationManager::unreserve_not_approved_part {} should be called with clientOrderId parameter",
-                        reservation_id
-                    )
+                    bail!("Possibly BalanceReservationManager::unreserve_not_approved_part {reservation_id} should be called with clientOrderId parameter");
                 }
                 return Ok(());
             }
@@ -764,12 +709,10 @@ impl BalanceReservationManager {
         let approved_part = match reservation.approved_parts.get_mut(client_order_id) {
             Some(approved_part) => approved_part,
             None => {
-                log::warn!("unreserve({}, {}) called with clientOrderId {} for reservation without the approved part {:?}",
-                reservation_id, amount_to_unreserve, client_order_id, reservation);
+                log::warn!("unreserve({reservation_id}, {amount_to_unreserve}) called with clientOrderId {client_order_id} for reservation without the approved part {reservation:?}");
                 reservation.not_approved_amount -= amount_to_unreserve;
                 if reservation.not_approved_amount < dec!(0) {
-                    log::error!("not_approved_amount for {} was unreserved for the missing order {} and now < 0 {:?}",
-                    reservation_id, client_order_id, reservation);
+                    log::error!("not_approved_amount for {reservation_id} was unreserved for the missing order {client_order_id} and now < 0 {reservation:?}");
                 }
                 return Ok(());
             }
@@ -778,13 +721,7 @@ impl BalanceReservationManager {
         let new_unreserved_amount_for_approved_part =
             approved_part.unreserved_amount - amount_to_unreserve;
         if new_unreserved_amount_for_approved_part < dec!(0) {
-            bail!(
-                "Attempt to unreserve more than was approved for order {} ({}): {} > {}",
-                client_order_id,
-                reservation_id,
-                amount_to_unreserve,
-                approved_part.unreserved_amount
-            )
+            bail!("Attempt to unreserve more than was approved for order {client_order_id} ({reservation_id}): {amount_to_unreserve} > {}", approved_part.unreserved_amount);
         }
         approved_part.unreserved_amount = new_unreserved_amount_for_approved_part;
         Ok(())
@@ -801,12 +738,8 @@ impl BalanceReservationManager {
         if update_balance {
             let cost = reservation
                 .get_proportional_cost_amount(amount_diff_in_amount_currency)
-                .with_context(|| {
-                    format!(
-                        "Failed to get proportional cost amount form {:?} with {}",
-                        reservation, amount_diff_in_amount_currency
-                    )
-                })?;
+                .with_context(|| format!("Failed to get proportional cost amount form {reservation:?} with {amount_diff_in_amount_currency}"))?;
+
             virtual_balance_holder.add_balance_by_symbol(
                 request,
                 reservation.symbol.clone(),
@@ -861,12 +794,7 @@ impl BalanceReservationManager {
             amount_diff_in_amount_currency,
             update_balance,
         )
-        .with_expect(|| {
-            format!(
-                "failed to add reserved amount {:?} {} {}",
-                balance_request, reservation_id, amount_diff_in_amount_currency
-            )
-        });
+        .with_expect(|| format!("failed to add reserved amount {balance_request:?} {reservation_id} {amount_diff_in_amount_currency}"));
     }
 
     pub fn get_state(&self) -> Balances {
@@ -894,7 +822,7 @@ impl BalanceReservationManager {
         new_position: Decimal,
     ) -> Result<()> {
         if !symbol.is_derivative {
-            bail!("restore_fill_amount_position is available only for derivative exchanges")
+            bail!("restore_fill_amount_position is available only for derivative exchanges");
         }
         let previous_value = self
             .position_by_fill_amount_in_amount_currency
@@ -1040,10 +968,7 @@ impl BalanceReservationManager {
 
         if position.abs() > limit {
             log::error!(
-                "Position > Limit: outstanding situation {} > {} ({:?})",
-                position,
-                limit,
-                request
+                "Position > Limit: outstanding situation {position} > {limit} ({request:?})"
             );
         }
     }
@@ -1057,11 +982,11 @@ impl BalanceReservationManager {
             Some(reservation_id) => reservation_id,
             None => {
                 log::error!(
-                    "Can't find reservation {} in {}",
-                    reservation_id,
+                    "Can't find reservation {reservation_id} in {}",
                     self.balance_reservation_storage
                         .get_reservation_ids()
-                        .to_string()
+                        .iter()
+                        .join(", ")
                 );
                 return;
             }
@@ -1070,23 +995,19 @@ impl BalanceReservationManager {
         let approved_part = match reservation.approved_parts.get_mut(client_order_id) {
             Some(approved_part) => approved_part,
             None => {
-                log::error!("There is no approved part for order {}", client_order_id);
+                log::error!("There is no approved part for order {client_order_id}");
                 return;
             }
         };
 
         if approved_part.is_canceled {
-            panic!(
-                "Approved part was already canceled for {} {}",
-                client_order_id, reservation_id
-            )
+            panic!("Approved part was already canceled for {client_order_id} {reservation_id}");
         }
 
         reservation.not_approved_amount += approved_part.unreserved_amount;
         approved_part.is_canceled = true;
         log::info!(
-            "Canceled approved part for order {} with {}",
-            client_order_id,
+            "Canceled approved part for order {client_order_id} with {}",
             approved_part.unreserved_amount
         );
     }
@@ -1147,21 +1068,18 @@ impl BalanceReservationManager {
             Some(reservation) => reservation,
             None => {
                 log::error!(
-                    "Can't find reservation {} in {}",
-                    reservation_id,
+                    "Can't find reservation {reservation_id} in {}",
                     self.balance_reservation_storage
                         .get_reservation_ids()
-                        .to_string()
+                        .iter()
+                        .join(", ")
                 );
                 return Ok(());
             }
         };
 
         if reservation.approved_parts.contains_key(client_order_id) {
-            log::error!(
-                "Order {} cannot be approved multiple times",
-                client_order_id
-            );
+            log::error!("Order {client_order_id} cannot be approved multiple times");
             return Ok(());
         }
 
@@ -1170,26 +1088,15 @@ impl BalanceReservationManager {
         if reservation.not_approved_amount < dec!(0)
             && !reservation.is_amount_within_symbol_margin_error(reservation.not_approved_amount)
         {
-            log::error!(
-                "RestApprovedAmount < 0 for order {} {} {} {:?}",
-                client_order_id,
-                reservation_id,
-                amount,
-                reservation
-            );
-            bail!(
-                "RestApprovedAmount < 0 for order {} {} {}",
-                client_order_id,
-                reservation_id,
-                amount
-            )
+            log::error!("RestApprovedAmount < 0 for order {client_order_id} {reservation_id} {amount} {reservation:?}");
+            bail!("RestApprovedAmount < 0 for order {client_order_id} {reservation_id} {amount}");
         }
         reservation.approved_parts.insert(
             client_order_id.clone(),
             ApprovedPart::new(approve_time, client_order_id.clone(), amount),
         );
 
-        log::info!("Order {} was approved with {}", client_order_id, amount);
+        log::info!("Order {client_order_id} was approved with {amount}");
         Ok(())
     }
 
@@ -1209,10 +1116,7 @@ impl BalanceReservationManager {
             || src_reservation.symbol != dst_reservation.symbol
             || src_reservation.order_side != dst_reservation.order_side
         {
-            panic!(
-                "Reservations {:?} and {:?} are from different sources",
-                src_reservation, dst_reservation
-            );
+            panic!("Reservations {src_reservation:?} and {dst_reservation:?} are from different sources");
         }
 
         let amount_to_move = src_reservation
@@ -1220,9 +1124,7 @@ impl BalanceReservationManager {
             .round_to_remove_amount_precision_error_expected(amount);
         if amount_to_move.is_zero() {
             log::warn!(
-                "Can't transfer zero amount from {} to {}",
-                src_reservation_id,
-                dst_reservation_id
+                "Can't transfer zero amount from {src_reservation_id} to {dst_reservation_id}"
             );
             return false;
         }
@@ -1248,15 +1150,10 @@ impl BalanceReservationManager {
                         &mut None,
                     )
                     .with_expect(|| {
-                        format!("failed to get available balance for {:?}", dst_reservation)
+                        format!("failed to get available balance for {dst_reservation:?}")
                     });
                 if available_balance + balance_diff_amount < dec!(0) {
-                    log::warn!(
-                        "Can't transfer {} because there will be insufficient balance ({} => {})",
-                        amount_to_move,
-                        src_reservation_id,
-                        dst_reservation_id
-                    );
+                    log::warn!("Can't transfer {amount_to_move} because there will be insufficient balance ({src_reservation_id} => {dst_reservation_id})");
                     return false;
                 }
             }
@@ -1281,12 +1178,7 @@ impl BalanceReservationManager {
     ) {
         let src_reservation = self.get_reservation_expected(src_reservation_id);
         let new_src_unreserved_amount = src_reservation.unreserved_amount - amount_to_move;
-        log::info!(
-            "trying to update src unreserved amount for transfer: {:?} {} {:?}",
-            src_reservation,
-            new_src_unreserved_amount,
-            client_order_id
-        );
+        log::info!("trying to update src unreserved amount for transfer: {src_reservation:?} {new_src_unreserved_amount} {client_order_id:?}");
         let src_cost_diff = self.update_unreserved_amount_for_transfer(
             src_reservation_id,
             new_src_unreserved_amount,
@@ -1297,12 +1189,7 @@ impl BalanceReservationManager {
 
         let dst_reservation = self.get_reservation_expected(dst_reservation_id);
         let new_dst_unreserved_amount = dst_reservation.unreserved_amount + amount_to_move;
-        log::info!(
-            "trying to update dst unreserved amount for transfer: {:?} {} {:?}",
-            dst_reservation,
-            new_dst_unreserved_amount,
-            client_order_id
-        );
+        log::info!("trying to update dst unreserved amount for transfer: {dst_reservation:?} {new_dst_unreserved_amount} {client_order_id:?}");
         let _ = self.update_unreserved_amount_for_transfer(
             dst_reservation_id,
             new_dst_unreserved_amount,
@@ -1311,12 +1198,7 @@ impl BalanceReservationManager {
             -src_cost_diff,
         );
 
-        log::info!(
-            "Successfully transferred {} from {} to {}",
-            amount_to_move,
-            src_reservation_id,
-            dst_reservation_id
-        );
+        log::info!("Successfully transferred {amount_to_move} from {src_reservation_id} to {dst_reservation_id}");
     }
 
     fn update_unreserved_amount_for_transfer(
@@ -1333,10 +1215,7 @@ impl BalanceReservationManager {
         if new_unreserved_amount < dec!(0)
             && !reservation.is_amount_within_symbol_margin_error(new_unreserved_amount)
         {
-            panic!(
-                "Can't set {} amount to reservation {}",
-                new_unreserved_amount, reservation_id
-            )
+            panic!("Can't set {new_unreserved_amount} amount to reservation {reservation_id}");
         }
 
         let reservation_amount_diff = new_unreserved_amount - reservation.unreserved_amount;
@@ -1347,14 +1226,11 @@ impl BalanceReservationManager {
                     let _ = reservation.approved_parts.remove(client_order_id);
                 } else if new_amount < dec!(0) {
                     panic!(
-                            "Attempt to transfer more amount ({}) than we have ({}) for approved part by ClientOrderId {}",
-                            reservation_amount_diff,
-                            reservation
-                                .approved_parts
-                                .get_mut(client_order_id)
-                                .expect("fix me").unreserved_amount,
-                            client_order_id
-                        )
+                        "Attempt to transfer more amount ({reservation_amount_diff}) than we have ({}) for approved part by ClientOrderId {client_order_id}",
+                        reservation
+                            .approved_parts
+                            .get_mut(client_order_id)
+                            .expect("fix me").unreserved_amount);
                 } else {
                     let approved_part = reservation
                         .approved_parts
@@ -1365,10 +1241,7 @@ impl BalanceReservationManager {
                 }
             } else {
                 if is_src_request {
-                    panic!(
-                        "Can't find approved part {} for {}",
-                        client_order_id, reservation_id
-                    )
+                    panic!("Can't find approved part {client_order_id} for {reservation_id}");
                 }
 
                 reservation.approved_parts.insert(
@@ -1421,22 +1294,18 @@ impl BalanceReservationManager {
 
             if !new_unreserved_amount.is_zero() {
                 log::error!(
-                    "Transfer: AmountLeft {} != 0 for {} {:?}",
+                    "Transfer: AmountLeft {} != 0 for {reservation_id} {reservation:?}",
                     reservation.unreserved_amount,
-                    reservation_id,
-                    reservation
                 );
             }
         }
         log::info!(
-            "Updated reservation {} {} {} {:?} {} {} {}",
-            reservation_id,
+            "Updated reservation {reservation_id} {} {} {:?} {} {} {reservation_amount_diff}",
             reservation.exchange_account_id,
             reservation.reservation_currency_code,
             reservation.order_side,
             reservation.price,
             reservation.amount,
-            reservation_amount_diff
         );
         cost_diff
     }
@@ -1470,7 +1339,7 @@ impl BalanceReservationManager {
         let can_reserve_result = self.can_reserve_core(reserve_parameters, explanation);
         if !can_reserve_result.can_reserve {
             log::info!(
-                "Failed to reserve {} {} {:?} {} {} {:?}",
+                "Failed to reserve {} {} {:?} {} {} {reserve_parameters:?}",
                 can_reserve_result.preset.reservation_currency_code,
                 can_reserve_result
                     .preset
@@ -1478,7 +1347,6 @@ impl BalanceReservationManager {
                 can_reserve_result.potential_position,
                 can_reserve_result.old_balance,
                 can_reserve_result.new_balance,
-                reserve_parameters
             );
             return None;
         }
@@ -1505,7 +1373,7 @@ impl BalanceReservationManager {
 
         self.reservation_id = ReservationId::generate();
         log::info!(
-            "Trying to reserve {:?} {} {} {:?} {} {} {:?}",
+            "Trying to reserve {:?} {} {} {:?} {} {} {reservation:?}",
             self.reservation_id,
             can_reserve_result.preset.reservation_currency_code,
             can_reserve_result
@@ -1514,8 +1382,8 @@ impl BalanceReservationManager {
             can_reserve_result.potential_position,
             can_reserve_result.old_balance,
             can_reserve_result.new_balance,
-            reservation
         );
+
         self.balance_reservation_storage
             .add(self.reservation_id, reservation);
         self.add_reserved_amount_expected(
@@ -1545,8 +1413,7 @@ impl BalanceReservationManager {
 
         explanation.with_reason(|| {
             format!(
-                "old_balance: {} preset_cost: {} new_balance: {}",
-                old_balance, preset_cost, new_balance
+                "old_balance: {old_balance} preset_cost: {preset_cost} new_balance: {new_balance}"
             )
         });
 
@@ -1667,10 +1534,7 @@ impl BalanceReservationManager {
         );
 
         explanation.with_reason(|| {
-            format!(
-                "cost_in_reservation_currency_code: {} taken_free_amount: {}",
-                cost_in_reservation_currency_code, taken_free_amount
-            )
+            format!("cost_in_reservation_currency_code: {cost_in_reservation_currency_code} taken_free_amount: {taken_free_amount}")
         });
 
         BalanceReservationPreset::new(
@@ -1721,11 +1585,11 @@ impl BalanceReservationManager {
             Some(reservation) => reservation,
             None => {
                 log::error!(
-                    "Can't find reservation {} in {}",
-                    reservation_id,
+                    "Can't find reservation {reservation_id} in {}",
                     self.balance_reservation_storage
                         .get_reservation_ids()
-                        .to_string()
+                        .iter()
+                        .join(", ")
                 );
                 return false;
             }

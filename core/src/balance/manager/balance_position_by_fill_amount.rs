@@ -39,19 +39,14 @@ impl BalancePositionByFillAmount {
     ) {
         let key = MarketAccountId::new(exchange_account_id, currency_pair);
 
-        log::info!(
-            "PositionChanges {:?} {} {:?}",
-            previous_position,
-            new_position,
-            client_order_fill_id
-        );
+        log::info!("PositionChanges {previous_position:?} {new_position} {client_order_fill_id:?}");
 
         //We don't come from RestoreFillAmountPosition
         if let (Some(previous_position), Some(client_order_fill_id)) =
             (previous_position, client_order_fill_id)
         {
             let position_change_contains_key = self.position_changes.contains_key(&key);
-            log::info!("position_changes {}", position_change_contains_key);
+            log::info!("position_changes {position_change_contains_key}");
 
             if position_change_contains_key {
                 if (previous_position.is_sign_negative() && new_position.is_sign_positive())
@@ -65,36 +60,19 @@ impl BalancePositionByFillAmount {
                             now,
                             opened_position_portion,
                         )),
-                        None => panic!(
-                            "failed to get PositionChange from position_changes {:?} with key {:?}",
-                            self.position_changes, key
-                        ),
+                        None => panic!("failed to get PositionChange from position_changes {:?} with key {key:?}", self.position_changes),
                     }
-                    log::info!(
-                        "PositionChange was added {}  {} {} {} {}",
-                        exchange_account_id,
-                        currency_pair,
-                        client_order_fill_id,
-                        now,
-                        opened_position_portion
-                    );
+                    log::info!("PositionChange was added {exchange_account_id}  {currency_pair} {client_order_fill_id} {now} {opened_position_portion}");
                 }
             } else {
                 if !previous_position.is_zero() {
                     log::error!(
-                        "_lostPositionOpenTime has no records but position is not zero {} {} {}",
+                        "_lostPositionOpenTime has no records but position is not zero {} {} {previous_position}",
                         key.exchange_account_id,
                         key.currency_pair,
-                        previous_position
                     );
                 }
-                log::info!(
-                    "PositionChange1 was added initially {} {} {} {}",
-                    exchange_account_id,
-                    currency_pair,
-                    client_order_fill_id,
-                    now
-                );
+                log::info!("PositionChange1 was added initially {exchange_account_id} {currency_pair} {client_order_fill_id} {now}");
 
                 self.position_changes.insert(
                     key,
@@ -102,9 +80,9 @@ impl BalancePositionByFillAmount {
                 );
             }
             if let Some(position_change) = self.position_changes.get(&key) {
-                log::info!("PositionChanges {:?}", position_change);
+                log::info!("PositionChanges {position_change:?}");
             } else {
-                log::warn!("PositionChanges for key {:?} not found", key);
+                log::warn!("PositionChanges for key {key:?} not found");
             }
         }
         self.position_by_fill_amount.insert(key, new_position);
@@ -139,10 +117,9 @@ impl BalancePositionByFillAmount {
     ) -> Option<PositionChange> {
         if let Some(values) = self.position_changes.get(market_account_id) {
             log::info!(
-                "get_last_position_change_before_period get {} {} {:?}",
+                "get_last_position_change_before_period get {} {} {values:?}",
                 market_account_id.exchange_account_id,
                 market_account_id.currency_pair,
-                values
             );
 
             let position_change = values
@@ -150,10 +127,7 @@ impl BalancePositionByFillAmount {
                 .rfind(|&x| x.change_time <= start_of_period)
                 .cloned();
 
-            log::info!(
-                "get_last_position_change_before_period {:?}",
-                position_change,
-            );
+            log::info!("get_last_position_change_before_period {position_change:?}");
             return position_change;
         }
         log::info!(

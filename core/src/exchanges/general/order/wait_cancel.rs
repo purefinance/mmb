@@ -455,24 +455,12 @@ impl Exchange {
             )
         });
 
-        log::trace!(
-            "Order with {}, {:?} order_filled_amount_after_cancellation: {:?}, order_filed_amount: {}",
-            client_order_id,
-            exchange_order_id,
-            order_filled_amount_after_cancellation,
-            order_filled_amount
-        );
+        log::trace!("Order with {client_order_id}, {exchange_order_id:?} order_filled_amount_after_cancellation: {order_filled_amount_after_cancellation:?}, order_filed_amount: {order_filled_amount}");
 
         match order_filled_amount_after_cancellation {
             Some(order_filled_amount_after_cancellation) => {
                 if order_filled_amount_after_cancellation < order_filled_amount {
-                    log::error!("Received order with filled amount {} less then order.filled_amount {} {} {:?} on {}",
-                        order_filled_amount_after_cancellation,
-                        order_filled_amount,
-                        client_order_id,
-                        exchange_order_id,
-                        self.exchange_account_id);
-
+                    log::error!("Received order with filled amount {order_filled_amount_after_cancellation} less then order.filled_amount {order_filled_amount} {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id);
                     return false;
                 }
 

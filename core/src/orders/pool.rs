@@ -54,6 +54,10 @@ impl OrderRef {
     pub fn client_order_id(&self) -> ClientOrderId {
         self.fn_ref(|x| x.client_order_id())
     }
+    pub fn order_ids(&self) -> (ClientOrderId, Option<ExchangeOrderId>) {
+        self.fn_ref(|x| (x.client_order_id(), x.exchange_order_id()))
+    }
+
     pub fn exchange_account_id(&self) -> ExchangeAccountId {
         self.fn_ref(|x| x.header.exchange_account_id)
     }
