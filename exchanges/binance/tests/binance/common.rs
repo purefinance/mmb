@@ -1,31 +1,27 @@
-use std::sync::Arc;
-
 use anyhow::Result;
 use binance::binance::{BinanceBuilder, ErrorHandlerBinance};
 use function_name::named;
+use hyper::Uri;
 use jsonrpc_core::Value;
 use mmb_core::exchanges::common::{Amount, Price};
-use mmb_utils::hashmap;
-use mmb_utils::infrastructure::WithExpect;
-
 use mmb_core::exchanges::general::symbol::{Round, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
-use mmb_core::exchanges::rest_client::ErrorHandlerData;
+use mmb_core::exchanges::rest_client::{ErrorHandlerData, UriBuilder};
 use mmb_core::{
     exchanges::{
         common::ExchangeAccountId,
         timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory,
         timeouts::timeout_manager::TimeoutManager,
     },
-    exchanges::{
-        common::SpecificCurrencyPair,
-        rest_client::{self, RestClient},
-    },
+    exchanges::{common::SpecificCurrencyPair, rest_client::RestClient},
     lifecycle::launcher::EngineBuildConfig,
 };
+use mmb_utils::hashmap;
+use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::value_to_decimal::GetOrErr;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 pub(crate) fn get_binance_credentials() -> Result<(String, String)> {
     let api_key = std::env::var("BINANCE_API_KEY");
@@ -80,25 +76,17 @@ pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc
 }
 
 #[named]
-async fn send_request(
-    hosts: &Hosts,
-    api_key: &str,
-    url_path: &str,
-    http_params: &Vec<(String, String)>,
-    exchange_account_id: ExchangeAccountId,
-) -> String {
+async fn send_request(uri: Uri, api_key: &str, exchange_account_id: ExchangeAccountId) -> String {
     let rest_client = RestClient::new(ErrorHandlerData::new(
         false,
         exchange_account_id,
         ErrorHandlerBinance::default(),
     ));
 
-    let full_url = rest_client::build_uri(hosts.rest_host, url_path, http_params);
-
     rest_client
-        .get(full_url, api_key, function_name!(), "".to_string())
+        .get(uri.clone(), api_key, function_name!(), "".to_string())
         .await
-        .with_expect(|| format!("failed to request {}", url_path))
+        .with_expect(|| format!("failed to request {uri}"))
         .content
 }
 
@@ -116,20 +104,15 @@ pub(crate) async fn get_default_price(
         pub bids: Vec<(Decimal, Decimal)>,
     }
 
-    let data = send_request(
-        hosts,
-        api_key,
-        "/api/v3/depth",
-        &vec![
-            ("symbol".to_owned(), currency_pair.to_string()),
-            ("limit".to_owned(), "20".to_owned()),
-        ],
-        exchange_account_id,
-    )
-    .await;
+    let mut builder = UriBuilder::from_path("/api/v3/depth");
+    builder.add_kv("symbol", &currency_pair);
+    builder.add_kv("limit", "20");
+    let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
-    let value: OrderBook = serde_json::from_str(data.as_str())
-        .with_expect(|| format!("failed to deserialize data: {}", data));
+    let data = send_request(uri, api_key, exchange_account_id).await;
+
+    let value: OrderBook =
+        serde_json::from_str(&data).with_expect(|| format!("failed to deserialize data: {data}"));
 
     let last = value.bids.iter().last();
     last.with_expect(|| format!("can't get bid from {currency_pair} orderbook because it's empty"))
@@ -145,17 +128,14 @@ pub(crate) async fn get_min_amount(
     symbol: &Symbol,
     exchange_account_id: ExchangeAccountId,
 ) -> Amount {
-    let data = send_request(
-        hosts,
-        api_key,
-        "/api/v3/exchangeInfo",
-        &vec![("symbol".to_owned(), currency_pair.as_str().to_owned())],
-        exchange_account_id,
-    )
-    .await;
+    let mut builder = UriBuilder::from_path("/api/v3/exchangeInfo");
+    builder.add_kv("symbol", &currency_pair);
+    let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
-    let value: Value = serde_json::from_str(data.as_str())
-        .with_expect(|| format!("failed to deserialize data: {}", data));
+    let data = send_request(uri, api_key, exchange_account_id).await;
+
+    let value: Value =
+        serde_json::from_str(&data).with_expect(|| format!("failed to deserialize data: {data}"));
 
     let filters = value
         .pointer("/symbols/0/filters")

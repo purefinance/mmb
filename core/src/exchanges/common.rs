@@ -265,8 +265,12 @@ impl ExchangeError {
         }
     }
 
+    pub fn authentication(message: String) -> Self {
+        ExchangeError::new(ExchangeErrorType::Authentication, message, None)
+    }
+
     pub fn send(err: anyhow::Error) -> Self {
-        ExchangeError::new(ExchangeErrorType::SendError, err.to_string(), None)
+        ExchangeError::new(ExchangeErrorType::SendError, format!("{err:?}"), None)
     }
 
     pub fn parsing(message: String) -> Self {
@@ -322,24 +326,21 @@ impl ToStdExpected for chrono::Duration {
     /// Panic only on negative delay
     fn to_std_expected(&self) -> Duration {
         self.to_std().with_expect(|| {
-            format!(
-                "Unable to convert value = {} from chrono::Duration to std::time::Duration",
-                self
-            )
+            format!("Unable to convert {self} from chrono::Duration to std::time::Duration")
         })
     }
 }
 
 pub struct ClosedPosition {
-    _exchange_order_id: ExchangeOrderId,
-    _amount: Amount,
+    pub exchange_order_id: ExchangeOrderId,
+    pub amount: Amount,
 }
 
 impl ClosedPosition {
-    pub fn new(_exchange_order_id: ExchangeOrderId, _amount: Amount) -> Self {
+    pub fn new(exchange_order_id: ExchangeOrderId, amount: Amount) -> Self {
         Self {
-            _exchange_order_id,
-            _amount,
+            exchange_order_id,
+            amount,
         }
     }
 }

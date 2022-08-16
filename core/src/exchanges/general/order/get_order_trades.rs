@@ -74,20 +74,20 @@ impl Exchange {
         symbol: &Symbol,
         order: &OrderRef,
     ) -> Result<RequestResult<Vec<OrderTrade>>> {
-        let my_trades = self.exchange_client.get_my_trades(symbol, None).await?;
+        let my_trades = self.exchange_client.get_my_trades(symbol, None).await;
         match my_trades {
             RequestResult::Error(_) => Ok(my_trades),
             RequestResult::Success(my_trades) => {
                 let exchange_order_id = order
                     .exchange_order_id()
-                    .with_context(|| format!("There is no exchange_order in order {:?}", order))?;
+                    .with_context(|| format!("There is no exchange_order in order {order:?}"))?;
 
-                let data = my_trades
+                let trades = my_trades
                     .into_iter()
                     .filter(|order_trade| order_trade.exchange_order_id == exchange_order_id)
                     .collect_vec();
 
-                Ok(RequestResult::Success(data))
+                Ok(RequestResult::Success(trades))
             }
         }
     }

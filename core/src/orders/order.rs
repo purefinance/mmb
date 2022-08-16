@@ -36,16 +36,18 @@ impl OrderSide {
             OrderSide::Sell => OrderSide::Buy,
         }
     }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            OrderSide::Buy => "Buy",
+            OrderSide::Sell => "Sell",
+        }
+    }
 }
 
 impl Display for OrderSide {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let side = match self {
-            OrderSide::Buy => "Buy",
-            OrderSide::Sell => "Sell",
-        };
-
-        write!(f, "{}", side)
+        f.write_str(self.as_str())
     }
 }
 
@@ -580,6 +582,10 @@ impl OrderSnapshot {
 
     pub fn exchange_order_id(&self) -> Option<ExchangeOrderId> {
         self.props.exchange_order_id.clone()
+    }
+
+    pub fn currency_pair(&self) -> CurrencyPair {
+        self.header.currency_pair
     }
 
     pub fn init_time(&self) -> DateTime {

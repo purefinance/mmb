@@ -65,7 +65,7 @@ impl OrderRef {
         self.fn_ref(|x| x.header.order_type)
     }
     pub fn currency_pair(&self) -> CurrencyPair {
-        self.fn_ref(|x| x.header.currency_pair)
+        self.fn_ref(|x| x.currency_pair())
     }
     pub fn side(&self) -> OrderSide {
         self.fn_ref(|x| x.header.side)
