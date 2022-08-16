@@ -680,7 +680,7 @@ impl Binance {
         let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params);
 
         let log_args =
-            format_args!("Close position response for {:?} {:?}", position, price).to_string();
+            format_args!("Close position response for {position:?} {price:?}").to_string();
 
         self.rest_client
             .post(

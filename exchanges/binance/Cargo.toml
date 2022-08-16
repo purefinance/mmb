@@ -12,6 +12,7 @@ chrono = { version = "0.4", features = ["serde"]}
 dashmap = "4"
 hex = "0.4"
 hmac = "0.11"
+function_name = "0.3.0"
 itertools = "0.10"
 log = "0.4"
 mmb_core = { path = "../../core/" }
@@ -25,7 +26,6 @@ sha2 = "0.9"
 tokio = { version = "1" }
 url = "2.0"
 hyper = { version = "0.14", features = ["http1", "runtime", "client", "tcp"] }
-function_name = "0.2.0"
 
 [dev-dependencies]
 core_tests = { path = "../../core_tests" }

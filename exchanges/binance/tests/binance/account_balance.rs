@@ -16,7 +16,7 @@ async fn get_balance_successfully() {
         .get_balance(CancellationToken::default())
         .await;
 
-    log::info!("Balance: {:?}", result);
+    log::info!("Balance: {result:?}");
 
-    assert!(result.is_some());
+    assert!(result.is_ok());
 }
