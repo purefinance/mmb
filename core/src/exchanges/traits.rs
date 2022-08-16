@@ -90,7 +90,7 @@ pub trait Support: Send + Sync {
     /// Needed to call the `downcast_ref` method
     fn as_any(&self) -> &(dyn Any + Send + Sync + 'static);
 
-    async fn initialized(self: &Self, _exchange: Arc<Exchange>) {}
+    async fn initialized(&self, _exchange: Arc<Exchange>) {}
 
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
     fn on_connecting(&self) -> Result<()>;
