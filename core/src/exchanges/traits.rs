@@ -67,7 +67,7 @@ pub trait ExchangeClient: Support {
         &self,
         symbol: &Symbol,
         last_date_time: Option<DateTime>,
-    ) -> Result<RequestResult<Vec<OrderTrade>>>;
+    ) -> RequestResult<Vec<OrderTrade>>;
 
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>>;
 }

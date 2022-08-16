@@ -1,11 +1,12 @@
 use std::collections::HashMap;
+use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
 
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
 use function_name::named;
-use hex;
+use hmac::digest::generic_array;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
@@ -28,10 +29,11 @@ use mmb_core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
 use mmb_core::exchanges::general::handlers::handle_order_filled::FillAmount;
+use mmb_core::exchanges::general::handlers::handle_order_filled::FillEvent;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
-use mmb_core::exchanges::rest_client::{ErrorHandler, ErrorHandlerData, RestClient};
+use mmb_core::exchanges::rest_client::{ErrorHandler, ErrorHandlerData, RestClient, UriBuilder};
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{
     ExchangeClientBuilderResult, HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb,
@@ -47,7 +49,6 @@ use mmb_core::exchanges::{
     common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
     events::AllowedEventSourceType,
 };
-use mmb_core::exchanges::{general::handlers::handle_order_filled::FillEvent, rest_client};
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::*;
@@ -56,6 +57,7 @@ use mmb_core::settings::ExchangeSettings;
 use mmb_core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use mmb_utils::value_to_decimal::GetOrErr;
 use serde::{Deserialize, Serialize};
+use sha2::digest::generic_array::GenericArray;
 
 const LISTEN_KEY: &str = "listenKey";
 
@@ -207,13 +209,13 @@ impl Binance {
 
     #[named]
     pub(super) async fn request_listen_key(&self) -> Result<RestRequestOutcome, ExchangeError> {
-        let path = self.get_url_path("/fapi/v1/userDataStream", "/api/v3/userDataStream");
-        let url = rest_client::build_uri(self.hosts.rest_host, path, &vec![]);
+        let path = self.get_uri_path("/fapi/v1/userDataStream", "/api/v3/userDataStream");
+        let builder = UriBuilder::from_path(path);
+        let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
 
         let api_key = &self.settings.api_key;
-        let http_params = &rest_client::HttpParams::new();
         self.rest_client
-            .post(url, api_key, http_params, function_name!(), "".to_string())
+            .post(uri, api_key, query, function_name!(), "".to_string())
             .await
     }
 
@@ -230,15 +232,15 @@ impl Binance {
     }
 
     #[named]
-    pub async fn request_update_listen_key(&self, listen_key: String) -> Result<(), ExchangeError> {
-        let http_param = vec![(LISTEN_KEY.to_string(), listen_key)];
-
-        let path = self.get_url_path("/fapi/v1/listenKey", "/api/v3/userDataStream");
-        let url = rest_client::build_uri(self.hosts.rest_host, path, &http_param);
+    pub async fn request_update_listen_key(&self, listen_key: &str) -> Result<(), ExchangeError> {
+        let path = self.get_uri_path("/fapi/v1/listenKey", "/api/v3/userDataStream");
+        let mut builder = UriBuilder::from_path(path);
+        builder.add_kv(LISTEN_KEY, listen_key);
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
         let api_key = &self.settings.api_key;
         self.rest_client
-            .put(url, api_key, function_name!(), "".to_string())
+            .put(uri, api_key, function_name!(), "".to_string())
             .await
             .map(|_| ())
     }
@@ -259,62 +261,34 @@ impl Binance {
         todo!("is_websocket_reconnecting")
     }
 
-    pub(super) fn get_server_order_side(side: OrderSide) -> &'static str {
-        match side {
-            OrderSide::Buy => "BUY",
-            OrderSide::Sell => "SELL",
-        }
-    }
-
-    pub(super) fn get_local_order_side(side: &str) -> OrderSide {
-        match side {
-            "BUY" => OrderSide::Buy,
-            "SELL" => OrderSide::Sell,
-            // TODO just propagate and log there
-            _ => panic!("Unexpected order side"),
-        }
-    }
-
-    fn get_local_order_status(status: &str) -> OrderStatus {
-        match status {
-            "NEW" | "PARTIALLY_FILLED" => OrderStatus::Created,
-            "FILLED" => OrderStatus::Completed,
-            "PENDING_CANCEL" => OrderStatus::Canceling,
-            "CANCELED" | "EXPIRED" | "REJECTED" => OrderStatus::Canceled,
-            // TODO just propagate and log there
-            _ => panic!("Unexpected order status"),
-        }
-    }
-
-    pub(super) fn get_server_order_type(order_type: OrderType) -> &'static str {
-        match order_type {
-            OrderType::Limit => "LIMIT",
-            OrderType::Market => "MARKET",
-            unexpected_variant => panic!("{unexpected_variant:?} are not expected"),
-        }
-    }
-
-    fn generate_signature(&self, data: String) -> Result<String> {
+    fn write_signature_to_builder(&self, builder: &mut UriBuilder) {
         let mut hmac = Hmac::<Sha256>::new_from_slice(self.settings.secret_key.as_bytes())
-            .context("Unable to calculate hmac")?;
-        hmac.update(data.as_bytes());
-        let result = hex::encode(&hmac.finalize().into_bytes());
+            .expect("Unable to calculate hmac for Binance signature");
+        hmac.update(builder.query());
 
-        Ok(result)
+        let hmac_bytes = hmac.finalize().into_bytes();
+
+        // hex representation of signature have double size of input data
+        builder.ensure_free_size(hmac_bytes.len() * 2);
+
+        struct HexAdapter<'a> {
+            bytes: &'a GenericArray<u8, generic_array::typenum::U32>,
+        }
+        impl<'a> Display for HexAdapter<'a> {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{:x}", self.bytes)
+            }
+        }
+
+        let hexer = HexAdapter { bytes: &hmac_bytes };
+        builder.add_kv("signature", hexer);
     }
 
-    pub(super) fn add_authentification_headers(
-        &self,
-        parameters: &mut rest_client::HttpParams,
-    ) -> Result<()> {
+    pub(super) fn add_authentification(&self, builder: &mut UriBuilder) {
         let time_stamp = get_current_milliseconds();
-        parameters.push(("timestamp".to_owned(), time_stamp.to_string()));
+        builder.add_kv("timestamp", time_stamp);
 
-        let message_to_sign = rest_client::to_http_string(parameters);
-        let signature = self.generate_signature(message_to_sign)?;
-        parameters.push(("signature".to_owned(), signature));
-
-        Ok(())
+        self.write_signature_to_builder(builder);
     }
 
     pub(super) fn get_unified_currency_pair(
@@ -334,8 +308,8 @@ impl Binance {
                 .expect("expected known currency pair"),
             specific.exchange_order_id.to_string().as_str().into(),
             specific.client_order_id.clone(),
-            Self::get_local_order_side(&specific.side),
-            Self::get_local_order_status(&specific.status),
+            get_local_order_side(&specific.side),
+            get_local_order_status(&specific.status),
             specific.price,
             specific.orig_quantity,
             specific.price,
@@ -541,6 +515,12 @@ impl Binance {
         &self,
         response: &RestRequestOutcome,
     ) -> Result<ExchangeOrderId, ExchangeError> {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct OrderId {
+            order_id: u64,
+        }
+
         let deserialized: OrderId = serde_json::from_str(&response.content)
             .map_err(|err| ExchangeError::parsing(format!("Unable to parse orderId: {err:?}")))?;
 
@@ -548,7 +528,7 @@ impl Binance {
         Ok(ExchangeOrderId::new(order_id_str))
     }
 
-    pub(super) fn get_url_path<'a>(
+    pub(super) fn get_uri_path<'a>(
         &self,
         margin_trading_url: &'a str,
         not_margin_trading_url: &'a str,
@@ -562,17 +542,13 @@ impl Binance {
     #[named]
     pub(crate) async fn request_open_orders_by_http_header(
         &self,
-        http_params: Vec<(String, String)>,
+        builder: UriBuilder,
     ) -> Result<RestRequestOutcome, ExchangeError> {
-        let full_url = rest_client::build_uri(
-            self.hosts.rest_host,
-            self.get_url_path("/fapi/v1/openOrders", "/api/v3/openOrders"),
-            &http_params,
-        );
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
         let api_key = &self.settings.api_key;
         self.rest_client
-            .get(full_url, api_key, function_name!(), "".to_string())
+            .get(uri, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -581,32 +557,22 @@ impl Binance {
         &self,
         order: &OrderRef,
     ) -> Result<RestRequestOutcome, ExchangeError> {
-        let specific_currency_pair = self.get_specific_currency_pair(order.currency_pair());
+        let (currency_pair, client_order_id) =
+            order.fn_ref(|x| (x.currency_pair(), x.client_order_id()));
 
-        let mut http_params = vec![
-            (
-                "symbol".to_owned(),
-                specific_currency_pair.as_str().to_owned(),
-            ),
-            (
-                "origClientOrderId".to_owned(),
-                order.client_order_id().as_str().to_owned(),
-            ),
-        ];
-        self.add_authentification_headers(&mut http_params)?;
+        let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
 
-        let full_url = rest_client::build_uri(
-            self.hosts.rest_host,
-            self.get_url_path("/fapi/v1/order", "/api/v3/order"),
-            &http_params,
-        );
+        let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
+        let mut builder = UriBuilder::from_path(path);
+        builder.add_kv("symbol", &specific_currency_pair);
+        builder.add_kv("origClientOrderId", &client_order_id);
+        self.add_authentification(&mut builder);
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
-        let order_header = order.fn_ref(|order| order.header.clone());
-
-        let log_args = format_args!("order {}", order_header.client_order_id).to_string();
+        let log_args = format!("order {client_order_id}");
 
         self.rest_client
-            .get(full_url, &self.settings.api_key, function_name!(), log_args)
+            .get(uri, &self.settings.api_key, function_name!(), log_args)
             .await
     }
 
@@ -617,11 +583,15 @@ impl Binance {
         self.specific_order_info_to_unified(&specific_order)
     }
 
-    pub(super) async fn request_open_orders(&self) -> Result<RestRequestOutcome, ExchangeError> {
-        let mut http_params = rest_client::HttpParams::new();
-        self.add_authentification_headers(&mut http_params)?;
+    fn get_open_order_path(&self) -> &str {
+        self.get_uri_path("/fapi/v1/openOrders", "/api/v3/openOrders")
+    }
 
-        self.request_open_orders_by_http_header(http_params).await
+    pub(super) async fn request_open_orders(&self) -> Result<RestRequestOutcome, ExchangeError> {
+        let mut builder = UriBuilder::from_path(self.get_open_order_path());
+        self.add_authentification(&mut builder);
+
+        self.request_open_orders_by_http_header(builder).await
     }
 
     pub(super) async fn request_open_orders_by_currency_pair(
@@ -629,13 +599,12 @@ impl Binance {
         currency_pair: CurrencyPair,
     ) -> Result<RestRequestOutcome, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
-        let mut http_params = vec![(
-            "symbol".to_owned(),
-            specific_currency_pair.as_str().to_owned(),
-        )];
-        self.add_authentification_headers(&mut http_params)?;
 
-        self.request_open_orders_by_http_header(http_params).await
+        let mut builder = UriBuilder::from_path(self.get_open_order_path());
+        builder.add_kv("symbol", &specific_currency_pair);
+        self.add_authentification(&mut builder);
+
+        self.request_open_orders_by_http_header(builder).await
     }
 
     pub(super) fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo> {
@@ -655,76 +624,59 @@ impl Binance {
         price: Option<Price>,
     ) -> Result<RestRequestOutcome, ExchangeError> {
         let side = match position.derivative.side {
-            Some(side) => side.change_side().to_string(),
-            None => "0".to_string(), // unknown side
+            Some(side) => side.change_side().as_str(),
+            None => "0", // unknown side
         };
 
-        let mut http_params = vec![
-            (
-                "leverage".to_string(),
-                position.derivative.leverage.to_string(),
-            ),
-            ("positionSide".to_string(), "BOTH".to_string()),
-            (
-                "quantity".to_string(),
-                position.derivative.position.abs().to_string(),
-            ),
-            ("side".to_string(), side),
-            (
-                "symbol".to_string(),
-                position.derivative.currency_pair.to_string(),
-            ),
-        ];
+        let mut builder = UriBuilder::from_path("/fapi/v1/order");
+        builder.add_kv("leverage", &position.derivative.leverage);
+        builder.add_kv("positionSide", "BOTH");
+        builder.add_kv("quantity", &position.derivative.position.abs());
+        builder.add_kv("side", side);
+        builder.add_kv("symbol", &position.derivative.currency_pair);
 
         match price {
             Some(price) => {
-                http_params.push(("type".to_string(), "MARKET".to_string()));
-                http_params.push(("price".to_string(), price.to_string()));
+                builder.add_kv("type", "MARKET");
+                builder.add_kv("price", &price);
             }
-            None => http_params.push(("type".to_string(), "LIMIT".to_string())),
+            None => builder.add_kv("type", "LIMIT"),
         }
 
-        self.add_authentification_headers(&mut http_params)?;
+        self.add_authentification(&mut builder);
 
-        let url_path = "/fapi/v1/order";
-        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params);
+        let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
 
-        let log_args =
-            format_args!("Close position response for {position:?} {price:?}").to_string();
-
+        let log_args = format!("Close position response for {position:?} {price:?}");
         let api_key = &self.settings.api_key;
         self.rest_client
-            .post(full_url, api_key, &http_params, function_name!(), log_args)
+            .post(uri, api_key, query, function_name!(), log_args)
             .await
     }
 
     #[named]
     pub(super) async fn request_get_position(&self) -> Result<RestRequestOutcome, ExchangeError> {
-        let mut http_params = Vec::new();
-        self.add_authentification_headers(&mut http_params)?;
+        let mut builder = UriBuilder::from_path("/fapi/v2/positionRisk");
+        self.add_authentification(&mut builder);
 
-        let url_path = "/fapi/v2/positionRisk";
-        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &http_params);
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
         let api_key = &self.settings.api_key;
         self.rest_client
-            .get(full_url, api_key, function_name!(), "".to_string())
+            .get(uri, api_key, function_name!(), "".to_string())
             .await
     }
 
     #[named]
     pub(super) async fn request_get_balance(&self) -> Result<RestRequestOutcome, ExchangeError> {
-        let mut http_params = Vec::new();
-        self.add_authentification_headers(&mut http_params)?;
-        let full_url = rest_client::build_uri(
-            self.hosts.rest_host,
-            self.get_url_path("/fapi/v2/account", "/api/v3/account"),
-            &http_params,
-        );
+        let path = self.get_uri_path("/fapi/v2/account", "/api/v3/account");
+        let mut builder = UriBuilder::from_path(path);
+        self.add_authentification(&mut builder);
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
         let api_key = &self.settings.api_key;
         self.rest_client
-            .get(full_url, api_key, function_name!(), "".to_string())
+            .get(uri, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -753,24 +705,17 @@ impl Binance {
     ) -> Result<RestRequestOutcome, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
 
-        let mut http_params = vec![
-            (
-                "symbol".to_owned(),
-                specific_currency_pair.as_str().to_owned(),
-            ),
-            (
-                "orderId".to_owned(),
-                order.exchange_order_id.as_str().to_owned(),
-            ),
-        ];
-        self.add_authentification_headers(&mut http_params)?;
+        let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
+        let mut builder = UriBuilder::from_path(path);
+        builder.add_kv("symbol", &specific_currency_pair);
+        builder.add_kv("orderId", &order.exchange_order_id);
+        self.add_authentification(&mut builder);
 
-        let path = self.get_url_path("/fapi/v1/order", "/api/v3/order");
-        let full_url = rest_client::build_uri(self.hosts.rest_host, path, &http_params);
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
         let log_args = format!("Cancel order for {}", order.header.client_order_id);
         self.rest_client
-            .delete(full_url, &self.settings.api_key, function_name!(), log_args)
+            .delete(uri, &self.settings.api_key, function_name!(), log_args)
             .await
     }
 
@@ -781,21 +726,17 @@ impl Binance {
         _last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(symbol.currency_pair());
-        let mut http_params = vec![(
-            "symbol".to_owned(),
-            specific_currency_pair.as_str().to_owned(),
-        )];
 
-        self.add_authentification_headers(&mut http_params)?;
-        let full_url = rest_client::build_uri(
-            self.hosts.rest_host,
-            self.get_url_path("/fapi/v1/userTrades", "/api/v3/myTrades"),
-            &http_params,
-        );
+        let path = self.get_uri_path("/fapi/v1/userTrades", "/api/v3/myTrades");
+        let mut builder = UriBuilder::from_path(path);
+        builder.add_kv("symbol", &specific_currency_pair);
+        self.add_authentification(&mut builder);
+
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
         let api_key = &self.settings.api_key;
         self.rest_client
-            .get(full_url, api_key, function_name!(), "".to_string())
+            .get(uri, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -866,66 +807,44 @@ impl Binance {
         order: &OrderRef,
     ) -> Result<RestRequestOutcome, ExchangeError> {
         let (header, price) = order.fn_ref(|order| (order.header.clone(), order.price()));
-
         let specific_currency_pair = self.get_specific_currency_pair(header.currency_pair);
 
-        let mut http_params = vec![
-            (
-                "symbol".to_owned(),
-                specific_currency_pair.as_str().to_owned(),
-            ),
-            (
-                "side".to_owned(),
-                Self::get_server_order_side(header.side).to_string(),
-            ),
-            (
-                "type".to_owned(),
-                Self::get_server_order_type(header.order_type).to_string(),
-            ),
-            ("quantity".to_owned(), header.amount.to_string()),
-            (
-                "newClientOrderId".to_owned(),
-                header.client_order_id.as_str().to_owned(),
-            ),
-        ];
+        let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
+        let mut builder = UriBuilder::from_path(path);
+        builder.add_kv("symbol", specific_currency_pair);
+        builder.add_kv("side", get_server_order_side(header.side));
+        builder.add_kv("type", get_server_order_type(header.order_type));
+        builder.add_kv("quantity", &header.amount);
+        builder.add_kv("newClientOrderId", &header.client_order_id);
 
         if header.order_type != OrderType::Market {
-            http_params.push(("timeInForce".to_owned(), "GTC".to_owned()));
-            http_params.push(("price".to_owned(), price.to_string()));
+            builder.add_kv("timeInForce", "GTC");
+            builder.add_kv("price", &price);
         } else if header.execution_type == OrderExecutionType::MakerOnly {
-            http_params.push(("timeInForce".to_owned(), "GTX".to_owned()));
+            builder.add_kv("timeInForce", "GTX");
         }
 
-        self.add_authentification_headers(&mut http_params)?;
+        self.add_authentification(&mut builder);
 
-        let full_url = rest_client::build_uri(
-            self.hosts.rest_host,
-            self.get_url_path("/fapi/v1/order", "/api/v3/order"),
-            &vec![],
-        );
+        let (uri, query) = builder.build_uri_and_query(&self.hosts.rest_uri_host(), false);
 
-        let log_args = format!("Create order for {:?}", header);
-
+        let log_args = format!("Create order for {header:?}");
+        let api_key = &self.settings.api_key;
         self.rest_client
-            .post(
-                full_url,
-                &self.settings.api_key,
-                &http_params,
-                function_name!(),
-                log_args,
-            )
+            .post(uri, api_key, query, function_name!(), log_args)
             .await
     }
 
     #[named]
     pub(super) async fn request_all_symbols(&self) -> Result<RestRequestOutcome, ExchangeError> {
         // In current versions works only with Spot market
-        let url_path = "/api/v3/exchangeInfo";
-        let full_url = rest_client::build_uri(self.hosts.rest_host, url_path, &vec![]);
+
+        let builder = UriBuilder::from_path("/api/v3/exchangeInfo");
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), false);
 
         let api_key = &self.settings.api_key;
         self.rest_client
-            .get(full_url, api_key, function_name!(), "".to_string())
+            .get(uri, api_key, function_name!(), "".to_string())
             .await
     }
 
@@ -1046,6 +965,39 @@ impl Binance {
     }
 }
 
+pub(super) fn get_server_order_side(side: OrderSide) -> &'static str {
+    match side {
+        OrderSide::Buy => "BUY",
+        OrderSide::Sell => "SELL",
+    }
+}
+
+pub(super) fn get_local_order_side(side: &str) -> OrderSide {
+    match side {
+        "BUY" => OrderSide::Buy,
+        "SELL" => OrderSide::Sell,
+        _ => panic!("Unexpected order side"),
+    }
+}
+
+fn get_local_order_status(status: &str) -> OrderStatus {
+    match status {
+        "NEW" | "PARTIALLY_FILLED" => OrderStatus::Created,
+        "FILLED" => OrderStatus::Completed,
+        "PENDING_CANCEL" => OrderStatus::Canceling,
+        "CANCELED" | "EXPIRED" | "REJECTED" => OrderStatus::Canceled,
+        _ => panic!("Unexpected order status"),
+    }
+}
+
+pub(super) fn get_server_order_type(order_type: OrderType) -> &'static str {
+    match order_type {
+        OrderType::Limit => "LIMIT",
+        OrderType::Market => "MARKET",
+        unexpected_variant => panic!("{unexpected_variant:?} are not expected"),
+    }
+}
+
 pub struct BinanceBuilder;
 
 impl ExchangeClientBuilder for BinanceBuilder {
@@ -1123,8 +1075,6 @@ mod tests {
     #[test]
     fn generate_signature() {
         // All values and strings gotten from binanсe API example
-        let right_value = "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71";
-
         let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
 
         let settings = ExchangeSettings::new_short(
@@ -1144,33 +1094,25 @@ mod tests {
             false,
             false,
         );
-        let params = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559".into();
-        let result = binance.generate_signature(params).expect("in test");
-        assert_eq!(result, right_value);
+
+        let mut builder = UriBuilder::from_path("/test");
+        builder.add_kv("symbol", "LTCBTC");
+        builder.add_kv("side", "BUY");
+        builder.add_kv("type", "LIMIT");
+        builder.add_kv("timeInForce", "GTC");
+        builder.add_kv("quantity", "1");
+        builder.add_kv("price", "0");
+        builder.add_kv("recvWindow", "5000");
+        builder.add_kv("timestamp", "1499827319559");
+        binance.write_signature_to_builder(&mut builder);
+
+        let query = builder.query();
+
+        let expected = b"76f4fcd9c09d7969fcf97254950d690077f0fe090ea68ec7601a69ff36acd34b";
+
+        //expected that signature was last parameter
+        let signature_value = query.split_at(query.len() - expected.len()).1;
+
+        assert_eq!(signature_value, expected);
     }
-
-    #[test]
-    fn to_http_string() {
-        let parameters: rest_client::HttpParams = vec![
-            ("symbol".to_owned(), "LTCBTC".to_owned()),
-            ("side".to_owned(), "BUY".to_owned()),
-            ("type".to_owned(), "LIMIT".to_owned()),
-            ("timeInForce".to_owned(), "GTC".to_owned()),
-            ("quantity".to_owned(), "1".to_owned()),
-            ("price".to_owned(), "0.1".to_owned()),
-            ("recvWindow".to_owned(), "5000".to_owned()),
-            ("timestamp".to_owned(), "1499827319559".to_owned()),
-        ];
-
-        let http_string = rest_client::to_http_string(&parameters);
-
-        let right_value = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
-        assert_eq!(http_string, right_value);
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct OrderId {
-    order_id: u64,
 }

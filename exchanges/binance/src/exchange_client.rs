@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use function_name::named;
 use itertools::Itertools;
 use mmb_core::exchanges::common::{
-    ActivePosition, ClosedPosition, CurrencyPair, ExchangeError, ExchangeErrorType, Price,
+    ActivePosition, ClosedPosition, CurrencyPair, ExchangeError, Price,
 };
 use mmb_core::exchanges::events::ExchangeBalancesAndPositions;
 use mmb_core::exchanges::general::exchange::RequestResult;
@@ -14,7 +14,7 @@ use mmb_core::exchanges::general::order::create::CreateOrderResult;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::request_type::RequestType;
 use mmb_core::exchanges::general::symbol::Symbol;
-use mmb_core::exchanges::rest_client;
+use mmb_core::exchanges::rest_client::UriBuilder;
 use mmb_core::exchanges::traits::{ExchangeClient, Support};
 use mmb_core::orders::fill::EventSourceType;
 use mmb_core::orders::order::*;
@@ -51,20 +51,15 @@ impl ExchangeClient for Binance {
     async fn cancel_all_orders(&self, currency_pair: CurrencyPair) -> Result<()> {
         let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
 
-        let host = &self.hosts.rest_host;
-        let path_to_delete = "/api/v3/openOrders";
+        let mut builder = UriBuilder::from_path("/api/v3/openOrders");
+        builder.add_kv("symbol", &specific_currency_pair);
+        self.add_authentification(&mut builder);
 
-        let mut http_params = vec![(
-            "symbol".to_owned(),
-            specific_currency_pair.as_str().to_owned(),
-        )];
-        self.add_authentification_headers(&mut http_params)?;
-
-        let full_url = rest_client::build_uri(host, path_to_delete, &http_params);
+        let uri = builder.build_uri(&self.hosts.rest_uri_host(), true);
 
         let api_key = &self.settings.api_key;
         self.rest_client
-            .delete(full_url, api_key, function_name!(), "".to_string())
+            .delete(uri, api_key, function_name!(), String::new())
             .await?;
 
         Ok(())
@@ -90,11 +85,7 @@ impl ExchangeClient for Binance {
     async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
         match self.request_order_info(order).await {
             Ok(request_outcome) => Ok(self.parse_order_info(&request_outcome)),
-            Err(error) => Err(ExchangeError::new(
-                ExchangeErrorType::ParsingError,
-                error.to_string(),
-                None,
-            )),
+            Err(error) => Err(ExchangeError::parsing(error.to_string())),
         }
     }
 
@@ -137,20 +128,14 @@ impl ExchangeClient for Binance {
         &self,
         symbol: &Symbol,
         last_date_time: Option<DateTime>,
-    ) -> Result<RequestResult<Vec<OrderTrade>>> {
+    ) -> RequestResult<Vec<OrderTrade>> {
         // TODO Add metric UseTimeMetric(RequestType::GetMyTrades)
         match self.request_my_trades(symbol, last_date_time).await {
             Ok(response) => match self.parse_get_my_trades(&response, last_date_time) {
-                Ok(data) => Ok(RequestResult::Success(data)),
-                Err(_) => Ok(RequestResult::Error(ExchangeError::unknown(
-                    &response.content,
-                ))),
+                Ok(data) => RequestResult::Success(data),
+                Err(_) => RequestResult::Error(ExchangeError::unknown(&response.content)),
             },
-            Err(error) => Ok(RequestResult::Error(ExchangeError::new(
-                ExchangeErrorType::ParsingError,
-                error.to_string(),
-                None,
-            ))),
+            Err(err) => RequestResult::Error(ExchangeError::parsing(err.to_string())),
         }
     }
 
@@ -222,7 +207,7 @@ impl Binance {
             Some(v) => v,
         };
 
-        match self.request_update_listen_key(listen_key).await {
+        match self.request_update_listen_key(&listen_key).await {
             Ok(_) => log::trace!("Updated listenKey"),
             Err(err) => log::warn!("Failed to update listenKey {err}"),
         }

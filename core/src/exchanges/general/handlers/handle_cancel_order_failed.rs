@@ -543,11 +543,7 @@ mod test {
         let order_ref = order_pool.add_snapshot_initial(Arc::new(RwLock::new(order)));
         test_helper::try_add_snapshot_by_exchange_id(&exchange, &order_ref);
 
-        let error = ExchangeError::new(
-            ExchangeErrorType::Authentication,
-            "Authentication error".to_owned(),
-            None,
-        );
+        let error = ExchangeError::authentication("Authentication error".to_owned());
 
         // Act
         exchange.handle_cancel_order_failed(

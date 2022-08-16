@@ -530,11 +530,7 @@ impl Exchange {
         let args_to_log = (self.exchange_account_id, client_order_id);
 
         if client_order_id.as_str().is_empty() {
-            let error_msg =
-                format!("Order was created but client_order_id is empty. Order: {args_to_log:?}");
-
-            log::error!("{error_msg}");
-            bail!("{error_msg}");
+            bail!("Order was created but client_order_id is empty. Order: {args_to_log:?}");
         }
 
         let order_ref = self.orders.cache_by_client_id.get(client_order_id).with_context(|| {
@@ -575,9 +571,7 @@ impl Exchange {
                 bail!(error_msg)
             }
             OrderStatus::FailedToCreate => {
-                log::warn!(
-                    "CreateOrderFailed was received for a FailedToCreate order {args_to_log:?}"
-                );
+                log::warn!("CreateOrderFailed was received for a {status:?} order {args_to_log:?}");
                 Ok(())
             }
             OrderStatus::Creating => {
@@ -594,7 +588,7 @@ impl Exchange {
 
                 // TODO DataRecorder.Save(order)
 
-                log::warn!("Order creation failed {args_to_log:?}, with error: {exchange_error:?}");
+                log::error!("Order creation failed {args_to_log:?}: {exchange_error:?}");
 
                 Ok(())
             }

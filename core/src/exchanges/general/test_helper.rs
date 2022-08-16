@@ -106,7 +106,7 @@ impl ExchangeClient for TestClient {
         &self,
         _symbol: &Symbol,
         _last_date_time: Option<DateTime>,
-    ) -> Result<RequestResult<Vec<OrderTrade>>> {
+    ) -> RequestResult<Vec<OrderTrade>> {
         unimplemented!("doesn't need in UT")
     }
 

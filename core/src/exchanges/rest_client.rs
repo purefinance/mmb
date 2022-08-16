@@ -1,15 +1,17 @@
 use super::common::*;
 use anyhow::Result;
+use bytes::{Buf, BufMut, Bytes, BytesMut};
 use hyper::client::HttpConnector;
+use hyper::http::uri::{Parts, PathAndQuery};
 use hyper::{Body, Client, Error, Request, Response, StatusCode, Uri};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use log::log;
 use mmb_utils::infrastructure::WithExpect;
 use std::convert::TryInto;
-use std::fmt::Write;
+use std::fmt::{Display, Write};
 use uuid::Uuid;
 
-pub type HttpParams = Vec<(String, String)>;
+pub type QueryKey = &'static str;
 
 /// Trait for specific exchange errors handling
 pub trait ErrorHandler: Sized {
@@ -52,9 +54,9 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         }
     }
 
-    pub(super) fn request_log(&self, fn_name: &str, request_id: &Uuid) {
+    pub(super) fn request_log(&self, action_name: &str, request_id: &Uuid) {
         log::trace!(
-            "{fn_name} request on exchange_account_id {}, request_id: {request_id}",
+            "{action_name} request {request_id} on exchange_account_id {}",
             self.exchange_account_id
         );
     }
@@ -78,9 +80,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         use ExchangeErrorType::*;
 
         let error = match response.status {
-            StatusCode::UNAUTHORIZED => {
-                ExchangeError::new(Authentication, response.content.clone(), None)
-            }
+            StatusCode::UNAUTHORIZED => ExchangeError::authentication(response.content.clone()),
             StatusCode::GATEWAY_TIMEOUT | StatusCode::SERVICE_UNAVAILABLE => {
                 ExchangeError::new(ServiceUnavailable, response.content.clone(), None)
             }
@@ -159,7 +159,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
 
     pub async fn get(
         &self,
-        url: Uri,
+        uri: Uri,
         api_key: &str,
         action_name: &'static str,
         log_args: String,
@@ -167,7 +167,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
-        let req = Request::get(url)
+        let req = Request::get(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
@@ -181,7 +181,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
 
     pub async fn put(
         &self,
-        url: Uri,
+        uri: Uri,
         api_key: &str,
         action_name: &'static str,
         log_args: String,
@@ -189,7 +189,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
-        let req = Request::put(url)
+        let req = Request::put(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
@@ -203,23 +203,19 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
 
     pub async fn post(
         &self,
-        url: Uri,
+        uri: Uri,
         api_key: &str,
-        http_params: &HttpParams,
+        query: Bytes,
         action_name: &'static str,
         log_args: String,
     ) -> Result<RestRequestOutcome, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
-        let form_encoded = form_urlencoded::Serializer::new(String::new())
-            .extend_pairs(http_params)
-            .finish();
-
-        let req = Request::post(url)
+        let req = Request::post(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
-            .body(Body::from(form_encoded))
+            .body(Body::from(query))
             .with_expect(|| format!("Error during creation of http POST request {request_id}"));
 
         let response = self.client.request(req).await;
@@ -230,7 +226,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
 
     pub async fn delete(
         &self,
-        url: Uri,
+        uri: Uri,
         api_key: &str,
         action_name: &'static str,
         log_args: String,
@@ -238,7 +234,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
-        let req = Request::delete(url)
+        let req = Request::delete(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
@@ -292,76 +288,152 @@ fn create_client() -> Client<HttpsConnector<HttpConnector>> {
     Client::builder().build::<_, Body>(https)
 }
 
-pub fn build_uri(host: &str, path: &str, http_params: &HttpParams) -> Uri {
-    let mut url = String::with_capacity(1024);
-    url.push_str(host);
-    url.push_str(path);
-
-    if !http_params.is_empty() {
-        url.push('?');
-    }
-
-    let mut is_first = true;
-    for (k, v) in http_params {
-        if !is_first {
-            url.push('&')
-        }
-        url.push_str(k);
-        url.push('=');
-        url.push_str(v);
-
-        is_first = false;
-    }
-
-    url.as_str()
-        .try_into()
-        .unwrap_or_else(|err| panic!("Unable create url from {url}: {err:?}"))
+pub struct UriBuilder {
+    // buffer for path and query parts of uri
+    buffer: BytesMut,
+    // start index in buffer for query part
+    query_start: usize,
 }
 
-pub fn to_http_string(parameters: &HttpParams) -> String {
-    let mut http_string = String::new();
-    for (key, value) in parameters {
-        if !http_string.is_empty() {
-            http_string.push('&');
+impl UriBuilder {
+    pub fn new(capacity: usize, path: &str) -> Self {
+        let mut buf = BytesMut::with_capacity(capacity);
+        buf.extend_from_slice(path.as_bytes());
+        buf.put_u8(b'?');
+        let query_start = buf.len();
+        Self {
+            buffer: buf,
+            query_start,
         }
-        http_string.push_str(key);
-        http_string.push('=');
-        http_string.push_str(value);
     }
 
-    http_string
+    pub fn from_path(path: &str) -> Self {
+        Self::new(1024, path)
+    }
+
+    // Add key of query with near symbols '=' and '&' if needed
+    fn add_static_part(&mut self, key: QueryKey) {
+        let buf = &mut self.buffer;
+        if buf.len() > self.query_start {
+            buf.put_u8(b'&')
+        }
+        buf.extend_from_slice(key.as_bytes());
+        buf.put_u8(b'=');
+    }
+
+    pub fn add_kv(&mut self, key: QueryKey, value: impl Display + Sized) {
+        self.add_static_part(key);
+        if let Err(err) = write!(self.buffer, "{value}") {
+            panic!("unable add parameter to query with key {key}: {err}");
+        }
+    }
+
+    pub fn ensure_free_size(&mut self, need_capacity: usize) {
+        if self.buffer.remaining() < need_capacity {
+            self.buffer.reserve(need_capacity)
+        }
+    }
+
+    pub fn query(&mut self) -> &[u8] {
+        &self.buffer[self.query_start..]
+    }
+
+    pub fn build_uri_and_query(self, host: &str, add_query_to_uri: bool) -> (Uri, Bytes) {
+        let buffer = self.buffer.freeze();
+
+        let query = buffer.slice(self.query_start..);
+
+        let path_and_query = match add_query_to_uri {
+            false => buffer.slice(..self.query_start - 1),
+            true if buffer.len() == self.query_start => buffer.slice(..self.query_start - 1),
+            true => buffer,
+        };
+        let path_and_query = PathAndQuery::from_maybe_shared(path_and_query)
+            .expect("Unable create PathAndQuery from UriQueryBuilder");
+
+        let mut parts = Parts::default();
+        parts.scheme = Some("https".try_into().expect("Unable build scheme for url"));
+        parts.authority = Some(host.try_into().expect("Unable build authority for url"));
+        parts.path_and_query = Some(path_and_query);
+
+        let uri = Uri::from_parts(parts).expect("Unable build url from parts");
+
+        (uri, query)
+    }
+
+    pub fn build_uri(self, host: &str, add_query_to_uri: bool) -> Uri {
+        self.build_uri_and_query(host, add_query_to_uri).0
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rust_decimal_macros::dec;
 
     #[test]
-    pub fn full_uri() {
-        let host = "https://host.com";
-        let path = "/path";
-        let params: HttpParams = vec![("key", "value"), ("key2", "value2")]
-            .into_iter()
-            .map(|(k, v)| (k.to_owned(), v.to_owned()))
-            .collect();
+    pub fn build_query_by_builder() {
+        let mut builder = UriBuilder::from_path("/path");
+        builder.add_kv("symbol", "LTCBTC");
+        builder.add_kv("side", "BUY");
+        builder.add_kv("type", "LIMIT");
+        builder.add_kv("timeInForce", "GTC");
+        builder.add_kv("quantity", "1");
+        builder.add_kv("price", "0.1");
+        builder.add_kv("recvWindow", "5000");
+        builder.add_kv("timestamp", "1499827319559");
 
-        let uri = build_uri(host, path, &params);
+        let query = builder.query();
 
-        let expected: Uri = "https://host.com/path?key=value&key2=value2"
-            .try_into()
-            .expect("in test");
-        assert_eq!(uri, expected)
+        let expected = b"symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
+        assert_eq!(query, expected);
     }
 
     #[test]
-    pub fn uri_without_params() {
-        let host = "https://host.com";
+    pub fn build_uri_with_query_by_builder() {
+        let host = "host.com";
         let path = "/path";
-        let params: HttpParams = HttpParams::new();
 
-        let uri = build_uri(host, path, &params);
+        let mut builder = UriBuilder::from_path(path);
+        builder.add_kv("key", "value");
+        builder.add_kv("key2", 32);
+        builder.add_kv("key3", &dec!(42));
+        let query = builder.query();
+        assert_eq!(query, b"key=value&key2=32&key3=42");
 
-        let expected: Uri = "https://host.com/path".try_into().expect("in test");
-        assert_eq!(uri, expected)
+        let path_and_query = builder.build_uri(&host, true);
+        assert_eq!(
+            path_and_query,
+            Uri::from_static("https://host.com/path?key=value&key2=32&key3=42")
+        )
+    }
+
+    #[test]
+    pub fn build_uri_without_query_by_builder() {
+        let host = "host.com";
+        let path = "/path";
+
+        let mut builder = UriBuilder::from_path(path);
+        builder.add_kv("key", "value");
+        builder.add_kv("key2", 32);
+        builder.add_kv("key3", &dec!(42));
+        let query = builder.query();
+        assert_eq!(query, b"key=value&key2=32&key3=42");
+
+        let path_and_query = builder.build_uri(&host, false);
+        assert_eq!(path_and_query, Uri::from_static("https://host.com/path"))
+    }
+
+    #[test]
+    pub fn build_uri_from_empty_builder() {
+        let host = "host.com";
+        let path = "/path";
+
+        let mut builder = UriBuilder::from_path(path);
+        let query = builder.query();
+        assert_eq!(query, b"");
+
+        let path_and_query = builder.build_uri(&host, true);
+        assert_eq!(path_and_query, Uri::from_static("https://host.com/path"))
     }
 }
