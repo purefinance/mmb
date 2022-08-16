@@ -353,34 +353,26 @@ impl Exchange {
                 return Ok(());
             }
 
-            log::trace!(
-                "Checking order status in check_order_cancellation_status with order {} {:?} {}",
-                order.client_order_id(),
-                order.exchange_order_id(),
-                self.exchange_account_id
-            );
+            let (client_order_id, exchange_order_id) = order.order_ids();
+            log::trace!("Checking order status in check_order_cancellation_status with order {client_order_id} {exchange_order_id:?} {}", self.exchange_account_id);
 
             let order_info = self.get_order_info(order).await;
 
-            if order.is_finished() {
+            let (is_finished, exchange_order_id) =
+                order.fn_ref(|x| (x.is_finished(), x.exchange_order_id()));
+            if is_finished {
                 return Ok(());
             }
 
             match order_info {
                 Err(error) => {
                     if error.error_type == ExchangeErrorType::OrderNotFound {
-                        let new_error = exchange_error.unwrap_or_else(|| ExchangeError::new(
-                            ExchangeErrorType::Unknown,
-                            "There are no any response from an exchange, so probably this order was not canceling".to_owned(),
-                            None)
-                        );
+                        let new_error = exchange_error.unwrap_or_else(|| ExchangeError::unknown("There are no any response from an exchange, so probably this order was not canceling"));
 
-                        let exchange_order_id = order.exchange_order_id().with_context(|| {
+                        let exchange_order_id = exchange_order_id.with_context(|| {
                             format!(
-                                "There are no exchange_order_id in order {} {:?} on {}",
-                                order.client_order_id(),
-                                order.exchange_order_id(),
-                                self.exchange_account_id,
+                                "exchange_order_id is None in order {client_order_id} on {}",
+                                self.exchange_account_id
                             )
                         })?;
 
@@ -394,12 +386,9 @@ impl Exchange {
                     }
 
                     log::warn!(
-                        "Error for order_info was received {} {:?} {} {:?} {:?}",
-                        order.client_order_id(),
-                        order.exchange_order_id(),
+                        "Error for order_info was received {client_order_id} {exchange_order_id:?} {} {:?} {error:?}",
                         self.exchange_account_id,
                         order.currency_pair(),
-                        error
                     );
 
                     continue;
@@ -407,9 +396,9 @@ impl Exchange {
                 Ok(order_info) => {
                     match order_info.order_status {
                         OrderStatus::Canceled => {
-                            if let Some(exchange_order_id) = order.exchange_order_id() {
+                            if let Some(exchange_order_id) = exchange_order_id {
                                 self.handle_cancel_order_succeeded(
-                                    Some(&order.client_order_id()),
+                                    Some(&client_order_id),
                                     &exchange_order_id,
                                     Some(order_info.filled_amount),
                                     EventSourceType::RestFallback,
@@ -451,7 +440,7 @@ impl Exchange {
                 s.client_order_id(),
                 s.exchange_order_id(),
                 s.internal_props.filled_amount_after_cancellation,
-                s.fills.filled_amount,
+                s.filled_amount(),
             )
         });
 

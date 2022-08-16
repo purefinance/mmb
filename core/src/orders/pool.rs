@@ -43,7 +43,7 @@ impl OrderRef {
         self.fn_ref(|x| x.props.role)
     }
     pub fn is_finished(&self) -> bool {
-        self.fn_ref(|x| x.props.is_finished())
+        self.fn_ref(|x| x.is_finished())
     }
     pub fn was_cancellation_event_raised(&self) -> bool {
         self.fn_ref(|x| x.internal_props.was_cancellation_event_raised)
@@ -76,7 +76,7 @@ impl OrderRef {
     }
 
     pub fn filled_amount(&self) -> Amount {
-        self.fn_ref(|order| order.fills.filled_amount)
+        self.fn_ref(|order| order.filled_amount())
     }
     pub fn get_fills(&self) -> (Vec<OrderFill>, Amount) {
         self.fn_ref(|order| (order.fills.fills.clone(), order.fills.filled_amount))
