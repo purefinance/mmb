@@ -324,7 +324,6 @@ impl Exchange {
                 match order_info_res {
                     Ok(order_info) => {
                         self.handle_creating_order_from_check_order_info(
-                            status,
                             &client_order_id,
                             &exchange_order_id,
                             &order_info,
@@ -421,7 +420,6 @@ impl Exchange {
 
     fn handle_creating_order_from_check_order_info(
         &self,
-        status: OrderStatus,
         client_order_id: &ClientOrderId,
         exchange_order_id: &Option<ExchangeOrderId>,
         order_info: &OrderInfo,
@@ -435,7 +433,8 @@ impl Exchange {
             log::warn!("CheckOrderCreation fallback found a {status:?} order {client_order_id} {exchange_order_id:?} on {exchange_account_id}");
         }
 
-        match order_info.order_status {
+        let status = order_info.order_status;
+        match status {
             OrderStatus::FailedToCreate => {
                 log_status(
                     status,
