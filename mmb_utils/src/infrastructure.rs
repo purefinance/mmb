@@ -94,7 +94,7 @@ pub fn spawn_future_timed(
         cancellation_token,
     );
 
-    log::info!("Future {} with id {} started", action_name, future_id);
+    log::info!("Future {action_name} with id {future_id} started");
 
     tokio::spawn(async move {
         timeout(duration, action).await.unwrap_or_else(|_| {
@@ -195,13 +195,13 @@ async fn handle_action_outcome(
 /// This function spawn a future after waiting for some `delay`
 /// and will repeat the `callback` endlessly with some `period`
 pub fn spawn_by_timer<F, Fut>(
-    callback: F,
     name: &str,
     delay: Duration,
     period: Duration,
     flags: SpawnFutureFlags,
     cancellation_token: CancellationToken,
     graceful_shutdown_spawner: impl FnOnce(String, &str) + 'static + Send,
+    action: F,
 ) -> JoinHandle<FutureOutcome>
 where
     F: Fn() -> Fut + Send + Sync + 'static,
@@ -213,7 +213,7 @@ where
         async move {
             tokio::time::sleep(delay).await;
             loop {
-                callback().await;
+                action().await;
                 tokio::time::sleep(period).await;
             }
         },
@@ -532,13 +532,13 @@ mod test {
 
                 let counter = counter.clone();
                 spawn_by_timer(
-                    move || (future)(counter.clone()),
                     "spawn_repeatable",
                     Duration::ZERO,
                     Duration::from_millis(duration),
                     SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
                     CancellationToken::default(),
                     |_, _| {},
+                    move || (future)(counter.clone()),
                 )
             };
 

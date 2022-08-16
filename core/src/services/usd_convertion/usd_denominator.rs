@@ -58,11 +58,11 @@ impl UsdDenominator {
         if auto_refresh_data {
             let this = this.clone();
             let _ = spawn_by_timer(
-                move || Self::refresh_data(this.clone()),
                 "UsdDenominator::refresh_data()",
                 Duration::ZERO,
                 Duration::from_secs(7200), // 2 hours
                 SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+                move || Self::refresh_data(this.clone()),
             );
         }
 

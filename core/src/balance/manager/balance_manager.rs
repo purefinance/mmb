@@ -28,7 +28,7 @@ use itertools::Itertools;
 use log::log;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::WithExpect;
-use mmb_utils::{impl_mock_initializer, DateTime};
+use mmb_utils::{impl_mock_initializer, nothing_to_do, DateTime};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -995,6 +995,8 @@ impl BalanceManager {
         this: Arc<Mutex<Self>>,
         cancellation_token: CancellationToken,
     ) {
+        log::trace!("Balance update started");
+
         let exchanges = this
             .lock()
             .balance_reservation_manager
@@ -1003,34 +1005,37 @@ impl BalanceManager {
             .cloned()
             .collect_vec();
 
-        let update_actions = exchanges
-            .iter()
-            .map(|exchange| {
-                let this = this.clone();
-                let cancellation_token = cancellation_token.clone();
+        let update_actions = exchanges.iter().map(|exchange| {
+            let this = this.clone();
+            let cancellation_token = cancellation_token.clone();
 
-                async move {
+            async move {
+                let run = async move {
                     let balances_and_positions = exchange
                         .get_balance(cancellation_token.clone())
                         .await
-                        .unwrap_or_else(|err| {
-                            panic!(
-                                "failed to get balance for {}: {err:?}",
-                                exchange.exchange_account_id
-                            )
-                        });
+                        .with_context(|| {
+                            format!("failed get_balance for {}", exchange.exchange_account_id)
+                        })?;
 
                     this.lock()
                         .update_exchange_balance(
                             exchange.exchange_account_id,
                             &balances_and_positions,
                         )
-                        .expect("failed to update exchange balance");
+                        .context("failed to update exchange balance")
+                };
+
+                match run.await {
+                    Ok(()) => nothing_to_do(),
+                    Err(err) => log::error!("{err:?}"),
                 }
-            })
-            .collect_vec();
+            }
+        });
 
         join_all(update_actions).await;
+
+        log::trace!("Balance update finished")
     }
 
     // TODO: should be implemented

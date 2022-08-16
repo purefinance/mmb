@@ -72,6 +72,26 @@ pub fn spawn_future_timed(
     )
 }
 
+/// Spawn future with timer. Other nuances are the same as spawn_future()
+pub fn spawn_future_timed_ok(
+    action_name: &str,
+    flags: SpawnFutureFlags,
+    duration: Duration,
+    action: impl Future<Output = ()> + Send + 'static,
+) -> JoinHandle<FutureOutcome> {
+    mmb_utils::infrastructure::spawn_future_timed(
+        action_name,
+        flags,
+        duration,
+        async move {
+            action.await;
+            Ok(())
+        },
+        spawn_graceful_shutdown,
+        get_futures_cancellation_token(),
+    )
+}
+
 pub fn spawn_future_ok(
     action_name: &str,
     flags: SpawnFutureFlags,
@@ -118,24 +138,24 @@ fn spawn_graceful_shutdown(log_template: String, error_message: &str) {
 /// This function spawn a future after waiting for some `delay`
 /// and will repeat the `callback` endlessly with some `period`
 pub fn spawn_by_timer<F, Fut>(
-    callback: F,
     name: &str,
     delay: Duration,
     period: Duration,
     flags: SpawnFutureFlags,
+    action: F,
 ) -> JoinHandle<FutureOutcome>
 where
     F: Fn() -> Fut + Send + Sync + 'static,
     Fut: Future<Output = ()> + Send + 'static,
 {
     mmb_utils::infrastructure::spawn_by_timer(
-        callback,
         name,
         delay,
         period,
         flags,
         get_futures_cancellation_token(),
         spawn_graceful_shutdown,
+        action,
     )
 }
 

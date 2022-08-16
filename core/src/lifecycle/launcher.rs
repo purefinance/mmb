@@ -11,7 +11,7 @@ use crate::exchanges::general::exchange_creation::create_timeout_manager;
 use crate::exchanges::internal_events_loop::InternalEventsLoop;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::exchanges::traits::ExchangeClientBuilder;
-use crate::infrastructure::{init_lifetime_manager, spawn_future_ok};
+use crate::infrastructure::{init_lifetime_manager, spawn_by_timer, spawn_future_ok};
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
@@ -200,6 +200,23 @@ where
             .value()
             .setup_balance_manager(balance_manager.clone())
     }
+
+    spawn_by_timer(
+        "Update balances",
+        Duration::ZERO,
+        Duration::from_secs(60),
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+        {
+            let balance_manager = balance_manager.clone();
+            let stop_token = lifetime_manager.stop_token();
+            move || {
+                BalanceManager::update_balances_for_exchanges(
+                    balance_manager.clone(),
+                    stop_token.clone(),
+                )
+            }
+        },
+    );
 
     let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
 
