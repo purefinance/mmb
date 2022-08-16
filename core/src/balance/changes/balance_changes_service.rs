@@ -122,11 +122,11 @@ impl BalanceChangesService {
         };
 
         let _ = spawn_by_timer(
-            on_timer_tick,
             "BalanceChangesService",
             Duration::ZERO,
             Duration::from_secs(5),
             SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+            on_timer_tick,
         );
 
         this
