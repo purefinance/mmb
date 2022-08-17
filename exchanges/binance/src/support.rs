@@ -50,14 +50,35 @@ pub struct BinanceOrderInfo {
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct BinanceAccountInfo {
-    pub balances: Vec<BinanceBalances>,
+    pub balances: Option<Vec<BinanceSpotBalances>>,
+    pub assets: Option<Vec<BinanceMarginBalances>>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
-pub struct BinanceBalances {
+pub struct BinanceSpotBalances {
     pub asset: String,
     pub free: Decimal,
     pub locked: Decimal,
+}
+
+// Corresponds https://binance-docs.github.io/apidocs/futures/en/#account-information-v2-user_data
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinanceMarginBalances {
+    pub asset: String,                      // asset name
+    pub wallet_balance: Decimal,            // wallet balance
+    pub unrealized_profit: Decimal,         // unrealized profit
+    pub margin_balance: Decimal,            // margin balance
+    pub maint_margin: Decimal,              // maintenance margin required
+    pub initial_margin: Decimal,            // total initial margin required with current mark price
+    pub position_initial_margin: Decimal, //initial margin required for positions with current mark price
+    pub open_order_initial_margin: Decimal, // initial margin required for open orders with current mark price
+    pub cross_wallet_balance: Decimal,      // crossed wallet balance
+    pub cross_un_pnl: Decimal,              // unrealized profit of crossed positions
+    pub available_balance: Decimal,         // available balance
+    pub max_withdraw_amount: Decimal,       // maximum amount for transfer out
+    pub margin_available: bool, // whether the asset can be used as margin in Multi-Assets mode
+    pub update_time: Decimal,   // last update time
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
@@ -267,20 +288,34 @@ impl Binance {
     }
 
     pub fn process_snapshot_update(&self, currency_pair: CurrencyPair, data: &Value) -> Result<()> {
-        let last_update_id = data["lastUpdateId"].to_string();
-        let last_update_id = last_update_id.trim_matches('"');
-        let raw_asks = data["asks"]
-            .as_array()
-            .ok_or_else(|| anyhow!("Unable to parse 'asks' in Binance"))?;
-        let raw_bids = data["bids"]
-            .as_array()
-            .ok_or_else(|| anyhow!("Unable to parse 'bids' in Binance"))?;
+        let (last_update_id, raw_asks, raw_bids) = match self.settings.is_margin_trading {
+            true => {
+                let last_update_id = data["u"].to_string();
+                let raw_asks = data["a"]
+                    .as_array()
+                    .ok_or_else(|| anyhow!("Unable to parse 'asks' in Binance"))?;
+                let raw_bids = data["b"]
+                    .as_array()
+                    .ok_or_else(|| anyhow!("Unable to parse 'bids' in Binance"))?;
+                (last_update_id, raw_asks, raw_bids)
+            }
+            false => {
+                let last_update_id = data["lastUpdateId"].to_string();
+                let raw_asks = data["asks"]
+                    .as_array()
+                    .ok_or_else(|| anyhow!("Unable to parse 'asks' in Binance"))?;
+                let raw_bids = data["bids"]
+                    .as_array()
+                    .ok_or_else(|| anyhow!("Unable to parse 'bids' in Binance"))?;
+                (last_update_id, raw_asks, raw_bids)
+            }
+        };
 
         let asks = get_order_book_side(raw_asks)?;
         let bids = get_order_book_side(raw_bids)?;
 
         let order_book_data = OrderBookData::new(asks, bids);
-        self.handle_order_book_snapshot(currency_pair, last_update_id, order_book_data, None)
+        self.handle_order_book_snapshot(currency_pair, &last_update_id, order_book_data, None)
     }
 
     fn handle_order_book_snapshot(

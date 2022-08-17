@@ -9,7 +9,6 @@ use function_name::named;
 use hmac::digest::generic_array;
 use hmac::{Hmac, Mac, NewMac};
 use itertools::Itertools;
-use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::time::{get_current_milliseconds, u64_to_date_time};
 use mmb_utils::DateTime;
 use parking_lot::{Mutex, RwLock};
@@ -17,8 +16,8 @@ use serde_json::Value;
 use sha2::Sha256;
 use tokio::sync::broadcast;
 
-use super::support::{BinanceBalances, BinanceOrderInfo};
-use crate::support::BinanceAccountInfo;
+use super::support::{BinanceOrderInfo, BinanceSpotBalances};
+use crate::support::{BinanceAccountInfo, BinanceMarginBalances};
 use mmb_core::exchanges::common::{
     ActivePosition, Amount, ExchangeError, ExchangeErrorType, ExchangeId, Price,
 };
@@ -195,7 +194,7 @@ impl Binance {
         if is_margin_trading {
             Hosts {
                 web_socket_host: "wss://fstream.binance.com",
-                web_socket2_host: "wss://fstream3.binance.com",
+                web_socket2_host: "wss://fstream.binance.com",
                 rest_host: "https://fapi.binance.com",
             }
         } else {
@@ -209,7 +208,7 @@ impl Binance {
 
     #[named]
     pub(super) async fn request_listen_key(&self) -> Result<RestRequestOutcome, ExchangeError> {
-        let path = self.get_uri_path("/fapi/v1/userDataStream", "/api/v3/userDataStream");
+        let path = self.get_uri_path("/fapi/v1/listenKey", "/api/v3/userDataStream");
         let builder = UriBuilder::from_path(path);
         let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
 
@@ -402,15 +401,6 @@ impl Binance {
             .map(|some| *some.value())
     }
 
-    pub(crate) fn get_currency_code_expected(&self, currency_id: &CurrencyId) -> CurrencyCode {
-        self.get_currency_code(currency_id).with_expect(|| {
-            format!(
-                "Failed to convert CurrencyId({currency_id}) to CurrencyCode for {}",
-                self.id
-            )
-        })
-    }
-
     fn prepare_data_for_fill_handler(
         &self,
         json_response: &Value,
@@ -489,13 +479,16 @@ impl Binance {
 
     pub(super) fn get_spot_exchange_balances_and_positions(
         &self,
-        raw_balances: Vec<BinanceBalances>,
+        raw_balances: Vec<BinanceSpotBalances>,
     ) -> ExchangeBalancesAndPositions {
         let balances = raw_balances
             .iter()
-            .map(|balance| ExchangeBalance {
-                currency_code: self.get_currency_code_expected(&balance.asset.as_str().into()),
-                balance: balance.free,
+            .filter_map(|balance| {
+                self.get_currency_code(&balance.asset.as_str().into())
+                    .map(|currency_code| ExchangeBalance {
+                        currency_code,
+                        balance: balance.free,
+                    })
             })
             .collect_vec();
 
@@ -506,9 +499,24 @@ impl Binance {
     }
 
     pub(super) fn get_margin_exchange_balances_and_positions(
-        _raw_balances: Vec<BinanceBalances>,
+        &self,
+        raw_balances: Vec<BinanceMarginBalances>,
     ) -> ExchangeBalancesAndPositions {
-        todo!("implement it later")
+        let balances = raw_balances
+            .iter()
+            .filter_map(|balance| {
+                self.get_currency_code(&balance.asset.as_str().into())
+                    .map(|currency_code| ExchangeBalance {
+                        currency_code,
+                        balance: balance.available_balance,
+                    })
+            })
+            .collect_vec();
+
+        ExchangeBalancesAndPositions {
+            balances,
+            positions: None,
+        }
     }
 
     pub(super) fn get_order_id(
@@ -680,10 +688,6 @@ impl Binance {
             .await
     }
 
-    pub(super) async fn request_get_balance_spot(&self) -> Result<RestRequestOutcome> {
-        panic!("not supported request")
-    }
-
     pub(super) fn parse_get_balance(
         &self,
         response: &RestRequestOutcome,
@@ -691,10 +695,17 @@ impl Binance {
         let binance_account_info: BinanceAccountInfo = serde_json::from_str(&response.content)
             .expect("Unable to parse response content for get_balance request");
 
-        if self.settings.is_margin_trading {
-            Binance::get_margin_exchange_balances_and_positions(binance_account_info.balances)
-        } else {
-            self.get_spot_exchange_balances_and_positions(binance_account_info.balances)
+        match self.settings.is_margin_trading {
+            true => self.get_margin_exchange_balances_and_positions(
+                binance_account_info
+                    .assets
+                    .expect("Unable to parse margin balances"),
+            ),
+            false => self.get_spot_exchange_balances_and_positions(
+                binance_account_info
+                    .balances
+                    .expect("Unable to parse spot balances"),
+            ),
         }
     }
 
@@ -723,12 +734,18 @@ impl Binance {
     pub(super) async fn request_my_trades(
         &self,
         symbol: &Symbol,
-        _last_date_time: Option<DateTime>,
+        last_date_time: Option<DateTime>,
     ) -> Result<RestRequestOutcome, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(symbol.currency_pair());
 
         let path = self.get_uri_path("/fapi/v1/userTrades", "/api/v3/myTrades");
         let mut builder = UriBuilder::from_path(path);
+        if let Some(last_date_time_value) = last_date_time {
+            builder.add_kv(
+                "startTime",
+                last_date_time_value.timestamp_millis().to_string(),
+            );
+        }
         builder.add_kv("symbol", &specific_currency_pair);
         self.add_authentification(&mut builder);
 
@@ -818,9 +835,16 @@ impl Binance {
         builder.add_kv("newClientOrderId", &header.client_order_id);
 
         if header.order_type != OrderType::Market {
-            builder.add_kv("timeInForce", "GTC");
             builder.add_kv("price", &price);
-        } else if header.execution_type == OrderExecutionType::MakerOnly {
+        }
+
+        if header.order_type != OrderType::Market
+            && header.execution_type != OrderExecutionType::MakerOnly
+        {
+            builder.add_kv("timeInForce", "GTC");
+        } else if header.execution_type == OrderExecutionType::MakerOnly
+            && self.settings.is_margin_trading
+        {
             builder.add_kv("timeInForce", "GTX");
         }
 
@@ -837,9 +861,8 @@ impl Binance {
 
     #[named]
     pub(super) async fn request_all_symbols(&self) -> Result<RestRequestOutcome, ExchangeError> {
-        // In current versions works only with Spot market
-
-        let builder = UriBuilder::from_path("/api/v3/exchangeInfo");
+        let path = self.get_uri_path("/fapi/v1/exchangeInfo", "/api/v3/exchangeInfo");
+        let builder = UriBuilder::from_path(path);
         let uri = builder.build_uri(self.hosts.rest_uri_host(), false);
 
         let api_key = &self.settings.api_key;
@@ -859,12 +882,12 @@ impl Binance {
             .and_then(|symbols| symbols.as_array())
             .ok_or_else(|| anyhow!("Unable to get symbols array from Binance"))?;
 
-        let mut result = Vec::new();
+        let mut supported_symbols = Vec::new();
         for symbol in symbols {
-            let is_active = symbol["status"] == "TRADING";
+            if Binance::is_unsupported_symbol(symbol) {
+                continue;
+            }
 
-            // TODO There is no work with derivatives in current version
-            let is_derivative = false;
             let base_currency_id = &symbol
                 .get_as_str("baseAsset")
                 .expect("Unable to get base currency id from Binance");
@@ -887,10 +910,11 @@ impl Binance {
                 .write()
                 .insert(specific_currency_pair, unified_currency_pair);
 
-            let amount_currency_code = base;
-
-            // TODO There are no balance_currency_code for spot, why does it set here this way?
-            let balance_currency_code = base;
+            let (amount_currency_code, balance_currency_code) =
+                match self.settings.is_margin_trading {
+                    true => (quote, Some(base)),
+                    false => (base, None),
+                };
 
             let mut min_amount = None;
             let mut max_amount = None;
@@ -918,7 +942,10 @@ impl Binance {
                         amount_tick = filter.get_as_decimal("stepSize");
                     }
                     "MIN_NOTIONAL" => {
-                        min_cost = filter.get_as_decimal("minNotional");
+                        min_cost = match self.settings.is_margin_trading {
+                            true => filter.get_as_decimal("notional"),
+                            false => filter.get_as_decimal("minNotional"),
+                        };
                     }
                     _ => {}
                 }
@@ -941,8 +968,7 @@ impl Binance {
             };
 
             let symbol = Symbol::new(
-                is_active,
-                is_derivative,
+                self.settings.is_margin_trading,
                 base_currency_id.as_str().into(),
                 base,
                 quote_currency_id.as_str().into(),
@@ -953,15 +979,24 @@ impl Binance {
                 max_amount,
                 min_cost,
                 amount_currency_code,
-                Some(balance_currency_code),
+                balance_currency_code,
                 price_precision,
                 amount_precision,
             );
 
-            result.push(Arc::new(symbol))
+            supported_symbols.push(Arc::new(symbol))
         }
 
-        Ok(result)
+        Ok(supported_symbols)
+    }
+
+    fn is_unsupported_symbol(symbol: &Value) -> bool {
+        let code = &symbol
+            .get_as_str("symbol")
+            .expect("Unable to get symbol code from Binance");
+
+        // Binance adds "_<NUMBERS>" to old symbol's code
+        code.contains('_') || symbol["status"] != "TRADING"
     }
 }
 

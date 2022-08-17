@@ -98,7 +98,11 @@ impl ExchangeClient for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
-    async fn get_balance(&self, _is_spot: bool) -> Result<ExchangeBalancesAndPositions> {
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
+        unimplemented!("doesn't need in UT")
+    }
+
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
         unimplemented!("doesn't need in UT")
     }
 
@@ -197,7 +201,6 @@ pub(crate) fn get_test_exchange_by_currency_codes_and_amount_code(
 ) -> (Arc<Exchange>, broadcast::Receiver<ExchangeEvent>) {
     let price_tick = dec!(0.1);
     let symbol = Arc::new(Symbol::new(
-        false,
         is_derivative,
         base_currency_code.into(),
         base_currency_code.into(),

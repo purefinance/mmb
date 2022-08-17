@@ -57,6 +57,7 @@ impl BinanceBuilder {
             ),
             Commission::default(),
             true,
+            false,
         )
         .await
     }
@@ -88,6 +89,30 @@ impl BinanceBuilder {
             ),
             Commission::default(),
             true,
+            false,
+        )
+        .await
+    }
+
+    pub async fn build_account_0_futures() -> Result<Self> {
+        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
+        BinanceBuilder::try_new(
+            exchange_account_id,
+            CancellationToken::default(),
+            ExchangeFeatures::new(
+                OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::default(),
+                OrderFeatures::default(),
+                OrderTradeOption::default(),
+                WebSocketOptions::default(),
+                true,
+                AllowedEventSourceType::default(),
+                AllowedEventSourceType::default(),
+                AllowedEventSourceType::default(),
+            ),
+            Commission::default(),
+            true,
+            true,
         )
         .await
     }
@@ -98,6 +123,7 @@ impl BinanceBuilder {
         features: ExchangeFeatures,
         commission: Commission,
         need_to_clean_up: bool,
+        is_margin_trading: bool,
     ) -> Result<Self> {
         let (api_key, secret_key) = match get_binance_credentials() {
             Ok((api_key, secret_key)) => (api_key, secret_key),
@@ -109,8 +135,12 @@ impl BinanceBuilder {
             ));
         }
 
-        let mut settings =
-            ExchangeSettings::new_short(exchange_account_id, api_key, secret_key, false);
+        let mut settings = ExchangeSettings::new_short(
+            exchange_account_id,
+            api_key,
+            secret_key,
+            is_margin_trading,
+        );
 
         // default currency pair for tests
         settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
@@ -191,9 +221,14 @@ impl BinanceBuilder {
 
         let currency_pair = OrderProxy::default_currency_pair();
         let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
-        let api_key = &settings.api_key;
-        let default_price =
-            get_default_price(specific_currency_pair, &hosts, api_key, exchange_account_id).await;
+        let default_price = get_default_price(
+            specific_currency_pair,
+            &hosts,
+            &settings.api_key,
+            exchange_account_id,
+            settings.is_margin_trading,
+        )
+        .await;
 
         let symbol = exchange
             .symbols
@@ -205,10 +240,11 @@ impl BinanceBuilder {
         let min_amount = get_min_amount(
             specific_currency_pair,
             &hosts,
-            api_key,
+            &settings.api_key,
             default_price,
             &symbol,
             exchange_account_id,
+            settings.is_margin_trading,
         )
         .await;
 

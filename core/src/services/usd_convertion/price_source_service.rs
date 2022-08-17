@@ -463,7 +463,6 @@ pub mod test {
     fn create_symbol(base: CurrencyCode, quote: CurrencyCode) -> Arc<Symbol> {
         Arc::new(Symbol::new(
             false,
-            false,
             base.as_str().into(),
             base,
             quote.as_str().into(),

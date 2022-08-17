@@ -18,7 +18,9 @@
 
 use anyhow::Result;
 use binance::binance::BinanceBuilder;
+use itertools::Itertools;
 use mmb_core::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
+use std::env;
 
 use mmb_core::config::{CONFIG_PATH, CREDENTIALS_PATH};
 use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
@@ -30,9 +32,17 @@ use strategies::example_strategy::{ExampleStrategy, ExampleStrategySettings};
 async fn main() -> Result<()> {
     let engine_config = EngineBuildConfig::new(vec![Box::new(BinanceBuilder)]);
 
+    let (config_path, credentials_path) = match is_futures_demo() {
+        true => (
+            "config_futures.toml".to_owned(),
+            "credentials_futures.toml".to_owned(),
+        ),
+        false => (CONFIG_PATH.to_owned(), CREDENTIALS_PATH.to_owned()),
+    };
+
     let init_settings = InitSettings::<ExampleStrategySettings>::Load {
-        config_path: CONFIG_PATH.to_owned(),
-        credentials_path: CREDENTIALS_PATH.to_owned(),
+        config_path,
+        credentials_path,
     };
     loop {
         let engine =
@@ -53,4 +63,10 @@ async fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn is_futures_demo() -> bool {
+    let args = env::args().collect_vec();
+
+    2 == args.len() && "--futures" == args[1]
 }

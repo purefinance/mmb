@@ -1,0 +1,16 @@
+[strategy]
+spread = 3
+currency_pair = { base = "btc", quote = "usdt" }
+max_amount = 3
+exchange_account_id = "Binance_0"
+
+[[core.exchanges]]
+exchange_account_id = "Binance_0"
+is_margin_trading = true
+request_trades = false
+websocket_channels = ["depth20"]
+subscribe_to_market_data = true
+
+currency_pairs = [
+    { base = "btc", quote = "usdt"  }
+]

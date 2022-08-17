@@ -61,7 +61,9 @@ pub trait ExchangeClient: Support {
 
     async fn get_active_positions(&self) -> Result<Vec<ActivePosition>>;
 
-    async fn get_balance(&self, is_spot: bool) -> Result<ExchangeBalancesAndPositions>;
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions>;
+
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions>;
 
     async fn get_my_trades(
         &self,

@@ -115,13 +115,14 @@ impl ExchangeClient for Binance {
             .collect_vec())
     }
 
-    async fn get_balance(&self, is_spot: bool) -> Result<ExchangeBalancesAndPositions> {
-        let response = match is_spot {
-            true => self.request_get_balance_spot().await?,
-            false => self.request_get_balance().await?,
-        };
+    async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
+        let response = self.request_get_balance().await?;
 
         Ok(self.parse_get_balance(&response))
+    }
+
+    async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
+        unimplemented!("Have not implementation in C# too")
     }
 
     async fn get_my_trades(

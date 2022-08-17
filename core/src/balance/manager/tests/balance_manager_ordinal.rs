@@ -51,7 +51,6 @@ impl BalanceManagerOrdinal {
         let quote = BalanceManagerBase::btc();
         let symbol = Arc::from(Symbol::new(
             false,
-            false,
             base.as_str().into(),
             base,
             quote.as_str().into(),
@@ -1295,7 +1294,6 @@ mod tests {
         let test_object = create_test_obj_by_currency_code(BalanceManagerBase::eth(), dec!(5));
 
         let symbol = Arc::from(Symbol::new(
-            false,
             false,
             BalanceManagerBase::eth().as_str().into(),
             BalanceManagerBase::eth(),

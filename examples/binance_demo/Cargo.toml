@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1", features = ["rt-multi-thread"]}
 anyhow = "1"
+itertools = "0.10"
 
 mmb_core = { path = "../../core" }
 binance = { path = "../../exchanges/binance" }
