@@ -1,6 +1,8 @@
-use crate::services::liquidity::LiquidityData;
+use crate::services::data_provider::balances::BalancesData;
+use crate::services::data_provider::liquidity::LiquidityData;
 use crate::ws::actors::ws_client_session::WsClientSession;
 use crate::ws::commands::liquidity::LiquidityResponseBody;
+use crate::ws::subscribes::balance::BalancesSubscription;
 use crate::ws::subscribes::liquidity::LiquiditySubscription;
 use actix::prelude::*;
 use serde_json::Value;
@@ -12,6 +14,14 @@ pub struct LiquidityResponseMessage {
     pub command: &'static str,
     pub body: LiquidityResponseBody,
     pub subscription: LiquiditySubscription,
+}
+
+#[derive(Clone, Message)]
+#[rtype(result = "()")]
+pub struct BalancesResponseMessage {
+    pub command: &'static str,
+    pub body: BalancesData,
+    pub subscription: BalancesSubscription,
 }
 
 #[derive(Clone, Message)]
@@ -30,8 +40,19 @@ pub struct NewLiquidityDataMessage {
 }
 
 #[derive(Clone, Message)]
-#[rtype(result = "HashSet<LiquiditySubscription>")]
-pub struct GetLiquiditySubscriptions;
+#[rtype(result = "()")]
+pub struct NewBalancesDataMessage {
+    pub data: BalancesData,
+    pub subscription: BalancesSubscription,
+}
+
+#[derive(Clone, Message)]
+#[rtype(result = "GetSubscriptionsResponse")]
+pub struct GetSubscriptions;
+
+#[derive(Clone, Message)]
+#[rtype(result = "bool")]
+pub struct GetBalanceSubscriptions;
 
 #[derive(Clone, Message)]
 #[rtype(result = "()")]
@@ -54,6 +75,10 @@ pub struct GatherSubscriptions;
 pub struct GetSessionLiquiditySubscription;
 
 #[derive(Clone, Message)]
+#[rtype(result = "Option<BalancesSubscription>")]
+pub struct GetSessionBalancesSubscription;
+
+#[derive(Clone, Message)]
 #[rtype(result = "()")]
 pub struct ClearSubscriptions;
 
@@ -62,4 +87,9 @@ pub struct ClearSubscriptions;
 pub struct SubscriptionErrorMessage {
     pub subscription: u64,
     pub message: String,
+}
+
+pub struct GetSubscriptionsResponse {
+    pub liquidity: HashSet<LiquiditySubscription>,
+    pub balances: Option<BalancesSubscription>,
 }

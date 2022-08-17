@@ -145,7 +145,7 @@ class Navdropdown extends Component {
         // navElements.push(this.navVolume);
       }
       // navElements.push(this.navPL);
-      // navElements.push(this.navBalances);
+      navElements.push(this.navBalances);
       // navElements.push(this.navTradeSignals);
       if (CryptolpAxios.clientType === constants.clientType.signals)
         navElements.push(this.navSignals);

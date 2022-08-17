@@ -1,3 +1,4 @@
+use crate::ws::subscribes::Subscription;
 use serde::Deserialize;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -7,11 +8,6 @@ use std::hash::{Hash, Hasher};
 pub struct LiquiditySubscription {
     pub exchange_id: String,
     pub currency_pair: String,
-}
-
-pub trait Subscription {
-    // The hash of the subscription is intended to target messages only to those users who have this subscription.
-    fn get_hash(&self) -> u64;
 }
 
 impl Subscription for LiquiditySubscription {

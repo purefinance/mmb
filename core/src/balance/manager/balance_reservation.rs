@@ -10,12 +10,13 @@ use crate::exchanges::general::symbol::Symbol;
 use crate::orders::order::ClientOrderId;
 use crate::orders::order::OrderSide;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use serde::Serialize;
 
 use anyhow::{bail, Result};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct BalanceReservation {
     pub configuration_descriptor: ConfigurationDescriptor,
     pub exchange_account_id: ExchangeAccountId,

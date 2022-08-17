@@ -1,31 +1,27 @@
 use crate::config::Market;
+use crate::data_provider::DataProvider;
 use crate::middleware::auth::TokenAuth;
 use crate::routes::routes;
 use crate::services::account::AccountService;
 use crate::services::auth::AuthService;
+use crate::services::data_provider::balances::BalancesService;
 use crate::services::market_settings::MarketSettingsService;
 use crate::services::settings::SettingsService;
 use crate::services::token::TokenService;
 use crate::ws::actors::error_listener::ErrorListener;
 use crate::ws::actors::new_data_listener::NewDataListener;
 use crate::ws::actors::subscription_manager::SubscriptionManager;
-use crate::ws::broker_messages::{
-    ClearSubscriptions, GatherSubscriptions, GetLiquiditySubscriptions, SubscriptionErrorMessage,
-};
-use crate::ws::subscribes::liquidity::{LiquiditySubscription, Subscription};
-use crate::{LiquidityService, NewLiquidityDataMessage};
-use actix::{spawn, Actor, Addr};
+use crate::LiquidityService;
+use actix::{spawn, Actor};
 use actix_cors::Cors;
 use actix_web::middleware::Logger;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
 use casbin::Enforcer;
 use sqlx::postgres::PgPoolOptions;
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
-use tokio::time::timeout;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn start(
@@ -47,6 +43,7 @@ pub async fn start(
         .expect("Unable to connect to DB");
 
     let liquidity_service = LiquidityService::new(connection_pool.clone());
+    let balances_service = BalancesService::new(connection_pool.clone());
     let new_data_listener = NewDataListener::default().start();
     let error_listener = ErrorListener::default().start();
     let account_service = AccountService::default();
@@ -61,14 +58,25 @@ pub async fn start(
     let market_settings_service = Arc::new(MarketSettingsService::from(markets));
     let settings_service = Arc::new(SettingsService::new(connection_pool));
 
-    spawn(data_provider(
+    let data_provider = DataProvider::new(
         subscription_manager,
         liquidity_service,
         market_settings_service.clone(),
         new_data_listener,
         error_listener,
-        refresh_data_interval_ms,
-    ));
+        balances_service,
+    );
+
+    spawn(async move {
+        let mut interval = time::interval(Duration::from_millis(refresh_data_interval_ms));
+
+        loop {
+            if let Err(e) = data_provider.step().await {
+                log::error!("Failure step data provider {e}")
+            };
+            interval.tick().await;
+        }
+    });
 
     HttpServer::new(move || {
         let cors = Cors::permissive();
@@ -87,120 +95,4 @@ pub async fn start(
     .bind(address)?
     .run()
     .await
-}
-
-async fn data_provider(
-    subscription_manager: Addr<SubscriptionManager>,
-    liquidity_service: LiquidityService,
-    market_settings_service: Arc<MarketSettingsService>,
-    new_data_listener: Addr<NewDataListener>,
-    error_listener: Addr<ErrorListener>,
-    refresh_data_interval_ms: u64,
-) {
-    let mut interval = time::interval(Duration::from_millis(refresh_data_interval_ms));
-    loop {
-        log::debug!("Data provider loop");
-        match subscription_manager.try_send(ClearSubscriptions) {
-            Ok(()) => {
-                log::debug!("ClearSubscriptions ok");
-            }
-            Err(e) => {
-                log::error!("Failure to ClearSubscriptions. {e:?}");
-                interval.tick().await;
-                continue;
-            }
-        }
-
-        match subscription_manager.try_send(GatherSubscriptions) {
-            Ok(()) => {
-                log::debug!("GatherSubscriptions ok");
-            }
-            Err(e) => {
-                log::error!("Failure GatherSubscriptions. {e:?}");
-                interval.tick().await;
-                continue;
-            }
-        }
-
-        let subscriptions_request = subscription_manager.send(GetLiquiditySubscriptions);
-
-        let response = timeout(Duration::from_millis(1000), subscriptions_request).await;
-
-        let subscriptions: HashSet<LiquiditySubscription>;
-        match response {
-            Err(_) => {
-                log::error!("GetLiquiditySubscriptions timeout");
-                interval.tick().await;
-                continue;
-            }
-            Ok(response) => match response {
-                Ok(response) => {
-                    log::debug!("GetLiquiditySubscriptions ok. Count: {}", response.len());
-                    subscriptions = response
-                }
-                Err(e) => {
-                    log::error!("Failure GetLiquiditySubscriptions. {e:?}");
-                    interval.tick().await;
-                    continue;
-                }
-            },
-        };
-
-        for sub in subscriptions {
-            log::debug!("Trying to get liquidity data");
-            let liquidity_data = liquidity_service
-                .get_liquidity_data(&sub.exchange_id, &sub.currency_pair, 20)
-                .await;
-            log::debug!("Liquidity data received");
-            match liquidity_data {
-                Ok(mut liquidity_data) => {
-                    let desired_amount = market_settings_service
-                        .get_desired_amount(&sub.exchange_id, &sub.currency_pair);
-
-                    match desired_amount {
-                        None => {
-                            log::error!(
-                                "Desired amount is none for {} {}",
-                                &sub.exchange_id,
-                                &sub.currency_pair
-                            );
-                            let message = SubscriptionErrorMessage {
-                                subscription: sub.get_hash(),
-                                message: "Bad request".to_string(),
-                            };
-                            error_listener.try_send(message).unwrap_or_else(|e| {
-                                log::error!("Send error message failure {e:?}")
-                            });
-                        }
-                        Some(desired_amount) => {
-                            liquidity_data.desired_amount = desired_amount;
-                            match new_data_listener.try_send(NewLiquidityDataMessage {
-                                subscription: sub,
-                                data: liquidity_data,
-                            }) {
-                                Ok(()) => {
-                                    log::debug!("NewLiquidityDataMessage ok");
-                                }
-                                Err(e) => {
-                                    log::error!("NewLiquidityDataMessage failure {e:?}");
-                                }
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::error!("Failure to load liquidity data from database. Filters: {sub:?}. Error: {e:?}");
-                    let message = SubscriptionErrorMessage {
-                        subscription: sub.get_hash(),
-                        message: "Internal server error".to_string(),
-                    };
-
-                    error_listener
-                        .try_send(message)
-                        .unwrap_or_else(|e| log::error!("Send error message failure {e:?}"));
-                }
-            }
-        }
-        interval.tick().await;
-    }
 }

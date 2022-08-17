@@ -1,11 +1,8 @@
-use rust_decimal::Decimal;
+use crate::services::data_provider::model::{Amount, EventRecord, Price};
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
-use serde_json::Value;
 use sqlx::{Pool, Postgres};
 
-pub type Amount = Decimal;
-pub type Price = Decimal;
 /// Data Provider for Liquidity
 #[derive(Clone)]
 pub struct LiquidityService {
@@ -17,12 +14,6 @@ pub struct LiquidityData {
     pub order_book: OrderBookRecord,
     pub transactions: Vec<TransactionRecord>,
     pub desired_amount: Amount,
-}
-
-#[derive(sqlx::FromRow, Serialize, Clone)]
-pub struct EventRecord {
-    pub id: i64,
-    pub json: Value,
 }
 
 #[derive(Deserialize, Clone)]
@@ -146,7 +137,7 @@ impl LiquidityService {
         exchange_id: &str,
         currency_pair: &str,
     ) -> Result<OrderBookRecord, sqlx::Error> {
-        let sql = include_str!("sql/get_order_book.sql");
+        let sql = include_str!("../sql/get_order_book.sql");
         let record = sqlx::query_as::<Postgres, EventRecord>(sql)
             .bind(exchange_id)
             .bind(currency_pair)
@@ -164,7 +155,7 @@ impl LiquidityService {
         currency_pair: &str,
         limit: i32,
     ) -> Result<Vec<TransactionRecord>, sqlx::Error> {
-        let sql = include_str!("sql/get_transactions.sql");
+        let sql = include_str!("../sql/get_transactions.sql");
         let records = sqlx::query_as::<Postgres, EventRecord>(sql)
             .bind(exchange_id)
             .bind(currency_pair)

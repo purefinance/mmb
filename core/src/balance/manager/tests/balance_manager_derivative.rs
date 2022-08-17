@@ -68,7 +68,7 @@ impl BalanceManagerDerivative {
         let currency_pair_to_symbol_converter =
             CurrencyPairToSymbolConverter::new(exchanges_by_id.clone());
 
-        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter, None);
         (symbol, balance_manager, exchanges_by_id)
     }
 

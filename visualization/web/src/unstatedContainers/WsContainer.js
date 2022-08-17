@@ -218,12 +218,14 @@ class WsContainer extends Container {
   }
 
   async subscribeBalances() {
-    await this.retryInvoke(
-      false,
-      "subscribedBalances",
-      { subscribedBalances: true },
-      "SubscribeBalances"
-    );
+    if (!this.state.subscribedBalances) {
+      await this.retryInvoke(
+        false,
+        "subscribedBalances",
+        { subscribedBalances: true },
+        "SubscribeBalances"
+      );
+    }
   }
 
   async unsubscribeBalances() {

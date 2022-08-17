@@ -33,6 +33,7 @@ use parking_lot::Mutex;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+use crate::database::events::recorder::EventRecorder;
 #[cfg(test)]
 use crate::MOCK_MUTEX;
 #[cfg(test)]
@@ -45,11 +46,13 @@ pub struct BalanceManager {
     balance_reservation_manager: BalanceReservationManager,
     last_order_fills: HashMap<MarketAccountId, OrderFill>,
     balance_changes_service: Option<Arc<BalanceChangesService>>,
+    event_recorder: Option<Arc<EventRecorder>>,
 }
 
 impl BalanceManager {
     pub fn new(
         currency_pair_to_symbol_converter: Arc<CurrencyPairToSymbolConverter>,
+        event_recorder: Option<Arc<EventRecorder>>,
     ) -> Arc<Mutex<Self>> {
         Arc::new(Mutex::new(Self {
             exchange_id_with_restored_positions: HashSet::new(),
@@ -58,6 +61,7 @@ impl BalanceManager {
             ),
             last_order_fills: HashMap::new(),
             balance_changes_service: None,
+            event_recorder,
         }))
     }
 
@@ -154,13 +158,15 @@ impl BalanceManager {
     }
 
     fn save_balances(&mut self) {
-        // TODO: fix me when DataRecorder will be added
-        // if self.data_recorder.is_none() {
-        //     return ()
-        // }
-
-        let _balances = self.get_balances();
-        // self.data_recorder.save(balances);
+        match &self.event_recorder {
+            None => {}
+            Some(event_recorder) => {
+                let balances = self.get_balances();
+                event_recorder
+                    .save(balances)
+                    .expect("Failure save balances");
+            }
+        }
     }
 
     pub fn get_balances(&self) -> Balances {
@@ -433,9 +439,12 @@ impl BalanceManager {
     pub fn custom_clone(this: Arc<Mutex<Self>>) -> Arc<Mutex<BalanceManager>> {
         let this_locked = this.lock();
         let balances = this_locked.get_balances();
+        let event_recorder = this_locked.event_recorder.clone();
         let exchanges_by_id = this_locked.balance_reservation_manager.exchanges_by_id();
-        let new_balance_manager =
-            Self::new(CurrencyPairToSymbolConverter::new(exchanges_by_id.clone()));
+        let new_balance_manager = Self::new(
+            CurrencyPairToSymbolConverter::new(exchanges_by_id.clone()),
+            event_recorder,
+        );
         drop(this_locked);
 
         let mut new_bm_lock = new_balance_manager.lock();

@@ -4,7 +4,7 @@ import utils from "../../utils";
 import { Row, Col } from "react-bootstrap";
 
 const Exchange = (props) => {
-  const percent = props.total
+  const percent = Number(props.total)
     ? utils.round((props.exchange.value * 100) / props.total, 3)
     : 0;
   return (
@@ -25,7 +25,7 @@ const Exchange = (props) => {
       </Col>
       <Col md={9}>
         <h4 className="coin-amount">
-          <strong className="bold-text">{props.exchange.value}</strong>
+          <strong className="bold-text">{Number(props.exchange.value)}</strong>
         </h4>
       </Col>
     </Row>

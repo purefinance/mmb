@@ -1,6 +1,7 @@
 use std::hash::Hash;
 
 use mmb_utils::impl_table_type;
+use serde::Serialize;
 
 // An unique name of service, like strategy name or something else.
 impl_table_type!(ServiceName, 16);
@@ -9,7 +10,7 @@ impl_table_type!(ServiceName, 16);
 impl_table_type!(ServiceConfigurationKey, 16);
 
 /// Entity needed to describe a configuration of trading strategy, which helps to determine which strategy the balance change refers.
-#[derive(Hash, Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Hash, Copy, Clone, Debug, Eq, PartialEq, Serialize)]
 pub struct ConfigurationDescriptor {
     /// Trading strategy name
     pub service_name: ServiceName,

@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use rust_decimal::Decimal;
 use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
+use serde::Serialize;
 
 use crate::{
     exchanges::common::Amount,
@@ -35,7 +36,7 @@ pub enum BeforeAfter {
 /// ```ignore
 /// Precision::ByTick { tick: dec!(0.001) } // for AmountPrecision = 3 equal pow(0.1, 3)
 /// ```
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize)]
 pub enum Precision {
     /// Rounding is performed to a number divisible to the specified tick
     /// Look at round_by_tick test below
@@ -55,7 +56,7 @@ impl Precision {
 }
 
 /// Metadata for a currency pair
-#[derive(Debug, Clone, Eq)]
+#[derive(Debug, Clone, Eq, Serialize)]
 pub struct Symbol {
     pub is_derivative: bool,
     pub base_currency_id: CurrencyId,

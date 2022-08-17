@@ -1,6 +1,6 @@
 use crate::ws::broker_messages::{
-    ClientConnected, ClientDisconnected, ClientErrorResponseMessage,
-    GetSessionLiquiditySubscription, LiquidityResponseMessage,
+    BalancesResponseMessage, ClientConnected, ClientDisconnected, ClientErrorResponseMessage,
+    GetSessionBalancesSubscription, GetSessionLiquiditySubscription, LiquidityResponseMessage,
 };
 use actix::{Actor, ActorContext, AsyncContext, Handler, MessageResult, StreamHandler};
 use actix_broker::{BrokerIssue, BrokerSubscribe};
@@ -8,7 +8,9 @@ use actix_web::web::Data;
 use std::collections::HashSet;
 
 use crate::services::token::TokenService;
-use crate::ws::subscribes::liquidity::{LiquiditySubscription, Subscription};
+use crate::ws::subscribes::balance::BalancesSubscription;
+use crate::ws::subscribes::liquidity::LiquiditySubscription;
+use crate::ws::subscribes::Subscription;
 use actix_web_actors::ws::{Message, ProtocolError, WebsocketContext};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -17,6 +19,7 @@ use std::time::{Duration, Instant};
 pub struct WsClientSession {
     subscriptions: HashSet<u64>,
     subscribed_liquidity: Option<LiquiditySubscription>,
+    subscribed_balances: Option<BalancesSubscription>,
     token_service: Data<TokenService>,
     is_auth: bool,
     hb: Instant,
@@ -30,6 +33,7 @@ impl WsClientSession {
         Self {
             subscriptions: HashSet::new(),
             subscribed_liquidity: None,
+            subscribed_balances: None,
             token_service,
             is_auth: false,
             hb: Instant::now(),
@@ -53,6 +57,7 @@ impl Actor for WsClientSession {
 
     fn started(&mut self, ctx: &mut Self::Context) {
         self.subscribe_system_async::<LiquidityResponseMessage>(ctx);
+        self.subscribe_system_async::<BalancesResponseMessage>(ctx);
         self.subscribe_system_async::<ClientErrorResponseMessage>(ctx);
         let message = ClientConnected {
             data: ctx.address(),
@@ -102,6 +107,36 @@ impl Handler<LiquidityResponseMessage> for WsClientSession {
     }
 }
 
+impl Handler<BalancesResponseMessage> for WsClientSession {
+    type Result = ();
+    fn handle(
+        &mut self,
+        msg: BalancesResponseMessage,
+        ctx: &mut WebsocketContext<Self>,
+    ) -> Self::Result {
+        if !self.is_auth {
+            return;
+        }
+        match &self.subscribed_balances {
+            None => return,
+            Some(subscribed_balances) => {
+                if &msg.subscription != subscribed_balances {
+                    return;
+                }
+            }
+        };
+
+        match serde_json::to_value(&msg.body) {
+            Ok(body) => {
+                send_message(ctx, msg.command, body);
+            }
+            Err(e) => {
+                log::error!("Failure convert to json. Error: {e:?}")
+            }
+        };
+    }
+}
+
 impl Handler<ClientErrorResponseMessage> for WsClientSession {
     type Result = ();
     fn handle(
@@ -124,6 +159,18 @@ impl Handler<GetSessionLiquiditySubscription> for WsClientSession {
         _ctx: &mut WebsocketContext<Self>,
     ) -> Self::Result {
         MessageResult(self.subscribed_liquidity.clone())
+    }
+}
+
+impl Handler<GetSessionBalancesSubscription> for WsClientSession {
+    type Result = MessageResult<GetSessionBalancesSubscription>;
+
+    fn handle(
+        &mut self,
+        _msg: GetSessionBalancesSubscription,
+        _ctx: &mut WebsocketContext<Self>,
+    ) -> Self::Result {
+        MessageResult(self.subscribed_balances.clone())
     }
 }
 
@@ -186,6 +233,8 @@ impl WsClientSession {
             "SubscribeLiquidity" => self.subscribe_liquidity(ctx, body),
             // Unsubscribe from "SubscribeLiquidity"
             "UnsubscribeLiquidity" => self.unsubscribe_liquidity(),
+            "SubscribeBalances" => self.subscribe_balances(),
+            "UnsubscribeBalances" => self.unsubscribe_balances(),
             _ => {
                 log::error!("Unknown command: {command}, body: {body}");
             }
@@ -217,6 +266,18 @@ impl WsClientSession {
                 log::error!("Failed to create LiquiditySubscription from: {body}. Error: {e:?}")
             }
         };
+    }
+
+    fn subscribe_balances(&mut self) {
+        let subscription = BalancesSubscription::default();
+        self.subscriptions.insert(subscription.get_hash());
+        self.subscribed_balances = Some(BalancesSubscription {});
+    }
+
+    fn unsubscribe_balances(&mut self) {
+        let subscription = BalancesSubscription::default();
+        self.subscriptions.remove(&subscription.get_hash());
+        self.subscribed_balances = None;
     }
 
     fn unsubscribe_liquidity(&mut self) {

@@ -17,6 +17,7 @@
 )]
 
 mod config;
+mod data_provider;
 mod handlers;
 mod middleware;
 mod routes;
@@ -27,7 +28,7 @@ mod ws;
 use crate::config::load_config;
 use crate::handlers::ws::ws_client;
 use crate::server::start;
-use crate::services::liquidity::LiquidityService;
+use crate::services::data_provider::liquidity::LiquidityService;
 use crate::ws::broker_messages::NewLiquidityDataMessage;
 use casbin::{CoreApi, Enforcer};
 use chrono::Duration;
