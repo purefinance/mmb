@@ -226,7 +226,7 @@ mod tests {
     use bb8_postgres::PostgresConnectionManager;
     use chrono::Utc;
     use mmb_database::impl_event;
-    use mmb_database::postgres_db::events::{Event, InsertEvent, TableName};
+    use mmb_database::postgres_db::events::{Event, InsertEvent};
     use mmb_database::postgres_db::tests::{get_database_url, PgPoolMutex};
     use mmb_utils::DateTime;
     use scopeguard::defer;

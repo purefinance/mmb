@@ -4,7 +4,6 @@ use mmb_core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use mmb_core::orders::order::{ClientOrderId, OrderSide, OrderStatus};
 use mmb_core::orders::pool::OrdersPool;
 use mmb_database::impl_event;
-use mmb_database::postgres_db::events::TableName;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

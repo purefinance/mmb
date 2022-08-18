@@ -2,7 +2,6 @@ use crate::exchanges::common::{Amount, ExchangeId, MarketId, Price};
 use crate::misc::time::time_manager;
 use crate::orders::order::{ExchangeOrderId, OrderSide};
 use mmb_database::impl_event;
-use mmb_database::postgres_db::events::TableName;
 use mmb_utils::DateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
