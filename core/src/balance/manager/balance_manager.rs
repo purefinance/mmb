@@ -26,6 +26,7 @@ use anyhow::{bail, Context, Result};
 use futures::future::join_all;
 use itertools::Itertools;
 use log::log;
+use log::Level::{Error, Warn};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{impl_mock_initializer, nothing_to_do, DateTime};
@@ -46,6 +47,8 @@ pub struct BalanceManager {
     balance_reservation_manager: BalanceReservationManager,
     last_order_fills: HashMap<MarketAccountId, OrderFill>,
     balance_changes_service: Option<Arc<BalanceChangesService>>,
+    position_differs_times_in_row_by_exchange_id:
+        HashMap<ExchangeAccountId, HashMap<CurrencyPair, u32>>,
     event_recorder: Option<Arc<EventRecorder>>,
 }
 
@@ -61,6 +64,7 @@ impl BalanceManager {
             ),
             last_order_fills: HashMap::new(),
             balance_changes_service: None,
+            position_differs_times_in_row_by_exchange_id: Default::default(),
             event_recorder,
         }))
     }
@@ -261,12 +265,10 @@ impl BalanceManager {
             let actual_positions_by_currency_pair: HashMap<CurrencyPair, Decimal> = symbols
                 .iter()
                 .map(|x| {
-                    (
-                        x.currency_pair(),
-                        fill_positions
-                            .get(exchange_account_id, x.currency_pair())
-                            .unwrap_or(dec!(0)),
-                    )
+                    let position = fill_positions
+                        .get(exchange_account_id, x.currency_pair())
+                        .unwrap_or(dec!(0));
+                    (x.currency_pair(), position)
                 })
                 .collect();
 
@@ -281,15 +283,11 @@ impl BalanceManager {
                 .map(|x| x.currency_pair())
                 .collect_vec();
 
-            let mut position_differs_times_in_row_by_exchange_id: HashMap<
-                ExchangeAccountId,
-                HashMap<CurrencyPair, i32>,
-            > = HashMap::new();
             if !currency_pairs_with_diffs.is_empty() {
-                let diff_times_by_currency_pair: &mut HashMap<_, _> =
-                    position_differs_times_in_row_by_exchange_id
-                        .entry(exchange_account_id)
-                        .or_default();
+                let diff_times_by_currency_pair = self
+                    .position_differs_times_in_row_by_exchange_id
+                    .entry(exchange_account_id)
+                    .or_default();
 
                 for currency_pair in currency_pairs_with_diffs {
                     *diff_times_by_currency_pair
@@ -297,23 +295,20 @@ impl BalanceManager {
                         .or_default() += 1;
                 }
 
-                const MAX_TIMES_FOR_ERROR: i32 = 5;
+                const MAX_TIMES_FOR_ERROR: u32 = 5;
                 let any_at_max_times = diff_times_by_currency_pair
                     .values()
                     .any(|&x| x > MAX_TIMES_FOR_ERROR);
 
-                let log_level = if any_at_max_times {
-                    log::Level::Error
-                } else {
-                    log::Level::Warn
-                };
+                let log_level = if any_at_max_times { Error } else { Warn };
                 log!(log_level, "Position on {exchange_account_id} differs from local {expected_positions_by_currency_pair:?} {actual_positions_by_currency_pair:?}");
 
                 if any_at_max_times {
                     bail!("Position on {exchange_account_id} differs from local");
                 }
             } else {
-                position_differs_times_in_row_by_exchange_id.remove(&exchange_account_id);
+                self.position_differs_times_in_row_by_exchange_id
+                    .remove(&exchange_account_id);
             }
         }
         Ok(())
@@ -324,44 +319,31 @@ impl BalanceManager {
         exchange_account_id: ExchangeAccountId,
         balances_and_positions: &ExchangeBalancesAndPositions,
     ) -> Result<()> {
-        let mut filtered_exchange_balances = HashMap::new();
-
         let whole_balances_before = self.calculate_whole_balances()?;
 
-        {
-            let exchange_currencies = self
-                .balance_reservation_manager
-                .exchanges_by_id()
-                .get(&exchange_account_id)
-                .with_context(|| format!("Failed to get exchange with id {exchange_account_id}"))?
-                .currencies
-                .lock()
-                .clone();
-
-            for balance in &balances_and_positions.balances {
-                //We skip currencies with zero balances if they are not part of Exchange currency pairs
-                if balance.balance.is_zero()
-                    && !exchange_currencies.contains(&balance.currency_code)
-                {
-                    continue;
-                }
-
-                filtered_exchange_balances.insert(balance.currency_code, balance.balance);
-            }
-        }
-
-        self.restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
-
-        self.balance_reservation_manager
+        let currencies: HashSet<_> = self
+            .balance_reservation_manager
             .exchanges_by_id()
             .get(&exchange_account_id)
             .with_context(|| format!("Failed to get exchange with id {exchange_account_id}"))?
             .currencies
             .lock()
             .iter()
-            .for_each(|x| {
-                let _ = filtered_exchange_balances.entry(*x).or_default();
-            });
+            .cloned()
+            .collect();
+
+        let mut filtered_exchange_balances: HashMap<_, _> = balances_and_positions
+            .balances
+            .iter()
+            .filter(|x| !x.balance.is_zero() || currencies.contains(&x.currency_code)) //We skip currencies with zero balances if they are not part of Exchange currency pairs
+            .map(|x| (x.currency_code, x.balance))
+            .collect();
+
+        for currency in currencies {
+            let _ = filtered_exchange_balances.entry(currency).or_default();
+        }
+
+        self.restore_fill_amount_position(exchange_account_id, &balances_and_positions.positions)?;
 
         let reservations_by_exchange_account_id = self
             .balance_reservation_manager
@@ -388,7 +370,7 @@ impl BalanceManager {
 
         let whole_balances_after = self.calculate_whole_balances()?;
 
-        log::info!("Updated balances for {exchange_account_id} {balances_and_positions:?} {reservations_by_exchange_account_id:?} {filtered_exchange_balances:?}");
+        log::info!("Updated balances for {exchange_account_id} {filtered_exchange_balances:?} {reservations_by_exchange_account_id:?} {balances_and_positions:?}");
 
         self.save_balances();
         self.save_balance_update(whole_balances_before, whole_balances_after);
@@ -420,13 +402,11 @@ impl BalanceManager {
                 None => continue,
             };
 
+            let reservation_currency_code = reservation.reservation_currency_code;
             let mut balance = balances
-                .get_mut(&reservation.reservation_currency_code)
+                .get_mut(&reservation_currency_code)
                 .with_context(|| {
-                    format!(
-                        "failed to get balance from balances for {}",
-                        reservation.reservation_currency_code,
-                    )
+                    format!("failed to get balance from balances for {reservation_currency_code}")
                 })?;
 
             balance += reservation.convert_in_reservation_currency(

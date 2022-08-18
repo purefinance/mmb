@@ -2,6 +2,7 @@ use dashmap::DashMap;
 use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
 use rust_decimal_macros::dec;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId};
@@ -66,11 +67,12 @@ impl Exchange {
     }
 
     fn setup_symbols(&self, symbols: Vec<Arc<Symbol>>) {
-        let mut currencies = symbols
+        let currencies = symbols
             .iter()
-            .flat_map(|x| vec![x.base_currency_code, x.quote_currency_code])
+            .flat_map(|x| [x.base_currency_code, x.quote_currency_code])
+            .collect::<HashSet<_>>()
+            .into_iter()
             .collect_vec();
-        currencies.dedup();
         *self.currencies.lock() = currencies;
 
         symbols.iter().for_each(|symbol| {

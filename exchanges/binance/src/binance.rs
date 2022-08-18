@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
 use std::time::{Duration, UNIX_EPOCH};
@@ -19,11 +19,12 @@ use tokio::sync::broadcast;
 use super::support::{BinanceOrderInfo, BinanceSpotBalances};
 use crate::support::{BinanceAccountInfo, BinanceMarginBalances};
 use mmb_core::exchanges::common::{
-    ActivePosition, Amount, ExchangeError, ExchangeErrorType, ExchangeId, Price,
+    ActivePosition, Amount, CurrencyPairCodes, ExchangeError, ExchangeErrorType, ExchangeId, Price,
 };
 use mmb_core::exchanges::events::{
     ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId,
 };
+use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
@@ -126,6 +127,9 @@ pub struct Binance {
     pub unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     pub specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub supported_currencies: DashMap<CurrencyId, CurrencyCode>,
+
+    // currencies specified in settings for exchange
+    pub working_currencies_ids: RwLock<Vec<CurrencyId>>,
     pub(super) timeout_manager: Arc<TimeoutManager>,
 
     // Currencies used for trading according to user settings
@@ -144,6 +148,33 @@ pub struct Binance {
 
     // NOTE: None when websocket is disconnected
     pub(super) listen_key: RwLock<Option<String>>,
+}
+
+impl Binance {
+    pub(crate) fn initialize_working_currencies(&self, exchange: &Arc<Exchange>) {
+        let currency_codes: HashSet<CurrencyCode> = exchange
+            .symbols
+            .iter()
+            .map(|x| {
+                let codes: CurrencyPairCodes = x.key().to_codes();
+                [codes.base, codes.quote]
+            })
+            .flatten()
+            .collect();
+
+        let currency_ids = self
+            .supported_currencies
+            .iter()
+            .filter_map(|x| {
+                if currency_codes.contains(x.value()) {
+                    Some(x.key().clone())
+                } else {
+                    None
+                }
+            })
+            .collect_vec();
+        *self.working_currencies_ids.write() = currency_ids;
+    }
 }
 
 impl Binance {
@@ -172,6 +203,7 @@ impl Binance {
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),
+            working_currencies_ids: Default::default(),
             traded_specific_currencies: Default::default(),
             last_trade_ids: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,

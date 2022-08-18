@@ -1839,7 +1839,6 @@ mod test {
 
                         let cancelled = future_handler.await?.into_result();
 
-                        dbg!(&cancelled);
                         // Assert
                         assert!(cancelled.is_err());
 
