@@ -13,11 +13,16 @@ anyhow = "1"
 casbin = { version = "2.0.9", default-features = false, features = ["runtime-tokio", "logging", "incremental"] }
 chrono = "0.4.19"
 env_logger = "0.9"
-fern = "0.6.1"
 futures = "0.3.21"
 itertools = "0.10.3"
 jsonwebtoken = "8.1.0"
+
 log = "0.4"
+log4rs = "1.1"
+log4rs-logstash = "0.1"
+
+mmb_utils = { path = "../../mmb_utils" }
+
 rand = "0.8.5"
 rust_decimal = "1.25"
 rust_decimal_macros = "1.25"

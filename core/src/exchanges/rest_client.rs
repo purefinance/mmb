@@ -16,7 +16,7 @@ pub type QueryKey = &'static str;
 /// Trait for specific exchange errors handling
 pub trait ErrorHandler: Sized {
     // To find out if there is any special exchange error in a rest outcome
-    fn check_spec_rest_error(&self, _response: &RestRequestOutcome) -> Result<(), ExchangeError>;
+    fn check_spec_rest_error(&self, _response: &RestResponse) -> Result<(), ExchangeError>;
 
     // Some of special errors should be classified to further handling depending on error type
     fn clarify_error_type(&self, _error: &ExchangeError) -> ExchangeErrorType;
@@ -26,7 +26,7 @@ pub trait ErrorHandler: Sized {
 pub struct ErrorHandlerEmpty;
 
 impl ErrorHandler for ErrorHandlerEmpty {
-    fn check_spec_rest_error(&self, _: &RestRequestOutcome) -> Result<(), ExchangeError> {
+    fn check_spec_rest_error(&self, _: &RestResponse) -> Result<(), ExchangeError> {
         Ok(())
     }
 
@@ -65,15 +65,18 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> ErrorHandlerData<ErrHandl
         &self,
         fn_name: &str,
         log_args: &str,
-        response: &RestRequestOutcome,
+        response: &RestResponse,
         request_id: &Uuid,
     ) {
-        log::trace!("{fn_name} response on exchange_account_id {}: {response:?}, params {log_args}, request_id: {request_id}", self.exchange_account_id);
+        log::trace!(
+            "{fn_name} response on {}: {response:?}, | params {log_args}, request_id: {request_id}",
+            self.exchange_account_id
+        );
     }
 
     pub(super) fn get_rest_error(
         &self,
-        response: &RestRequestOutcome,
+        response: &RestResponse,
         log_args: &str,
         request_id: &Uuid,
     ) -> Result<(), ExchangeError> {
@@ -163,7 +166,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         api_key: &str,
         action_name: &'static str,
         log_args: String,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
@@ -185,7 +188,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         api_key: &str,
         action_name: &'static str,
         log_args: String,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
@@ -208,7 +211,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         query: Bytes,
         action_name: &'static str,
         log_args: String,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
@@ -230,7 +233,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         api_key: &str,
         action_name: &'static str,
         log_args: String,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
@@ -253,7 +256,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
         action_name: &'static str,
         log_args: String,
         request_id: Uuid,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let response = response.with_expect(|| {
             format!("Unable to send {rest_action} request, request_id: {request_id}")
         });
@@ -268,7 +271,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
             .with_expect(|| format!("Unable to convert response content from utf8: {request_bytes:?}, request_id: {request_id}"))
             .to_owned();
 
-        let request_outcome = RestRequestOutcome { status, content };
+        let request_outcome = RestResponse { status, content };
 
         let err_handler_data = &self.error_handler;
         err_handler_data.response_log(action_name, &log_args, &request_outcome, &request_id);

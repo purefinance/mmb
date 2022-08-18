@@ -46,7 +46,7 @@ use mmb_core::exchanges::{
 };
 use mmb_core::exchanges::{common::CurrencyId, general::exchange::BoxExchangeClient};
 use mmb_core::exchanges::{
-    common::{CurrencyPair, ExchangeAccountId, RestRequestOutcome, SpecificCurrencyPair},
+    common::{CurrencyPair, ExchangeAccountId, RestResponse, SpecificCurrencyPair},
     events::AllowedEventSourceType,
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
@@ -65,7 +65,7 @@ const LISTEN_KEY: &str = "listenKey";
 pub struct ErrorHandlerBinance;
 
 impl ErrorHandler for ErrorHandlerBinance {
-    fn check_spec_rest_error(&self, response: &RestRequestOutcome) -> Result<(), ExchangeError> {
+    fn check_spec_rest_error(&self, response: &RestResponse) -> Result<(), ExchangeError> {
         //Binance is a little inconsistent: for failed responses sometimes they include
         //only code or only success:false but sometimes both
         if !(response.content.contains(r#""success":false"#)
@@ -239,7 +239,7 @@ impl Binance {
     }
 
     #[named]
-    pub(super) async fn request_listen_key(&self) -> Result<RestRequestOutcome, ExchangeError> {
+    pub(super) async fn request_listen_key(&self) -> Result<RestResponse, ExchangeError> {
         let path = self.get_uri_path("/fapi/v1/listenKey", "/api/v3/userDataStream");
         let builder = UriBuilder::from_path(path);
         let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
@@ -250,7 +250,7 @@ impl Binance {
             .await
     }
 
-    pub(super) fn parse_listen_key(request_outcome: &RestRequestOutcome) -> Result<String> {
+    pub(super) fn parse_listen_key(request_outcome: &RestResponse) -> Result<String> {
         let data: Value = serde_json::from_str(&request_outcome.content)
             .context("Unable to parse listen key response for Binance")?;
 
@@ -553,7 +553,7 @@ impl Binance {
 
     pub(super) fn get_order_id(
         &self,
-        response: &RestRequestOutcome,
+        response: &RestResponse,
     ) -> Result<ExchangeOrderId, ExchangeError> {
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase")]
@@ -583,7 +583,7 @@ impl Binance {
     pub(crate) async fn request_open_orders_by_http_header(
         &self,
         builder: UriBuilder,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
         let api_key = &self.settings.api_key;
@@ -596,7 +596,7 @@ impl Binance {
     pub(super) async fn request_order_info(
         &self,
         order: &OrderRef,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let (currency_pair, client_order_id) =
             order.fn_ref(|x| (x.currency_pair(), x.client_order_id()));
 
@@ -616,7 +616,7 @@ impl Binance {
             .await
     }
 
-    pub(super) fn parse_order_info(&self, response: &RestRequestOutcome) -> OrderInfo {
+    pub(super) fn parse_order_info(&self, response: &RestResponse) -> OrderInfo {
         let specific_order: BinanceOrderInfo = serde_json::from_str(&response.content)
             .expect("Unable to parse response content for get_order_info request");
 
@@ -627,7 +627,7 @@ impl Binance {
         self.get_uri_path("/fapi/v1/openOrders", "/api/v3/openOrders")
     }
 
-    pub(super) async fn request_open_orders(&self) -> Result<RestRequestOutcome, ExchangeError> {
+    pub(super) async fn request_open_orders(&self) -> Result<RestResponse, ExchangeError> {
         let mut builder = UriBuilder::from_path(self.get_open_order_path());
         self.add_authentification(&mut builder);
 
@@ -637,7 +637,7 @@ impl Binance {
     pub(super) async fn request_open_orders_by_currency_pair(
         &self,
         currency_pair: CurrencyPair,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(currency_pair);
 
         let mut builder = UriBuilder::from_path(self.get_open_order_path());
@@ -647,7 +647,7 @@ impl Binance {
         self.request_open_orders_by_http_header(builder).await
     }
 
-    pub(super) fn parse_open_orders(&self, response: &RestRequestOutcome) -> Vec<OrderInfo> {
+    pub(super) fn parse_open_orders(&self, response: &RestResponse) -> Vec<OrderInfo> {
         let binance_orders: Vec<BinanceOrderInfo> = serde_json::from_str(&response.content)
             .expect("Unable to parse response content for get_open_orders request");
 
@@ -662,7 +662,7 @@ impl Binance {
         &self,
         position: &ActivePosition,
         price: Option<Price>,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let side = match position.derivative.side {
             Some(side) => side.change_side().as_str(),
             None => "0", // unknown side
@@ -695,7 +695,7 @@ impl Binance {
     }
 
     #[named]
-    pub(super) async fn request_get_position(&self) -> Result<RestRequestOutcome, ExchangeError> {
+    pub(super) async fn request_get_position(&self) -> Result<RestResponse, ExchangeError> {
         let mut builder = UriBuilder::from_path("/fapi/v2/positionRisk");
         self.add_authentification(&mut builder);
 
@@ -708,7 +708,7 @@ impl Binance {
     }
 
     #[named]
-    pub(super) async fn request_get_balance(&self) -> Result<RestRequestOutcome, ExchangeError> {
+    pub(super) async fn request_get_balance(&self) -> Result<RestResponse, ExchangeError> {
         let path = self.get_uri_path("/fapi/v2/account", "/api/v3/account");
         let mut builder = UriBuilder::from_path(path);
         self.add_authentification(&mut builder);
@@ -722,7 +722,7 @@ impl Binance {
 
     pub(super) fn parse_get_balance(
         &self,
-        response: &RestRequestOutcome,
+        response: &RestResponse,
     ) -> ExchangeBalancesAndPositions {
         let binance_account_info: BinanceAccountInfo = serde_json::from_str(&response.content)
             .expect("Unable to parse response content for get_balance request");
@@ -745,7 +745,7 @@ impl Binance {
     pub(super) async fn request_cancel_order(
         &self,
         order: OrderCancelling,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(order.header.currency_pair);
 
         let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
@@ -767,7 +767,7 @@ impl Binance {
         &self,
         symbol: &Symbol,
         last_date_time: Option<DateTime>,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let specific_currency_pair = self.get_specific_currency_pair(symbol.currency_pair());
 
         let path = self.get_uri_path("/fapi/v1/userTrades", "/api/v3/myTrades");
@@ -791,7 +791,7 @@ impl Binance {
 
     pub(super) fn parse_get_my_trades(
         &self,
-        response: &RestRequestOutcome,
+        response: &RestResponse,
         _last_date_time: Option<DateTime>,
     ) -> Result<Vec<OrderTrade>> {
         #[derive(Serialize, Deserialize, Debug)]
@@ -854,15 +854,16 @@ impl Binance {
     pub(super) async fn request_create_order(
         &self,
         order: &OrderRef,
-    ) -> Result<RestRequestOutcome, ExchangeError> {
+    ) -> Result<RestResponse, ExchangeError> {
         let (header, price) = order.fn_ref(|order| (order.header.clone(), order.price()));
         let specific_currency_pair = self.get_specific_currency_pair(header.currency_pair);
+        let is_margin_trading = self.settings.is_margin_trading;
 
         let path = self.get_uri_path("/fapi/v1/order", "/api/v3/order");
         let mut builder = UriBuilder::from_path(path);
         builder.add_kv("symbol", specific_currency_pair);
         builder.add_kv("side", get_server_order_side(header.side));
-        builder.add_kv("type", get_server_order_type(header.order_type));
+        builder.add_kv("type", get_server_order_type(&header, is_margin_trading));
         builder.add_kv("quantity", &header.amount);
         builder.add_kv("newClientOrderId", &header.client_order_id);
 
@@ -874,9 +875,7 @@ impl Binance {
             && header.execution_type != OrderExecutionType::MakerOnly
         {
             builder.add_kv("timeInForce", "GTC");
-        } else if header.execution_type == OrderExecutionType::MakerOnly
-            && self.settings.is_margin_trading
-        {
+        } else if header.execution_type == OrderExecutionType::MakerOnly && is_margin_trading {
             builder.add_kv("timeInForce", "GTX");
         }
 
@@ -892,7 +891,7 @@ impl Binance {
     }
 
     #[named]
-    pub(super) async fn request_all_symbols(&self) -> Result<RestRequestOutcome, ExchangeError> {
+    pub(super) async fn request_all_symbols(&self) -> Result<RestResponse, ExchangeError> {
         let path = self.get_uri_path("/fapi/v1/exchangeInfo", "/api/v3/exchangeInfo");
         let builder = UriBuilder::from_path(path);
         let uri = builder.build_uri(self.hosts.rest_uri_host(), false);
@@ -903,10 +902,7 @@ impl Binance {
             .await
     }
 
-    pub(super) fn parse_all_symbols(
-        &self,
-        response: &RestRequestOutcome,
-    ) -> Result<Vec<Arc<Symbol>>> {
+    pub(super) fn parse_all_symbols(&self, response: &RestResponse) -> Result<Vec<Arc<Symbol>>> {
         let deserialized: Value = serde_json::from_str(&response.content)
             .expect("Unable to deserialize response from Binance");
         let symbols = deserialized
@@ -1057,8 +1053,12 @@ fn get_local_order_status(status: &str) -> OrderStatus {
     }
 }
 
-pub(super) fn get_server_order_type(order_type: OrderType) -> &'static str {
-    match order_type {
+pub(super) fn get_server_order_type(header: &OrderHeader, is_margin_trading: bool) -> &'static str {
+    if header.execution_type == OrderExecutionType::MakerOnly && !is_margin_trading {
+        return "LIMIT_MAKER";
+    }
+
+    match header.order_type {
         OrderType::Limit => "LIMIT",
         OrderType::Market => "MARKET",
         unexpected_variant => panic!("{unexpected_variant:?} are not expected"),
