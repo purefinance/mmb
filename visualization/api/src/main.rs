@@ -36,6 +36,7 @@ use chrono::Duration;
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     configure_logger();
+
     let config = load_config("config/base.toml");
     let enforcer = Enforcer::new("policy/model.conf", "policy/policy.csv")
         .await
@@ -56,19 +57,5 @@ async fn main() -> std::io::Result<()> {
 }
 
 fn configure_logger() {
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{}[{}][{}] {}",
-                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
-                record.target(),
-                record.level(),
-                message
-            ))
-        })
-        .level(log::LevelFilter::Trace)
-        .chain(std::io::stdout())
-        .chain(fern::log_file("visualization.log").expect("Failure create log file"))
-        .apply()
-        .expect("Failure configure logger");
+    mmb_utils::logger::init_logger_file_named("api.log");
 }

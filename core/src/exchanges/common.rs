@@ -13,6 +13,7 @@ use serde::de::{self, Deserializer, Visitor};
 use serde::ser::Serializer;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
+use std::borrow::Cow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -301,13 +302,25 @@ pub enum RestRequestError {
     Status(StatusCode),
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct RestRequestOutcome {
-    pub content: String,
+#[derive(Eq, PartialEq, Clone)]
+pub struct RestResponse {
     pub status: StatusCode,
+    pub content: String,
 }
 
-impl RestRequestOutcome {
+impl Debug for RestResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let cut_content = if self.content.len() > 1500 {
+            Cow::Owned(self.content.chars().take(1500).collect::<String>())
+        } else {
+            Cow::Borrowed(&self.content)
+        };
+
+        write!(f, "status: {:?} content: {}", &self.status, &cut_content)
+    }
+}
+
+impl RestResponse {
     pub fn new(content: String, status: StatusCode) -> Self {
         Self { content, status }
     }

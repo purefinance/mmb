@@ -133,7 +133,7 @@ async fn before_engine_context_init<StrategySettings>(
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
-    init_infrastructure("log.txt");
+    init_infrastructure("log_robot.txt");
 
     log::info!("*****************************");
     log::info!("TradingEngine starting");

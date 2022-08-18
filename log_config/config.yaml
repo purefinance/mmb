@@ -1,0 +1,20 @@
+refresh_rate: 30 seconds
+appenders:
+  stdout:
+    kind: console
+    filters:
+      - kind: outer_modules_filter
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n"
+  file:
+    kind: file
+    path: "log_robot.log"
+    filters:
+      - kind: outer_modules_filter
+    encoder:
+      pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n"
+root:
+  level: trace
+  appenders:
+#    - stdout
+    - file
