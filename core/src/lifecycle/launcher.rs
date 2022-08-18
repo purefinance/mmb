@@ -17,6 +17,7 @@ use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::rpc::config_waiter::ConfigWaiter;
 use crate::rpc::core_api::CoreApi;
+use crate::services::cleanup_orders::CleanupOrdersService;
 use crate::settings::{AppSettings, BaseStrategySettings, CoreSettings};
 use crate::statistic_service::StatisticEventHandler;
 use crate::statistic_service::StatisticService;
@@ -283,6 +284,7 @@ fn run_services<'a, StrategySettings>(
         Arc<EngineContext>,
     ) -> Box<dyn DispositionStrategy + 'static>,
     finish_graceful_shutdown_rx: oneshot::Receiver<ActionAfterGracefulShutdown>,
+    cleanup_orders_service: Arc<CleanupOrdersService>,
 ) -> TradingEngine
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
@@ -306,17 +308,27 @@ where
         .shutdown_service
         .register_core_service(control_panel);
 
-    {
-        let _ = spawn_future(
-            "internal_events_loop start",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-            internal_events_loop.start(
-                events_receiver,
-                exchanges_map.into_iter().collect(),
-                engine_context.lifetime_manager.stop_token(),
-            ),
-        );
-    }
+    engine_context
+        .shutdown_service
+        .register_core_service(cleanup_orders_service.clone());
+
+    let _ = spawn_future(
+        "internal_events_loop start",
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+        internal_events_loop.start(
+            events_receiver,
+            exchanges_map.into_iter().collect(),
+            engine_context.lifetime_manager.stop_token(),
+        ),
+    );
+
+    let _ = spawn_by_timer(
+        "cleanup_outdated_orders",
+        Duration::ZERO,
+        Duration::from_secs(600), // 10 minutes
+        SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+        move || cleanup_orders_service.clone().cleanup_outdated_orders(),
+    );
 
     let disposition_strategy = build_strategy(&settings, engine_context.clone());
     let disposition_executor_service = create_disposition_executor_service(
@@ -325,6 +337,7 @@ where
         disposition_strategy,
         &statistic_event_handler.stats,
     );
+
     engine_context
         .shutdown_service
         .register_user_service(disposition_executor_service);
@@ -431,6 +444,9 @@ where
         action,
     );
 
+    let cleanup_orders_service =
+        Arc::new(CleanupOrdersService::new(engine_context.exchanges.clone()));
+
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
             engine_context.clone(),
@@ -441,6 +457,7 @@ where
             init_user_settings,
             build_strategy,
             finish_graceful_shutdown_rx,
+            cleanup_orders_service,
         )
     }));
 
