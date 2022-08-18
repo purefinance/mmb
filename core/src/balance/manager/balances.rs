@@ -10,10 +10,14 @@ use crate::exchanges::common::MarketAccountId;
 use crate::misc::service_value_tree::ServiceValueTree;
 use crate::orders::fill::OrderFill;
 use crate::orders::order::ReservationId;
+use mmb_database::postgres_db::events::TableName;
+use serde::Serialize;
 
+use mmb_database::impl_event;
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 
+#[derive(Debug, Clone, Serialize)]
 pub struct Balances {
     pub version: usize,
     pub init_time: DateTime,
@@ -29,7 +33,6 @@ pub struct Balances {
     /// In Amount currency
     pub amount_limits: Option<ServiceValueTree>,
     pub balance_reservations_by_reservation_id: Option<HashMap<ReservationId, BalanceReservation>>,
-
     pub last_order_fills: HashMap<MarketAccountId, OrderFill>,
 }
 
@@ -60,3 +63,4 @@ impl Balances {
         1
     }
 }
+impl_event!(Balances, "balances");

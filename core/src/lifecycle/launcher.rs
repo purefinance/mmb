@@ -188,24 +188,6 @@ where
 
     let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_hashmap);
 
-    let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
-
-    BalanceManager::update_balances_for_exchanges(
-        balance_manager.clone(),
-        lifetime_manager.stop_token(),
-    )
-    .await;
-
-    for exchange in &exchanges_map {
-        exchange
-            .value()
-            .setup_balance_manager(balance_manager.clone())
-    }
-
-    start_updating_balances(&lifetime_manager, &balance_manager);
-
-    let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
-
     let database = if let Some(db) = &settings.core.database {
         apply_migrations(&db.url, db.migrations.clone())
             .await
@@ -222,6 +204,27 @@ where
     let event_recorder = EventRecorder::start(database)
         .await
         .context("can't start EventRecorder")?;
+
+    let balance_manager = BalanceManager::new(
+        currency_pair_to_symbol_converter,
+        Some(event_recorder.clone()),
+    );
+
+    BalanceManager::update_balances_for_exchanges(
+        balance_manager.clone(),
+        lifetime_manager.stop_token(),
+    )
+    .await;
+
+    for exchange in &exchanges_map {
+        exchange
+            .value()
+            .setup_balance_manager(balance_manager.clone())
+    }
+
+    start_updating_balances(&lifetime_manager, &balance_manager);
+
+    let (finish_graceful_shutdown_tx, finish_graceful_shutdown_rx) = oneshot::channel();
 
     let engine_context = EngineContext::new(
         settings.core.clone(),

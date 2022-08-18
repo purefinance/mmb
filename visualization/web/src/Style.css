@@ -123,6 +123,6 @@ a:hover {
 
 
 /* !TODO Temporary while few items at nav*/
-.nav-link:first-child {
+.nav-link:nth-child(1), .nav-link:nth-child(2) {
     margin-right: 0 !important;
 }

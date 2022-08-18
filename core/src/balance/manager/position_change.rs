@@ -1,9 +1,10 @@
 use crate::orders::order::ClientOrderFillId;
+use serde::Serialize;
 
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct PositionChange {
     pub(crate) client_order_fill_id: ClientOrderFillId,
     pub(crate) change_time: DateTime,

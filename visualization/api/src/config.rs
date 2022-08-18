@@ -1,4 +1,4 @@
-use crate::services::liquidity::Amount;
+use crate::services::data_provider::model::Amount;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

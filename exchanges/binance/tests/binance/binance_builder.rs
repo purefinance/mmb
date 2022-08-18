@@ -207,7 +207,7 @@ impl BinanceBuilder {
         let currency_pair_to_symbol_converter =
             CurrencyPairToSymbolConverter::new(hashmap![ exchange_account_id => exchange.clone() ]);
 
-        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter, None);
 
         exchange.setup_balance_manager(balance_manager);
 

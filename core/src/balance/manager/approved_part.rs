@@ -2,8 +2,9 @@ use mmb_utils::DateTime;
 
 use crate::exchanges::common::Amount;
 use crate::orders::order::ClientOrderId;
+use serde::Serialize;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ApprovedPart {
     _approve_time: DateTime,
     _client_order_id: ClientOrderId,

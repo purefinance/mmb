@@ -3,12 +3,13 @@ use std::collections::HashMap;
 use crate::balance::manager::position_change::PositionChange;
 use crate::exchanges::common::{CurrencyPair, ExchangeAccountId, MarketAccountId};
 use crate::orders::order::ClientOrderFillId;
+use serde::Serialize;
 
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct BalancePositionByFillAmount {
     /// MarketAccountId -> AmountInAmountCurrency
     position_by_fill_amount: HashMap<MarketAccountId, Decimal>,

@@ -89,7 +89,7 @@ export default class CryptolpAxios {
   static getExplanations(exchangeName, currencyCodePair) {
     return this.getResponse(
       "explanations",
-      `Explanation?exchangeName=${exchangeName}&currencyCodePair=${currencyCodePair}`
+      `explanations?exchangeName=${exchangeName}&currencyCodePair=${currencyCodePair}`
     );
   }
 

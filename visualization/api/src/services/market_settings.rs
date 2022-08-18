@@ -1,5 +1,5 @@
 use crate::config::Market;
-use crate::services::liquidity::Amount;
+use crate::services::data_provider::model::Amount;
 use itertools::Itertools;
 use serde_json::{json, Value};
 use std::collections::HashMap;

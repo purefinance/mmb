@@ -1,6 +1,7 @@
-use crate::services::liquidity::{
-    Amount, LiquidityData, LiquidityOrderSide, Price, TransactionOrderSide, TransactionTradeSide,
+use crate::services::data_provider::liquidity::{
+    LiquidityData, LiquidityOrderSide, TransactionOrderSide, TransactionTradeSide,
 };
+use crate::services::data_provider::model::{Amount, Price};
 use actix::prelude::*;
 use itertools::Itertools;
 use rust_decimal::prelude::Zero;

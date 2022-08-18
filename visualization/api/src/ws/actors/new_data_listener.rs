@@ -1,4 +1,7 @@
-use crate::ws::broker_messages::{LiquidityResponseMessage, NewLiquidityDataMessage};
+use crate::ws::broker_messages::{
+    BalancesResponseMessage, LiquidityResponseMessage, NewBalancesDataMessage,
+    NewLiquidityDataMessage,
+};
 use crate::ws::commands::liquidity::LiquidityResponseBody;
 use actix::{Actor, Context, Handler};
 use actix_broker::BrokerIssue;
@@ -30,5 +33,18 @@ impl Handler<NewLiquidityDataMessage> for NewDataListener {
             subscription: data.subscription,
         };
         self.issue_system_async(liquidity_response_message);
+    }
+}
+
+impl Handler<NewBalancesDataMessage> for NewDataListener {
+    type Result = ();
+
+    fn handle(&mut self, data: NewBalancesDataMessage, _ctx: &mut Context<Self>) -> Self::Result {
+        let balances_response_message = BalancesResponseMessage {
+            command: "UpdateBalances",
+            body: data.data,
+            subscription: data.subscription,
+        };
+        self.issue_system_async(balances_response_message);
     }
 }

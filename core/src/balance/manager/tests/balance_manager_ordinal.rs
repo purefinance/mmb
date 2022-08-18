@@ -41,7 +41,7 @@ impl BalanceManagerOrdinal {
             BalanceManagerOrdinal::create_balance_manager_ctor_parameters();
         let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_by_id);
 
-        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter);
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter, None);
         (symbol, balance_manager)
     }
 
@@ -4415,7 +4415,7 @@ mod tests {
 
         let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_by_id);
 
-        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter.clone());
+        let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter.clone(), None);
 
         let exchange_account_id = test_object.balance_manager_base.exchange_account_id_1;
 
@@ -4455,7 +4455,7 @@ mod tests {
 
         test_object
             .balance_manager_base
-            .set_balance_manager(BalanceManager::new(currency_pair_to_symbol_converter));
+            .set_balance_manager(BalanceManager::new(currency_pair_to_symbol_converter, None));
 
         test_object
             .balance_manager()
