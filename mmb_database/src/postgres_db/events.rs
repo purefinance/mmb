@@ -19,9 +19,7 @@ const EVENT_INSERT_TYPES_LIST: [Type; 2] = [Type::INT4, Type::JSONB];
 macro_rules! impl_event {
     ($ty:ty, $table_name:expr) => {
         impl mmb_database::postgres_db::events::Event for $ty {
-            fn get_table_name(&self) -> TableName {
-                $table_name
-            }
+            const TABLE_NAME: mmb_database::postgres_db::events::TableName = $table_name;
 
             fn get_json(&self) -> serde_json::Result<serde_json::Value> {
                 serde_json::to_value(self)
@@ -31,7 +29,7 @@ macro_rules! impl_event {
 }
 
 pub trait Event {
-    fn get_table_name(&self) -> TableName;
+    const TABLE_NAME: &'static str;
     fn get_version(&self) -> i32 {
         1
     }

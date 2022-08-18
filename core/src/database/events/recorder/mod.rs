@@ -88,13 +88,11 @@ impl EventRecorder {
         }))
     }
 
-    pub fn save(&self, event: impl Event) -> Result<()> {
-        let table_name = event.get_table_name();
-
+    pub fn save<E: Event>(&self, event: E) -> Result<()> {
         if !self.data_tx.is_closed() {
             self.data_tx
                 .try_send((
-                    table_name,
+                    E::TABLE_NAME,
                     InsertEvent {
                         version: event.get_version(),
                         json: event
@@ -278,7 +276,6 @@ mod tests {
     use crate::database::events::recorder::{DbSettings, EventRecorder};
     use crate::infrastructure::init_lifetime_manager;
     use mmb_database::impl_event;
-    use mmb_database::postgres_db::events::TableName;
     use mmb_database::postgres_db::tests::{get_database_url, PgPoolMutex};
     use serde::{Deserialize, Serialize};
     use std::time::{Duration, Instant};

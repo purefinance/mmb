@@ -10,7 +10,6 @@ use crate::exchanges::common::MarketAccountId;
 use crate::misc::service_value_tree::ServiceValueTree;
 use crate::orders::fill::OrderFill;
 use crate::orders::order::ReservationId;
-use mmb_database::postgres_db::events::TableName;
 use serde::Serialize;
 
 use mmb_database::impl_event;
