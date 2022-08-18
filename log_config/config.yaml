@@ -8,7 +8,7 @@ appenders:
       pattern: "{d(%Y-%m-%d %H:%M:%S):<20} {M:>20.30}:{L:>3} {h({l})}    {m}\n"
   file:
     kind: file
-    path: "log_robot.log"
+    path: "log.log"
     filters:
       - kind: outer_modules_filter
     encoder:

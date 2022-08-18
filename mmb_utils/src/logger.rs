@@ -50,7 +50,12 @@ fn get_log_config_path() -> PathBuf {
         config_path = cur_dir
             .ancestors()
             .find(|x| Path::exists(&x.join("log_config/config.yaml")))
-            .expect("unable find log config 'log_config/config.yaml'")
+            .unwrap_or_else(|| {
+                panic!(
+                    "unable find log config 'log_config/config.yaml' for current dir:{}",
+                    cur_dir.display()
+                )
+            })
             .join("log_config/config.yaml");
     }
     config_path
@@ -88,11 +93,15 @@ pub mod outer_modules_filter {
             }
 
             let ignore_modules = [
+                "actix_broker",
+                "actix_codec",
+                "actix_http",
+                "actix_server",
+                "actix_http",
+                "actix_web",
                 "want",
                 "mio",
-                "actix_tls",
                 "rustls",
-                "actix_codec",
                 "tungstenite",
                 "tokio_tungstenite",
                 "tokio_postgres",
