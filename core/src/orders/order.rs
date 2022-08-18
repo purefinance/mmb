@@ -543,6 +543,9 @@ impl OrderSnapshot {
 
     pub fn set_status(&mut self, new_status: OrderStatus, time: DateTime) {
         self.props.status = new_status;
+        if new_status.is_finished() {
+            self.props.finished_time = Some(time);
+        }
         self.status_history.status_changes.push(OrderStatusChange {
             id: Uuid::default(),
             status: new_status,
