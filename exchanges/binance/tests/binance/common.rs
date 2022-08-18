@@ -53,8 +53,7 @@ macro_rules! get_binance_credentials_or_exit {
     () => {{
         match $crate::binance::common::get_binance_credentials() {
             Ok((api_key, secret_key)) => (api_key, secret_key),
-            Err(error) => {
-                dbg!("{:?}", error);
+            Err(_) => {
                 return;
             }
         }

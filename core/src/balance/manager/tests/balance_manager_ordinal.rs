@@ -324,50 +324,32 @@ mod tests {
         let bnb = BalanceManagerBase::bnb();
         let eos = "EOS".into();
 
-        BalanceManagerBase::update_balance(
-            &mut *test_object.balance_manager(),
-            exchange_account_id,
-            hashmap![
-                btc => dec!(2),
-                eth => dec!(1),
-                bnb => dec!(7.5),
-                eos => dec!(0)
-            ],
-        );
+        let balance_manager = &mut test_object.balance_manager();
+        let currencies = hashmap![
+            btc => dec!(2),
+            eth => dec!(1),
+            bnb => dec!(7.5),
+            eos => dec!(0)
+        ];
+        BalanceManagerBase::update_balance(balance_manager, exchange_account_id, currencies);
+
+        let symbol = test_object.balance_manager_base.symbol();
+        let btc_balance =
+            balance_manager.get_exchange_balance(exchange_account_id, symbol.clone(), btc);
+        assert_eq!(btc_balance, Some(dec!(2)));
 
         assert_eq!(
-            test_object.balance_manager().get_exchange_balance(
-                exchange_account_id,
-                test_object.balance_manager_base.symbol(),
-                btc
-            ),
-            Some(dec!(2))
-        );
-
-        assert_eq!(
-            test_object.balance_manager().get_exchange_balance(
-                exchange_account_id,
-                test_object.balance_manager_base.symbol(),
-                eth
-            ),
+            balance_manager.get_exchange_balance(exchange_account_id, symbol.clone(), eth),
             Some(dec!(1))
         );
 
         assert_eq!(
-            test_object.balance_manager().get_exchange_balance(
-                exchange_account_id,
-                test_object.balance_manager_base.symbol(),
-                bnb
-            ),
+            balance_manager.get_exchange_balance(exchange_account_id, symbol.clone(), bnb),
             Some(dec!(7.5))
         );
 
         assert_eq!(
-            test_object.balance_manager().get_exchange_balance(
-                exchange_account_id,
-                test_object.balance_manager_base.symbol(),
-                eos
-            ),
+            balance_manager.get_exchange_balance(exchange_account_id, symbol, eos),
             None
         );
     }

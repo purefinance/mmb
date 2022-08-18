@@ -1,8 +1,10 @@
 use core::panic;
-use std::fmt::{Display, Formatter};
+use itertools::Itertools;
+use std::fmt::{Debug, Display, Formatter};
 
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::broadcast;
@@ -21,10 +23,24 @@ pub struct ExchangeBalance {
     pub balance: Decimal,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ExchangeBalancesAndPositions {
     pub balances: Vec<ExchangeBalance>,
     pub positions: Option<Vec<DerivativePosition>>,
+}
+
+impl Debug for ExchangeBalancesAndPositions {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let non_zero_balances = self
+            .balances
+            .iter()
+            .filter(|x| x.balance > dec!(0))
+            .collect_vec();
+        f.debug_struct("ExchangeBalancesAndPositions")
+            .field("balances", &non_zero_balances)
+            .field("positions", &self.positions)
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone)]

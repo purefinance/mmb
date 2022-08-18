@@ -67,10 +67,10 @@ impl BalanceReservation {
 
     pub(crate) fn get_proportional_cost_amount(&self, amount: Amount) -> Result<Decimal> {
         if self.amount.is_zero() {
-            if !amount.is_zero() {
-                bail!("Trying to receive a {} proportion out of zero", amount)
+            if amount.is_zero() {
+                return Ok(dec!(0));
             }
-            return Ok(dec!(0));
+            bail!("Trying to receive a {amount} proportion out of zero")
         }
 
         Ok(self.cost * amount / self.amount)

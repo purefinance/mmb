@@ -101,6 +101,8 @@ impl Support for Binance {
     }
 
     async fn initialized(&self, exchange: Arc<Exchange>) {
+        self.initialize_working_currencies(&exchange);
+
         start_updating_listen_key(&exchange);
     }
 
