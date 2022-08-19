@@ -296,12 +296,13 @@ impl DispositionExecutor {
         trading_context: &mut Option<TradingContext>,
         now: DateTime,
     ) -> Result<()> {
+        let trading_context = match trading_context {
+            None => return Ok(()),
+            Some(v) => v,
+        };
+
         for (side, state_by_side) in self.orders_state.by_side.iter() {
-            let trading_context_by_side =
-                match trading_context.as_mut().map(|x| &mut x.by_side[side]) {
-                    None => continue,
-                    Some(v) => v,
-                };
+            let trading_context_by_side = &mut trading_context.by_side[side];
 
             self.synchronize_price_slots_for_list(
                 &state_by_side.slots,
@@ -311,7 +312,12 @@ impl DispositionExecutor {
             )?
         }
 
-        // TODO save explanations
+        let explanations = trading_context.get_explanations();
+        self.engine_ctx
+            .event_recorder
+            .save(explanations)
+            .unwrap_or_else(|err| log::error!("unable save explanations: {err}"));
+
         Ok(())
     }
 
