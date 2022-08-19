@@ -1,0 +1,1 @@
+DROP TABLE disposition_explanations;

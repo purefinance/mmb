@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 use enum_map::{enum_map, EnumMap};
+use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
@@ -14,7 +15,7 @@ use crate::exchanges::common::{
     Amount, CurrencyPair, ExchangeAccountId, MarketAccountId, MarketId, Price,
 };
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
-use crate::explanation::{Explanation, WithExplanation};
+use crate::explanation::{Explanation, ExplanationSet, PriceLevelExplanation, WithExplanation};
 use crate::orders::order::{ClientOrderId, OrderRole, OrderSide};
 use crate::orders::pool::OrderRef;
 
@@ -143,6 +144,35 @@ impl TradingContext {
             by_side: EnumMap::from_array([buy_ctx, sell_ctx]),
         }
     }
+
+    pub(crate) fn get_explanations(&self) -> ExplanationSet {
+        let explanations = self
+            .by_side
+            .as_slice()
+            .iter()
+            .flat_map(|x| x.estimating.iter().map(to_price_level_explanation))
+            .collect_vec();
+
+        ExplanationSet::new(explanations)
+    }
+}
+
+fn to_price_level_explanation(
+    explanation: &WithExplanation<Option<TradeCycle>>,
+) -> PriceLevelExplanation {
+    let SmallOrder { price, amount } = explanation
+        .value
+        .as_ref()
+        .map(|x| x.disposition.order)
+        .unwrap_or(SmallOrder::new(dec!(0), dec!(0)));
+
+    let explanation = PriceLevelExplanation {
+        mode_name: "Disposition".to_string(),
+        price,
+        amount,
+        reasons: explanation.explanation.get_reasons(),
+    };
+    explanation
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
