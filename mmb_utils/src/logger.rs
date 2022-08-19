@@ -77,14 +77,8 @@ pub mod outer_modules_filter {
 
     #[derive(serde::Deserialize)]
     pub struct OuterModulesFilterConfig {}
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     pub struct Filter;
-
-    impl Filter {
-        pub fn new() -> Filter {
-            Filter
-        }
-    }
 
     impl Log4RsFilter for Filter {
         fn filter(&self, record: &Record) -> Response {
@@ -130,7 +124,7 @@ pub mod outer_modules_filter {
             _config: OuterModulesFilterConfig,
             _: &Deserializers,
         ) -> Result<Box<dyn Log4RsFilter>> {
-            Ok(Box::new(Filter::new()))
+            Ok(Box::new(Filter::default()))
         }
     }
 }

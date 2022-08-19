@@ -19,7 +19,7 @@ use tokio::sync::broadcast;
 use super::support::{BinanceOrderInfo, BinanceSpotBalances};
 use crate::support::{BinanceAccountInfo, BinanceMarginBalances};
 use mmb_core::exchanges::common::{
-    ActivePosition, Amount, CurrencyPairCodes, ExchangeError, ExchangeErrorType, ExchangeId, Price,
+    ActivePosition, Amount, ExchangeError, ExchangeErrorType, ExchangeId, Price,
 };
 use mmb_core::exchanges::events::{
     ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId,
@@ -155,11 +155,7 @@ impl Binance {
         let currency_codes: HashSet<CurrencyCode> = exchange
             .symbols
             .iter()
-            .map(|x| {
-                let codes: CurrencyPairCodes = x.key().to_codes();
-                [codes.base, codes.quote]
-            })
-            .flatten()
+            .flat_map(|x| x.key().to_codes().to_array())
             .collect();
 
         let currency_ids = self
@@ -167,7 +163,7 @@ impl Binance {
             .iter()
             .filter_map(|x| {
                 if currency_codes.contains(x.value()) {
-                    Some(x.key().clone())
+                    Some(*x.key())
                 } else {
                     None
                 }

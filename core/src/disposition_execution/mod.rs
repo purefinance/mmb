@@ -164,15 +164,14 @@ fn to_price_level_explanation(
         .value
         .as_ref()
         .map(|x| x.disposition.order)
-        .unwrap_or(SmallOrder::new(dec!(0), dec!(0)));
+        .unwrap_or_else(|| SmallOrder::new(dec!(0), dec!(0)));
 
-    let explanation = PriceLevelExplanation {
+    PriceLevelExplanation {
         mode_name: "Disposition".to_string(),
         price,
         amount,
         reasons: explanation.explanation.get_reasons(),
-    };
-    explanation
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

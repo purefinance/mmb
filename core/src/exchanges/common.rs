@@ -161,9 +161,16 @@ impl From<&str> for CurrencyCode {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct CurrencyPairCodes {
     pub base: CurrencyCode,
     pub quote: CurrencyCode,
+}
+
+impl CurrencyPairCodes {
+    pub fn to_array(&self) -> [CurrencyCode; 2] {
+        [self.base, self.quote]
+    }
 }
 
 // Unified format currency pair for this mmb
