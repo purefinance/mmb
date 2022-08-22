@@ -59,7 +59,7 @@ sha2 = "0.9"
 smallstr = { version = "0.2", features = ["serde"]}
 
 thiserror = "1"
-tokio = { version = "1", features = ["macros", "time", "sync", "rt-multi-thread", "signal"]}
+tokio = { version = "1", features = ["macros", "time", "sync", "rt-multi-thread", "signal", "parking_lot"]}
 tokio-tungstenite = { version = "0.17", features = ["rustls-tls-native-roots"] }
 tokio-util = "0.7"
 toml_edit = { version = "0.12", features = ["serde"] }

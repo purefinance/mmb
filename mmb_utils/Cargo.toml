@@ -26,9 +26,8 @@ rust_decimal_macros = "1"
 serde = { version = "1", features = ["derive"]}
 serde_json = "1"
 smallstr = { version = "0.2", features = ["serde"]}
-tokio = { version = "1", features = ["macros", "time", "sync", "rt", "signal"]}
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "rt", "signal", "parking_lot"]}
 uuid = { version = "0.8", features = ["serde", "v4"]}
 
 [dev-dependencies]
 mockall = "0.10.2"
-tokio = { version = "1", features = ["rt-multi-thread"]}
