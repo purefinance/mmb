@@ -137,16 +137,16 @@ impl Debug for ExchangeAccountId {
 }
 
 // unique ID of exchange
-impl_table_type!(ExchangeId, 8);
+impl_table_type!(ExchangeId, 8, u8);
 
 // Currency pair specific for exchange
-impl_table_type!(SpecificCurrencyPair, 16);
+impl_table_type!(SpecificCurrencyPair, 16, u16);
 
 // Currency in Exchange format, e.g. ETH, BTC
-impl_table_type!(CurrencyId, 16);
+impl_table_type!(CurrencyId, 16, u16);
 
 // Currency in unified format, e.g. eth, btc
-impl_table_type_raw!(CurrencyCode, 16);
+impl_table_type_raw!(CurrencyCode, 16, u16);
 
 impl CurrencyCode {
     pub fn new(currency_code: &str) -> Self {
@@ -174,7 +174,7 @@ impl CurrencyPairCodes {
 }
 
 // Unified format currency pair for this mmb
-impl_table_type_raw!(CurrencyPair, 16);
+impl_table_type_raw!(CurrencyPair, 16, u16);
 
 impl CurrencyPair {
     pub fn from_codes(base: CurrencyCode, quote: CurrencyCode) -> Self {
