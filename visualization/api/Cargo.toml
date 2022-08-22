@@ -30,5 +30,5 @@ serde-aux = "3.0.1"
 serde = { version = "1", features=["derive"]}
 serde_json = "1.0"
 sqlx = { version = "0.5.13", features = [ "chrono", "macros", "postgres", "runtime-tokio-rustls" ] }
-tokio = { version = "1.10.0", features = ["fs", "io-util"] }
+tokio = { version = "1.10.0", features = ["fs", "io-util", "parking_lot"] }
 toml = "0.5.9"

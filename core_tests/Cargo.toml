@@ -18,4 +18,4 @@ mmb_utils = { path = "../mmb_utils" }
 rust_decimal = { version = "1", features = ["maths"]}
 rust_decimal_macros = "1"
 
-tokio = { version = "1", features = ["macros", "time", "sync", "rt-multi-thread", "signal"]}
+tokio = { version = "1", features = ["macros", "time", "sync", "rt-multi-thread", "signal", "parking_lot"]}
