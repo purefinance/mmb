@@ -1,6 +1,6 @@
 use crate::exchanges::common::{Amount, Price};
 use mmb_database::impl_event;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fmt::{Debug, Formatter};
 
 pub struct Reason(Option<String>);
@@ -35,8 +35,8 @@ pub struct Explanation {
 }
 
 impl Explanation {
-    pub(crate) fn get_reasons(&self) -> Vec<String> {
-        self.reasons.clone()
+    pub(crate) fn get_reasons(&self) -> &[String] {
+        self.reasons.as_slice()
     }
 }
 
@@ -125,27 +125,27 @@ impl OptionExplanationAddReasonExt for Option<Explanation> {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PriceLevelExplanation {
+#[derive(Debug, Clone, Serialize)]
+pub struct PriceLevelExplanation<'a> {
     pub mode_name: String,
     pub price: Price,
     pub amount: Amount,
-    pub reasons: Vec<String>,
+    pub reasons: &'a [String],
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(transparent)]
-pub struct ExplanationSet {
-    set: Vec<PriceLevelExplanation>,
+pub struct ExplanationSet<'a> {
+    set: Vec<PriceLevelExplanation<'a>>,
 }
 
-impl ExplanationSet {
-    pub fn new(set: Vec<PriceLevelExplanation>) -> Self {
+impl<'a> ExplanationSet<'a> {
+    pub fn new(set: Vec<PriceLevelExplanation<'a>>) -> Self {
         Self { set }
     }
 }
 
-impl_event!(ExplanationSet, "disposition_explanations");
+impl_event!(ExplanationSet<'_>, "disposition_explanations");
 
 #[cfg(test)]
 mod tests {
