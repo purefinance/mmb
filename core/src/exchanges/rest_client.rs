@@ -1,14 +1,17 @@
-use super::common::*;
+use crate::exchanges::traits::ExchangeError;
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+use domain::market::*;
 use hyper::client::HttpConnector;
 use hyper::http::uri::{Parts, PathAndQuery};
 use hyper::{Body, Client, Error, Request, Response, StatusCode, Uri};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use log::log;
 use mmb_utils::infrastructure::WithExpect;
+use std::borrow::Cow;
 use std::convert::TryInto;
-use std::fmt::{Display, Write};
+use std::fmt;
+use std::fmt::{Debug, Display, Formatter, Write};
 use uuid::Uuid;
 
 pub type QueryKey = &'static str;
@@ -440,3 +443,35 @@ mod tests {
         assert_eq!(path_and_query, Uri::from_static("https://host.com/path"))
     }
 }
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum RestRequestError {
+    IsInProgress,
+    Status(StatusCode),
+}
+
+#[derive(Eq, PartialEq, Clone)]
+pub struct RestResponse {
+    pub status: StatusCode,
+    pub content: String,
+}
+
+impl Debug for RestResponse {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let cut_content = if self.content.len() > 1500 {
+            Cow::Owned(self.content.chars().take(1500).collect::<String>())
+        } else {
+            Cow::Borrowed(&self.content)
+        };
+
+        write!(f, "status: {:?} content: {}", &self.status, &cut_content)
+    }
+}
+
+impl RestResponse {
+    pub fn new(content: String, status: StatusCode) -> Self {
+        Self { content, status }
+    }
+}
+
+pub type RestRequestResult = std::result::Result<String, RestRequestError>;

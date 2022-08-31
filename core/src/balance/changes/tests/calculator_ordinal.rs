@@ -1,11 +1,9 @@
 #[cfg(test)]
 mod tests {
+    use domain::order::snapshot::OrderSide;
     use rust_decimal_macros::dec;
 
-    use crate::{
-        balance::changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase,
-        orders::order::OrderSide,
-    };
+    use crate::balance::changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase;
 
     type TestBase = BalanceChangesCalculatorTestsBase;
 

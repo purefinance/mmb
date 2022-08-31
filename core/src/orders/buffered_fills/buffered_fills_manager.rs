@@ -1,11 +1,10 @@
+use domain::market::ExchangeAccountId;
+use domain::order::snapshot::ExchangeOrderId;
 use mmb_utils::infrastructure::WithExpect;
 use std::collections::HashMap;
 
 use crate::exchanges::general::handlers::handle_order_filled::FillAmount;
-use crate::{
-    exchanges::{common::ExchangeAccountId, general::handlers::handle_order_filled::FillEvent},
-    orders::order::ExchangeOrderId,
-};
+use crate::exchanges::general::handlers::handle_order_filled::FillEvent;
 
 use super::buffered_fill::BufferedFill;
 

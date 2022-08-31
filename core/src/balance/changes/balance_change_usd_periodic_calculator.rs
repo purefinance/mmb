@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Duration;
+use domain::market::MarketAccountId;
+use domain::order::snapshot::Amount;
 use futures::future::join_all;
 use itertools::Itertools;
 use mmb_utils::cancellation_token::CancellationToken;
@@ -13,12 +15,9 @@ use crate::balance::manager::balance_manager::BalanceManager;
 #[double]
 use crate::services::usd_convertion::usd_converter::UsdConverter;
 
-use crate::{
-    balance::changes::{
-        balance_changes_accumulator::BalanceChangeAccumulator, profit_balance_changes_calculator,
-        profit_loss_balance_change::ProfitLossBalanceChange,
-    },
-    exchanges::common::{Amount, MarketAccountId},
+use crate::balance::changes::{
+    balance_changes_accumulator::BalanceChangeAccumulator, profit_balance_changes_calculator,
+    profit_loss_balance_change::ProfitLossBalanceChange,
 };
 
 use super::balance_change_period_selector::BalanceChangePeriodSelector;

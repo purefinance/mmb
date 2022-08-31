@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicU64;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use crate::infrastructure::WithExpect;
 use crate::DateTime;
 
 pub fn u64_to_date_time(src: u64) -> DateTime {
@@ -32,4 +33,20 @@ pub fn get_atomic_current_secs() -> AtomicU64 {
             .expect("Failed to get system time since UNIX_EPOCH")
             .as_secs(),
     )
+}
+
+pub trait ToStdExpected {
+    fn to_std_expected(&self) -> Duration;
+}
+
+impl ToStdExpected for chrono::Duration {
+    /// Converts chrono::Duration to std::time::Duration.
+    ///
+    /// # Panics
+    /// Panic only on negative delay
+    fn to_std_expected(&self) -> Duration {
+        self.to_std().with_expect(|| {
+            format!("Unable to convert {self} from chrono::Duration to std::time::Duration")
+        })
+    }
 }

@@ -1,12 +1,11 @@
+use domain::market::MarketId;
+use domain::order::snapshot::PriceByOrderSide;
 use mockall_double::double;
 
 #[double]
 use crate::misc::time::time_manager;
 
-use crate::{
-    exchanges::common::MarketId,
-    misc::{price_by_order_side::PriceByOrderSide, price_source_model::PriceSourceModel},
-};
+use crate::misc::price_source_model::PriceSourceModel;
 
 #[derive(Default)]
 pub struct PriceSourcesSaver {

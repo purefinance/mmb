@@ -1,8 +1,9 @@
+use domain::market::MarketId;
 use std::collections::HashMap;
 
 use mmb_utils::{cancellation_token::CancellationToken, DateTime};
 
-use crate::{exchanges::common::MarketId, misc::price_by_order_side::PriceByOrderSide};
+use domain::order::snapshot::PriceByOrderSide;
 
 #[derive(Default)]
 pub struct PriceSourcesLoader {

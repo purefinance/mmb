@@ -1,17 +1,18 @@
 use mmb_utils::hashmap;
 
+use domain::market::CurrencyCode;
+use domain::market::ExchangeAccountId;
 use std::sync::Arc;
 
 use crate::balance::manager::balance_request::BalanceRequest;
 use crate::balance::virtual_balance_holder::VirtualBalanceHolder;
-use crate::exchanges::common::{CurrencyCode, CurrencyPair};
-use crate::exchanges::general::symbol::Symbol;
 use crate::exchanges::general::test_helper::get_test_exchange_by_currency_codes_and_amount_code;
-use crate::exchanges::{
-    common::ExchangeAccountId,
-    general::{exchange::Exchange, test_helper::get_test_exchange_by_currency_codes},
+use crate::exchanges::general::{
+    exchange::Exchange, test_helper::get_test_exchange_by_currency_codes,
 };
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use domain::exchanges::symbol::Symbol;
+use domain::market::CurrencyPair;
 
 struct VirtualBalanceHolderTests {
     virtual_balance_holder: VirtualBalanceHolder,

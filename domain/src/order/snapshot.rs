@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::vec::Vec;
 
+use crate::market::CurrencyPair;
 use chrono::Utc;
 use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;
@@ -16,12 +17,17 @@ use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
+use std::collections::BTreeMap;
 use uuid::Uuid;
 
-use crate::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, ExchangeErrorType, MarketAccountId, MarketId, Price,
-};
-use crate::orders::fill::{EventSourceType, OrderFill};
+use crate::market::{ExchangeAccountId, ExchangeErrorType, MarketAccountId, MarketId};
+use crate::order::fill::{EventSourceType, OrderFill};
+
+pub type SortedOrderData = BTreeMap<Price, Amount>;
+
+pub type Price = Decimal;
+pub type Amount = Decimal;
+pub type String16 = SmallString<[u8; 16]>;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash, Enum)]
 pub enum OrderSide {
@@ -229,7 +235,7 @@ pub struct OrderSimpleProps {
 }
 
 impl OrderSimpleProps {
-    pub(crate) fn new(
+    pub fn new(
         raw_price: Option<Price>,
         role: Option<OrderRole>,
         exchange_order_id: Option<ExchangeOrderId>,
@@ -340,7 +346,7 @@ pub struct SystemInternalOrderProps {
 ///
 /// ```
 /// use serde::{Deserialize, Serialize};
-/// use mmb_core::orders::order::OrderInfoExtensionData;
+/// use domain::order::snapshot::OrderInfoExtensionData;
 /// use std::any::Any;
 ///
 /// // Structure for which extension data is added
@@ -593,5 +599,17 @@ impl OrderSnapshot {
 
     pub fn init_time(&self) -> DateTime {
         self.header.init_time
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct PriceByOrderSide {
+    pub top_bid: Option<Price>,
+    pub top_ask: Option<Price>,
+}
+
+impl PriceByOrderSide {
+    pub fn new(top_bid: Option<Price>, top_ask: Option<Price>) -> Self {
+        Self { top_bid, top_ask }
     }
 }

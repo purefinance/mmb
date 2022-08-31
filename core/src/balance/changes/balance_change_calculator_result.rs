@@ -1,11 +1,10 @@
+use domain::market::{CurrencyCode, ExchangeId};
+use domain::order::snapshot::{Amount, Price};
 use mockall_double::double;
 
+use crate::misc::service_value_tree::ServiceValueTree;
 #[double]
 use crate::services::usd_convertion::usd_converter::UsdConverter;
-use crate::{
-    exchanges::common::{Amount, CurrencyCode, ExchangeId, Price},
-    misc::service_value_tree::ServiceValueTree,
-};
 
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::WithExpect;

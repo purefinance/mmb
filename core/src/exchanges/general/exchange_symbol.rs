@@ -1,14 +1,16 @@
 use dashmap::DashMap;
+use domain::market::CurrencyCode;
 use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
 use rust_decimal_macros::dec;
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::exchanges::common::{CurrencyCode, CurrencyId, ExchangeAccountId};
 use crate::settings::CurrencyPairSetting;
+use domain::exchanges::symbol::Symbol;
+use domain::market::{CurrencyId, ExchangeAccountId};
 
-use super::{exchange::Exchange, symbol::Symbol};
+use super::exchange::Exchange;
 
 impl Exchange {
     pub async fn build_symbols(&self, currency_pair_settings: &Option<Vec<CurrencyPairSetting>>) {

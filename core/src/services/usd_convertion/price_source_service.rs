@@ -8,19 +8,18 @@ use std::{
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
 use crate::{
-    exchanges::{
-        common::{Amount, CurrencyCode, ExchangeId, MarketId},
-        events::ExchangeEvent,
-        general::symbol::Symbol,
-    },
     infrastructure::spawn_future,
-    misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
     services::usd_convertion::{prices_calculator, rebase_price_step::RebaseDirection},
     settings::CurrencyPriceSourceSettings,
 };
 
 use anyhow::{bail, Context, Result};
+use domain::events::ExchangeEvent;
+use domain::exchanges::symbol::Symbol;
+use domain::market::{CurrencyCode, ExchangeId, MarketId};
+use domain::order::snapshot::Amount;
+use domain::order::snapshot::PriceByOrderSide;
 use itertools::Itertools;
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use mmb_utils::{cancellation_token::CancellationToken, send_expected::SendExpected, DateTime};
@@ -424,16 +423,15 @@ impl ConvertAmount {
 
 #[cfg(test)]
 pub mod test {
+    use domain::exchanges::symbol::Precision;
+    use domain::market::CurrencyPair;
+    use domain::market::ExchangeAccountId;
     use rstest::rstest;
     use rust_decimal_macros::dec;
 
     use crate::{
-        exchanges::{
-            common::{CurrencyPair, ExchangeAccountId},
-            general::{
-                symbol::Precision,
-                test_helper::{get_test_exchange_by_currency_codes, get_test_exchange_with_symbol},
-            },
+        exchanges::general::test_helper::{
+            get_test_exchange_by_currency_codes, get_test_exchange_with_symbol,
         },
         settings::ExchangeIdCurrencyPairSettings,
     };

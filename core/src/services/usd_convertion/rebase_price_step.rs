@@ -1,6 +1,7 @@
+use domain::market::ExchangeId;
 use std::sync::Arc;
 
-use crate::exchanges::{common::ExchangeId, general::symbol::Symbol};
+use domain::exchanges::symbol::Symbol;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RebaseDirection {

@@ -1,4 +1,4 @@
-use crate::orders::order::ClientOrderFillId;
+use domain::order::snapshot::ClientOrderFillId;
 use serde::Serialize;
 
 use mmb_utils::DateTime;

@@ -3,6 +3,7 @@ members = [
     "control_panel",
     "core",
     "core_tests",
+    "domain",
     "examples/binance_demo",
     "examples/binance_demo_new",
     "examples/strategies",

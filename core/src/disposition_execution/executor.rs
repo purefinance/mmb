@@ -12,21 +12,12 @@ use rust_decimal_macros::dec;
 use tokio::sync::{broadcast, oneshot};
 
 use crate::disposition_execution::trading_context_calculation::calculate_trading_context;
-use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId, MarketAccountId, Price};
-use crate::exchanges::events::ExchangeEvent;
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::general::request_type::RequestType;
-use crate::exchanges::general::symbol::Symbol;
 use crate::explanation::{Explanation, WithExplanation};
 use crate::lifecycle::trading_engine::{EngineContext, Service};
 use crate::misc::reserve_parameters::ReserveParameters;
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
-use crate::orders::event::OrderEventType;
-use crate::orders::order::{
-    ClientOrderId, OrderCreating, OrderExecutionType, OrderHeader, OrderSide, OrderSnapshot,
-    OrderStatus, OrderType,
-};
-use crate::orders::pool::OrderRef;
 use crate::strategies::disposition_strategy::DispositionStrategy;
 use crate::{
     disposition_execution::trade_limit::is_enough_amount_and_cost, infrastructure::spawn_future,
@@ -38,6 +29,17 @@ use crate::{
     statistic_service::StatisticService,
 };
 use chrono::Duration;
+use domain::events::ExchangeEvent;
+use domain::exchanges::symbol::Symbol;
+use domain::market::CurrencyPair;
+use domain::market::{ExchangeAccountId, MarketAccountId};
+use domain::order::event::OrderEventType;
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{
+    ClientOrderId, OrderCreating, OrderExecutionType, OrderHeader, OrderSide, OrderSnapshot,
+    OrderStatus, OrderType,
+};
 use mmb_utils::cancellation_token::CancellationToken;
 
 static DISPOSITION_EXECUTOR: &str = "DispositionExecutor";

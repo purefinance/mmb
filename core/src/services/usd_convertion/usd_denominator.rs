@@ -1,13 +1,15 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
+use domain::market::CurrencyCode;
+use domain::market::CurrencyId;
+use domain::order::snapshot::{Amount, Price};
 use itertools::Itertools;
 use mmb_utils::{hashmap, infrastructure::SpawnFutureFlags};
 use parking_lot::Mutex;
 
 use crate::{
-    exchanges::common::{Amount, CurrencyCode, CurrencyId, Price},
     infrastructure::spawn_by_timer,
-    lifecycle::app_lifetime_manager::AppLifetimeManager,
     misc::traits::market_service::{CreateMarketService, GetMarketCurrencyCodePrice},
     services::market_prices::market_currency_code_price::MarketCurrencyCodePrice,
 };

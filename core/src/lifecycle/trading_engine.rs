@@ -16,22 +16,21 @@ use tokio::time::{timeout, Duration};
 use crate::balance::manager::balance_manager::BalanceManager;
 use crate::database::events::recorder::EventRecorder;
 use crate::exchanges::block_reasons;
-use crate::exchanges::common::ExchangeAccountId;
-use crate::exchanges::events::{ExchangeEvent, ExchangeEvents};
 use crate::exchanges::exchange_blocker::BlockType;
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
+use crate::infrastructure::unset_lifetime_manager;
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::shutdown::ShutdownService;
 use crate::settings::CoreSettings;
-use crate::{
-    infrastructure::unset_lifetime_manager, lifecycle::app_lifetime_manager::AppLifetimeManager,
-};
+use domain::events::{ExchangeEvent, ExchangeEvents};
+use domain::market::ExchangeAccountId;
 use mmb_utils::nothing_to_do;
 use parking_lot::Mutex;
 
-use super::app_lifetime_manager::ActionAfterGracefulShutdown;
 use super::launcher::unwrap_or_handle_panic;
+use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 
 pub trait Service: Send + Sync + 'static {
     fn name(&self) -> &str;

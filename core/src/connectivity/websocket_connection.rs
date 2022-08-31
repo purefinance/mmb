@@ -1,6 +1,6 @@
 use super::{ConnectivityError, Result, WebSocketParams, WebSocketRole};
-use crate::exchanges::common::ExchangeAccountId;
 use crate::infrastructure::spawn_future_ok;
+use domain::market::ExchangeAccountId;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{SinkExt, StreamExt};
 use mmb_utils::infrastructure::SpawnFutureFlags;

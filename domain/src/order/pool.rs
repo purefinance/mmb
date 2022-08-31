@@ -2,19 +2,19 @@ use std::borrow::{Borrow, BorrowMut};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
+use crate::market::CurrencyPair;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
-use super::{
-    fill::OrderFill, order::OrderCancelling, order::OrderRole, order::OrderSide, order::OrderType,
-};
-use crate::exchanges::common::{Amount, CurrencyPair, ExchangeAccountId};
-use crate::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderHeader, OrderInfoExtensionData, OrderSimpleProps,
+use crate::market::ExchangeAccountId;
+use crate::order::fill::OrderFill;
+use crate::order::snapshot::{
+    Amount, ClientOrderId, ExchangeOrderId, OrderHeader, OrderInfoExtensionData, OrderSimpleProps,
     OrderSnapshot, OrderStatus,
 };
+use crate::order::snapshot::{OrderCancelling, OrderRole, OrderSide, OrderType};
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(transparent)]

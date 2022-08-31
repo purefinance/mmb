@@ -1,39 +1,90 @@
 use super::{
-    common::CurrencyCode,
-    common::{
-        ActivePosition, CurrencyPair, ExchangeAccountId, ExchangeError, ExchangeId,
-        SpecificCurrencyPair,
-    },
-    common::{Amount, ClosedPosition, CurrencyId, Price},
-    events::{ExchangeBalancesAndPositions, TradeId},
     general::handlers::handle_order_filled::FillEvent,
-    general::symbol::BeforeAfter,
-    general::{order::get_order_trades::OrderTrade, symbol::Symbol},
+    general::order::get_order_trades::OrderTrade,
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
-use crate::exchanges::events::ExchangeEvent;
+use crate::connectivity::WebSocketRole;
+use crate::exchanges::general::exchange::BoxExchangeClient;
 use crate::exchanges::general::exchange::{Exchange, RequestResult};
 use crate::exchanges::general::features::ExchangeFeatures;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
-use crate::orders::fill::EventSourceType;
-use crate::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData,
-};
-use crate::orders::pool::OrdersPool;
 use crate::settings::ExchangeSettings;
-use crate::{connectivity::WebSocketRole, orders::order::OrderSide};
-use crate::{exchanges::general::exchange::BoxExchangeClient, orders::pool::OrderRef};
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
+use domain::events::ExchangeEvent;
+use domain::events::{ExchangeBalancesAndPositions, TradeId};
+use domain::exchanges::symbol::{BeforeAfter, Symbol};
+use domain::market::CurrencyId;
+use domain::market::{
+    CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeErrorType, ExchangeId,
+    SpecificCurrencyPair,
+};
+use domain::order::fill::EventSourceType;
+use domain::order::pool::{OrderRef, OrdersPool};
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{
+    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderSide,
+};
+use domain::position::{ActivePosition, ClosedPosition};
 use mmb_utils::DateTime;
+use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::sync::Arc;
+use std::time::Duration;
+use thiserror::Error;
 use tokio::sync::broadcast;
 use url::Url;
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize, Error)]
+#[error("Type: {error_type:?} Message: {message} Code {code:?}")]
+pub struct ExchangeError {
+    pub error_type: ExchangeErrorType,
+    pub message: String,
+    pub code: Option<i64>,
+}
+
+impl ExchangeError {
+    pub fn new(error_type: ExchangeErrorType, message: String, code: Option<i64>) -> Self {
+        Self {
+            error_type,
+            message,
+            code,
+        }
+    }
+
+    pub fn authentication(message: String) -> Self {
+        ExchangeError::new(ExchangeErrorType::Authentication, message, None)
+    }
+
+    pub fn send(err: anyhow::Error) -> Self {
+        ExchangeError::new(ExchangeErrorType::SendError, format!("{err:?}"), None)
+    }
+
+    pub fn parsing(message: String) -> Self {
+        ExchangeError::new(ExchangeErrorType::ParsingError, message, None)
+    }
+    pub fn unknown(message: &str) -> Self {
+        Self {
+            error_type: ExchangeErrorType::Unknown,
+            message: message.to_owned(),
+            code: None,
+        }
+    }
+
+    pub fn set_pending(&mut self, pending_time: Duration) {
+        self.error_type = ExchangeErrorType::PendingError(pending_time);
+    }
+}
+
+impl From<anyhow::Error> for ExchangeError {
+    fn from(err: anyhow::Error) -> Self {
+        ExchangeError::send(err)
+    }
+}
 
 // Implementation of rest API client
 #[async_trait]

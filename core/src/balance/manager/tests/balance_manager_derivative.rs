@@ -6,24 +6,20 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 
+use domain::exchanges::symbol::{Precision, Symbol};
+use domain::market::ExchangeAccountId;
+use domain::order::fill::{OrderFill, OrderFillType};
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{OrderFillRole, OrderSide};
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
 use crate::{
     balance::manager::balance_manager::BalanceManager,
-    exchanges::{
-        common::{Amount, ExchangeAccountId, Price},
-        general::{
-            currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter,
-            exchange::Exchange,
-            symbol::{Precision, Symbol},
-            test_helper::get_test_exchange_with_symbol_and_id,
-        },
-    },
-    orders::{
-        fill::{OrderFill, OrderFillType},
-        order::{OrderFillRole, OrderSide},
+    exchanges::general::{
+        currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter, exchange::Exchange,
+        test_helper::get_test_exchange_with_symbol_and_id,
     },
 };
 
@@ -227,6 +223,7 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
+    use domain::order::snapshot::{Amount, Price};
     use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger_file_named;
     use parking_lot::RwLock;
@@ -236,12 +233,12 @@ mod tests {
 
     use crate::balance::manager::balance_manager::BalanceManager;
     use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
-    use crate::exchanges::common::{Amount, CurrencyCode, Price};
     use crate::explanation::Explanation;
     use crate::infrastructure::init_lifetime_manager;
+    use domain::market::CurrencyCode;
 
-    use crate::orders::order::{OrderSide, OrderStatus, ReservationId};
-    use crate::orders::pool::OrdersPool;
+    use domain::order::pool::OrdersPool;
+    use domain::order::snapshot::{OrderSide, OrderStatus, ReservationId};
 
     use super::BalanceManagerDerivative;
 

@@ -1,8 +1,9 @@
+use domain::market::{CurrencyPair, ExchangeId, MarketId};
+use domain::order::pool::OrdersPool;
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{ClientOrderId, OrderSide, OrderStatus};
+use domain::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use itertools::Itertools;
-use mmb_core::exchanges::common::{Amount, CurrencyPair, ExchangeId, MarketId, Price};
-use mmb_core::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
-use mmb_core::orders::order::{ClientOrderId, OrderSide, OrderStatus};
-use mmb_core::orders::pool::OrdersPool;
 use mmb_database::impl_event;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

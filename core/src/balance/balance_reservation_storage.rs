@@ -4,7 +4,7 @@ use itertools::Itertools;
 use mmb_utils::infrastructure::WithExpect;
 
 use crate::balance::manager::balance_reservation::BalanceReservation;
-use crate::orders::order::ReservationId;
+use domain::order::snapshot::ReservationId;
 #[derive(Clone)]
 pub(crate) struct BalanceReservationStorage {
     reserved_balances_by_id: HashMap<ReservationId, BalanceReservation>,

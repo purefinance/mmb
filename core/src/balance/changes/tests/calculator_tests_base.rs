@@ -3,6 +3,13 @@ pub mod tests {
 
     use std::{collections::HashMap, sync::Arc};
 
+    use domain::exchanges::symbol::{Precision, Symbol};
+    use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+    use domain::order::fill::{OrderFill, OrderFillType};
+    use domain::order::snapshot::{Amount, Price};
+    use domain::order::snapshot::{
+        ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot, OrderType,
+    };
     use mmb_utils::cancellation_token::CancellationToken;
     use mmb_utils::hashmap;
     use mockall_double::double;
@@ -30,20 +37,8 @@ pub mod tests {
             profit_balance_changes_calculator, profit_loss_balance_change::ProfitLossBalanceChange,
         },
         balance::manager::balance_request::BalanceRequest,
-        exchanges::{
-            common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price},
-            general::{
-                exchange::Exchange,
-                symbol::{Precision, Symbol},
-                test_helper::get_test_exchange_by_currency_codes,
-            },
-        },
-        orders::{
-            fill::{OrderFill, OrderFillType},
-            order::{
-                ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot,
-                OrderType,
-            },
+        exchanges::general::{
+            exchange::Exchange, test_helper::get_test_exchange_by_currency_codes,
         },
         service_configuration::configuration_descriptor::ConfigurationDescriptor,
     };

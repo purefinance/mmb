@@ -10,6 +10,7 @@ anyhow = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"]}
 dashmap = "4"
+domain = { path = "../../domain" }
 hmac = "0.11"
 function_name = "0.3.0"
 itertools = "0.10"

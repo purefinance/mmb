@@ -2,14 +2,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::balance::manager::approved_part::ApprovedPart;
-use crate::exchanges::common::Amount;
-use crate::exchanges::common::CurrencyCode;
-use crate::exchanges::common::ExchangeAccountId;
-use crate::exchanges::common::Price;
-use crate::exchanges::general::symbol::Symbol;
-use crate::orders::order::ClientOrderId;
-use crate::orders::order::OrderSide;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use domain::exchanges::symbol::Symbol;
+use domain::market::CurrencyCode;
+use domain::market::ExchangeAccountId;
+use domain::order::snapshot::Amount;
+use domain::order::snapshot::ClientOrderId;
+use domain::order::snapshot::OrderSide;
+use domain::order::snapshot::Price;
 use serde::Serialize;
 
 use anyhow::{bail, Result};

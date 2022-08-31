@@ -1,9 +1,9 @@
-use crate::exchanges::common::ExchangeAccountId;
 use crate::exchanges::general::exchange::Exchange;
 use crate::lifecycle::trading_engine::Service;
-use crate::orders::pool::OrderRef;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use domain::market::ExchangeAccountId;
+use domain::order::pool::OrderRef;
 use std::hash::Hash;
 use std::sync::Arc;
 use tokio::sync::oneshot::Receiver;
@@ -47,12 +47,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::exchanges::common::CurrencyPair;
-    use crate::orders::order::{
+    use chrono::{Duration, Utc};
+    use domain::market::CurrencyPair;
+    use domain::order::pool::OrdersPool;
+    use domain::order::snapshot::{
         ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderStatus, OrderType,
     };
-    use crate::orders::pool::OrdersPool;
-    use chrono::{Duration, Utc};
     use rstest::rstest;
     use rust_decimal_macros::dec;
 

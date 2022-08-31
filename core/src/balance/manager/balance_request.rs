@@ -1,8 +1,9 @@
+use domain::market::CurrencyCode;
 use std::hash::Hash;
 
-use crate::exchanges::common::ExchangeAccountId;
-use crate::exchanges::common::{CurrencyCode, CurrencyPair};
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use domain::market::CurrencyPair;
+use domain::market::ExchangeAccountId;
 
 use super::balance_reservation::BalanceReservation;
 

@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::broadcast;
 
-use crate::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, Price};
-use crate::misc::derivative_position::DerivativePosition;
+use crate::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use crate::order::event::OrderEvent;
+use crate::order::snapshot::{Amount, OrderSide, Price};
 use crate::order_book::event::OrderBookEvent;
-use crate::orders::event::OrderEvent;
-use crate::orders::order::OrderSide;
+use crate::position::DerivativePosition;
 
 pub const CHANNEL_MAX_EVENTS_COUNT: usize = 200_000;
 
@@ -175,7 +175,7 @@ pub enum ExchangeEvent {
     Trades(TradesEvent),
 }
 
-pub(crate) struct ExchangeEvents {
+pub struct ExchangeEvents {
     events_sender: broadcast::Sender<ExchangeEvent>,
 }
 

@@ -13,9 +13,9 @@ use crate::balance::changes::profit_loss_balance_change::ProfitLossBalanceChange
 #[double]
 use crate::balance::manager::balance_manager::BalanceManager;
 use crate::balance::manager::position_change::PositionChange;
-use crate::exchanges::common::MarketAccountId;
 #[double]
 use crate::misc::time::time_manager;
+use domain::market::MarketAccountId;
 
 pub(crate) struct BalanceChangePeriodSelector {
     pub(super) period: Duration,
@@ -150,8 +150,9 @@ mod tests {
     use crate::balance::changes::profit_loss_stopper::test::{
         create_balance_change, create_balance_change_by_market_account_id, market_account_id,
     };
-    use crate::exchanges::common::{CurrencyPair, ExchangeAccountId, ExchangeId};
-    use crate::{misc::time, orders::order::ClientOrderFillId};
+    use crate::misc::time;
+    use domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId};
+    use domain::order::snapshot::ClientOrderFillId;
 
     use super::*;
 

@@ -1,20 +1,19 @@
 #![cfg(test)]
 use crate::get_binance_credentials_or_exit;
 use binance::binance::BinanceBuilder;
+use domain::market::CurrencyPair;
+use domain::market::ExchangeAccountId;
+use domain::order::snapshot::Amount;
+use domain::order::snapshot::OrderSnapshot;
 use mmb_core::config::parse_settings;
 use mmb_core::disposition_execution::{PriceSlot, TradingContext};
-use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId};
 use mmb_core::explanation::Explanation;
 use mmb_core::infrastructure::spawn_future_ok;
+use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
-use mmb_core::orders::order::OrderSnapshot;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::settings::BaseStrategySettings;
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
-use mmb_core::{
-    exchanges::common::Amount,
-    lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings},
-};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use mmb_utils::DateTime;

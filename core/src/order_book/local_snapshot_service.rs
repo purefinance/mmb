@@ -1,9 +1,8 @@
-use crate::exchanges::common::*;
-use crate::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
-use crate::order_book::*;
-use std::collections::HashMap;
-
+use domain::market::{MarketAccountId, MarketId};
+use domain::order_book::event;
+use domain::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use mmb_utils::infrastructure::WithExpect;
+use std::collections::HashMap;
 
 /// Produce and actualize current logical state of order book snapshot according to logical time of handled order book events
 pub struct LocalSnapshotsService {
@@ -59,8 +58,10 @@ impl Default for LocalSnapshotsService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::order_book_data;
     use chrono::Utc;
+    use domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId};
+    use domain::order_book::order_book_data;
+    use domain::order_book_data;
     use rust_decimal_macros::*;
     use std::sync::Arc;
 

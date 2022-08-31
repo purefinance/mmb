@@ -1,6 +1,7 @@
+use domain::market::ExchangeAccountId;
 use std::collections::HashMap;
 
-use crate::{exchanges::common::ExchangeAccountId, orders::order::ExchangeOrderId};
+use domain::order::snapshot::ExchangeOrderId;
 
 #[derive(Default)]
 pub struct BufferedCanceledOrdersManager {

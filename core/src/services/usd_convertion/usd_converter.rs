@@ -2,11 +2,12 @@ use std::sync::Arc;
 
 #[cfg(test)]
 use crate::MOCK_MUTEX;
+use domain::order::snapshot::Amount;
 use mmb_utils::{cancellation_token::CancellationToken, impl_mock_initializer};
 #[cfg(test)]
 use mockall::automock;
 
-use crate::exchanges::common::{Amount, CurrencyCode};
+use domain::market::CurrencyCode;
 
 use super::{
     denominator_usd_converter::DenominatorUsdConverter, price_source_service::PriceSourceService,

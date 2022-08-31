@@ -6,18 +6,17 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
+use domain::order::snapshot::{Amount, Price};
 use enum_map::{enum_map, EnumMap};
 use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-use crate::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId, MarketId, Price,
-};
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::explanation::{Explanation, ExplanationSet, PriceLevelExplanation, WithExplanation};
-use crate::orders::order::{ClientOrderId, OrderRole, OrderSide};
-use crate::orders::pool::OrderRef;
+use domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId, MarketId};
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::{ClientOrderId, OrderRole, OrderSide};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct SmallOrder {

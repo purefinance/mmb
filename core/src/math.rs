@@ -1,5 +1,4 @@
 use rust_decimal::Decimal;
-use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
 
 pub trait ConvertPercentToRate {
@@ -13,15 +12,12 @@ impl ConvertPercentToRate for Decimal {
     }
 }
 
-pub(crate) fn powi(value: Decimal, degree: i8) -> Decimal {
-    value.powi(degree as i64)
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
     use rstest::rstest;
 
+    use domain::market::powi;
     use rust_decimal_macros::dec;
 
     #[rstest]

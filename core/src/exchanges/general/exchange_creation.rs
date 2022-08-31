@@ -1,11 +1,8 @@
 use std::sync::{Arc, Weak};
 
-use super::commission::Commission;
-use crate::exchanges::events::ExchangeEvent;
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::launcher::EngineBuildConfig;
-use crate::orders::pool::OrdersPool;
 use crate::settings::ExchangeSettings;
 use crate::{
     exchanges::{
@@ -15,6 +12,9 @@ use crate::{
     },
     settings::CoreSettings,
 };
+use domain::events::ExchangeEvent;
+use domain::exchanges::commission::Commission;
+use domain::order::pool::OrdersPool;
 use mmb_utils::infrastructure::WithExpect;
 use tokio::sync::broadcast;
 

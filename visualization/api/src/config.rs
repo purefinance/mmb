@@ -1,4 +1,5 @@
-use crate::services::data_provider::model::Amount;
+use crate::types::ExchangeId;
+use domain::order::snapshot::Amount;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -11,7 +12,7 @@ pub struct AppConfig {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Market {
-    pub exchange_id: String,
+    pub exchange_id: ExchangeId,
     pub info: Vec<MarketInfo>,
 }
 

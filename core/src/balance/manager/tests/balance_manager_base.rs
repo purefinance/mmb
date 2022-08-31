@@ -5,20 +5,19 @@ use std::{collections::HashMap, sync::Arc};
 use crate::misc::time::time_manager;
 use crate::{
     balance::manager::{balance_manager::BalanceManager, balance_request::BalanceRequest},
-    exchanges::{common::Price, events::ExchangeBalance},
-    exchanges::{
-        common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId},
-        events::ExchangeBalancesAndPositions,
-        general::symbol::Symbol,
-    },
-    misc::{derivative_position::DerivativePosition, reserve_parameters::ReserveParameters, time},
-    orders::order::{
-        ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
-        OrderType, ReservationId,
-    },
+    misc::{reserve_parameters::ReserveParameters, time},
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 
+use domain::events::{ExchangeBalance, ExchangeBalancesAndPositions};
+use domain::exchanges::symbol::Symbol;
+use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{
+    ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
+    OrderType, ReservationId,
+};
+use domain::position::DerivativePosition;
 use itertools::Itertools;
 use mockall_double::double;
 use parking_lot::{Mutex, MutexGuard, ReentrantMutexGuard};

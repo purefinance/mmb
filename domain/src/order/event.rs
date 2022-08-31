@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::orders::order::OrderSnapshot;
-use crate::orders::pool::OrderRef;
+use crate::order::pool::OrderRef;
+use crate::order::snapshot::OrderSnapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OrderEventType {

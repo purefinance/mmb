@@ -2,23 +2,23 @@ use super::binance::Binance;
 use crate::support::{BinanceOrderInfo, BinancePosition};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use domain::events::ExchangeBalancesAndPositions;
+use domain::exchanges::symbol::Symbol;
+use domain::market::CurrencyPair;
+use domain::order::fill::EventSourceType;
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::Price;
+use domain::order::snapshot::*;
+use domain::position::{ActivePosition, ClosedPosition};
 use function_name::named;
 use itertools::Itertools;
-use mmb_core::exchanges::common::{
-    ActivePosition, ClosedPosition, CurrencyPair, ExchangeError, Price,
-};
-use mmb_core::exchanges::events::ExchangeBalancesAndPositions;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::general::request_type::RequestType;
-use mmb_core::exchanges::general::symbol::Symbol;
 use mmb_core::exchanges::rest_client::UriBuilder;
-use mmb_core::exchanges::traits::{ExchangeClient, Support};
-use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::*;
-use mmb_core::orders::pool::OrderRef;
+use mmb_core::exchanges::traits::{ExchangeClient, ExchangeError, Support};
 use mmb_utils::DateTime;
 use std::sync::Arc;
 

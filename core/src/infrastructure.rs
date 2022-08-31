@@ -10,7 +10,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::task::JoinHandle;
 
-use super::lifecycle::app_lifetime_manager::AppLifetimeManager;
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 
 static LIFETIME_MANAGER: OnceCell<Mutex<Option<Arc<AppLifetimeManager>>>> = OnceCell::new();
 

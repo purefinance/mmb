@@ -1,18 +1,14 @@
+use domain::events::TradeId;
+use domain::market::CurrencyCode;
+use domain::market::ExchangeAccountId;
+use domain::order::fill::{EventSourceType, OrderFillType};
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{ClientOrderId, ExchangeOrderId, OrderRole};
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 
 use crate::exchanges::general::handlers::handle_order_filled::FillAmount;
-use crate::{
-    exchanges::{
-        common::{Amount, CurrencyCode, ExchangeAccountId, Price},
-        events::TradeId,
-        general::handlers::handle_order_filled::FillEvent,
-    },
-    orders::{
-        fill::{EventSourceType, OrderFillType},
-        order::{ClientOrderId, ExchangeOrderId, OrderRole},
-    },
-};
+use crate::exchanges::general::handlers::handle_order_filled::FillEvent;
 
 #[derive(Clone, Debug)]
 pub struct BufferedFill {

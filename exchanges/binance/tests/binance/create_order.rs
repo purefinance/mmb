@@ -1,7 +1,7 @@
 use crate::binance::binance_builder::BinanceBuilder;
 use core_tests::order::OrderProxy;
-use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
-use mmb_core::orders::event::OrderEventType;
+use domain::events::{AllowedEventSourceType, ExchangeEvent};
+use domain::order::event::OrderEventType;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 use rstest::rstest;

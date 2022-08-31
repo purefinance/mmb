@@ -1,4 +1,4 @@
-use crate::orders::order::OrderRole;
+use crate::order::snapshot::OrderRole;
 use rust_decimal::Decimal;
 
 pub type Percent = Decimal;

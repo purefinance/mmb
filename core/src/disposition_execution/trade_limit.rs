@@ -1,6 +1,6 @@
 use crate::disposition_execution::TradeDisposition;
-use crate::exchanges::common::Amount;
-use crate::exchanges::general::symbol::Symbol;
+use domain::exchanges::symbol::Symbol;
+use domain::order::snapshot::Amount;
 
 pub fn is_enough_amount_and_cost(
     disposition: &TradeDisposition,

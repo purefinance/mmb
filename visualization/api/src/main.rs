@@ -23,6 +23,7 @@ mod middleware;
 mod routes;
 mod server;
 mod services;
+mod types;
 mod ws;
 
 use crate::config::load_config;

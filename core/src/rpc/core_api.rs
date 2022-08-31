@@ -2,15 +2,10 @@ use anyhow::Result;
 use parking_lot::Mutex;
 use tokio::sync::{mpsc, oneshot};
 
+use crate::lifecycle::app_lifetime_manager::{ActionAfterGracefulShutdown, AppLifetimeManager};
 use std::sync::Arc;
 
-use crate::{
-    lifecycle::{
-        app_lifetime_manager::{ActionAfterGracefulShutdown, AppLifetimeManager},
-        trading_engine::Service,
-    },
-    statistic_service::StatisticService,
-};
+use crate::{lifecycle::trading_engine::Service, statistic_service::StatisticService};
 
 use super::{
     common::{

@@ -18,12 +18,17 @@ use tokio::sync::broadcast;
 
 use super::support::{BinanceOrderInfo, BinanceSpotBalances};
 use crate::support::{BinanceAccountInfo, BinanceMarginBalances};
-use mmb_core::exchanges::common::{
-    ActivePosition, Amount, ExchangeError, ExchangeErrorType, ExchangeId, Price,
-};
-use mmb_core::exchanges::events::{
-    ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId,
-};
+use domain::events::AllowedEventSourceType;
+use domain::events::{ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
+use domain::exchanges::symbol::{Precision, Symbol};
+use domain::market::{CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType, ExchangeId};
+use domain::market::{ExchangeAccountId, SpecificCurrencyPair};
+use domain::order::fill::{EventSourceType, OrderFillType};
+use domain::order::pool::{OrderRef, OrdersPool};
+use domain::order::snapshot::*;
+use domain::order::snapshot::{Amount, Price};
+use domain::position::ActivePosition;
+use mmb_core::exchanges::general::exchange::BoxExchangeClient;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::{
     OrderFeatures, OrderTradeOption, RestFillsFeatures, RestFillsType, WebSocketOptions,
@@ -31,30 +36,22 @@ use mmb_core::exchanges::general::features::{
 use mmb_core::exchanges::general::handlers::handle_order_filled::FillAmount;
 use mmb_core::exchanges::general::handlers::handle_order_filled::FillEvent;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
-use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
-use mmb_core::exchanges::rest_client::{ErrorHandler, ErrorHandlerData, RestClient, UriBuilder};
+use mmb_core::exchanges::rest_client::{
+    ErrorHandler, ErrorHandlerData, RestClient, RestResponse, UriBuilder,
+};
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
+use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeError};
 use mmb_core::exchanges::traits::{
     ExchangeClientBuilderResult, HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb,
     OrderCreatedCb, Support,
 };
 use mmb_core::exchanges::{
-    common::CurrencyCode,
     general::features::{ExchangeFeatures, OpenOrdersType},
     timeouts::requests_timeout_manager_factory::RequestTimeoutArguments,
 };
-use mmb_core::exchanges::{common::CurrencyId, general::exchange::BoxExchangeClient};
-use mmb_core::exchanges::{
-    common::{CurrencyPair, ExchangeAccountId, RestResponse, SpecificCurrencyPair},
-    events::AllowedEventSourceType,
-};
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
-use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::*;
-use mmb_core::orders::pool::{OrderRef, OrdersPool};
 use mmb_core::settings::ExchangeSettings;
-use mmb_core::{exchanges::traits::ExchangeClientBuilder, orders::fill::OrderFillType};
 use mmb_utils::value_to_decimal::GetOrErr;
 use serde::{Deserialize, Serialize};
 use sha2::digest::generic_array::GenericArray;

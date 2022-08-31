@@ -1,18 +1,15 @@
 use mockall_double::double;
 
+use domain::exchanges::symbol::Symbol;
+use domain::order::fill::OrderFill;
+use domain::order::snapshot::{OrderSide, OrderSnapshot};
 use std::sync::Arc;
 
 #[double]
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
 use crate::{
-    balance::manager::balance_request::BalanceRequest,
-    exchanges::general::symbol::Symbol,
-    misc::service_value_tree::ServiceValueTree,
-    orders::{
-        fill::OrderFill,
-        order::{OrderSide, OrderSnapshot},
-    },
+    balance::manager::balance_request::BalanceRequest, misc::service_value_tree::ServiceValueTree,
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 

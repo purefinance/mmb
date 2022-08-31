@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
+domain = { path = "../../domain" }
 chrono = "0.4"
 itertools = "0.10"
 log = "0.4"

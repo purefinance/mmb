@@ -1,4 +1,6 @@
-use crate::services::data_provider::model::{Amount, EventRecord, Price};
+use crate::services::data_provider::model::EventRecord;
+use crate::types::{CurrencyPair, ExchangeId};
+use domain::order::snapshot::{Amount, Price};
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 use sqlx::{Pool, Postgres};
@@ -20,8 +22,8 @@ pub struct LiquidityData {
 pub struct OrderBookRecord {
     pub snapshot: OrderBookSnapshotRecord,
     pub orders: Vec<LiquidityOrderRecord>,
-    pub exchange_id: String,
-    pub currency_pair: String,
+    pub exchange_id: ExchangeId,
+    pub currency_pair: CurrencyPair,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -85,8 +87,8 @@ pub enum TransactionOrderSide {
 
 #[derive(Deserialize, Clone)]
 pub struct MarketIdRecord {
-    pub exchange_id: String,
-    pub currency_pair: String,
+    pub exchange_id: ExchangeId,
+    pub currency_pair: CurrencyPair,
 }
 
 #[derive(Deserialize, Clone)]
@@ -95,7 +97,7 @@ pub struct TransactionTradesRecord {
     pub price: Price,
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub amount: Amount,
-    pub exchange_id: String,
+    pub exchange_id: ExchangeId,
     pub exchange_order_id: String,
     pub side: Option<TransactionTradeSide>,
 }
@@ -113,8 +115,8 @@ impl LiquidityService {
 
     pub async fn get_liquidity_data(
         &self,
-        exchange_id: &str,
-        currency_pair: &str,
+        exchange_id: &ExchangeId,
+        currency_pair: &CurrencyPair,
         transaction_limit: i32,
     ) -> Result<LiquidityData, sqlx::Error> {
         let order_book = self.get_order_book(exchange_id, currency_pair).await?;
@@ -134,8 +136,8 @@ impl LiquidityService {
 impl LiquidityService {
     pub async fn get_order_book(
         &self,
-        exchange_id: &str,
-        currency_pair: &str,
+        exchange_id: &ExchangeId,
+        currency_pair: &CurrencyPair,
     ) -> Result<OrderBookRecord, sqlx::Error> {
         let sql = include_str!("../sql/get_order_book.sql");
         let record = sqlx::query_as::<Postgres, EventRecord>(sql)
@@ -151,8 +153,8 @@ impl LiquidityService {
 
     pub async fn get_transactions(
         &self,
-        exchange_id: &str,
-        currency_pair: &str,
+        exchange_id: &ExchangeId,
+        currency_pair: &CurrencyPair,
         limit: i32,
     ) -> Result<Vec<TransactionRecord>, sqlx::Error> {
         let sql = include_str!("../sql/get_transactions.sql");

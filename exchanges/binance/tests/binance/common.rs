@@ -1,19 +1,19 @@
 use anyhow::Result;
 use binance::binance::{BinanceBuilder, ErrorHandlerBinance};
+use domain::exchanges::symbol::{Round, Symbol};
+use domain::market::{ExchangeAccountId, SpecificCurrencyPair};
+use domain::order::snapshot::{Amount, Price};
 use function_name::named;
 use hyper::Uri;
 use jsonrpc_core::Value;
-use mmb_core::exchanges::common::{Amount, Price};
-use mmb_core::exchanges::general::symbol::{Round, Symbol};
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::{ErrorHandlerData, UriBuilder};
 use mmb_core::{
+    exchanges::rest_client::RestClient,
     exchanges::{
-        common::ExchangeAccountId,
         timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory,
         timeouts::timeout_manager::TimeoutManager,
     },
-    exchanges::{common::SpecificCurrencyPair, rest_client::RestClient},
     lifecycle::launcher::EngineBuildConfig,
 };
 use mmb_utils::hashmap;
@@ -91,7 +91,7 @@ async fn send_request(uri: Uri, api_key: &str, exchange_account_id: ExchangeAcco
 
 /// Automatic price calculation for orders. This function gets the price from 10-th price level of
 /// order book if it exists otherwise last bid price from order book.
-/// This helps to avoid creating orders in the top of the order book and filling it.
+/// This helps to avoid creating order in the top of the order book and filling it.
 pub(crate) async fn get_default_price(
     currency_pair: SpecificCurrencyPair,
     hosts: &Hosts,

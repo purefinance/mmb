@@ -7,7 +7,6 @@ use std::panic;
 use std::sync::{Arc, Weak};
 
 use crate::lifecycle::trading_engine::EngineContext;
-
 use mmb_utils::cancellation_token::CancellationToken;
 
 #[derive(Clone, Copy, Debug)]
@@ -19,7 +18,7 @@ pub enum ActionAfterGracefulShutdown {
 pub struct AppLifetimeManager {
     cancellation_token: CancellationToken,
     engine_context: Mutex<Option<Weak<EngineContext>>>,
-    pub(crate) futures_cancellation_token: CancellationToken,
+    pub futures_cancellation_token: CancellationToken,
 }
 
 impl AppLifetimeManager {
@@ -36,7 +35,7 @@ impl AppLifetimeManager {
         self.cancellation_token.clone()
     }
 
-    pub(crate) fn setup_engine_context(&self, engine_context: Arc<EngineContext>) {
+    pub fn setup_engine_context(&self, engine_context: Arc<EngineContext>) {
         let mut engine_context_guard = self
             .engine_context
             .try_lock()

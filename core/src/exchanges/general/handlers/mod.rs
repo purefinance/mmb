@@ -1,5 +1,5 @@
-use crate::exchanges::events::AllowedEventSourceType;
-use crate::orders::fill::EventSourceType;
+use domain::events::AllowedEventSourceType;
+use domain::order::fill::EventSourceType;
 
 pub mod handle_cancel_order_failed;
 pub mod handle_cancel_order_succeeded;
