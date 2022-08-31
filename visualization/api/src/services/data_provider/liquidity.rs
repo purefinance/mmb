@@ -36,7 +36,7 @@ pub struct LiquidityOrderRecord {
     pub side: LiquidityOrderSide,
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub enum LiquidityOrderSide {
     Buy,
     Sell,

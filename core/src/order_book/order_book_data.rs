@@ -45,7 +45,7 @@ macro_rules! order_book_data {
 }
 
 /// Main asks and bids storage
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrderBookData {
     pub asks: SortedOrderData,
     pub bids: SortedOrderData,

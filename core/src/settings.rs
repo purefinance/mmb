@@ -11,7 +11,7 @@ pub trait BaseStrategySettings {
 /// Application settings
 /// Attention! After changing in runtime, you need to save the settings. See issue #146
 /// For the settings to be applied, the trading engine must be restarted after changing the config
-#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct AppSettings<StrategySettings>
 where
     StrategySettings: BaseStrategySettings + Clone,
@@ -20,13 +20,13 @@ where
     pub core: CoreSettings,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct CoreSettings {
     pub database: Option<DbSettings>,
     pub exchanges: Vec<ExchangeSettings>,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct DbSettings {
     pub url: String,
     pub migrations: Vec<PathBuf>,
@@ -35,7 +35,7 @@ pub struct DbSettings {
     pub postponed_events_dir: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum CurrencyPairSetting {
     Ordinary {
@@ -48,7 +48,7 @@ pub enum CurrencyPairSetting {
 // Field order are matter for serialization:
 // Simple values must be emitted before struct with custom serialization
 // https://github.com/alexcrichton/toml-rs/issues/142#issuecomment-278970591
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ExchangeSettings {
     // TODO add other settings
     pub exchange_account_id: ExchangeAccountId,
