@@ -1,5 +1,5 @@
 use crate::exchanges::exchange_blocker::ProgressStatus::ProgressBlocked;
-use crate::{exchanges::common::ExchangeAccountId, infrastructure::spawn_future_ok};
+use crate::infrastructure::spawn_future_ok;
 use futures::future::{join_all, BoxFuture};
 use itertools::Itertools;
 use mmb_utils::{
@@ -20,6 +20,7 @@ use tokio::time::{sleep, sleep_until, Duration, Instant};
 
 #[cfg(test)]
 use crate::MOCK_MUTEX;
+use domain::market::ExchangeAccountId;
 #[cfg(test)]
 use mockall::automock;
 
@@ -835,10 +836,10 @@ impl_mock_initializer!(MockExchangeBlocker);
 
 #[cfg(test)]
 mod tests {
-    use crate::exchanges::common::ExchangeAccountId;
     use crate::exchanges::exchange_blocker::BlockType::*;
     use crate::exchanges::exchange_blocker::{BlockReason, ExchangeBlocker, ExchangeBlockerMoment};
     use crate::infrastructure::{init_lifetime_manager, spawn_future_ok};
+    use domain::market::ExchangeAccountId;
     use futures::future::{join, join_all};
     use futures::FutureExt;
     use mmb_utils::cancellation_token::CancellationToken;

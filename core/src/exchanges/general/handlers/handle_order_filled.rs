@@ -1,33 +1,18 @@
 use crate::exchanges::general::handlers::should_ignore_event;
-use crate::{
-    exchanges::{
-        common::Amount,
-        common::CurrencyCode,
-        common::CurrencyPair,
-        common::ExchangeAccountId,
-        common::Price,
-        events::{AllowedEventSourceType, TradeId},
-        general::commission::Percent,
-        general::exchange::Exchange,
-        general::symbol::{Round, Symbol},
-    },
-    math::ConvertPercentToRate,
-    orders::{
-        event::OrderEventType,
-        fill::EventSourceType,
-        fill::OrderFill,
-        fill::OrderFillType,
-        order::ClientOrderId,
-        order::ExchangeOrderId,
-        order::OrderSide,
-        order::OrderSnapshot,
-        order::OrderStatus,
-        order::OrderType,
-        order::{ClientOrderFillId, OrderRole},
-        pool::OrderRef,
-    },
-};
+use crate::{exchanges::general::exchange::Exchange, math::ConvertPercentToRate};
 use chrono::Utc;
+use domain::events::{AllowedEventSourceType, TradeId};
+use domain::exchanges::commission::Percent;
+use domain::exchanges::symbol::{Round, Symbol};
+use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use domain::order::event::OrderEventType;
+use domain::order::fill::{EventSourceType, OrderFill, OrderFillType};
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{ClientOrderFillId, OrderRole};
+use domain::order::snapshot::{
+    ClientOrderId, ExchangeOrderId, OrderSide, OrderSnapshot, OrderStatus, OrderType,
+};
 use function_name::named;
 use mmb_utils::DateTime;
 use parking_lot::RwLock;
@@ -749,19 +734,21 @@ impl Exchange {
 mod test {
     use anyhow::{Context, Result};
     use chrono::Utc;
+    use domain::market::CurrencyCode;
+    use domain::order::fill::OrderFill;
+    use domain::order::pool::OrdersPool;
+    use domain::order::snapshot::{
+        OrderExecutionType, OrderFillRole, OrderFills, OrderHeader, OrderSimpleProps,
+        OrderStatusHistory, SystemInternalOrderProps,
+    };
     use serde_json::json;
     use uuid::Uuid;
 
     use super::*;
     use crate::{
-        exchanges::common::CurrencyCode, exchanges::general::exchange::OrderBookTop,
-        exchanges::general::exchange::PriceLevel, exchanges::general::test_helper,
-        exchanges::general::test_helper::create_order_ref,
-        exchanges::general::test_helper::get_test_exchange, orders::fill::OrderFill,
-        orders::order::OrderExecutionType, orders::order::OrderFillRole, orders::order::OrderFills,
-        orders::order::OrderHeader, orders::order::OrderSimpleProps,
-        orders::order::OrderStatusHistory, orders::order::SystemInternalOrderProps,
-        orders::pool::OrdersPool,
+        exchanges::general::exchange::OrderBookTop, exchanges::general::exchange::PriceLevel,
+        exchanges::general::test_helper, exchanges::general::test_helper::create_order_ref,
+        exchanges::general::test_helper::get_test_exchange,
     };
 
     fn trade_id_from_str(str: &str) -> TradeId {
@@ -2979,7 +2966,7 @@ mod test {
 
     mod react_if_order_completed {
         use super::*;
-        use crate::exchanges::events::ExchangeEvent;
+        use domain::events::ExchangeEvent;
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn order_completed_if_filled_completely() -> Result<()> {

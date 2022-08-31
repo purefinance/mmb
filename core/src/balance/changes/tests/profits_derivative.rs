@@ -2,18 +2,17 @@
 mod tests {
     use std::collections::HashMap;
 
+    use domain::market::CurrencyCode;
+    use domain::order::snapshot::OrderSide;
+    use domain::order::snapshot::Price;
     use mmb_utils::hashmap;
     use mockall_double::double;
     use parking_lot::ReentrantMutexGuard;
     use rust_decimal_macros::dec;
 
+    use crate::balance::changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase;
     #[double]
     use crate::services::usd_convertion::usd_converter::UsdConverter;
-    use crate::{
-        balance::changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase,
-        exchanges::common::{CurrencyCode, Price},
-        orders::order::OrderSide,
-    };
 
     type TestBase = BalanceChangesCalculatorTestsBase;
 

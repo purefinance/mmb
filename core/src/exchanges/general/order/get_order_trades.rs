@@ -1,14 +1,13 @@
-use crate::exchanges::common::{Amount, CurrencyCode, Price};
-use crate::exchanges::events::TradeId;
 use crate::exchanges::general::exchange::RequestResult;
-use crate::exchanges::general::symbol::Symbol;
-use crate::orders::fill::OrderFillType;
-use crate::orders::order::{ExchangeOrderId, OrderRole};
-use crate::{
-    exchanges::general::{exchange::Exchange, features::RestFillsType},
-    orders::pool::OrderRef,
-};
+use crate::exchanges::general::{exchange::Exchange, features::RestFillsType};
 use anyhow::{bail, Context, Result};
+use domain::events::TradeId;
+use domain::exchanges::symbol::Symbol;
+use domain::market::CurrencyCode;
+use domain::order::fill::OrderFillType;
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{ExchangeOrderId, OrderRole};
 use itertools::Itertools;
 use mmb_utils::DateTime;
 use serde::{Deserialize, Serialize};

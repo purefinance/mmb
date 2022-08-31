@@ -1,22 +1,13 @@
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
 
+use crate::market::{powi, CurrencyCode, CurrencyId, CurrencyPair};
+use crate::order::snapshot::OrderSide;
+use crate::order::snapshot::{Amount, Price};
 use anyhow::{Context, Result};
 use rust_decimal::Decimal;
 use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
 use serde::Serialize;
-
-use crate::{
-    exchanges::common::Amount,
-    exchanges::common::CurrencyCode,
-    exchanges::common::CurrencyId,
-    exchanges::common::{CurrencyPair, Price},
-    math::powi,
-    orders::order::OrderSide,
-};
-
-use super::exchange::Exchange;
 
 pub enum Round {
     Floor,
@@ -388,20 +379,6 @@ impl PartialEq for Symbol {
 impl Hash for Symbol {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.currency_pair().hash(state)
-    }
-}
-
-impl Exchange {
-    pub fn get_symbol(&self, currency_pair: CurrencyPair) -> Result<Arc<Symbol>> {
-        self.symbols
-            .get(&currency_pair)
-            .with_context(|| {
-                format!(
-                    "Unsupported currency pair on {} {:?}",
-                    self.exchange_account_id, currency_pair
-                )
-            })
-            .map(|pair| pair.value().clone())
     }
 }
 

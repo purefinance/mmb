@@ -1,6 +1,5 @@
 pub mod block_reasons;
 pub mod common;
-pub mod events;
 pub mod exchange_blocker;
 pub mod general;
 pub mod hosts;

@@ -1,6 +1,8 @@
-use crate::exchanges::common::{Amount, ExchangeId, MarketId, Price};
 use crate::misc::time::time_manager;
-use crate::orders::order::{ExchangeOrderId, OrderSide};
+use domain::market::ExchangeId;
+use domain::market::MarketId;
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{ExchangeOrderId, OrderSide};
 use mmb_database::impl_event;
 use mmb_utils::DateTime;
 use serde::{Deserialize, Serialize};

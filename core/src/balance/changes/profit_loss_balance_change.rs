@@ -2,18 +2,17 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use domain::market::{CurrencyCode, ExchangeId, MarketAccountId};
+use domain::order::snapshot::ClientOrderFillId;
+use domain::order::snapshot::{Amount, Price};
 use mmb_utils::DateTime;
 use mmb_utils::{impl_u64_id, time::get_atomic_current_secs};
 use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+use crate::balance::manager::balance_request::BalanceRequest;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use crate::{
-    balance::manager::balance_request::BalanceRequest,
-    exchanges::common::{Amount, CurrencyCode, ExchangeId, MarketAccountId, Price},
-    orders::order::ClientOrderFillId,
-};
 
 impl_u64_id!(ProfitLossBalanceChangeId);
 

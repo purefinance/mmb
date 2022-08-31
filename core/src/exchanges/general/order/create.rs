@@ -1,30 +1,24 @@
-use crate::exchanges::common::ToStdExpected;
-use crate::exchanges::events::AllowedEventSourceType;
 use crate::exchanges::general::exchange::RequestResult::{Error, Success};
 use crate::exchanges::general::handlers::should_ignore_event;
 use crate::exchanges::general::request_type::RequestType;
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::exchanges::traits::ExchangeError;
 use crate::misc::time::time_manager;
-use crate::orders::event::OrderEventType;
-use crate::orders::order::OrderInfo;
-use crate::{
-    exchanges::common::ExchangeAccountId,
-    exchanges::common::ExchangeError,
-    exchanges::common::ExchangeErrorType,
-    exchanges::general::exchange::Exchange,
-    exchanges::general::exchange::RequestResult,
-    orders::order::ClientOrderId,
-    orders::order::ExchangeOrderId,
-    orders::order::OrderStatus,
-    orders::order::OrderType,
-    orders::pool::OrderRef,
-    orders::{fill::EventSourceType, order::OrderCreating},
-};
+use crate::{exchanges::general::exchange::Exchange, exchanges::general::exchange::RequestResult};
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
+use domain::events::AllowedEventSourceType;
+use domain::market::{ExchangeAccountId, ExchangeErrorType};
+use domain::order::event::OrderEventType;
+use domain::order::fill::EventSourceType;
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::{
+    ClientOrderId, ExchangeOrderId, OrderCreating, OrderInfo, OrderStatus, OrderType,
+};
 use function_name::named;
 use futures::pin_mut;
 use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::time::ToStdExpected;
 use mmb_utils::{nothing_to_do, OPERATION_CANCELED_MSG};
 use std::borrow::Cow;
 use std::time::Duration;

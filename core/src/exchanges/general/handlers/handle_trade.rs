@@ -1,15 +1,12 @@
+use domain::events::{ExchangeEvent, TickDirection, Trade, TradeId, TradesEvent};
+use domain::market::CurrencyPair;
+use domain::market::MarketId;
+use domain::order::snapshot::OrderSide;
+use domain::order::snapshot::{Amount, Price};
 use itertools::Itertools;
 use mmb_utils::DateTime;
 
-use crate::{
-    exchanges::{
-        common::{Amount, CurrencyPair, MarketId, Price},
-        events::{ExchangeEvent, TickDirection, Trade, TradeId, TradesEvent},
-        general::exchange::Exchange,
-        timeouts::timeout_manager,
-    },
-    orders::order::OrderSide,
-};
+use crate::exchanges::{general::exchange::Exchange, timeouts::timeout_manager};
 
 impl Exchange {
     pub fn handle_trade(

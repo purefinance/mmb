@@ -1,7 +1,7 @@
 use mmb_utils::DateTime;
 
-use crate::exchanges::common::Amount;
-use crate::orders::order::ClientOrderId;
+use domain::order::snapshot::Amount;
+use domain::order::snapshot::ClientOrderId;
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]

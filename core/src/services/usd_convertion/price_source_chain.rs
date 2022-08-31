@@ -1,4 +1,4 @@
-use crate::exchanges::common::CurrencyCode;
+use domain::market::CurrencyCode;
 
 use super::rebase_price_step::RebasePriceStep;
 

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use domain::market::MarketAccountId;
+use domain::order::snapshot::Amount;
 use mmb_utils::cancellation_token::CancellationToken;
 use mockall_double::double;
 use parking_lot::Mutex;
@@ -14,10 +16,7 @@ use crate::exchanges::general::engine_api::EngineApi;
 use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
-    exchanges::{
-        common::{Amount, MarketAccountId},
-        exchange_blocker::{BlockReason, BlockType},
-    },
+    exchanges::exchange_blocker::{BlockReason, BlockType},
     misc::position_helper,
 };
 
@@ -132,6 +131,11 @@ pub(crate) mod test {
     use std::sync::Arc;
 
     use chrono::Duration;
+    use domain::market::{
+        CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId,
+    };
+    use domain::order::snapshot::Amount;
+    use domain::order::snapshot::ClientOrderFillId;
     use mmb_utils::{logger::init_logger_file_named, DateTime};
     use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal_macros::dec;
@@ -146,11 +150,7 @@ pub(crate) mod test {
             profit_loss_balance_change::{ProfitLossBalanceChange, ProfitLossBalanceChangeId},
         },
         balance::manager::position_change::PositionChange,
-        exchanges::common::{
-            Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId,
-        },
         misc::time,
-        orders::order::ClientOrderFillId,
     };
 
     use super::ProfitLossStopper;

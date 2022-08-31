@@ -1,6 +1,7 @@
 use mmb_utils::DateTime;
 
-use crate::exchanges::common::*;
+use crate::market::CurrencyPair;
+use crate::market::*;
 use crate::order_book::order_book_data::OrderBookData;
 use std::sync::Arc;
 

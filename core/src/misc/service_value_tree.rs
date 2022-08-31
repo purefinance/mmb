@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
 use crate::balance::manager::balance_request::BalanceRequest;
-use crate::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId};
 use crate::service_configuration::configuration_descriptor::{
     ConfigurationDescriptor, ServiceConfigurationKey, ServiceName,
 };
+use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
 use serde::Serialize;
 
+use domain::order::snapshot::Amount;
 use mmb_utils::hashmap;
 use rust_decimal_macros::dec;
 
@@ -244,11 +245,12 @@ impl ServiceValueTree {
 mod test {
     use super::*;
 
-    use crate::exchanges::common::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+    use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
 
     use mmb_utils::{hashmap, logger::init_logger_file_named};
     use rust_decimal_macros::dec;
 
+    use domain::order::snapshot::Amount;
     use std::collections::HashMap;
 
     fn get_currency_codes() -> Vec<CurrencyCode> {

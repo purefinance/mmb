@@ -1,4 +1,5 @@
-use crate::exchanges::common::{CurrencyCode, Price};
+use domain::market::CurrencyCode;
+use domain::order::snapshot::Price;
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct MarketCurrencyCodePrice {

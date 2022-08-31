@@ -1,6 +1,6 @@
-use mmb_core::exchanges::common::*;
-use mmb_core::exchanges::events::AllowedEventSourceType;
-use mmb_core::exchanges::general::commission::Commission;
+use domain::events::AllowedEventSourceType;
+use domain::exchanges::commission::Commission;
+use domain::market::*;
 use mmb_core::exchanges::general::features::*;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_utils::cancellation_token::CancellationToken;

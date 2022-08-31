@@ -2,12 +2,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::balance::manager::balance_request::BalanceRequest;
-use crate::exchanges::common::{Amount, CurrencyCode, ExchangeAccountId, Price};
 use crate::exchanges::general::exchange::Exchange;
-use crate::exchanges::general::symbol::Symbol;
 use crate::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::misc::service_value_tree::ServiceValueTree;
+use domain::exchanges::symbol::Symbol;
+use domain::market::ExchangeAccountId;
 
+use domain::market::CurrencyCode;
+use domain::order::snapshot::{Amount, Price};
 use rust_decimal_macros::dec;
 
 type BalanceByExchangeId = HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>;

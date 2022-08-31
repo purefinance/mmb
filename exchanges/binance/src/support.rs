@@ -1,4 +1,4 @@
-use mmb_core::misc::derivative_position::DerivativePosition;
+use domain::position::{ActivePosition, DerivativePosition};
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use std::any::Any;
 
@@ -6,6 +6,7 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use chrono::{TimeZone, Utc};
 use dashmap::DashMap;
+use domain::order::snapshot::{Amount, Price};
 use itertools::Itertools;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -16,19 +17,21 @@ use std::time::Duration;
 use url::Url;
 
 use super::binance::Binance;
+use domain::events::{ExchangeEvent, TradeId};
+use domain::market::{CurrencyCode, CurrencyPair};
+use domain::market::{CurrencyId, SpecificCurrencyPair};
+use domain::order::snapshot::SortedOrderData;
+use domain::order::snapshot::*;
+use domain::order_book::event::{EventType, OrderBookEvent};
+use domain::order_book::order_book_data::OrderBookData;
 use mmb_core::connectivity::WebSocketRole;
-use mmb_core::exchanges::common::{send_event, ActivePosition, SortedOrderData};
-use mmb_core::exchanges::common::{Amount, CurrencyPair, Price, SpecificCurrencyPair};
-use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
+use mmb_core::exchanges::common::send_event;
 use mmb_core::exchanges::general::exchange::Exchange;
+use mmb_core::exchanges::traits::Support;
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
 };
-use mmb_core::exchanges::{common::CurrencyCode, common::CurrencyId, traits::Support};
 use mmb_core::infrastructure::spawn_by_timer;
-use mmb_core::order_book::event::{EventType, OrderBookEvent};
-use mmb_core::order_book::order_book_data::OrderBookData;
-use mmb_core::orders::order::*;
 use mmb_core::settings::ExchangeSettings;
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
@@ -230,7 +233,7 @@ impl Support for Binance {
 
     fn log_unknown_message(
         &self,
-        exchange_account_id: mmb_core::exchanges::common::ExchangeAccountId,
+        exchange_account_id: domain::market::ExchangeAccountId,
         message: &str,
     ) {
         log::info!("Unknown message for {exchange_account_id}: {message}");

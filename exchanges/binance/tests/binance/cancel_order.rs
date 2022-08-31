@@ -1,4 +1,4 @@
-use mmb_core::orders::order::*;
+use domain::order::snapshot::*;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 

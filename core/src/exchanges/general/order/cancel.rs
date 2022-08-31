@@ -1,23 +1,19 @@
 use anyhow::{anyhow, Result};
+use domain::market::ExchangeErrorType;
+use domain::order::fill::EventSourceType;
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::Amount;
+use domain::order::snapshot::{
+    ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderStatus,
+};
 use futures::future::join_all;
 use itertools::Itertools;
 use mmb_utils::cancellation_token::CancellationToken;
 use tokio::sync::oneshot;
 
+use crate::exchanges::traits::ExchangeError;
 use crate::misc::time::time_manager;
-use crate::{
-    exchanges::common::Amount,
-    exchanges::common::ExchangeError,
-    exchanges::common::ExchangeErrorType,
-    exchanges::general::exchange::Exchange,
-    exchanges::general::exchange::RequestResult,
-    orders::order::ClientOrderId,
-    orders::order::ExchangeOrderId,
-    orders::order::OrderInfo,
-    orders::order::OrderStatus,
-    orders::pool::OrderRef,
-    orders::{fill::EventSourceType, order::OrderCancelling},
-};
+use crate::{exchanges::general::exchange::Exchange, exchanges::general::exchange::RequestResult};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CancelOrderResult {

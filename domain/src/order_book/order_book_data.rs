@@ -1,7 +1,6 @@
-use crate::exchanges::common::*;
+use crate::order::snapshot::SortedOrderData;
 use crate::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use chrono::Utc;
-
 /// Macros allows to specify in much clearer way (then usual imperative code) a structure of
 /// order book with template:\
 /// order_book_data![\
@@ -31,10 +30,10 @@ macro_rules! order_book_data {
     ($( $key_a: expr => $val_a: expr ),*, ;
      $( $key_b: expr => $val_b: expr ),*,) => {{
         use rust_decimal::Decimal;
-        let mut asks = $crate::exchanges::common::SortedOrderData::new();
+        let mut asks = $crate::order::snapshot::SortedOrderData::new();
         asks.extend(vec![ $( ($key_a, $val_a), )* ] as Vec<(Decimal, Decimal)>);
 
-        let mut bids = $crate::exchanges::common::SortedOrderData::new();
+        let mut bids = $crate::order::snapshot::SortedOrderData::new();
         bids.extend(vec![ $( ($key_b, $val_b), )* ] as Vec<(Decimal, Decimal)>);
 
         $crate::order_book::order_book_data::OrderBookData::new(asks, bids)
@@ -75,7 +74,7 @@ impl OrderBookData {
         }
     }
 
-    pub(crate) fn apply_update(
+    pub fn apply_update(
         asks: &mut SortedOrderData,
         bids: &mut SortedOrderData,
         update: &OrderBookData,
@@ -97,7 +96,7 @@ impl OrderBookData {
 
 #[cfg(test)]
 mod tests {
-    use rust_decimal_macros::*;
+    use rust_decimal_macros::dec;
 
     #[test]
     fn update_asks() {

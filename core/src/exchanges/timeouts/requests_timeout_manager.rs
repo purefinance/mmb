@@ -18,11 +18,9 @@ use super::{
     triggers::every_requests_count_change_trigger::EveryRequestsCountChangeTrigger,
     triggers::less_or_equals_requests_count_trigger::LessOrEqualsRequestsCountTrigger,
 };
-use crate::exchanges::common::ToStdExpected;
-use crate::{
-    exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType,
-    infrastructure::spawn_future,
-};
+use crate::{exchanges::general::request_type::RequestType, infrastructure::spawn_future};
+use domain::market::ExchangeAccountId;
+use mmb_utils::time::ToStdExpected;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct RequestGroupId(Uuid);

@@ -4,23 +4,23 @@ use std::sync::Arc;
 use crate::balance::balance_reservation_manager::BalanceReservationManager;
 use crate::balance::changes::balance_changes_service::BalanceChangesService;
 use crate::balance::manager::balance_reservation::BalanceReservation;
+use crate::balance::manager::balances::Balances;
 use crate::balance::manager::position_change::PositionChange;
-use crate::exchanges::common::{Amount, Price};
-use crate::exchanges::common::{CurrencyCode, CurrencyPair, MarketAccountId};
-use crate::exchanges::events::ExchangeBalancesAndPositions;
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
-use crate::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::explanation::Explanation;
-use crate::misc::derivative_position::DerivativePosition;
 use crate::misc::reserve_parameters::ReserveParameters;
 use crate::misc::service_value_tree::ServiceValueTree;
-use crate::orders::fill::OrderFill;
-use crate::orders::order::{
+use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use domain::events::ExchangeBalancesAndPositions;
+use domain::exchanges::symbol::{BeforeAfter, Symbol};
+use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId, MarketAccountId};
+use domain::order::fill::OrderFill;
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::Amount;
+use domain::order::snapshot::{
     ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, OrderType, ReservationId,
 };
-use crate::orders::pool::OrderRef;
-use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use crate::{balance::manager::balances::Balances, exchanges::common::ExchangeAccountId};
+use domain::position::DerivativePosition;
 
 use anyhow::{bail, Context, Result};
 use futures::future::join_all;
@@ -37,6 +37,7 @@ use rust_decimal_macros::dec;
 use crate::database::events::recorder::EventRecorder;
 #[cfg(test)]
 use crate::MOCK_MUTEX;
+use domain::order::snapshot::Price;
 #[cfg(test)]
 use mockall::automock;
 

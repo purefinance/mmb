@@ -1,21 +1,19 @@
-use super::orders::{event::OrderEventType, order::ClientOrderId};
 use anyhow::{Context, Result};
+use domain::order::event::OrderEventType;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use mmb_utils::nothing_to_do;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use domain::events::ExchangeEvent;
+use domain::market::MarketAccountId;
+use domain::order::snapshot::ClientOrderId;
+use domain::order::snapshot::{Amount, Price};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
-use super::{
-    exchanges::{
-        common::{Amount, MarketAccountId, Price},
-        events::ExchangeEvent,
-    },
-    infrastructure::spawn_future,
-};
+use super::infrastructure::spawn_future;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct MarketAccountIdStatistic {

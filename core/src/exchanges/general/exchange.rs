@@ -1,16 +1,9 @@
-use super::commission::Commission;
 use super::polling_timeout_manager::PollingTimeoutManager;
-use super::symbol::Symbol;
 use crate::balance::manager::balance_manager::BalanceManager;
 use crate::connectivity::{
     websocket_open, ConnectivityError, WebSocketParams, WebSocketRole, WsSender,
 };
 use crate::exchanges::block_reasons::WEBSOCKET_DISCONNECTED;
-use crate::exchanges::common::{ActivePosition, ClosedPosition, MarketId, SpecificCurrencyPair};
-use crate::exchanges::events::{
-    BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
-    LiquidationPriceEvent, Trade,
-};
 use crate::exchanges::exchange_blocker::{BlockType, ExchangeBlocker};
 use crate::exchanges::general::features::{BalancePositionOption, ExchangeFeatures};
 use crate::exchanges::general::order::cancel::CancelOrderResult;
@@ -18,30 +11,31 @@ use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::exchanges::general::request_type::RequestType;
 use crate::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
+use crate::exchanges::traits::{ExchangeClient, ExchangeError};
 use crate::infrastructure::spawn_future;
-use crate::misc::derivative_position::DerivativePosition;
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::misc::time::time_manager;
 use crate::orders::buffered_fills::buffered_canceled_orders_manager::BufferedCanceledOrdersManager;
 use crate::orders::buffered_fills::buffered_fills_manager::BufferedFillsManager;
-use crate::orders::event::OrderEventType;
-use crate::orders::order::ClientOrderId;
-use crate::orders::order::OrderSide;
-use crate::orders::pool::OrdersPool;
-use crate::orders::{order::ExchangeOrderId, pool::OrderRef};
-use crate::{
-    exchanges::common::ExchangeAccountId,
-    exchanges::{
-        common::{CurrencyPair, ExchangeError},
-        traits::ExchangeClient,
-    },
-    lifecycle::app_lifetime_manager::AppLifetimeManager,
-};
-use crate::{
-    exchanges::common::{Amount, CurrencyCode, Price},
-    orders::event::OrderEvent,
-};
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
+use domain::events::{
+    BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
+    LiquidationPriceEvent, Trade,
+};
+use domain::exchanges::commission::Commission;
+use domain::exchanges::symbol::Symbol;
+use domain::market::{
+    CurrencyCode, CurrencyPair, ExchangeAccountId, MarketId, SpecificCurrencyPair,
+};
+use domain::order::event::OrderEvent;
+use domain::order::event::OrderEventType;
+use domain::order::pool::OrderRef;
+use domain::order::pool::OrdersPool;
+use domain::order::snapshot::OrderSide;
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{ClientOrderId, ExchangeOrderId};
+use domain::position::{ActivePosition, ClosedPosition, DerivativePosition};
 use function_name::named;
 use itertools::Itertools;
 use mmb_utils::cancellation_token::CancellationToken;
@@ -832,6 +826,18 @@ impl Exchange {
 
     pub(crate) fn get_timeout(&self) -> Duration {
         self.timeout
+    }
+
+    pub fn get_symbol(&self, currency_pair: CurrencyPair) -> Result<Arc<Symbol>> {
+        self.symbols
+            .get(&currency_pair)
+            .with_context(|| {
+                format!(
+                    "Unsupported currency pair on {} {:?}",
+                    self.exchange_account_id, currency_pair
+                )
+            })
+            .map(|pair| pair.value().clone())
     }
 }
 

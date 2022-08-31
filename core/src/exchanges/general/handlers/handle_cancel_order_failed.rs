@@ -1,13 +1,13 @@
-use crate::exchanges::common::ExchangeError;
-use crate::exchanges::common::ExchangeErrorType;
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::general::handlers::should_ignore_event;
-use crate::orders::event::OrderEventType;
-use crate::orders::fill::EventSourceType;
-use crate::orders::order::OrderStatus;
-use crate::orders::order::{ClientOrderId, ExchangeOrderId};
-use crate::orders::pool::OrderRef;
+use crate::exchanges::traits::ExchangeError;
 use chrono::Utc;
+use domain::market::ExchangeErrorType;
+use domain::order::event::OrderEventType;
+use domain::order::fill::EventSourceType;
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::OrderStatus;
+use domain::order::snapshot::{ClientOrderId, ExchangeOrderId};
 use function_name::named;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::nothing_to_do;
@@ -99,18 +99,16 @@ impl Exchange {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::exchanges::events::ExchangeEvent;
-    use crate::exchanges::{common::ExchangeErrorType, general::test_helper::get_test_exchange};
-    use crate::{
-        exchanges::common::CurrencyPair,
-        exchanges::general::test_helper,
-        orders::order::OrderRole,
-        orders::order::{
-            ClientOrderId, OrderExecutionType, OrderFills, OrderHeader, OrderSide,
-            OrderSimpleProps, OrderSnapshot, OrderStatusHistory, OrderType,
-            SystemInternalOrderProps,
-        },
-        orders::pool::OrdersPool,
+    use crate::exchanges::general::test_helper;
+    use crate::exchanges::general::test_helper::get_test_exchange;
+    use domain::events::ExchangeEvent;
+    use domain::market::CurrencyPair;
+    use domain::market::ExchangeErrorType;
+    use domain::order::pool::OrdersPool;
+    use domain::order::snapshot::OrderRole;
+    use domain::order::snapshot::{
+        ClientOrderId, OrderExecutionType, OrderFills, OrderHeader, OrderSide, OrderSimpleProps,
+        OrderSnapshot, OrderStatusHistory, OrderType, SystemInternalOrderProps,
     };
     use parking_lot::RwLock;
     use rust_decimal_macros::dec;
@@ -258,7 +256,7 @@ mod test {
 
     mod order_not_found {
         use super::*;
-        use crate::exchanges::events::ExchangeEvent;
+        use domain::events::ExchangeEvent;
         use std::mem::discriminant;
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

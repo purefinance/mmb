@@ -1,7 +1,7 @@
 use super::websocket_connection::open_connection;
 use super::{ConnectivityError, Result, WebSocketParams, WebSocketRole};
-use crate::exchanges::common::ExchangeAccountId;
 use crate::infrastructure::spawn_future;
+use domain::market::ExchangeAccountId;
 use futures::FutureExt;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use tokio::sync::mpsc;

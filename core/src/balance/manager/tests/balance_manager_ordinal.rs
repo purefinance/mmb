@@ -7,6 +7,11 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 
+use domain::exchanges::symbol::{Precision, Symbol};
+use domain::market::ExchangeAccountId;
+use domain::order::fill::{OrderFill, OrderFillType};
+use domain::order::snapshot::OrderFillRole;
+use domain::order::snapshot::{Amount, Price};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -15,18 +20,9 @@ use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
 use crate::misc::time::time_manager;
 use crate::{
     balance::manager::balance_manager::BalanceManager,
-    exchanges::{
-        common::{Amount, ExchangeAccountId, Price},
-        general::{
-            currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter,
-            exchange::Exchange,
-            symbol::{Precision, Symbol},
-            test_helper::get_test_exchange_with_symbol_and_id,
-        },
-    },
-    orders::{
-        fill::{OrderFill, OrderFillType},
-        order::OrderFillRole,
+    exchanges::general::{
+        currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter, exchange::Exchange,
+        test_helper::get_test_exchange_with_symbol_and_id,
     },
 };
 
@@ -148,6 +144,8 @@ mod tests {
     use std::time::Duration;
 
     use chrono::Utc;
+    use domain::market::CurrencyCode;
+    use domain::order::snapshot::{Amount, Price};
     use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger_file_named;
     use parking_lot::{Mutex, RwLock};
@@ -157,17 +155,14 @@ mod tests {
 
     use crate::balance::manager::balance_manager::BalanceManager;
     use crate::balance::manager::position_change::PositionChange;
-    use crate::exchanges::common::{Amount, CurrencyCode, MarketAccountId, Price};
+    use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
     use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
-    use crate::exchanges::general::symbol::{Precision, Symbol};
     use crate::misc::reserve_parameters::ReserveParameters;
-    use crate::orders::order::{
+    use domain::exchanges::symbol::{Precision, Symbol};
+    use domain::market::{ExchangeAccountId, MarketAccountId};
+    use domain::order::pool::OrdersPool;
+    use domain::order::snapshot::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
-    };
-    use crate::orders::pool::OrdersPool;
-    use crate::{
-        balance::manager::tests::balance_manager_base::BalanceManagerBase,
-        exchanges::common::ExchangeAccountId,
     };
 
     use super::BalanceManagerOrdinal;

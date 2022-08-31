@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use domain::order::snapshot::{Amount, Price};
 use itertools::Itertools;
 use mmb_utils::decimal_inverse_sign::DecimalInverseSign;
 use mmb_utils::infrastructure::WithExpect;
@@ -21,20 +22,18 @@ use crate::balance::{
     balance_reservation_storage::BalanceReservationStorage,
     virtual_balance_holder::VirtualBalanceHolder,
 };
-use crate::exchanges::common::{
-    Amount, CurrencyCode, CurrencyPair, ExchangeAccountId, MarketAccountId, Price,
-};
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::exchanges::general::exchange::Exchange;
-use crate::exchanges::general::symbol::{BeforeAfter, Symbol};
 use crate::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::misc::reserve_parameters::ReserveParameters;
 use crate::misc::service_value_tree::ServiceValueTree;
 #[double]
 use crate::misc::time::time_manager;
-use crate::orders::order::ReservationId;
-use crate::orders::order::{ClientOrderFillId, ClientOrderId, OrderSide};
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
+use domain::exchanges::symbol::{BeforeAfter, Symbol};
+use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId, MarketAccountId};
+use domain::order::snapshot::ReservationId;
+use domain::order::snapshot::{ClientOrderFillId, ClientOrderId, OrderSide};
 
 use super::balance_reservation_preset::BalanceReservationPreset;
 

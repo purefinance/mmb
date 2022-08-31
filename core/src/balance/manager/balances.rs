@@ -4,12 +4,12 @@ use crate::balance::manager::{
     balance_position_by_fill_amount::BalancePositionByFillAmount,
     balance_reservation::BalanceReservation,
 };
-use crate::exchanges::common::CurrencyCode;
-use crate::exchanges::common::ExchangeAccountId;
-use crate::exchanges::common::MarketAccountId;
 use crate::misc::service_value_tree::ServiceValueTree;
-use crate::orders::fill::OrderFill;
-use crate::orders::order::ReservationId;
+use domain::market::CurrencyCode;
+use domain::market::ExchangeAccountId;
+use domain::market::MarketAccountId;
+use domain::order::fill::OrderFill;
+use domain::order::snapshot::ReservationId;
 use serde::Serialize;
 
 use mmb_database::impl_event;

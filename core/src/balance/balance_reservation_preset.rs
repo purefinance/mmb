@@ -1,6 +1,7 @@
+use domain::order::snapshot::Amount;
 use rust_decimal::Decimal;
 
-use crate::exchanges::common::{Amount, CurrencyCode};
+use domain::market::CurrencyCode;
 
 pub(crate) struct BalanceReservationPreset {
     pub(crate) reservation_currency_code: CurrencyCode,

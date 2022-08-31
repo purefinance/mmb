@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
+use domain::market::MarketId;
+use domain::order::snapshot::PriceByOrderSide;
+use domain::order::snapshot::{Amount, Price};
 use mmb_utils::DateTime;
 use rust_decimal_macros::dec;
 
 use crate::{
-    exchanges::common::{Amount, MarketId, Price},
-    misc::price_by_order_side::PriceByOrderSide,
     order_book::local_snapshot_service::LocalSnapshotsService,
     services::usd_convertion::{
         price_source_chain::PriceSourceChain, rebase_price_step::RebaseDirection,
@@ -82,6 +83,8 @@ mod test {
     use std::sync::Arc;
 
     use chrono::Utc;
+    use domain::market::CurrencyPair;
+    use domain::order_book_data;
     use mmb_utils::hashmap;
     use mockall_double::double;
     use parking_lot::ReentrantMutexGuard;
@@ -89,11 +92,8 @@ mod test {
     #[double]
     use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 
-    use crate::order_book_data;
     use crate::{
-        exchanges::{
-            common::CurrencyPair, general::test_helper::get_test_exchange_by_currency_codes,
-        },
+        exchanges::general::test_helper::get_test_exchange_by_currency_codes,
         services::usd_convertion::{
             price_source_chain::PriceSourceChain,
             price_source_service::{test::PriceSourceServiceTestBase, PriceSourceService},

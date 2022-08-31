@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::lifecycle::app_lifetime_manager::{ActionAfterGracefulShutdown, AppLifetimeManager};
 use anyhow::Context;
 use jsonrpc_core::{MetaIoHandler, Result};
 use jsonrpc_ipc_server::{Server, ServerBuilder};
@@ -11,7 +12,6 @@ use tokio::sync::{mpsc, oneshot};
 use crate::{
     config::{save_settings, CONFIG_PATH, CREDENTIALS_PATH},
     infrastructure::spawn_future_ok,
-    lifecycle::app_lifetime_manager::{ActionAfterGracefulShutdown, AppLifetimeManager},
     rpc::core_api::FAILED_TO_SEND_STOP_NOTIFICATION,
 };
 

@@ -1,13 +1,12 @@
-use crate::{
-    exchanges::{common::CurrencyCode, events::TradeId},
-    orders::order::{OrderFillRole, OrderSide},
-};
+use crate::events::TradeId;
+use crate::market::CurrencyCode;
+use crate::order::snapshot::{OrderFillRole, OrderSide};
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::order::ClientOrderFillId;
+use crate::order::snapshot::ClientOrderFillId;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderFillType {
@@ -159,7 +158,6 @@ impl OrderFill {
         &self.client_order_fill_id
     }
 
-    #[cfg(test)]
     pub fn set_client_order_fill_id(&mut self, input: ClientOrderFillId) {
         self.client_order_fill_id = Some(input);
     }

@@ -1,5 +1,5 @@
 address = "127.0.0.1:53938"
-database_url = "postgresql://postgres:postgres@localhost:5432/postgres"
+database_url = "postgresql://postgres:postgres@localhost:5432/tests"
 refresh_data_interval_ms = 1_000
 
 [[markets]]

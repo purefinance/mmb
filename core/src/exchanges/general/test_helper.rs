@@ -3,22 +3,16 @@
 use std::any::Any;
 use std::sync::Arc;
 
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::{
     connectivity::WebSocketRole,
     exchanges::{
-        common::{
-            ActivePosition, Amount, ClosedPosition, CurrencyCode, CurrencyId, CurrencyPair,
-            ExchangeAccountId, ExchangeError, Price, SpecificCurrencyPair,
-        },
-        events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent},
         general::{
-            commission::{Commission, CommissionForType},
             exchange::Exchange,
             features::{
                 ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
                 RestFillsFeatures, WebSocketOptions,
             },
-            symbol::{Precision, Symbol},
         },
         timeouts::{
             requests_timeout_manager_factory::RequestTimeoutArguments,
@@ -26,20 +20,24 @@ use crate::{
         },
         traits::{ExchangeClient, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, Support},
     },
-    lifecycle::app_lifetime_manager::AppLifetimeManager,
-    orders::{
-        order::{
-            ClientOrderId, OrderCancelling, OrderInfo, OrderRole, OrderSide, OrderSnapshot,
-            OrderType,
-        },
-        pool::{OrderRef, OrdersPool},
-    },
     settings::ExchangeSettings,
 };
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Duration;
 use dashmap::DashMap;
+use domain::events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent};
+use domain::exchanges::commission::{Commission, CommissionForType};
+use domain::exchanges::symbol::{BeforeAfter, Precision, Symbol};
+use domain::market::{
+    CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, SpecificCurrencyPair,
+};
+use domain::order::pool::{OrderRef, OrdersPool};
+use domain::order::snapshot::{Amount, Price};
+use domain::order::snapshot::{
+    ClientOrderId, OrderCancelling, OrderInfo, OrderRole, OrderSide, OrderSnapshot, OrderType,
+};
+use domain::position::{ActivePosition, ClosedPosition};
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
@@ -50,10 +48,10 @@ use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
 use crate::exchanges::general::order::create::CreateOrderResult;
 use crate::exchanges::timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory;
-use crate::exchanges::traits::{HandleOrderFilledCb, SendWebsocketMessageCb};
+use crate::exchanges::traits::{ExchangeError, HandleOrderFilledCb, SendWebsocketMessageCb};
 use mmb_utils::{cancellation_token::CancellationToken, hashmap, DateTime};
 
-use super::{order::get_order_trades::OrderTrade, symbol::BeforeAfter};
+use super::order::get_order_trades::OrderTrade;
 
 pub struct TestClient;
 

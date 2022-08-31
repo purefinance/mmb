@@ -1,4 +1,5 @@
-use crate::exchanges::common::{Amount, CurrencyCode, CurrencyPair, ExchangeAccountId};
+use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use domain::order::snapshot::Amount;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

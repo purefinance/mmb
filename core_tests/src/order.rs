@@ -1,9 +1,9 @@
-use mmb_core::exchanges::common::{Amount, Price};
-use mmb_core::exchanges::common::{CurrencyPair, ExchangeAccountId};
+use domain::market::ExchangeAccountId;
+use domain::order::pool::OrderRef;
+use domain::order::snapshot::Amount;
+use domain::order::snapshot::*;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::exchange::RequestResult;
-use mmb_core::orders::order::*;
-use mmb_core::orders::pool::OrderRef;
 
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::DateTime;
@@ -12,6 +12,8 @@ use anyhow::Result;
 use chrono::Utc;
 use tokio::time::Duration;
 
+use domain::market::CurrencyPair;
+use domain::order::snapshot::Price;
 use mmb_utils::infrastructure::with_timeout;
 use std::sync::Arc;
 
@@ -20,13 +22,14 @@ use std::sync::Arc;
 /// and than use create_order function for making order in selected Exchange.
 ///
 /// ```no_run
-/// use core_tests::order::OrderProxy;
-/// use mmb_core::exchanges::common::ExchangeAccountId;
-/// use mmb_core::exchanges::common::{Amount, Price};
+/// use domain::market::ExchangeAccountId;
+/// use domain::market::{ };
 /// use mmb_core::exchanges::general::exchange::Exchange;
 /// use mmb_utils::cancellation_token::CancellationToken;
 /// use rust_decimal_macros::dec;
 /// use std::sync::Arc;
+/// use core_tests::order::OrderProxy;
+/// use domain::order::snapshot::{Amount, Price};
 ///
 /// async fn example(exchange_account_id: ExchangeAccountId, exchange: Arc<Exchange>, price: Price, amount: Amount) {
 ///     let mut order_proxy = OrderProxy::new(

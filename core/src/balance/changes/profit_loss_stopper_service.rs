@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use chrono::Duration;
+use domain::market::MarketAccountId;
 use futures::future::join_all;
 use mmb_utils::cancellation_token::CancellationToken;
 use mockall_double::double;
@@ -18,7 +19,6 @@ use crate::services::usd_convertion::usd_converter::UsdConverter;
 
 use crate::{
     balance::changes::balance_changes_accumulator::BalanceChangeAccumulator,
-    exchanges::common::MarketAccountId,
     settings::{ProfitLossStopperSettings, TimePeriodKind},
 };
 
@@ -134,12 +134,11 @@ impl BalanceChangeAccumulator for ProfitLossStopperService {
 
 #[cfg(test)]
 mod test {
+    use domain::market::CurrencyPair;
+    use domain::market::{ExchangeAccountId, MarketAccountId};
     use rust_decimal_macros::dec;
 
-    use crate::{
-        exchanges::common::{CurrencyPair, ExchangeAccountId, MarketAccountId},
-        settings::StopperCondition,
-    };
+    use crate::settings::StopperCondition;
 
     use super::*;
 

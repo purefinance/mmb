@@ -1,5 +1,6 @@
 use crate::config::Market;
-use crate::services::data_provider::model::Amount;
+use crate::types::{CurrencyPair, ExchangeId};
+use domain::order::snapshot::Amount;
 use itertools::Itertools;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -58,7 +59,11 @@ impl From<Vec<Market>> for MarketSettingsService {
 }
 
 impl MarketSettingsService {
-    pub fn get_desired_amount(&self, exchange_id: &str, currency_pair: &str) -> Option<Amount> {
+    pub fn get_desired_amount(
+        &self,
+        exchange_id: &ExchangeId,
+        currency_pair: &CurrencyPair,
+    ) -> Option<Amount> {
         match self.exchanges.get(exchange_id) {
             None => None,
             Some(exchange) => exchange.get(currency_pair).map(|info| info.desired_amount),

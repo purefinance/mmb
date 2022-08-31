@@ -1,6 +1,7 @@
+use domain::order::snapshot::Amount;
 use std::sync::Arc;
 
-use crate::exchanges::common::{Amount, CurrencyCode};
+use domain::market::CurrencyCode;
 
 use super::usd_denominator::UsdDenominator;
 

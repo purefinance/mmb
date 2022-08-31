@@ -1,5 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
+use domain::market::MarketAccountId;
+use domain::order::snapshot::OrderSide;
 use mmb_utils::{
     cancellation_token::CancellationToken,
     infrastructure::{FutureOutcome, SpawnFutureFlags},
@@ -13,10 +15,7 @@ use crate::balance::manager::balance_manager::BalanceManager;
 #[double]
 use crate::exchanges::general::engine_api::EngineApi;
 
-use crate::{
-    exchanges::common::MarketAccountId, infrastructure::spawn_future_timed,
-    orders::order::OrderSide,
-};
+use crate::infrastructure::spawn_future_timed;
 
 pub fn close_position_if_needed(
     market_account_id: &MarketAccountId,

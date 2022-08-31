@@ -3,10 +3,11 @@ use super::{
     pre_reserved_group::PreReservedGroup, request::Request,
     triggers::handle_trigger_trait::TriggerHandler,
 };
+use crate::exchanges::general::request_type::RequestType;
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
-use crate::{exchanges::common::ExchangeAccountId, exchanges::general::request_type::RequestType};
 use anyhow::{bail, Result};
 use chrono::Duration;
+use domain::market::ExchangeAccountId;
 use function_name::named;
 use mmb_utils::DateTime;
 use std::collections::HashMap;

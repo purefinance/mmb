@@ -1,4 +1,4 @@
-use crate::exchanges::common::CurrencyCode;
+use domain::market::CurrencyCode;
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct ConvertCurrencyDirection {

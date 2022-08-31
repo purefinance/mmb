@@ -8,14 +8,14 @@ use mmb_utils::nothing_to_do;
 use parking_lot::Mutex;
 use tokio::sync::{broadcast, oneshot};
 
-use crate::exchanges::common::ExchangeAccountId;
-use crate::exchanges::events::ExchangeEvent;
 use crate::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
 use crate::lifecycle::trading_engine::Service;
-use crate::order_book::event::OrderBookEvent;
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
-use crate::orders::event::OrderEventType;
-use crate::orders::order::OrderType;
+use domain::events::ExchangeEvent;
+use domain::market::ExchangeAccountId;
+use domain::order::event::OrderEventType;
+use domain::order::snapshot::OrderType;
+use domain::order_book::event::OrderBookEvent;
 
 pub(crate) struct InternalEventsLoop {
     work_finished_receiver: Mutex<Option<oneshot::Receiver<Result<()>>>>,

@@ -8,10 +8,10 @@ use mockall::automock;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::exchanges::common::CurrencyPair;
-use crate::exchanges::common::ExchangeAccountId;
 use crate::exchanges::general::exchange::Exchange;
-use crate::exchanges::general::symbol::Symbol;
+use domain::exchanges::symbol::Symbol;
+use domain::market::CurrencyPair;
+use domain::market::ExchangeAccountId;
 
 #[derive(Clone)]
 pub struct CurrencyPairToSymbolConverter {

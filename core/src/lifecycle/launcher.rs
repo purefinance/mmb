@@ -1,8 +1,6 @@
 use crate::balance::manager::balance_manager::BalanceManager;
 use crate::config::{load_pretty_settings, try_load_settings};
 use crate::database::events::recorder::{DbSettings, EventRecorder};
-use crate::exchanges::common::{ExchangeAccountId, ExchangeId};
-use crate::exchanges::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::exchanges::general::exchange::Exchange;
@@ -28,6 +26,9 @@ use crate::{
 use anyhow::{anyhow, bail, Context, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
+use domain::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
+use domain::market::ExchangeAccountId;
+use domain::market::ExchangeId;
 use futures::{future::join_all, FutureExt};
 use itertools::Itertools;
 use mmb_database::postgres_db::migrator::apply_migrations;
@@ -47,7 +48,7 @@ use tokio::signal;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::time::timeout;
 
-use super::app_lifetime_manager::ActionAfterGracefulShutdown;
+use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,

@@ -1,5 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
+use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
+use domain::order::fill::OrderFill;
+use domain::order::snapshot::{ClientOrderFillId, OrderSnapshot};
 use mmb_utils::{
     cancellation_token::CancellationToken,
     infrastructure::SpawnFutureFlags,
@@ -19,11 +22,6 @@ use crate::services::usd_convertion::usd_converter::UsdConverter;
 use crate::{
     balance::changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
-    lifecycle::app_lifetime_manager::AppLifetimeManager,
-    orders::{
-        fill::OrderFill,
-        order::{ClientOrderFillId, OrderSnapshot},
-    },
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 

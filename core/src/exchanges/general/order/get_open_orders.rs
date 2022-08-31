@@ -1,5 +1,5 @@
 use crate::exchanges::general::request_type::RequestType;
-use crate::orders::order::{
+use domain::order::snapshot::{
     ClientOrderId, OrderExecutionType, OrderHeader, OrderInfo, OrderSimpleProps, OrderSnapshot,
     OrderType,
 };

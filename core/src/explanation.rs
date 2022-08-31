@@ -1,4 +1,6 @@
-use crate::exchanges::common::{Amount, CurrencyPair, ExchangeId, Price};
+use domain::market::CurrencyPair;
+use domain::market::ExchangeId;
+use domain::order::snapshot::{Amount, Price};
 use mmb_database::impl_event;
 use serde::Serialize;
 use std::fmt::{Debug, Formatter};

@@ -1,4 +1,4 @@
-use crate::exchanges::events::AllowedEventSourceType;
+use domain::events::AllowedEventSourceType;
 
 #[derive(Debug)]
 pub enum OpenOrdersType {
