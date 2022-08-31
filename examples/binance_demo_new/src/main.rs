@@ -18,18 +18,18 @@
 
 pub mod events;
 
+use crate::events::create_liquidity_order_book_snapshot;
 use anyhow::{Context, Error, Result};
 use binance::binance::BinanceBuilder;
-use mmb_core::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
-use std::sync::Arc;
-
+use chrono::Duration;
 use mmb_core::config::{CONFIG_PATH, CREDENTIALS_PATH};
 use mmb_core::database::events::transaction::{
     transaction_service, TransactionSnapshot, TransactionStatus, TransactionTrade,
 };
 use mmb_core::exchanges::common::MarketAccountId;
 use mmb_core::exchanges::events::ExchangeEvent;
-use mmb_core::infrastructure::spawn_future;
+use mmb_core::infrastructure::{spawn_future, spawn_future_ok};
+use mmb_core::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, InitSettings};
 use mmb_core::lifecycle::trading_engine::EngineContext;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
@@ -37,8 +37,8 @@ use mmb_core::orders::event::OrderEventType;
 use mmb_core::orders::order::OrderSnapshot;
 use mmb_core::settings::BaseStrategySettings;
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
-
-use crate::events::create_liquidity_order_book_snapshot;
+use mmb_utils::DateTime;
+use std::sync::Arc;
 use strategies::example_strategy::{ExampleStrategy, ExampleStrategySettings};
 
 const STRATEGY_NAME: &str = "binance_demo";
@@ -60,6 +60,12 @@ async fn main() -> Result<()> {
                     start_liquidity_order_book_saving(ctx.clone()),
                 );
 
+                spawn_future_ok(
+                    "Checking orders activity",
+                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+                    checking_orders_activity(ctx.clone()),
+                );
+
                 Box::new(ExampleStrategy::new(
                     settings.strategy.exchange_account_id(),
                     settings.strategy.currency_pair(),
@@ -78,6 +84,52 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+async fn checking_orders_activity(ctx: Arc<EngineContext>) {
+    let mut last_order_creation = now();
+
+    let mut events_rx = ctx.get_events_channel();
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+    let stop_token = ctx.lifetime_manager.stop_token();
+    while !stop_token.is_cancellation_requested() {
+        tokio::select! {
+            event_res = events_rx.recv() => {
+                match event_res {
+                    Err(err) => {
+                        log::error!("Error occurred: {err:?}");
+                        let _ = ctx
+                            .lifetime_manager
+                            .spawn_graceful_shutdown("Error in start_liquidity_order_book_saving");
+                    }
+                    Ok(ExchangeEvent::OrderEvent(_)) => {
+                        last_order_creation = now();
+                    }
+                    Ok(_) => check_timeout(last_order_creation, &ctx),
+                }
+            }
+            _ = interval.tick() => check_timeout(last_order_creation, &ctx),
+        }
+    }
+}
+
+fn check_timeout(last_order_creation: DateTime, ctx: &EngineContext) {
+    let max_timeout_without_order_creation: Duration = Duration::minutes(5);
+
+    if now() - last_order_creation > max_timeout_without_order_creation {
+        log::error!(
+            "There is no orders activity during {} min",
+            max_timeout_without_order_creation.num_minutes(),
+        );
+
+        let _ = ctx
+            .lifetime_manager
+            .spawn_graceful_shutdown("There is no orders activity too long");
+    }
+}
+
+fn now() -> DateTime {
+    chrono::Utc::now()
+}
+
 async fn start_liquidity_order_book_saving(ctx: Arc<EngineContext>) -> Result<(), Error> {
     let mut snapshots_service = LocalSnapshotsService::default();
     let mut events_rx = ctx.get_events_channel();
@@ -86,7 +138,13 @@ async fn start_liquidity_order_book_saving(ctx: Arc<EngineContext>) -> Result<()
     while !stop_token.is_cancellation_requested() {
         let event_res = events_rx.recv().await;
         match event_res {
-            Err(err) => eprintln!("Error occurred: {err:?}"),
+            Err(err) => {
+                log::error!("Error occurred: {err:?}");
+
+                let _ = ctx
+                    .lifetime_manager
+                    .spawn_graceful_shutdown("Error in start_liquidity_order_book_saving");
+            }
             Ok(event) => {
                 let market_account_id = match event {
                     ExchangeEvent::OrderBookEvent(ob_event) => snapshots_service.update(ob_event),

@@ -1015,7 +1015,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "binance",
+ "chrono",
  "itertools",
+ "log",
  "mmb_core",
  "mmb_database",
  "mmb_utils",
