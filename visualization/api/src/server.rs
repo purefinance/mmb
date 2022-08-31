@@ -5,6 +5,7 @@ use crate::routes::routes;
 use crate::services::account::AccountService;
 use crate::services::auth::AuthService;
 use crate::services::data_provider::balances::BalancesService;
+use crate::services::data_provider::explanation::ExplanationService;
 use crate::services::market_settings::MarketSettingsService;
 use crate::services::settings::SettingsService;
 use crate::services::token::TokenService;
@@ -56,7 +57,8 @@ pub async fn start(
     let subscription_manager = SubscriptionManager::default().start();
     let auth_service = Arc::new(AuthService::new(enforcer));
     let market_settings_service = Arc::new(MarketSettingsService::from(markets));
-    let settings_service = Arc::new(SettingsService::new(connection_pool));
+    let settings_service = Arc::new(SettingsService::new(connection_pool.clone()));
+    let explanation_service = Arc::new(ExplanationService::new(connection_pool));
 
     let data_provider = DataProvider::new(
         subscription_manager,
@@ -91,6 +93,7 @@ pub async fn start(
             .app_data(Data::new(token_service.clone()))
             .app_data(Data::new(market_settings_service.clone()))
             .app_data(Data::new(settings_service.clone()))
+            .app_data(Data::new(explanation_service.clone()))
     })
     .bind(address)?
     .run()

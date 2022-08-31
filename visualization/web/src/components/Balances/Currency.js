@@ -14,7 +14,7 @@ const Currency = (props) => {
       <Col className="base-col base-background hidden border-shadow">
         {props.data.exchanges.map((data) => (
           <Exchange
-            total={props.data.total}
+            total={Number(props.data.total)}
             exchange={data}
             key={data.exchangeId}
           />

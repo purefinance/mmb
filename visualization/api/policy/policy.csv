@@ -19,3 +19,4 @@ p,admin,/api/configuration,GET
 p,admin,/api/configuration,PUT
 p,admin,/api/configuration/validate,POST
 p,admin,/api/liquidity/supported-exchanges,GET
+p,admin,/api/explanations,GET

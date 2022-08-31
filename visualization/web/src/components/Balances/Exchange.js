@@ -4,7 +4,7 @@ import utils from "../../utils";
 import { Row, Col } from "react-bootstrap";
 
 const Exchange = (props) => {
-  const percent = Number(props.total)
+  const percent = props.total
     ? utils.round((props.exchange.value * 100) / props.total, 3)
     : 0;
   return (

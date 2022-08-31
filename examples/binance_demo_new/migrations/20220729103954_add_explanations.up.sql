@@ -6,3 +6,5 @@ CREATE TABLE disposition_explanations (
 );
 
 CREATE INDEX disposition_explanations__insert_time_idx ON disposition_explanations USING btree (insert_time);
+CREATE index disposition_explanations__exchange_id_idx ON disposition_explanations ((json ->> 'exchange_id'::text));
+CREATE index disposition_explanations__currency_pair_idx ON disposition_explanations ((json ->> 'currency_pair'::text));
