@@ -1,4 +1,4 @@
-use crate::exchanges::common::{Amount, Price};
+use crate::exchanges::common::{Amount, CurrencyPair, ExchangeId, Price};
 use mmb_database::impl_event;
 use serde::Serialize;
 use std::fmt::{Debug, Formatter};
@@ -134,14 +134,23 @@ pub struct PriceLevelExplanation<'a> {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(transparent)]
 pub struct ExplanationSet<'a> {
+    exchange_id: ExchangeId,
+    currency_pair: CurrencyPair,
     set: Vec<PriceLevelExplanation<'a>>,
 }
 
 impl<'a> ExplanationSet<'a> {
-    pub fn new(set: Vec<PriceLevelExplanation<'a>>) -> Self {
-        Self { set }
+    pub fn new(
+        exchange_id: ExchangeId,
+        currency_pair: CurrencyPair,
+        set: Vec<PriceLevelExplanation<'a>>,
+    ) -> Self {
+        Self {
+            exchange_id,
+            currency_pair,
+            set,
+        }
     }
 }
 

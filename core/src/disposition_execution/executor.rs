@@ -312,7 +312,11 @@ impl DispositionExecutor {
             )?
         }
 
-        let explanations = trading_context.get_explanations();
+        let explanations = trading_context.get_explanations(
+            self.exchange_account_id.exchange_id,
+            self.symbol.currency_pair(),
+        );
+
         self.engine_ctx
             .event_recorder
             .save(explanations)

@@ -12,7 +12,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
 use crate::exchanges::common::{
-    Amount, CurrencyPair, ExchangeAccountId, MarketAccountId, MarketId, Price,
+    Amount, CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId, MarketId, Price,
 };
 use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
 use crate::explanation::{Explanation, ExplanationSet, PriceLevelExplanation, WithExplanation};
@@ -145,7 +145,11 @@ impl TradingContext {
         }
     }
 
-    pub(crate) fn get_explanations(&self) -> ExplanationSet {
+    pub(crate) fn get_explanations(
+        &self,
+        exchange_id: ExchangeId,
+        currency_pair: CurrencyPair,
+    ) -> ExplanationSet {
         let explanations = self
             .by_side
             .as_slice()
@@ -153,7 +157,7 @@ impl TradingContext {
             .flat_map(|x| x.estimating.iter().map(to_price_level_explanation))
             .collect_vec();
 
-        ExplanationSet::new(explanations)
+        ExplanationSet::new(exchange_id, currency_pair, explanations)
     }
 }
 
