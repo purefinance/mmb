@@ -194,6 +194,10 @@ impl StreamHandler<Result<Message, ProtocolError>> for WsClientSession {
                 ctx.stop();
                 return;
             }
+            Message::Ping(_) => {
+                ctx.pong(&[]);
+                return;
+            }
             Message::Pong(_) => {
                 self.hb = Instant::now();
                 return;
@@ -229,6 +233,7 @@ impl WsClientSession {
         match command {
             // Authorization
             "Auth" => self.auth(ctx, body),
+            "Ping" => self.ping(ctx),
             // Subscription for one record of order book (20 orders) and last 20 transactions
             "SubscribeLiquidity" => self.subscribe_liquidity(ctx, body),
             // Unsubscribe from "SubscribeLiquidity"
@@ -288,6 +293,9 @@ impl WsClientSession {
                 self.subscribed_liquidity = None;
             }
         }
+    }
+    fn ping(&self, ctx: &mut WebsocketContext<WsClientSession>) {
+        send_message(ctx, "Pong", Value::Null)
     }
 }
 
