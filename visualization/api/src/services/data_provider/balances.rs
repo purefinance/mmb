@@ -1,4 +1,5 @@
-use crate::services::data_provider::model::{CurrencyCode, EventRecord, ExchangeId};
+use crate::services::data_provider::model::EventRecord;
+use crate::types::{CurrencyCode, ExchangeId};
 use domain::order::snapshot::Amount;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};

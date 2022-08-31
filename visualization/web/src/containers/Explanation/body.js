@@ -70,10 +70,10 @@ class Body extends React.Component {
                 {el.modeName}
               </Col>
               <Col md={1} className="base-col center">
-                {el.price}
+                {Number(el.price)}
               </Col>
               <Col md={1} className="base-col center">
-                {el.amount}
+                {Number(el.amount)}
               </Col>
               <Col md={7} className="base-col">
                 {el.reasons.map((e, elIndex) => (

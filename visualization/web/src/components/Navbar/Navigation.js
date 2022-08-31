@@ -156,7 +156,7 @@ class Navdropdown extends Component {
       }
       if (CryptolpAxios.role.toUpperCase() === constants.clientRoles.admin) {
         navElements.push(this.navConfigurations);
-        // navElements.push(this.navExplanation);
+        navElements.push(this.navExplanation);
         // navElements.push(this.navPostponedFills);
         // navElements.push(this.navPLGraph);
       }
