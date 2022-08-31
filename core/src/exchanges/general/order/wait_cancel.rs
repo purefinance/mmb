@@ -1,5 +1,17 @@
-use std::time::Duration;
-
+use super::cancel::CancelOrderResult;
+use crate::exchanges::common::ExchangeError;
+use crate::exchanges::common::ExchangeErrorType;
+use crate::exchanges::common::ToStdExpected;
+use crate::exchanges::events::AllowedEventSourceType;
+use crate::exchanges::general::exchange::Exchange;
+use crate::exchanges::general::exchange::RequestResult;
+use crate::exchanges::general::request_type::RequestType;
+use crate::exchanges::timeouts::requests_timeout_manager::RequestGroupId;
+use crate::misc::time::time_manager;
+use crate::orders::event::OrderEventType;
+use crate::orders::fill::EventSourceType;
+use crate::orders::order::OrderStatus;
+use crate::orders::pool::OrderRef;
 use anyhow::{bail, Context, Result};
 use chrono::Utc;
 use dashmap::mapref::entry::Entry::{Occupied, Vacant};
@@ -8,24 +20,9 @@ use log::log;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::nothing_to_do;
 use scopeguard;
+use std::time::Duration;
 use tokio::sync::broadcast;
 use tokio::time::{sleep, timeout};
-
-use super::cancel::CancelOrderResult;
-use crate::exchanges::common::ToStdExpected;
-use crate::exchanges::{
-    general::request_type::RequestType, timeouts::requests_timeout_manager::RequestGroupId,
-};
-use crate::misc::time::time_manager;
-use crate::{
-    orders::event::OrderEventType,
-    {
-        exchanges::common::ExchangeError, exchanges::common::ExchangeErrorType,
-        exchanges::events::AllowedEventSourceType, exchanges::general::exchange::Exchange,
-        exchanges::general::exchange::RequestResult, orders::fill::EventSourceType,
-        orders::order::OrderStatus, orders::pool::OrderRef,
-    },
-};
 
 const CANCEL_DELAY: Duration = Duration::from_secs(10);
 
@@ -37,21 +34,28 @@ impl Exchange {
         check_order_fills: bool,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
+        let (client_order_id, exchange_order_id) = order.order_ids();
         log::info!(
-            "Executing wait_cancel_order() with order: {} {:?} {}",
-            order.client_order_id(),
-            order.exchange_order_id(),
+            "Executing wait_cancel_order() with order: {client_order_id} {exchange_order_id:?} {}",
             self.exchange_account_id,
         );
 
-        // we move rx out of the closure to unlock Dashmap while waiting
-        let rx = match self.wait_cancel_order.entry(order.client_order_id()) {
-            Occupied(entry) => Some(entry.get().subscribe()),
+        // Be sure value will be removed anyway
+        let _guard = scopeguard::guard(client_order_id.clone(), |client_order_id| {
+            let _ = self.wait_cancel_order.remove(&client_order_id);
+        });
+
+        match self.wait_cancel_order.entry(client_order_id) {
+            Occupied(entry) => {
+                let mut rx = entry.get().subscribe();
+                drop(entry);
+
+                tokio::select! {
+                    _ = rx.recv() => nothing_to_do(),
+                    _ = cancellation_token.when_cancelled() => nothing_to_do()
+                }
+            }
             Vacant(vacant_entry) => {
-                // Be sure value will be removed anyway
-                let _guard = scopeguard::guard((), |_| {
-                    let _ = self.wait_cancel_order.remove(&order.client_order_id());
-                });
                 let (tx, _) = broadcast::channel(1);
                 let _ = *vacant_entry.insert(tx.clone());
 
@@ -64,16 +68,9 @@ impl Exchange {
                 .await?;
 
                 let _ = tx.send(());
-                None
-            }
-        };
-
-        if let Some(mut rx) = rx {
-            tokio::select! {
-                _ = rx.recv() => nothing_to_do(),
-                _ = cancellation_token.when_cancelled() => nothing_to_do()
             }
         }
+
         Ok(())
     }
 
@@ -258,10 +255,7 @@ impl Exchange {
         });
 
         if let Some((client_order_id, exchange_order_id)) = cancelled_order {
-            log::trace!("Adding CancelOrderSucceeded event from wait_cancel_order() for order {} {:?} on {}",
-                client_order_id,
-                exchange_order_id,
-                self.exchange_account_id);
+            log::trace!("Adding CancelOrderSucceeded event from wait_cancel_order() for order {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id);
 
             self.add_event_on_order_change(order, OrderEventType::CancelOrderSucceeded)?;
         }
@@ -278,9 +272,9 @@ impl Exchange {
         order_is_finished_token: CancellationToken,
     ) -> Result<()> {
         log::info!(
-            "Cancel order future finished first on order {}, {:?} {}",
-            order.client_order_id(),
-            order.exchange_order_id(),
+            "cancel_order_fut finished first on order {:?} {:?} on {}",
+            order.order_ids(),
+            cancel_order_outcome,
             self.exchange_account_id
         );
 

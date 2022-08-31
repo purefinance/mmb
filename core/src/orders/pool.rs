@@ -1,4 +1,5 @@
 use std::borrow::{Borrow, BorrowMut};
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 
 use dashmap::DashMap;
@@ -15,9 +16,15 @@ use crate::orders::order::{
     OrderSnapshot, OrderStatus,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OrderRef(Arc<RwLock<OrderSnapshot>>);
+
+impl Debug for OrderRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.0.read())
+    }
+}
 
 impl OrderRef {
     /// Lock order for read and provide copy properties or check some conditions

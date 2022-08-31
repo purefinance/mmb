@@ -8,23 +8,32 @@ use crate::orders::order::OrderStatus;
 use crate::orders::order::{ClientOrderId, ExchangeOrderId};
 use crate::orders::pool::OrderRef;
 use chrono::Utc;
+use function_name::named;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::nothing_to_do;
 
 impl Exchange {
+    #[named]
     pub(crate) fn handle_cancel_order_failed(
         &self,
         exchange_order_id: &ExchangeOrderId,
         error: ExchangeError,
         event_source_type: EventSourceType,
     ) {
+        log::trace!(
+            concat!("started ", function_name!(), " {} {:?} {:?}"),
+            exchange_order_id,
+            error,
+            event_source_type
+        );
+
         let allowed_cancel_event_source_type = self.features.allowed_cancel_event_source_type;
         if should_ignore_event(allowed_cancel_event_source_type, event_source_type) {
             return;
         }
 
         match self.orders.cache_by_exchange_id.get(exchange_order_id) {
-            None => log::error!("cancel_order_failed was called for an order which is not in the local order pool: {exchange_order_id:?} on {}", self.exchange_account_id),
+            None => log::error!("cancel_order_failed was called with error {error:?} for an order which is not in the local order pool: {exchange_order_id:?} on {}", self.exchange_account_id),
             Some(order) => self.react_based_on_order_status(&order, error, exchange_order_id, event_source_type),
         }
     }

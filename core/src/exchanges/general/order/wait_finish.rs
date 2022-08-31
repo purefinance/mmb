@@ -35,14 +35,21 @@ impl Exchange {
         // TODO make MetricsRegistry.Metrics.Measure.Timer.Time(MetricsRegistry.Timers.WaitOrderFinishTimer,
         //     MetricsRegistry.Timers.CreateExchangeTimerTags(order.ExchangeId));
 
-        if order.status() == OrderStatus::FailedToCreate {
+        let (status, client_order_id) = order.fn_ref(|x| (x.status(), x.client_order_id()));
+        if status == OrderStatus::FailedToCreate {
             return Ok(order.clone());
         }
 
-        match self.wait_finish_order.entry(order.client_order_id()) {
+        // Be sure value will be removed anyway
+        let _guard = scopeguard::guard(client_order_id.clone(), |client_order_id| {
+            let _ = self.wait_finish_order.remove(&client_order_id);
+        });
+
+        match self.wait_finish_order.entry(client_order_id) {
             Occupied(entry) => {
-                let tx = entry.get();
-                let mut rx = tx.subscribe();
+                let mut rx = entry.get().subscribe();
+                drop(entry);
+
                 // Just wait until order finishing future completed or operation cancelled
                 tokio::select! {
                     _ = rx.recv() => nothing_to_do(),
@@ -52,11 +59,6 @@ impl Exchange {
                 Ok(order.clone())
             }
             Vacant(vacant_entry) => {
-                // Be sure value will be removed anyway
-                let _guard = scopeguard::guard((), |_| {
-                    let _ = self.wait_finish_order.remove(&order.client_order_id());
-                });
-
                 let (tx, _) = broadcast::channel(1);
                 let _ = vacant_entry.insert(tx.clone());
 
@@ -510,17 +512,14 @@ impl Exchange {
 
         let (tx, rx) = oneshot::channel();
         self.orders_finish_events
-            .entry(order.client_order_id())
+            .entry(client_order_id)
             .or_insert(tx);
 
-        if order.is_finished() {
-            log::trace!(
-                "Exiting create_order_finish_task because order's status turned {:?} {} {:?} {}",
-                order.status(),
-                order.client_order_id(),
-                order.exchange_order_id(),
-                self.exchange_account_id
-            );
+        let (status, client_order_id, exchange_order_id) =
+            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
+
+        if status.is_finished() {
+            log::trace!("Exiting create_order_finish_task because order's status turned {status:?} {client_order_id} {exchange_order_id:?} {}", self.exchange_account_id);
 
             self.order_finished_notify(order);
 

@@ -259,12 +259,8 @@ impl Exchange {
     fn on_websocket_message(&self, msg: &str) {
         self.maybe_log_websocket_message(msg);
 
-        let callback_outcome = self.exchange_client.on_websocket_message(msg);
-        if let Err(error) = callback_outcome {
-            log::warn!(
-                "Error occurred while websocket message processing: {:?}",
-                error
-            );
+        if let Err(error) = self.exchange_client.on_websocket_message(msg) {
+            log::warn!("Error occurred while websocket message processing: {error:?}");
         }
     }
 
@@ -336,11 +332,7 @@ impl Exchange {
 
     fn maybe_log_websocket_message(&self, msg: &str) {
         if self.exchange_client.should_log_message(msg) {
-            log::info!(
-                "Websocket message from {}: {}",
-                self.exchange_account_id,
-                msg
-            );
+            log::info!("Websocket message from {}: {msg}", self.exchange_account_id);
         }
     }
 
@@ -491,11 +483,9 @@ impl Exchange {
             order_ref.fn_mut(|order| order.internal_props.was_cancellation_event_raised = true)
         }
 
-        if order_ref.is_finished() {
-            let _ = self
-                .orders
-                .not_finished
-                .remove(&order_ref.client_order_id());
+        let (status, client_order_id) = order_ref.fn_ref(|x| (x.status(), x.client_order_id()));
+        if status.is_finished() {
+            let _ = self.orders.not_finished.remove(&client_order_id);
         }
 
         let event = ExchangeEvent::OrderEvent(OrderEvent::new(order_ref.clone(), event_type));
@@ -514,9 +504,8 @@ impl Exchange {
         match self.get_open_orders(add_missing_open_orders).await {
             Err(error) => {
                 log::error!(
-                    "Unable to get opened order for exchange account id {}: {:?}",
-                    self.exchange_account_id,
-                    error,
+                    "Unable to get opened order for {}: {error:?}",
+                    self.exchange_account_id
                 );
             }
             Ok(orders) => {

@@ -1,13 +1,3 @@
-use anyhow::{bail, Context, Result};
-use chrono::Utc;
-use futures::pin_mut;
-use mmb_utils::cancellation_token::CancellationToken;
-use mmb_utils::{nothing_to_do, OPERATION_CANCELED_MSG};
-use std::borrow::Cow;
-use std::time::Duration;
-use tokio::sync::oneshot;
-use tokio::time::{sleep, timeout};
-
 use crate::exchanges::common::ToStdExpected;
 use crate::exchanges::events::AllowedEventSourceType;
 use crate::exchanges::general::exchange::RequestResult::{Error, Success};
@@ -30,6 +20,16 @@ use crate::{
     orders::pool::OrderRef,
     orders::{fill::EventSourceType, order::OrderCreating},
 };
+use anyhow::{bail, Context, Result};
+use chrono::Utc;
+use function_name::named;
+use futures::pin_mut;
+use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::{nothing_to_do, OPERATION_CANCELED_MSG};
+use std::borrow::Cow;
+use std::time::Duration;
+use tokio::sync::oneshot;
+use tokio::time::{sleep, timeout};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct CreateOrderResult {
@@ -517,12 +517,20 @@ impl Exchange {
         bail!(OPERATION_CANCELED_MSG)
     }
 
+    #[named]
     fn handle_create_order_failed(
         &self,
         client_order_id: &ClientOrderId,
         exchange_error: &ExchangeError,
         source_type: EventSourceType,
     ) -> Result<()> {
+        log::trace!(
+            concat!("started ", function_name!(), " {} {:?} {:?}"),
+            client_order_id,
+            source_type,
+            exchange_error,
+        );
+
         if should_ignore_event(self.features.allowed_create_event_source_type, source_type) {
             return Ok(());
         }
@@ -537,7 +545,7 @@ impl Exchange {
             let error_msg = format!(
                 "CreateOrderSucceeded was received for an order which is not in the local orders pool {args_to_log:?}");
 
-           log::error!("{error_msg}");
+            log::error!("{error_msg}");
             error_msg
         })?;
 
@@ -595,6 +603,7 @@ impl Exchange {
         }
     }
 
+    #[named]
     pub(crate) fn handle_create_order_succeeded(
         &self,
         exchange_account_id: ExchangeAccountId,
@@ -602,6 +611,12 @@ impl Exchange {
         exchange_order_id: &ExchangeOrderId,
         source_type: EventSourceType,
     ) -> Result<()> {
+        log::trace!(
+            concat!("started ", function_name!(), " {} {:?}"),
+            client_order_id,
+            source_type,
+        );
+
         if should_ignore_event(self.features.allowed_create_event_source_type, source_type) {
             return Ok(());
         }
@@ -613,7 +628,7 @@ impl Exchange {
                 format!("Order was created but client_order_id is empty. Order: {args_to_log:?}");
 
             log::error!("{error_msg}");
-            bail!("{error_msg}");
+            bail!(error_msg);
         }
 
         if exchange_order_id.as_str().is_empty() {
@@ -621,7 +636,7 @@ impl Exchange {
                 format!("Order was created but exchange_order_id is empty. Order: {args_to_log:?}");
 
             log::error!("{error_msg}");
-            bail!("{error_msg}");
+            bail!(error_msg);
         }
 
         match self.orders.cache_by_client_id.get(client_order_id) {
@@ -648,12 +663,7 @@ impl Exchange {
         let exchange_order_id = args_to_log.2;
         match status {
             OrderStatus::FailedToCreate => {
-                let error_msg = format!(
-                    "CreateOrderSucceeded was received for a FailedToCreate order.
-                                Probably FailedToCreate fallback was received before Creation Response {:?}",
-                                args_to_log
-                );
-
+                let error_msg = format!("CreateOrderSucceeded was received for a FailedToCreate order. Probably FailedToCreate fallback was received before Creation Response {args_to_log:?}");
                 log::error!("{error_msg}");
                 bail!(error_msg)
             }
@@ -674,8 +684,7 @@ impl Exchange {
                     .contains_key(exchange_order_id)
                 {
                     log::info!(
-                        "Order has already been added to the local orders pool {:?}",
-                        args_to_log
+                        "Order has already been added to the local orders pool {args_to_log:?}"
                     );
 
                     return Ok(());
@@ -760,13 +769,11 @@ impl Exchange {
         order: &OrderRef,
         cancellation_token: CancellationToken,
     ) -> Result<()> {
-        if order.status() != OrderStatus::Creating {
-            log::info!("Instantly exiting create_order_created_task because order's status is {:?} {} {:?} on {}",
-                order.status(),
-                order.client_order_id(),
-                order.exchange_order_id(),
-                self.exchange_account_id);
+        let (status, client_order_id, exchange_order_id) =
+            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
 
+        if status != OrderStatus::Creating {
+            log::info!("Instantly exiting create_order_created_task because order's status is {status:?} {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id);
             return Ok(());
         }
 
@@ -777,15 +784,12 @@ impl Exchange {
             .entry(order.client_order_id())
             .or_insert(tx);
 
-        if order.status() != OrderStatus::Creating {
-            log::info!("Exiting create_order_created_task because order's status turned {:?} while oneshot::channel were creating {} {:?} on {}",
-                order.status(),
-                order.client_order_id(),
-                order.exchange_order_id(),
-                self.exchange_account_id);
+        let (status, client_order_id, exchange_order_id) =
+            order.fn_ref(|x| (x.status(), x.client_order_id(), x.exchange_order_id()));
 
+        if status != OrderStatus::Creating {
+            log::info!("Exiting create_order_created_task because order's status turned {status:?} while oneshot::channel were creating {client_order_id} {exchange_order_id:?} on {}", self.exchange_account_id);
             self.order_created_notify(order);
-
             return Ok(());
         }
 
