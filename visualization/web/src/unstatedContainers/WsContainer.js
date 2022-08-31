@@ -45,6 +45,11 @@ class WsContainer extends Container {
         await this.processAuthorized(message);
         break;
       }
+      case "Pong": {
+        console.log("Pong message");
+        await this.pong();
+        break;
+      }
       case "UpdateOrdersState": {
         console.log("OrderState update");
         await this.updateOrderState(message);
@@ -95,6 +100,11 @@ class WsContainer extends Container {
         console.log("Websocket connected!", e);
         await this.setState({ isConnected: true });
         await this.auth(localStorage.getItem("auth_token"));
+
+        clearTimeout(this.pingTimeout);
+        await this.ping();
+        clearTimeout(this.hbTimeout);
+        await this.hb();
       },
       onmessage: async (e) => {
         console.log("Websocket received data:", e);
@@ -107,15 +117,56 @@ class WsContainer extends Container {
       },
       onmaximum: (e) => console.log("Stop Attempting!", e),
       onclose: async (e) => {
+        this.stopPing();
         console.log("Websocket closed!", e);
         await this.setState(this.emptyState());
       },
       onerror: (e) => {
+        this.stopPing();
         console.error("Error:", e);
         toast.clearWaitingQueue();
         toast.error("Connection problem");
       },
     });
+  }
+
+  async ping() {
+    try {
+      this.wsConnection.send(`Ping|`);
+      this.pingTimeout = setTimeout(() => {
+        this.ping();
+      }, 1000);
+    } catch (err) {
+      console.log("ping error", err);
+    }
+  }
+
+  async hb() {
+    let currentTime = Date.now();
+    if (this.lastPongTime && currentTime > this.lastPongTime + 4000) {
+      console.error("Connection problem. Disconnected");
+      this.stopHb();
+      this.lastPongTime = null;
+      await this.setState(this.emptyState());
+      this.wsConnection.close();
+      this.initiateConnection();
+      return;
+    }
+    this.hbTimeout = setTimeout(() => {
+      this.hb();
+    }, 1000);
+  }
+
+  stopPing() {
+    clearTimeout(this.pingTimeout);
+  }
+
+  stopHb() {
+    clearTimeout(this.hbTimeout);
+  }
+
+  async pong() {
+    this.lastPongTime = Date.now();
   }
 
   async auth(token) {
