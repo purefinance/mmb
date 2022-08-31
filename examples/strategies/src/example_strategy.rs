@@ -25,7 +25,7 @@ use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_utils::cancellation_token::CancellationToken;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ExampleStrategySettings {
     pub spread: Decimal,
     pub currency_pair: CurrencyPairSetting,

@@ -66,7 +66,7 @@ impl EngineBuildConfig {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum InitSettings<StrategySettings>
 where
     StrategySettings: BaseStrategySettings + Clone,

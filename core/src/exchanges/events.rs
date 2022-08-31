@@ -189,7 +189,7 @@ impl ExchangeEvents {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Copy)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Copy)]
 pub enum AllowedEventSourceType {
     #[default]
     All,
