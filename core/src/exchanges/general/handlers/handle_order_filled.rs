@@ -1,11 +1,3 @@
-use chrono::Utc;
-use mmb_utils::DateTime;
-use parking_lot::RwLock;
-use rust_decimal::Decimal;
-use rust_decimal_macros::dec;
-use std::sync::Arc;
-use uuid::Uuid;
-
 use crate::exchanges::general::handlers::should_ignore_event;
 use crate::{
     exchanges::{
@@ -35,6 +27,14 @@ use crate::{
         pool::OrderRef,
     },
 };
+use chrono::Utc;
+use function_name::named;
+use mmb_utils::DateTime;
+use parking_lot::RwLock;
+use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
+use std::sync::Arc;
+use uuid::Uuid;
 
 type ArgsToLog = (
     ExchangeAccountId,
@@ -99,7 +99,10 @@ pub struct FillEvent {
 }
 
 impl Exchange {
+    #[named]
     pub fn handle_order_filled(&self, fill_event: &mut FillEvent) {
+        log::trace!(concat!("started ", function_name!(), " {:?}"), fill_event);
+
         let args_to_log = (
             self.exchange_account_id,
             fill_event.trade_id.clone(),
@@ -163,9 +166,7 @@ impl Exchange {
                 .unwrap_or(false)
         }) {
             log::info!(
-                "Trade with {} was received already for order {:?}",
-                current_trade_id,
-                order_ref
+                "Trade with {current_trade_id} was received already for order {order_ref:?}"
             );
 
             return true;
@@ -186,10 +187,7 @@ impl Exchange {
             // It happens when WebSocket is glitchy and we miss update and the problem is we have no idea how to handle diff updates
             // after applying a non-diff one as there's no TradeId, so we have to ignore all the diff updates afterwards
             // relying only on fallbacks
-            log::warn!(
-                "Unable to process a diff fill after a non-diff one {:?}",
-                order_ref
-            );
+            log::warn!("Unable to process a diff fill after a non-diff one {order_ref:?}");
 
             return true;
         }
@@ -207,9 +205,7 @@ impl Exchange {
                 total_filled_amount,
             } if order_filled_amount >= total_filled_amount => {
                 log::warn!(
-                    "order.filled_amount is {} >= received fill {}, so non-diff fill for {} {:?} should be ignored",
-                    order_filled_amount,
-                    total_filled_amount,
+                    "order.filled_amount is {order_filled_amount} >= received fill {total_filled_amount}, so non-diff fill for {} {:?} should be ignored",
                     order_ref.client_order_id(),
                     order_ref.exchange_order_id(),
                 );
@@ -228,13 +224,7 @@ impl Exchange {
     ) -> bool {
         if let Some(total_filled_amount) = fill_event.fill_amount.total_filled_amount() {
             if order_filled_amount + last_fill_amount != total_filled_amount {
-                log::warn!(
-                    "Fill was missed because {} != {} for {:?}",
-                    order_filled_amount,
-                    total_filled_amount,
-                    order_ref
-                );
-
+                log::warn!("Fill was missed because {order_filled_amount} != {total_filled_amount} for {order_ref:?}");
                 return true;
             }
         }
@@ -472,14 +462,13 @@ impl Exchange {
     }
 
     fn panic_if_fill_amounts_conformity(&self, order_filled_amount: Amount, order_ref: &OrderRef) {
-        if order_filled_amount > order_ref.amount() {
+        let (amount, client_order_id, exchange_order_id) =
+            order_ref.fn_ref(|x| (x.header.amount, x.client_order_id(), x.exchange_order_id()));
+
+        if order_filled_amount > amount {
             panic!(
-                "filled_amount {} > order.amount {} for {} {} {:?}",
-                order_filled_amount,
-                order_ref.amount(),
+                "filled_amount {order_filled_amount} > order.amount {amount} for {client_order_id} {exchange_order_id:?} on {}",
                 self.exchange_account_id,
-                order_ref.client_order_id(),
-                order_ref.exchange_order_id()
             )
         }
     }

@@ -1,17 +1,18 @@
+use crate::exchanges::common::Amount;
+use crate::exchanges::general::exchange::Exchange;
+use crate::exchanges::general::handlers::should_ignore_event;
+use crate::orders::event::OrderEventType;
+use crate::orders::fill::EventSourceType;
+use crate::orders::order::ClientOrderId;
+use crate::orders::order::ExchangeOrderId;
+use crate::orders::order::OrderStatus;
+use crate::orders::pool::OrderRef;
 use chrono::Utc;
+use function_name::named;
 use mmb_utils::infrastructure::WithExpect;
 
-use crate::exchanges::general::handlers::should_ignore_event;
-use crate::{
-    exchanges::common::Amount,
-    exchanges::general::exchange::Exchange,
-    orders::{
-        event::OrderEventType, fill::EventSourceType, order::ClientOrderId, order::ExchangeOrderId,
-        order::OrderStatus, pool::OrderRef,
-    },
-};
-
 impl Exchange {
+    #[named]
     pub(crate) fn handle_cancel_order_succeeded(
         &self,
         client_order_id: Option<&ClientOrderId>,
@@ -19,9 +20,21 @@ impl Exchange {
         filled_amount: Option<Amount>,
         source_type: EventSourceType,
     ) {
+        log::trace!(
+            concat!(
+                "started ",
+                function_name!(),
+                " {:?} {:?} {:?} filled amount {:?}"
+            ),
+            client_order_id,
+            exchange_order_id,
+            source_type,
+            filled_amount,
+        );
+
         let args_to_log = (
             self.exchange_account_id,
-            exchange_order_id.clone(),
+            exchange_order_id,
             self.features.allowed_cancel_event_source_type,
             source_type,
         );
@@ -77,6 +90,7 @@ impl Exchange {
         let (status, client_order_id) = order_ref.fn_ref(|x| (x.status(), x.client_order_id()));
 
         if self.order_already_closed(status, &client_order_id, exchange_order_id) {
+            log::trace!("handle_cancel_order_succeeded order_already_closed {status:?}, {client_order_id}, {exchange_order_id:?}");
             return;
         }
 

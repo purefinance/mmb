@@ -40,7 +40,8 @@ fn cleanup<T>(orders: &DashMap<T, OrderRef>, deadline: DateTime<Utc>)
 where
     T: Eq + Hash,
 {
-    orders.retain(|_, v| v.fn_ref(|x| x.props.finished_time == Some(deadline)))
+    orders
+        .retain(|_, v| v.fn_ref(|x| x.props.finished_time.map(|x| x >= deadline).unwrap_or(true)));
 }
 
 #[cfg(test)]
@@ -57,7 +58,7 @@ mod tests {
 
     #[rstest]
     #[timeout(std::time::Duration::from_millis(200))]
-    pub fn test_cleanup() {
+    pub fn test_cleanup_when_time_is_up() {
         let k: ClientOrderId = "test".into();
 
         let pool = OrdersPool::new();
@@ -78,8 +79,65 @@ mod tests {
         let order_ref = pool.add_simple_initial(header, Some(dec!(0.5)), None);
         order_ref.fn_mut(|x| x.set_status(OrderStatus::Completed, now));
 
-        let deadline = now + Duration::hours(1);
+        // deadline has arrived
+        let deadline = now + Duration::minutes(1);
         cleanup(&pool.cache_by_client_id, deadline);
         assert!(pool.cache_by_client_id.is_empty());
+    }
+
+    #[rstest]
+    #[timeout(std::time::Duration::from_millis(200))]
+    pub fn test_cleanup_if_not_ehough_time_has_passed() {
+        let k: ClientOrderId = "test".into();
+
+        let pool = OrdersPool::new();
+        let now = Utc::now();
+        let header = OrderHeader::new(
+            k,
+            now,
+            ExchangeAccountId::new("Binance", 0),
+            CurrencyPair::from_codes("a".into(), "b".into()),
+            OrderType::Limit,
+            OrderSide::Buy,
+            dec!(1),
+            OrderExecutionType::None,
+            None,
+            None,
+            "".to_string(),
+        );
+        let order_ref = pool.add_simple_initial(header, Some(dec!(0.5)), None);
+        order_ref.fn_mut(|x| x.set_status(OrderStatus::Completed, now));
+
+        // deadline has not arrived
+        let deadline = now - Duration::minutes(5);
+        cleanup(&pool.cache_by_client_id, deadline);
+        assert_eq!(pool.cache_by_client_id.len(), 1);
+    }
+
+    #[rstest]
+    #[timeout(std::time::Duration::from_millis(200))]
+    pub fn test_cleanup_when_order_is_not_completed() {
+        let k: ClientOrderId = "test".into();
+
+        let pool = OrdersPool::new();
+        let now = Utc::now();
+        let header = OrderHeader::new(
+            k,
+            now,
+            ExchangeAccountId::new("Binance", 0),
+            CurrencyPair::from_codes("a".into(), "b".into()),
+            OrderType::Limit,
+            OrderSide::Buy,
+            dec!(1),
+            OrderExecutionType::None,
+            None,
+            None,
+            "".to_string(),
+        );
+        pool.add_simple_initial(header, Some(dec!(0.5)), None);
+
+        let deadline = now + Duration::minutes(5);
+        cleanup(&pool.cache_by_client_id, deadline);
+        assert_eq!(pool.cache_by_client_id.len(), 1);
     }
 }
