@@ -74,28 +74,21 @@ impl ExampleStrategy {
     ) -> Self {
         let configuration_descriptor = ConfigurationDescriptor::new(
             "ExampleStrategy".into(),
-            (target_eai.to_string() + ";" + currency_pair.as_str())
-                .as_str()
-                .into(),
+            format!("{target_eai};{currency_pair}").as_str().into(),
         );
-
-        let exchanges = &engine_context.clone().exchanges;
-        let exchange = exchanges.get(&target_eai).with_expect(|| {
-            format!(
-                "failed to get exchange from trading_engine for {}",
-                target_eai
-            )
-        });
 
         // amount_limit it's a limit for position changing for both sides
         // it's equal to half of the max amount because an order that can change a position from
         // a limit by sells to a limit by buys is possible
         let amount_limit = max_amount * dec!(0.5);
 
-        let symbol = exchange
+        let symbol = engine_context
+            .exchanges
+            .get(&target_eai)
+            .with_expect(|| format!("failed to get exchange from trading_engine for {target_eai}"))
             .symbols
             .get(&currency_pair)
-            .with_expect(|| format!("failed to get symbol from exchange for {}", currency_pair))
+            .with_expect(|| format!("failed to get symbol from exchange for {currency_pair}"))
             .clone();
 
         engine_context
