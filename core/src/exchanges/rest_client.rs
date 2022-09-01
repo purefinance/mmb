@@ -1,12 +1,12 @@
 use crate::exchanges::traits::ExchangeError;
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use domain::market::*;
 use hyper::client::HttpConnector;
 use hyper::http::uri::{Parts, PathAndQuery};
 use hyper::{Body, Client, Error, Request, Response, StatusCode, Uri};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use log::log;
+use mmb_domain::market::*;
 use mmb_utils::infrastructure::WithExpect;
 use std::borrow::Cow;
 use std::convert::TryInto;

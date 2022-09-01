@@ -1,8 +1,8 @@
 use mockall_double::double;
 
-use domain::exchanges::symbol::Symbol;
-use domain::order::fill::OrderFill;
-use domain::order::snapshot::{OrderSide, OrderSnapshot};
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::order::fill::OrderFill;
+use mmb_domain::order::snapshot::{OrderSide, OrderSnapshot};
 use std::sync::Arc;
 
 #[double]

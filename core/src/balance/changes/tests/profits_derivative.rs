@@ -2,9 +2,9 @@
 mod tests {
     use std::collections::HashMap;
 
-    use domain::market::CurrencyCode;
-    use domain::order::snapshot::OrderSide;
-    use domain::order::snapshot::Price;
+    use mmb_domain::market::CurrencyCode;
+    use mmb_domain::order::snapshot::OrderSide;
+    use mmb_domain::order::snapshot::Price;
     use mmb_utils::hashmap;
     use mockall_double::double;
     use parking_lot::ReentrantMutexGuard;

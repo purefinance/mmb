@@ -22,10 +22,6 @@ use crate::events::create_liquidity_order_book_snapshot;
 use anyhow::{Context, Error, Result};
 use binance::binance::BinanceBuilder;
 use chrono::Duration;
-use domain::events::ExchangeEvent;
-use domain::market::MarketAccountId;
-use domain::order::event::OrderEventType;
-use domain::order::snapshot::OrderSnapshot;
 use mmb_core::config::{CONFIG_PATH, CREDENTIALS_PATH};
 use mmb_core::database::events::transaction::{
     transaction_service, TransactionSnapshot, TransactionStatus, TransactionTrade,
@@ -36,6 +32,10 @@ use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, In
 use mmb_core::lifecycle::trading_engine::EngineContext;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::settings::BaseStrategySettings;
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::market::MarketAccountId;
+use mmb_domain::order::event::OrderEventType;
+use mmb_domain::order::snapshot::OrderSnapshot;
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use mmb_utils::DateTime;
 use std::sync::Arc;

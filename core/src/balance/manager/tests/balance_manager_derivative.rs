@@ -6,11 +6,11 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 
-use domain::exchanges::symbol::{Precision, Symbol};
-use domain::market::ExchangeAccountId;
-use domain::order::fill::{OrderFill, OrderFillType};
-use domain::order::snapshot::{Amount, Price};
-use domain::order::snapshot::{OrderFillRole, OrderSide};
+use mmb_domain::exchanges::symbol::{Precision, Symbol};
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::fill::{OrderFill, OrderFillType};
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{OrderFillRole, OrderSide};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -223,7 +223,7 @@ mod tests {
     use std::sync::Arc;
 
     use chrono::Utc;
-    use domain::order::snapshot::{Amount, Price};
+    use mmb_domain::order::snapshot::{Amount, Price};
     use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger_file_named;
     use parking_lot::RwLock;
@@ -235,10 +235,10 @@ mod tests {
     use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
     use crate::explanation::Explanation;
     use crate::infrastructure::init_lifetime_manager;
-    use domain::market::CurrencyCode;
+    use mmb_domain::market::CurrencyCode;
 
-    use domain::order::pool::OrdersPool;
-    use domain::order::snapshot::{OrderSide, OrderStatus, ReservationId};
+    use mmb_domain::order::pool::OrdersPool;
+    use mmb_domain::order::snapshot::{OrderSide, OrderStatus, ReservationId};
 
     use super::BalanceManagerDerivative;
 

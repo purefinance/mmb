@@ -18,7 +18,7 @@ use crate::exchanges::general::request_type::RequestType;
 use crate::exchanges::timeouts::requests_timeout_manager::{
     RequestGroupId, RequestsTimeoutManager,
 };
-use domain::market::ExchangeAccountId;
+use mmb_domain::market::ExchangeAccountId;
 
 pub type BoxFuture = Box<dyn Future<Output = Result<()>> + Sync + Send>;
 

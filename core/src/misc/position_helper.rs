@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
-use domain::market::MarketAccountId;
-use domain::order::snapshot::OrderSide;
+use mmb_domain::market::MarketAccountId;
+use mmb_domain::order::snapshot::OrderSide;
 use mmb_utils::{
     cancellation_token::CancellationToken,
     infrastructure::{FutureOutcome, SpawnFutureFlags},

@@ -26,12 +26,12 @@ use crate::{
 use anyhow::{anyhow, bail, Context, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
-use domain::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
-use domain::market::ExchangeAccountId;
-use domain::market::ExchangeId;
 use futures::{future::join_all, FutureExt};
 use itertools::Itertools;
 use mmb_database::postgres_db::migrator::apply_migrations;
+use mmb_domain::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::market::ExchangeId;
 use mmb_utils::infrastructure::{init_infrastructure, SpawnFutureFlags};
 use mmb_utils::logger::print_info;
 use mmb_utils::nothing_to_do;

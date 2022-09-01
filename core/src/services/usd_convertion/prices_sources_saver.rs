@@ -1,5 +1,5 @@
-use domain::market::MarketId;
-use domain::order::snapshot::PriceByOrderSide;
+use mmb_domain::market::MarketId;
+use mmb_domain::order::snapshot::PriceByOrderSide;
 use mockall_double::double;
 
 #[double]

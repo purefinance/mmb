@@ -1,14 +1,14 @@
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::general::handlers::should_ignore_event;
 use chrono::Utc;
-use domain::order::event::OrderEventType;
-use domain::order::fill::EventSourceType;
-use domain::order::pool::OrderRef;
-use domain::order::snapshot::Amount;
-use domain::order::snapshot::ClientOrderId;
-use domain::order::snapshot::ExchangeOrderId;
-use domain::order::snapshot::OrderStatus;
 use function_name::named;
+use mmb_domain::order::event::OrderEventType;
+use mmb_domain::order::fill::EventSourceType;
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::ClientOrderId;
+use mmb_domain::order::snapshot::ExchangeOrderId;
+use mmb_domain::order::snapshot::OrderStatus;
 use mmb_utils::infrastructure::WithExpect;
 
 impl Exchange {
@@ -135,9 +135,9 @@ impl Exchange {
 mod test {
     use super::*;
     use crate::exchanges::general::test_helper;
-    use domain::events::ExchangeEvent;
-    use domain::market::CurrencyPair;
-    use domain::order::snapshot::{OrderRole, OrderSide};
+    use mmb_domain::events::ExchangeEvent;
+    use mmb_domain::market::CurrencyPair;
+    use mmb_domain::order::snapshot::{OrderRole, OrderSide};
     use rstest::rstest;
     use rust_decimal_macros::dec;
 

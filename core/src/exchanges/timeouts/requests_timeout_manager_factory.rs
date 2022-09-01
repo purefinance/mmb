@@ -6,7 +6,7 @@ use std::{
 use chrono::{Duration, Utc};
 use mmb_utils::DateTime;
 
-use domain::market::ExchangeAccountId;
+use mmb_domain::market::ExchangeAccountId;
 
 use super::{
     more_or_equals_available_requests_count_trigger_scheduler::MoreOrEqualsAvailableRequestsCountTriggerScheduler,

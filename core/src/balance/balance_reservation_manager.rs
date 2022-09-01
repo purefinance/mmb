@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
-use domain::order::snapshot::{Amount, Price};
 use itertools::Itertools;
+use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::decimal_inverse_sign::DecimalInverseSign;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{nothing_to_do, DateTime};
@@ -30,10 +30,10 @@ use crate::misc::service_value_tree::ServiceValueTree;
 #[double]
 use crate::misc::time::time_manager;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use domain::exchanges::symbol::{BeforeAfter, Symbol};
-use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId, MarketAccountId};
-use domain::order::snapshot::ReservationId;
-use domain::order::snapshot::{ClientOrderFillId, ClientOrderId, OrderSide};
+use mmb_domain::exchanges::symbol::{BeforeAfter, Symbol};
+use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId, MarketAccountId};
+use mmb_domain::order::snapshot::ReservationId;
+use mmb_domain::order::snapshot::{ClientOrderFillId, ClientOrderId, OrderSide};
 
 use super::balance_reservation_preset::BalanceReservationPreset;
 

@@ -7,11 +7,11 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use uuid::Uuid;
 
-use domain::exchanges::symbol::{Precision, Symbol};
-use domain::market::ExchangeAccountId;
-use domain::order::fill::{OrderFill, OrderFillType};
-use domain::order::snapshot::OrderFillRole;
-use domain::order::snapshot::{Amount, Price};
+use mmb_domain::exchanges::symbol::{Precision, Symbol};
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::fill::{OrderFill, OrderFillType};
+use mmb_domain::order::snapshot::OrderFillRole;
+use mmb_domain::order::snapshot::{Amount, Price};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -144,8 +144,8 @@ mod tests {
     use std::time::Duration;
 
     use chrono::Utc;
-    use domain::market::CurrencyCode;
-    use domain::order::snapshot::{Amount, Price};
+    use mmb_domain::market::CurrencyCode;
+    use mmb_domain::order::snapshot::{Amount, Price};
     use mmb_utils::hashmap;
     use mmb_utils::logger::init_logger_file_named;
     use parking_lot::{Mutex, RwLock};
@@ -158,10 +158,10 @@ mod tests {
     use crate::balance::manager::tests::balance_manager_base::BalanceManagerBase;
     use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
     use crate::misc::reserve_parameters::ReserveParameters;
-    use domain::exchanges::symbol::{Precision, Symbol};
-    use domain::market::{ExchangeAccountId, MarketAccountId};
-    use domain::order::pool::OrdersPool;
-    use domain::order::snapshot::{
+    use mmb_domain::exchanges::symbol::{Precision, Symbol};
+    use mmb_domain::market::{ExchangeAccountId, MarketAccountId};
+    use mmb_domain::order::pool::OrdersPool;
+    use mmb_domain::order::snapshot::{
         ClientOrderFillId, ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, ReservationId,
     };
 

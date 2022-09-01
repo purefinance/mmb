@@ -1,9 +1,9 @@
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::traits::ExchangeError;
 use anyhow::*;
-use domain::market::ExchangeErrorType;
-use domain::order::pool::OrderRef;
-use domain::order::snapshot::OrderInfo;
+use mmb_domain::market::ExchangeErrorType;
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::OrderInfo;
 
 impl Exchange {
     pub async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {

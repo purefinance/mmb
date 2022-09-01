@@ -346,7 +346,7 @@ pub struct SystemInternalOrderProps {
 ///
 /// ```
 /// use serde::{Deserialize, Serialize};
-/// use domain::order::snapshot::OrderInfoExtensionData;
+/// use mmb_domain::order::snapshot::OrderInfoExtensionData;
 /// use std::any::Any;
 ///
 /// // Structure for which extension data is added

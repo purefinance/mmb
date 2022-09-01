@@ -1,7 +1,7 @@
-use domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::Amount;
 use std::sync::Arc;
 
-use domain::market::CurrencyCode;
+use mmb_domain::market::CurrencyCode;
 
 use super::usd_denominator::UsdDenominator;
 

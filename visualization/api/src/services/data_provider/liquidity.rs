@@ -1,6 +1,6 @@
 use crate::services::data_provider::model::EventRecord;
 use crate::types::{CurrencyPair, ExchangeId};
-use domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{Amount, Price};
 use serde::{Deserialize, Serialize};
 use serde_aux::prelude::*;
 use sqlx::{Pool, Postgres};

@@ -1,8 +1,8 @@
 use super::{ConnectivityError, Result, WebSocketParams, WebSocketRole};
 use crate::infrastructure::spawn_future_ok;
-use domain::market::ExchangeAccountId;
 use futures::stream::{SplitSink, SplitStream};
 use futures::{SinkExt, StreamExt};
+use mmb_domain::market::ExchangeAccountId;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use std::fmt::Formatter;
 use tokio::net::TcpStream;

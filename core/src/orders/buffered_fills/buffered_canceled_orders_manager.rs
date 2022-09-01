@@ -1,7 +1,7 @@
-use domain::market::ExchangeAccountId;
+use mmb_domain::market::ExchangeAccountId;
 use std::collections::HashMap;
 
-use domain::order::snapshot::ExchangeOrderId;
+use mmb_domain::order::snapshot::ExchangeOrderId;
 
 #[derive(Default)]
 pub struct BufferedCanceledOrdersManager {

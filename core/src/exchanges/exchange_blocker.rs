@@ -20,7 +20,7 @@ use tokio::time::{sleep, sleep_until, Duration, Instant};
 
 #[cfg(test)]
 use crate::MOCK_MUTEX;
-use domain::market::ExchangeAccountId;
+use mmb_domain::market::ExchangeAccountId;
 #[cfg(test)]
 use mockall::automock;
 
@@ -839,9 +839,9 @@ mod tests {
     use crate::exchanges::exchange_blocker::BlockType::*;
     use crate::exchanges::exchange_blocker::{BlockReason, ExchangeBlocker, ExchangeBlockerMoment};
     use crate::infrastructure::{init_lifetime_manager, spawn_future_ok};
-    use domain::market::ExchangeAccountId;
     use futures::future::{join, join_all};
     use futures::FutureExt;
+    use mmb_domain::market::ExchangeAccountId;
     use mmb_utils::cancellation_token::CancellationToken;
     use mmb_utils::infrastructure::{with_timeout, SpawnFutureFlags};
     use mmb_utils::nothing_to_do;

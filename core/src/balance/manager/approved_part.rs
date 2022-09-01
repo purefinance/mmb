@@ -1,7 +1,7 @@
 use mmb_utils::DateTime;
 
-use domain::order::snapshot::Amount;
-use domain::order::snapshot::ClientOrderId;
+use mmb_domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::ClientOrderId;
 use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use crate::balance::manager::position_change::PositionChange;
-use domain::market::{ExchangeAccountId, MarketAccountId};
-use domain::order::snapshot::ClientOrderFillId;
+use mmb_domain::market::{ExchangeAccountId, MarketAccountId};
+use mmb_domain::order::snapshot::ClientOrderFillId;
 use serde::Serialize;
 
-use domain::market::CurrencyPair;
+use mmb_domain::market::CurrencyPair;
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;

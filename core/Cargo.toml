@@ -12,7 +12,6 @@ async-trait = "0.1"
 bytes = "1"
 chrono = { version = "0.4", features = ["serde"]}
 dashmap = "4"
-domain = { path = "../domain" }
 enum-map = "1.1.1"
 function_name = "0.3.0"
 form_urlencoded = "1"
@@ -24,9 +23,10 @@ itertools = "0.10"
 jsonrpc-core = "18.0.0"
 jsonrpc-ipc-server = "18.0.0"
 log = "0.4"
+mmb_database = { path = "../mmb_database" }
+mmb_domain = { path = "../domain" }
 mmb_rpc = { path = "../mmb_rpc" }
 mmb_utils = { path = "../mmb_utils" }
-mmb_database = { path = "../mmb_database" }
 mockall_double = "0.2"
 once_cell = "1.8"
 parking_lot = { version = "0.12", features = ["serde"]}

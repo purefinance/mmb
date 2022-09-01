@@ -8,7 +8,7 @@ use mmb_utils::{cancellation_token::CancellationToken, impl_mock_initializer};
 #[cfg(test)]
 use mockall::automock;
 
-use domain::position::ClosedPosition;
+use mmb_domain::position::ClosedPosition;
 
 use super::exchange::Exchange;
 

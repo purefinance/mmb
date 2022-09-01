@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use domain::market::MarketAccountId;
-use domain::order::snapshot::Amount;
+use mmb_domain::market::MarketAccountId;
+use mmb_domain::order::snapshot::Amount;
 use mmb_utils::cancellation_token::CancellationToken;
 use mockall_double::double;
 use parking_lot::Mutex;
@@ -131,11 +131,11 @@ pub(crate) mod test {
     use std::sync::Arc;
 
     use chrono::Duration;
-    use domain::market::{
+    use mmb_domain::market::{
         CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeId, MarketAccountId,
     };
-    use domain::order::snapshot::Amount;
-    use domain::order::snapshot::ClientOrderFillId;
+    use mmb_domain::order::snapshot::Amount;
+    use mmb_domain::order::snapshot::ClientOrderFillId;
     use mmb_utils::{logger::init_logger_file_named, DateTime};
     use parking_lot::{Mutex, ReentrantMutexGuard};
     use rust_decimal_macros::dec;

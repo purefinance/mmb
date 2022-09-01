@@ -1,7 +1,7 @@
-use domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::Amount;
 use rust_decimal::Decimal;
 
-use domain::market::CurrencyCode;
+use mmb_domain::market::CurrencyCode;
 
 pub(crate) struct BalanceReservationPreset {
     pub(crate) reservation_currency_code: CurrencyCode,

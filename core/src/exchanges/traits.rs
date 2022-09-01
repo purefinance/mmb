@@ -15,21 +15,21 @@ use crate::settings::ExchangeSettings;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use domain::events::ExchangeEvent;
-use domain::events::{ExchangeBalancesAndPositions, TradeId};
-use domain::exchanges::symbol::{BeforeAfter, Symbol};
-use domain::market::CurrencyId;
-use domain::market::{
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::events::{ExchangeBalancesAndPositions, TradeId};
+use mmb_domain::exchanges::symbol::{BeforeAfter, Symbol};
+use mmb_domain::market::CurrencyId;
+use mmb_domain::market::{
     CurrencyCode, CurrencyPair, ExchangeAccountId, ExchangeErrorType, ExchangeId,
     SpecificCurrencyPair,
 };
-use domain::order::fill::EventSourceType;
-use domain::order::pool::{OrderRef, OrdersPool};
-use domain::order::snapshot::{Amount, Price};
-use domain::order::snapshot::{
+use mmb_domain::order::fill::EventSourceType;
+use mmb_domain::order::pool::{OrderRef, OrdersPool};
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderSide,
 };
-use domain::position::{ActivePosition, ClosedPosition};
+use mmb_domain::position::{ActivePosition, ClosedPosition};
 use mmb_utils::DateTime;
 use serde::{Deserialize, Serialize};
 use std::any::Any;

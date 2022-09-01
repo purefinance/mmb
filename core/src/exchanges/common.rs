@@ -1,8 +1,8 @@
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use anyhow::{anyhow, Result};
 use core::result::Result::{Err, Ok};
-use domain::events::ExchangeEvent;
-use domain::market::ExchangeAccountId;
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::market::ExchangeAccountId;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 

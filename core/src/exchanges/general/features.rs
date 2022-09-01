@@ -1,4 +1,4 @@
-use domain::events::AllowedEventSourceType;
+use mmb_domain::events::AllowedEventSourceType;
 
 #[derive(Debug)]
 pub enum OpenOrdersType {

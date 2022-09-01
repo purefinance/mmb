@@ -1,11 +1,6 @@
 use anyhow::Result;
 use binance::binance::Binance;
 use core_tests::order::OrderProxy;
-use domain::events::{AllowedEventSourceType, ExchangeEvent};
-use domain::exchanges::commission::Commission;
-use domain::market::*;
-use domain::order::pool::OrdersPool;
-use domain::order::snapshot::{Amount, Price};
 use mmb_core::balance::manager::balance_manager::BalanceManager;
 use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;
 use mmb_core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
@@ -16,6 +11,11 @@ use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTime
 use mmb_core::infrastructure::init_lifetime_manager;
 use mmb_core::settings::CurrencyPairSetting;
 use mmb_core::settings::ExchangeSettings;
+use mmb_domain::events::{AllowedEventSourceType, ExchangeEvent};
+use mmb_domain::exchanges::commission::Commission;
+use mmb_domain::market::*;
+use mmb_domain::order::pool::OrdersPool;
+use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;

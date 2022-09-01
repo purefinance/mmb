@@ -1,7 +1,7 @@
-use domain::market::ExchangeId;
+use mmb_domain::market::ExchangeId;
 use std::sync::Arc;
 
-use domain::exchanges::symbol::Symbol;
+use mmb_domain::exchanges::symbol::Symbol;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RebaseDirection {

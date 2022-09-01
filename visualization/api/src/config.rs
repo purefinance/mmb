@@ -1,5 +1,5 @@
 use crate::types::ExchangeId;
-use domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::Amount;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

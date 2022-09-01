@@ -5,11 +5,11 @@ use crate::balance::manager::{
     balance_reservation::BalanceReservation,
 };
 use crate::misc::service_value_tree::ServiceValueTree;
-use domain::market::CurrencyCode;
-use domain::market::ExchangeAccountId;
-use domain::market::MarketAccountId;
-use domain::order::fill::OrderFill;
-use domain::order::snapshot::ReservationId;
+use mmb_domain::market::CurrencyCode;
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::market::MarketAccountId;
+use mmb_domain::order::fill::OrderFill;
+use mmb_domain::order::snapshot::ReservationId;
 use serde::Serialize;
 
 use mmb_database::impl_event;

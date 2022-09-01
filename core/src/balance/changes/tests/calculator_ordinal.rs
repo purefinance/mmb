@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use domain::order::snapshot::OrderSide;
+    use mmb_domain::order::snapshot::OrderSide;
     use rust_decimal_macros::dec;
 
     use crate::balance::changes::tests::calculator_tests_base::tests::BalanceChangesCalculatorTestsBase;

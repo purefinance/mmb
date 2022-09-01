@@ -1,4 +1,4 @@
-use domain::market::CurrencyCode;
+use mmb_domain::market::CurrencyCode;
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub struct ConvertCurrencyDirection {

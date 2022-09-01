@@ -15,12 +15,12 @@ use crate::{
 };
 
 use anyhow::{bail, Context, Result};
-use domain::events::ExchangeEvent;
-use domain::exchanges::symbol::Symbol;
-use domain::market::{CurrencyCode, ExchangeId, MarketId};
-use domain::order::snapshot::Amount;
-use domain::order::snapshot::PriceByOrderSide;
 use itertools::Itertools;
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::{CurrencyCode, ExchangeId, MarketId};
+use mmb_domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::PriceByOrderSide;
 use mmb_utils::infrastructure::{SpawnFutureFlags, WithExpect};
 use mmb_utils::{cancellation_token::CancellationToken, send_expected::SendExpected, DateTime};
 use mockall_double::double;
@@ -423,9 +423,9 @@ impl ConvertAmount {
 
 #[cfg(test)]
 pub mod test {
-    use domain::exchanges::symbol::Precision;
-    use domain::market::CurrencyPair;
-    use domain::market::ExchangeAccountId;
+    use mmb_domain::exchanges::symbol::Precision;
+    use mmb_domain::market::CurrencyPair;
+    use mmb_domain::market::ExchangeAccountId;
     use rstest::rstest;
     use rust_decimal_macros::dec;
 

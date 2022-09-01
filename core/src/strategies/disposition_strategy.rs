@@ -7,8 +7,8 @@ use crate::disposition_execution::{PriceSlot, TradingContext};
 use crate::explanation::Explanation;
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use domain::market::ExchangeAccountId;
-use domain::order::snapshot::OrderSnapshot;
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::snapshot::OrderSnapshot;
 use mmb_utils::cancellation_token::CancellationToken;
 
 pub trait DispositionStrategy: Send + Sync + 'static {

@@ -11,16 +11,16 @@ use crate::explanation::Explanation;
 use crate::misc::reserve_parameters::ReserveParameters;
 use crate::misc::service_value_tree::ServiceValueTree;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use domain::events::ExchangeBalancesAndPositions;
-use domain::exchanges::symbol::{BeforeAfter, Symbol};
-use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId, MarketAccountId};
-use domain::order::fill::OrderFill;
-use domain::order::pool::OrderRef;
-use domain::order::snapshot::Amount;
-use domain::order::snapshot::{
+use mmb_domain::events::ExchangeBalancesAndPositions;
+use mmb_domain::exchanges::symbol::{BeforeAfter, Symbol};
+use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId, MarketAccountId};
+use mmb_domain::order::fill::OrderFill;
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::{
     ClientOrderId, OrderSide, OrderSnapshot, OrderStatus, OrderType, ReservationId,
 };
-use domain::position::DerivativePosition;
+use mmb_domain::position::DerivativePosition;
 
 use anyhow::{bail, Context, Result};
 use futures::future::join_all;
@@ -37,7 +37,7 @@ use rust_decimal_macros::dec;
 use crate::database::events::recorder::EventRecorder;
 #[cfg(test)]
 use crate::MOCK_MUTEX;
-use domain::order::snapshot::Price;
+use mmb_domain::order::snapshot::Price;
 #[cfg(test)]
 use mockall::automock;
 

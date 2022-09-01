@@ -1,5 +1,5 @@
-use domain::market::{CurrencyCode, ExchangeId};
-use domain::order::snapshot::{Amount, Price};
+use mmb_domain::market::{CurrencyCode, ExchangeId};
+use mmb_domain::order::snapshot::{Amount, Price};
 use mockall_double::double;
 
 use crate::misc::service_value_tree::ServiceValueTree;

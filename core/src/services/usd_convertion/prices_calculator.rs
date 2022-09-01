@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use domain::market::MarketId;
-use domain::order::snapshot::PriceByOrderSide;
-use domain::order::snapshot::{Amount, Price};
+use mmb_domain::market::MarketId;
+use mmb_domain::order::snapshot::PriceByOrderSide;
+use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::DateTime;
 use rust_decimal_macros::dec;
 
@@ -83,8 +83,8 @@ mod test {
     use std::sync::Arc;
 
     use chrono::Utc;
-    use domain::market::CurrencyPair;
-    use domain::order_book_data;
+    use mmb_domain::market::CurrencyPair;
+    use mmb_domain::order_book_data;
     use mmb_utils::hashmap;
     use mockall_double::double;
     use parking_lot::ReentrantMutexGuard;

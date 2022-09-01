@@ -17,7 +17,7 @@ mod test {
     use super::*;
     use rstest::rstest;
 
-    use domain::market::powi;
+    use mmb_domain::market::powi;
     use rust_decimal_macros::dec;
 
     #[rstest]

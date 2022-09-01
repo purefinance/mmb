@@ -2,9 +2,9 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use domain::market::{CurrencyCode, ExchangeId, MarketAccountId};
-use domain::order::snapshot::ClientOrderFillId;
-use domain::order::snapshot::{Amount, Price};
+use mmb_domain::market::{CurrencyCode, ExchangeId, MarketAccountId};
+use mmb_domain::order::snapshot::ClientOrderFillId;
+use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::DateTime;
 use mmb_utils::{impl_u64_id, time::get_atomic_current_secs};
 use once_cell::sync::Lazy;

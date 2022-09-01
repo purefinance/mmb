@@ -1,5 +1,5 @@
-use domain::market::ExchangeAccountId;
-use domain::order::snapshot::ExchangeOrderId;
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::snapshot::ExchangeOrderId;
 use mmb_utils::infrastructure::WithExpect;
 use std::collections::HashMap;
 

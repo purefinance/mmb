@@ -3,11 +3,11 @@ pub mod tests {
 
     use std::{collections::HashMap, sync::Arc};
 
-    use domain::exchanges::symbol::{Precision, Symbol};
-    use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-    use domain::order::fill::{OrderFill, OrderFillType};
-    use domain::order::snapshot::{Amount, Price};
-    use domain::order::snapshot::{
+    use mmb_domain::exchanges::symbol::{Precision, Symbol};
+    use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+    use mmb_domain::order::fill::{OrderFill, OrderFillType};
+    use mmb_domain::order::snapshot::{Amount, Price};
+    use mmb_domain::order::snapshot::{
         ClientOrderFillId, ClientOrderId, OrderFillRole, OrderSide, OrderSnapshot, OrderType,
     };
     use mmb_utils::cancellation_token::CancellationToken;

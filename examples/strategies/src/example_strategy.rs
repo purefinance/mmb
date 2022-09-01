@@ -7,11 +7,6 @@ use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
-use domain::exchanges::symbol::Round;
-use domain::market::CurrencyPair;
-use domain::market::{ExchangeAccountId, MarketAccountId, MarketId};
-use domain::order::snapshot::Amount;
-use domain::order::snapshot::{OrderRole, OrderSide, OrderSnapshot};
 use mmb_core::balance::manager::balance_manager::BalanceManager;
 use mmb_core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
@@ -22,6 +17,11 @@ use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::settings::{BaseStrategySettings, CurrencyPairSetting};
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
+use mmb_domain::exchanges::symbol::Round;
+use mmb_domain::market::CurrencyPair;
+use mmb_domain::market::{ExchangeAccountId, MarketAccountId, MarketId};
+use mmb_domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::{OrderRole, OrderSide, OrderSnapshot};
 use mmb_utils::cancellation_token::CancellationToken;
 use serde::{Deserialize, Serialize};
 
