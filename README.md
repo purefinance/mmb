@@ -1,19 +1,23 @@
 ## Welcome to mmb
-Mmb is an open-source crypto trading engine implemented in Rust
+Mmb is an open-source trading engine implemented in Rust
 
 ## Connectors
 
-![GREEN](https://via.placeholder.com/15/008000/?text=+) GREEN - Connector is working properly and safe to use
+![GREEN](assets/green.jpeg) GREEN - Connector is working properly and safe to use
 
-![YELLOW](https://via.placeholder.com/15/ffff00/?text=+) YELLOW - Connector is either new or has one or more issues
+![YELLOW](assets/yellow.jpeg) YELLOW - Connector is either new or has one or more issues
 
-![RED](https://via.placeholder.com/15/f03c15/?text=+) RED - Connector is broken and unusable
+![RED](assets/red.jpeg) RED - Connector is broken and unusable
 
 
-| logo | id | name | ver | doc | status |
-|:---:|:---:|:---:|:---:|:---:|:---:|
-| <img src="assets/binance-logo.jpg" alt="Binance" width="90" /> | binance | [Binance](https://www.binance.com/) | 3 | [API](https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md) | ![GREEN](https://via.placeholder.com/15/008000/?text=+)|
-| <img src="assets/serum-logo.png" alt="Binance" width="90" /> | serum | [Serum](https://www.projectserum.com/) | 1 | [API](https://docs.projectserum.com/serum-ecosystem/build-on-serum/project-ideas-for-serum) | ![YELLOW](https://via.placeholder.com/15/ffff00/?text=+)|
+|                                            logo                                             |           id           |                                  name                                  | ver | doc |            status             |
+|:-------------------------------------------------------------------------------------------:|:----------------------:|:----------------------------------------------------------------------:|:---:|:---:|:-----------------------------:|
+|               <img src="assets/binance-logo.jpg" alt="Binance" width="90" />                |        Binance         |               [Binance Spot](https://www.binance.com/)                |  3  | [API](https://binance-docs.github.io/apidocs/spot/en/#change-log) |  ![GREEN](assets/green.jpeg)  |
+|               <img src="assets/binance-logo.jpg" alt="Binance" width="90" />                |        Binance         |          [Binance USDⓈ-M Futures](https://www.binance.com/)           |  3  | [API](https://binance-docs.github.io/apidocs/futures/en/#general-info) |  ![GREEN](assets/green.jpeg)  |
+| <img src="assets/bitmex-logo.png" alt="Bitmex" width="90" style="margin:7px 0px 0px 0px" /> |         Bitmex         |                   [Bitmex](https://www.bitmex.com/)                    |  1  | [API](https://www.bitmex.com/app/apiOverview) | ![YELLOW](assets/yellow.jpeg) |
+|                <img src="assets/serum-logo.png" alt="Binance" width="90" />                 |         Serum          |                 [Serum](https://www.projectserum.com/)                 |  1  | [API](https://docs.projectserum.com/serum-ecosystem/build-on-serum/project-ideas-for-serum) | ![GREEN](assets/green.jpeg) |
+|   <img src="assets/interactive-brokers-logo.png" alt="InteractiveBrokers" width="170" />    |          IBKR          | [Interactive Brokers](https://www.interactivebrokers.com/ru/home.php/) |  1  | [API](https://www.interactivebrokers.com/api/doc.html) | ![YELLOW](assets/yellow.jpeg) |
+
 
 ## Quick Start
 
