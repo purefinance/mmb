@@ -2,8 +2,8 @@ use crate::exchanges::general::exchange::Exchange;
 use crate::lifecycle::trading_engine::Service;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use domain::market::ExchangeAccountId;
-use domain::order::pool::OrderRef;
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::pool::OrderRef;
 use std::hash::Hash;
 use std::sync::Arc;
 use tokio::sync::oneshot::Receiver;
@@ -48,9 +48,9 @@ where
 mod tests {
     use super::*;
     use chrono::{Duration, Utc};
-    use domain::market::CurrencyPair;
-    use domain::order::pool::OrdersPool;
-    use domain::order::snapshot::{
+    use mmb_domain::market::CurrencyPair;
+    use mmb_domain::order::pool::OrdersPool;
+    use mmb_domain::order::snapshot::{
         ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderStatus, OrderType,
     };
     use rstest::rstest;

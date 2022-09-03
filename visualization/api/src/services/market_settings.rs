@@ -1,7 +1,7 @@
 use crate::config::Market;
 use crate::types::{CurrencyPair, ExchangeId};
-use domain::order::snapshot::Amount;
 use itertools::Itertools;
+use mmb_domain::order::snapshot::Amount;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 

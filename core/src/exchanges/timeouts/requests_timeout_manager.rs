@@ -19,7 +19,7 @@ use super::{
     triggers::less_or_equals_requests_count_trigger::LessOrEqualsRequestsCountTrigger,
 };
 use crate::{exchanges::general::request_type::RequestType, infrastructure::spawn_future};
-use domain::market::ExchangeAccountId;
+use mmb_domain::market::ExchangeAccountId;
 use mmb_utils::time::ToStdExpected;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]

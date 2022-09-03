@@ -10,12 +10,12 @@ anyhow = "1"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"]}
 dashmap = "4"
-domain = { path = "../../domain" }
 hmac = "0.11"
 function_name = "0.3.0"
 itertools = "0.10"
 log = "0.4"
 mmb_core = { path = "../../core/" }
+mmb_domain = { path = "../../domain" }
 mmb_utils = { path = "../../mmb_utils" }
 parking_lot = { version = "0.12", features = ["serde"]}
 rust_decimal = { version = "1", features = ["maths"]}

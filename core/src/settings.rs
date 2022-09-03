@@ -1,5 +1,5 @@
-use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-use domain::order::snapshot::Amount;
+use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use mmb_domain::order::snapshot::Amount;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

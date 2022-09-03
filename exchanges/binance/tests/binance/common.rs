@@ -1,8 +1,5 @@
 use anyhow::Result;
 use binance::binance::{BinanceBuilder, ErrorHandlerBinance};
-use domain::exchanges::symbol::{Round, Symbol};
-use domain::market::{ExchangeAccountId, SpecificCurrencyPair};
-use domain::order::snapshot::{Amount, Price};
 use function_name::named;
 use hyper::Uri;
 use jsonrpc_core::Value;
@@ -16,6 +13,9 @@ use mmb_core::{
     },
     lifecycle::launcher::EngineBuildConfig,
 };
+use mmb_domain::exchanges::symbol::{Round, Symbol};
+use mmb_domain::market::{ExchangeAccountId, SpecificCurrencyPair};
+use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::value_to_decimal::GetOrErr;

@@ -1,12 +1,12 @@
-use domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{Amount, Price};
 use std::hash::Hash;
 use std::sync::Arc;
 
 use crate::balance::manager::balance_reservation::BalanceReservation;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use domain::exchanges::symbol::Symbol;
-use domain::market::ExchangeAccountId;
-use domain::order::snapshot::OrderSide;
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::snapshot::OrderSide;
 
 #[derive(Clone, Hash, Debug, Eq, PartialEq)]
 pub struct ReserveParameters {

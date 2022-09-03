@@ -1,9 +1,9 @@
-use domain::events::{ExchangeEvent, TickDirection, Trade, TradeId, TradesEvent};
-use domain::market::CurrencyPair;
-use domain::market::MarketId;
-use domain::order::snapshot::OrderSide;
-use domain::order::snapshot::{Amount, Price};
 use itertools::Itertools;
+use mmb_domain::events::{ExchangeEvent, TickDirection, Trade, TradeId, TradesEvent};
+use mmb_domain::market::CurrencyPair;
+use mmb_domain::market::MarketId;
+use mmb_domain::order::snapshot::OrderSide;
+use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::DateTime;
 
 use crate::exchanges::{general::exchange::Exchange, timeouts::timeout_manager};

@@ -1,4 +1,4 @@
-use domain::market::CurrencyCode;
+use mmb_domain::market::CurrencyCode;
 
 use super::rebase_price_step::RebasePriceStep;
 

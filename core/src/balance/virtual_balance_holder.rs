@@ -5,11 +5,11 @@ use crate::balance::manager::balance_request::BalanceRequest;
 use crate::exchanges::general::exchange::Exchange;
 use crate::explanation::{Explanation, OptionExplanationAddReasonExt};
 use crate::misc::service_value_tree::ServiceValueTree;
-use domain::exchanges::symbol::Symbol;
-use domain::market::ExchangeAccountId;
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::ExchangeAccountId;
 
-use domain::market::CurrencyCode;
-use domain::order::snapshot::{Amount, Price};
+use mmb_domain::market::CurrencyCode;
+use mmb_domain::order::snapshot::{Amount, Price};
 use rust_decimal_macros::dec;
 
 type BalanceByExchangeId = HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>;

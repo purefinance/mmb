@@ -29,14 +29,14 @@ use crate::{
     statistic_service::StatisticService,
 };
 use chrono::Duration;
-use domain::events::ExchangeEvent;
-use domain::exchanges::symbol::Symbol;
-use domain::market::CurrencyPair;
-use domain::market::{ExchangeAccountId, MarketAccountId};
-use domain::order::event::OrderEventType;
-use domain::order::pool::OrderRef;
-use domain::order::snapshot::{Amount, Price};
-use domain::order::snapshot::{
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::CurrencyPair;
+use mmb_domain::market::{ExchangeAccountId, MarketAccountId};
+use mmb_domain::order::event::OrderEventType;
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{
     ClientOrderId, OrderCreating, OrderExecutionType, OrderHeader, OrderSide, OrderSnapshot,
     OrderStatus, OrderType,
 };

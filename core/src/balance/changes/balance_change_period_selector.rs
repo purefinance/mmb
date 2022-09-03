@@ -15,7 +15,7 @@ use crate::balance::manager::balance_manager::BalanceManager;
 use crate::balance::manager::position_change::PositionChange;
 #[double]
 use crate::misc::time::time_manager;
-use domain::market::MarketAccountId;
+use mmb_domain::market::MarketAccountId;
 
 pub(crate) struct BalanceChangePeriodSelector {
     pub(super) period: Duration,
@@ -151,8 +151,8 @@ mod tests {
         create_balance_change, create_balance_change_by_market_account_id, market_account_id,
     };
     use crate::misc::time;
-    use domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId};
-    use domain::order::snapshot::ClientOrderFillId;
+    use mmb_domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId};
+    use mmb_domain::order::snapshot::ClientOrderFillId;
 
     use super::*;
 

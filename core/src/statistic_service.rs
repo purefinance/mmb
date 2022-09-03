@@ -1,14 +1,14 @@
 use anyhow::{Context, Result};
-use domain::order::event::OrderEventType;
+use mmb_domain::order::event::OrderEventType;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use mmb_utils::nothing_to_do;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use domain::events::ExchangeEvent;
-use domain::market::MarketAccountId;
-use domain::order::snapshot::ClientOrderId;
-use domain::order::snapshot::{Amount, Price};
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::market::MarketAccountId;
+use mmb_domain::order::snapshot::ClientOrderId;
+use mmb_domain::order::snapshot::{Amount, Price};
 use parking_lot::{Mutex, RwLock};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;

@@ -1,7 +1,6 @@
 #![cfg(test)]
 use binance::binance::Binance;
 use binance::binance::BinanceBuilder;
-use domain::order::snapshot::OrderSnapshot;
 use jsonrpc_core::Value;
 use jsonrpc_core_client::transports::ipc;
 use mmb_core::config::parse_settings;
@@ -14,6 +13,7 @@ use mmb_core::service_configuration::configuration_descriptor::ConfigurationDesc
 use mmb_core::settings::BaseStrategySettings;
 use mmb_core::settings::CurrencyPairSetting;
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
+use mmb_domain::order::snapshot::OrderSnapshot;
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::SpawnFutureFlags;
@@ -29,10 +29,10 @@ use crate::binance::common::get_default_price;
 use crate::binance::common::get_min_amount;
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
-use domain::market::CurrencyPair;
-use domain::market::ExchangeAccountId;
-use domain::order::snapshot::Amount;
 use mmb_core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
+use mmb_domain::market::CurrencyPair;
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::snapshot::Amount;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct TestStrategySettings {}

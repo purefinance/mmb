@@ -11,11 +11,11 @@ use tokio::sync::{broadcast, oneshot};
 use crate::exchanges::general::exchange::{Exchange, OrderBookTop, PriceLevel};
 use crate::lifecycle::trading_engine::Service;
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
-use domain::events::ExchangeEvent;
-use domain::market::ExchangeAccountId;
-use domain::order::event::OrderEventType;
-use domain::order::snapshot::OrderType;
-use domain::order_book::event::OrderBookEvent;
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::event::OrderEventType;
+use mmb_domain::order::snapshot::OrderType;
+use mmb_domain::order_book::event::OrderBookEvent;
 
 pub(crate) struct InternalEventsLoop {
     work_finished_receiver: Mutex<Option<oneshot::Receiver<Result<()>>>>,

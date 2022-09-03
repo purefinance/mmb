@@ -1,8 +1,8 @@
-use domain::market::ExchangeId;
-use domain::order::snapshot::Price;
+use mmb_domain::market::ExchangeId;
+use mmb_domain::order::snapshot::Price;
 use mmb_utils::DateTime;
 
-use domain::market::CurrencyPair;
+use mmb_domain::market::CurrencyPair;
 
 pub(crate) struct PriceSourceModel {
     pub _init_time: DateTime,

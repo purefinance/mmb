@@ -1,14 +1,14 @@
 use dashmap::DashMap;
-use domain::market::CurrencyCode;
 use itertools::Itertools;
+use mmb_domain::market::CurrencyCode;
 use mmb_utils::infrastructure::WithExpect;
 use rust_decimal_macros::dec;
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::settings::CurrencyPairSetting;
-use domain::exchanges::symbol::Symbol;
-use domain::market::{CurrencyId, ExchangeAccountId};
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::{CurrencyId, ExchangeAccountId};
 
 use super::exchange::Exchange;
 

@@ -26,18 +26,18 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Duration;
 use dashmap::DashMap;
-use domain::events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent};
-use domain::exchanges::commission::{Commission, CommissionForType};
-use domain::exchanges::symbol::{BeforeAfter, Precision, Symbol};
-use domain::market::{
+use mmb_domain::events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent};
+use mmb_domain::exchanges::commission::{Commission, CommissionForType};
+use mmb_domain::exchanges::symbol::{BeforeAfter, Precision, Symbol};
+use mmb_domain::market::{
     CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, SpecificCurrencyPair,
 };
-use domain::order::pool::{OrderRef, OrdersPool};
-use domain::order::snapshot::{Amount, Price};
-use domain::order::snapshot::{
+use mmb_domain::order::pool::{OrderRef, OrdersPool};
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{
     ClientOrderId, OrderCancelling, OrderInfo, OrderRole, OrderSide, OrderSnapshot, OrderType,
 };
-use domain::position::{ActivePosition, ClosedPosition};
+use mmb_domain::position::{ActivePosition, ClosedPosition};
 use parking_lot::RwLock;
 use rust_decimal_macros::dec;
 use tokio::sync::broadcast;

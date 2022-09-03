@@ -20,8 +20,8 @@ jsonwebtoken = "8.1.0"
 log = "0.4"
 log4rs = "1.1"
 log4rs-logstash = "0.1"
-domain = { path = "../../domain" }
 
+mmb_domain = { path = "../../domain" }
 mmb_utils = { path = "../../mmb_utils" }
 
 rand = "0.8.5"

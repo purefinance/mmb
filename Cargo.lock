@@ -359,7 +359,6 @@ dependencies = [
  "anyhow",
  "casbin",
  "chrono",
- "domain",
  "env_logger",
  "futures 0.3.21",
  "itertools",
@@ -367,6 +366,7 @@ dependencies = [
  "log",
  "log4rs",
  "log4rs-logstash",
+ "mmb_domain",
  "mmb_utils",
  "rand 0.8.5",
  "rust_decimal",
@@ -489,7 +489,6 @@ dependencies = [
  "chrono",
  "core_tests",
  "dashmap",
- "domain",
  "function_name",
  "futures 0.3.21",
  "hmac 0.11.0",
@@ -499,6 +498,7 @@ dependencies = [
  "jsonrpc-core-client",
  "log",
  "mmb_core",
+ "mmb_domain",
  "mmb_rpc",
  "mmb_utils",
  "parking_lot 0.12.1",
@@ -710,9 +710,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "domain",
  "futures 0.3.21",
  "mmb_core",
+ "mmb_domain",
  "mmb_utils",
  "rust_decimal",
  "rust_decimal_macros",
@@ -920,35 +920,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "domain"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "dashmap",
- "dyn-clone",
- "enum-map",
- "hyper",
- "itertools",
- "log",
- "mmb_utils",
- "once_cell",
- "parking_lot 0.12.1",
- "paste",
- "pretty_assertions",
- "regex",
- "rstest",
- "rust_decimal",
- "rust_decimal_macros",
- "serde",
- "serde_json",
- "smallstr",
- "tokio",
- "typetag",
- "uuid",
-]
-
-[[package]]
 name = "dotenv"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1048,11 +1019,11 @@ dependencies = [
  "anyhow",
  "binance",
  "chrono",
- "domain",
  "itertools",
  "log",
  "mmb_core",
  "mmb_database",
+ "mmb_domain",
  "mmb_utils",
  "rust_decimal",
  "serde",
@@ -1898,7 +1869,6 @@ dependencies = [
  "bytes",
  "chrono",
  "dashmap",
- "domain",
  "enum-map",
  "form_urlencoded",
  "function_name",
@@ -1912,6 +1882,7 @@ dependencies = [
  "jsonrpc-ipc-server",
  "log",
  "mmb_database",
+ "mmb_domain",
  "mmb_rpc",
  "mmb_utils",
  "mockall",
@@ -1959,6 +1930,35 @@ dependencies = [
  "sqlx",
  "tokio",
  "tokio-postgres",
+]
+
+[[package]]
+name = "mmb_domain"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dashmap",
+ "dyn-clone",
+ "enum-map",
+ "hyper",
+ "itertools",
+ "log",
+ "mmb_utils",
+ "once_cell",
+ "parking_lot 0.12.1",
+ "paste",
+ "pretty_assertions",
+ "regex",
+ "rstest",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+ "serde_json",
+ "smallstr",
+ "tokio",
+ "typetag",
+ "uuid",
 ]
 
 [[package]]
@@ -3113,9 +3113,9 @@ name = "strategies"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "domain",
  "itertools",
  "mmb_core",
+ "mmb_domain",
  "mmb_utils",
  "rust_decimal",
  "rust_decimal_macros",

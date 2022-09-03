@@ -2,8 +2,8 @@ use crate::services::data_provider::liquidity::{
     LiquidityData, LiquidityOrderSide, TransactionOrderSide, TransactionTradeSide,
 };
 use actix::prelude::*;
-use domain::order::snapshot::{Amount, Price};
 use itertools::Itertools;
+use mmb_domain::order::snapshot::{Amount, Price};
 use rust_decimal::prelude::Zero;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;

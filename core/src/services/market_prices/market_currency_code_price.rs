@@ -1,5 +1,5 @@
-use domain::market::CurrencyCode;
-use domain::order::snapshot::Price;
+use mmb_domain::market::CurrencyCode;
+use mmb_domain::order::snapshot::Price;
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct MarketCurrencyCodePrice {

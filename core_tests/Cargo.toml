@@ -9,11 +9,11 @@ edition = "2021"
 anyhow = "1"
 
 chrono = { version = "0.4", features = ["serde"]}
-domain = { path = "../domain" }
 
 futures = "0.3"
 
 mmb_core = { path = "../core" }
+mmb_domain = { path = "../domain" }
 mmb_utils = { path = "../mmb_utils" }
 
 rust_decimal = { version = "1", features = ["maths"]}

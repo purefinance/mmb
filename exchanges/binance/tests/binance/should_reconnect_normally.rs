@@ -1,6 +1,6 @@
 use anyhow::Result;
-use domain::market::ExchangeAccountId;
 use mmb_core::connectivity::{websocket_open, WebSocketParams, WebSocketRole};
+use mmb_domain::market::ExchangeAccountId;
 use mmb_utils::infrastructure::init_infrastructure;
 use tokio::time::{timeout, Duration};
 

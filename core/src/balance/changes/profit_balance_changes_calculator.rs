@@ -7,7 +7,7 @@ use mockall_double::double;
 #[double]
 use crate::services::usd_convertion::usd_converter::UsdConverter;
 
-use domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::Amount;
 
 use super::profit_loss_balance_change::ProfitLossBalanceChange;
 

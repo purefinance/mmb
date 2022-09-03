@@ -1,6 +1,6 @@
-use domain::market::{MarketAccountId, MarketId};
-use domain::order_book::event;
-use domain::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
+use mmb_domain::market::{MarketAccountId, MarketId};
+use mmb_domain::order_book::event;
+use mmb_domain::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
 use mmb_utils::infrastructure::WithExpect;
 use std::collections::HashMap;
 
@@ -59,9 +59,9 @@ impl Default for LocalSnapshotsService {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId};
-    use domain::order_book::order_book_data;
-    use domain::order_book_data;
+    use mmb_domain::market::{CurrencyPair, ExchangeAccountId, ExchangeId};
+    use mmb_domain::order_book::order_book_data;
+    use mmb_domain::order_book_data;
     use rust_decimal_macros::*;
     use std::sync::Arc;
 

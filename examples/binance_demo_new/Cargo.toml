@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-domain = { path = "../../domain" }
 chrono = "0.4"
 itertools = "0.10"
 log = "0.4"
@@ -19,5 +18,6 @@ tokio = { version = "1", features = ["rt-multi-thread", "parking_lot"]}
 binance = { path = "../../exchanges/binance" }
 mmb_core = { path = "../../core" }
 mmb_database = { path = "../../mmb_database" }
+mmb_domain = { path = "../../domain" }
 mmb_utils = { path = "../../mmb_utils" }
 strategies = { path = "../strategies" }

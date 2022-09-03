@@ -3,13 +3,13 @@ use std::sync::Arc;
 
 use crate::balance::manager::approved_part::ApprovedPart;
 use crate::service_configuration::configuration_descriptor::ConfigurationDescriptor;
-use domain::exchanges::symbol::Symbol;
-use domain::market::CurrencyCode;
-use domain::market::ExchangeAccountId;
-use domain::order::snapshot::Amount;
-use domain::order::snapshot::ClientOrderId;
-use domain::order::snapshot::OrderSide;
-use domain::order::snapshot::Price;
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::CurrencyCode;
+use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::order::snapshot::Amount;
+use mmb_domain::order::snapshot::ClientOrderId;
+use mmb_domain::order::snapshot::OrderSide;
+use mmb_domain::order::snapshot::Price;
 use serde::Serialize;
 
 use anyhow::{bail, Result};

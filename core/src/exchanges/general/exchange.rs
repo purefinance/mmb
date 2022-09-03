@@ -19,25 +19,25 @@ use crate::orders::buffered_fills::buffered_canceled_orders_manager::BufferedCan
 use crate::orders::buffered_fills::buffered_fills_manager::BufferedFillsManager;
 use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
-use domain::events::{
+use function_name::named;
+use itertools::Itertools;
+use mmb_domain::events::{
     BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
     LiquidationPriceEvent, Trade,
 };
-use domain::exchanges::commission::Commission;
-use domain::exchanges::symbol::Symbol;
-use domain::market::{
+use mmb_domain::exchanges::commission::Commission;
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::{
     CurrencyCode, CurrencyPair, ExchangeAccountId, MarketId, SpecificCurrencyPair,
 };
-use domain::order::event::OrderEvent;
-use domain::order::event::OrderEventType;
-use domain::order::pool::OrderRef;
-use domain::order::pool::OrdersPool;
-use domain::order::snapshot::OrderSide;
-use domain::order::snapshot::{Amount, Price};
-use domain::order::snapshot::{ClientOrderId, ExchangeOrderId};
-use domain::position::{ActivePosition, ClosedPosition, DerivativePosition};
-use function_name::named;
-use itertools::Itertools;
+use mmb_domain::order::event::OrderEvent;
+use mmb_domain::order::event::OrderEventType;
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::pool::OrdersPool;
+use mmb_domain::order::snapshot::OrderSide;
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{ClientOrderId, ExchangeOrderId};
+use mmb_domain::position::{ActivePosition, ClosedPosition, DerivativePosition};
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::SpawnFutureFlags;
 use mmb_utils::send_expected::SendExpectedByRef;

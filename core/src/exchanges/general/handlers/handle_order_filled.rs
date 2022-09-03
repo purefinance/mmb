@@ -1,19 +1,19 @@
 use crate::exchanges::general::handlers::should_ignore_event;
 use crate::{exchanges::general::exchange::Exchange, math::ConvertPercentToRate};
 use chrono::Utc;
-use domain::events::{AllowedEventSourceType, TradeId};
-use domain::exchanges::commission::Percent;
-use domain::exchanges::symbol::{Round, Symbol};
-use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-use domain::order::event::OrderEventType;
-use domain::order::fill::{EventSourceType, OrderFill, OrderFillType};
-use domain::order::pool::OrderRef;
-use domain::order::snapshot::{Amount, Price};
-use domain::order::snapshot::{ClientOrderFillId, OrderRole};
-use domain::order::snapshot::{
+use function_name::named;
+use mmb_domain::events::{AllowedEventSourceType, TradeId};
+use mmb_domain::exchanges::commission::Percent;
+use mmb_domain::exchanges::symbol::{Round, Symbol};
+use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use mmb_domain::order::event::OrderEventType;
+use mmb_domain::order::fill::{EventSourceType, OrderFill, OrderFillType};
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{ClientOrderFillId, OrderRole};
+use mmb_domain::order::snapshot::{
     ClientOrderId, ExchangeOrderId, OrderSide, OrderSnapshot, OrderStatus, OrderType,
 };
-use function_name::named;
 use mmb_utils::DateTime;
 use parking_lot::RwLock;
 use rust_decimal::Decimal;
@@ -734,10 +734,10 @@ impl Exchange {
 mod test {
     use anyhow::{Context, Result};
     use chrono::Utc;
-    use domain::market::CurrencyCode;
-    use domain::order::fill::OrderFill;
-    use domain::order::pool::OrdersPool;
-    use domain::order::snapshot::{
+    use mmb_domain::market::CurrencyCode;
+    use mmb_domain::order::fill::OrderFill;
+    use mmb_domain::order::pool::OrdersPool;
+    use mmb_domain::order::snapshot::{
         OrderExecutionType, OrderFillRole, OrderFills, OrderHeader, OrderSimpleProps,
         OrderStatusHistory, SystemInternalOrderProps,
     };
@@ -2966,7 +2966,7 @@ mod test {
 
     mod react_if_order_completed {
         use super::*;
-        use domain::events::ExchangeEvent;
+        use mmb_domain::events::ExchangeEvent;
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
         async fn order_completed_if_filled_completely() -> Result<()> {

@@ -1,6 +1,6 @@
 pub use std::collections::HashMap;
 
-use domain::order::snapshot::*;
+use mmb_domain::order::snapshot::*;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 

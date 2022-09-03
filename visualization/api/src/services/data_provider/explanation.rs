@@ -1,6 +1,6 @@
 use chrono::DateTime;
-use domain::order::snapshot::{Amount, Price};
 use itertools::Itertools;
+use mmb_domain::order::snapshot::{Amount, Price};
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres};
 

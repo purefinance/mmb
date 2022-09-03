@@ -18,16 +18,6 @@ use tokio::sync::broadcast;
 
 use super::support::{BinanceOrderInfo, BinanceSpotBalances};
 use crate::support::{BinanceAccountInfo, BinanceMarginBalances};
-use domain::events::AllowedEventSourceType;
-use domain::events::{ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
-use domain::exchanges::symbol::{Precision, Symbol};
-use domain::market::{CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType, ExchangeId};
-use domain::market::{ExchangeAccountId, SpecificCurrencyPair};
-use domain::order::fill::{EventSourceType, OrderFillType};
-use domain::order::pool::{OrderRef, OrdersPool};
-use domain::order::snapshot::*;
-use domain::order::snapshot::{Amount, Price};
-use domain::position::ActivePosition;
 use mmb_core::exchanges::general::exchange::BoxExchangeClient;
 use mmb_core::exchanges::general::exchange::Exchange;
 use mmb_core::exchanges::general::features::{
@@ -52,6 +42,16 @@ use mmb_core::exchanges::{
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::ExchangeSettings;
+use mmb_domain::events::AllowedEventSourceType;
+use mmb_domain::events::{ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent, TradeId};
+use mmb_domain::exchanges::symbol::{Precision, Symbol};
+use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType, ExchangeId};
+use mmb_domain::market::{ExchangeAccountId, SpecificCurrencyPair};
+use mmb_domain::order::fill::{EventSourceType, OrderFillType};
+use mmb_domain::order::pool::{OrderRef, OrdersPool};
+use mmb_domain::order::snapshot::*;
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::position::ActivePosition;
 use mmb_utils::value_to_decimal::GetOrErr;
 use serde::{Deserialize, Serialize};
 use sha2::digest::generic_array::GenericArray;

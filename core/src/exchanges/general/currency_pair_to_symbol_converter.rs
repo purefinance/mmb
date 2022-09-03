@@ -9,9 +9,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::exchanges::general::exchange::Exchange;
-use domain::exchanges::symbol::Symbol;
-use domain::market::CurrencyPair;
-use domain::market::ExchangeAccountId;
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::CurrencyPair;
+use mmb_domain::market::ExchangeAccountId;
 
 #[derive(Clone)]
 pub struct CurrencyPairToSymbolConverter {

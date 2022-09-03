@@ -9,16 +9,16 @@ use crate::{
     service_configuration::configuration_descriptor::ConfigurationDescriptor,
 };
 
-use domain::events::{ExchangeBalance, ExchangeBalancesAndPositions};
-use domain::exchanges::symbol::Symbol;
-use domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
-use domain::order::snapshot::{Amount, Price};
-use domain::order::snapshot::{
+use itertools::Itertools;
+use mmb_domain::events::{ExchangeBalance, ExchangeBalancesAndPositions};
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::{CurrencyCode, CurrencyPair, ExchangeAccountId};
+use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::{
     ClientOrderId, OrderExecutionType, OrderHeader, OrderSide, OrderSimpleProps, OrderSnapshot,
     OrderType, ReservationId,
 };
-use domain::position::DerivativePosition;
-use itertools::Itertools;
+use mmb_domain::position::DerivativePosition;
 use mockall_double::double;
 use parking_lot::{Mutex, MutexGuard, ReentrantMutexGuard};
 use rust_decimal::Decimal;

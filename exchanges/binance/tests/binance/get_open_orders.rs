@@ -1,8 +1,8 @@
-use domain::events::AllowedEventSourceType;
-use domain::exchanges::commission::Commission;
-use domain::market::*;
 use mmb_core::exchanges::general::features::*;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
+use mmb_domain::events::AllowedEventSourceType;
+use mmb_domain::exchanges::commission::Commission;
+use mmb_domain::market::*;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 

@@ -1,5 +1,5 @@
 [package]
-name = "domain"
+name = "mmb_domain"
 version = "0.1.0"
 edition = "2021"
 

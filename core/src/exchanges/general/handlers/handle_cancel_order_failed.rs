@@ -2,13 +2,13 @@ use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::general::handlers::should_ignore_event;
 use crate::exchanges::traits::ExchangeError;
 use chrono::Utc;
-use domain::market::ExchangeErrorType;
-use domain::order::event::OrderEventType;
-use domain::order::fill::EventSourceType;
-use domain::order::pool::OrderRef;
-use domain::order::snapshot::OrderStatus;
-use domain::order::snapshot::{ClientOrderId, ExchangeOrderId};
 use function_name::named;
+use mmb_domain::market::ExchangeErrorType;
+use mmb_domain::order::event::OrderEventType;
+use mmb_domain::order::fill::EventSourceType;
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::OrderStatus;
+use mmb_domain::order::snapshot::{ClientOrderId, ExchangeOrderId};
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::nothing_to_do;
 
@@ -101,12 +101,12 @@ mod test {
     use super::*;
     use crate::exchanges::general::test_helper;
     use crate::exchanges::general::test_helper::get_test_exchange;
-    use domain::events::ExchangeEvent;
-    use domain::market::CurrencyPair;
-    use domain::market::ExchangeErrorType;
-    use domain::order::pool::OrdersPool;
-    use domain::order::snapshot::OrderRole;
-    use domain::order::snapshot::{
+    use mmb_domain::events::ExchangeEvent;
+    use mmb_domain::market::CurrencyPair;
+    use mmb_domain::market::ExchangeErrorType;
+    use mmb_domain::order::pool::OrdersPool;
+    use mmb_domain::order::snapshot::OrderRole;
+    use mmb_domain::order::snapshot::{
         ClientOrderId, OrderExecutionType, OrderFills, OrderHeader, OrderSide, OrderSimpleProps,
         OrderSnapshot, OrderStatusHistory, OrderType, SystemInternalOrderProps,
     };
@@ -256,7 +256,7 @@ mod test {
 
     mod order_not_found {
         use super::*;
-        use domain::events::ExchangeEvent;
+        use mmb_domain::events::ExchangeEvent;
         use std::mem::discriminant;
 
         #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

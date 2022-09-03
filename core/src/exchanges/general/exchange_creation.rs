@@ -12,9 +12,9 @@ use crate::{
     },
     settings::CoreSettings,
 };
-use domain::events::ExchangeEvent;
-use domain::exchanges::commission::Commission;
-use domain::order::pool::OrdersPool;
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::exchanges::commission::Commission;
+use mmb_domain::order::pool::OrdersPool;
 use mmb_utils::infrastructure::WithExpect;
 use tokio::sync::broadcast;
 

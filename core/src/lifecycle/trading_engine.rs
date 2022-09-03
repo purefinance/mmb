@@ -24,8 +24,8 @@ use crate::infrastructure::unset_lifetime_manager;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::shutdown::ShutdownService;
 use crate::settings::CoreSettings;
-use domain::events::{ExchangeEvent, ExchangeEvents};
-use domain::market::ExchangeAccountId;
+use mmb_domain::events::{ExchangeEvent, ExchangeEvents};
+use mmb_domain::market::ExchangeAccountId;
 use mmb_utils::nothing_to_do;
 use parking_lot::Mutex;
 
