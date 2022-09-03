@@ -1,10 +1,14 @@
+use anyhow::Context;
 use itertools::Itertools;
+use mmb_core::lifecycle::trading_engine::EngineContext;
+use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_database::impl_event;
-use mmb_domain::market::{CurrencyPair, ExchangeId, MarketId};
+use mmb_domain::market::{CurrencyPair, ExchangeId, MarketAccountId, MarketId};
 use mmb_domain::order::pool::OrdersPool;
 use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_domain::order::snapshot::{ClientOrderId, OrderSide, OrderStatus};
 use mmb_domain::order_book::local_order_book_snapshot::LocalOrderBookSnapshot;
+use mmb_utils::infrastructure::WithExpect;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -80,4 +84,29 @@ pub fn create_liquidity_order_book_snapshot(
         },
         orders,
     }
+}
+
+pub fn save_liquidity_order_book_if_can(
+    ctx: &EngineContext,
+    snapshots_service: &mut LocalSnapshotsService,
+    market_account_id: Option<MarketAccountId>,
+) -> anyhow::Result<()> {
+    if let Some(market_account_id) = market_account_id {
+        let market_id = market_account_id.market_id();
+        if let Some(snapshot) = snapshots_service.get_snapshot(market_id) {
+            let exchange_account_id = market_account_id.exchange_account_id;
+            let liquidity_order_book = create_liquidity_order_book_snapshot(
+                snapshot,
+                market_id,
+                &ctx.exchanges.get(&exchange_account_id)
+                    .with_expect(|| format!("exchange {exchange_account_id} should exists in `Save order book` events loop"))
+                    .orders,
+            );
+            ctx.event_recorder
+                .save(liquidity_order_book)
+                .context("failed saving liquidity_order_book")?;
+        }
+    }
+
+    Ok(())
 }

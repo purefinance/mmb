@@ -1,5 +1,5 @@
 [package]
-name = "example_binance_demo_new"
+name = "vis_robot_integration"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,18 +7,15 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1"
-chrono = "0.4"
+function_name = "0.3"
 itertools = "0.10"
 log = "0.4"
-rust_decimal = "1"
-serde = "1"
-serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread", "parking_lot"]}
-
-binance = { path = "../../exchanges/binance" }
 mmb_core = { path = "../../core" }
 mmb_database = { path = "../../mmb_database" }
 mmb_domain = { path = "../../domain" }
 mmb_utils = { path = "../../mmb_utils" }
-strategies = { path = "../strategies" }
-vis_robot_integration = { path = "../../visualization/vis_robot_integration" }
+rust_decimal = "1"
+serde = "1"
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "parking_lot"]}
+uuid = { version = "0.8", features = ["serde", "v4"]}

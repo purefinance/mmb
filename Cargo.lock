@@ -1030,6 +1030,7 @@ dependencies = [
  "serde_json",
  "strategies",
  "tokio",
+ "vis_robot_integration",
 ]
 
 [[package]]
@@ -3618,6 +3619,25 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "vis_robot_integration"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "function_name",
+ "itertools",
+ "log",
+ "mmb_core",
+ "mmb_database",
+ "mmb_domain",
+ "mmb_utils",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "want"
