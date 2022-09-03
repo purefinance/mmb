@@ -7,7 +7,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
 use function_name::named;
 use hmac::digest::generic_array;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use itertools::Itertools;
 use mmb_utils::time::{get_current_milliseconds, u64_to_date_time};
 use mmb_utils::DateTime;

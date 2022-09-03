@@ -6,9 +6,9 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"]}
-dashmap = "4"
+dashmap = "5"
 dyn-clone = "1.0.9"
-enum-map = "1.1.1"
+enum-map = "2"
 hyper = { version = "0.14" }
 itertools = "0.10"
 log = "0.4"
@@ -21,10 +21,10 @@ rust_decimal = "1.25"
 rust_decimal_macros = "1"
 serde = { version = "1", features = ["derive"]}
 serde_json = "1"
-smallstr = { version = "0.2", features = ["serde"]}
+smallstr = { version = "0.3", features = ["serde"]}
 tokio = { version = "1", features = ["macros", "time", "sync", "rt-multi-thread", "signal", "parking_lot"]}
-typetag = "0.2.3"
-uuid = { version = "0.8", features = ["serde", "v4"]}
+typetag = "0.2"
+uuid = { version = "1", features = ["serde", "v4"]}
 
 [dev-dependencies]
 pretty_assertions = "1"
