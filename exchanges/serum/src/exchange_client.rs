@@ -1,4 +1,4 @@
-use crate::serum::{Serum, SerumExtensionData};
+use crate::serum::Serum;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use futures::future::join_all;
@@ -11,49 +11,39 @@ use solana_program::pubkey::Pubkey;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use mmb_core::exchanges::common::{
-    ActivePosition, ClosedPosition, CurrencyCode, CurrencyPair, ExchangeError, ExchangeErrorType,
-    Price,
-};
-use mmb_core::exchanges::events::ExchangeBalancesAndPositions;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
 use mmb_core::exchanges::general::order::create::CreateOrderResult;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
-use mmb_core::exchanges::general::symbol::Symbol;
-use mmb_core::exchanges::traits::ExchangeClient;
-use mmb_core::orders::fill::EventSourceType;
-use mmb_core::orders::order::{OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderStatus};
-use mmb_core::orders::pool::OrderRef;
+use mmb_core::exchanges::traits::{ExchangeClient, ExchangeError};
+use mmb_domain::events::ExchangeBalancesAndPositions;
+use mmb_domain::exchanges::symbol::Symbol;
+use mmb_domain::market::{CurrencyCode, CurrencyPair};
+use mmb_domain::order::fill::EventSourceType;
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::{OrderCancelling, OrderInfo, Price};
+use mmb_domain::position::{ActivePosition, ClosedPosition};
 use mmb_utils::DateTime;
 
 #[async_trait]
 impl ExchangeClient for Serum {
     async fn create_order(&self, order: &OrderRef) -> CreateOrderResult {
-        // TODO Possible handle ExchangeError in create_order_core
         match self.create_order_core(order).await {
             Ok(exchange_order_id) => {
-                CreateOrderResult::successed(&exchange_order_id, EventSourceType::Rpc)
+                CreateOrderResult::succeed(&exchange_order_id, EventSourceType::Rpc)
             }
-            Err(error) => CreateOrderResult::failed(
-                ExchangeError::new(ExchangeErrorType::Unknown, error.to_string(), None),
-                EventSourceType::Rpc,
-            ),
+            Err(error) => CreateOrderResult::failed(error, EventSourceType::Rpc),
         }
     }
 
     async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
-        // TODO Possible handle ExchangeError in create_order_core
         match self.cancel_order_core(&order).await {
             Ok(_) => CancelOrderResult::succeed(
                 order.header.client_order_id.clone(),
                 EventSourceType::Rpc,
                 None,
             ),
-            Err(error) => CancelOrderResult::failed(
-                ExchangeError::new(ExchangeErrorType::Unknown, error.to_string(), None),
-                EventSourceType::Rpc,
-            ),
+            Err(error) => CancelOrderResult::failed(error, EventSourceType::Rpc),
         }
     }
 
@@ -106,22 +96,19 @@ impl ExchangeClient for Serum {
             .load_asks_mut(&asks_info)
             .with_context(|| format!("Failed load asks slab for market {currency_pair}"))?;
 
-        let mut orders = self
-            .encode_orders(&asks_slab, market_metadata, Side::Ask, &currency_pair)
-            .context("Failed encode asks orders")?;
-        orders.append(
-            &mut self
-                .encode_orders(&bids_slab, market_metadata, Side::Bid, &currency_pair)
-                .context("Failed encode bids orders")?,
-        );
+        let mut orders = self.encode_orders(&asks_slab, market_metadata, Side::Ask, &currency_pair);
+        orders.append(&mut self.encode_orders(
+            &bids_slab,
+            market_metadata,
+            Side::Bid,
+            &currency_pair,
+        ));
 
         Ok(orders)
     }
 
     async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
-        self.do_get_order_info(order).await.map_err(|error| {
-            ExchangeError::new(ExchangeErrorType::Unknown, error.to_string(), None)
-        })
+        self.do_get_order_info(order).await
     }
 
     async fn close_position(
@@ -174,7 +161,7 @@ impl ExchangeClient for Serum {
         &self,
         _symbol: &Symbol,
         _last_date_time: Option<DateTime>,
-    ) -> Result<RequestResult<Vec<OrderTrade>>> {
+    ) -> RequestResult<Vec<OrderTrade>> {
         todo!()
     }
 
@@ -183,12 +170,5 @@ impl ExchangeClient for Serum {
         self.subscribe_to_all_market().await;
 
         symbols
-    }
-
-    fn get_initial_extension_data(&self) -> Option<Box<dyn OrderInfoExtensionData>> {
-        Some(Box::new(SerumExtensionData {
-            owner: None,
-            actual_status: OrderStatus::Creating,
-        }))
     }
 }

@@ -1,4 +1,3 @@
-use anyhow::Result;
 use mmb_utils::infrastructure::WithExpect;
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps};
@@ -47,16 +46,16 @@ pub struct MarketMetaData {
 }
 
 impl MarketMetaData {
-    pub(super) fn encode_price(&self, raw_price: u64) -> Result<Decimal> {
-        Ok(Decimal::from(raw_price)
+    pub(super) fn encode_price(&self, raw_price: u64) -> Decimal {
+        Decimal::from(raw_price)
             * Decimal::from(self.state.pc_lot_size)
             * dec!(10).powi(self.coin_decimal as i64 - self.price_decimal as i64)
-            / Decimal::from(self.coin_lot))
+            / Decimal::from(self.coin_lot)
     }
 
-    pub(super) fn encode_size(self, raw_size: u64) -> Result<Decimal> {
-        Ok(Decimal::from(raw_size) * Decimal::from(self.coin_lot)
-            / dec!(10).powi(self.coin_decimal as i64))
+    pub(super) fn encode_size(self, raw_size: u64) -> Decimal {
+        Decimal::from(raw_size) * Decimal::from(self.coin_lot)
+            / dec!(10).powi(self.coin_decimal as i64)
     }
 
     pub(super) fn make_max_native(&self, price: u64, size: u64) -> u64 {

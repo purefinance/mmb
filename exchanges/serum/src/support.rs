@@ -1,4 +1,5 @@
-use crate::serum::{downcast_mut_to_serum_extension_data, Serum};
+use crate::serum::{downcast_mut_to_serum_extension_data, Serum, SerumExtensionData};
+use std::any::Any;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -17,25 +18,27 @@ use url::Url;
 use crate::helpers::ToOrderSide;
 use crate::market::MarketMetaData;
 use mmb_core::connectivity::WebSocketRole;
-use mmb_core::exchanges::common::{
-    send_event, Amount, CurrencyCode, CurrencyId, CurrencyPair, Price, SortedOrderData,
-    SpecificCurrencyPair,
+use mmb_core::exchanges::common::send_event;
+use mmb_core::exchanges::general::handlers::handle_order_filled::{
+    FillAmount, FillEvent, SpecialOrderData,
 };
-use mmb_core::exchanges::events::{ExchangeEvent, TradeId};
-use mmb_core::exchanges::general::commission::Percent;
-use mmb_core::exchanges::general::handlers::handle_order_filled::{FillAmount, FillEvent};
 use mmb_core::exchanges::traits::{
     HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb,
     Support,
 };
 use mmb_core::misc::time::time_manager;
-use mmb_core::order_book::event::{EventType, OrderBookEvent};
-use mmb_core::order_book::order_book_data::OrderBookData;
-use mmb_core::orders::fill::{EventSourceType, OrderFillType};
-use mmb_core::orders::order::{
-    ClientOrderId, ExchangeOrderId, OrderInfo, OrderRole, OrderSide, OrderStatus,
-};
 use mmb_core::settings::ExchangeSettings;
+use mmb_domain::events::{ExchangeEvent, TradeId};
+use mmb_domain::exchanges::commission::Percent;
+use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, SpecificCurrencyPair};
+use mmb_domain::order::fill::{EventSourceType, OrderFillType};
+use mmb_domain::order::pool::OrderRef;
+use mmb_domain::order::snapshot::{
+    Amount, ClientOrderId, ExchangeOrderId, OrderInfo, OrderInfoExtensionData, OrderRole,
+    OrderSide, OrderStatus, Price, SortedOrderData,
+};
+use mmb_domain::order_book::event::{EventType, OrderBookEvent};
+use mmb_domain::order_book::order_book_data::OrderBookData;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{nothing_to_do, DateTime};
 
@@ -43,6 +46,10 @@ use crate::solana_client::{SolanaMessage, SubscriptionAccountType};
 
 #[async_trait]
 impl Support for Serum {
+    fn as_any(&self) -> &(dyn Any + Send + Sync + 'static) {
+        self
+    }
+
     fn on_websocket_message(&self, msg: &str) -> Result<()> {
         match self.rpc_client.handle_on_message(msg) {
             SolanaMessage::AccountUpdated(currency_pair, side, ui_account, account_type) => {
@@ -53,6 +60,11 @@ impl Support for Serum {
     }
 
     fn on_connecting(&self) -> Result<()> {
+        // Not needed for implementation Serum
+        Ok(())
+    }
+
+    fn on_disconnected(&self) -> Result<()> {
         // Not needed for implementation Serum
         Ok(())
     }
@@ -112,6 +124,13 @@ impl Support for Serum {
 
     fn get_settings(&self) -> &ExchangeSettings {
         &self.settings
+    }
+
+    fn get_initial_extension_data(&self) -> Option<Box<dyn OrderInfoExtensionData>> {
+        Some(Box::new(SerumExtensionData {
+            owner: None,
+            actual_status: OrderStatus::Creating,
+        }))
     }
 }
 
@@ -217,13 +236,12 @@ impl Serum {
                     order_side: fill_event.side,
                     date: time_manager::now(),
                 };
-                if self
+                if let Some(order) = self
                     .orders
                     .cache_by_client_id
                     .get(&fill_data.client_order_id)
-                    .is_some()
                 {
-                    self.handle_order_fill(&fill_data);
+                    self.handle_order_fill(order.value(), &fill_data);
                 }
                 self.handle_order_trade(&fill_data);
                 self.fill_events_cache.lock().add_event(fill_event);
@@ -289,7 +307,7 @@ impl Serum {
             });
     }
 
-    fn handle_order_fill(&self, fill_data: &OrderFillData) {
+    fn handle_order_fill(&self, order: &OrderRef, fill_data: &OrderFillData) {
         (self.handle_order_filled_callback)(FillEvent {
             source_type: EventSourceType::Rpc,
             trade_id: Some(fill_data.trade_id.clone()),
@@ -305,10 +323,12 @@ impl Serum {
             commission_rate: None,
             commission_amount: Some(fill_data.commission.amount),
             fill_type: fill_data.fill_type,
-            trade_currency_pair: Some(fill_data.currency_pair),
-            order_side: Some(fill_data.order_side),
-            // TODO Add order amount value cause it can be new order
-            order_amount: None,
+            special_order_data: Some(SpecialOrderData {
+                currency_pair: fill_data.currency_pair,
+                order_side: fill_data.order_side,
+                // TODO Add order amount value cause it can be new order
+                order_amount: order.amount(),
+            }),
             // There is no information about exact time of order fill so we use current utc time
             fill_date: Some(fill_data.date),
         });

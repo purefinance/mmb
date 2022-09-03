@@ -16,5 +16,5 @@ async fn get_balance_successfully() {
 
     log::info!("Balance: {result:?}");
 
-    assert!(result.is_some());
+    assert!(result.is_ok());
 }

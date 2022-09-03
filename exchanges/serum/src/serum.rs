@@ -19,7 +19,7 @@ use serum_dex::state::{
 };
 use solana_account_decoder::UiAccount;
 use solana_client::rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig};
-use solana_client::rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType};
+use solana_client::rpc_filter::{Memcmp, RpcFilterType};
 use solana_client_helpers::spl_associated_token_account::get_associated_token_address;
 use solana_program::account_info::IntoAccountInfo;
 use solana_program::instruction::{AccountMeta, Instruction};
@@ -45,29 +45,31 @@ use crate::helpers::{FromU64Array, ToOrderSide, ToSerumSide, ToU128};
 use crate::market::{MarketData, MarketInfo, MarketMetaData, OpenOrderData};
 use crate::solana_client::{NetworkType, SolanaClient};
 use crate::support::FillEventView;
-use mmb_core::exchanges::common::{
-    CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, ExchangeId, SpecificCurrencyPair,
-};
-use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeBalance, ExchangeEvent};
 use mmb_core::exchanges::general::exchange::BoxExchangeClient;
 use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
     RestFillsType, WebSocketOptions,
 };
-use mmb_core::exchanges::general::symbol::{Precision, Symbol};
 use mmb_core::exchanges::rest_client::{ErrorHandlerData, ErrorHandlerEmpty, RestClient};
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
+use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{
-    ExchangeClient, ExchangeClientBuilder, ExchangeClientBuilderResult, HandleOrderFilledCb,
-    HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
+    ExchangeClient, ExchangeClientBuilder, ExchangeClientBuilderResult, ExchangeError,
+    HandleOrderFilledCb, HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
-use mmb_core::orders::order::{
+use mmb_core::settings::ExchangeSettings;
+use mmb_domain::events::{AllowedEventSourceType, ExchangeBalance, ExchangeEvent};
+use mmb_domain::exchanges::symbol::{Precision, Symbol};
+use mmb_domain::market::{
+    CurrencyCode, CurrencyId, CurrencyPair, ExchangeAccountId, ExchangeErrorType, ExchangeId,
+    SpecificCurrencyPair,
+};
+use mmb_domain::order::pool::{OrderRef, OrdersPool};
+use mmb_domain::order::snapshot::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderSide,
     OrderStatus, OrderType,
 };
-use mmb_core::orders::pool::{OrderRef, OrdersPool};
-use mmb_core::settings::ExchangeSettings;
 use mmb_utils::infrastructure::WithExpect;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -205,11 +207,14 @@ impl Serum {
         Ok(*market.deref())
     }
 
-    pub fn get_market_data(&self, currency_pair: CurrencyPair) -> Result<MarketData> {
+    pub fn get_market_data(
+        &self,
+        currency_pair: CurrencyPair,
+    ) -> Result<MarketData, ExchangeError> {
         let lock = self.markets_data.read();
-        lock.get(&currency_pair)
-            .cloned()
-            .ok_or_else(|| anyhow!("Unable to get market data by {currency_pair}"))
+        lock.get(&currency_pair).cloned().ok_or_else(|| {
+            ExchangeError::unknown(format!("Unable to get market data by {currency_pair}").as_str())
+        })
     }
 
     pub async fn load_market_meta_data(
@@ -251,18 +256,16 @@ impl Serum {
         &self,
         address: &Pubkey,
         program_id: &Pubkey,
-    ) -> Result<Vec<(Pubkey, Account)>> {
-        let filter1 = RpcFilterType::Memcmp(Memcmp {
-            offset: offset_of!(OpenOrderData, market),
-            bytes: MemcmpEncodedBytes::Base58(address.to_string()),
-            encoding: None,
-        });
+    ) -> Result<Vec<(Pubkey, Account)>, ExchangeError> {
+        let filter1 = RpcFilterType::Memcmp(Memcmp::new_base58_encoded(
+            offset_of!(OpenOrderData, market),
+            address.as_ref(),
+        ));
 
-        let filter2 = RpcFilterType::Memcmp(Memcmp {
-            offset: offset_of!(OpenOrderData, owner),
-            bytes: MemcmpEncodedBytes::Base58(self.payer.pubkey().to_string()),
-            encoding: None,
-        });
+        let filter2 = RpcFilterType::Memcmp(Memcmp::new_base58_encoded(
+            offset_of!(OpenOrderData, market),
+            address.as_ref(),
+        ));
 
         let filter3 = RpcFilterType::DataSize(size_of::<OpenOrderData>() as u64);
 
@@ -282,6 +285,11 @@ impl Serum {
         self.rpc_client
             .get_program_accounts_with_config(program_id, config)
             .await
+            .map_err(|err| {
+                ExchangeError::unknown(
+                    format!("Failed to get program accounts: {:?}", err).as_str(),
+                )
+            })
     }
 
     fn create_new_order_instruction(
@@ -420,15 +428,24 @@ impl Serum {
         })
     }
 
-    pub async fn do_get_order_info(&self, order: &OrderRef) -> Result<OrderInfo> {
+    pub async fn do_get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
         let client_order_id = order.client_order_id();
 
         self.get_open_orders_by_currency_pair(order.currency_pair())
-            .await?
+            .await
+            .map_err(|err| {
+                ExchangeError::unknown(format!("Failed to get open orders: {:?}", err).as_str())
+            })?
             .iter()
             .find(|order_info| order_info.client_order_id == client_order_id)
             .cloned()
-            .ok_or_else(|| anyhow!("Order not found for id {client_order_id}"))
+            .ok_or_else(|| {
+                ExchangeError::new(
+                    ExchangeErrorType::OrderNotFound,
+                    format!("Order not found for id {client_order_id}"),
+                    None,
+                )
+            })
     }
 
     pub(super) fn get_orders_from_order_book(
@@ -457,7 +474,7 @@ impl Serum {
             })?,
         };
 
-        self.encode_orders(&slab, market_info, side, &currency_pair)
+        Ok(self.encode_orders(&slab, market_info, side, &currency_pair))
     }
 
     pub(super) fn get_event_queue_data(
@@ -510,7 +527,7 @@ impl Serum {
         market_info: &MarketMetaData,
         side: Side,
         currency_pair: &CurrencyPair,
-    ) -> Result<Vec<OrderInfo>> {
+    ) -> Vec<OrderInfo> {
         let mut orders = Vec::new();
         for i in 0..slab.capacity() {
             let any_node = slab.get(i as u32);
@@ -518,8 +535,8 @@ impl Serum {
                 if let Some(leaf) = node.as_leaf() {
                     let client_order_id = leaf.client_order_id().to_string().as_str().into();
                     let exchange_order_id = leaf.order_id().to_string().as_str().into();
-                    let price = market_info.encode_price(leaf.price().get())?;
-                    let quantity = market_info.encode_size(leaf.quantity())?;
+                    let price = market_info.encode_price(leaf.price().get());
+                    let quantity = market_info.encode_size(leaf.quantity());
                     orders.push(OrderInfo {
                         currency_pair: *currency_pair,
                         exchange_order_id,
@@ -542,7 +559,7 @@ impl Serum {
             }
         }
 
-        Ok(orders)
+        orders
     }
 
     pub async fn subscribe_to_all_market(&self) {
@@ -559,9 +576,16 @@ impl Serum {
         &self,
         client_order_id: &ClientOrderId,
         currency_pair: CurrencyPair,
-    ) -> Result<ExchangeOrderId> {
-        for attempt in 1..=10 {
-            let orders = self.get_open_orders_by_currency_pair(currency_pair).await?;
+    ) -> Result<ExchangeOrderId, ExchangeError> {
+        const MAX_ATTEMPTS: u64 = 10;
+        const SLEEP_SECS: u64 = 2;
+        for attempt in 1..=MAX_ATTEMPTS {
+            let orders = self
+                .get_open_orders_by_currency_pair(currency_pair)
+                .await
+                .map_err(|err| {
+                    ExchangeError::unknown(format!("Failed to get open orders: {:?}", err).as_str())
+                })?;
             if let Some(order) = orders
                 .iter()
                 .find(|order| order.client_order_id == *client_order_id)
@@ -570,13 +594,24 @@ impl Serum {
             }
 
             log::warn!("Failed to get ExchangeOrderId. Order with client order id {client_order_id} not found. Attempt {attempt}");
-            sleep(Duration::from_secs(2)).await;
+            sleep(Duration::from_secs(SLEEP_SECS)).await;
         }
 
-        bail!("Failed to get ExchangeOrderId by client order id {client_order_id}")
+        let error = ExchangeError::unknown(
+            format!(
+                "Failed to get ExchangeOrderId by client order id {client_order_id} for {MAX_ATTEMPTS} attempts during {} secs",
+                MAX_ATTEMPTS * SLEEP_SECS
+            )
+            .as_str(),
+        );
+
+        Err(error)
     }
 
-    pub(super) async fn create_order_core(&self, order: &OrderRef) -> Result<ExchangeOrderId> {
+    pub(super) async fn create_order_core(
+        &self,
+        order: &OrderRef,
+    ) -> Result<ExchangeOrderId, ExchangeError> {
         let mut instructions = Vec::new();
         let mut signers = Vec::new();
         let orders_keypair: Keypair;
@@ -600,7 +635,12 @@ impl Serum {
                         &self.payer.pubkey(),
                         size_of::<OpenOrderData>(),
                     )
-                    .await?;
+                    .await
+                    .map_err(|err| {
+                        ExchangeError::unknown(
+                            format!("Failed to create dex account: {:?}", err).as_str(),
+                        )
+                    })?;
                 // life time saving
                 orders_keypair = orders_key;
 
@@ -616,12 +656,18 @@ impl Serum {
             }))
         });
 
-        let place_order_ix = self.create_new_order_instruction(
-            market_data.program_id,
-            &market_data.metadata,
-            open_order_account,
-            order,
-        )?;
+        let place_order_ix = self
+            .create_new_order_instruction(
+                market_data.program_id,
+                &market_data.metadata,
+                open_order_account,
+                order,
+            )
+            .map_err(|err| {
+                ExchangeError::unknown(
+                    format!("Failed to create new order instruction: {:?}", err).as_str(),
+                )
+            })?;
         instructions.push(place_order_ix);
 
         let settle_funds_instructions = self.create_settle_funds_instructions(
@@ -645,7 +691,10 @@ impl Serum {
         self.get_order_id(&client_order_id, currency_pair).await
     }
 
-    pub(super) async fn cancel_order_core(&self, order: &OrderCancelling) -> Result<()> {
+    pub(super) async fn cancel_order_core(
+        &self,
+        order: &OrderCancelling,
+    ) -> Result<(), ExchangeError> {
         let market_data = self.get_market_data(order.header.currency_pair)?;
         let metadata = market_data.metadata;
         let exchange_order_id = order.exchange_order_id.clone();
@@ -667,11 +716,15 @@ impl Serum {
             &metadata.event_queue_address,
             order.header.side.to_serum_side(),
             exchange_order_id.to_u128(),
-        )?];
+        )
+        .map_err(|err| {
+            ExchangeError::unknown(format!("Failed to cancel order: {:?}", err).as_str())
+        })?];
 
         self.rpc_client
             .send_instructions(&self.payer, instructions)
             .await
+            .map_err(ExchangeError::send)
     }
 
     pub(super) async fn cancel_all_orders_core(&self, currency_pair: CurrencyPair) -> Result<()> {
@@ -881,6 +934,7 @@ impl ExchangeClientBuilder for SerumBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        _timeout_manager: Arc<TimeoutManager>,
         orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;

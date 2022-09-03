@@ -1,9 +1,9 @@
 use crate::serum::serum_builder::SerumBuilder;
 use core_tests::order::OrderProxyBuilder;
-use mmb_core::exchanges::common::CurrencyPair;
-use mmb_core::exchanges::events::ExchangeEvent;
-use mmb_core::orders::event::OrderEventType;
-use mmb_core::orders::order::{ClientOrderId, OrderSide, OrderSnapshot};
+use mmb_domain::events::ExchangeEvent;
+use mmb_domain::market::CurrencyPair;
+use mmb_domain::order::event::OrderEventType;
+use mmb_domain::order::snapshot::{ClientOrderId, OrderSide, OrderSnapshot};
 use mmb_utils::infrastructure::init_infrastructure;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;

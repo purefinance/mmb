@@ -3,7 +3,6 @@ use anyhow::Result;
 use once_cell::sync::Lazy;
 use parking_lot::{Mutex, RwLock};
 
-use rand::rngs::OsRng;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -29,8 +28,8 @@ use solana_sdk::transaction::Transaction;
 use tokio::join;
 
 use mmb_core::connectivity::WebSocketRole;
-use mmb_core::exchanges::common::CurrencyPair;
 use mmb_core::exchanges::traits::SendWebsocketMessageCb;
+use mmb_domain::market::CurrencyPair;
 use mmb_utils::{impl_u64_id, time::get_atomic_current_secs};
 
 pub const ALLOW_FLAG: bool = false;
@@ -221,7 +220,7 @@ impl SolanaClient {
         payer: &Pubkey,
         length: usize,
     ) -> Result<(Keypair, Instruction)> {
-        let key = Keypair::generate(&mut OsRng);
+        let key = Keypair::new();
         let lamports = self
             .rpc_client
             .get_minimum_balance_for_rent_exemption(length)
@@ -354,6 +353,7 @@ impl SolanaClient {
                 commitment: CommitmentLevel::Confirmed,
             }),
             data_slice: None,
+            min_context_slot: None,
         });
 
         let message = json!({

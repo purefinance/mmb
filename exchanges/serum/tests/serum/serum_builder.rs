@@ -7,21 +7,23 @@ use tokio::sync::broadcast;
 use crate::serum::common::{
     get_additional_key_pair, get_key_pair, get_network_type, get_timeout_manager,
 };
-use mmb_core::exchanges::common::{Amount, ExchangeAccountId, ExchangeId, Price};
-use mmb_core::exchanges::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;
-use mmb_core::exchanges::general::commission::Commission;
 use mmb_core::exchanges::general::exchange::{BoxExchangeClient, Exchange};
 use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
     RestFillsType, WebSocketOptions,
 };
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
+use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeClientBuilderResult};
 use mmb_core::infrastructure::init_lifetime_manager;
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
-use mmb_core::orders::pool::OrdersPool;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
+use mmb_domain::events::{AllowedEventSourceType, ExchangeEvent};
+use mmb_domain::exchanges::commission::Commission;
+use mmb_domain::market::{ExchangeAccountId, ExchangeId};
+use mmb_domain::order::pool::OrdersPool;
+use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::cancellation_token::CancellationToken;
 
 pub struct SerumBuilder {
@@ -130,7 +132,7 @@ impl SerumBuilder {
             Arc::downgrade(&exchange_blocker),
             commission,
         );
-        exchange.connect().await?;
+        exchange.connect_ws().await?;
         exchange.build_symbols(&settings.currency_pairs).await;
 
         Ok(Self {
@@ -150,6 +152,7 @@ impl ExchangeClientBuilder for ExchangeSerumBuilder {
         exchange_settings: ExchangeSettings,
         events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
+        _timeout_manager: Arc<TimeoutManager>,
         orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;

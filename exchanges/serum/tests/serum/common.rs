@@ -1,8 +1,8 @@
 use anyhow::{bail, Context, Result};
-use mmb_core::exchanges::common::ExchangeAccountId;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestsTimeoutManagerFactory;
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::ExchangeClientBuilder;
+use mmb_domain::market::ExchangeAccountId;
 use mmb_utils::hashmap;
 use serum::solana_client::{NetworkType, SolanaHosts};
 use std::future::Future;
