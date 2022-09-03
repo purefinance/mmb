@@ -1,7 +1,7 @@
 use crate::serum::serum_builder::SerumBuilder;
 use core_tests::order::OrderProxyBuilder;
-use mmb_core::exchanges::common::CurrencyPair;
-use mmb_core::orders::order::OrderSide;
+use mmb_domain::market::CurrencyPair;
+use mmb_domain::order::snapshot::OrderSide;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::init_infrastructure;
 use rust_decimal_macros::dec;

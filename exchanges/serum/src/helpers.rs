@@ -1,4 +1,4 @@
-use mmb_core::orders::order::{ExchangeOrderId, OrderSide};
+use mmb_domain::order::snapshot::{ExchangeOrderId, OrderSide};
 use serum_dex::matching::Side;
 use solana_program::pubkey::Pubkey;
 use std::str::FromStr;
