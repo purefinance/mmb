@@ -1,4 +1,4 @@
-use crate::misc::time::time_manager;
+use mmb_core::misc::time::time_manager;
 use mmb_database::impl_event;
 use mmb_domain::market::ExchangeId;
 use mmb_domain::market::MarketId;
@@ -115,9 +115,9 @@ impl TransactionSnapshot {
 }
 
 pub mod transaction_service {
-    use crate::database::events::recorder::EventRecorder;
-    use crate::database::events::transaction::{TransactionSnapshot, TransactionStatus};
+    use super::*;
     use anyhow::Context;
+    use mmb_core::database::events::recorder::EventRecorder;
 
     pub fn save(
         transaction: &mut TransactionSnapshot,
