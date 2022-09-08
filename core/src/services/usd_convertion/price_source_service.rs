@@ -93,7 +93,7 @@ impl PriceSourceEventLoop {
                                 order_book_event.currency_pair,
                             );
                             if self.all_market_ids.contains(&market_id) {
-                                let _ = self.local_snapshot_service.update(order_book_event);
+                                let _ = self.local_snapshot_service.update(&order_book_event);
                                 self.update_cache_and_save(market_id);
                             }
                         },

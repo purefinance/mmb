@@ -10,6 +10,7 @@ use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::settings::BaseStrategySettings;
 use mmb_core::strategies::disposition_strategy::DispositionStrategy;
+use mmb_domain::events::ExchangeEvent;
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::market::ExchangeAccountId;
 use mmb_domain::order::snapshot::Amount;
@@ -47,6 +48,7 @@ async fn launch_engine() {
     impl DispositionStrategy for TestStrategy {
         fn calculate_trading_context(
             &mut self,
+            _event: &ExchangeEvent,
             _now: DateTime,
             _local_snapshots_service: &LocalSnapshotsService,
             _explanation: &mut Explanation,

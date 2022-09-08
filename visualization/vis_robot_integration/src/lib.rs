@@ -52,7 +52,9 @@ pub async fn start_visualization_data_saving(
             }
             Ok(event) => {
                 let market_account_id = match event {
-                    ExchangeEvent::OrderBookEvent(ob_event) => snapshots_service.update(ob_event),
+                    ExchangeEvent::OrderBookEvent(ref ob_event) => {
+                        snapshots_service.update(ob_event)
+                    }
                     ExchangeEvent::OrderEvent(order_event) => match order_event.event_type {
                         OrderEventType::CreateOrderSucceeded
                         | OrderEventType::OrderCompleted { .. }

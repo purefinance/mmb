@@ -30,6 +30,7 @@ use crate::binance::common::get_min_amount;
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
+use mmb_domain::events::ExchangeEvent;
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::market::ExchangeAccountId;
 use mmb_domain::order::snapshot::Amount;
@@ -59,6 +60,7 @@ async fn orders_cancelled() {
     impl DispositionStrategy for TestStrategy {
         fn calculate_trading_context(
             &mut self,
+            _event: &ExchangeEvent,
             _now: DateTime,
             _local_snapshots_service: &LocalSnapshotsService,
             _explanation: &mut Explanation,

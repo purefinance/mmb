@@ -27,7 +27,7 @@ impl LocalSnapshotsService {
     /// Create snapshot if it does not exist
     /// Update snapshot if suitable data arrive
     /// Returns `Some(MarketAccountId)` if snapshot update succeeded, otherwise `None`
-    pub fn update(&mut self, event: event::OrderBookEvent) -> Option<MarketAccountId> {
+    pub fn update(&mut self, event: &event::OrderBookEvent) -> Option<MarketAccountId> {
         let market_account_id = event.market_account_id();
         let market_id = market_account_id.market_id();
 
@@ -85,7 +85,7 @@ mod tests {
     fn update_by_full_snapshot() {
         // Construct main object
         let local_snapshots = HashMap::new();
-        let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
+        let mut snapshot_service = LocalSnapshotsService::new(local_snapshots);
 
         let order_book_data = order_book_data![
             dec!(1.0) => dec!(2.1),
@@ -104,16 +104,14 @@ mod tests {
         );
 
         // Perform update
-        let market_account_id = snapshot_controller
-            .update(order_book_event)
-            .expect("in test");
+        let market_account_id = snapshot_service.update(&order_book_event).expect("in test");
 
-        let updated_asks = &snapshot_controller
+        let updated_asks = &snapshot_service
             .get_snapshot(market_account_id.market_id())
             .expect("in test")
             .asks;
 
-        let updated_bids = &snapshot_controller
+        let updated_bids = &snapshot_service
             .get_snapshot(market_account_id.market_id())
             .expect("in test")
             .bids;
@@ -148,7 +146,7 @@ mod tests {
         );
 
         // Perform update
-        let update_result = snapshot_service.update(order_book_event);
+        let update_result = snapshot_service.update(&order_book_event);
 
         // There was nothing to update
         assert!(update_result.is_none());
@@ -176,7 +174,7 @@ mod tests {
         let mut local_snapshots = HashMap::new();
         local_snapshots.insert(market_account_id.market_id(), primary_order_book_snapshot);
 
-        let mut snapshot_controller = LocalSnapshotsService::new(local_snapshots);
+        let mut snapshot_service = LocalSnapshotsService::new(local_snapshots);
 
         let order_book_data = order_book_data![
             dec!(1.0) => dec!(2.1),
@@ -194,17 +192,17 @@ mod tests {
         );
 
         // Perform update
-        let market_id = snapshot_controller
-            .update(order_book_event)
+        let market_id = snapshot_service
+            .update(&order_book_event)
             .expect("in test")
             .market_id();
 
-        let updated_asks = &snapshot_controller
+        let updated_asks = &snapshot_service
             .get_snapshot(market_id)
             .expect("in test")
             .asks;
 
-        let updated_bids = &snapshot_controller
+        let updated_bids = &snapshot_service
             .get_snapshot(market_id)
             .expect("in test")
             .bids;

@@ -48,7 +48,7 @@ impl InternalEventsLoop {
             };
 
             match event {
-                ExchangeEvent::OrderBookEvent(order_book_event) => {
+                ExchangeEvent::OrderBookEvent(ref order_book_event) => {
                     update_order_book_top_for_exchange(
                         order_book_event,
                         &mut local_snapshots_service,
@@ -88,7 +88,7 @@ impl InternalEventsLoop {
 }
 
 fn update_order_book_top_for_exchange(
-    order_book_event: OrderBookEvent,
+    order_book_event: &OrderBookEvent,
     local_snapshots_service: &mut LocalSnapshotsService,
     exchanges_map: &HashMap<ExchangeAccountId, Arc<Exchange>>,
 ) {
