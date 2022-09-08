@@ -177,13 +177,13 @@ impl DispositionExecutor {
                 }
             };
 
-            self.handle_event(event, &mut trading_context)?;
+            self.handle_event(&event, &mut trading_context)?;
         }
     }
 
     fn handle_event(
         &mut self,
-        event: ExchangeEvent,
+        event: &ExchangeEvent,
         last_trading_context: &mut Option<TradingContext>,
     ) -> Result<()> {
         let now = now();
@@ -278,6 +278,7 @@ impl DispositionExecutor {
 
         let mut new_trading_context = estimate_trading_context(
             need_recalculate_trading_context,
+            &event,
             self.strategy.as_mut(),
             &self.local_snapshots_service,
             now,
@@ -917,6 +918,7 @@ impl DispositionExecutor {
 
 fn estimate_trading_context(
     need_recalculate_trading_context: bool,
+    event: &ExchangeEvent,
     strategy: &mut dyn DispositionStrategy,
     local_snapshots_service: &LocalSnapshotsService,
     now: DateTime,
@@ -926,6 +928,7 @@ fn estimate_trading_context(
     }
 
     Ok(calculate_trading_context(
+        event,
         strategy,
         local_snapshots_service,
         now,

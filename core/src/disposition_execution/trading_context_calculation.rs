@@ -1,11 +1,12 @@
-use mmb_utils::DateTime;
-
 use crate::disposition_execution::TradingContext;
 use crate::explanation::Explanation;
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::strategies::disposition_strategy::DispositionStrategy;
+use mmb_domain::events::ExchangeEvent;
+use mmb_utils::DateTime;
 
 pub fn calculate_trading_context(
+    event: &ExchangeEvent,
     strategy: &mut dyn DispositionStrategy,
     local_snapshots_service: &LocalSnapshotsService,
     now: DateTime,
@@ -17,5 +18,5 @@ pub fn calculate_trading_context(
 
     // TODO check balance position
 
-    strategy.calculate_trading_context(now, local_snapshots_service, &mut explanation)
+    strategy.calculate_trading_context(event, now, local_snapshots_service, &mut explanation)
 }
