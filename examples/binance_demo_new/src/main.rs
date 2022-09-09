@@ -41,29 +41,32 @@ async fn main() -> Result<()> {
         credentials_path: CREDENTIALS_PATH.to_owned(),
     };
     loop {
-        let engine =
-            launch_trading_engine(&engine_config, init_settings.clone(), |settings, ctx| {
-                spawn_future(
-                    "Save visualization data",
-                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-                    start_visualization_data_saving(ctx.clone(), STRATEGY_NAME),
-                );
+        let engine = launch_trading_engine(&engine_config, init_settings.clone()).await?;
 
-                spawn_future_ok(
-                    "Checking orders activity",
-                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-                    orders_activity::checking_orders_activity(ctx.clone()),
-                );
+        let ctx = engine.context();
+        let settings = engine.settings();
 
-                Box::new(ExampleStrategy::new(
-                    settings.strategy.exchange_account_id(),
-                    settings.strategy.currency_pair(),
-                    settings.strategy.spread,
-                    settings.strategy.max_amount,
-                    ctx,
-                ))
-            })
-            .await?;
+        spawn_future(
+            "Save visualization data",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+            start_visualization_data_saving(ctx.clone(), STRATEGY_NAME),
+        );
+
+        spawn_future_ok(
+            "Checking orders activity",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+            orders_activity::checking_orders_activity(ctx.clone()),
+        );
+
+        let strategy = ExampleStrategy::new(
+            settings.strategy.exchange_account_id(),
+            settings.strategy.currency_pair(),
+            settings.strategy.spread,
+            settings.strategy.max_amount,
+            ctx.clone(),
+        );
+
+        engine.start_disposition_executor(strategy);
 
         match engine.run().await {
             ActionAfterGracefulShutdown::Nothing => break,

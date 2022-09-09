@@ -1,36 +1,39 @@
-use futures::FutureExt;
-use mmb_utils::logger::print_info;
-use mmb_utils::send_expected::SendExpected;
-use std::panic::AssertUnwindSafe;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-
-use anyhow::Result;
-use dashmap::DashMap;
-use futures::future::join_all;
-use mmb_utils::cancellation_token::CancellationToken;
-use tokio::sync::{broadcast, oneshot};
-use tokio::time::{timeout, Duration};
-
+use super::launcher::unwrap_or_handle_panic;
 use crate::balance::manager::balance_manager::BalanceManager;
 use crate::database::events::recorder::EventRecorder;
+use crate::disposition_execution::executor::DispositionExecutorService;
+use crate::disposition_execution::strategy::DispositionStrategy;
 use crate::exchanges::block_reasons;
 use crate::exchanges::exchange_blocker::BlockType;
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::infrastructure::unset_lifetime_manager;
+use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::shutdown::ShutdownService;
-use crate::settings::CoreSettings;
+use crate::order_book::local_snapshot_service::LocalSnapshotsService;
+use crate::settings::BaseStrategySettings;
+use crate::settings::{AppSettings, CoreSettings};
+use crate::statistic_service::{StatisticEventHandler, StatisticService};
+use anyhow::Result;
+use dashmap::DashMap;
+use futures::future::join_all;
+use futures::FutureExt;
 use mmb_domain::events::{ExchangeEvent, ExchangeEvents};
 use mmb_domain::market::ExchangeAccountId;
+use mmb_utils::cancellation_token::CancellationToken;
+use mmb_utils::infrastructure::WithExpect;
+use mmb_utils::logger::print_info;
 use mmb_utils::nothing_to_do;
+use mmb_utils::send_expected::SendExpected;
 use parking_lot::Mutex;
-
-use super::launcher::unwrap_or_handle_panic;
-use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
+use std::panic::AssertUnwindSafe;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use tokio::sync::{broadcast, oneshot};
+use tokio::time::{timeout, Duration};
 
 pub trait Service: Send + Sync + 'static {
     fn name(&self) -> &str;
@@ -50,6 +53,7 @@ pub struct EngineContext {
     pub timeout_manager: Arc<TimeoutManager>,
     pub balance_manager: Arc<Mutex<BalanceManager>>,
     pub event_recorder: Arc<EventRecorder>,
+    pub statistic_service: Arc<StatisticService>,
     is_graceful_shutdown_started: AtomicBool,
     exchange_events: ExchangeEvents,
     finish_graceful_shutdown_sender: Mutex<Option<oneshot::Sender<ActionAfterGracefulShutdown>>>,
@@ -68,6 +72,7 @@ impl EngineContext {
         balance_manager: Arc<Mutex<BalanceManager>>,
         event_recorder: Arc<EventRecorder>,
     ) -> Arc<Self> {
+        let statistic_service = StatisticService::new();
         let engine_context = Arc::new(EngineContext {
             core_settings,
             exchanges,
@@ -77,6 +82,7 @@ impl EngineContext {
             timeout_manager,
             balance_manager,
             event_recorder,
+            statistic_service,
             is_graceful_shutdown_started: Default::default(),
             exchange_events,
             finish_graceful_shutdown_sender: Mutex::new(Some(finish_graceful_shutdown_sender)),
@@ -184,18 +190,21 @@ async fn cancel_opened_orders(
     log::info!("Canceling opened orders finished");
 }
 
-pub struct TradingEngine {
+pub struct TradingEngine<StrategySettings: BaseStrategySettings + Clone> {
     context: Arc<EngineContext>,
+    settings: AppSettings<StrategySettings>,
     finished_graceful_shutdown: oneshot::Receiver<ActionAfterGracefulShutdown>,
 }
 
-impl TradingEngine {
+impl<StrategySettings: BaseStrategySettings + Clone> TradingEngine<StrategySettings> {
     pub fn new(
         context: Arc<EngineContext>,
+        settings: AppSettings<StrategySettings>,
         finished_graceful_shutdown: oneshot::Receiver<ActionAfterGracefulShutdown>,
     ) -> Self {
         TradingEngine {
             context,
+            settings,
             finished_graceful_shutdown,
         }
     }
@@ -203,8 +212,18 @@ impl TradingEngine {
     pub fn context(&self) -> Arc<EngineContext> {
         self.context.clone()
     }
+    pub fn settings(&self) -> &AppSettings<StrategySettings> {
+        &self.settings
+    }
 
     pub async fn run(self) -> ActionAfterGracefulShutdown {
+        join_all(self.context.exchanges.iter().map(|x| async move {
+            x.value().connect_ws().await.with_expect(move || {
+                "Failed to connect to websockets on exchange {exchange_account_id}"
+            });
+        }))
+        .await;
+
         let action_outcome = AssertUnwindSafe(self.finished_graceful_shutdown)
             .catch_unwind()
             .await;
@@ -216,5 +235,30 @@ impl TradingEngine {
         )
         .expect("unwrap_or_handle_panic returned error")
         .expect("Failed to receive message from finished_graceful_shutdown")
+    }
+
+    /// Starts `DispositionExecutor` trading pattern assumes that orders will be placed
+    /// on the exchange almost all the time
+    pub fn start_disposition_executor(&self, strategy: Box<dyn DispositionStrategy>) {
+        let ctx = self.context();
+        let settings = self.settings();
+
+        let statistics =
+            StatisticEventHandler::new(ctx.get_events_channel(), ctx.statistic_service.clone());
+
+        let base_settings = &settings.strategy;
+        let disposition_executor_service = DispositionExecutorService::new(
+            ctx.clone(),
+            ctx.get_events_channel(),
+            LocalSnapshotsService::default(),
+            base_settings.exchange_account_id(),
+            base_settings.currency_pair(),
+            strategy,
+            ctx.lifetime_manager.stop_token(),
+            statistics.stats.clone(),
+        );
+
+        ctx.shutdown_service
+            .register_user_service(disposition_executor_service);
     }
 }

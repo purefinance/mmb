@@ -25,7 +25,6 @@ pub mod orders;
 pub mod rpc;
 pub mod service_configuration;
 pub mod statistic_service;
-pub mod strategies;
 
 pub mod config;
 pub mod database;

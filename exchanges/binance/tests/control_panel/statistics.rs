@@ -4,6 +4,7 @@ use binance::binance::BinanceBuilder;
 use jsonrpc_core::Value;
 use jsonrpc_core_client::transports::ipc;
 use mmb_core::config::parse_settings;
+use mmb_core::disposition_execution::strategy::DispositionStrategy;
 use mmb_core::disposition_execution::{PriceSlot, TradingContext};
 use mmb_core::explanation::Explanation;
 use mmb_core::infrastructure::spawn_future_ok;
@@ -12,7 +13,6 @@ use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::settings::BaseStrategySettings;
 use mmb_core::settings::CurrencyPairSetting;
-use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_domain::order::snapshot::OrderSnapshot;
 use mmb_rpc::rest_api::{MmbRpcClient, IPC_ADDRESS};
 use mmb_utils::cancellation_token::CancellationToken;
@@ -101,9 +101,11 @@ async fn orders_cancelled() {
     let api_key = exchange_settings.api_key.clone();
 
     let init_settings = InitSettings::Directly(settings.clone());
-    let engine = launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy))
+    let engine = launch_trading_engine(&config, init_settings)
         .await
         .expect("in test");
+
+    engine.start_disposition_executor(Box::new(TestStrategy));
 
     let context = engine.context().clone();
     let exchange = context
