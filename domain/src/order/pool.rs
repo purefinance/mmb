@@ -20,6 +20,13 @@ use crate::order::snapshot::{OrderCancelling, OrderRole, OrderSide, OrderType};
 #[serde(transparent)]
 pub struct OrderRef(Arc<RwLock<OrderSnapshot>>);
 
+impl PartialEq for OrderRef {
+    fn eq(&self, other: &Self) -> bool {
+        // Active OrderRef should point to the same OrderSnapshot
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
 impl Debug for OrderRef {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.0.read())

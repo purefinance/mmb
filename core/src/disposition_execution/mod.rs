@@ -1,4 +1,5 @@
 pub mod executor;
+pub mod strategy;
 pub mod trade_limit;
 mod trading_context_calculation;
 

@@ -1,6 +1,7 @@
 use anyhow::Result;
 use itertools::Itertools;
 use mmb_core::balance::manager::balance_manager::BalanceManager;
+use mmb_core::disposition_execution::strategy::DispositionStrategy;
 use mmb_core::disposition_execution::{
     PriceSlot, TradeCycle, TradeDisposition, TradingContext, TradingContextBySide,
 };
@@ -9,7 +10,6 @@ use mmb_core::lifecycle::trading_engine::EngineContext;
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::settings::{BaseStrategySettings, CurrencyPairSetting};
-use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_domain::events::ExchangeEvent;
 use mmb_domain::exchanges::symbol::Round;
 use mmb_domain::market::CurrencyPair;
@@ -70,7 +70,7 @@ impl ExampleStrategy {
         spread: Decimal,
         max_amount: Decimal,
         engine_context: Arc<EngineContext>,
-    ) -> Self {
+    ) -> Box<Self> {
         let configuration_descriptor = ConfigurationDescriptor::new(
             "ExampleStrategy".into(),
             format!("{target_eai};{currency_pair}").as_str().into(),
@@ -95,14 +95,14 @@ impl ExampleStrategy {
             .lock()
             .set_target_amount_limit(configuration_descriptor, target_eai, symbol, amount_limit);
 
-        ExampleStrategy {
+        Box::new(ExampleStrategy {
             target_eai,
             currency_pair,
             spread,
             engine_context,
             configuration_descriptor,
             max_amount,
-        }
+        })
     }
 
     fn strategy_name() -> &'static str {

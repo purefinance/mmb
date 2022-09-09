@@ -11,6 +11,7 @@ use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use tokio::sync::{broadcast, oneshot};
 
+use crate::disposition_execution::strategy::DispositionStrategy;
 use crate::disposition_execution::trading_context_calculation::calculate_trading_context;
 use crate::exchanges::general::exchange::Exchange;
 use crate::exchanges::general::request_type::RequestType;
@@ -18,7 +19,6 @@ use crate::explanation::{Explanation, WithExplanation};
 use crate::lifecycle::trading_engine::{EngineContext, Service};
 use crate::misc::reserve_parameters::ReserveParameters;
 use crate::order_book::local_snapshot_service::LocalSnapshotsService;
-use crate::strategies::disposition_strategy::DispositionStrategy;
 use crate::{
     disposition_execution::trade_limit::is_enough_amount_and_cost, infrastructure::spawn_future,
 };
@@ -187,7 +187,7 @@ impl DispositionExecutor {
         last_trading_context: &mut Option<TradingContext>,
     ) -> Result<()> {
         let now = now();
-        let need_recalculate_trading_context = self.prepare_estimate_trading_context(&event, now);
+        let need_recalculate_trading_context = self.prepare_estimate_trading_context(event, now);
 
         match event {
             ExchangeEvent::OrderBookEvent(order_book_event) => {
@@ -278,7 +278,7 @@ impl DispositionExecutor {
 
         let mut new_trading_context = estimate_trading_context(
             need_recalculate_trading_context,
-            &event,
+            event,
             self.strategy.as_mut(),
             &self.local_snapshots_service,
             now,

@@ -9,20 +9,14 @@ use crate::exchanges::general::exchange_creation::create_timeout_manager;
 use crate::exchanges::internal_events_loop::InternalEventsLoop;
 use crate::exchanges::timeouts::timeout_manager::TimeoutManager;
 use crate::exchanges::traits::ExchangeClientBuilder;
+use crate::infrastructure::spawn_future;
 use crate::infrastructure::{init_lifetime_manager, spawn_by_timer, spawn_future_ok};
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::trading_engine::{EngineContext, TradingEngine};
-use crate::order_book::local_snapshot_service::LocalSnapshotsService;
 use crate::rpc::config_waiter::ConfigWaiter;
 use crate::rpc::core_api::CoreApi;
 use crate::services::cleanup_orders::CleanupOrdersService;
 use crate::settings::{AppSettings, BaseStrategySettings, CoreSettings};
-use crate::statistic_service::StatisticEventHandler;
-use crate::statistic_service::StatisticService;
-use crate::strategies::disposition_strategy::DispositionStrategy;
-use crate::{
-    disposition_execution::executor::DispositionExecutorService, infrastructure::spawn_future,
-};
 use anyhow::{anyhow, bail, Context, Result};
 use core::fmt::Debug;
 use dashmap::DashMap;
@@ -125,7 +119,6 @@ async fn before_engine_context_init<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
 ) -> Result<(
-    broadcast::Sender<ExchangeEvent>,
     broadcast::Receiver<ExchangeEvent>,
     AppSettings<StrategySettings>,
     DashMap<ExchangeAccountId, Arc<Exchange>>,
@@ -183,8 +176,6 @@ where
         .map(|exchange| (exchange.exchange_account_id, exchange))
         .collect();
 
-    let exchange_events = ExchangeEvents::new(events_sender.clone());
-
     let exchanges_hashmap: HashMap<ExchangeAccountId, Arc<Exchange>> =
         exchanges_map.clone().into_iter().collect();
 
@@ -231,7 +222,7 @@ where
     let engine_context = EngineContext::new(
         settings.core.clone(),
         exchanges_map.clone(),
-        exchange_events,
+        ExchangeEvents::new(events_sender),
         finish_graceful_shutdown_tx,
         exchange_blocker,
         timeout_manager,
@@ -241,7 +232,6 @@ where
     );
 
     Ok((
-        events_sender,
         events_receiver,
         settings,
         exchanges_map,
@@ -275,18 +265,13 @@ fn start_updating_balances(
 #[allow(clippy::too_many_arguments)]
 fn run_services<'a, StrategySettings>(
     engine_context: Arc<EngineContext>,
-    events_sender: broadcast::Sender<ExchangeEvent>,
     events_receiver: broadcast::Receiver<ExchangeEvent>,
     settings: AppSettings<StrategySettings>,
     exchanges_map: DashMap<ExchangeAccountId, Arc<Exchange>>,
     init_user_settings: InitSettings<StrategySettings>,
-    build_strategy: impl Fn(
-        &AppSettings<StrategySettings>,
-        Arc<EngineContext>,
-    ) -> Box<dyn DispositionStrategy + 'static>,
     finish_graceful_shutdown_rx: oneshot::Receiver<ActionAfterGracefulShutdown>,
     cleanup_orders_service: Arc<CleanupOrdersService>,
-) -> TradingEngine
+) -> TradingEngine<StrategySettings>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
 {
@@ -295,14 +280,10 @@ where
         .shutdown_service
         .register_core_service(internal_events_loop.clone());
 
-    let exchange_events = ExchangeEvents::new(events_sender);
-    let statistic_service = StatisticService::new();
-    let statistic_event_handler =
-        create_statistic_event_handler(exchange_events, statistic_service.clone());
     let control_panel = CoreApi::create_and_start(
         engine_context.lifetime_manager.clone(),
         load_pretty_settings(init_user_settings),
-        statistic_service,
+        engine_context.statistic_service.clone(),
     )
     .expect("Unable to start control panel");
     engine_context
@@ -331,20 +312,8 @@ where
         move || cleanup_orders_service.clone().cleanup_outdated_orders(),
     );
 
-    let disposition_strategy = build_strategy(&settings, engine_context.clone());
-    let disposition_executor_service = create_disposition_executor_service(
-        &settings.strategy,
-        &engine_context,
-        disposition_strategy,
-        &statistic_event_handler.stats,
-    );
-
-    engine_context
-        .shutdown_service
-        .register_user_service(disposition_executor_service);
-
     log::info!("TradingEngine started");
-    TradingEngine::new(engine_context, finish_graceful_shutdown_rx)
+    TradingEngine::new(engine_context, settings, finish_graceful_shutdown_rx)
 }
 
 pub(crate) fn unwrap_or_handle_panic<T>(
@@ -405,11 +374,7 @@ pub(crate) fn unwrap_or_handle_panic<T>(
 pub async fn launch_trading_engine<StrategySettings>(
     build_settings: &EngineBuildConfig,
     init_user_settings: InitSettings<StrategySettings>,
-    build_strategy: impl Fn(
-        &AppSettings<StrategySettings>,
-        Arc<EngineContext>,
-    ) -> Box<dyn DispositionStrategy + 'static>,
-) -> Result<TradingEngine>
+) -> Result<TradingEngine<StrategySettings>>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
 {
@@ -422,14 +387,8 @@ where
     .await;
 
     let message_template = "Panic happened during EngineContext initialization";
-    let (
-        events_sender,
-        events_receiver,
-        settings,
-        exchanges_map,
-        engine_context,
-        finish_graceful_shutdown_rx,
-    ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
+    let (events_receiver, settings, exchanges_map, engine_context, finish_graceful_shutdown_rx) =
+        unwrap_or_handle_panic(action_outcome, message_template, None)??;
 
     let cloned_lifetime_manager = engine_context.lifetime_manager.clone();
     let action = async move {
@@ -451,12 +410,10 @@ where
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
             engine_context.clone(),
-            events_sender,
             events_receiver,
             settings,
             exchanges_map,
             init_user_settings,
-            build_strategy,
             finish_graceful_shutdown_rx,
             cleanup_orders_service,
         )
@@ -472,31 +429,6 @@ where
     print_info("The TradingEngine has been successfully launched");
 
     result
-}
-
-fn create_disposition_executor_service(
-    base_settings: &dyn BaseStrategySettings,
-    engine_context: &Arc<EngineContext>,
-    disposition_strategy: Box<dyn DispositionStrategy>,
-    statistics: &Arc<StatisticService>,
-) -> Arc<DispositionExecutorService> {
-    DispositionExecutorService::new(
-        engine_context.clone(),
-        engine_context.get_events_channel(),
-        LocalSnapshotsService::default(),
-        base_settings.exchange_account_id(),
-        base_settings.currency_pair(),
-        disposition_strategy,
-        engine_context.lifetime_manager.stop_token(),
-        statistics.clone(),
-    )
-}
-
-fn create_statistic_event_handler(
-    events: ExchangeEvents,
-    statistic_service: Arc<StatisticService>,
-) -> Arc<StatisticEventHandler> {
-    StatisticEventHandler::new(events.get_events_channel(), statistic_service)
 }
 
 pub async fn create_exchanges(

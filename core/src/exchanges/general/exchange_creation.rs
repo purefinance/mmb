@@ -15,7 +15,6 @@ use crate::{
 use mmb_domain::events::ExchangeEvent;
 use mmb_domain::exchanges::commission::Commission;
 use mmb_domain::order::pool::OrdersPool;
-use mmb_utils::infrastructure::WithExpect;
 use tokio::sync::broadcast;
 
 pub fn create_timeout_manager(
@@ -78,12 +77,6 @@ pub async fn create_exchange(
     );
 
     exchange.build_symbols(&user_settings.currency_pairs).await;
-
-    exchange
-        .connect_ws()
-        .await
-        .with_expect(move || "Failed to connect to websockets on exchange {exchange_account_id}");
-
     exchange.exchange_client.initialized(exchange.clone()).await;
 
     exchange

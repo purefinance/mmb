@@ -2,6 +2,7 @@
 use crate::get_binance_credentials_or_exit;
 use binance::binance::BinanceBuilder;
 use mmb_core::config::parse_settings;
+use mmb_core::disposition_execution::strategy::DispositionStrategy;
 use mmb_core::disposition_execution::{PriceSlot, TradingContext};
 use mmb_core::explanation::Explanation;
 use mmb_core::infrastructure::spawn_future_ok;
@@ -9,7 +10,6 @@ use mmb_core::lifecycle::launcher::{launch_trading_engine, EngineBuildConfig, In
 use mmb_core::order_book::local_snapshot_service::LocalSnapshotsService;
 use mmb_core::service_configuration::configuration_descriptor::ConfigurationDescriptor;
 use mmb_core::settings::BaseStrategySettings;
-use mmb_core::strategies::disposition_strategy::DispositionStrategy;
 use mmb_domain::events::ExchangeEvent;
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::market::ExchangeAccountId;
@@ -86,11 +86,14 @@ async fn launch_engine() {
     };
 
     let init_settings = InitSettings::Directly(settings);
-    let engine = launch_trading_engine(&config, init_settings, |_, _| Box::new(TestStrategy))
+    let engine = launch_trading_engine(&config, init_settings)
         .await
         .expect("in tests");
 
     let context = engine.context();
+
+    engine.start_disposition_executor(Box::new(TestStrategy));
+
     let action = async move {
         sleep(Duration::from_millis(200)).await;
         context.lifetime_manager.run_graceful_shutdown("test").await;
