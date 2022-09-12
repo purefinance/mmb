@@ -26,6 +26,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Duration;
 use dashmap::DashMap;
+use futures::executor::block_on;
 use mmb_domain::events::{AllowedEventSourceType, ExchangeBalancesAndPositions, ExchangeEvent};
 use mmb_domain::exchanges::commission::{Commission, CommissionForType};
 use mmb_domain::exchanges::symbol::{BeforeAfter, Precision, Symbol};
@@ -43,6 +44,7 @@ use rust_decimal_macros::dec;
 use tokio::sync::broadcast;
 use url::Url;
 
+use crate::database::events::recorder::EventRecorder;
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::exchanges::general::exchange::RequestResult;
 use crate::exchanges::general::order::cancel::CancelOrderResult;
@@ -263,6 +265,7 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
     );
     let timeout_managers = hashmap![exchange_account_id => request_timeout_manager];
     let timeout_manager = TimeoutManager::new(timeout_managers);
+    let event_recorder = block_on(EventRecorder::start(None)).expect("Failure start EventRecorder");
 
     let exchange = Exchange::new(
         exchange_account_id,
@@ -288,6 +291,7 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
         timeout_manager,
         Arc::downgrade(&exchange_blocker),
         commission,
+        event_recorder,
     );
 
     exchange

@@ -1,5 +1,6 @@
 use std::sync::{Arc, Weak};
 
+use crate::database::events::recorder::EventRecorder;
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use crate::lifecycle::launcher::EngineBuildConfig;
@@ -49,6 +50,7 @@ pub async fn create_exchange(
     lifetime_manager: Arc<AppLifetimeManager>,
     timeout_manager: Arc<TimeoutManager>,
     exchange_blocker: Weak<ExchangeBlocker>,
+    event_recorder: Arc<EventRecorder>,
 ) -> Arc<Exchange> {
     let exchange_account_id = user_settings.exchange_account_id;
     let exchange_client_builder =
@@ -74,6 +76,7 @@ pub async fn create_exchange(
         timeout_manager,
         exchange_blocker,
         Commission::default(),
+        event_recorder,
     );
 
     exchange.build_symbols(&user_settings.currency_pairs).await;

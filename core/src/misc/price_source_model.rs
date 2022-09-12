@@ -2,30 +2,35 @@ use mmb_domain::market::ExchangeId;
 use mmb_domain::order::snapshot::Price;
 use mmb_utils::DateTime;
 
+use mmb_database::impl_event;
 use mmb_domain::market::CurrencyPair;
+use serde::Serialize;
 
+#[derive(Debug, Clone, Serialize)]
 pub(crate) struct PriceSourceModel {
-    pub _init_time: DateTime,
-    pub _exchange_id: ExchangeId,
-    pub _currency_pair: CurrencyPair,
-    pub _bid: Option<Price>,
-    pub _ask: Option<Price>,
+    pub init_time: DateTime,
+    pub exchange_id: ExchangeId,
+    pub currency_pair: CurrencyPair,
+    pub bid: Option<Price>,
+    pub ask: Option<Price>,
 }
+
+impl_event!(PriceSourceModel, "price_sources");
 
 impl PriceSourceModel {
     pub fn new(
-        _init_time: DateTime,
-        _exchange_id: ExchangeId,
-        _currency_pair: CurrencyPair,
-        _bid: Option<Price>,
-        _ask: Option<Price>,
+        init_time: DateTime,
+        exchange_id: ExchangeId,
+        currency_pair: CurrencyPair,
+        bid: Option<Price>,
+        ask: Option<Price>,
     ) -> Self {
         Self {
-            _init_time,
-            _exchange_id,
-            _currency_pair,
-            _bid,
-            _ask,
+            init_time,
+            exchange_id,
+            currency_pair,
+            bid,
+            ask,
         }
     }
 }

@@ -19,6 +19,7 @@ use crate::misc::time::time_manager;
 #[double]
 use crate::services::usd_convertion::usd_converter::UsdConverter;
 
+use crate::database::events::recorder::EventRecorder;
 use crate::{
     balance::changes::balance_changes_accumulator::BalanceChangeAccumulator,
     infrastructure::spawn_by_timer,
@@ -61,15 +62,13 @@ impl BalanceChange {
 
 pub struct BalanceChangesService {
     usd_converter: UsdConverter,
-    // TODO: fix me when DatabaseManager/DataRecorder will be implemented
-    // private readonly IDatabaseManager _databaseManager;
-    // private readonly IDataRecorder _dataRecorder;
     rx_event: mpsc::Receiver<BalanceChangeServiceEvent>,
     tx_event: mpsc::Sender<BalanceChangeServiceEvent>,
     balance_changes_accumulators: Vec<Arc<dyn BalanceChangeAccumulator + Send + Sync>>,
     profit_loss_stopper_service: Arc<ProfitLossStopperService>,
     balance_changes_calculator: BalanceChangesCalculator,
     lifetime_manager: Arc<AppLifetimeManager>,
+    event_recorder: Arc<EventRecorder>,
 }
 
 impl BalanceChangesService {
@@ -78,8 +77,7 @@ impl BalanceChangesService {
         profit_loss_stopper_service: Arc<ProfitLossStopperService>,
         usd_converter: UsdConverter,
         lifetime_manager: Arc<AppLifetimeManager>,
-        // IDatabaseManager databaseManager,
-        // IDataRecorder dataRecorder,
+        event_recorder: Arc<EventRecorder>,
     ) -> Arc<Self> {
         let (tx_event, rx_event) = mpsc::channel(20_000);
         let balance_changes_accumulators =
@@ -88,8 +86,6 @@ impl BalanceChangesService {
 
         let this = Arc::new(Self {
             usd_converter,
-            // _databaseManager = databaseManager;
-            // _dataRecorder = dataRecorder;
             rx_event,
             tx_event,
             balance_changes_accumulators,
@@ -98,6 +94,7 @@ impl BalanceChangesService {
                 currency_pair_to_symbol_converter,
             ),
             lifetime_manager: lifetime_manager.clone(),
+            event_recorder,
         });
 
         let on_timer_tick = {
@@ -184,12 +181,13 @@ impl BalanceChangesService {
                 usd_change,
             );
 
-            // TODO: fix me when DataRecorder will be added
-            // _dataRecorder.Save(profitLossBalanceChange);
-
             for accumulator in self.balance_changes_accumulators.iter() {
                 accumulator.add_balance_change(&profit_loss_balance_change);
             }
+
+            self.event_recorder
+                .save(profit_loss_balance_change)
+                .expect("Failure save profit_loss_balance_change");
         }
         self.profit_loss_stopper_service
             .check_for_limit(&self.usd_converter, cancellation_token)

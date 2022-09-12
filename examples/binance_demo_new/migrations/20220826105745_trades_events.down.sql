@@ -1,0 +1,1 @@
+DROP TABLE trades_events;

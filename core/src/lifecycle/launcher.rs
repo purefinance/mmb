@@ -161,26 +161,6 @@ where
 
     let exchange_blocker = ExchangeBlocker::new(exchange_account_ids);
 
-    let exchanges = create_exchanges(
-        &settings.core,
-        build_settings,
-        events_sender.clone(),
-        lifetime_manager.clone(),
-        &timeout_manager,
-        Arc::downgrade(&exchange_blocker),
-    )
-    .await;
-
-    let exchanges_map: DashMap<_, _> = exchanges
-        .into_iter()
-        .map(|exchange| (exchange.exchange_account_id, exchange))
-        .collect();
-
-    let exchanges_hashmap: HashMap<ExchangeAccountId, Arc<Exchange>> =
-        exchanges_map.clone().into_iter().collect();
-
-    let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_hashmap);
-
     let database = if let Some(db) = &settings.core.database {
         apply_migrations(&db.url, db.migrations.clone())
             .await
@@ -196,7 +176,28 @@ where
 
     let event_recorder = EventRecorder::start(database)
         .await
-        .context("can't start EventRecorder")?;
+        .expect("can't start EventRecorder");
+
+    let exchanges = create_exchanges(
+        &settings.core,
+        build_settings,
+        events_sender.clone(),
+        lifetime_manager.clone(),
+        &timeout_manager,
+        Arc::downgrade(&exchange_blocker),
+        event_recorder.clone(),
+    )
+    .await;
+
+    let exchanges_map: DashMap<_, _> = exchanges
+        .into_iter()
+        .map(|exchange| (exchange.exchange_account_id, exchange))
+        .collect();
+
+    let exchanges_hashmap: HashMap<ExchangeAccountId, Arc<Exchange>> =
+        exchanges_map.clone().into_iter().collect();
+
+    let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(exchanges_hashmap);
 
     let balance_manager = BalanceManager::new(
         currency_pair_to_symbol_converter,
@@ -438,6 +439,7 @@ pub async fn create_exchanges(
     lifetime_manager: Arc<AppLifetimeManager>,
     timeout_manager: &Arc<TimeoutManager>,
     exchange_blocker: Weak<ExchangeBlocker>,
+    event_recorder: Arc<EventRecorder>,
 ) -> Vec<Arc<Exchange>> {
     join_all(core_settings.exchanges.iter().map(|x| {
         create_exchange(
@@ -447,6 +449,7 @@ pub async fn create_exchanges(
             lifetime_manager.clone(),
             timeout_manager.clone(),
             exchange_blocker.clone(),
+            event_recorder.clone(),
         )
     }))
     .await

@@ -147,8 +147,6 @@ pub const CURRENT_ORDER_VERSION: u32 = 1;
 /// Immutable part of order
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderHeader {
-    version: u32, // for migrations started from 1
-
     pub client_order_id: ClientOrderId,
 
     pub init_time: DateTime,
@@ -187,7 +185,6 @@ impl OrderHeader {
         strategy_name: String,
     ) -> Arc<Self> {
         Arc::new(Self {
-            version: CURRENT_ORDER_VERSION,
             client_order_id,
             init_time,
             exchange_account_id,
@@ -200,10 +197,6 @@ impl OrderHeader {
             signal_id,
             strategy_name,
         })
-    }
-
-    pub fn version(&self) -> u32 {
-        self.version
     }
 
     pub fn market_account_id(&self) -> MarketAccountId {

@@ -3,6 +3,7 @@ use crate::balance::manager::balance_manager::BalanceManager;
 use crate::connectivity::{
     websocket_open, ConnectivityError, WebSocketParams, WebSocketRole, WsSender,
 };
+use crate::database::events::recorder::EventRecorder;
 use crate::exchanges::block_reasons::WEBSOCKET_DISCONNECTED;
 use crate::exchanges::exchange_blocker::{BlockType, ExchangeBlocker};
 use crate::exchanges::general::features::{BalancePositionOption, ExchangeFeatures};
@@ -21,6 +22,7 @@ use anyhow::{bail, Context, Result};
 use dashmap::DashMap;
 use function_name::named;
 use itertools::Itertools;
+use mmb_database::impl_event;
 use mmb_domain::events::{
     BalanceUpdateEvent, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
     LiquidationPriceEvent, Trade,
@@ -44,6 +46,7 @@ use mmb_utils::send_expected::SendExpectedByRef;
 use mmb_utils::{nothing_to_do, DateTime};
 use parking_lot::Mutex;
 use rust_decimal::Decimal;
+use serde::Serialize;
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -78,6 +81,10 @@ pub struct OrderBookTop {
     pub ask: Option<PriceLevel>,
     pub bid: Option<PriceLevel>,
 }
+
+#[derive(Serialize)]
+struct LiquidationPrice(Price);
+impl_event!(LiquidationPrice, "liquidation_prices");
 
 pub struct Exchange {
     pub exchange_account_id: ExchangeAccountId,
@@ -128,6 +135,7 @@ pub struct Exchange {
 
     // Temporary fix before integration ExchangeBlocker to wait_order_finish/wait_cancel_order fallbacks #641
     timeout: Duration,
+    pub event_recorder: Arc<EventRecorder>,
 }
 
 pub type BoxExchangeClient = Box<dyn ExchangeClient + Send + Sync + 'static>;
@@ -145,6 +153,7 @@ impl Exchange {
         timeout_manager: Arc<TimeoutManager>,
         exchange_blocker: Weak<ExchangeBlocker>,
         commission: Commission,
+        event_recorder: Arc<EventRecorder>,
     ) -> Arc<Self> {
         let polling_timeout_manager = PollingTimeoutManager::new(timeout_arguments);
 
@@ -182,6 +191,7 @@ impl Exchange {
                 buffered_canceled_orders_manager: Default::default(),
                 auto_reconnect: AtomicBool::new(false),
                 timeout,
+                event_recorder,
             }
         })
     }
@@ -817,11 +827,9 @@ impl Exchange {
         self.events_channel
             .send_expected(ExchangeEvent::LiquidationPrice(event));
 
-        // TODO: fix it when DataRecorder will be implemented
-        // if (exchange.IsRecordingMarketData)
-        // {
-        //     DataRecorder.Save(liquidationPrice);
-        // }
+        self.event_recorder
+            .save(LiquidationPrice(liquidation_price))
+            .expect("Failure save liquidation_price");
     }
 
     pub(crate) fn get_timeout(&self) -> Duration {

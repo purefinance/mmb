@@ -1,0 +1,1 @@
+DROP TABLE profit_loss_balance_changes;

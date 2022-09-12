@@ -209,8 +209,9 @@ impl Exchange {
             log::error!("OrderStatus of order {client_order_id} is Creating at the end of create order procedure");
         }
 
-        // TODO DataRecorder.Save(order); Do we really need it here?
-        // Cause it's already performed in handle_create_order_succeeded
+        self.event_recorder
+            .save(order.clone())
+            .expect("Failure save order");
 
         let (header, exchange_order_id) =
             order.fn_ref(|o| (o.header.clone(), o.props.exchange_order_id.clone()));
@@ -588,7 +589,9 @@ impl Exchange {
 
                 self.add_event_on_order_change(order_ref, OrderEventType::CreateOrderFailed)?;
 
-                // TODO DataRecorder.Save(order)
+                self.event_recorder
+                    .save(order_ref.clone())
+                    .expect("Failure save order");
 
                 log::error!("Order creation failed {args_to_log:?}: {exchange_error:?}");
 
@@ -748,8 +751,9 @@ impl Exchange {
                 }
                 drop(buffered_canceled_orders_manager);
 
-                // TODO DataRecorder.Save(order); Do we really need it here?
-                // Cause it's already performed in handle_create_order_succeeded
+                self.event_recorder
+                    .save(order_ref.clone())
+                    .expect("Failure save order");
 
                 log::info!("Order was created: {args_to_log:?}");
 

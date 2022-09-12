@@ -1,3 +1,4 @@
+use mmb_database::impl_event;
 use std::borrow::{Borrow, BorrowMut};
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
@@ -19,6 +20,8 @@ use crate::order::snapshot::{OrderCancelling, OrderRole, OrderSide, OrderType};
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OrderRef(Arc<RwLock<OrderSnapshot>>);
+
+impl_event!(OrderRef, "orders");
 
 impl PartialEq for OrderRef {
     fn eq(&self, other: &Self) -> bool {
