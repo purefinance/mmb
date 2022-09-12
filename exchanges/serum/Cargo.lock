@@ -2311,6 +2311,7 @@ dependencies = [
  "hyper",
  "itertools 0.10.3",
  "log",
+ "mmb_database",
  "mmb_utils",
  "once_cell",
  "parking_lot 0.12.1",

@@ -646,7 +646,9 @@ impl Exchange {
 
         self.react_if_order_completed(order_filled_amount, order_ref);
 
-        // TODO DataRecorder.save(order)
+        self.event_recorder
+            .save(order_ref.clone())
+            .expect("Failure save order");
     }
 
     fn add_special_order_if_need(&self, fill_event: &mut FillEvent, args_to_log: &ArgsToLog) {

@@ -90,7 +90,9 @@ impl Exchange {
                     error.message
                 );
 
-                // TODO DataRecorder.save()
+                self.event_recorder
+                    .save(order.clone())
+                    .expect("Failure save order");
             }
         }
     }

@@ -2,6 +2,7 @@ use core::panic;
 use itertools::Itertools;
 use std::fmt::{Debug, Display, Formatter};
 
+use mmb_database::impl_event;
 use mmb_utils::DateTime;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -84,7 +85,7 @@ impl LiquidationPriceEvent {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
 pub enum TickDirection {
     None,
     ZeroMinusTick,
@@ -148,7 +149,7 @@ impl Display for TradeId {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Trade {
     pub trade_id: TradeId,
     pub price: Price,
@@ -158,13 +159,15 @@ pub struct Trade {
     pub tick_direction: TickDirection,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TradesEvent {
     pub exchange_account_id: ExchangeAccountId,
     pub currency_pair: CurrencyPair,
     pub trades: Vec<Trade>,
     pub receipt_time: DateTime,
 }
+
+impl_event!(TradesEvent, "trades_events");
 
 #[derive(Debug, Clone)]
 pub enum ExchangeEvent {

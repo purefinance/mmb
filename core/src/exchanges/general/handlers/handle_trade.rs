@@ -86,9 +86,11 @@ impl Exchange {
         }
 
         self.events_channel
-            .send(ExchangeEvent::Trades(trades_event))
+            .send(ExchangeEvent::Trades(trades_event.clone()))
             .expect("Unable to send trades event. Probably receiver is already dropped");
 
-        // TODO DataRecorder.save(trades) if needed;
+        self.event_recorder
+            .save(trades_event)
+            .expect("Failure save trades_event");
     }
 }

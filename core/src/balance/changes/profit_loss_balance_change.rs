@@ -2,6 +2,7 @@ use std::fmt;
 use std::fmt::{Display, Formatter};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use mmb_database::impl_event;
 use mmb_domain::market::{CurrencyCode, ExchangeId, MarketAccountId};
 use mmb_domain::order::snapshot::ClientOrderFillId;
 use mmb_domain::order::snapshot::{Amount, Price};
@@ -16,7 +17,7 @@ use crate::service_configuration::configuration_descriptor::ConfigurationDescrip
 
 impl_u64_id!(ProfitLossBalanceChangeId);
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[allow(dead_code)]
 pub(crate) struct ProfitLossBalanceChange {
     pub id: ProfitLossBalanceChangeId,
@@ -30,6 +31,8 @@ pub(crate) struct ProfitLossBalanceChange {
     pub usd_price: Price,
     pub usd_balance_change: Amount,
 }
+
+impl_event!(ProfitLossBalanceChange, "profit_loss_balance_changes");
 
 impl ProfitLossBalanceChange {
     pub fn new(

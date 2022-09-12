@@ -2,6 +2,7 @@ use anyhow::Result;
 use binance::binance::Binance;
 use core_tests::order::OrderProxy;
 use mmb_core::balance::manager::balance_manager::BalanceManager;
+use mmb_core::database::events::recorder::EventRecorder;
 use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;
 use mmb_core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use mmb_core::exchanges::general::exchange::*;
@@ -187,6 +188,10 @@ impl BinanceBuilder {
 
         let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
 
+        let event_recorder = EventRecorder::start(None)
+            .await
+            .expect("Failure start EventRecorder");
+
         let timeout_manager = get_timeout_manager(exchange_account_id);
         let exchange = Exchange::new(
             exchange_account_id,
@@ -199,6 +204,7 @@ impl BinanceBuilder {
             timeout_manager,
             Arc::downgrade(&exchange_blocker),
             commission,
+            event_recorder,
         );
         exchange.connect_ws().await.with_expect(move || {
             "Failed to connect to websockets on exchange {exchange_account_id}"

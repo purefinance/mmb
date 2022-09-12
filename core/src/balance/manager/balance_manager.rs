@@ -27,7 +27,6 @@ use futures::future::join_all;
 use itertools::Itertools;
 use log::log;
 use log::Level::{Error, Warn};
-use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::infrastructure::WithExpect;
 use mmb_utils::{impl_mock_initializer, nothing_to_do, DateTime};
 use parking_lot::Mutex;
@@ -37,10 +36,12 @@ use rust_decimal_macros::dec;
 use crate::database::events::recorder::EventRecorder;
 #[cfg(test)]
 use crate::MOCK_MUTEX;
+use mmb_database::impl_event;
 use mmb_domain::order::snapshot::Price;
+use mmb_utils::cancellation_token::CancellationToken;
 #[cfg(test)]
 use mockall::automock;
-
+use serde::Serialize;
 /// The entity for getting information about account balances for selected exchanges
 #[derive(Clone)]
 pub struct BalanceManager {
@@ -52,6 +53,15 @@ pub struct BalanceManager {
         HashMap<ExchangeAccountId, HashMap<CurrencyPair, u32>>,
     event_recorder: Option<Arc<EventRecorder>>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+struct BalanceUpdateEvent {
+    reservation: HashMap<ReservationId, BalanceReservation>,
+    whole_balance_before: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>,
+    whole_balance_after: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>,
+}
+
+impl_event!(BalanceUpdateEvent, "balance_updates");
 
 impl BalanceManager {
     pub fn new(
@@ -182,28 +192,29 @@ impl BalanceManager {
 
     fn save_balance_update(
         &self,
-        _whole_balance_before: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>,
-        _whole_balance_after: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>,
+        whole_balance_before: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>,
+        whole_balance_after: HashMap<ExchangeAccountId, HashMap<CurrencyCode, Amount>>,
     ) {
-        // TODO: fix me when DataRecorder will be added
-        // if self.data_recorder.is_none()
-        // {
-        //     return;
-        // }
+        match &self.event_recorder {
+            None => {}
+            Some(event_recorder) => {
+                let reservation_clone = self
+                    .balance_reservation_manager
+                    .balance_reservation_storage
+                    .get_all_raw_reservations()
+                    .clone();
 
-        let _reservation_clone = self
-            .balance_reservation_manager
-            .balance_reservation_storage
-            .get_all_raw_reservations()
-            .clone();
+                let balance_update_event = BalanceUpdateEvent {
+                    reservation: reservation_clone,
+                    whole_balance_before,
+                    whole_balance_after,
+                };
 
-        // var balanceUpdate = new BalanceUpdate(
-        //     _dateTimeService.UtcNow,
-        //     reservationsClone,
-        //     wholeBalanceBefore,
-        //     wholeBalanceAfter);
-
-        // _dataRecorder.Save(balanceUpdate);
+                event_recorder
+                    .save(balance_update_event)
+                    .expect("Failure save balance update event");
+            }
+        }
     }
 
     fn restore_fill_amount_position(

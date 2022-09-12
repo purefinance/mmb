@@ -127,7 +127,9 @@ impl Exchange {
             self.exchange_account_id
         );
 
-        // TODO DataRecorder.save(order_ref)
+        self.event_recorder
+            .save(order_ref.clone())
+            .expect("Failure save order");
     }
 }
 
