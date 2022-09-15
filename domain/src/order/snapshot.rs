@@ -149,8 +149,6 @@ pub const CURRENT_ORDER_VERSION: u32 = 1;
 pub struct OrderHeader {
     pub client_order_id: ClientOrderId,
 
-    pub init_time: DateTime,
-
     pub exchange_account_id: ExchangeAccountId,
 
     // For ClosePosition order currency pair can be empty string
@@ -173,7 +171,6 @@ impl OrderHeader {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         client_order_id: ClientOrderId,
-        init_time: DateTime,
         exchange_account_id: ExchangeAccountId,
         currency_pair: CurrencyPair,
         order_type: OrderType,
@@ -186,7 +183,6 @@ impl OrderHeader {
     ) -> Arc<Self> {
         Arc::new(Self {
             client_order_id,
-            init_time,
             exchange_account_id,
             currency_pair,
             order_type,
@@ -216,6 +212,7 @@ impl OrderHeader {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderSimpleProps {
+    pub init_time: DateTime,
     pub raw_price: Option<Price>,
     pub role: Option<OrderRole>,
     pub exchange_order_id: Option<ExchangeOrderId>,
@@ -228,7 +225,9 @@ pub struct OrderSimpleProps {
 }
 
 impl OrderSimpleProps {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
+        init_time: DateTime,
         raw_price: Option<Price>,
         role: Option<OrderRole>,
         exchange_order_id: Option<ExchangeOrderId>,
@@ -238,6 +237,7 @@ impl OrderSimpleProps {
         finished_time: Option<DateTime>,
     ) -> Self {
         Self {
+            init_time,
             raw_price,
             role,
             exchange_order_id,
@@ -248,8 +248,9 @@ impl OrderSimpleProps {
         }
     }
 
-    pub fn from_price(price: Option<Price>) -> OrderSimpleProps {
+    pub fn from_init_time_and_price(init_time: DateTime, price: Option<Price>) -> OrderSimpleProps {
         Self {
+            init_time,
             raw_price: price,
             role: None,
             exchange_order_id: None,
@@ -506,7 +507,6 @@ impl OrderSnapshot {
     ) -> Self {
         let header = OrderHeader::new(
             client_order_id,
-            Utc::now(),
             exchange_account_id,
             currency_pair,
             order_type,
@@ -518,7 +518,7 @@ impl OrderSnapshot {
             strategy_name.to_owned(),
         );
 
-        let mut props = OrderSimpleProps::from_price(Some(price));
+        let mut props = OrderSimpleProps::from_init_time_and_price(Utc::now(), Some(price));
         props.role = order_role;
 
         Self::new(
@@ -591,7 +591,7 @@ impl OrderSnapshot {
     }
 
     pub fn init_time(&self) -> DateTime {
-        self.header.init_time
+        self.props.init_time
     }
 }
 

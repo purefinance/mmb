@@ -254,7 +254,6 @@ impl BalanceManagerBase {
         let order_snapshot = OrderSnapshot {
             header: OrderHeader::new(
                 ClientOrderId::new(format!("order{}", self.order_index).into()),
-                time_manager::now(),
                 self.exchange_account_id_1,
                 self.symbol().currency_pair(),
                 OrderType::Limit,
@@ -265,7 +264,7 @@ impl BalanceManagerBase {
                 None,
                 "balance_manager_base".into(),
             ),
-            props: OrderSimpleProps::from_price(Some(dec!(0.2))),
+            props: OrderSimpleProps::from_init_time_and_price(time_manager::now(), Some(dec!(0.2))),
             fills: Default::default(),
             status_history: Default::default(),
             internal_props: Default::default(),

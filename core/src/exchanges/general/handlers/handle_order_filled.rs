@@ -1409,7 +1409,6 @@ mod test {
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
             client_order_id,
-            Utc::now(),
             exchange.exchange_account_id,
             currency_pair,
             OrderType::Limit,
@@ -1421,6 +1420,7 @@ mod test {
             "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
+            Utc::now(),
             Some(order_price),
             Some(order_role),
             Some(exchange_order_id.clone()),
@@ -1527,7 +1527,6 @@ mod test {
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
             client_order_id,
-            Utc::now(),
             exchange.exchange_account_id,
             currency_pair,
             OrderType::Limit,
@@ -1539,6 +1538,7 @@ mod test {
             "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
+            Utc::now(),
             Some(order_price),
             Some(order_role),
             Some(exchange_order_id.clone()),
@@ -1645,7 +1645,6 @@ mod test {
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
             client_order_id,
-            Utc::now(),
             exchange.exchange_account_id,
             currency_pair,
             OrderType::Limit,
@@ -1657,6 +1656,7 @@ mod test {
             "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
+            Utc::now(),
             Some(order_price),
             Some(order_role),
             Some(exchange_order_id.clone()),
@@ -1768,7 +1768,6 @@ mod test {
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
             client_order_id,
-            Utc::now(),
             exchange.exchange_account_id,
             currency_pair,
             OrderType::Limit,
@@ -1780,6 +1779,7 @@ mod test {
             "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
+            Utc::now(),
             Some(order_price),
             Some(order_role),
             Some(exchange_order_id.clone()),
@@ -1889,7 +1889,6 @@ mod test {
         // Add order manually for setting custom order.amount
         let header = OrderHeader::new(
             client_order_id,
-            Utc::now(),
             exchange.exchange_account_id,
             currency_pair,
             OrderType::Limit,
@@ -1901,6 +1900,7 @@ mod test {
             "FromTest".to_owned(),
         );
         let props = OrderSimpleProps::new(
+            Utc::now(),
             Some(order_price),
             Some(order_role),
             Some(exchange_order_id.clone()),

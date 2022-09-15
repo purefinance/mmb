@@ -1,14 +1,4 @@
-use mmb_database::impl_event;
-use std::borrow::{Borrow, BorrowMut};
-use std::fmt::{Debug, Formatter};
-use std::sync::Arc;
-
 use crate::market::CurrencyPair;
-use dashmap::DashMap;
-use parking_lot::RwLock;
-use rust_decimal::Decimal;
-use serde::{Deserialize, Serialize};
-
 use crate::market::ExchangeAccountId;
 use crate::order::fill::OrderFill;
 use crate::order::snapshot::{
@@ -16,6 +6,15 @@ use crate::order::snapshot::{
     OrderSnapshot, OrderStatus,
 };
 use crate::order::snapshot::{OrderCancelling, OrderRole, OrderSide, OrderType};
+use dashmap::DashMap;
+use mmb_database::impl_event;
+use mmb_utils::DateTime;
+use parking_lot::RwLock;
+use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
+use std::borrow::{Borrow, BorrowMut};
+use std::fmt::{Debug, Formatter};
+use std::sync::Arc;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -154,13 +153,14 @@ impl OrdersPool {
     pub fn add_simple_initial(
         &self,
         header: Arc<OrderHeader>,
+        init_time: DateTime,
         price: Option<Decimal>,
         extension_data: Option<Box<dyn OrderInfoExtensionData>>,
     ) -> OrderRef {
         match self.cache_by_client_id.get(&header.client_order_id) {
             None => {
                 let snapshot = Arc::new(RwLock::new(OrderSnapshot {
-                    props: OrderSimpleProps::from_price(price),
+                    props: OrderSimpleProps::from_init_time_and_price(init_time, price),
                     header,
                     fills: Default::default(),
                     status_history: Default::default(),
@@ -170,7 +170,10 @@ impl OrdersPool {
 
                 self.add_snapshot_initial(snapshot)
             }
-            Some(order_ref) => order_ref.clone(),
+            Some(order_ref) => {
+                order_ref.fn_mut(|x| x.props.init_time = init_time);
+                order_ref.clone()
+            }
         }
     }
 }

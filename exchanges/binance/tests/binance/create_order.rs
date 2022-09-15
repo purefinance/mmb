@@ -89,7 +89,7 @@ async fn should_fail() {
         .expect_err("should be error");
 
     assert_eq!(
-        "failed create_order: Type: InvalidOrder Message: Precision is over the maximum defined for this asset. Code Some(-1111)",
+        "failed create_order: Precision is over the maximum defined for this asset.",
         error.to_string()
     );
 }

@@ -60,6 +60,7 @@ impl Exchange {
 
         let order = self.orders.add_simple_initial(
             order_to_create.header.clone(),
+            time_manager::now(),
             Some(order_to_create.price),
             self.exchange_client.get_initial_extension_data(),
         );
