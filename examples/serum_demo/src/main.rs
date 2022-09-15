@@ -34,18 +34,20 @@ async fn main() {
         credentials_path: CREDENTIALS_PATH.to_owned(),
     };
     loop {
-        let engine =
-            launch_trading_engine(&engine_config, init_settings.clone(), |settings, ctx| {
-                Box::new(ExampleStrategy::new(
-                    settings.strategy.exchange_account_id(),
-                    settings.strategy.currency_pair(),
-                    settings.strategy.spread,
-                    settings.strategy.max_amount,
-                    ctx,
-                ))
-            })
+        let engine = launch_trading_engine(&engine_config, init_settings.clone())
             .await
             .expect("Failed to launch_trading_engine");
+
+        let settings = engine.settings();
+        let strategy = ExampleStrategy::new(
+            settings.strategy.exchange_account_id(),
+            settings.strategy.currency_pair(),
+            settings.strategy.spread,
+            settings.strategy.max_amount,
+            engine.context(),
+        );
+
+        engine.start_disposition_executor(strategy);
 
         match engine.run().await {
             ActionAfterGracefulShutdown::Nothing => break,
