@@ -41,42 +41,45 @@ async fn example() {
 
     let init_settings = InitSettings::Directly(settings);
     loop {
-        let engine =
-            launch_trading_engine(&engine_config, init_settings.clone(), |settings, ctx| {
-                spawn_future_ok(
-                    "Events logging",
-                    SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
-                    {
-                        let ctx = ctx.clone();
-                        async move {
-                            let mut events_rx = ctx.clone().get_events_channel();
-                            loop {
-                                let event_res = events_rx.recv().await;
-                                match event_res {
-                                    Ok(event) => {
-                                        println!("Event has been received: {:?}", event);
-                                    }
-                                    Err(err) => {
-                                        println!("Error occurred: {:?}", err);
-                                        break;
-                                    }
-                                };
-                            }
-                        }
-                        .boxed()
-                    },
-                );
-
-                Box::new(ExampleStrategy::new(
-                    settings.strategy.exchange_account_id(),
-                    settings.strategy.currency_pair(),
-                    settings.strategy.spread,
-                    settings.strategy.max_amount,
-                    ctx,
-                ))
-            })
+        let engine = launch_trading_engine(&engine_config, init_settings.clone())
             .await
             .expect("Failed to launch trading engine");
+
+        let ctx = engine.context();
+        let settings = engine.settings();
+
+        spawn_future_ok(
+            "Events logging",
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+            {
+                let ctx = ctx.clone();
+                async move {
+                    let mut events_rx = ctx.clone().get_events_channel();
+                    loop {
+                        let event_res = events_rx.recv().await;
+                        match event_res {
+                            Ok(event) => {
+                                println!("Event has been received: {event:?}");
+                            }
+                            Err(err) => {
+                                println!("Error occurred: {err:?}");
+                                break;
+                            }
+                        };
+                    }
+                }
+            },
+        );
+
+        let strategy = ExampleStrategy::new(
+            settings.strategy.exchange_account_id(),
+            settings.strategy.currency_pair(),
+            settings.strategy.spread,
+            settings.strategy.max_amount,
+            ctx.clone(),
+        );
+
+        engine.start_disposition_executor(strategy);
 
         match engine.run().await {
             ActionAfterGracefulShutdown::Nothing => break,

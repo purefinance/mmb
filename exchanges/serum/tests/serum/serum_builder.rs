@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use mmb_core::database::events::recorder::EventRecorder;
 use rust_decimal_macros::dec;
 use serum::serum::Serum;
 use std::sync::Arc;
@@ -119,6 +120,9 @@ impl SerumBuilder {
         ));
 
         let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
+        let event_recorder = EventRecorder::start(None)
+            .await
+            .expect("Failure start EventRecorder");
 
         let exchange = Exchange::new(
             exchange_account_id,
@@ -131,6 +135,7 @@ impl SerumBuilder {
             timeout_manager,
             Arc::downgrade(&exchange_blocker),
             commission,
+            event_recorder,
         );
         exchange.connect_ws().await?;
         exchange.build_symbols(&settings.currency_pairs).await;
