@@ -1,15 +1,14 @@
 use crate::exchanges::general::request_type::RequestType;
+use crate::misc::time::time_manager;
+use crate::{exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType};
+use anyhow::bail;
+use itertools::Itertools;
 use mmb_domain::order::snapshot::{
     ClientOrderId, OrderExecutionType, OrderHeader, OrderInfo, OrderSimpleProps, OrderSnapshot,
     OrderType,
 };
 use mmb_utils::cancellation_token::CancellationToken;
-
-use crate::{exchanges::general::exchange::Exchange, exchanges::general::features::OpenOrdersType};
-use anyhow::bail;
 use parking_lot::RwLock;
-
-use itertools::Itertools;
 use std::sync::Arc;
 use tokio::time::Duration;
 
@@ -121,7 +120,6 @@ impl Exchange {
 
             let new_header = OrderHeader::new(
                 id_for_new_header,
-                chrono::Utc::now(),
                 self.exchange_account_id,
                 order.currency_pair,
                 OrderType::Unknown,
@@ -134,6 +132,7 @@ impl Exchange {
             );
 
             let props = OrderSimpleProps::new(
+                time_manager::now(),
                 Some(order.price),
                 None,
                 Some(order.exchange_order_id.clone()),

@@ -565,7 +565,7 @@ impl DispositionExecutor {
         };
         spawn_future(
             "Start wait_cancel_order from DispositionExecutor::cancel_order()",
-            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+            SpawnFutureFlags::empty(),
             action,
         );
     }
@@ -679,7 +679,7 @@ impl DispositionExecutor {
 
         if !self.engine_ctx.timeout_manager.try_reserve_group_instant(
             self.exchange_account_id,
-            RequestType::CancelOrder,
+            RequestType::CreateOrder,
             Some(requests_group_id),
         ) {
             self.engine_ctx
@@ -705,7 +705,6 @@ impl DispositionExecutor {
 
         let new_order_header = OrderHeader::new(
             new_client_order_id.clone(),
-            now,
             self.exchange_account_id,
             self.symbol.currency_pair(),
             OrderType::Limit,
@@ -721,6 +720,7 @@ impl DispositionExecutor {
 
         let new_order = exchange.orders.add_simple_initial(
             new_order_header.clone(),
+            now,
             Some(new_disposition.price()),
             exchange.exchange_client.get_initial_extension_data(),
         );
@@ -749,16 +749,17 @@ impl DispositionExecutor {
                 };
 
                 exchange
-                    .create_order(order_creating, None, cancellation_token)
+                    .create_order(order_creating, Some(requests_group_id), cancellation_token)
                     .await?;
 
                 log::trace!("Finished create_order {new_client_order_id}");
 
                 Ok(())
             };
+
             spawn_future(
-                "wait_cancel_order in blocking cancel_order",
-                SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+                "create_order in blocking try_create_order",
+                SpawnFutureFlags::empty(),
                 action,
             );
         }

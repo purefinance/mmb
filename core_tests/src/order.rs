@@ -94,7 +94,6 @@ impl OrderProxy {
     pub fn make_header(&self) -> Arc<OrderHeader> {
         OrderHeader::new(
             self.client_order_id.clone(),
-            self.init_time,
             self.exchange_account_id,
             self.currency_pair,
             self.order_type,

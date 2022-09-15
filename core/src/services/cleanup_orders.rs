@@ -65,7 +65,6 @@ mod tests {
         let now = Utc::now();
         let header = OrderHeader::new(
             k,
-            now,
             ExchangeAccountId::new("Binance", 0),
             CurrencyPair::from_codes("a".into(), "b".into()),
             OrderType::Limit,
@@ -76,7 +75,7 @@ mod tests {
             None,
             "".to_string(),
         );
-        let order_ref = pool.add_simple_initial(header, Some(dec!(0.5)), None);
+        let order_ref = pool.add_simple_initial(header, now, Some(dec!(0.5)), None);
         order_ref.fn_mut(|x| x.set_status(OrderStatus::Completed, now));
 
         // deadline has arrived
@@ -94,7 +93,6 @@ mod tests {
         let now = Utc::now();
         let header = OrderHeader::new(
             k,
-            now,
             ExchangeAccountId::new("Binance", 0),
             CurrencyPair::from_codes("a".into(), "b".into()),
             OrderType::Limit,
@@ -105,7 +103,7 @@ mod tests {
             None,
             "".to_string(),
         );
-        let order_ref = pool.add_simple_initial(header, Some(dec!(0.5)), None);
+        let order_ref = pool.add_simple_initial(header, now, Some(dec!(0.5)), None);
         order_ref.fn_mut(|x| x.set_status(OrderStatus::Completed, now));
 
         // deadline has not arrived
@@ -123,7 +121,6 @@ mod tests {
         let now = Utc::now();
         let header = OrderHeader::new(
             k,
-            now,
             ExchangeAccountId::new("Binance", 0),
             CurrencyPair::from_codes("a".into(), "b".into()),
             OrderType::Limit,
@@ -134,7 +131,7 @@ mod tests {
             None,
             "".to_string(),
         );
-        pool.add_simple_initial(header, Some(dec!(0.5)), None);
+        pool.add_simple_initial(header, now, Some(dec!(0.5)), None);
 
         let deadline = now + Duration::minutes(5);
         cleanup(&pool.cache_by_client_id, deadline);
