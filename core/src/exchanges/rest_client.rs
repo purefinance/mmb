@@ -2,8 +2,9 @@ use crate::exchanges::traits::ExchangeError;
 use anyhow::Result;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use hyper::client::HttpConnector;
+use hyper::http::request::Builder;
 use hyper::http::uri::{Parts, PathAndQuery};
-use hyper::{Body, Client, Error, Request, Response, StatusCode, Uri};
+use hyper::{Body, Client, Error, Method, Request, Response, StatusCode, Uri};
 use hyper_rustls::{HttpsConnector, HttpsConnectorBuilder};
 use log::log;
 use mmb_domain::market::*;
@@ -15,6 +16,15 @@ use std::fmt::{Debug, Display, Formatter, Write};
 use uuid::Uuid;
 
 pub type QueryKey = &'static str;
+
+pub trait RestHeaders {
+    fn add_specific_headers(
+        &self,
+        builder: Builder,
+        uri: &Uri,
+        request_type: RequestType,
+    ) -> Builder;
+}
 
 /// Trait for specific exchange errors handling
 pub trait ErrorHandler: Sized {
@@ -146,43 +156,87 @@ fn check_content(content: &str) -> CheckContent {
     }
 }
 
-pub struct RestClient<ErrHandler: ErrorHandler + Send + Sync + 'static> {
+#[derive(Copy, Clone)]
+pub enum RequestType {
+    Get,
+    Post,
+    Delete,
+}
+
+impl RequestType {
+    pub const fn as_str(&self) -> &'static str {
+        match *self {
+            RequestType::Get => "GET",
+            RequestType::Post => "POST",
+            RequestType::Delete => "DELETE",
+        }
+    }
+}
+
+impl Display for RequestType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl Debug for RequestType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+pub struct RestClient<
+    ErrHandler: ErrorHandler + Send + Sync + 'static,
+    SpecHeaders: RestHeaders + Send + Sync + 'static,
+> {
     client: Client<HttpsConnector<HttpConnector>>,
     error_handler: ErrorHandlerData<ErrHandler>,
+    headers: SpecHeaders,
 }
 
 const KEEP_ALIVE: &str = "keep-alive";
 // Inner Hyper types. Needed just for unified response handling in handle_response()
 type ResponseType = Result<Response<Body>, Error>;
 
-impl<ErrHandler: ErrorHandler + Send + Sync + 'static> RestClient<ErrHandler> {
-    pub fn new(error_handler: ErrorHandlerData<ErrHandler>) -> Self {
+impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders + Send + Sync>
+    RestClient<ErrHandler, SpecHeaders>
+{
+    pub fn new(error_handler: ErrorHandlerData<ErrHandler>, headers: SpecHeaders) -> Self {
         Self {
             client: create_client(),
             error_handler,
+            headers,
         }
     }
 
     pub async fn get(
         &self,
         uri: Uri,
-        api_key: &str,
         action_name: &'static str,
         log_args: String,
     ) -> Result<RestResponse, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
-        let req = Request::get(uri)
+        let builder = Request::builder().method(Method::GET);
+        let req = self
+            .headers
+            .add_specific_headers(builder, &uri, RequestType::Get)
+            .uri(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
-            .header("X-MBX-APIKEY", api_key)
             .body(Body::empty())
             .with_expect(|| format!("Error during creation of http GET request {request_id}"));
 
         let response = self.client.request(req).await;
 
-        self.handle_response(response, "GET", action_name, log_args, request_id)
-            .await
+        self.handle_response(
+            response,
+            RequestType::Get.as_str(),
+            action_name,
+            log_args,
+            request_id,
+        )
+        .await
     }
 
     pub async fn put(
