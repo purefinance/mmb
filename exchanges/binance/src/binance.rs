@@ -8,6 +8,8 @@ use dashmap::DashMap;
 use function_name::named;
 use hmac::digest::generic_array;
 use hmac::{Hmac, Mac};
+use hyper::http::request::Builder;
+use hyper::Uri;
 use itertools::Itertools;
 use mmb_utils::time::{get_current_milliseconds, u64_to_date_time};
 use mmb_utils::DateTime;
@@ -28,7 +30,7 @@ use mmb_core::exchanges::general::handlers::handle_order_filled::FillEvent;
 use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::{
-    ErrorHandler, ErrorHandlerData, RestClient, RestResponse, UriBuilder,
+    ErrorHandler, ErrorHandlerData, RequestType, RestClient, RestHeaders, RestResponse, UriBuilder,
 };
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{ExchangeClientBuilder, ExchangeError};
@@ -60,6 +62,21 @@ const LISTEN_KEY: &str = "listenKey";
 
 #[derive(Default)]
 pub struct ErrorHandlerBinance;
+
+pub struct RestHeadersBinance {
+    pub api_key: String,
+}
+
+impl RestHeaders for RestHeadersBinance {
+    fn add_specific_headers(
+        &self,
+        builder: Builder,
+        _uri: &Uri,
+        _request_type: RequestType,
+    ) -> Builder {
+        builder.header("X-MBX-APIKEY", &self.api_key)
+    }
+}
 
 impl ErrorHandler for ErrorHandlerBinance {
     fn check_spec_rest_error(&self, response: &RestResponse) -> Result<(), ExchangeError> {
@@ -112,6 +129,8 @@ impl ErrorHandler for ErrorHandlerBinance {
     }
 }
 
+const EMPTY_RESPONSE_IS_OK: bool = false;
+
 pub struct Binance {
     pub settings: ExchangeSettings,
     pub hosts: Hosts,
@@ -141,7 +160,7 @@ pub struct Binance {
     pub(super) subscribe_to_market_data: bool,
     pub(super) is_reducing_market_data: bool,
 
-    pub(super) rest_client: RestClient<ErrorHandlerBinance>,
+    pub(super) rest_client: RestClient<ErrorHandlerBinance, RestHeadersBinance>,
 
     // NOTE: None when websocket is disconnected
     pub(super) listen_key: RwLock<Option<String>>,
@@ -178,7 +197,6 @@ impl Binance {
         lifetime_manager: Arc<AppLifetimeManager>,
         timeout_manager: Arc<TimeoutManager>,
         is_reducing_market_data: bool,
-        empty_response_is_ok: bool,
     ) -> Self {
         let is_reducing_market_data = settings
             .is_reducing_market_data
@@ -200,17 +218,22 @@ impl Binance {
             traded_specific_currencies: Default::default(),
             last_trade_ids: Default::default(),
             subscribe_to_market_data: settings.subscribe_to_market_data,
+            rest_client: RestClient::new(
+                ErrorHandlerData::new(
+                    EMPTY_RESPONSE_IS_OK,
+                    exchange_account_id,
+                    ErrorHandlerBinance::default(),
+                ),
+                RestHeadersBinance {
+                    api_key: settings.api_key.clone(),
+                },
+            ),
             timeout_manager,
             is_reducing_market_data,
             settings,
             hosts,
             events_channel,
             lifetime_manager,
-            rest_client: RestClient::new(ErrorHandlerData::new(
-                empty_response_is_ok,
-                exchange_account_id,
-                ErrorHandlerBinance::default(),
-            )),
             listen_key: Default::default(),
         }
     }
@@ -579,9 +602,8 @@ impl Binance {
     ) -> Result<RestResponse, ExchangeError> {
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(uri, api_key, function_name!(), "".to_string())
+            .get(uri, function_name!(), "".to_string())
             .await
     }
 
@@ -604,9 +626,7 @@ impl Binance {
 
         let log_args = format!("order {client_order_id}");
 
-        self.rest_client
-            .get(uri, &self.settings.api_key, function_name!(), log_args)
-            .await
+        self.rest_client.get(uri, function_name!(), log_args).await
     }
 
     pub(super) fn parse_order_info(&self, response: &RestResponse) -> OrderInfo {
@@ -694,9 +714,8 @@ impl Binance {
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(uri, api_key, function_name!(), "".to_string())
+            .get(uri, function_name!(), "".to_string())
             .await
     }
 
@@ -707,9 +726,8 @@ impl Binance {
         self.add_authentification(&mut builder);
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(uri, api_key, function_name!(), "".to_string())
+            .get(uri, function_name!(), "".to_string())
             .await
     }
 
@@ -776,9 +794,8 @@ impl Binance {
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(uri, api_key, function_name!(), "".to_string())
+            .get(uri, function_name!(), "".to_string())
             .await
     }
 
@@ -889,9 +906,8 @@ impl Binance {
         let builder = UriBuilder::from_path(path);
         let uri = builder.build_uri(self.hosts.rest_uri_host(), false);
 
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .get(uri, api_key, function_name!(), "".to_string())
+            .get(uri, function_name!(), "".to_string())
             .await
     }
 
@@ -1070,7 +1086,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
         _orders: Arc<OrdersPool>,
     ) -> ExchangeClientBuilderResult {
         let exchange_account_id = exchange_settings.exchange_account_id;
-        let empty_response_is_ok = false;
 
         ExchangeClientBuilderResult {
             client: Box::new(Binance::new(
@@ -1080,7 +1095,6 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 lifetime_manager,
                 timeout_manager,
                 false,
-                empty_response_is_ok,
             )) as BoxExchangeClient,
             features: ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
@@ -1091,7 +1105,7 @@ impl ExchangeClientBuilder for BinanceBuilder {
                 },
                 OrderTradeOption::default(),
                 WebSocketOptions::default(),
-                empty_response_is_ok,
+                EMPTY_RESPONSE_IS_OK,
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
                 AllowedEventSourceType::All,
@@ -1151,7 +1165,6 @@ mod tests {
             tx,
             AppLifetimeManager::new(CancellationToken::default()),
             get_timeout_manager(exchange_account_id),
-            false,
             false,
         );
 

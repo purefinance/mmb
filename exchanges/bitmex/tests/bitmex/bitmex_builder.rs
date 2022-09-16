@@ -1,20 +1,22 @@
+use crate::bitmex::common::{get_bitmex_credentials, get_timeout_manager};
 use anyhow::Result;
-use binance::binance::Binance;
-use core_tests::order::OrderProxy;
+use bitmex::bitmex::Bitmex;
 use mmb_core::balance::manager::balance_manager::BalanceManager;
 use mmb_core::database::events::recorder::EventRecorder;
 use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;
 use mmb_core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
-use mmb_core::exchanges::general::exchange::*;
-use mmb_core::exchanges::general::features::*;
+use mmb_core::exchanges::general::exchange::Exchange;
+use mmb_core::exchanges::general::features::{
+    ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
+    WebSocketOptions,
+};
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::infrastructure::init_lifetime_manager;
-use mmb_core::settings::CurrencyPairSetting;
-use mmb_core::settings::ExchangeSettings;
+use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_domain::exchanges::commission::Commission;
-use mmb_domain::market::*;
+use mmb_domain::market::ExchangeAccountId;
 use mmb_domain::order::pool::OrdersPool;
 use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::cancellation_token::CancellationToken;
@@ -22,25 +24,22 @@ use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tokio::sync::broadcast::{Receiver, Sender};
 
-use crate::binance::common::get_default_price;
-use crate::binance::common::get_min_amount;
-use crate::binance::common::{get_binance_credentials, get_timeout_manager};
-
-pub struct BinanceBuilder {
-    pub exchange: Arc<Exchange>,
-    pub hosts: Hosts,
-    pub exchange_settings: ExchangeSettings,
-    pub default_price: Price,
-    pub min_amount: Amount,
-    pub tx: broadcast::Sender<ExchangeEvent>,
-    pub rx: broadcast::Receiver<ExchangeEvent>,
+pub(crate) struct BitmexBuilder {
+    exchange: Arc<Exchange>,
+    hosts: Hosts,
+    exchange_settings: ExchangeSettings,
+    default_price: Price,
+    min_amount: Amount,
+    tx: Sender<ExchangeEvent>,
+    rx: Receiver<ExchangeEvent>,
 }
 
-impl BinanceBuilder {
-    pub async fn build_account_0() -> Result<Self> {
-        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-        BinanceBuilder::try_new(
+impl BitmexBuilder {
+    pub(crate) async fn build_account(need_to_clean_up: bool) -> Result<Self> {
+        let exchange_account_id: ExchangeAccountId = "Bitmex_0".parse().expect("in test");
+        BitmexBuilder::try_new(
             exchange_account_id,
             CancellationToken::default(),
             ExchangeFeatures::new(
@@ -58,68 +57,13 @@ impl BinanceBuilder {
                 AllowedEventSourceType::default(),
             ),
             Commission::default(),
-            true,
+            need_to_clean_up,
             false,
         )
         .await
     }
 
-    pub async fn build_account_0_with_source_types(
-        allowed_create_event_source_type: AllowedEventSourceType,
-        allowed_cancel_event_source_type: AllowedEventSourceType,
-    ) -> Result<Self> {
-        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-        BinanceBuilder::try_new(
-            exchange_account_id,
-            CancellationToken::default(),
-            ExchangeFeatures::new(
-                OpenOrdersType::AllCurrencyPair,
-                RestFillsFeatures::default(),
-                OrderFeatures {
-                    supports_get_order_info_by_client_order_id: true,
-                    ..OrderFeatures::default()
-                },
-                OrderTradeOption::default(),
-                WebSocketOptions {
-                    cancellation_notification: true,
-                    ..WebSocketOptions::default()
-                },
-                true,
-                allowed_create_event_source_type,
-                AllowedEventSourceType::default(),
-                allowed_cancel_event_source_type,
-            ),
-            Commission::default(),
-            true,
-            false,
-        )
-        .await
-    }
-
-    pub async fn build_account_0_futures() -> Result<Self> {
-        let exchange_account_id: ExchangeAccountId = "Binance_0".parse().expect("in test");
-        BinanceBuilder::try_new(
-            exchange_account_id,
-            CancellationToken::default(),
-            ExchangeFeatures::new(
-                OpenOrdersType::AllCurrencyPair,
-                RestFillsFeatures::default(),
-                OrderFeatures::default(),
-                OrderTradeOption::default(),
-                WebSocketOptions::default(),
-                true,
-                AllowedEventSourceType::default(),
-                AllowedEventSourceType::default(),
-                AllowedEventSourceType::default(),
-            ),
-            Commission::default(),
-            true,
-            true,
-        )
-        .await
-    }
-
-    pub async fn try_new(
+    pub(crate) async fn try_new(
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,
@@ -127,13 +71,13 @@ impl BinanceBuilder {
         need_to_clean_up: bool,
         is_margin_trading: bool,
     ) -> Result<Self> {
-        let (api_key, secret_key) = match get_binance_credentials() {
+        let (api_key, secret_key) = match get_bitmex_credentials() {
             Ok((api_key, secret_key)) => (api_key, secret_key),
             Err(_) => ("".to_string(), "".to_string()),
         };
         if api_key.is_empty() || secret_key.is_empty() {
             return Err(anyhow::Error::msg(
-                "Environment variable BINANCE_SECRET_KEY or BINANCE_API_KEY are not set. Unable to continue test",
+                "Environment variable BITMEX_SECRET_KEY or BITMEX_API_KEY are not set. Unable to continue test",
             ));
         }
 
@@ -147,7 +91,7 @@ impl BinanceBuilder {
         // default currency pair for tests
         settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
             base: "btc".into(),
-            quote: "usdt".into(),
+            quote: "usd".into(),
         }]);
 
         Ok(Self::try_new_with_settings(
@@ -174,16 +118,13 @@ impl BinanceBuilder {
 
         settings.websocket_channels = vec!["depth".into(), "trade".into()];
 
-        let binance = Box::new(Binance::new(
-            exchange_account_id,
+        let bitmex = Box::new(Bitmex::new(
             settings.clone(),
             tx.clone(),
             lifetime_manager.clone(),
-            get_timeout_manager(exchange_account_id),
-            false,
         ));
 
-        let hosts = binance.hosts.clone();
+        let hosts = bitmex.hosts.clone();
 
         let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
 
@@ -194,7 +135,7 @@ impl BinanceBuilder {
         let timeout_manager = get_timeout_manager(exchange_account_id);
         let exchange = Exchange::new(
             exchange_account_id,
-            binance,
+            bitmex,
             OrdersPool::new(),
             features,
             RequestTimeoutArguments::from_requests_per_minute(1200),
@@ -225,34 +166,8 @@ impl BinanceBuilder {
                 .await;
         }
 
-        let currency_pair = OrderProxy::default_currency_pair();
-        let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
-        let default_price = get_default_price(
-            specific_currency_pair,
-            &hosts,
-            &settings.api_key,
-            exchange_account_id,
-            settings.is_margin_trading,
-        )
-        .await;
-
-        let symbol = exchange
-            .symbols
-            .get(&currency_pair)
-            .expect("can't find symbol")
-            .value()
-            .clone();
-
-        let min_amount = get_min_amount(
-            specific_currency_pair,
-            &hosts,
-            &settings.api_key,
-            default_price,
-            &symbol,
-            exchange_account_id,
-            settings.is_margin_trading,
-        )
-        .await;
+        let default_price = 1.into();
+        let min_amount = 0.into();
 
         Self {
             exchange,

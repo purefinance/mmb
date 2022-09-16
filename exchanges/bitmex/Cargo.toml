@@ -1,0 +1,28 @@
+[package]
+name = "bitmex"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1"
+arrayvec = { version = "0.7", features = ["std"] }
+async-trait = "0.1"
+bstr = "1.0"
+dashmap = "5"
+function_name = "0.3.0"
+hmac = "0.12"
+hyper = { version = "0.14", features = ["http1", "runtime", "client", "tcp"] }
+mmb_core = { path = "../../core/" }
+mmb_domain = { path = "../../domain" }
+mmb_utils = { path = "../../mmb_utils" }
+parking_lot = { version = "0.12", features = ["serde"]}
+rust_decimal = { version = "1", features = ["maths"]}
+rust_decimal_macros = "1"
+serde = { version = "1", features = ["derive"]}
+serde_json = "1"
+sha2 = "0.10"
+tinyvec = "1.6"
+tokio = { version = "1", features = ["parking_lot"] }
+url = "2.0"

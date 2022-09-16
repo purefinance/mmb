@@ -1,5 +1,5 @@
 use anyhow::Result;
-use binance::binance::{BinanceBuilder, ErrorHandlerBinance};
+use binance::binance::{BinanceBuilder, ErrorHandlerBinance, RestHeadersBinance};
 use function_name::named;
 use hyper::Uri;
 use jsonrpc_core::Value;
@@ -76,14 +76,15 @@ pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc
 
 #[named]
 async fn send_request(uri: Uri, api_key: &str, exchange_account_id: ExchangeAccountId) -> String {
-    let rest_client = RestClient::new(ErrorHandlerData::new(
-        false,
-        exchange_account_id,
-        ErrorHandlerBinance::default(),
-    ));
+    let rest_client = RestClient::new(
+        ErrorHandlerData::new(false, exchange_account_id, ErrorHandlerBinance::default()),
+        RestHeadersBinance {
+            api_key: api_key.to_owned(),
+        },
+    );
 
     rest_client
-        .get(uri.clone(), api_key, function_name!(), "".to_string())
+        .get(uri.clone(), function_name!(), "".to_string())
         .await
         .with_expect(|| format!("failed to request {uri}"))
         .content
