@@ -116,7 +116,7 @@ pub fn spawn_future(
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
 
-    log::info!("Future {action_name} with id {future_id} started");
+    log::info!("Future '{action_name}' with id '{future_id}' started");
 
     tokio::spawn(handle_action_outcome(
         action_name,
@@ -136,7 +136,7 @@ async fn handle_action_outcome(
     graceful_shutdown_spawner: impl FnOnce(String, &str),
     cancellation_token: CancellationToken,
 ) -> FutureOutcome {
-    let log_template = format!("Future '{}', with id {}", action_name, future_id);
+    let log_template = format!("Future '{action_name}', with id {future_id}");
 
     let action_outcome = match flags.intersects(SpawnFutureFlags::STOP_BY_TOKEN) {
         true => tokio::select! {
@@ -152,7 +152,7 @@ async fn handle_action_outcome(
     match action_outcome {
         Ok(future_outcome) => match future_outcome {
             Ok(()) => {
-                log::trace!("{} successfully completed", log_template);
+                log::trace!("{log_template} successfully completed");
 
                 FutureOutcome::new(
                     action_name,
@@ -162,12 +162,12 @@ async fn handle_action_outcome(
             }
             Err(error) => {
                 if error.to_string() == OPERATION_CANCELED_MSG {
-                    log::trace!("{} was cancelled due to Result<()>", log_template);
+                    log::trace!("{log_template} was cancelled due to Result<()>");
 
                     return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
                 }
 
-                log::error!("{} returned error: {:?}", log_template, error);
+                log::error!("{log_template} returned error: {error:?}");
                 FutureOutcome::new(action_name, future_id, CompletionReason::Error)
             }
         },
