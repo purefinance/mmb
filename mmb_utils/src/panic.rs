@@ -56,7 +56,7 @@ pub fn handle_future_panic(
     if !flags.intersects(SpawnFutureFlags::DENY_CANCELLATION)
         && panic_message.contains(OPERATION_CANCELED_MSG)
     {
-        log::warn!("{} was cancelled due to panic", log_template);
+        log::warn!("{log_template} was cancelled due to panic");
         return FutureOutcome::new(action_name, future_id, CompletionReason::Canceled);
     }
 
