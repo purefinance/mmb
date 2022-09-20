@@ -1,5 +1,5 @@
 use crate::bitmex::common::{get_bitmex_credentials, get_timeout_manager};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use bitmex::bitmex::Bitmex;
 use mmb_core::balance::manager::balance_manager::BalanceManager;
 use mmb_core::database::events::recorder::EventRecorder;
@@ -26,14 +26,16 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::{Receiver, Sender};
 
+// TODO Remove dead code allowing after tests implementation
+#[allow(dead_code)]
 pub(crate) struct BitmexBuilder {
-    exchange: Arc<Exchange>,
+    pub(crate) exchange: Arc<Exchange>,
     hosts: Hosts,
     exchange_settings: ExchangeSettings,
-    default_price: Price,
-    min_amount: Amount,
+    pub(crate) default_price: Price,
+    pub(crate) min_amount: Amount,
     tx: Sender<ExchangeEvent>,
-    rx: Receiver<ExchangeEvent>,
+    pub(crate) rx: Receiver<ExchangeEvent>,
 }
 
 impl BitmexBuilder {
@@ -63,7 +65,40 @@ impl BitmexBuilder {
         .await
     }
 
-    pub(crate) async fn try_new(
+    pub(crate) async fn build_account_with_source_types(
+        allowed_create_event_source_type: AllowedEventSourceType,
+        allowed_cancel_event_source_type: AllowedEventSourceType,
+        need_to_clean_up: bool,
+    ) -> Result<Self> {
+        let exchange_account_id: ExchangeAccountId = "Bitmex_0".parse().expect("in test");
+        BitmexBuilder::try_new(
+            exchange_account_id,
+            CancellationToken::default(),
+            ExchangeFeatures::new(
+                OpenOrdersType::AllCurrencyPair,
+                RestFillsFeatures::default(),
+                OrderFeatures {
+                    supports_get_order_info_by_client_order_id: true,
+                    ..OrderFeatures::default()
+                },
+                OrderTradeOption::default(),
+                WebSocketOptions {
+                    cancellation_notification: true,
+                    ..WebSocketOptions::default()
+                },
+                true,
+                allowed_create_event_source_type,
+                AllowedEventSourceType::default(),
+                allowed_cancel_event_source_type,
+            ),
+            Commission::default(),
+            need_to_clean_up,
+            false,
+        )
+        .await
+    }
+
+    async fn try_new(
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,
@@ -76,9 +111,9 @@ impl BitmexBuilder {
             Err(_) => ("".to_string(), "".to_string()),
         };
         if api_key.is_empty() || secret_key.is_empty() {
-            return Err(anyhow::Error::msg(
+            bail!(
                 "Environment variable BITMEX_SECRET_KEY or BITMEX_API_KEY are not set. Unable to continue test",
-            ));
+            )
         }
 
         let mut settings = ExchangeSettings::new_short(
@@ -105,7 +140,7 @@ impl BitmexBuilder {
         .await)
     }
 
-    pub async fn try_new_with_settings(
+    async fn try_new_with_settings(
         mut settings: ExchangeSettings,
         exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
@@ -167,7 +202,7 @@ impl BitmexBuilder {
         }
 
         let default_price = 1.into();
-        let min_amount = 0.into();
+        let min_amount = 1.into();
 
         Self {
             exchange,

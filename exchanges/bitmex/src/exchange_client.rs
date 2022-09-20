@@ -9,6 +9,7 @@ use mmb_core::exchanges::traits::{ExchangeClient, ExchangeError};
 use mmb_domain::events::ExchangeBalancesAndPositions;
 use mmb_domain::exchanges::symbol::Symbol;
 use mmb_domain::market::CurrencyPair;
+use mmb_domain::order::fill::EventSourceType;
 use mmb_domain::order::pool::OrderRef;
 use mmb_domain::order::snapshot::{OrderCancelling, OrderInfo, Price};
 use mmb_domain::position::{ActivePosition, ClosedPosition};
@@ -17,8 +18,14 @@ use std::sync::Arc;
 
 #[async_trait]
 impl ExchangeClient for Bitmex {
-    async fn create_order(&self, _order: &OrderRef) -> CreateOrderResult {
-        todo!()
+    async fn create_order(&self, order: &OrderRef) -> CreateOrderResult {
+        match self.request_create_order(order).await {
+            Ok(request_outcome) => match self.get_order_id(&request_outcome) {
+                Ok(order_id) => CreateOrderResult::succeed(&order_id, EventSourceType::Rest),
+                Err(error) => CreateOrderResult::failed(error, EventSourceType::Rest),
+            },
+            Err(err) => CreateOrderResult::failed(err, EventSourceType::Rest),
+        }
     }
 
     async fn cancel_order(&self, _order: OrderCancelling) -> CancelOrderResult {
