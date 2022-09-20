@@ -64,8 +64,8 @@ impl Support for Bitmex {
             .with_context(|| format!("Unable parse websocket {role:?} uri"))
     }
 
-    fn get_specific_currency_pair(&self, _currency_pair: CurrencyPair) -> SpecificCurrencyPair {
-        todo!()
+    fn get_specific_currency_pair(&self, currency_pair: CurrencyPair) -> SpecificCurrencyPair {
+        self.unified_to_specific.read()[&currency_pair]
     }
 
     fn get_supported_currencies(&self) -> &DashMap<CurrencyId, CurrencyCode> {

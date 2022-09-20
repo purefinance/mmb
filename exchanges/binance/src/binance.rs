@@ -260,9 +260,8 @@ impl Binance {
         let builder = UriBuilder::from_path(path);
         let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
 
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .post(uri, api_key, query, function_name!(), "".to_string())
+            .post(uri, query, function_name!(), "".to_string())
             .await
     }
 
@@ -701,9 +700,8 @@ impl Binance {
         let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
 
         let log_args = format!("Close position response for {position:?} {price:?}");
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .post(uri, api_key, query, function_name!(), log_args)
+            .post(uri, query, function_name!(), log_args)
             .await
     }
 
@@ -894,9 +892,8 @@ impl Binance {
         let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
 
         let log_args = format!("Create order for {header:?}");
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .post(uri, api_key, query, function_name!(), log_args)
+            .post(uri, query, function_name!(), log_args)
             .await
     }
 

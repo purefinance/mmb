@@ -264,7 +264,6 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
     pub async fn post(
         &self,
         uri: Uri,
-        api_key: &str,
         query: Bytes,
         action_name: &'static str,
         log_args: String,
@@ -272,9 +271,12 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
-        let req = Request::post(uri)
+        let builder = Request::builder().method(Method::POST);
+        let req = self
+            .headers
+            .add_specific_headers(builder, &uri, RequestType::Post)
+            .uri(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
-            .header("X-MBX-APIKEY", api_key)
             .body(Body::from(query))
             .with_expect(|| format!("Error during creation of http POST request {request_id}"));
 

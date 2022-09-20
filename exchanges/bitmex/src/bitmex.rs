@@ -18,7 +18,7 @@ use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTime
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{
     ExchangeClientBuilder, ExchangeClientBuilderResult, ExchangeError, HandleOrderFilledCb,
-    HandleTradeCb, OrderCancelledCb, OrderCreatedCb,
+    HandleTradeCb, OrderCancelledCb, OrderCreatedCb, Support,
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::ExchangeSettings;
@@ -27,8 +27,10 @@ use mmb_domain::exchanges::symbol::{Precision, Symbol};
 use mmb_domain::market::{
     CurrencyCode, CurrencyId, CurrencyPair, ExchangeId, SpecificCurrencyPair,
 };
-use mmb_domain::order::pool::OrdersPool;
-use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::pool::{OrderRef, OrdersPool};
+use mmb_domain::order::snapshot::{
+    Amount, ExchangeOrderId, OrderExecutionType, OrderSide, OrderType, Price,
+};
 use parking_lot::{Mutex, RwLock};
 use rust_decimal::Decimal;
 use serde::Deserialize;
@@ -117,7 +119,7 @@ pub struct Bitmex {
     pub hosts: Hosts,
     // TODO Replace ErrorHandlerEmpty with specific for Bitmex
     rest_client: RestClient<ErrorHandlerEmpty, RestHeadersBitmex>,
-    unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
+    pub(crate) unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub(crate) supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     // Currencies used for trading according to user settings
@@ -237,6 +239,79 @@ impl Bitmex {
             symbol.base_id == "BTC" && symbol.quote_id == "USD" && symbol.id != "XBTUSD";
 
         is_inactive_symbol || is_unsupported_futures
+    }
+
+    #[named]
+    pub(super) async fn request_create_order(
+        &self,
+        order: &OrderRef,
+    ) -> Result<RestResponse, ExchangeError> {
+        let (header, price, stop_loss_price, mut trailing_stop_delta) = order.fn_ref(|order| {
+            (
+                order.header.clone(),
+                order.price(),
+                order.props.stop_loss_price,
+                order.props.trailing_stop_delta,
+            )
+        });
+        let specific_currency_pair = self.get_specific_currency_pair(header.currency_pair);
+
+        let mut builder = UriBuilder::from_path("/api/v1/order");
+        builder.add_kv("symbol", specific_currency_pair);
+        builder.add_kv("side", header.side.as_str());
+        builder.add_kv("orderQty", header.amount);
+        builder.add_kv("clOrdID", header.client_order_id.as_str());
+
+        match header.order_type {
+            OrderType::Market => builder.add_kv("ordType", "Market"),
+            OrderType::Limit => {
+                builder.add_kv("ordType", "Limit");
+                builder.add_kv("price", price);
+                if header.execution_type == OrderExecutionType::MakerOnly {
+                    builder.add_kv("execInst", "ParticipateDoNotInitiate");
+                }
+            }
+            OrderType::StopLoss => {
+                builder.add_kv("ordType", "Stop");
+                builder.add_kv("stopPx", stop_loss_price);
+            }
+            OrderType::TrailingStop => {
+                builder.add_kv("ordType", "Stop");
+                builder.add_kv("pegPriceType", "TrailingStopPeg");
+                if header.side == OrderSide::Sell {
+                    trailing_stop_delta.set_sign_negative(true);
+                }
+                builder.add_kv("pegOffsetValue", trailing_stop_delta);
+            }
+            OrderType::ClosePosition => {
+                // It will cancel other active limit orders with the same side and symbol if the open quantity exceeds the current position
+                // Details: https://www.bitmex.com/api/explorer/#!/Order/Order_new
+                builder.add_kv("ordType", "Close");
+            }
+            _ => return Err(ExchangeError::unknown("Unexpected order type")),
+        }
+
+        let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
+        let log_args = format!("Create order for {header:?}");
+        self.rest_client
+            .post(uri, query, function_name!(), log_args)
+            .await
+    }
+
+    pub(super) fn get_order_id(
+        &self,
+        response: &RestResponse,
+    ) -> Result<ExchangeOrderId, ExchangeError> {
+        #[derive(Deserialize)]
+        #[serde(rename = "orderID")]
+        struct OrderId<'a> {
+            order_id: &'a str,
+        }
+
+        let deserialized: OrderId = serde_json::from_str(&response.content)
+            .map_err(|err| ExchangeError::parsing(format!("Unable to parse orderId: {err:?}")))?;
+
+        Ok(ExchangeOrderId::from(deserialized.order_id))
     }
 }
 
