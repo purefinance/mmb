@@ -1,6 +1,8 @@
-use crate::types::ExchangeId;
-use mmb_domain::order::snapshot::Amount;
 use serde::{Deserialize, Serialize};
+
+use mmb_domain::order::snapshot::Amount;
+
+use crate::types::ExchangeId;
 
 #[derive(Serialize, Deserialize)]
 pub struct AppConfig {

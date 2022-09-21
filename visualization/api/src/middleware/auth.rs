@@ -1,11 +1,8 @@
-use crate::services::account::User;
-use crate::services::auth::AuthService;
-use crate::services::token::TokenService;
+use std::sync::Arc;
+
 use actix::fut::{ready, Ready};
 use actix_web::dev::{forward_ready, Service, Transform};
 use actix_web::error::{ErrorBadRequest, ErrorForbidden, ErrorInternalServerError};
-use std::sync::Arc;
-
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
     web::Data,
@@ -14,6 +11,10 @@ use actix_web::{
 use casbin::CoreApi;
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
+
+use crate::services::account::User;
+use crate::services::auth::AuthService;
+use crate::services::token::TokenService;
 
 #[derive(Default)]
 pub struct TokenAuth;

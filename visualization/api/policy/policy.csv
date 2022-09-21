@@ -2,6 +2,10 @@ p,guest,*,OPTIONS
 p,user,*,OPTIONS
 p,guest,/hub/,GET
 
+p,guest,/health/,GET
+p,guest,/swagger-ui/*,GET
+p,guest,/swagger-spec,GET
+
 p,guest,/api/account/refresh-token,POST
 p,guest,/api/account/login,POST
 p,guest,/api/account/clientdomain,GET

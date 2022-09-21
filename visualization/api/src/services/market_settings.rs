@@ -1,9 +1,12 @@
+use std::collections::HashMap;
+
+use itertools::Itertools;
+use serde_json::{json, Value};
+
+use mmb_domain::order::snapshot::Amount;
+
 use crate::config::Market;
 use crate::types::{CurrencyPair, ExchangeId};
-use itertools::Itertools;
-use mmb_domain::order::snapshot::Amount;
-use serde_json::{json, Value};
-use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct MarketInfo {

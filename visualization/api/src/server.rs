@@ -1,7 +1,21 @@
+use std::sync::Arc;
+use std::time::Duration;
+
+use actix::{spawn, Actor};
+use actix_cors::Cors;
+use actix_web::middleware::Logger;
+use actix_web::web::Data;
+use actix_web::{App, HttpServer};
+use casbin::Enforcer;
+use paperclip::actix::OpenApiExt;
+use paperclip::v2::models::DefaultApiRaw;
+use sqlx::postgres::PgPoolOptions;
+use tokio::time;
+
 use crate::config::Market;
 use crate::data_provider::DataProvider;
 use crate::middleware::auth::TokenAuth;
-use crate::routes::routes;
+use crate::routes::{http_routes, ws_routes};
 use crate::services::account::AccountService;
 use crate::services::auth::AuthService;
 use crate::services::data_provider::balances::BalancesService;
@@ -13,16 +27,6 @@ use crate::ws::actors::error_listener::ErrorListener;
 use crate::ws::actors::new_data_listener::NewDataListener;
 use crate::ws::actors::subscription_manager::SubscriptionManager;
 use crate::LiquidityService;
-use actix::{spawn, Actor};
-use actix_cors::Cors;
-use actix_web::middleware::Logger;
-use actix_web::web::Data;
-use actix_web::{App, HttpServer};
-use casbin::Enforcer;
-use sqlx::postgres::PgPoolOptions;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::time;
 
 #[allow(clippy::too_many_arguments)]
 pub async fn start(
@@ -82,9 +86,10 @@ pub async fn start(
 
     HttpServer::new(move || {
         let cors = Cors::permissive();
-
         App::new()
-            .configure(routes)
+            .configure(ws_routes)
+            .wrap_api_with_spec(DefaultApiRaw::default())
+            .configure(http_routes)
             .wrap(cors)
             .wrap(Logger::default())
             .wrap(TokenAuth::default())
@@ -94,6 +99,9 @@ pub async fn start(
             .app_data(Data::new(market_settings_service.clone()))
             .app_data(Data::new(settings_service.clone()))
             .app_data(Data::new(explanation_service.clone()))
+            .with_json_spec_at("/swagger-spec")
+            .with_swagger_ui_at("/swagger-ui")
+            .build()
     })
     .bind(address)?
     .run()

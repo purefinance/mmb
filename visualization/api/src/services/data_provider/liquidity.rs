@@ -1,9 +1,11 @@
+use serde::{Deserialize, Serialize};
+use sqlx::{Pool, Postgres};
+
+use mmb_domain::order::snapshot::{Amount, Price};
+
 use crate::services::data_provider::model::EventRecord;
 use crate::types::{CurrencyPair, ExchangeId};
-use mmb_domain::order::snapshot::{Amount, Price};
-use serde::{Deserialize, Serialize};
-use serde_aux::prelude::*;
-use sqlx::{Pool, Postgres};
+use serde_aux::prelude::deserialize_number_from_string;
 
 /// Data Provider for Liquidity
 #[derive(Clone)]

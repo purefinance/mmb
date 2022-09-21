@@ -1,7 +1,8 @@
-use crate::ws::broker_messages::{ClientErrorResponseMessage, SubscriptionErrorMessage};
 use actix::{Actor, Context, Handler};
 use actix_broker::BrokerIssue;
 use serde_json::json;
+
+use crate::ws::broker_messages::{ClientErrorResponseMessage, SubscriptionErrorMessage};
 
 #[derive(Default)]
 pub struct ErrorListener;

@@ -41,7 +41,7 @@ class Login extends Component {
       } else {
         try {
           const clientType = await CryptolpAxios.getClientType();
-          CryptolpAxios.setToken(loginResponse.data, clientType);
+          CryptolpAxios.setToken(loginResponse.data, clientType.content);
         } catch (error) {
           console.log(error);
         }

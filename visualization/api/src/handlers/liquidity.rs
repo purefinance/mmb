@@ -1,15 +1,14 @@
-use crate::services::market_settings::MarketSettingsService;
-use actix_web::get;
-use actix_web::http::Error;
-use actix_web::web::Data;
-use actix_web::HttpResponse;
-use serde_json::json;
 use std::sync::Arc;
 
-#[get("/supported-exchanges")]
+use actix_web::web::Data;
+use paperclip::actix::{api_v2_operation, web::Json};
+use serde_json::{json, Value};
+
+use crate::services::market_settings::MarketSettingsService;
+
+#[api_v2_operation(tags(Liquidity))]
 pub async fn supported_exchanges(
     market_settings_service: Data<Arc<MarketSettingsService>>,
-) -> Result<HttpResponse, Error> {
-    Ok(HttpResponse::Ok()
-        .json(json!({ "supportedExchanges": &market_settings_service.supported_exchanges })))
+) -> Json<Value> {
+    Json(json!({ "supportedExchanges": &market_settings_service.supported_exchanges }))
 }

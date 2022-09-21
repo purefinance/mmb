@@ -1,14 +1,17 @@
-use crate::services::data_provider::liquidity::{
-    LiquidityData, LiquidityOrderSide, TransactionOrderSide, TransactionTradeSide,
-};
+use std::cmp::Ordering;
+
 use actix::prelude::*;
 use itertools::Itertools;
-use mmb_domain::order::snapshot::{Amount, Price};
 use rust_decimal::prelude::Zero;
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
+
+use mmb_domain::order::snapshot::{Amount, Price};
+
+use crate::services::data_provider::liquidity::{
+    LiquidityData, LiquidityOrderSide, TransactionOrderSide, TransactionTradeSide,
+};
 
 #[derive(Serialize, Deserialize, Message, Clone)]
 #[rtype(result = "()")]
@@ -258,10 +261,11 @@ fn calc_indicators(
 
 #[cfg(test)]
 mod tests {
-    use crate::ws::commands::liquidity::calc_indicators;
     use rust_decimal::prelude::Zero;
     use rust_decimal::Decimal;
     use rust_decimal_macros::dec;
+
+    use crate::ws::commands::liquidity::calc_indicators;
 
     #[test]
     fn calc_indicators_test_values() {

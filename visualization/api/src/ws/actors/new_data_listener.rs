@@ -1,10 +1,11 @@
+use actix::{Actor, Context, Handler};
+use actix_broker::BrokerIssue;
+
 use crate::ws::broker_messages::{
     BalancesResponseMessage, LiquidityResponseMessage, NewBalancesDataMessage,
     NewLiquidityDataMessage,
 };
 use crate::ws::commands::liquidity::LiquidityResponseBody;
-use actix::{Actor, Context, Handler};
-use actix_broker::BrokerIssue;
 
 #[derive(Default)]
 pub struct NewDataListener;

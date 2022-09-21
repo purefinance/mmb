@@ -235,7 +235,7 @@ export default class CryptolpAxios {
               this.loginByRefreshToken({ refreshToken })
                 .then(async (response) => {
                   const clientType = await CryptolpAxios.getClientType();
-                  CryptolpAxios.setToken(response.data, clientType);
+                  CryptolpAxios.setToken(response.data, clientType.content);
                 })
                 .catch((err) => {
                   console.error(err);
