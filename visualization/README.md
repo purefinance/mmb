@@ -13,21 +13,23 @@ Casbin is used for authentication.
 Rules for route permissions are located in [api/policy/policy.csv](api/policy/policy.csv)
 https://github.com/casbin/casbin-rs#how-it-works
 
-Swagger UI: /swagger-ui/index.html?url=/swagger-spec#/
+Swagger UI: `{API_URL}/swagger-ui/index.html?url=/swagger-spec#/`
 
-Swagger Spec: /swagger-spec
+Swagger Spec: `{API_URL}/swagger-spec`
 
 #### [Web](web)
 Web application based on React. 
 It connects to the API using the WS protocol and HTTP and get data from there.
 
 #### 3. Manual Testing
+Setup:
+Configure `database_url` at [api/config/base.toml](api/config/base.toml)
 
 ```
 
-# 1. Run api on localhost:8080
+# 1. Run api on localhost:53938
 cd api
-DATABASE_URL="..." cargo run
+cargo run
 
 # 2. Run webapp on localhost:3000
 cd web
@@ -38,6 +40,8 @@ npm start
 # Open web
 http://localhost:3000/
 login/pass: admin/admin
-Click "Liquidity"
 
+# Swagger 
+http://127.0.0.1:53938/swagger-ui/index.html?url=/swagger-spec#/
+http://127.0.0.1:53938/swagger-spec`
 ```
