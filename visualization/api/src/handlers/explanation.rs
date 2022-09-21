@@ -1,17 +1,24 @@
-use crate::services::data_provider::explanation::{Explanation, ExplanationService};
-use actix_web::web::Data;
-use actix_web::{get, web, Error, HttpResponse};
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-#[derive(Deserialize)]
+use actix_web::web::Data;
+use paperclip::actix::{
+    api_v2_operation,
+    web::{self, Json},
+    Apiv2Schema,
+};
+use serde::{Deserialize, Serialize};
+
+use crate::error::AppError;
+use crate::services::data_provider::explanation::{Explanation, ExplanationService};
+
+#[derive(Deserialize, Apiv2Schema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExplanationQuery {
     exchange_name: String,
     currency_code_pair: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Apiv2Schema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExplanationsGetResponse {
     exchange_name: String,
@@ -19,11 +26,11 @@ pub struct ExplanationsGetResponse {
     explanations: Vec<Explanation>,
 }
 
-#[get("")]
+#[api_v2_operation(tags(Explanation))]
 pub async fn get(
     query: web::Query<ExplanationQuery>,
     explanation_service: Data<Arc<ExplanationService>>,
-) -> Result<HttpResponse, Error> {
+) -> Result<Json<ExplanationsGetResponse>, AppError> {
     let explanations = explanation_service
         .list(&query.exchange_name, &query.currency_code_pair, 300)
         .await;
@@ -34,11 +41,11 @@ pub async fn get(
                 currency_code_pair: query.currency_code_pair.clone(),
                 explanations,
             };
-            Ok(HttpResponse::Ok().json(response))
+            Ok(Json(response))
         }
         Err(e) => {
             log::error!("list explanation {e:?}");
-            Ok(HttpResponse::InternalServerError().finish())
+            Err(AppError::InternalServerError)
         }
     }
 }

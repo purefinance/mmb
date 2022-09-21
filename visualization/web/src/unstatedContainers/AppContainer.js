@@ -13,7 +13,7 @@ class AppContainer extends Container {
 
   async getClientDomain() {
     const clientDomain = await CryptolpAxios.getClientDomain();
-    this.setState({ clientDomain: clientDomain });
+    this.setState({ clientDomain: clientDomain.content });
   }
 }
 

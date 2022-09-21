@@ -1,3 +1,12 @@
+use std::collections::HashSet;
+
+use actix::{
+    Actor, ActorFutureExt, Addr, Context, ContextFutureSpawner, Handler, MessageResult, Supervised,
+    SystemService, WrapFuture,
+};
+use actix_broker::BrokerSubscribe;
+use futures::future::join_all;
+
 use crate::ws::actors::ws_client_session::WsClientSession;
 use crate::ws::broker_messages::{
     ClearSubscriptions, ClientConnected, ClientDisconnected, GatherSubscriptions,
@@ -6,13 +15,6 @@ use crate::ws::broker_messages::{
 };
 use crate::ws::subscribes::balance::BalancesSubscription;
 use crate::ws::subscribes::liquidity::LiquiditySubscription;
-use actix::{
-    Actor, ActorFutureExt, Addr, Context, ContextFutureSpawner, Handler, MessageResult, Supervised,
-    SystemService, WrapFuture,
-};
-use actix_broker::BrokerSubscribe;
-use futures::future::join_all;
-use std::collections::HashSet;
 
 #[derive(Default, Clone)]
 pub struct SubscriptionManager {

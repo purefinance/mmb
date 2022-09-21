@@ -1,10 +1,13 @@
-use crate::services::data_provider::model::EventRecord;
-use crate::types::{CurrencyCode, ExchangeId};
-use mmb_domain::order::snapshot::Amount;
+use std::collections::HashMap;
+
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres};
-use std::collections::HashMap;
+
+use mmb_domain::order::snapshot::Amount;
+
+use crate::services::data_provider::model::EventRecord;
+use crate::types::{CurrencyCode, ExchangeId};
 
 /// Data Provider for Balances
 #[derive(Clone)]

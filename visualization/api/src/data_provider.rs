@@ -1,3 +1,11 @@
+use std::collections::HashSet;
+use std::sync::Arc;
+use std::time::Duration;
+
+use actix::Addr;
+use anyhow::Context;
+use tokio::time::timeout;
+
 use crate::services::data_provider::balances::BalancesService;
 use crate::services::market_settings::MarketSettingsService;
 use crate::ws::actors::error_listener::ErrorListener;
@@ -11,12 +19,6 @@ use crate::ws::subscribes::balance::BalancesSubscription;
 use crate::ws::subscribes::liquidity::LiquiditySubscription;
 use crate::ws::subscribes::Subscription;
 use crate::{LiquidityService, NewLiquidityDataMessage};
-use actix::Addr;
-use anyhow::Context;
-use std::collections::HashSet;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::timeout;
 
 pub struct DataProvider {
     subscription_manager: Addr<SubscriptionManager>,

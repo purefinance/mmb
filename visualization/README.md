@@ -13,6 +13,10 @@ Casbin is used for authentication.
 Rules for route permissions are located in [api/policy/policy.csv](api/policy/policy.csv)
 https://github.com/casbin/casbin-rs#how-it-works
 
+Swagger UI: /swagger-ui/index.html?url=/swagger-spec#/
+
+Swagger Spec: /swagger-spec
+
 #### [Web](web)
 Web application based on React. 
 It connects to the API using the WS protocol and HTTP and get data from there.

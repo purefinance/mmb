@@ -1,71 +1,72 @@
-use crate::services::settings::{SettingCodes, SettingsService};
-use actix_web::web::Data;
-use actix_web::{get, post, put, web, Error, HttpResponse};
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+use actix_web::web::Data;
+use paperclip::actix::{api_v2_operation, web::Json, Apiv2Schema, NoContent};
+use serde::{Deserialize, Serialize};
 use toml::Value;
 
-#[derive(Deserialize)]
+use crate::error::AppError;
+use crate::services::settings::{SettingCodes, SettingsService};
+
+#[derive(Deserialize, Apiv2Schema)]
 pub struct ConfigPayload {
     config: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Apiv2Schema)]
 pub struct GetConfigResponse {
     config: Option<String>,
 }
 
-#[get("")]
-pub async fn get(settings_service: Data<Arc<SettingsService>>) -> Result<HttpResponse, Error> {
+#[api_v2_operation(tags(Configuration))]
+pub async fn get(
+    settings_service: Data<Arc<SettingsService>>,
+) -> Result<Json<GetConfigResponse>, AppError> {
     let configuration = settings_service
         .get_settings(SettingCodes::Configuration)
         .await;
     match configuration {
-        Ok(configuration) => Ok(HttpResponse::Ok().json(GetConfigResponse {
+        Ok(configuration) => Ok(Json(GetConfigResponse {
             config: configuration.content,
         })),
         Err(e) => match e {
-            sqlx::Error::RowNotFound => {
-                Ok(HttpResponse::Ok().json(GetConfigResponse { config: None }))
-            }
+            sqlx::Error::RowNotFound => Ok(Json(GetConfigResponse { config: None })),
             _ => {
                 log::error!("Get config error: {:?}", e);
-                Ok(HttpResponse::InternalServerError().finish())
+                Err(AppError::InternalServerError)
             }
         },
     }
 }
 
-#[put("")]
+#[api_v2_operation(tags(Configuration))]
 pub async fn save(
-    payload: web::Json<ConfigPayload>,
+    payload: Json<ConfigPayload>,
     settings_service: Data<Arc<SettingsService>>,
-) -> Result<HttpResponse, Error> {
+) -> Result<NoContent, AppError> {
     if toml::from_str::<Value>(&payload.config).is_err() {
-        return Ok(HttpResponse::BadRequest().finish());
+        return Err(AppError::BadRequest);
     }
     match settings_service
         .save_setting(SettingCodes::Configuration, &payload.config)
         .await
     {
-        Ok(()) => Ok(HttpResponse::Ok().finish()),
+        Ok(()) => Ok(NoContent),
         Err(e) => {
-            log::error!("Save config error: {:?}. Config {}", e, &payload.config);
-            Ok(HttpResponse::InternalServerError().finish())
+            log::error!("Save config error: {e:?}. Config {}", &payload.config);
+            Err(AppError::InternalServerError)
         }
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Apiv2Schema)]
 pub struct ValidateResponse {
     valid: bool,
     error: Option<String>,
 }
 
-#[post("/validate")]
-pub async fn validate(
-    payload: web::Json<ConfigPayload>,
-) -> Result<web::Json<ValidateResponse>, Error> {
+#[api_v2_operation(tags(Configuration))]
+pub async fn validate(payload: Json<ConfigPayload>) -> Json<ValidateResponse> {
     let response = match toml::from_str::<Value>(&payload.config) {
         Ok(_) => ValidateResponse {
             valid: true,
@@ -76,6 +77,5 @@ pub async fn validate(
             error: Some(e.to_string()),
         },
     };
-
-    Ok(web::Json(response))
+    Json(response)
 }

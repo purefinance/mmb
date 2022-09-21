@@ -16,8 +16,18 @@
     clippy::unwrap_used
 )]
 
+use casbin::{CoreApi, Enforcer};
+use chrono::Duration;
+
+use crate::config::load_config;
+use crate::handlers::ws::ws_client;
+use crate::server::start;
+use crate::services::data_provider::liquidity::LiquidityService;
+use crate::ws::broker_messages::NewLiquidityDataMessage;
+
 mod config;
 mod data_provider;
+mod error;
 mod handlers;
 mod middleware;
 mod routes;
@@ -25,14 +35,6 @@ mod server;
 mod services;
 mod types;
 mod ws;
-
-use crate::config::load_config;
-use crate::handlers::ws::ws_client;
-use crate::server::start;
-use crate::services::data_provider::liquidity::LiquidityService;
-use crate::ws::broker_messages::NewLiquidityDataMessage;
-use casbin::{CoreApi, Enforcer};
-use chrono::Duration;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

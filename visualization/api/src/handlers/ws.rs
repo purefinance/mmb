@@ -1,7 +1,8 @@
-use crate::services::token::TokenService;
-use crate::ws::actors::ws_client_session::WsClientSession;
 use actix_web::{web, Error, HttpRequest, Responder};
 use actix_web_actors::ws::start;
+
+use crate::services::token::TokenService;
+use crate::ws::actors::ws_client_session::WsClientSession;
 
 pub async fn ws_client(
     req: HttpRequest,

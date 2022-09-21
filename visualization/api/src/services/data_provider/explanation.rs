@@ -1,8 +1,10 @@
 use chrono::DateTime;
 use itertools::Itertools;
-use mmb_domain::order::snapshot::{Amount, Price};
+use paperclip::actix::Apiv2Schema;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres};
+
+use mmb_domain::order::snapshot::{Amount, Price};
 
 use crate::services::data_provider::model::EventTimedRecord;
 use crate::types::{CurrencyPair, ExchangeId};
@@ -13,7 +15,7 @@ pub struct ExplanationService {
     pool: Pool<Postgres>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Apiv2Schema)]
 #[serde(rename_all(deserialize = "snake_case", serialize = "camelCase"))]
 pub struct PriceLevelRecord {
     pub price: Price,
@@ -22,13 +24,13 @@ pub struct PriceLevelRecord {
     pub mode_name: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Apiv2Schema)]
 #[serde(rename_all(deserialize = "snake_case", serialize = "camelCase"))]
 pub struct ExplanationRecord {
     pub set: Vec<PriceLevelRecord>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Apiv2Schema)]
 #[serde(rename_all(deserialize = "snake_case", serialize = "camelCase"))]
 pub struct Explanation {
     pub id: i64,

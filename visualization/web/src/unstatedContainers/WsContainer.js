@@ -489,7 +489,7 @@ class WsContainer extends Container {
       await CryptolpAxios.loginByRefreshToken({ refreshToken })
         .then(async (response) => {
           const clientType = await CryptolpAxios.getClientType();
-          CryptolpAxios.setToken(response.data, clientType);
+          CryptolpAxios.setToken(response.data, clientType.content);
           await this.auth(CryptolpAxios.token);
         })
         .catch((err) => {
