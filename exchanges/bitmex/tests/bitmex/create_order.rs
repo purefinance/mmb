@@ -71,26 +71,21 @@ async fn create_successfully(#[case] allowed_create_event_source_type: AllowedEv
 async fn create_successfully_all_source_type() {
     init_logger_file_named("log.txt");
 
-    let bitmex_builder = BitmexBuilder::build_account(false);
-    let mut bitmex_builder = match bitmex_builder.await {
+    let mut bitmex_builder = match BitmexBuilder::build_account(false).await {
         Ok(binance_builder) => binance_builder,
         Err(_) => return,
     };
 
-    let exchange_account_id = bitmex_builder.exchange.exchange_account_id;
-
     let mut order_proxy = OrderProxy::new(
-        exchange_account_id,
-        Some("FromCreateSuccessfullyTest".to_owned()),
+        bitmex_builder.exchange.exchange_account_id,
+        Some("FromCreateSuccessfullySimpleTest".to_owned()),
         CancellationToken::default(),
-        bitmex_builder.default_price,
-        bitmex_builder.min_amount,
+        dec!(10000),
+        dec!(100),
     );
     order_proxy.timeout = Duration::from_secs(15);
     order_proxy.currency_pair = CurrencyPair::from_codes("xbt".into(), "usd".into());
     order_proxy.side = OrderSide::Buy;
-    order_proxy.price = dec!(10000);
-    order_proxy.amount = dec!(100);
 
     order_proxy
         .create_order(bitmex_builder.exchange.clone())

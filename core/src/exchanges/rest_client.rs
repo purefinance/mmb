@@ -264,7 +264,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
     pub async fn post(
         &self,
         uri: Uri,
-        query: Bytes,
+        query: Option<Bytes>,
         action_name: &'static str,
         log_args: String,
     ) -> Result<RestResponse, ExchangeError> {
@@ -277,7 +277,10 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
             .add_specific_headers(builder, &uri, RequestType::Post)
             .uri(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
-            .body(Body::from(query))
+            .body(match query {
+                Some(query) => Body::from(query),
+                None => Body::empty(),
+            })
             .with_expect(|| format!("Error during creation of http POST request {request_id}"));
 
         let response = self.client.request(req).await;

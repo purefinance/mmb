@@ -38,9 +38,26 @@ pub(crate) struct BitmexBuilder {
     pub(crate) rx: Receiver<ExchangeEvent>,
 }
 
+pub const EXCHANGE_ACCOUNT_ID: &str = "Bitmex_0";
+
 impl BitmexBuilder {
+    pub(crate) async fn build_account_with_setting(
+        settings: ExchangeSettings,
+        features: ExchangeFeatures,
+        need_to_clean_up: bool,
+    ) -> Self {
+        BitmexBuilder::try_new_with_settings(
+            settings,
+            CancellationToken::default(),
+            features,
+            Commission::default(),
+            need_to_clean_up,
+        )
+        .await
+    }
+
     pub(crate) async fn build_account(need_to_clean_up: bool) -> Result<Self> {
-        let exchange_account_id: ExchangeAccountId = "Bitmex_0".parse().expect("in test");
+        let exchange_account_id: ExchangeAccountId = EXCHANGE_ACCOUNT_ID.parse().expect("in test");
         BitmexBuilder::try_new(
             exchange_account_id,
             CancellationToken::default(),
@@ -125,13 +142,12 @@ impl BitmexBuilder {
 
         // default currency pair for tests
         settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
-            base: "btc".into(),
-            quote: "usd".into(),
+            base: "XBT".into(),
+            quote: "USD".into(),
         }]);
 
         Ok(Self::try_new_with_settings(
             settings,
-            exchange_account_id,
             cancellation_token,
             features,
             commission,
@@ -142,7 +158,6 @@ impl BitmexBuilder {
 
     async fn try_new_with_settings(
         mut settings: ExchangeSettings,
-        exchange_account_id: ExchangeAccountId,
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
@@ -161,15 +176,14 @@ impl BitmexBuilder {
 
         let hosts = bitmex.hosts.clone();
 
-        let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
-
+        let exchange_blocker = ExchangeBlocker::new(vec![settings.exchange_account_id]);
         let event_recorder = EventRecorder::start(None)
             .await
             .expect("Failure start EventRecorder");
 
-        let timeout_manager = get_timeout_manager(exchange_account_id);
+        let timeout_manager = get_timeout_manager(settings.exchange_account_id);
         let exchange = Exchange::new(
-            exchange_account_id,
+            settings.exchange_account_id,
             bitmex,
             OrdersPool::new(),
             features,
@@ -182,12 +196,16 @@ impl BitmexBuilder {
             event_recorder,
         );
         exchange.connect_ws().await.with_expect(move || {
-            "Failed to connect to websockets on exchange {exchange_account_id}"
+            format!(
+                "Failed to connect to websockets on exchange {}",
+                settings.exchange_account_id
+            )
         });
         exchange.build_symbols(&settings.currency_pairs).await;
 
-        let currency_pair_to_symbol_converter =
-            CurrencyPairToSymbolConverter::new(hashmap![ exchange_account_id => exchange.clone() ]);
+        let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(
+            hashmap![ settings.exchange_account_id => exchange.clone() ],
+        );
 
         let balance_manager = BalanceManager::new(currency_pair_to_symbol_converter, None);
 

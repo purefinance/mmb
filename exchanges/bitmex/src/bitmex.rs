@@ -1,5 +1,5 @@
-use anyhow::Result;
-use arrayvec::ArrayVec;
+use anyhow::{Context, Result};
+use arrayvec::{ArrayString, ArrayVec};
 use dashmap::DashMap;
 use function_name::named;
 use hmac::{Hmac, Mac};
@@ -29,18 +29,22 @@ use mmb_domain::market::{
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::{
-    Amount, ExchangeOrderId, OrderExecutionType, OrderSide, OrderType, Price,
+    Amount, ClientOrderId, ExchangeOrderId, OrderExecutionType, OrderInfo, OrderSide, OrderStatus,
+    OrderType, Price,
 };
 use parking_lot::{Mutex, RwLock};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use sha2::Sha256;
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tinyvec::Array;
 use tokio::sync::broadcast::Sender;
+use urlencoding::encode;
 
 struct RestHeadersBitmex {
     api_key: String,
@@ -98,13 +102,17 @@ impl RestHeaders for RestHeadersBitmex {
         uri: &Uri,
         request_type: RequestType,
     ) -> Builder {
+        let path_and_query = match uri.path_and_query() {
+            Some(path_and_query) => path_and_query.as_str(),
+            None => uri.path(),
+        };
         let expire_time = RestHeadersBitmex::get_key_expire_time();
         builder
             .header("api-expires", expire_time)
             .header("api-key", &self.api_key)
             .header(
                 "api-signature",
-                self.get_signature(uri.path(), request_type, expire_time)
+                self.get_signature(path_and_query, request_type, expire_time)
                     .as_slice(),
             )
     }
@@ -199,6 +207,10 @@ impl Bitmex {
                 .write()
                 .insert(unified_currency_pair, specific_currency_pair);
 
+            self.specific_to_unified
+                .write()
+                .insert(specific_currency_pair, unified_currency_pair);
+
             let (amount_currency_code, balance_currency_code) = if symbol.id != "XBTUSD" {
                 (base, None)
             } else {
@@ -235,8 +247,9 @@ impl Bitmex {
         let is_inactive_symbol = symbol.state == "Unlisted";
 
         // Symbols list has the same CurrencyCodePair for all the BTC/USD futures, we keep only perpetual swap for now
-        let is_unsupported_futures =
-            symbol.base_id == "BTC" && symbol.quote_id == "USD" && symbol.id != "XBTUSD";
+        let is_unsupported_futures = (symbol.base_id == "XBT" || symbol.base_id == "BTC")
+            && symbol.quote_id == "USD"
+            && symbol.id != "XBTUSD";
 
         is_inactive_symbol || is_unsupported_futures
     }
@@ -291,10 +304,10 @@ impl Bitmex {
             _ => return Err(ExchangeError::unknown("Unexpected order type")),
         }
 
-        let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
         let log_args = format!("Create order for {header:?}");
         self.rest_client
-            .post(uri, query, function_name!(), log_args)
+            .post(uri, None, function_name!(), log_args)
             .await
     }
 
@@ -303,8 +316,8 @@ impl Bitmex {
         response: &RestResponse,
     ) -> Result<ExchangeOrderId, ExchangeError> {
         #[derive(Deserialize)]
-        #[serde(rename = "orderID")]
         struct OrderId<'a> {
+            #[serde(rename = "orderID")]
             order_id: &'a str,
         }
 
@@ -312,6 +325,149 @@ impl Bitmex {
             .map_err(|err| ExchangeError::parsing(format!("Unable to parse orderId: {err:?}")))?;
 
         Ok(ExchangeOrderId::from(deserialized.order_id))
+    }
+
+    #[named]
+    pub(super) async fn request_open_orders(
+        &self,
+        currency_pair: Option<CurrencyPair>,
+    ) -> Result<RestResponse, ExchangeError> {
+        let mut builder = UriBuilder::from_path("/api/v1/order");
+        struct OpenOrdersFilter {
+            specific_currency_pair: Option<SpecificCurrencyPair>,
+        }
+        impl Display for OpenOrdersFilter {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                // TODO Possible write a serializer to JSON format
+                // Creating JSON without heap allocation
+                let mut string_data = ArrayString::<64>::new();
+                string_data.push('{');
+                string_data.push_str(r#""open": true"#);
+                if let Some(specific_currency_pair) = self.specific_currency_pair {
+                    string_data.push_str(", ");
+                    string_data.push_str(r#""symbol": ""#);
+                    string_data.push_str(specific_currency_pair.as_str());
+                    string_data.push('"');
+                }
+                string_data.push('}');
+
+                write!(f, "{}", encode(string_data.as_str()))
+            }
+        }
+
+        let filter = match currency_pair {
+            Some(pair) => OpenOrdersFilter {
+                specific_currency_pair: Some(self.get_specific_currency_pair(pair)),
+            },
+            None => OpenOrdersFilter {
+                specific_currency_pair: None,
+            },
+        };
+
+        builder.add_kv("filter", filter);
+
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+        self.rest_client
+            .get(uri, function_name!(), "".to_string())
+            .await
+    }
+
+    pub(super) fn parse_open_orders(&self, response: &RestResponse) -> Result<Vec<OrderInfo>> {
+        let bitmex_orders: Vec<BitmexOrderInfo> = serde_json::from_str(&response.content)
+            .context("Unable to parse response content for get_open_orders request")?;
+
+        Ok(bitmex_orders
+            .iter()
+            .map(|order| self.specific_order_info_to_unified(order))
+            .collect())
+    }
+
+    fn specific_order_info_to_unified(&self, specific: &BitmexOrderInfo) -> OrderInfo {
+        OrderInfo::new(
+            self.get_unified_currency_pair(&specific.specific_currency_pair)
+                .expect("expected known currency pair"),
+            specific.exchange_order_id.clone(),
+            specific.client_order_id.clone(),
+            Bitmex::get_local_order_side(&specific.side),
+            Bitmex::get_local_order_status(&specific.status),
+            specific.price,
+            specific.amount,
+            specific.price,
+            specific.executed_amount,
+            None,
+            None,
+            None,
+        )
+    }
+
+    pub(super) fn get_unified_currency_pair(
+        &self,
+        currency_pair: &SpecificCurrencyPair,
+    ) -> Result<CurrencyPair> {
+        self.specific_to_unified
+            .read()
+            .get(currency_pair)
+            .cloned()
+            .with_context(|| {
+                format!(
+                    "Not found currency pair '{currency_pair:?}' in {}",
+                    self.settings.exchange_account_id
+                )
+            })
+    }
+
+    fn get_local_order_status(status: &str) -> OrderStatus {
+        match status {
+            // Untriggered: The Trigger Price has not reached a level to trigger the order
+            // Triggered: The Trigger Price has been reached but no order has been filled
+            "PendingNew" | "New" | "PartiallyFilled" | "DoneForDay" | "Stopped" | "Untriggered"
+            | "Triggered" | "PendingCancel" => OrderStatus::Created,
+            "Filled" => OrderStatus::Completed,
+            "Canceled" | "Expired" => OrderStatus::Canceled,
+            "Rejected" => OrderStatus::FailedToCreate,
+            _ => panic!("Bitmex: unexpected order status {}", status),
+        }
+    }
+
+    fn get_local_order_side(side: &str) -> OrderSide {
+        match side {
+            "Buy" => OrderSide::Buy,
+            "Sell" => OrderSide::Sell,
+            _ => panic!("Unexpected order side"),
+        }
+    }
+
+    #[named]
+    pub(super) async fn request_order_info(
+        &self,
+        order: &OrderRef,
+    ) -> Result<RestResponse, ExchangeError> {
+        let client_order_id = order.client_order_id();
+
+        let mut builder = UriBuilder::from_path("/api/v1/order");
+        let mut filter_string = ArrayString::<64>::new();
+        fmt::write(
+            &mut filter_string,
+            format_args!(r#"{{"clOrdID": "{}"}}"#, client_order_id.as_str()),
+        )
+        .expect("Failed to create filter string");
+        builder.add_kv("filter", encode(filter_string.as_str()));
+
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+        let log_args = format!("order {client_order_id}");
+
+        self.rest_client.get(uri, function_name!(), log_args).await
+    }
+
+    pub(super) fn parse_order_info(&self, response: &RestResponse) -> Result<OrderInfo> {
+        let specific_orders: Vec<BitmexOrderInfo> = serde_json::from_str(&response.content)
+            .context("Unable to parse response content for get_order_info request")?;
+
+        let order = specific_orders
+            .first()
+            .context("No one order info received")?;
+
+        Ok(self.specific_order_info_to_unified(order))
     }
 }
 
@@ -332,6 +488,24 @@ struct BitmexSymbol {
     max_price: Option<Price>,
     #[serde(rename = "maxOrderQty")]
     max_amount: Option<Amount>,
+}
+
+#[derive(Deserialize, Debug)]
+struct BitmexOrderInfo {
+    #[serde(rename = "symbol")]
+    specific_currency_pair: SpecificCurrencyPair,
+    #[serde(rename = "orderID")]
+    exchange_order_id: ExchangeOrderId,
+    #[serde(rename = "clOrdID")]
+    client_order_id: ClientOrderId,
+    price: Price,
+    #[serde(rename = "orderQty")]
+    amount: Amount,
+    #[serde(rename = "cumQty")]
+    executed_amount: Amount,
+    #[serde(rename = "ordStatus")]
+    status: String,
+    side: String,
 }
 
 pub struct BitmexBuilder;
@@ -405,8 +579,8 @@ mod tests {
         // Test data from https://www.bitmex.com/app/apiKeysUsage
         let api_key = "LAqUlngMIQkIUjXMUreyu3qn".to_owned();
         let secret_key = "chNOOS4KvNXR_Xq4k4c9qsfoKWvnDecLATCRlcBwyKDYnWgO".to_owned();
-        let path = "/api/v1/instrument";
-        let expire_time = 1518064236;
+        let path = "/api/v1/instrument?filter=%7B%22symbol%22%3A+%22XBTM15%22%7D";
+        let expire_time = 1518064237;
 
         let rest_header = RestHeadersBitmex {
             api_key,
@@ -419,7 +593,7 @@ mod tests {
             signature_hash
                 .to_str()
                 .expect("Failed to convert signature hash to string"),
-            "c7682d435d0cfe87c16098df34ef2eb5a549d4c5a3c2b1f0f77b8af73423bf00"
+            "e2f422547eecb5b3cb29ade2127e21b858b235b386bfa45e1c1756eb3383919f"
         );
     }
 }

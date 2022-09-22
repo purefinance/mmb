@@ -37,18 +37,29 @@ impl ExchangeClient for Bitmex {
     }
 
     async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {
-        todo!()
+        let response = self.request_open_orders(None).await?;
+
+        self.parse_open_orders(&response)
     }
 
     async fn get_open_orders_by_currency_pair(
         &self,
-        _currency_pair: CurrencyPair,
+        currency_pair: CurrencyPair,
     ) -> Result<Vec<OrderInfo>> {
-        todo!()
+        let response = self.request_open_orders(Some(currency_pair)).await?;
+
+        self.parse_open_orders(&response)
     }
 
-    async fn get_order_info(&self, _order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
-        todo!()
+    async fn get_order_info(&self, order: &OrderRef) -> Result<OrderInfo, ExchangeError> {
+        match self.request_order_info(order).await {
+            Ok(request_outcome) => self.parse_order_info(&request_outcome).map_err(|err| {
+                ExchangeError::parsing(format!("Unable to parse order info: {err:?}"))
+            }),
+            Err(error) => Err(ExchangeError::unknown(
+                format!("Failed to get order info: {:?}", error).as_str(),
+            )),
+        }
     }
 
     async fn close_position(
