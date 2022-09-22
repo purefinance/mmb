@@ -261,7 +261,7 @@ impl Binance {
         let (uri, query) = builder.build_uri_and_query(self.hosts.rest_uri_host(), false);
 
         self.rest_client
-            .post(uri, query, function_name!(), "".to_string())
+            .post(uri, Some(query), function_name!(), "".to_string())
             .await
     }
 
@@ -701,7 +701,7 @@ impl Binance {
 
         let log_args = format!("Close position response for {position:?} {price:?}");
         self.rest_client
-            .post(uri, query, function_name!(), log_args)
+            .post(uri, Some(query), function_name!(), log_args)
             .await
     }
 
@@ -893,7 +893,7 @@ impl Binance {
 
         let log_args = format!("Create order for {header:?}");
         self.rest_client
-            .post(uri, query, function_name!(), log_args)
+            .post(uri, Some(query), function_name!(), log_args)
             .await
     }
 

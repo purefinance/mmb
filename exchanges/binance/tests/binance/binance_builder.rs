@@ -206,7 +206,7 @@ impl BinanceBuilder {
             event_recorder,
         );
         exchange.connect_ws().await.with_expect(move || {
-            "Failed to connect to websockets on exchange {exchange_account_id}"
+            format!("Failed to connect to websockets on exchange {exchange_account_id}")
         });
         exchange.build_symbols(&settings.currency_pairs).await;
 
