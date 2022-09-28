@@ -1,5 +1,5 @@
 use crate::bitmex::Bitmex;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use async_trait::async_trait;
 use mmb_core::exchanges::general::exchange::RequestResult;
 use mmb_core::exchanges::general::order::cancel::CancelOrderResult;
@@ -19,7 +19,7 @@ use std::sync::Arc;
 #[async_trait]
 impl ExchangeClient for Bitmex {
     async fn create_order(&self, order: &OrderRef) -> CreateOrderResult {
-        match self.request_create_order(order).await {
+        match self.do_create_order(order).await {
             Ok(request_outcome) => match self.get_order_id(&request_outcome) {
                 Ok(order_id) => CreateOrderResult::succeed(&order_id, EventSourceType::Rest),
                 Err(error) => CreateOrderResult::failed(error, EventSourceType::Rest),
@@ -28,12 +28,24 @@ impl ExchangeClient for Bitmex {
         }
     }
 
-    async fn cancel_order(&self, _order: OrderCancelling) -> CancelOrderResult {
-        todo!()
+    async fn cancel_order(&self, order: OrderCancelling) -> CancelOrderResult {
+        let order_header = order.header.clone();
+
+        match self.do_cancel_order(order).await {
+            Ok(_) => CancelOrderResult::succeed(
+                order_header.client_order_id.clone(),
+                EventSourceType::Rest,
+                None,
+            ),
+            Err(err) => CancelOrderResult::failed(err, EventSourceType::Rest),
+        }
     }
 
     async fn cancel_all_orders(&self, _currency_pair: CurrencyPair) -> Result<()> {
-        todo!()
+        match self.do_cancel_all_orders().await {
+            Ok(_) => Ok(()),
+            Err(error) => bail!("Failed to cancel all orders: {error:?}"),
+        }
     }
 
     async fn get_open_orders(&self) -> Result<Vec<OrderInfo>> {

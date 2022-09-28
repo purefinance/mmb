@@ -284,9 +284,8 @@ impl Binance {
         builder.add_kv(LISTEN_KEY, listen_key);
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .put(uri, api_key, function_name!(), "".to_string())
+            .put(uri, function_name!(), "".to_string())
             .await
             .map(|_| ())
     }
@@ -767,7 +766,7 @@ impl Binance {
 
         let log_args = format!("Cancel order for {}", order.header.client_order_id);
         self.rest_client
-            .delete(uri, &self.settings.api_key, function_name!(), log_args)
+            .delete(uri, function_name!(), log_args)
             .await
     }
 

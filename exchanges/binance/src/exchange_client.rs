@@ -57,9 +57,8 @@ impl ExchangeClient for Binance {
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
 
-        let api_key = &self.settings.api_key;
         self.rest_client
-            .delete(uri, api_key, function_name!(), String::new())
+            .delete(uri, function_name!(), String::new())
             .await?;
 
         Ok(())

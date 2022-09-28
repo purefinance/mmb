@@ -161,6 +161,7 @@ pub enum RequestType {
     Get,
     Post,
     Delete,
+    Put,
 }
 
 impl RequestType {
@@ -169,6 +170,7 @@ impl RequestType {
             RequestType::Get => "GET",
             RequestType::Post => "POST",
             RequestType::Delete => "DELETE",
+            RequestType::Put => "PUT",
         }
     }
 }
@@ -219,19 +221,25 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
         self.error_handler.request_log(action_name, &request_id);
 
         let builder = Request::builder().method(Method::GET);
+        let request_type = RequestType::Get;
         let req = self
             .headers
-            .add_specific_headers(builder, &uri, RequestType::Get)
+            .add_specific_headers(builder, &uri, request_type)
             .uri(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .body(Body::empty())
-            .with_expect(|| format!("Error during creation of http GET request {request_id}"));
+            .with_expect(|| {
+                format!(
+                    "Error during creation of http {} request {request_id}",
+                    request_type.as_str()
+                )
+            });
 
         let response = self.client.request(req).await;
 
         self.handle_response(
             response,
-            RequestType::Get.as_str(),
+            request_type.as_str(),
             action_name,
             log_args,
             request_id,
@@ -242,23 +250,34 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
     pub async fn put(
         &self,
         uri: Uri,
-        api_key: &str,
         action_name: &'static str,
         log_args: String,
     ) -> Result<RestResponse, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
-        let req = Request::put(uri)
+        let builder = Request::builder().method(Method::PUT);
+        let request_type = RequestType::Put;
+        let req = self
+            .headers
+            .add_specific_headers(builder, &uri, request_type)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
-            .header("X-MBX-APIKEY", api_key)
+            .uri(uri)
             .body(Body::empty())
-            .with_expect(|| format!("Error during creation of http PUT request {request_id}"));
+            .with_expect(|| {
+                format!("Error during creation of http {request_type} request {request_id}")
+            });
 
         let response = self.client.request(req).await;
 
-        self.handle_response(response, "PUT", action_name, log_args, request_id)
-            .await
+        self.handle_response(
+            response,
+            request_type.as_str(),
+            action_name,
+            log_args,
+            request_id,
+        )
+        .await
     }
 
     pub async fn post(
@@ -272,43 +291,69 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
         self.error_handler.request_log(action_name, &request_id);
 
         let builder = Request::builder().method(Method::POST);
+        let request_type = RequestType::Post;
         let req = self
             .headers
-            .add_specific_headers(builder, &uri, RequestType::Post)
+            .add_specific_headers(builder, &uri, request_type)
             .uri(uri)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .body(match query {
                 Some(query) => Body::from(query),
                 None => Body::empty(),
             })
-            .with_expect(|| format!("Error during creation of http POST request {request_id}"));
+            .with_expect(|| {
+                format!(
+                    "Error during creation of http {} request {request_id}",
+                    request_type.as_str()
+                )
+            });
 
         let response = self.client.request(req).await;
 
-        self.handle_response(response, "POST", action_name, log_args, request_id)
-            .await
+        self.handle_response(
+            response,
+            request_type.as_str(),
+            action_name,
+            log_args,
+            request_id,
+        )
+        .await
     }
 
     pub async fn delete(
         &self,
         uri: Uri,
-        api_key: &str,
         action_name: &'static str,
         log_args: String,
     ) -> Result<RestResponse, ExchangeError> {
         let request_id = Uuid::new_v4();
         self.error_handler.request_log(action_name, &request_id);
 
-        let req = Request::delete(uri)
+        let builder = Request::builder().method(Method::DELETE);
+        let request_type = RequestType::Delete;
+        let req = self
+            .headers
+            .add_specific_headers(builder, &uri, request_type)
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
-            .header("X-MBX-APIKEY", api_key)
+            .uri(uri)
             .body(Body::empty())
-            .with_expect(|| format!("Error during creation of http DELETE request {request_id}",));
+            .with_expect(|| {
+                format!(
+                    "Error during creation of http {} request {request_id}",
+                    request_type.as_str()
+                )
+            });
 
         let response = self.client.request(req).await;
 
-        self.handle_response(response, "DELETE", action_name, log_args, request_id)
-            .await
+        self.handle_response(
+            response,
+            request_type.as_str(),
+            action_name,
+            log_args,
+            request_id,
+        )
+        .await
     }
 
     async fn handle_response(
