@@ -7,63 +7,13 @@ use mmb_core::exchanges::general::features::{
 };
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::AllowedEventSourceType;
-use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::market::{CurrencyPair, ExchangeAccountId};
+use mmb_domain::order::snapshot::OrderSide;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
+use rust_decimal_macros::dec;
+use std::time::Duration;
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn open_orders_exists() {
-    init_logger_file_named("log.txt");
-
-    let bitmex_builder = match BitmexBuilder::build_account(false).await {
-        Ok(bitmex_builder) => bitmex_builder,
-        Err(_) => return,
-    };
-    let exchange_account_id = bitmex_builder.exchange.exchange_account_id;
-
-    let order_proxy1 = OrderProxy::new(
-        exchange_account_id,
-        Some("FromOpenOrdersExistsTest".to_owned()),
-        CancellationToken::default(),
-        bitmex_builder.default_price,
-        bitmex_builder.min_amount,
-    );
-
-    let order_proxy2 = OrderProxy::new(
-        exchange_account_id,
-        Some("FromOpenOrdersExistsTest".to_owned()),
-        CancellationToken::default(),
-        bitmex_builder.default_price,
-        bitmex_builder.min_amount,
-    );
-
-    let _ = order_proxy1
-        .create_order(bitmex_builder.exchange.clone())
-        .await
-        .expect("Create order1 failed with");
-
-    let _ = order_proxy2
-        .create_order(bitmex_builder.exchange.clone())
-        .await
-        .expect("Create order2 failed");
-
-    let all_orders = bitmex_builder
-        .exchange
-        .clone()
-        .get_open_orders(false)
-        .await
-        .expect("in test");
-
-    bitmex_builder
-        .exchange
-        .cancel_opened_orders(CancellationToken::default(), true)
-        .await;
-
-    assert_eq!(all_orders.len(), 2);
-}
-
-// TODO Delete after cancel_order() implementation
-// Test is only to check open orders which are created manually with web interface (one XBTUSD order by default)
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_open_orders_simple() {
     init_logger_file_named("log.txt");
@@ -95,13 +45,27 @@ async fn get_open_orders_simple() {
     let bitmex_builder_0 =
         BitmexBuilder::build_account_with_setting(settings.clone(), features_0, false).await;
 
+    let mut order_proxy_0 = OrderProxy::new(
+        bitmex_builder_0.exchange.exchange_account_id,
+        Some("FromGetOpenOrdersTest".to_owned()),
+        CancellationToken::default(),
+        dec!(10000),
+        dec!(100),
+    );
+    order_proxy_0.timeout = Duration::from_secs(15);
+    order_proxy_0.currency_pair = CurrencyPair::from_codes("xbt".into(), "usd".into());
+    order_proxy_0.side = OrderSide::Buy;
+
+    order_proxy_0
+        .create_order(bitmex_builder_0.exchange.clone())
+        .await
+        .expect("Create order failed with error");
+
     let all_orders = bitmex_builder_0
         .exchange
         .get_open_orders(false)
         .await
         .expect("Failed to get open orders");
-
-    println!("All open orders:\n{all_orders:?}");
 
     let features_1 = ExchangeFeatures::new(
         OpenOrdersType::OneCurrencyPair,
@@ -121,14 +85,39 @@ async fn get_open_orders_simple() {
     let bitmex_builder_1 =
         BitmexBuilder::build_account_with_setting(settings, features_1, false).await;
 
+    let mut order_proxy_1 = OrderProxy::new(
+        bitmex_builder_1.exchange.exchange_account_id,
+        Some("FromGetOpenOrdersTest".to_owned()),
+        CancellationToken::default(),
+        dec!(10000),
+        dec!(100),
+    );
+    order_proxy_1.timeout = Duration::from_secs(15);
+    order_proxy_1.currency_pair = CurrencyPair::from_codes("xbt".into(), "usd".into());
+    order_proxy_1.side = OrderSide::Buy;
+
+    order_proxy_1
+        .create_order(bitmex_builder_1.exchange.clone())
+        .await
+        .expect("Create order failed with error");
+
     let currency_pair_orders = bitmex_builder_1
         .exchange
         .get_open_orders(false)
         .await
         .expect("Failed to get open orders");
 
-    println!("Open orders by currency pair:\n{currency_pair_orders:?}");
+    bitmex_builder_0
+        .exchange
+        .cancel_all_orders(order_proxy_0.currency_pair)
+        .await
+        .expect("Failed to cancel all orders");
+    bitmex_builder_1
+        .exchange
+        .cancel_all_orders(order_proxy_1.currency_pair)
+        .await
+        .expect("Failed to cancel all orders");
 
-    // assert_eq!(all_orders.len(), 1);
+    assert_eq!(all_orders.len(), 1);
     assert_eq!(currency_pair_orders.len(), 1);
 }

@@ -7,7 +7,6 @@ use mmb_utils::logger::init_logger_file_named;
 use rust_decimal_macros::dec;
 use std::time::Duration;
 
-// TODO Add order cancelling after cancel_order implementation
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_order_info() {
     init_logger_file_named("log.txt");
@@ -29,19 +28,23 @@ async fn get_order_info() {
     order_proxy.side = OrderSide::Buy;
     order_proxy.reservation_id = Some(ReservationId::generate());
 
-    let created_order = order_proxy
+    let order_ref = order_proxy
         .create_order(bitmex_builder.exchange.clone())
         .await
         .expect("in test");
 
     let order_info = bitmex_builder
         .exchange
-        .get_order_info(&created_order)
+        .get_order_info(&order_ref)
         .await
         .expect("in test");
 
-    let created_exchange_order_id = created_order.exchange_order_id().expect("in test");
+    let created_exchange_order_id = order_ref.exchange_order_id().expect("in test");
     let gotten_info_exchange_order_id = order_info.exchange_order_id;
+
+    order_proxy
+        .cancel_order_or_fail(&order_ref, bitmex_builder.exchange.clone())
+        .await;
 
     assert_eq!(created_exchange_order_id, gotten_info_exchange_order_id);
 }

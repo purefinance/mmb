@@ -29,8 +29,8 @@ use mmb_domain::market::{
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::{
-    Amount, ClientOrderId, ExchangeOrderId, OrderExecutionType, OrderInfo, OrderSide, OrderStatus,
-    OrderType, Price,
+    Amount, ClientOrderId, ExchangeOrderId, OrderCancelling, OrderExecutionType, OrderInfo,
+    OrderSide, OrderStatus, OrderType, Price,
 };
 use parking_lot::{Mutex, RwLock};
 use rust_decimal::Decimal;
@@ -255,7 +255,7 @@ impl Bitmex {
     }
 
     #[named]
-    pub(super) async fn request_create_order(
+    pub(super) async fn do_create_order(
         &self,
         order: &OrderRef,
     ) -> Result<RestResponse, ExchangeError> {
@@ -468,6 +468,35 @@ impl Bitmex {
             .context("No one order info received")?;
 
         Ok(self.specific_order_info_to_unified(order))
+    }
+
+    #[named]
+    pub(super) async fn do_cancel_order(
+        &self,
+        order: OrderCancelling,
+    ) -> Result<RestResponse, ExchangeError> {
+        let mut builder = UriBuilder::from_path("/api/v1/order");
+        // Order may be canceled passing either exchange_order_id ("orderID" key) or client_order_id ("clOrdID" key)
+        builder.add_kv("orderID", &order.exchange_order_id);
+
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+        let log_args = format!("Cancel order for {}", order.header.client_order_id);
+
+        self.rest_client
+            .delete(uri, function_name!(), log_args)
+            .await
+    }
+
+    #[named]
+    pub(super) async fn do_cancel_all_orders(&self) -> Result<RestResponse, ExchangeError> {
+        let builder = UriBuilder::from_path("/api/v1/order/all");
+
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+        let log_args = "Cancel all orders".to_owned();
+
+        self.rest_client
+            .delete(uri, function_name!(), log_args)
+            .await
     }
 }
 
