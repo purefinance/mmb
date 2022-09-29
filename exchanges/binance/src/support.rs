@@ -128,7 +128,13 @@ impl Support for Binance {
                 }
 
                 // TODO handle public stream
-                if stream.ends_with("depth20") {
+                let stream_tail = &stream[byte_index + 1..];
+                if stream_tail.starts_with("depth1000") {
+                    log::warn!("depth1000 is unsuported for Binance in current implementation");
+                    return Ok(());
+                }
+
+                if stream_tail.starts_with("depth") {
                     self.process_snapshot_update(currency_pair, data)?;
                     return Ok(());
                 }

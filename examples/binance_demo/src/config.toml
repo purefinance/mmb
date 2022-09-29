@@ -8,7 +8,7 @@ exchange_account_id = "Binance_0"
 exchange_account_id = "Binance_0"
 is_margin_trading = false
 request_trades = false
-websocket_channels = ["depth20"]
+websocket_channels = ["depth20@100ms"]
 subscribe_to_market_data = true
 
 currency_pairs = [

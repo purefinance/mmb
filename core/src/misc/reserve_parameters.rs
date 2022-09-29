@@ -10,12 +10,12 @@ use mmb_domain::order::snapshot::OrderSide;
 
 #[derive(Clone, Hash, Debug, Eq, PartialEq)]
 pub struct ReserveParameters {
-    pub(crate) configuration_descriptor: ConfigurationDescriptor,
-    pub(crate) exchange_account_id: ExchangeAccountId,
-    pub(crate) symbol: Arc<Symbol>,
-    pub(crate) order_side: OrderSide,
     pub(crate) price: Price,
     pub(crate) amount: Amount,
+    pub(crate) order_side: OrderSide,
+    pub(crate) symbol: Arc<Symbol>,
+    pub(crate) exchange_account_id: ExchangeAccountId,
+    pub(crate) configuration_descriptor: ConfigurationDescriptor,
 }
 
 impl ReserveParameters {

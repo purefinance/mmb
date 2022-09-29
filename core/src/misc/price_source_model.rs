@@ -1,9 +1,8 @@
+use mmb_database::impl_event;
+use mmb_domain::market::CurrencyPair;
 use mmb_domain::market::ExchangeId;
 use mmb_domain::order::snapshot::Price;
 use mmb_utils::DateTime;
-
-use mmb_database::impl_event;
-use mmb_domain::market::CurrencyPair;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
