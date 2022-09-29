@@ -230,20 +230,11 @@ impl Exchange {
 
         exchange_client.set_handle_trade_callback(Box::new({
             let exchange_weak = exchange_weak.clone();
-            move |currency_pair, trade_id, price, quantity, order_side, transaction_time| {
-                match exchange_weak.upgrade() {
-                    Some(exchange) => {
-                        exchange.handle_trade(
-                            currency_pair,
-                            trade_id,
-                            price,
-                            quantity,
-                            order_side,
-                            transaction_time,
-                        );
-                    }
-                    None => log::info!("Unable to upgrade weak reference to Exchange instance"),
+            move |currency_pair, trade| match exchange_weak.upgrade() {
+                Some(exchange) => {
+                    exchange.handle_trade(currency_pair, trade);
                 }
+                None => log::info!("Unable to upgrade weak reference to Exchange instance"),
             }
         }));
 
@@ -290,6 +281,14 @@ impl Exchange {
         log::info!("Exchange account id {} connected", self.exchange_account_id);
         if let Some(exchange_blocker) = self.exchange_blocker.upgrade() {
             exchange_blocker.unblock(self.exchange_account_id, WEBSOCKET_DISCONNECTED);
+        }
+
+        let callback_outcome = self.exchange_client.on_connected();
+        if let Err(error) = callback_outcome {
+            log::warn!(
+                "Error occurred while websocket message processing: {:?}",
+                error
+            );
         }
     }
 

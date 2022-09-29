@@ -85,15 +85,6 @@ impl LiquidationPriceEvent {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize)]
-pub enum TickDirection {
-    None,
-    ZeroMinusTick,
-    MinusTick,
-    ZeroPlusTick,
-    PlusTick,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Eq)]
 pub enum TradeId {
     Number(u64),
@@ -117,6 +108,12 @@ impl From<Value> for TradeId {
             Some(value) => TradeId::Number(value),
             None => TradeId::String(value.to_string().into_boxed_str()),
         }
+    }
+}
+
+impl From<String> for TradeId {
+    fn from(value: String) -> Self {
+        TradeId::String(value.into_boxed_str())
     }
 }
 
@@ -156,7 +153,6 @@ pub struct Trade {
     pub quantity: Amount,
     pub side: OrderSide,
     pub transaction_time: DateTime,
-    pub tick_direction: TickDirection,
 }
 
 #[derive(Debug, Clone, Serialize)]

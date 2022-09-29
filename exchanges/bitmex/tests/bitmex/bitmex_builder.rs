@@ -24,7 +24,6 @@ use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tokio::sync::broadcast::{Receiver, Sender};
 
 // TODO Remove dead code allowing after tests implementation
 #[allow(dead_code)]
@@ -34,8 +33,8 @@ pub(crate) struct BitmexBuilder {
     exchange_settings: ExchangeSettings,
     pub(crate) default_price: Price,
     pub(crate) min_amount: Amount,
-    tx: Sender<ExchangeEvent>,
-    pub(crate) rx: Receiver<ExchangeEvent>,
+    tx: broadcast::Sender<ExchangeEvent>,
+    pub(crate) rx: broadcast::Receiver<ExchangeEvent>,
 }
 
 pub const EXCHANGE_ACCOUNT_ID: &str = "Bitmex_0";
@@ -157,7 +156,7 @@ impl BitmexBuilder {
     }
 
     async fn try_new_with_settings(
-        mut settings: ExchangeSettings,
+        settings: ExchangeSettings,
         cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
@@ -165,8 +164,6 @@ impl BitmexBuilder {
     ) -> Self {
         let lifetime_manager = init_lifetime_manager();
         let (tx, rx) = broadcast::channel(10);
-
-        settings.websocket_channels = vec!["depth".into(), "trade".into()];
 
         let bitmex = Box::new(Bitmex::new(
             settings.clone(),
@@ -195,13 +192,13 @@ impl BitmexBuilder {
             commission,
             event_recorder,
         );
+        exchange.build_symbols(&settings.currency_pairs).await;
         exchange.connect_ws().await.with_expect(move || {
             format!(
                 "Failed to connect to websockets on exchange {}",
                 settings.exchange_account_id
             )
         });
-        exchange.build_symbols(&settings.currency_pairs).await;
 
         let currency_pair_to_symbol_converter = CurrencyPairToSymbolConverter::new(
             hashmap![ settings.exchange_account_id => exchange.clone() ],

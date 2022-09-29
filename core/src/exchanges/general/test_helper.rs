@@ -132,11 +132,15 @@ impl Support for TestClient {
         unimplemented!("doesn't need in UT")
     }
 
+    fn on_connected(&self) -> Result<()> {
+        unimplemented!("doesn't need in UT")
+    }
+
     fn on_disconnected(&self) -> Result<()> {
         unimplemented!("doesn't need in UT")
     }
 
-    fn set_send_websocket_message_callback(&self, _callback: SendWebsocketMessageCb) {}
+    fn set_send_websocket_message_callback(&mut self, _callback: SendWebsocketMessageCb) {}
 
     fn set_order_created_callback(&mut self, _callback: OrderCreatedCb) {}
 

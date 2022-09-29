@@ -1,39 +1,39 @@
+use crate::types::{BitmexOrderInfo, BitmexSymbol};
 use anyhow::{Context, Result};
 use arrayvec::{ArrayString, ArrayVec};
 use dashmap::DashMap;
 use function_name::named;
 use hmac::{Hmac, Mac};
 use hyper::http::request::Builder;
-use hyper::Uri;
+use hyper::{StatusCode, Uri};
 use mmb_core::exchanges::general::features::{
     BalancePositionOption, ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
     RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::{
-    ErrorHandlerData, ErrorHandlerEmpty, RequestType, RestClient, RestHeaders, RestResponse,
-    UriBuilder,
+    ErrorHandler, ErrorHandlerData, RequestType, RestClient, RestHeaders, RestResponse, UriBuilder,
 };
 use mmb_core::exchanges::timeouts::requests_timeout_manager_factory::RequestTimeoutArguments;
 use mmb_core::exchanges::timeouts::timeout_manager::TimeoutManager;
 use mmb_core::exchanges::traits::{
     ExchangeClientBuilder, ExchangeClientBuilderResult, ExchangeError, HandleOrderFilledCb,
-    HandleTradeCb, OrderCancelledCb, OrderCreatedCb, Support,
+    HandleTradeCb, OrderCancelledCb, OrderCreatedCb, SendWebsocketMessageCb, Support,
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::ExchangeSettings;
 use mmb_domain::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_domain::exchanges::symbol::{Precision, Symbol};
 use mmb_domain::market::{
-    CurrencyCode, CurrencyId, CurrencyPair, ExchangeId, SpecificCurrencyPair,
+    CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType, ExchangeId, SpecificCurrencyPair,
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::{
-    Amount, ClientOrderId, ExchangeOrderId, OrderCancelling, OrderExecutionType, OrderInfo,
-    OrderSide, OrderStatus, OrderType, Price,
+    ExchangeOrderId, OrderCancelling, OrderExecutionType, OrderInfo, OrderSide, OrderStatus,
+    OrderType, Price,
 };
 use parking_lot::{Mutex, RwLock};
-use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use serde::Deserialize;
 use sha2::Sha256;
 use std::collections::HashMap;
@@ -43,8 +43,27 @@ use std::io::Write;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tinyvec::Array;
-use tokio::sync::broadcast::Sender;
+use tokio::sync::broadcast;
 use urlencoding::encode;
+
+#[derive(Default)]
+pub struct ErrorHandlerBitmex;
+
+impl ErrorHandler for ErrorHandlerBitmex {
+    fn check_spec_rest_error(&self, response: &RestResponse) -> Result<(), ExchangeError> {
+        match response.status {
+            // StatusCode::UNAUTHORIZED is possible too but it is handling in RestClient::get_rest_error()
+            StatusCode::BAD_REQUEST | StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => {
+                Err(ExchangeError::unknown(&response.content))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn clarify_error_type(&self, _error: &ExchangeError) -> ExchangeErrorType {
+        ExchangeErrorType::Unknown
+    }
+}
 
 struct RestHeadersBitmex {
     api_key: String,
@@ -59,39 +78,17 @@ impl RestHeadersBitmex {
         }
     }
 
-    pub(super) fn get_signature(
-        &self,
-        path: &str,
+    pub fn create_signature_message(
+        path_and_query: &str,
         request_type: RequestType,
-        expire_time: u64,
-    ) -> [u8; 64] {
-        let mut hmac = Hmac::<Sha256>::new_from_slice(self.secret_key.as_bytes())
-            .expect("Unable to calculate hmac for Bitmex signature");
-        hmac.update(request_type.as_str().as_bytes());
-        hmac.update(path.as_bytes());
+    ) -> (ArrayString<128>, u64) {
+        let mut message = ArrayString::<128>::new();
+        message.push_str(request_type.as_str());
+        message.push_str(path_and_query);
 
-        let mut expire_time_array = ArrayVec::<u8, 20>::new();
-        write!(expire_time_array, "{expire_time}").expect("Failed to convert UNIX time to string");
-        hmac.update(expire_time_array.as_slice());
+        let expire_time = Bitmex::get_key_expire_time(60);
 
-        let hmac_bytes = hmac.finalize().into_bytes();
-
-        let mut hex_array = [0u8; 64];
-        write!(hex_array.as_slice_mut(), "{:x}", hmac_bytes)
-            .expect("Failed to convert signature bytes array to hex");
-
-        hex_array
-    }
-
-    fn get_key_expire_time() -> u64 {
-        const SECS_TO_EXPIRE: u64 = 60;
-
-        let current_unix_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("System Time before UNIX EPOCH!")
-            .as_secs();
-
-        current_unix_time + SECS_TO_EXPIRE
+        (message, expire_time)
     }
 }
 
@@ -106,13 +103,15 @@ impl RestHeaders for RestHeadersBitmex {
             Some(path_and_query) => path_and_query.as_str(),
             None => uri.path(),
         };
-        let expire_time = RestHeadersBitmex::get_key_expire_time();
+        let (message, expire_time) =
+            RestHeadersBitmex::create_signature_message(path_and_query, request_type);
+
         builder
             .header("api-expires", expire_time)
             .header("api-key", &self.api_key)
             .header(
                 "api-signature",
-                self.get_signature(path_and_query, request_type, expire_time)
+                Bitmex::create_signature(&self.secret_key, message.as_str(), expire_time)
                     .as_slice(),
             )
     }
@@ -120,30 +119,29 @@ impl RestHeaders for RestHeadersBitmex {
 
 const EMPTY_RESPONSE_IS_OK: bool = false;
 
-// TODO Remove #[allow(dead_code)] after Bitmex exchange client will be implemented
-#[allow(dead_code)]
 pub struct Bitmex {
     pub(crate) settings: ExchangeSettings,
     pub hosts: Hosts,
-    // TODO Replace ErrorHandlerEmpty with specific for Bitmex
-    rest_client: RestClient<ErrorHandlerEmpty, RestHeadersBitmex>,
+    rest_client: RestClient<ErrorHandlerBitmex, RestHeadersBitmex>,
     pub(crate) unified_to_specific: RwLock<HashMap<CurrencyPair, SpecificCurrencyPair>>,
     specific_to_unified: RwLock<HashMap<SpecificCurrencyPair, CurrencyPair>>,
     pub(crate) supported_currencies: DashMap<CurrencyId, CurrencyCode>,
     // Currencies used for trading according to user settings
     pub(super) traded_specific_currencies: Mutex<Vec<SpecificCurrencyPair>>,
-    lifetime_manager: Arc<AppLifetimeManager>,
-    events_channel: Sender<ExchangeEvent>,
+    pub(super) lifetime_manager: Arc<AppLifetimeManager>,
+    pub(super) events_channel: broadcast::Sender<ExchangeEvent>,
     pub(crate) order_created_callback: OrderCreatedCb,
     pub(crate) order_cancelled_callback: OrderCancelledCb,
     pub(crate) handle_order_filled_callback: HandleOrderFilledCb,
     pub(crate) handle_trade_callback: HandleTradeCb,
+    pub(crate) websocket_message_callback: SendWebsocketMessageCb,
+    pub(super) order_book_ids: Mutex<HashMap<(SpecificCurrencyPair, u64), Price>>,
 }
 
 impl Bitmex {
     pub fn new(
         settings: ExchangeSettings,
-        events_channel: Sender<ExchangeEvent>,
+        events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
     ) -> Bitmex {
         Self {
@@ -151,7 +149,7 @@ impl Bitmex {
                 ErrorHandlerData::new(
                     EMPTY_RESPONSE_IS_OK,
                     settings.exchange_account_id,
-                    ErrorHandlerEmpty::default(),
+                    ErrorHandlerBitmex::default(),
                 ),
                 RestHeadersBitmex::new(settings.api_key.clone(), settings.secret_key.clone()),
             ),
@@ -166,7 +164,9 @@ impl Bitmex {
             order_created_callback: Box::new(|_, _, _| {}),
             order_cancelled_callback: Box::new(|_, _, _| {}),
             handle_order_filled_callback: Box::new(|_| {}),
-            handle_trade_callback: Box::new(|_, _, _, _, _, _| {}),
+            handle_trade_callback: Box::new(|_, _| {}),
+            websocket_message_callback: Box::new(|_, _| Ok(())),
+            order_book_ids: Default::default(),
         }
     }
 
@@ -198,10 +198,10 @@ impl Bitmex {
                 continue;
             }
 
-            let base = symbol.base_id.as_str().into();
-            let quote = symbol.quote_id.as_str().into();
+            let base = symbol.base_id.into();
+            let quote = symbol.quote_id.into();
 
-            let specific_currency_pair = symbol.id.as_str().into();
+            let specific_currency_pair = symbol.id.into();
             let unified_currency_pair = CurrencyPair::from_codes(base, quote);
             self.unified_to_specific
                 .write()
@@ -222,9 +222,9 @@ impl Bitmex {
 
             let symbol = Symbol::new(
                 self.settings.is_margin_trading,
-                symbol.base_id.as_str().into(),
+                symbol.base_id.into(),
                 base,
-                symbol.quote_id.as_str().into(),
+                symbol.quote_id.into(),
                 quote,
                 None,
                 symbol.max_price,
@@ -383,17 +383,34 @@ impl Bitmex {
     }
 
     fn specific_order_info_to_unified(&self, specific: &BitmexOrderInfo) -> OrderInfo {
+        let price = match specific.price {
+            Some(price) => price,
+            None => dec!(0),
+        };
+        let average_price = match specific.average_fill_price {
+            Some(price) => price,
+            None => dec!(0),
+        };
+        let amount = match specific.amount {
+            Some(amount) => amount,
+            None => dec!(0),
+        };
+        let filled_amount = match specific.filled_amount {
+            Some(amount) => amount,
+            None => dec!(0),
+        };
         OrderInfo::new(
             self.get_unified_currency_pair(&specific.specific_currency_pair)
-                .expect("expected known currency pair"),
+                .expect("Expected known currency pair"),
             specific.exchange_order_id.clone(),
             specific.client_order_id.clone(),
-            Bitmex::get_local_order_side(&specific.side),
-            Bitmex::get_local_order_status(&specific.status),
-            specific.price,
-            specific.amount,
-            specific.price,
-            specific.executed_amount,
+            specific.side,
+            Bitmex::get_local_order_status(specific.status),
+            price,
+            amount,
+            average_price,
+            filled_amount,
+            // Bitmex doesn't return commission info on GET /order request
             None,
             None,
             None,
@@ -416,24 +433,13 @@ impl Bitmex {
             })
     }
 
-    fn get_local_order_status(status: &str) -> OrderStatus {
+    pub(super) fn get_local_order_status(status: &str) -> OrderStatus {
         match status {
-            // Untriggered: The Trigger Price has not reached a level to trigger the order
-            // Triggered: The Trigger Price has been reached but no order has been filled
-            "PendingNew" | "New" | "PartiallyFilled" | "DoneForDay" | "Stopped" | "Untriggered"
-            | "Triggered" | "PendingCancel" => OrderStatus::Created,
+            "New" | "PartiallyFilled" => OrderStatus::Created,
             "Filled" => OrderStatus::Completed,
-            "Canceled" | "Expired" => OrderStatus::Canceled,
+            "Canceled" | "Expired" | "Stopped" => OrderStatus::Canceled,
             "Rejected" => OrderStatus::FailedToCreate,
             _ => panic!("Bitmex: unexpected order status {}", status),
-        }
-    }
-
-    fn get_local_order_side(side: &str) -> OrderSide {
-        match side {
-            "Buy" => OrderSide::Buy,
-            "Sell" => OrderSide::Sell,
-            _ => panic!("Unexpected order side"),
         }
     }
 
@@ -498,43 +504,33 @@ impl Bitmex {
             .delete(uri, function_name!(), log_args)
             .await
     }
-}
 
-#[derive(Deserialize, Debug)]
-struct BitmexSymbol {
-    #[serde(rename = "symbol")]
-    id: String,
-    #[serde(rename = "underlying")]
-    base_id: String,
-    #[serde(rename = "quoteCurrency")]
-    quote_id: String,
-    state: String,
-    #[serde(rename = "tickSize")]
-    price_tick: Option<Decimal>,
-    #[serde(rename = "lotSize")]
-    amount_tick: Option<Decimal>,
-    #[serde(rename = "maxPrice")]
-    max_price: Option<Price>,
-    #[serde(rename = "maxOrderQty")]
-    max_amount: Option<Amount>,
-}
+    pub(super) fn create_signature(secret_key: &str, message: &str, expire_time: u64) -> [u8; 64] {
+        let mut hmac = Hmac::<Sha256>::new_from_slice(secret_key.as_bytes())
+            .expect("Unable to calculate hmac for Bitmex signature");
+        hmac.update(message.as_bytes());
 
-#[derive(Deserialize, Debug)]
-struct BitmexOrderInfo {
-    #[serde(rename = "symbol")]
-    specific_currency_pair: SpecificCurrencyPair,
-    #[serde(rename = "orderID")]
-    exchange_order_id: ExchangeOrderId,
-    #[serde(rename = "clOrdID")]
-    client_order_id: ClientOrderId,
-    price: Price,
-    #[serde(rename = "orderQty")]
-    amount: Amount,
-    #[serde(rename = "cumQty")]
-    executed_amount: Amount,
-    #[serde(rename = "ordStatus")]
-    status: String,
-    side: String,
+        let mut expire_time_array = ArrayVec::<u8, 20>::new();
+        write!(expire_time_array, "{expire_time}").expect("Failed to convert UNIX time to string");
+        hmac.update(expire_time_array.as_slice());
+
+        let hmac_bytes = hmac.finalize().into_bytes();
+
+        let mut hex_array = [0u8; 64];
+        write!(hex_array.as_slice_mut(), "{:x}", hmac_bytes)
+            .expect("Failed to convert signature bytes array to hex");
+
+        hex_array
+    }
+
+    pub(super) fn get_key_expire_time(secs: u64) -> u64 {
+        let current_unix_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("System Time before UNIX EPOCH!")
+            .as_secs();
+
+        current_unix_time + secs
+    }
 }
 
 pub struct BitmexBuilder;
@@ -543,7 +539,7 @@ impl ExchangeClientBuilder for BitmexBuilder {
     fn create_exchange_client(
         &self,
         exchange_settings: ExchangeSettings,
-        events_channel: Sender<ExchangeEvent>,
+        events_channel: broadcast::Sender<ExchangeEvent>,
         lifetime_manager: Arc<AppLifetimeManager>,
         _timeout_manager: Arc<TimeoutManager>,
         _orders: Arc<OrdersPool>,
@@ -616,7 +612,10 @@ mod tests {
             secret_key,
         };
 
-        let signature_hash = rest_header.get_signature(path, RequestType::Get, expire_time);
+        let (message, _) = RestHeadersBitmex::create_signature_message(path, RequestType::Get);
+
+        let signature_hash =
+            Bitmex::create_signature(&rest_header.secret_key, message.as_str(), expire_time);
 
         assert_eq!(
             signature_hash

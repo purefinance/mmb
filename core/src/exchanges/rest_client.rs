@@ -229,10 +229,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
             .header(hyper::header::CONNECTION, KEEP_ALIVE)
             .body(Body::empty())
             .with_expect(|| {
-                format!(
-                    "Error during creation of http {} request {request_id}",
-                    request_type.as_str()
-                )
+                format!("Error during creation of http {request_type} request {request_id}")
             });
 
         let response = self.client.request(req).await;
@@ -302,10 +299,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
                 None => Body::empty(),
             })
             .with_expect(|| {
-                format!(
-                    "Error during creation of http {} request {request_id}",
-                    request_type.as_str()
-                )
+                format!("Error during creation of http {request_type} request {request_id}")
             });
 
         let response = self.client.request(req).await;
@@ -338,10 +332,7 @@ impl<ErrHandler: ErrorHandler + Send + Sync + 'static, SpecHeaders: RestHeaders 
             .uri(uri)
             .body(Body::empty())
             .with_expect(|| {
-                format!(
-                    "Error during creation of http {} request {request_id}",
-                    request_type.as_str()
-                )
+                format!("Error during creation of http {request_type} request {request_id}")
             });
 
         let response = self.client.request(req).await;

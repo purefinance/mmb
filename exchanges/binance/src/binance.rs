@@ -210,7 +210,7 @@ impl Binance {
             order_created_callback: Box::new(|_, _, _| {}),
             order_cancelled_callback: Box::new(|_, _, _| {}),
             handle_order_filled_callback: Box::new(|_| {}),
-            handle_trade_callback: Box::new(|_, _, _, _, _, _| {}),
+            handle_trade_callback: Box::new(|_, _| {}),
             unified_to_specific: Default::default(),
             specific_to_unified: Default::default(),
             supported_currencies: Default::default(),

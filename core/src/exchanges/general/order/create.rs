@@ -308,8 +308,7 @@ impl Exchange {
 
                 let order_info_res = self.get_order_info(&order).await;
 
-                let (status, client_order_id, exchange_order_id) =
-                    order.fn_ref(|o| (o.status(), o.client_order_id(), o.exchange_order_id()));
+                let (status, client_order_id) = order.fn_ref(|o| (o.status(), o.client_order_id()));
 
                 //In case order's status has changed while we were receiving OrderInfo
                 if status != OrderStatus::Creating {
@@ -318,6 +317,11 @@ impl Exchange {
 
                 match order_info_res {
                     Ok(order_info) => {
+                        let exchange_order_id = order.fn_mut(|order| {
+                            order.props.exchange_order_id =
+                                Some(order_info.exchange_order_id.clone());
+                            order.exchange_order_id()
+                        });
                         self.handle_creating_order_from_check_order_info(
                             &client_order_id,
                             &exchange_order_id,
