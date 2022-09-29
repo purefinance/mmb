@@ -52,7 +52,6 @@ pub(crate) struct BalanceReservationManager {
     amount_limits_in_amount_currency: ServiceValueTree,
 
     position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount,
-    reservation_id: ReservationId,
 
     pub virtual_balance_holder: VirtualBalanceHolder,
     pub balance_reservation_storage: BalanceReservationStorage,
@@ -67,7 +66,6 @@ impl BalanceReservationManager {
             reserved_amount_in_amount_currency: ServiceValueTree::default(),
             amount_limits_in_amount_currency: ServiceValueTree::default(),
             position_by_fill_amount_in_amount_currency: BalancePositionByFillAmount::default(),
-            reservation_id: ReservationId::generate(),
             virtual_balance_holder: VirtualBalanceHolder::new(
                 currency_pair_to_symbol_converter.exchanges_by_id().clone(),
             ),
@@ -1370,10 +1368,9 @@ impl BalanceReservationManager {
             can_reserve_result.preset.reservation_currency_code,
         );
 
-        self.reservation_id = ReservationId::generate();
+        let reservation_id = ReservationId::generate();
         log::info!(
-            "Trying to reserve {:?} {} {} {:?} {} {} {reservation:?}",
-            self.reservation_id,
+            "Trying to reserve {reservation_id:?} {} {} {:?} {} {} {reservation:?}",
             can_reserve_result.preset.reservation_currency_code,
             can_reserve_result
                 .preset
@@ -1384,16 +1381,16 @@ impl BalanceReservationManager {
         );
 
         self.balance_reservation_storage
-            .add(self.reservation_id, reservation);
+            .add(reservation_id, reservation);
         self.add_reserved_amount_expected(
             &request,
-            self.reservation_id,
+            reservation_id,
             reserve_parameters.amount,
             true,
         );
 
         log::info!("Reserved successfully");
-        Some(self.reservation_id)
+        Some(reservation_id)
     }
 
     fn can_reserve_core(
