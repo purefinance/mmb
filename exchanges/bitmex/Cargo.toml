@@ -10,10 +10,12 @@ anyhow = "1"
 arrayvec = { version = "0.7", features = ["std"] }
 async-trait = "0.1"
 bstr = "1.0"
+chrono = { version = "0.4", features = ["serde"]}
 dashmap = "5"
 function_name = "0.3.0"
 hmac = "0.12"
 hyper = { version = "0.14", features = ["http1", "runtime", "client", "tcp"] }
+log = "0.4"
 mmb_core = { path = "../../core/" }
 mmb_domain = { path = "../../domain" }
 mmb_utils = { path = "../../mmb_utils" }

@@ -1,31 +1,13 @@
 use itertools::Itertools;
-use mmb_domain::events::{ExchangeEvent, TickDirection, Trade, TradeId, TradesEvent};
+use mmb_domain::events::{ExchangeEvent, Trade, TradesEvent};
 use mmb_domain::market::CurrencyPair;
 use mmb_domain::market::MarketId;
-use mmb_domain::order::snapshot::OrderSide;
-use mmb_domain::order::snapshot::{Amount, Price};
-use mmb_utils::DateTime;
 
 use crate::exchanges::{general::exchange::Exchange, timeouts::timeout_manager};
 
 impl Exchange {
-    pub fn handle_trade(
-        &self,
-        currency_pair: CurrencyPair,
-        trade_id: TradeId,
-        price: Price,
-        quantity: Amount,
-        side: OrderSide,
-        transaction_time: DateTime,
-    ) {
-        let trades = vec![Trade {
-            trade_id,
-            price,
-            quantity,
-            side,
-            transaction_time,
-            tick_direction: TickDirection::None,
-        }];
+    pub fn handle_trade(&self, currency_pair: CurrencyPair, trade: Trade) {
+        let trades = vec![trade];
         let mut trades_event = TradesEvent {
             exchange_account_id: self.exchange_account_id,
             currency_pair,

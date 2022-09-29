@@ -393,6 +393,8 @@ pub trait OrderInfoExtensionData: Any + DynClone + Send + Sync + Debug {
 
 clone_trait_object!(OrderInfoExtensionData);
 
+// In some cases exchange doesn't send price, amount, average_fill_price and filled_amount values.
+// So it will be 0
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrderInfo {
     pub currency_pair: CurrencyPair,

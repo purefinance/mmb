@@ -26,7 +26,7 @@ use mmb_core::exchanges::traits::{
 };
 use mmb_core::infrastructure::spawn_by_timer;
 use mmb_core::settings::ExchangeSettings;
-use mmb_domain::events::{ExchangeEvent, TradeId};
+use mmb_domain::events::{ExchangeEvent, Trade, TradeId};
 use mmb_domain::market::{CurrencyCode, CurrencyPair};
 use mmb_domain::market::{CurrencyId, SpecificCurrencyPair};
 use mmb_domain::order::snapshot::SortedOrderData;
@@ -172,13 +172,17 @@ impl Support for Binance {
         Ok(())
     }
 
+    fn on_connected(&self) -> Result<()> {
+        Ok(())
+    }
+
     fn on_disconnected(&self) -> Result<()> {
         *self.listen_key.write() = None;
 
         Ok(())
     }
 
-    fn set_send_websocket_message_callback(&self, _callback: SendWebsocketMessageCb) {}
+    fn set_send_websocket_message_callback(&mut self, _callback: SendWebsocketMessageCb) {}
 
     fn set_order_created_callback(&mut self, callback: OrderCreatedCb) {
         self.order_created_callback = callback;
@@ -288,11 +292,13 @@ impl Binance {
 
         (self.handle_trade_callback)(
             currency_pair,
-            trade_id,
-            price,
-            quantity,
-            order_side,
-            Utc.timestamp_millis(datetime),
+            Trade {
+                trade_id,
+                price,
+                quantity,
+                side: order_side,
+                transaction_time: Utc.timestamp_millis(datetime),
+            },
         );
 
         Ok(())

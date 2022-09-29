@@ -15,8 +15,8 @@ use crate::settings::ExchangeSettings;
 use anyhow::Result;
 use async_trait::async_trait;
 use dashmap::DashMap;
-use mmb_domain::events::ExchangeEvent;
-use mmb_domain::events::{ExchangeBalancesAndPositions, TradeId};
+use mmb_domain::events::ExchangeBalancesAndPositions;
+use mmb_domain::events::{ExchangeEvent, Trade};
 use mmb_domain::exchanges::symbol::{BeforeAfter, Symbol};
 use mmb_domain::market::CurrencyId;
 use mmb_domain::market::{
@@ -25,7 +25,7 @@ use mmb_domain::market::{
 };
 use mmb_domain::order::fill::EventSourceType;
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
-use mmb_domain::order::snapshot::{Amount, Price};
+use mmb_domain::order::snapshot::Price;
 use mmb_domain::order::snapshot::{
     ClientOrderId, ExchangeOrderId, OrderCancelling, OrderInfo, OrderInfoExtensionData, OrderSide,
 };
@@ -131,8 +131,7 @@ pub type OrderCreatedCb =
 pub type OrderCancelledCb =
     Box<dyn Fn(ClientOrderId, ExchangeOrderId, EventSourceType) + Send + Sync>;
 
-pub type HandleTradeCb =
-    Box<dyn Fn(CurrencyPair, TradeId, Price, Amount, OrderSide, DateTime) + Send + Sync>;
+pub type HandleTradeCb = Box<dyn Fn(CurrencyPair, Trade) + Send + Sync>;
 
 pub type HandleOrderFilledCb = Box<dyn Fn(FillEvent) + Send + Sync>;
 
@@ -147,8 +146,9 @@ pub trait Support: Send + Sync {
 
     fn on_websocket_message(&self, msg: &str) -> Result<()>;
     fn on_connecting(&self) -> Result<()>;
+    fn on_connected(&self) -> Result<()>;
     fn on_disconnected(&self) -> Result<()>;
-    fn set_send_websocket_message_callback(&self, callback: SendWebsocketMessageCb);
+    fn set_send_websocket_message_callback(&mut self, callback: SendWebsocketMessageCb);
 
     fn set_order_created_callback(&mut self, callback: OrderCreatedCb);
 
