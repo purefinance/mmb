@@ -174,7 +174,7 @@ impl BitmexBuilder {
         let hosts = bitmex.hosts.clone();
 
         let exchange_blocker = ExchangeBlocker::new(vec![settings.exchange_account_id]);
-        let event_recorder = EventRecorder::start(None)
+        let event_recorder = EventRecorder::start(None, None)
             .await
             .expect("Failure start EventRecorder");
 

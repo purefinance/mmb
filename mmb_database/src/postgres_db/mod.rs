@@ -1,4 +1,5 @@
 pub mod events;
+pub mod live_ranges;
 pub mod migrator;
 pub mod tests;
 

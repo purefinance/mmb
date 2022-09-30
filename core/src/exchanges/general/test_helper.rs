@@ -269,7 +269,8 @@ pub(crate) fn get_test_exchange_with_symbol_and_id(
     );
     let timeout_managers = hashmap![exchange_account_id => request_timeout_manager];
     let timeout_manager = TimeoutManager::new(timeout_managers);
-    let event_recorder = block_on(EventRecorder::start(None)).expect("Failure start EventRecorder");
+    let event_recorder =
+        block_on(EventRecorder::start(None, None)).expect("Failure start EventRecorder");
 
     let exchange = Exchange::new(
         exchange_account_id,
