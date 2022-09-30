@@ -1,6 +1,6 @@
 use crate::balance::manager::balance_manager::BalanceManager;
 use crate::config::{load_pretty_settings, try_load_settings};
-use crate::database::events::recorder::{DbSettings, EventRecorder};
+use crate::database::events::recorder::EventRecorder;
 use crate::exchanges::exchange_blocker::ExchangeBlocker;
 use crate::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
 use crate::exchanges::general::exchange::Exchange;
@@ -23,6 +23,7 @@ use dashmap::DashMap;
 use futures::{future::join_all, FutureExt};
 use itertools::Itertools;
 use mmb_database::postgres_db::migrator::apply_migrations;
+use mmb_database::postgres_db::PgPool;
 use mmb_domain::events::{ExchangeEvent, ExchangeEvents, CHANNEL_MAX_EVENTS_COUNT};
 use mmb_domain::market::ExchangeAccountId;
 use mmb_domain::market::ExchangeId;
@@ -41,8 +42,10 @@ use std::time::Duration;
 use tokio::signal;
 use tokio::sync::{broadcast, mpsc, oneshot};
 use tokio::time::timeout;
+use uuid::Uuid;
 
 use crate::lifecycle::app_lifetime_manager::ActionAfterGracefulShutdown;
+use crate::services::live_ranges::LiveRangesService;
 
 pub struct EngineBuildConfig {
     pub supported_exchange_clients: HashMap<ExchangeId, Box<dyn ExchangeClientBuilder + 'static>>,
@@ -124,6 +127,7 @@ async fn before_engine_context_init<StrategySettings>(
     DashMap<ExchangeAccountId, Arc<Exchange>>,
     Arc<EngineContext>,
     oneshot::Receiver<ActionAfterGracefulShutdown>,
+    Option<PgPool>,
 )>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + DeserializeOwned + Serialize,
@@ -161,20 +165,21 @@ where
 
     let exchange_blocker = ExchangeBlocker::new(exchange_account_ids);
 
-    let database = if let Some(db) = &settings.core.database {
+    let (pool, postponed_events_dir) = if let Some(db) = &settings.core.database {
         apply_migrations(&db.url, db.migrations.clone())
             .await
             .context("unable apply db migrations")?;
 
-        Some(DbSettings {
-            database_url: db.url.clone(),
-            postponed_events_dir: db.postponed_events_dir.clone(),
-        })
+        let pool = PgPool::create(&db.url, 5)
+            .await
+            .with_context(|| format!("from `launcher` with connection_string: {}", &db.url))?;
+
+        (Some(pool), db.postponed_events_dir.clone())
     } else {
-        None
+        (None, None)
     };
 
-    let event_recorder = EventRecorder::start(database)
+    let event_recorder = EventRecorder::start(pool.clone(), postponed_events_dir)
         .await
         .expect("can't start EventRecorder");
 
@@ -238,6 +243,7 @@ where
         exchanges_map,
         engine_context,
         finish_graceful_shutdown_rx,
+        pool,
     ))
 }
 
@@ -272,6 +278,7 @@ fn run_services<'a, StrategySettings>(
     init_user_settings: InitSettings<StrategySettings>,
     finish_graceful_shutdown_rx: oneshot::Receiver<ActionAfterGracefulShutdown>,
     cleanup_orders_service: Arc<CleanupOrdersService>,
+    live_ranges_service: Option<Arc<LiveRangesService>>,
 ) -> TradingEngine<StrategySettings>
 where
     StrategySettings: BaseStrategySettings + Clone + Debug + Deserialize<'a> + Serialize,
@@ -312,6 +319,20 @@ where
         SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
         move || cleanup_orders_service.clone().cleanup_outdated_orders(),
     );
+
+    if let Some(live_ranges_service) = live_ranges_service {
+        engine_context
+            .shutdown_service
+            .register_core_service(live_ranges_service.clone());
+
+        let _ = spawn_by_timer(
+            "live ranges",
+            Duration::ZERO,
+            Duration::from_secs(1),
+            SpawnFutureFlags::STOP_BY_TOKEN | SpawnFutureFlags::DENY_CANCELLATION,
+            move || live_ranges_service.clone().push(),
+        );
+    }
 
     log::info!("TradingEngine started");
     TradingEngine::new(engine_context, settings, finish_graceful_shutdown_rx)
@@ -388,8 +409,14 @@ where
     .await;
 
     let message_template = "Panic happened during EngineContext initialization";
-    let (events_receiver, settings, exchanges_map, engine_context, finish_graceful_shutdown_rx) =
-        unwrap_or_handle_panic(action_outcome, message_template, None)??;
+    let (
+        events_receiver,
+        settings,
+        exchanges_map,
+        engine_context,
+        finish_graceful_shutdown_rx,
+        pool,
+    ) = unwrap_or_handle_panic(action_outcome, message_template, None)??;
 
     let cloned_lifetime_manager = engine_context.lifetime_manager.clone();
     let action = async move {
@@ -408,6 +435,14 @@ where
     let cleanup_orders_service =
         Arc::new(CleanupOrdersService::new(engine_context.exchanges.clone()));
 
+    let live_ranges_service = match pool {
+        None => None,
+        Some(pool) => {
+            let session_id = Uuid::new_v4().to_string();
+            Some(Arc::new(LiveRangesService::new(session_id, pool)))
+        }
+    };
+
     let action_outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         run_services(
             engine_context.clone(),
@@ -417,6 +452,7 @@ where
             init_user_settings,
             finish_graceful_shutdown_rx,
             cleanup_orders_service,
+            live_ranges_service,
         )
     }));
 

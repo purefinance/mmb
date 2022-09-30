@@ -36,28 +36,24 @@ pub struct EventRecorder {
 }
 
 impl EventRecorder {
-    pub async fn start(database_settings: Option<DbSettings>) -> Result<Arc<EventRecorder>> {
+    pub async fn start(
+        pool: Option<PgPool>,
+        postponed_events_dir: Option<PathBuf>,
+    ) -> Result<Arc<EventRecorder>> {
         let (data_tx, data_rx) = mpsc::channel(20_000);
         let (shutdown_signal_tx, shutdown_signal_rx) = mpsc::unbounded_channel();
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-        match database_settings {
+        match pool {
             None => {
                 let _ = shutdown_tx.send(Ok(()));
                 print_info(
                     "EventRecorder is not started because `database_url` is not set in settings",
-                )
+                );
             }
-            Some(DbSettings {
-                database_url,
-                postponed_events_dir,
-            }) => {
+            Some(pool) => {
                 let fallback = EventRecorderFallback::new(postponed_events_dir)
                     .context("failed creation EventRecorderFallback")?;
-
-                let pool = PgPool::create(&database_url, 5).await.with_context(|| {
-                    format!("from `start_db_event_recorder` with connection_string: {database_url}")
-                })?;
 
                 let _ = spawn_future(
                     "start db event recorder",
@@ -70,13 +66,11 @@ impl EventRecorder {
                         fallback.clone(),
                     ),
                 );
-
                 let _ = spawn_future(
                     "start postponed events restoring",
                     SpawnFutureFlags::DENY_CANCELLATION | SpawnFutureFlags::STOP_BY_TOKEN,
                     start_postponed_events_restoring(pool, fallback),
                 );
-
                 print_info("EventRecorder started");
             }
         }
@@ -273,7 +267,7 @@ async fn save_to_file(
 
 #[cfg(test)]
 mod tests {
-    use crate::database::events::recorder::{DbSettings, EventRecorder};
+    use crate::database::events::recorder::EventRecorder;
     use crate::infrastructure::init_lifetime_manager;
     use mmb_database::impl_event;
     use mmb_database::postgres_db::tests::{get_database_url, PgPoolMutex};
@@ -301,7 +295,7 @@ mod tests {
     async fn init_test() -> PgPoolMutex {
         init_lifetime_manager();
 
-        let pool_mutex = PgPoolMutex::create(&get_database_url(), 1).await;
+        let pool_mutex = PgPoolMutex::create(&get_database_url(), 2).await;
         let connection = pool_mutex.pool.get_connection_expected().await;
         connection
             .batch_execute(
@@ -335,14 +329,12 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn save_1_event() {
         let pool_mutex = init_test().await;
-        let connection = pool_mutex.pool.get_connection_expected().await;
 
-        let event_recorder = EventRecorder::start(Some(DbSettings {
-            database_url: get_database_url(),
-            postponed_events_dir: None,
-        }))
-        .await
-        .expect("in test");
+        let event_recorder = EventRecorder::start(Some(pool_mutex.pool.clone()), None)
+            .await
+            .expect("in test");
+
+        let connection = pool_mutex.pool.get_connection_expected().await;
 
         let person = test_person();
         event_recorder.save(person).expect("in test");
@@ -366,7 +358,7 @@ mod tests {
         let person = test_person();
 
         // act
-        let event_recorder = EventRecorder::start(None).await.expect("in test");
+        let event_recorder = EventRecorder::start(None, None).await.expect("in test");
 
         event_recorder.save(person).expect("in test");
 
@@ -384,20 +376,15 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn simple_flush_and_stop() {
         let pool_mutex = init_test().await;
-        let connection = pool_mutex.pool.get_connection_expected().await;
 
         // arrange
         let person = test_person();
 
-        let db_settings = DbSettings {
-            database_url: get_database_url(),
-            postponed_events_dir: None,
-        };
-
         // act
-        let event_recorder = EventRecorder::start(Some(db_settings))
+        let event_recorder = EventRecorder::start(Some(pool_mutex.pool.clone()), None)
             .await
             .expect("in test");
+        let connection = pool_mutex.pool.get_connection_expected().await;
 
         let timer = Instant::now();
         event_recorder.save(person).expect("in test");

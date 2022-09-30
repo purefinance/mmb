@@ -187,7 +187,7 @@ impl BinanceBuilder {
 
         let exchange_blocker = ExchangeBlocker::new(vec![exchange_account_id]);
 
-        let event_recorder = EventRecorder::start(None)
+        let event_recorder = EventRecorder::start(None, None)
             .await
             .expect("Failure start EventRecorder");
 
