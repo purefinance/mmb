@@ -1,0 +1,26 @@
+[package]
+name = "interactive_brokers"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.64"
+async-trait = "0.1.57"
+chrono = "0.4.22"
+csv = "1.1.6"
+dashmap = "5.4.0"
+function_name = "0.3.0"
+futures = "0.3.24"
+ibtwsapi = "0.1.0"
+log = "0.4.17"
+mmb_core = { path = "../../core/" }
+mmb_domain = { path = "../../domain" }
+mmb_utils = { path = "../../mmb_utils" }
+rust_decimal = { version = "1.26.1", features = ["maths"] }
+rust_decimal_macros = "1.26.1"
+tokio = { version = "1.21.0", features = ["macros", "rt-multi-thread"] }
+url = "2.3.1"
+
+[dev-dependencies]

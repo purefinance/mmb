@@ -1,12 +1,12 @@
 use anyhow::{bail, Result};
 use bitflags::bitflags;
+use futures::executor::block_on;
 use futures::Future;
 use futures::FutureExt;
 use std::fmt::Arguments;
 use std::fmt::{Debug, Display};
 use std::panic;
 use std::time::Duration;
-use tokio::task::JoinHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -82,7 +82,7 @@ pub fn spawn_future_timed(
     action: impl Future<Output = Result<()>> + Send + 'static,
     graceful_shutdown_spawner: impl FnOnce(String, &str) + 'static + Send,
     cancellation_token: CancellationToken,
-) -> JoinHandle<FutureOutcome> {
+) -> tokio::task::JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
     let action = handle_action_outcome(
@@ -112,7 +112,7 @@ pub fn spawn_future(
     action: impl Future<Output = Result<()>> + Send + 'static,
     graceful_shutdown_spawner: impl FnOnce(String, &str) + 'static + Send,
     cancellation_token: CancellationToken,
-) -> JoinHandle<FutureOutcome> {
+) -> tokio::task::JoinHandle<FutureOutcome> {
     let action_name = action_name.to_owned();
     let future_id = Uuid::new_v4();
 
@@ -126,6 +126,35 @@ pub fn spawn_future(
         graceful_shutdown_spawner,
         cancellation_token,
     ))
+}
+
+/// Spawn standalone future with logging and error, panic and cancellation handling.
+///
+/// This fn is needed to call long-working synchronous code inside of a future,
+/// and this fn calls this code in a separate thread,
+/// to not affect other futures in a standard tokio threadpool.
+pub fn spawn_future_standalone(
+    action_name: &str,
+    flags: SpawnFutureFlags,
+    action: impl Future<Output = Result<()>> + Send + 'static,
+    graceful_shutdown_spawner: impl FnOnce(String, &str) + 'static + Send,
+    cancellation_token: CancellationToken,
+) -> std::thread::JoinHandle<FutureOutcome> {
+    let action_name = action_name.to_owned();
+    let thread_id = Uuid::new_v4();
+
+    log::info!("Thread {action_name} with id {thread_id} started");
+
+    std::thread::spawn(move || {
+        block_on(handle_action_outcome(
+            action_name,
+            thread_id,
+            flags,
+            action,
+            graceful_shutdown_spawner,
+            cancellation_token,
+        ))
+    })
 }
 
 async fn handle_action_outcome(
@@ -202,7 +231,7 @@ pub fn spawn_by_timer<F, Fut>(
     cancellation_token: CancellationToken,
     graceful_shutdown_spawner: impl FnOnce(String, &str) + 'static + Send,
     action: F,
-) -> JoinHandle<FutureOutcome>
+) -> tokio::task::JoinHandle<FutureOutcome>
 where
     F: Fn() -> Fut + Send + Sync + 'static,
     Fut: Future<Output = ()> + Send + 'static,

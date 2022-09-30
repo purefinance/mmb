@@ -9,6 +9,7 @@ members = [
     "examples/strategies",
     "exchanges/binance",
     "exchanges/bitmex",
+    "exchanges/interactive_brokers",
     "mmb_database",
     "mmb_rpc",
     "mmb_utils",

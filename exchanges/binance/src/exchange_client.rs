@@ -98,7 +98,7 @@ impl ExchangeClient for Binance {
             .expect("Unable to parse response content for get_open_orders request");
 
         Ok(ClosedPosition::new(
-            ExchangeOrderId::from(binance_order.exchange_order_id.to_string().as_ref()),
+            binance_order.exchange_order_id.into(),
             binance_order.orig_quantity,
         ))
     }
