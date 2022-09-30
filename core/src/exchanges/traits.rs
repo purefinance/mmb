@@ -116,10 +116,13 @@ pub trait ExchangeClient: Support {
 
     async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions>;
 
+    /// # Params
+    ///
+    /// * `from_datetime` - date from which trades are selected
     async fn get_my_trades(
         &self,
         symbol: &Symbol,
-        last_date_time: Option<DateTime>,
+        from_datetime: Option<DateTime>,
     ) -> RequestResult<Vec<OrderTrade>>;
 
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>>;

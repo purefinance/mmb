@@ -830,7 +830,7 @@ impl Binance {
 
                 let fee_currency_code = commission_currency_code.context("There is no suitable currency code to get specific_currency_pair for unified_order_trade converting")?;
                 Ok(OrderTrade::new(
-                    ExchangeOrderId::from(self.order_id.to_string().as_ref()),
+                    self.order_id.into(),
                     self.id.clone(),
                     datetime,
                     self.price,

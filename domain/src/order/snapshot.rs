@@ -1,12 +1,6 @@
-use std::any::Any;
-use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
-use std::hash::Hash;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::vec::Vec;
-
 use crate::market::CurrencyPair;
+use crate::market::{ExchangeAccountId, ExchangeErrorType, MarketAccountId, MarketId};
+use crate::order::fill::{EventSourceType, OrderFill};
 use chrono::Utc;
 use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;
@@ -17,11 +11,16 @@ use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use smallstr::SmallString;
+use std::any::Any;
 use std::collections::BTreeMap;
+use std::fmt;
+use std::fmt::Write;
+use std::fmt::{Debug, Display, Formatter};
+use std::hash::Hash;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::vec::Vec;
 use uuid::Uuid;
-
-use crate::market::{ExchangeAccountId, ExchangeErrorType, MarketAccountId, MarketId};
-use crate::order::fill::{EventSourceType, OrderFill};
 
 pub type SortedOrderData = BTreeMap<Price, Amount>;
 
@@ -112,8 +111,75 @@ pub enum OrderExecutionType {
 }
 
 impl_str_id!(ClientOrderId);
+
+impl From<i64> for ClientOrderId {
+    fn from(value: i64) -> Self {
+        let mut str = SmallString::new();
+        str.write_fmt(format_args!("{value}"))
+            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ClientOrderId: {err:?}"));
+        Self::new(str)
+    }
+}
+
+impl From<u64> for ClientOrderId {
+    fn from(value: u64) -> Self {
+        let mut str = SmallString::new();
+        str.write_fmt(format_args!("{value}"))
+            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ClientOrderId: {err:?}"));
+        Self::new(str)
+    }
+}
+
+impl From<i32> for ClientOrderId {
+    fn from(value: i32) -> Self {
+        let mut str = SmallString::new();
+        str.write_fmt(format_args!("{value}"))
+            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ClientOrderId: {err:?}"));
+        Self::new(str)
+    }
+}
+
+impl From<&i32> for ClientOrderId {
+    fn from(value: &i32) -> Self {
+        Self::from(*value)
+    }
+}
+
 impl_str_id!(ClientOrderFillId);
 impl_str_id!(ExchangeOrderId);
+
+impl From<i64> for ExchangeOrderId {
+    fn from(value: i64) -> Self {
+        let mut str = SmallString::new();
+        str.write_fmt(format_args!("{value}"))
+            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ExchangeOrderId: {err:?}"));
+        Self::new(str)
+    }
+}
+
+impl From<u64> for ExchangeOrderId {
+    fn from(value: u64) -> Self {
+        let mut str = SmallString::new();
+        str.write_fmt(format_args!("{value}"))
+            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ExchangeOrderId: {err:?}"));
+        Self::new(str)
+    }
+}
+
+impl From<i32> for ExchangeOrderId {
+    fn from(value: i32) -> Self {
+        let mut str = SmallString::new();
+        str.write_fmt(format_args!("{value}"))
+            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ExchangeOrderId: {err:?}"));
+        Self::new(str)
+    }
+}
+
+impl From<&i32> for ExchangeOrderId {
+    fn from(value: &i32) -> Self {
+        Self::from(*value)
+    }
+}
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize, Hash)]
 pub enum OrderStatus {

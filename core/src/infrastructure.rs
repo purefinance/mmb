@@ -8,7 +8,6 @@ use parking_lot::Mutex;
 use std::panic;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::task::JoinHandle;
 
 use crate::lifecycle::app_lifetime_manager::AppLifetimeManager;
 
@@ -61,7 +60,7 @@ pub fn spawn_future_timed(
     flags: SpawnFutureFlags,
     duration: Duration,
     action: impl Future<Output = Result<()>> + Send + 'static,
-) -> JoinHandle<FutureOutcome> {
+) -> tokio::task::JoinHandle<FutureOutcome> {
     mmb_utils::infrastructure::spawn_future_timed(
         action_name,
         flags,
@@ -78,7 +77,7 @@ pub fn spawn_future_timed_ok(
     flags: SpawnFutureFlags,
     duration: Duration,
     action: impl Future<Output = ()> + Send + 'static,
-) -> JoinHandle<FutureOutcome> {
+) -> tokio::task::JoinHandle<FutureOutcome> {
     mmb_utils::infrastructure::spawn_future_timed(
         action_name,
         flags,
@@ -96,7 +95,7 @@ pub fn spawn_future_ok(
     action_name: &str,
     flags: SpawnFutureFlags,
     action: impl Future<Output = ()> + Send + 'static,
-) -> JoinHandle<FutureOutcome> {
+) -> tokio::task::JoinHandle<FutureOutcome> {
     spawn_future(action_name, flags, async move {
         action.await;
         Ok(())
@@ -109,8 +108,27 @@ pub fn spawn_future(
     action_name: &str,
     flags: SpawnFutureFlags,
     action: impl Future<Output = Result<()>> + Send + 'static,
-) -> JoinHandle<FutureOutcome> {
+) -> tokio::task::JoinHandle<FutureOutcome> {
     mmb_utils::infrastructure::spawn_future(
+        action_name,
+        flags,
+        action,
+        spawn_graceful_shutdown,
+        get_futures_cancellation_token(),
+    )
+}
+
+/// Spawn standalone future with logging and error, panic and cancellation handling.
+///
+/// This fn is needed to call long-working synchronous code inside of a future,
+/// and this fn calls this code in a separate thread,
+/// to not affect other futures in a standard tokio threadpool.
+pub fn spawn_future_standalone(
+    action_name: &str,
+    flags: SpawnFutureFlags,
+    action: impl Future<Output = Result<()>> + Send + 'static,
+) -> std::thread::JoinHandle<FutureOutcome> {
+    mmb_utils::infrastructure::spawn_future_standalone(
         action_name,
         flags,
         action,
@@ -143,7 +161,7 @@ pub fn spawn_by_timer<F, Fut>(
     period: Duration,
     flags: SpawnFutureFlags,
     action: F,
-) -> JoinHandle<FutureOutcome>
+) -> tokio::task::JoinHandle<FutureOutcome>
 where
     F: Fn() -> Fut + Send + Sync + 'static,
     Fut: Future<Output = ()> + Send + 'static,
