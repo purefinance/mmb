@@ -80,7 +80,7 @@ impl TimeoutManager {
         pre_reservation_group_id: Option<RequestGroupId>,
         cancellation_token: CancellationToken,
     ) -> impl Future<Output = FutureOutcome> + Send + Sync {
-        let inner = (&self.inner[&exchange_account_id]).clone();
+        let inner = self.inner[&exchange_account_id].clone();
 
         let convert = |handle: JoinHandle<FutureOutcome>| {
             handle.map(|res| match res {
