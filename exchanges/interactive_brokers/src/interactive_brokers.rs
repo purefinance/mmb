@@ -774,7 +774,7 @@ impl InteractiveBrokers {
         // Format here: `20220919-16:13:16 GET`
 
         // let datetime = ChronoDateTime::parse_from_str(&datetime, "%Y%m%d-%H:%M:%S")?;
-        let datetime = NaiveDateTime::parse_from_str(&datetime, "%Y%m%d-%H:%M:%S")?;
+        let datetime = NaiveDateTime::parse_from_str(datetime, "%Y%m%d-%H:%M:%S")?;
 
         // TODO: Check if it is right
         Ok(DateTime::from_local(datetime, Utc))
@@ -798,7 +798,7 @@ impl InteractiveBrokers {
             .get(currency_pair)
             .ok_or_else(|| anyhow!("fn {f_n}: Error: currency pair not found: {currency_pair}."))?;
 
-        Ok(contract::usstock(&symbol))
+        Ok(contract::usstock(symbol))
     }
 
     #[named]
