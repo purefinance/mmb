@@ -1,3 +1,22 @@
+#[macro_export]
+macro_rules! impl_from_for_str_id {
+    ($from_ty: ty, $to_ty:ty) => {
+        impl From<$from_ty> for $to_ty {
+            fn from(value: $from_ty) -> Self {
+                let mut str = SmallString::new();
+                str.write_fmt(format_args!("{value}"))
+                    .unwrap_or_else(|err| {
+                        panic!(
+                            concat!("Can't convert `{}` to ", stringify!($to_ty), ": {:?}"),
+                            value, err
+                        )
+                    });
+                Self::new(str)
+            }
+        }
+    };
+}
+
 /// This macro needs to generate an string ID for some structures like ClientOrder or ExchangeOrder.
 /// All IDs must be unique, here we use AtomicU64 static variable that initialize with current UNIX time(get_atomic_current_secs() function)
 /// Value cannot be "0" it means that the var isn't initialized.

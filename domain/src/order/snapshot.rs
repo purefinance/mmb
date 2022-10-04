@@ -5,7 +5,7 @@ use chrono::Utc;
 use dyn_clone::{clone_trait_object, DynClone};
 use enum_map::Enum;
 use mmb_utils::infrastructure::WithExpect;
-use mmb_utils::DateTime;
+use mmb_utils::{impl_from_for_str_id, DateTime};
 use mmb_utils::{impl_str_id, impl_u64_id, time::get_atomic_current_secs};
 use once_cell::sync::Lazy;
 use rust_decimal::Decimal;
@@ -112,32 +112,9 @@ pub enum OrderExecutionType {
 
 impl_str_id!(ClientOrderId);
 
-impl From<i64> for ClientOrderId {
-    fn from(value: i64) -> Self {
-        let mut str = SmallString::new();
-        str.write_fmt(format_args!("{value}"))
-            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ClientOrderId: {err:?}"));
-        Self::new(str)
-    }
-}
-
-impl From<u64> for ClientOrderId {
-    fn from(value: u64) -> Self {
-        let mut str = SmallString::new();
-        str.write_fmt(format_args!("{value}"))
-            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ClientOrderId: {err:?}"));
-        Self::new(str)
-    }
-}
-
-impl From<i32> for ClientOrderId {
-    fn from(value: i32) -> Self {
-        let mut str = SmallString::new();
-        str.write_fmt(format_args!("{value}"))
-            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ClientOrderId: {err:?}"));
-        Self::new(str)
-    }
-}
+impl_from_for_str_id!(i64, ClientOrderId);
+impl_from_for_str_id!(u64, ClientOrderId);
+impl_from_for_str_id!(i32, ClientOrderId);
 
 impl From<&i32> for ClientOrderId {
     fn from(value: &i32) -> Self {
@@ -148,32 +125,9 @@ impl From<&i32> for ClientOrderId {
 impl_str_id!(ClientOrderFillId);
 impl_str_id!(ExchangeOrderId);
 
-impl From<i64> for ExchangeOrderId {
-    fn from(value: i64) -> Self {
-        let mut str = SmallString::new();
-        str.write_fmt(format_args!("{value}"))
-            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ExchangeOrderId: {err:?}"));
-        Self::new(str)
-    }
-}
-
-impl From<u64> for ExchangeOrderId {
-    fn from(value: u64) -> Self {
-        let mut str = SmallString::new();
-        str.write_fmt(format_args!("{value}"))
-            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ExchangeOrderId: {err:?}"));
-        Self::new(str)
-    }
-}
-
-impl From<i32> for ExchangeOrderId {
-    fn from(value: i32) -> Self {
-        let mut str = SmallString::new();
-        str.write_fmt(format_args!("{value}"))
-            .unwrap_or_else(|err| panic!("Can't convert `{value}` to ExchangeOrderId: {err:?}"));
-        Self::new(str)
-    }
-}
+impl_from_for_str_id!(i64, ExchangeOrderId);
+impl_from_for_str_id!(u64, ExchangeOrderId);
+impl_from_for_str_id!(i32, ExchangeOrderId);
 
 impl From<&i32> for ExchangeOrderId {
     fn from(value: &i32) -> Self {
