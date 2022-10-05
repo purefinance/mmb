@@ -43,6 +43,7 @@ impl CurrencyPairToSymbolConverter {
             .expect("failed to get currency pair")
     }
 
+    #[allow(dead_code)]
     pub(crate) fn exchanges_by_id(&self) -> &HashMap<ExchangeAccountId, Arc<Exchange>> {
         &self.exchanges_by_id
     }

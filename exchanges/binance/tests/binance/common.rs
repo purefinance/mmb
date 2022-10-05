@@ -75,11 +75,17 @@ pub(crate) fn get_timeout_manager(exchange_account_id: ExchangeAccountId) -> Arc
 }
 
 #[named]
-async fn send_request(uri: Uri, api_key: &str, exchange_account_id: ExchangeAccountId) -> String {
+async fn send_request(
+    uri: Uri,
+    api_key: &str,
+    exchange_account_id: ExchangeAccountId,
+    is_usd_m_futures: bool,
+) -> String {
     let rest_client = RestClient::new(
         ErrorHandlerData::new(false, exchange_account_id, ErrorHandlerBinance::default()),
         RestHeadersBinance {
             api_key: api_key.to_owned(),
+            is_usd_m_futures,
         },
     );
 
@@ -113,7 +119,7 @@ pub(crate) async fn get_default_price(
     builder.add_kv("limit", "20");
     let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
-    let data = send_request(uri, api_key, exchange_account_id).await;
+    let data = send_request(uri, api_key, exchange_account_id, is_margin_trading).await;
 
     let value: OrderBook =
         serde_json::from_str(&data).with_expect(|| format!("failed to deserialize data: {data}"));
@@ -140,7 +146,7 @@ pub(crate) async fn get_min_amount(
     builder.add_kv("symbol", &currency_pair);
     let uri = builder.build_uri(hosts.rest_uri_host(), true);
 
-    let data = send_request(uri, api_key, exchange_account_id).await;
+    let data = send_request(uri, api_key, exchange_account_id, is_margin_trading).await;
 
     let value: Value =
         serde_json::from_str(&data).with_expect(|| format!("failed to deserialize data: {data}"));

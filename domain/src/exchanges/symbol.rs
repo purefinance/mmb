@@ -119,7 +119,7 @@ impl Symbol {
         CurrencyPair::from_codes(self.base_currency_code, self.quote_currency_code)
     }
 
-    pub fn get_trade_code(&self, side: OrderSide, before_after: BeforeAfter) -> CurrencyCode {
+    pub const fn get_trade_code(&self, side: OrderSide, before_after: BeforeAfter) -> CurrencyCode {
         use BeforeAfter::*;
         use OrderSide::*;
 

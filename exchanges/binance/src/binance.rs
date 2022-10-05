@@ -8,6 +8,7 @@ use dashmap::DashMap;
 use function_name::named;
 use hmac::digest::generic_array;
 use hmac::{Hmac, Mac};
+use hyper::header::CONTENT_TYPE;
 use hyper::http::request::Builder;
 use hyper::Uri;
 use itertools::Itertools;
@@ -65,6 +66,7 @@ pub struct ErrorHandlerBinance;
 
 pub struct RestHeadersBinance {
     pub api_key: String,
+    pub is_usd_m_futures: bool,
 }
 
 impl RestHeaders for RestHeadersBinance {
@@ -74,7 +76,11 @@ impl RestHeaders for RestHeadersBinance {
         _uri: &Uri,
         _request_type: RequestType,
     ) -> Builder {
-        builder.header("X-MBX-APIKEY", &self.api_key)
+        match self.is_usd_m_futures {
+            true => builder.header(CONTENT_TYPE, "application/x-www-form-urlencoded"),
+            false => builder,
+        }
+        .header("X-MBX-APIKEY", &self.api_key)
     }
 }
 
@@ -226,6 +232,7 @@ impl Binance {
                 ),
                 RestHeadersBinance {
                     api_key: settings.api_key.clone(),
+                    is_usd_m_futures: settings.is_margin_trading,
                 },
             ),
             timeout_manager,
@@ -945,7 +952,9 @@ impl Binance {
 
             let (amount_currency_code, balance_currency_code) =
                 match self.settings.is_margin_trading {
-                    true => (quote, Some(base)),
+                    // TODO need explicit specify type of using Binance futures markets
+                    // true => (quote, Some(base)),
+                    true => (base, Some(quote)),
                     false => (base, None),
                 };
 

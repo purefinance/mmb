@@ -370,18 +370,14 @@ impl BalanceReservationManager {
             explanation,
         );
 
-        explanation.with_reason(|| {
-            format!(
-                "balance_in_currency_code_raw = {:?}",
-                balance_in_currency_code
-            )
-        });
+        explanation
+            .with_reason(|| format!("balance_in_currency_code_raw = {balance_in_currency_code:?}"));
 
         let mut balance_in_currency_code = balance_in_currency_code?;
 
         let leverage = self.get_leverage(exchange_account_id, symbol.currency_pair());
 
-        explanation.with_reason(|| format!("leverage = {:?}", leverage));
+        explanation.with_reason(|| format!("leverage = {leverage:?}"));
 
         if symbol.is_derivative {
             if include_free_amount {
@@ -392,12 +388,7 @@ impl BalanceReservationManager {
                         side,
                     );
 
-                explanation.with_reason(|| {
-                    format!(
-                        "free_amount_in_amount_currency_code with leverage and amount_multiplier = {}",
-                        free_amount_in_amount_currency_code
-                    )
-                });
+                explanation.with_reason(|| format!("free_amount_in_amount_currency_code with leverage and amount_multiplier = {free_amount_in_amount_currency_code}"));
 
                 let mut free_amount_in_currency_code = symbol
                     .convert_amount_from_amount_currency_code(
