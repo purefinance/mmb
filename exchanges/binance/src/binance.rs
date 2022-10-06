@@ -373,17 +373,10 @@ impl Binance {
     }
 
     pub(super) fn handle_order_fill(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
-        let original_client_order_id = json_response["C"]
+        // TODO need special handler for OCO orders
+        let client_order_id = json_response["c"]
             .as_str()
-            .ok_or_else(|| anyhow!("Unable to parse original client order id"))?;
-
-        let client_order_id = if original_client_order_id.is_empty() {
-            json_response["c"]
-                .as_str()
-                .ok_or_else(|| anyhow!("Unable to parse client order id"))?
-        } else {
-            original_client_order_id
-        };
+            .ok_or_else(|| anyhow!("Unable to parse client order id"))?;
 
         let exchange_order_id = json_response["i"].to_string();
         let exchange_order_id = exchange_order_id.trim_matches('"');
