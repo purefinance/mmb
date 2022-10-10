@@ -1,8 +1,3 @@
-use std::collections::{HashMap, HashSet};
-use std::fmt::{Display, Formatter};
-use std::sync::Arc;
-use std::time::{Duration, UNIX_EPOCH};
-
 use anyhow::{anyhow, bail, Context, Result};
 use dashmap::DashMap;
 use function_name::named;
@@ -17,6 +12,10 @@ use mmb_utils::DateTime;
 use parking_lot::{Mutex, RwLock};
 use serde_json::Value;
 use sha2::Sha256;
+use std::collections::{HashMap, HashSet};
+use std::fmt::{Display, Formatter};
+use std::sync::Arc;
+use std::time::{Duration, UNIX_EPOCH};
 use tokio::sync::broadcast;
 
 use super::support::{BinanceOrderInfo, BinanceSpotBalances};
@@ -372,7 +371,12 @@ impl Binance {
         )
     }
 
-    pub(super) fn handle_order_fill(&self, msg_to_log: &str, json_response: Value) -> Result<()> {
+    pub(super) fn handle_order_fill(
+        &self,
+        msg_to_log: &str,
+        json_response: Value,
+        event_time: DateTime,
+    ) -> Result<()> {
         // TODO need special handler for OCO orders
         let client_order_id = json_response["c"]
             .as_str()
@@ -431,6 +435,7 @@ impl Binance {
                     execution_type,
                     client_order_id.into(),
                     exchange_order_id.into(),
+                    event_time,
                 )?;
 
                 (self.handle_order_filled_callback)(event_data);
@@ -453,6 +458,7 @@ impl Binance {
         execution_type: &str,
         client_order_id: ClientOrderId,
         exchange_order_id: ExchangeOrderId,
+        event_time: DateTime,
     ) -> Result<FillEvent> {
         let trade_id = json_response["t"].clone().into();
         let last_filled_price = json_response["L"]
@@ -476,12 +482,6 @@ impl Binance {
         let is_maker = json_response["m"]
             .as_bool()
             .ok_or_else(|| anyhow!("Unable to parse trade side"))?;
-
-        let fill_date: DateTime = u64_to_date_time(
-            json_response["E"]
-                .as_u64()
-                .ok_or_else(|| anyhow!("Unable to parse transaction time"))?,
-        );
 
         let fill_type = Self::get_fill_type(execution_type)?;
         let order_role = if is_maker {
@@ -508,7 +508,7 @@ impl Binance {
             commission_amount: Some(commission_amount.parse()?),
             fill_type,
             special_order_data: None,
-            fill_date: Some(fill_date),
+            fill_date: Some(event_time),
         };
 
         Ok(fill_event)
@@ -1032,6 +1032,14 @@ impl Binance {
 
         // Binance adds "_<NUMBERS>" to old symbol's code
         code.contains('_') || symbol["status"] != "TRADING"
+    }
+
+    pub(super) fn get_event_time(data: &Value) -> Result<DateTime> {
+        let event_time_u64 = data["E"]
+            .as_u64()
+            .ok_or_else(|| anyhow!("Unable to parse transaction time"))?;
+
+        Ok(u64_to_date_time(event_time_u64))
     }
 }
 

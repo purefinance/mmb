@@ -148,10 +148,12 @@ impl Support for Binance {
             .as_str()
             .ok_or_else(|| anyhow!("Unable to parse event_type"))?;
         if event_type == "executionReport" {
-            self.handle_order_fill(msg, data)?;
+            let event_time = Self::get_event_time(&data)?;
+            self.handle_order_fill(msg, data, event_time)?;
         } else if event_type == "ORDER_TRADE_UPDATE" {
             let json_response = data["o"].take();
-            self.handle_order_fill(msg, json_response)?;
+            let event_time = Self::get_event_time(&data)?;
+            self.handle_order_fill(msg, json_response, event_time)?;
         } else {
             self.log_unknown_message(self.id, msg);
         }
