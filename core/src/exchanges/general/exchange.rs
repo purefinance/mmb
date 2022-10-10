@@ -255,7 +255,9 @@ impl Exchange {
         self.maybe_log_websocket_message(msg);
 
         if let Err(error) = self.exchange_client.on_websocket_message(msg) {
-            log::warn!("Error occurred while websocket message processing: {error:?}");
+            log::warn!(
+                "Error occurred while websocket message processing: {error:?}. For message: {msg}"
+            );
         }
     }
 
