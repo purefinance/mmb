@@ -20,7 +20,7 @@ impl Exchange {
         self.last_trades_update_time
             .insert(market_id, trades_event.receipt_time);
 
-        if self.exchange_client.get_settings().subscribe_to_market_data {
+        if !self.exchange_client.get_settings().subscribe_to_market_data {
             return;
         }
 
