@@ -1,7 +1,7 @@
 use crate::bitmex::Bitmex;
 use crate::types::{
-    BitmexOrderBookDelete, BitmexOrderBookInsert, BitmexOrderBookUpdate, BitmexOrderFill,
-    BitmexOrderStatus, BitmexTradePayload,
+    BitmexOrderBookDelete, BitmexOrderBookInsert, BitmexOrderBookUpdate, BitmexOrderFillDummy,
+    BitmexOrderFillTrade, BitmexOrderStatus, BitmexTradePayload,
 };
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
@@ -21,7 +21,7 @@ use mmb_core::settings::ExchangeSettings;
 use mmb_domain::events::{ExchangeEvent, Trade};
 use mmb_domain::market::{CurrencyCode, CurrencyId, CurrencyPair, SpecificCurrencyPair};
 use mmb_domain::order::fill::{EventSourceType, OrderFillType};
-use mmb_domain::order::snapshot::{Amount, OrderRole, OrderSide, Price};
+use mmb_domain::order::snapshot::{Amount, OrderSide, Price};
 use mmb_domain::order_book::event::{EventType, OrderBookEvent};
 use mmb_domain::order_book::order_book_data::OrderBookData;
 use rust_decimal_macros::dec;
@@ -353,10 +353,8 @@ impl Bitmex {
         }
 
         for record in trade_data {
-            let currency_pair = self.get_unified_currency_pair(&record.symbol)?;
-
             (self.handle_trade_callback)(
-                currency_pair,
+                self.get_unified_currency_pair(&record.symbol)?,
                 Trade {
                     trade_id: record.trade_id.into(),
                     price: record.price,
@@ -382,59 +380,64 @@ impl Bitmex {
 
         for execution in execution_data {
             match execution {
-                BitmexOrderExecutionPayload::New(data) => (self.order_created_callback)(
-                    data.client_order_id,
-                    data.exchange_order_id,
-                    EventSourceType::WebSocket,
-                ),
+                BitmexOrderExecutionPayload::New(data) => {
+                    // No need to handle order as created when close position received
+                    // Order may have several instructions separated by spaces
+                    if !data.instruction.contains("Close") {
+                        (self.order_created_callback)(
+                            data.client_order_id,
+                            data.exchange_order_id,
+                            EventSourceType::WebSocket,
+                        );
+                    }
+                }
                 BitmexOrderExecutionPayload::Canceled(data) => (self.order_cancelled_callback)(
                     data.client_order_id,
                     data.exchange_order_id,
                     EventSourceType::WebSocket,
                 ),
                 BitmexOrderExecutionPayload::Rejected(_) => (), // Nothing to do cause it's been already handled during create_order() response handling
-                BitmexOrderExecutionPayload::Filled(data)
-                | BitmexOrderExecutionPayload::PartiallyFilled(data) => {
-                    let commission_amount = data.commission_amount;
-                    let order_role = if commission_amount.is_sign_positive() {
-                        OrderRole::Taker
-                    } else {
-                        OrderRole::Maker
-                    };
-                    let order_data = SpecialOrderData {
-                        currency_pair: self.get_unified_currency_pair(&data.symbol)?,
-                        order_side: data.side,
-                        order_amount: data.amount,
-                    };
+                BitmexOrderExecutionPayload::Filled(variant)
+                | BitmexOrderExecutionPayload::PartiallyFilled(variant) => match variant {
+                    BitmexOrderFill::Trade(data) => {
+                        let order_data = SpecialOrderData {
+                            currency_pair: self.get_unified_currency_pair(&data.symbol)?,
+                            order_side: data.side,
+                            order_amount: data.amount,
+                        };
 
-                    let fill_event = FillEvent {
-                        source_type: EventSourceType::WebSocket,
-                        trade_id: Some(data.trade_id.into()),
-                        client_order_id: Some(data.client_order_id),
-                        exchange_order_id: data.exchange_order_id,
-                        fill_price: data.fill_price,
-                        fill_amount: FillAmount::Incremental {
-                            fill_amount: data.fill_amount,
-                            total_filled_amount: Some(data.total_filled_amount),
-                        },
-                        order_role: Some(order_role),
-                        commission_currency_code: Some(data.currency.into()),
-                        commission_rate: Some(data.commission_rate),
-                        commission_amount: Some(commission_amount),
-                        fill_type: Self::get_order_fill_type(data.details)?,
-                        special_order_data: Some(order_data),
-                        fill_date: Some(data.timestamp),
-                    };
+                        let fill_event = FillEvent {
+                            source_type: EventSourceType::WebSocket,
+                            trade_id: Some(data.trade_id.into()),
+                            client_order_id: Some(data.client_order_id),
+                            exchange_order_id: data.exchange_order_id,
+                            fill_price: data.fill_price,
+                            fill_amount: FillAmount::Incremental {
+                                fill_amount: data.fill_amount,
+                                total_filled_amount: Some(data.total_filled_amount),
+                            },
+                            order_role: Some(Bitmex::get_order_role_by_commission_amount(
+                                data.commission_amount,
+                            )),
+                            commission_currency_code: Some(data.currency.into()),
+                            commission_rate: Some(data.commission_rate),
+                            commission_amount: Some(data.commission_amount),
+                            fill_type: Self::get_order_fill_type(&data.details)?,
+                            special_order_data: Some(order_data),
+                            fill_date: Some(data.timestamp),
+                        };
 
-                    (self.handle_order_filled_callback)(fill_event);
-                }
+                        (self.handle_order_filled_callback)(fill_event);
+                    }
+                    BitmexOrderFill::Funding(_) => (),
+                },
             }
         }
 
         Ok(())
     }
 
-    fn get_order_fill_type(text: &str) -> Result<OrderFillType> {
+    pub(crate) fn get_order_fill_type(text: &str) -> Result<OrderFillType> {
         if text == "Liquidation" {
             Ok(OrderFillType::Liquidation)
         } else if text == "Funding" {
@@ -686,9 +689,18 @@ enum BitmexOrderBookPayload {
 #[serde(bound(deserialize = "'de: 'a"))]
 #[serde(tag = "ordStatus")]
 enum BitmexOrderExecutionPayload<'a> {
-    New(BitmexOrderStatus),
+    New(BitmexOrderStatus<'a>),
     Filled(BitmexOrderFill<'a>),
     PartiallyFilled(BitmexOrderFill<'a>),
-    Canceled(BitmexOrderStatus),
-    Rejected(BitmexOrderStatus),
+    Canceled(BitmexOrderStatus<'a>),
+    Rejected(BitmexOrderStatus<'a>),
+}
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Deserialize, Debug)]
+#[serde(bound(deserialize = "'de: 'a"))]
+#[serde(tag = "execType")]
+pub(crate) enum BitmexOrderFill<'a> {
+    Trade(BitmexOrderFillTrade<'a>),
+    Funding(BitmexOrderFillDummy),
 }

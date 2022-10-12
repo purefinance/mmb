@@ -674,16 +674,11 @@ impl Binance {
         position: &ActivePosition,
         price: Option<Price>,
     ) -> Result<RestResponse, ExchangeError> {
-        let side = match position.derivative.side {
-            Some(side) => side.change_side().as_str(),
-            None => "0", // unknown side
-        };
-
         let mut builder = UriBuilder::from_path("/fapi/v1/order");
         builder.add_kv("leverage", &position.derivative.leverage);
         builder.add_kv("positionSide", "BOTH");
         builder.add_kv("quantity", &position.derivative.position.abs());
-        builder.add_kv("side", side);
+        builder.add_kv("side", position.derivative.get_side());
         builder.add_kv("symbol", &position.derivative.currency_pair);
 
         match price {

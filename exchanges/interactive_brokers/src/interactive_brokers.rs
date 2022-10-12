@@ -675,7 +675,6 @@ impl InteractiveBrokers {
             let derivative = DerivativePosition {
                 currency_pair: CurrencyPair::from_codes(base, quote),
                 position,
-                side: None,
                 average_entry_price: avg_cost,
                 liquidation_price: avg_cost,
                 leverage,

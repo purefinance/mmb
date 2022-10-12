@@ -131,10 +131,7 @@ impl ExchangeClient for InteractiveBrokers {
         price: Option<Price>,
     ) -> anyhow::Result<ClosedPosition> {
         let currency_pair = &position.derivative.currency_pair;
-        let side = position
-            .derivative
-            .side
-            .context("Expected `position.derivative.side` is `Some`.")?;
+        let side = position.derivative.get_side();
         let price = price.context("Expected `price` is `Some`.")?;
         let amount = position.derivative.position.abs();
 

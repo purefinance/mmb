@@ -105,7 +105,7 @@ impl BalanceManagerBase {
         let positions = Some(
             positions_by_currency_pair
                 .into_iter()
-                .map(|x| DerivativePosition::new(x.0, x.1, None, dec!(0), dec!(0), dec!(1)))
+                .map(|x| DerivativePosition::new(x.0, x.1, dec!(0), dec!(0), dec!(1)))
                 .collect_vec(),
         );
 

@@ -15,6 +15,7 @@ dashmap = "5"
 function_name = "0.3.0"
 hmac = "0.12"
 hyper = { version = "0.14", features = ["http1", "runtime", "client", "tcp"] }
+itertools = "0.10"
 log = "0.4"
 mmb_core = { path = "../../core/" }
 mmb_domain = { path = "../../domain" }

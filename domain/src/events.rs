@@ -113,7 +113,10 @@ impl From<Value> for TradeId {
 
 impl From<String> for TradeId {
     fn from(value: String) -> Self {
-        TradeId::String(value.into_boxed_str())
+        match value.parse::<u64>() {
+            Ok(number) => TradeId::Number(number),
+            Err(_) => TradeId::String(value.into_boxed_str()),
+        }
     }
 }
 

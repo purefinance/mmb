@@ -25,6 +25,7 @@ use uuid::Uuid;
 pub type SortedOrderData = BTreeMap<Price, Amount>;
 
 pub type Price = Decimal;
+/// Amount is a currency quantity alias: order amount, position amount, balance amount, etc.
 pub type Amount = Decimal;
 pub type String16 = SmallString<[u8; 16]>;
 

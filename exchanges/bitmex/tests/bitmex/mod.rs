@@ -1,3 +1,4 @@
+mod account_balance;
 pub(crate) mod bitmex_builder;
 mod cancel_order;
 pub(crate) mod common;
