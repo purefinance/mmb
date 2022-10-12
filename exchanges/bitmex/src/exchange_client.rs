@@ -76,30 +76,49 @@ impl ExchangeClient for Bitmex {
 
     async fn close_position(
         &self,
-        _position: &ActivePosition,
-        _price: Option<Price>,
+        position: &ActivePosition,
+        price: Option<Price>,
     ) -> Result<ClosedPosition> {
-        todo!()
+        let response = self.request_close_position(position, price).await?;
+
+        self.parse_close_position(&response)
     }
 
     async fn get_active_positions(&self) -> Result<Vec<ActivePosition>> {
-        todo!()
+        let response = self.request_get_position().await?;
+
+        self.parse_get_position(&response)
     }
 
     async fn get_balance(&self) -> Result<ExchangeBalancesAndPositions> {
-        todo!()
+        let response = self.request_get_balance().await?;
+
+        self.parse_get_balance(&response)
     }
 
     async fn get_balance_and_positions(&self) -> Result<ExchangeBalancesAndPositions> {
-        todo!()
+        let balance_response = self.request_get_balance().await?;
+        let positions_response = self.request_get_position().await?;
+
+        self.parse_balance_and_positions(&balance_response, &positions_response)
     }
 
     async fn get_my_trades(
         &self,
-        _symbol: &Symbol,
-        _last_date_time: Option<DateTime>,
+        symbol: &Symbol,
+        last_date_time: Option<DateTime>,
     ) -> RequestResult<Vec<OrderTrade>> {
-        todo!()
+        match self.request_my_trades(symbol, last_date_time).await {
+            Ok(response) => match self.parse_my_trades(&response) {
+                Ok(data) => RequestResult::Success(data),
+                Err(err) => RequestResult::Error(ExchangeError::parsing(format!(
+                    "Unable to parse trades: {err:?}"
+                ))),
+            },
+            Err(err) => RequestResult::Error(ExchangeError::unknown(
+                format!("Failed to get trades: {err:?}").as_str(),
+            )),
+        }
     }
 
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {

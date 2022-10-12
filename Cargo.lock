@@ -568,6 +568,7 @@ dependencies = [
  "futures 0.3.24",
  "hmac",
  "hyper",
+ "itertools",
  "jsonrpc-core",
  "jsonrpc-core-client",
  "log",

@@ -745,7 +745,7 @@ impl Exchange {
                     position_info.currency_pair,
                     position_info.liquidation_price,
                     position_info.average_entry_price,
-                    position_info.side.expect("position_info.side is None"),
+                    position_info.get_side(),
                 )
             }
         }

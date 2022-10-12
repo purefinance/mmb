@@ -12,8 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[derive(Debug, Clone)]
 pub struct DerivativePosition {
     pub currency_pair: CurrencyPair,
-    pub position: Decimal,
-    pub side: Option<OrderSide>,
+    pub position: Amount,
     pub average_entry_price: Price,
     pub liquidation_price: Price,
     pub leverage: Decimal,
@@ -23,7 +22,6 @@ impl DerivativePosition {
     pub fn new(
         currency_pair: CurrencyPair,
         position: Decimal,
-        side: Option<OrderSide>,
         average_entry_price: Price,
         liquidation_price: Price,
         leverage: Decimal,
@@ -31,14 +29,25 @@ impl DerivativePosition {
         DerivativePosition {
             currency_pair,
             position,
-            side,
+
             average_entry_price,
             liquidation_price,
             leverage,
         }
     }
+
+    pub fn get_side(&self) -> OrderSide {
+        debug_assert!(self.position.is_zero());
+
+        if self.position.is_sign_negative() {
+            OrderSide::Sell
+        } else {
+            OrderSide::Buy
+        }
+    }
 }
 
+#[derive(Debug)]
 pub struct ClosedPosition {
     pub exchange_order_id: ExchangeOrderId,
     pub amount: Amount,

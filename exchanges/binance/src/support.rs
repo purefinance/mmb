@@ -419,15 +419,9 @@ impl Binance {
                 format!("Failed to get_unified_currency_pair for {specific_currency_pair:?}")
             });
 
-        let side = match binance_position.position_side > dec!(0) {
-            true => OrderSide::Buy,
-            false => OrderSide::Sell,
-        };
-
         let derivative_position = DerivativePosition::new(
             currency_pair,
             binance_position.position_amount,
-            Some(side),
             dec!(0),
             binance_position.liquidation_price,
             binance_position.leverage,

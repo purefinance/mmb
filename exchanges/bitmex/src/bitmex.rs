@@ -1,4 +1,7 @@
-use crate::types::{BitmexOrderInfo, BitmexSymbol};
+use crate::support::BitmexOrderFill;
+use crate::types::{
+    BitmexBalanceInfo, BitmexOrderInfo, BitmexSymbol, BitmexSymbolType, PositionPayload,
+};
 use anyhow::{Context, Result};
 use arrayvec::{ArrayString, ArrayVec};
 use dashmap::DashMap;
@@ -6,10 +9,12 @@ use function_name::named;
 use hmac::{Hmac, Mac};
 use hyper::http::request::Builder;
 use hyper::{StatusCode, Uri};
+use itertools::Itertools;
 use mmb_core::exchanges::general::features::{
     BalancePositionOption, ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption,
     RestFillsFeatures, RestFillsType, WebSocketOptions,
 };
+use mmb_core::exchanges::general::order::get_order_trades::OrderTrade;
 use mmb_core::exchanges::hosts::Hosts;
 use mmb_core::exchanges::rest_client::{
     ErrorHandler, ErrorHandlerData, RequestType, RestClient, RestHeaders, RestResponse, UriBuilder,
@@ -22,17 +27,22 @@ use mmb_core::exchanges::traits::{
 };
 use mmb_core::lifecycle::app_lifetime_manager::AppLifetimeManager;
 use mmb_core::settings::ExchangeSettings;
-use mmb_domain::events::{AllowedEventSourceType, ExchangeEvent};
+use mmb_domain::events::{
+    AllowedEventSourceType, ExchangeBalance, ExchangeBalancesAndPositions, ExchangeEvent,
+};
 use mmb_domain::exchanges::symbol::{Precision, Symbol};
 use mmb_domain::market::{
     CurrencyCode, CurrencyId, CurrencyPair, ExchangeErrorType, ExchangeId, SpecificCurrencyPair,
 };
 use mmb_domain::order::pool::{OrderRef, OrdersPool};
 use mmb_domain::order::snapshot::{
-    ExchangeOrderId, OrderCancelling, OrderExecutionType, OrderInfo, OrderSide, OrderStatus,
-    OrderType, Price,
+    ExchangeOrderId, OrderCancelling, OrderExecutionType, OrderInfo, OrderRole, OrderSide,
+    OrderStatus, OrderType, Price,
 };
+use mmb_domain::position::{ActivePosition, ClosedPosition, DerivativePosition};
+use mmb_utils::DateTime;
 use parking_lot::{Mutex, RwLock};
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::Deserialize;
 use sha2::Sha256;
@@ -180,7 +190,7 @@ impl Bitmex {
 
     #[named]
     pub(super) async fn request_all_symbols(&self) -> Result<RestResponse, ExchangeError> {
-        let builder = UriBuilder::from_path("/api/v1/instrument/activeAndIndices");
+        let builder = UriBuilder::from_path("/api/v1/instrument/active");
         let uri = builder.build_uri(self.hosts.rest_uri_host(), false);
 
         self.rest_client
@@ -190,68 +200,70 @@ impl Bitmex {
 
     pub(super) fn parse_all_symbols(&self, response: &RestResponse) -> Result<Vec<Arc<Symbol>>> {
         let symbols: Vec<BitmexSymbol> = serde_json::from_str(&response.content)
-            .expect("Unable to deserialize response from Bitmex");
-        let mut supported_symbols = Vec::new();
+            .context("Unable to deserialize response from Bitmex")?;
 
-        for symbol in &symbols {
-            if Bitmex::is_unsupported_symbol(symbol) {
-                continue;
-            }
+        Ok(symbols
+            .iter()
+            .filter_map(|symbol| {
+                self.filter_symbol(symbol).map(|symbol| {
+                    let base = symbol.base_id.into();
+                    let quote = symbol.quote_id.into();
 
-            let base = symbol.base_id.into();
-            let quote = symbol.quote_id.into();
+                    let specific_currency_pair = symbol.id.into();
+                    let unified_currency_pair = CurrencyPair::from_codes(base, quote);
+                    self.unified_to_specific
+                        .write()
+                        .insert(unified_currency_pair, specific_currency_pair);
 
-            let specific_currency_pair = symbol.id.into();
-            let unified_currency_pair = CurrencyPair::from_codes(base, quote);
-            self.unified_to_specific
-                .write()
-                .insert(unified_currency_pair, specific_currency_pair);
+                    self.specific_to_unified
+                        .write()
+                        .insert(specific_currency_pair, unified_currency_pair);
 
-            self.specific_to_unified
-                .write()
-                .insert(specific_currency_pair, unified_currency_pair);
+                    let (amount_currency_code, balance_currency_code) =
+                        match self.settings.is_margin_trading {
+                            true => (quote, Some(base)),
+                            false => (base, None),
+                        };
 
-            let (amount_currency_code, balance_currency_code) = if symbol.id != "XBTUSD" {
-                (base, None)
-            } else {
-                (CurrencyCode::from("XBT"), Some(CurrencyCode::from("BTC")))
-            };
-
-            let price_tick = symbol.price_tick.expect("Null price tick value");
-            let amount_tick = symbol.amount_tick.expect("Null amount tick value");
-
-            let symbol = Symbol::new(
-                self.settings.is_margin_trading,
-                symbol.base_id.into(),
-                base,
-                symbol.quote_id.into(),
-                quote,
-                None,
-                symbol.max_price,
-                None,
-                symbol.max_amount,
-                None,
-                amount_currency_code,
-                balance_currency_code,
-                Precision::ByTick { tick: price_tick },
-                Precision::ByTick { tick: amount_tick },
-            );
-
-            supported_symbols.push(Arc::new(symbol));
-        }
-
-        Ok(supported_symbols)
+                    Arc::new(Symbol::new(
+                        self.settings.is_margin_trading,
+                        symbol.base_id.into(),
+                        base,
+                        symbol.quote_id.into(),
+                        quote,
+                        None,
+                        symbol.max_price,
+                        None,
+                        symbol.max_amount,
+                        None,
+                        amount_currency_code,
+                        balance_currency_code,
+                        Precision::ByTick {
+                            tick: symbol.price_tick,
+                        },
+                        Precision::ByTick {
+                            tick: symbol.amount_tick,
+                        },
+                    ))
+                })
+            })
+            .collect_vec())
     }
 
-    fn is_unsupported_symbol(symbol: &BitmexSymbol) -> bool {
-        let is_inactive_symbol = symbol.state == "Unlisted";
+    fn filter_symbol<'a>(&self, symbol: &'a BitmexSymbol<'a>) -> Option<&'a BitmexSymbol<'a>> {
+        let symbol_type = BitmexSymbolType::try_from(symbol.symbol_type).ok()?;
 
-        // Symbols list has the same CurrencyCodePair for all the BTC/USD futures, we keep only perpetual swap for now
-        let is_unsupported_futures = (symbol.base_id == "XBT" || symbol.base_id == "BTC")
-            && symbol.quote_id == "USD"
-            && symbol.id != "XBTUSD";
+        let is_active_symbol = symbol.state != "Unlisted";
+        let is_supported = match self.settings.is_margin_trading {
+            true => symbol_type == BitmexSymbolType::PerpetualContract && symbol.id != "ETHUSD_ETH", // ETHUSD_ETH is a ETH-margined perpetual swap. We don't support it at the moment
+            false => symbol_type == BitmexSymbolType::Spot,
+        };
 
-        is_inactive_symbol || is_unsupported_futures
+        if is_active_symbol && is_supported {
+            Some(symbol)
+        } else {
+            None
+        }
     }
 
     #[named]
@@ -338,7 +350,6 @@ impl Bitmex {
         }
         impl Display for OpenOrdersFilter {
             fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-                // TODO Possible write a serializer to JSON format
                 // Creating JSON without heap allocation
                 let mut string_data = ArrayString::<64>::new();
                 string_data.push('{');
@@ -530,6 +541,192 @@ impl Bitmex {
             .as_secs();
 
         current_unix_time + secs
+    }
+
+    #[named]
+    pub(super) async fn request_my_trades(
+        &self,
+        symbol: &Symbol,
+        last_date_time: Option<DateTime>,
+    ) -> Result<RestResponse, ExchangeError> {
+        let mut builder = UriBuilder::from_path("/api/v1/execution/tradeHistory");
+        builder.add_kv(
+            "symbol",
+            self.get_specific_currency_pair(symbol.currency_pair()),
+        );
+        builder.add_kv("reverse", true);
+        builder.add_kv("count", 100);
+        if let Some(date_time) = last_date_time {
+            builder.add_kv("startTime", date_time.to_rfc3339());
+        }
+
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+
+        self.rest_client
+            .get(uri, function_name!(), "".to_string())
+            .await
+    }
+
+    pub(super) fn parse_my_trades(&self, response: &RestResponse) -> Result<Vec<OrderTrade>> {
+        let trade_data: Vec<BitmexOrderFill> =
+            serde_json::from_str(&response.content).context("Failed to parse trade data")?;
+
+        trade_data
+            .into_iter()
+            .filter_map(|variant| match variant {
+                BitmexOrderFill::Trade(trade) => Some(Ok(OrderTrade {
+                    exchange_order_id: trade.exchange_order_id,
+                    trade_id: trade.trade_id.into(),
+                    datetime: trade.timestamp,
+                    price: trade.fill_price,
+                    amount: trade.fill_amount,
+                    order_role: Bitmex::get_order_role_by_commission_amount(
+                        trade.commission_amount,
+                    ),
+                    fee_currency_code: trade.currency.into(),
+                    fee_rate: Some(trade.commission_rate),
+                    fee_amount: Some(trade.commission_amount),
+                    fill_type: Self::get_order_fill_type(&trade.details).ok()?,
+                })),
+                BitmexOrderFill::Funding(_) => None,
+            })
+            .try_collect()
+    }
+
+    #[named]
+    pub(super) async fn request_get_position(&self) -> Result<RestResponse, ExchangeError> {
+        let builder = UriBuilder::from_path("/api/v1/position");
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+
+        self.rest_client
+            .get(uri, function_name!(), "".to_string())
+            .await
+    }
+
+    pub(super) fn parse_get_position(
+        &self,
+        response: &RestResponse,
+    ) -> Result<Vec<ActivePosition>> {
+        Ok(self
+            .get_derivative_positions(response)?
+            .into_iter()
+            .map(ActivePosition::new)
+            .collect_vec())
+    }
+
+    #[named]
+    pub(super) async fn request_close_position(
+        &self,
+        position: &ActivePosition,
+        price: Option<Price>,
+    ) -> Result<RestResponse, ExchangeError> {
+        let mut builder = UriBuilder::from_path("/api/v1/order");
+        builder.add_kv(
+            "symbol",
+            self.get_specific_currency_pair(position.derivative.currency_pair),
+        );
+        builder.add_kv("execInst", "Close");
+        builder.add_kv("text", encode("Position Close via API."));
+        if let Some(price_value) = price {
+            builder.add_kv("price", price_value);
+        }
+
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+
+        let log_args = format!("Close position response for {position:?} {price:?}");
+        self.rest_client
+            .post(uri, None, function_name!(), log_args)
+            .await
+    }
+
+    pub(super) fn parse_close_position(&self, response: &RestResponse) -> Result<ClosedPosition> {
+        let bitmex_order: BitmexOrderInfo = serde_json::from_str(&response.content)
+            .context("Unable to parse response content for close_position() request")?;
+        let amount = bitmex_order
+            .amount
+            .context("Missing amount value in Bitmex order info")?;
+
+        Ok(ClosedPosition::new(bitmex_order.exchange_order_id, amount))
+    }
+
+    #[named]
+    pub(super) async fn request_get_balance(&self) -> Result<RestResponse, ExchangeError> {
+        let mut builder = UriBuilder::from_path("/api/v1/user/margin");
+        builder.add_kv("currency", "all");
+
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+
+        self.rest_client
+            .get(uri, function_name!(), "".to_string())
+            .await
+    }
+
+    pub(super) fn parse_get_balance(
+        &self,
+        response: &RestResponse,
+    ) -> Result<ExchangeBalancesAndPositions> {
+        let raw_balances: Vec<BitmexBalanceInfo> =
+            serde_json::from_str(&response.content).context("Failed to parse balance")?;
+
+        let common_balances = raw_balances
+            .into_iter()
+            .map(|balance_info| {
+                // Rate values are from ccxt library and checked with real balance
+                let balance_ratio = if balance_info.currency == "xbt" {
+                    dec!(100000000)
+                } else {
+                    dec!(1000000)
+                };
+                ExchangeBalance {
+                    currency_code: balance_info.currency.into(),
+                    balance: balance_info.balance / balance_ratio,
+                }
+            })
+            .collect_vec();
+
+        Ok(ExchangeBalancesAndPositions {
+            balances: common_balances,
+            positions: None,
+        })
+    }
+
+    pub(super) fn parse_balance_and_positions(
+        &self,
+        balance_response: &RestResponse,
+        positions_response: &RestResponse,
+    ) -> Result<ExchangeBalancesAndPositions> {
+        let derivative = self.get_derivative_positions(positions_response)?;
+        let mut balance = self.parse_get_balance(balance_response)?;
+        balance.positions = Some(derivative);
+
+        Ok(balance)
+    }
+
+    fn get_derivative_positions(&self, response: &RestResponse) -> Result<Vec<DerivativePosition>> {
+        let bitmex_positions: Vec<PositionPayload> =
+            serde_json::from_str(&response.content).context("Failed to parse positions")?;
+
+        bitmex_positions
+            .into_iter()
+            .map(|position| {
+                let currency_pair = self.get_unified_currency_pair(&position.symbol)?;
+                Ok(DerivativePosition {
+                    currency_pair,
+                    position: position.amount,
+                    average_entry_price: position.average_entry_price.unwrap_or_default(),
+                    liquidation_price: position.liquidation_price.unwrap_or_default(),
+                    leverage: position.leverage,
+                })
+            })
+            .try_collect()
+    }
+
+    pub(super) fn get_order_role_by_commission_amount(commission_amount: Decimal) -> OrderRole {
+        if commission_amount.is_sign_positive() {
+            OrderRole::Taker
+        } else {
+            OrderRole::Maker
+        }
     }
 }
 
