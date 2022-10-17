@@ -25,8 +25,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::binance::common::get_default_price;
 use crate::binance::common::get_min_amount;
+use crate::binance::common::{default_currency_pair, get_default_price};
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::exchange::get_specific_currency_pair_for_tests;
@@ -156,6 +156,7 @@ async fn orders_cancelled() {
             CancellationToken::default(),
             price,
             amount,
+            default_currency_pair(),
         );
         let created_order = order.create_order(exchange.clone()).await.expect("in test");
         order

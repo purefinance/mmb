@@ -1,6 +1,5 @@
 use anyhow::Result;
 use binance::binance::Binance;
-use core_tests::order::OrderProxy;
 use mmb_core::balance::manager::balance_manager::BalanceManager;
 use mmb_core::database::events::recorder::EventRecorder;
 use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;
@@ -23,8 +22,8 @@ use mmb_utils::infrastructure::WithExpect;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::binance::common::get_default_price;
 use crate::binance::common::get_min_amount;
+use crate::binance::common::{default_currency_pair, get_default_price};
 use crate::binance::common::{get_binance_credentials, get_timeout_manager};
 
 pub struct BinanceBuilder {
@@ -225,7 +224,7 @@ impl BinanceBuilder {
                 .await;
         }
 
-        let currency_pair = OrderProxy::default_currency_pair();
+        let currency_pair = default_currency_pair();
         let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
         let default_price = get_default_price(
             specific_currency_pair,

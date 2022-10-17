@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 itertools = "0.10"
 anyhow = "1"
+log = "0.4"
 rust_decimal = { version = "1" , features = ["maths"]}
 rust_decimal_macros = "1"
 

@@ -14,7 +14,7 @@ use mmb_core::{
     lifecycle::launcher::EngineBuildConfig,
 };
 use mmb_domain::exchanges::symbol::{Round, Symbol};
-use mmb_domain::market::{ExchangeAccountId, SpecificCurrencyPair};
+use mmb_domain::market::{CurrencyPair, ExchangeAccountId, SpecificCurrencyPair};
 use mmb_domain::order::snapshot::{Amount, Price};
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
@@ -22,6 +22,10 @@ use mmb_utils::value_to_decimal::GetOrErr;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+pub(crate) fn default_currency_pair() -> CurrencyPair {
+    CurrencyPair::from_codes("btc".into(), "usdt".into())
+}
 
 pub(crate) fn get_binance_credentials() -> Result<(String, String)> {
     let api_key = std::env::var("BINANCE_API_KEY");

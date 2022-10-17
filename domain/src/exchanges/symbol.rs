@@ -44,6 +44,13 @@ impl Precision {
             tick: dec!(0.1).powi(precision as i64),
         }
     }
+
+    pub fn get_tick(&self) -> Decimal {
+        match self {
+            Precision::ByTick { tick } => *tick,
+            Precision::ByMantissa { precision } => dec!(0.1).powi(*precision as i64),
+        }
+    }
 }
 
 /// Metadata for a currency pair

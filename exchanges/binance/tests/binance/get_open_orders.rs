@@ -7,6 +7,7 @@ use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 
 use crate::binance::binance_builder::BinanceBuilder;
+use crate::binance::common::default_currency_pair;
 use crate::get_binance_credentials_or_exit;
 use core_tests::order::OrderProxy;
 
@@ -26,6 +27,7 @@ async fn open_orders_exists() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
 
     let order_proxy2 = OrderProxy::new(
@@ -34,6 +36,7 @@ async fn open_orders_exists() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
 
     let _ = order_proxy1
@@ -104,6 +107,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
 
     first_order_proxy
@@ -117,6 +121,7 @@ async fn get_open_orders_for_each_currency_pair_separately() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
 
     second_order_proxy

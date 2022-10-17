@@ -1,11 +1,13 @@
-use crate::bitmex::common::{get_bitmex_credentials, get_timeout_manager};
+use crate::bitmex::common::{
+    default_currency_pair, get_bitmex_credentials, get_prices, get_timeout_manager,
+};
 use anyhow::{bail, Result};
 use bitmex::bitmex::Bitmex;
 use mmb_core::balance::manager::balance_manager::BalanceManager;
 use mmb_core::database::events::recorder::EventRecorder;
 use mmb_core::exchanges::exchange_blocker::ExchangeBlocker;
 use mmb_core::exchanges::general::currency_pair_to_symbol_converter::CurrencyPairToSymbolConverter;
-use mmb_core::exchanges::general::exchange::Exchange;
+use mmb_core::exchanges::general::exchange::{get_specific_currency_pair_for_tests, Exchange};
 use mmb_core::exchanges::general::features::{
     ExchangeFeatures, OpenOrdersType, OrderFeatures, OrderTradeOption, RestFillsFeatures,
     WebSocketOptions,
@@ -16,50 +18,44 @@ use mmb_core::infrastructure::init_lifetime_manager;
 use mmb_core::settings::{CurrencyPairSetting, ExchangeSettings};
 use mmb_domain::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_domain::exchanges::commission::Commission;
-use mmb_domain::market::ExchangeAccountId;
+use mmb_domain::market::{CurrencyPair, ExchangeAccountId};
 use mmb_domain::order::pool::OrdersPool;
 use mmb_domain::order::snapshot::{Amount, Price};
-use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::hashmap;
 use mmb_utils::infrastructure::WithExpect;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-// TODO Remove dead code allowing after tests implementation
+pub(crate) fn default_exchange_account_id() -> ExchangeAccountId {
+    const EXCHANGE_ACCOUNT_ID: &str = "Bitmex_0";
+
+    EXCHANGE_ACCOUNT_ID.parse().expect("in test")
+}
+
 #[allow(dead_code)]
 pub(crate) struct BitmexBuilder {
     pub(crate) exchange: Arc<Exchange>,
     hosts: Hosts,
     exchange_settings: ExchangeSettings,
-    pub(crate) default_price: Price,
+    pub(crate) execution_price: Price,
+    pub(crate) min_price: Price,
     pub(crate) min_amount: Amount,
+    pub(crate) default_currency_pair: CurrencyPair,
     tx: broadcast::Sender<ExchangeEvent>,
     pub(crate) rx: broadcast::Receiver<ExchangeEvent>,
 }
-
-pub const EXCHANGE_ACCOUNT_ID: &str = "Bitmex_0";
 
 impl BitmexBuilder {
     pub(crate) async fn build_account_with_setting(
         settings: ExchangeSettings,
         features: ExchangeFeatures,
-        need_to_clean_up: bool,
     ) -> Self {
-        BitmexBuilder::try_new_with_settings(
-            settings,
-            CancellationToken::default(),
-            features,
-            Commission::default(),
-            need_to_clean_up,
-        )
-        .await
+        BitmexBuilder::try_new_with_settings(settings, features, Commission::default()).await
     }
 
-    pub(crate) async fn build_account(need_to_clean_up: bool) -> Result<Self> {
-        let exchange_account_id: ExchangeAccountId = EXCHANGE_ACCOUNT_ID.parse().expect("in test");
+    pub(crate) async fn build_account(is_margin_trading: bool) -> Result<Self> {
         BitmexBuilder::try_new(
-            exchange_account_id,
-            CancellationToken::default(),
+            default_exchange_account_id(),
             ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::default(),
@@ -75,8 +71,7 @@ impl BitmexBuilder {
                 AllowedEventSourceType::default(),
             ),
             Commission::default(),
-            need_to_clean_up,
-            false,
+            is_margin_trading,
         )
         .await
     }
@@ -84,12 +79,11 @@ impl BitmexBuilder {
     pub(crate) async fn build_account_with_source_types(
         allowed_create_event_source_type: AllowedEventSourceType,
         allowed_cancel_event_source_type: AllowedEventSourceType,
-        need_to_clean_up: bool,
+        is_margin_trading: bool,
     ) -> Result<Self> {
         let exchange_account_id: ExchangeAccountId = "Bitmex_0".parse().expect("in test");
         BitmexBuilder::try_new(
             exchange_account_id,
-            CancellationToken::default(),
             ExchangeFeatures::new(
                 OpenOrdersType::AllCurrencyPair,
                 RestFillsFeatures::default(),
@@ -108,18 +102,15 @@ impl BitmexBuilder {
                 allowed_cancel_event_source_type,
             ),
             Commission::default(),
-            need_to_clean_up,
-            false,
+            is_margin_trading,
         )
         .await
     }
 
     async fn try_new(
         exchange_account_id: ExchangeAccountId,
-        cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
-        need_to_clean_up: bool,
         is_margin_trading: bool,
     ) -> Result<Self> {
         let (api_key, secret_key) = match get_bitmex_credentials() {
@@ -139,28 +130,29 @@ impl BitmexBuilder {
             is_margin_trading,
         );
 
-        // default currency pair for tests
-        settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
-            base: "XBT".into(),
-            quote: "USD".into(),
-        }]);
+        // Default currency pair for tests
+        match is_margin_trading {
+            true => {
+                settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
+                    base: "XBT".into(),
+                    quote: "USD".into(),
+                }]);
+            }
+            false => {
+                settings.currency_pairs = Some(vec![CurrencyPairSetting::Ordinary {
+                    base: "XBT".into(),
+                    quote: "USDT".into(),
+                }]);
+            }
+        }
 
-        Ok(Self::try_new_with_settings(
-            settings,
-            cancellation_token,
-            features,
-            commission,
-            need_to_clean_up,
-        )
-        .await)
+        Ok(Self::try_new_with_settings(settings, features, commission).await)
     }
 
     async fn try_new_with_settings(
         settings: ExchangeSettings,
-        cancellation_token: CancellationToken,
         features: ExchangeFeatures,
         commission: Commission,
-        need_to_clean_up: bool,
     ) -> Self {
         let lifetime_manager = init_lifetime_manager();
         let (tx, rx) = broadcast::channel(10);
@@ -208,23 +200,34 @@ impl BitmexBuilder {
 
         exchange.setup_balance_manager(balance_manager);
 
-        // TODO Remove that workaround when RAII order clearing will be implemented
-        if need_to_clean_up {
-            exchange
-                .clone()
-                .cancel_opened_orders(cancellation_token.clone(), true)
-                .await;
-        }
+        let currency_pair = default_currency_pair();
+        let symbol = exchange
+            .symbols
+            .get(&currency_pair)
+            .with_expect(|| format!("Can't find symbol {currency_pair})"))
+            .value()
+            .clone();
+        let specific_currency_pair = get_specific_currency_pair_for_tests(&exchange, currency_pair);
 
-        let default_price = 1.into();
-        let min_amount = 1.into();
+        let (execution_price, min_price) = get_prices(
+            specific_currency_pair,
+            &hosts,
+            &settings,
+            &symbol.price_precision,
+        )
+        .await;
+        let min_amount = symbol
+            .get_min_amount(execution_price)
+            .expect("Failed to calc min amount");
 
         Self {
             exchange,
             hosts,
             exchange_settings: settings,
-            default_price,
+            execution_price,
+            min_price,
             min_amount,
+            default_currency_pair: currency_pair,
             tx,
             rx,
         }

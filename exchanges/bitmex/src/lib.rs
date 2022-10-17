@@ -19,4 +19,4 @@
 pub mod bitmex;
 mod exchange_client;
 mod support;
-mod types;
+pub mod types;

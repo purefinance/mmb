@@ -6,7 +6,7 @@ use mmb_utils::logger::init_logger_file_named;
 async fn get_balance_successfully() {
     init_logger_file_named("log.txt");
 
-    let bitmex_builder = match BitmexBuilder::build_account(false).await {
+    let bitmex_builder = match BitmexBuilder::build_account(true).await {
         Ok(v) => v,
         Err(_) => return,
     };

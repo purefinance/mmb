@@ -1,8 +1,9 @@
 use crate::support::BitmexOrderFill;
 use crate::types::{
-    BitmexBalanceInfo, BitmexOrderInfo, BitmexSymbol, BitmexSymbolType, PositionPayload,
+    BitmexBalanceInfo, BitmexOrderInfo, BitmexSymbol, BitmexSymbolType, BitmexWalletAsset,
+    PositionPayload,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use arrayvec::{ArrayString, ArrayVec};
 use dashmap::DashMap;
 use function_name::named;
@@ -43,12 +44,12 @@ use mmb_domain::position::{ActivePosition, ClosedPosition, DerivativePosition};
 use mmb_utils::DateTime;
 use parking_lot::{Mutex, RwLock};
 use rust_decimal::Decimal;
+use rust_decimal::MathematicalOps;
 use rust_decimal_macros::dec;
 use serde::Deserialize;
 use sha2::Sha256;
 use std::collections::HashMap;
 use std::fmt;
-use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -63,19 +64,32 @@ impl ErrorHandler for ErrorHandlerBitmex {
     fn check_spec_rest_error(&self, response: &RestResponse) -> Result<(), ExchangeError> {
         match response.status {
             // StatusCode::UNAUTHORIZED is possible too but it is handling in RestClient::get_rest_error()
-            StatusCode::BAD_REQUEST | StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => {
-                Err(ExchangeError::unknown(&response.content))
+            StatusCode::BAD_REQUEST | StatusCode::FORBIDDEN | StatusCode::NOT_FOUND => Err(
+                ExchangeError::new(ExchangeErrorType::SendError, response.content.clone(), None),
+            ),
+            StatusCode::OK => {
+                if response.content.contains("error") {
+                    Err(ExchangeError::unknown(&response.content))
+                } else {
+                    Ok(())
+                }
             }
-            _ => Ok(()),
+            _ => Err(ExchangeError::unknown(&response.content)),
         }
     }
 
-    fn clarify_error_type(&self, _error: &ExchangeError) -> ExchangeErrorType {
-        ExchangeErrorType::Unknown
+    fn clarify_error_type(&self, error: &ExchangeError) -> ExchangeErrorType {
+        if error.message.contains("Invalid orderID") {
+            ExchangeErrorType::OrderNotFound
+        } else if error.message.contains("Unable to cancel order") {
+            ExchangeErrorType::InvalidOrder
+        } else {
+            ExchangeErrorType::Unknown
+        }
     }
 }
 
-struct RestHeadersBitmex {
+pub struct RestHeadersBitmex {
     api_key: String,
     secret_key: String,
 }
@@ -91,8 +105,8 @@ impl RestHeadersBitmex {
     pub fn create_signature_message(
         path_and_query: &str,
         request_type: RequestType,
-    ) -> (ArrayString<128>, u64) {
-        let mut message = ArrayString::<128>::new();
+    ) -> (ArrayString<256>, u64) {
+        let mut message = ArrayString::<256>::new();
         message.push_str(request_type.as_str());
         message.push_str(path_and_query);
 
@@ -146,6 +160,7 @@ pub struct Bitmex {
     pub(crate) handle_trade_callback: HandleTradeCb,
     pub(crate) websocket_message_callback: SendWebsocketMessageCb,
     pub(super) order_book_ids: Mutex<HashMap<(SpecificCurrencyPair, u64), Price>>,
+    currency_balance_rates: Mutex<HashMap<CurrencyCode, Decimal>>,
 }
 
 impl Bitmex {
@@ -177,6 +192,7 @@ impl Bitmex {
             handle_trade_callback: Box::new(|_, _| {}),
             websocket_message_callback: Box::new(|_, _| Ok(())),
             order_book_ids: Default::default(),
+            currency_balance_rates: Default::default(),
         }
     }
 
@@ -233,7 +249,7 @@ impl Bitmex {
                         quote,
                         None,
                         symbol.max_price,
-                        None,
+                        Some(symbol.amount_tick),
                         symbol.max_amount,
                         None,
                         amount_currency_code,
@@ -253,7 +269,7 @@ impl Bitmex {
     fn filter_symbol<'a>(&self, symbol: &'a BitmexSymbol<'a>) -> Option<&'a BitmexSymbol<'a>> {
         let symbol_type = BitmexSymbolType::try_from(symbol.symbol_type).ok()?;
 
-        let is_active_symbol = symbol.state != "Unlisted";
+        let is_active_symbol = symbol.state == "Open";
         let is_supported = match self.settings.is_margin_trading {
             true => symbol_type == BitmexSymbolType::PerpetualContract && symbol.id != "ETHUSD_ETH", // ETHUSD_ETH is a ETH-margined perpetual swap. We don't support it at the moment
             false => symbol_type == BitmexSymbolType::Spot,
@@ -345,37 +361,11 @@ impl Bitmex {
         currency_pair: Option<CurrencyPair>,
     ) -> Result<RestResponse, ExchangeError> {
         let mut builder = UriBuilder::from_path("/api/v1/order");
-        struct OpenOrdersFilter {
-            specific_currency_pair: Option<SpecificCurrencyPair>,
+
+        builder.add_kv("filter", encode(r#"{"open": true}"#));
+        if let Some(pair) = currency_pair {
+            builder.add_kv("symbol", self.get_specific_currency_pair(pair));
         }
-        impl Display for OpenOrdersFilter {
-            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-                // Creating JSON without heap allocation
-                let mut string_data = ArrayString::<64>::new();
-                string_data.push('{');
-                string_data.push_str(r#""open": true"#);
-                if let Some(specific_currency_pair) = self.specific_currency_pair {
-                    string_data.push_str(", ");
-                    string_data.push_str(r#""symbol": ""#);
-                    string_data.push_str(specific_currency_pair.as_str());
-                    string_data.push('"');
-                }
-                string_data.push('}');
-
-                write!(f, "{}", encode(string_data.as_str()))
-            }
-        }
-
-        let filter = match currency_pair {
-            Some(pair) => OpenOrdersFilter {
-                specific_currency_pair: Some(self.get_specific_currency_pair(pair)),
-            },
-            None => OpenOrdersFilter {
-                specific_currency_pair: None,
-            },
-        };
-
-        builder.add_kv("filter", filter);
 
         let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
         self.rest_client
@@ -668,21 +658,21 @@ impl Bitmex {
         let raw_balances: Vec<BitmexBalanceInfo> =
             serde_json::from_str(&response.content).context("Failed to parse balance")?;
 
+        let currency_rates = self.currency_balance_rates.lock();
         let common_balances = raw_balances
             .into_iter()
             .map(|balance_info| {
-                // Rate values are from ccxt library and checked with real balance
-                let balance_ratio = if balance_info.currency == "xbt" {
-                    dec!(100000000)
-                } else {
-                    dec!(1000000)
-                };
-                ExchangeBalance {
-                    currency_code: balance_info.currency.into(),
-                    balance: balance_info.balance / balance_ratio,
-                }
+                let currency_code = CurrencyCode::from(balance_info.currency);
+                let balance_rate = currency_rates.get(&currency_code).ok_or_else(|| {
+                    anyhow!("Balance rate not found for currency {currency_code}")
+                })?;
+
+                Result::<_, anyhow::Error>::Ok(ExchangeBalance {
+                    currency_code,
+                    balance: balance_info.balance * balance_rate,
+                })
             })
-            .collect_vec();
+            .try_collect()?;
 
         Ok(ExchangeBalancesAndPositions {
             balances: common_balances,
@@ -727,6 +717,34 @@ impl Bitmex {
         } else {
             OrderRole::Maker
         }
+    }
+
+    pub(super) async fn update_currency_assets(&self) -> Result<()> {
+        let response = self.request_wallet_assets().await?;
+
+        self.parse_wallet_assets(&response)
+    }
+
+    #[named]
+    async fn request_wallet_assets(&self) -> Result<RestResponse, ExchangeError> {
+        let builder = UriBuilder::from_path("/api/v1/wallet/assets");
+        let uri = builder.build_uri(self.hosts.rest_uri_host(), true);
+
+        self.rest_client
+            .get(uri, function_name!(), "".to_string())
+            .await
+    }
+
+    fn parse_wallet_assets(&self, response: &RestResponse) -> Result<()> {
+        let assets: Vec<BitmexWalletAsset> = serde_json::from_str(&response.content)
+            .context("Failed to parse wallet assets response")?;
+        let mut currency_rates = self.currency_balance_rates.lock();
+
+        for asset in assets {
+            currency_rates.insert(asset.currency.into(), dec!(0.1).powi(asset.scale as i64));
+        }
+
+        Ok(())
     }
 }
 

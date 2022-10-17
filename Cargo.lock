@@ -1274,6 +1274,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "example_bitmex_demo"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitmex",
+ "chrono",
+ "itertools",
+ "log",
+ "mmb_core",
+ "mmb_database",
+ "mmb_domain",
+ "mmb_utils",
+ "rust_decimal",
+ "serde",
+ "serde_json",
+ "strategies",
+ "tokio",
+ "vis_robot_integration",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3844,6 +3865,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "itertools",
+ "log",
  "mmb_core",
  "mmb_domain",
  "mmb_utils",

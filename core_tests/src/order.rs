@@ -22,7 +22,7 @@ use std::sync::Arc;
 /// and than use create_order function for making order in selected Exchange.
 ///
 /// ```no_run
-/// use mmb_domain::market::ExchangeAccountId;
+/// use mmb_domain::market::{CurrencyPair, ExchangeAccountId};
 /// use mmb_domain::market::{ };
 /// use mmb_core::exchanges::general::exchange::Exchange;
 /// use mmb_utils::cancellation_token::CancellationToken;
@@ -31,13 +31,14 @@ use std::sync::Arc;
 /// use core_tests::order::OrderProxy;
 /// use mmb_domain::order::snapshot::{Amount, Price};
 ///
-/// async fn example(exchange_account_id: ExchangeAccountId, exchange: Arc<Exchange>, price: Price, amount: Amount) {
+/// async fn example(exchange_account_id: ExchangeAccountId, exchange: Arc<Exchange>, price: Price, amount: Amount, currency_pair: CurrencyPair) {
 ///     let mut order_proxy = OrderProxy::new(
 ///         exchange_account_id,
 ///         Some("FromExample".to_owned()),
 ///         CancellationToken::default(),
 ///         price,
 ///         amount,
+///         currency_pair,
 ///     );
 ///     order_proxy.amount = dec!(5000); // Optional amount changing
 ///     let created_order = order_proxy.create_order(exchange.clone()).await;
@@ -68,12 +69,13 @@ impl OrderProxy {
         cancellation_token: CancellationToken,
         price: Price,
         amount: Amount,
+        currency_pair: CurrencyPair,
     ) -> Self {
         Self {
             client_order_id: ClientOrderId::unique_id(),
             init_time: Utc::now(),
             exchange_account_id,
-            currency_pair: OrderProxy::default_currency_pair(),
+            currency_pair,
             order_type: OrderType::Limit,
             side: OrderSide::Buy,
             amount,
@@ -85,10 +87,6 @@ impl OrderProxy {
             cancellation_token,
             timeout: Duration::from_secs(5),
         }
-    }
-
-    pub fn default_currency_pair() -> CurrencyPair {
-        CurrencyPair::from_codes("btc".into(), "usdt".into())
     }
 
     pub fn make_header(&self) -> Arc<OrderHeader> {
@@ -160,10 +158,11 @@ impl OrderProxyBuilder {
         strategy_name: Option<String>,
         price: Price,
         amount: Amount,
+        currency_pair: CurrencyPair,
     ) -> OrderProxyBuilder {
         Self {
             exchange_account_id,
-            currency_pair: OrderProxy::default_currency_pair(),
+            currency_pair,
             order_type: OrderType::Limit,
             strategy_name: strategy_name.unwrap_or_else(|| "OrderTest".to_owned()),
             cancellation_token: CancellationToken::default(),

@@ -123,6 +123,10 @@ impl ExchangeClient for Bitmex {
 
     async fn build_all_symbols(&self) -> Result<Vec<Arc<Symbol>>> {
         let response = self.request_all_symbols().await?;
-        self.parse_all_symbols(&response)
+        let symbols = self.parse_all_symbols(&response)?;
+
+        self.update_currency_assets().await?;
+
+        Ok(symbols)
     }
 }

@@ -6,6 +6,7 @@ members = [
     "domain",
     "examples/binance_demo",
     "examples/binance_demo_new",
+    "examples/bitmex_demo",
     "examples/strategies",
     "exchanges/binance",
     "exchanges/bitmex",

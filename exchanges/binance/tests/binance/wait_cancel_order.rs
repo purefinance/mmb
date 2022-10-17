@@ -1,4 +1,5 @@
 use crate::binance::binance_builder::BinanceBuilder;
+use crate::binance::common::default_currency_pair;
 use core_tests::order::OrderProxy;
 use mmb_domain::events::AllowedEventSourceType;
 use mmb_domain::market::ExchangeAccountId;
@@ -33,6 +34,7 @@ async fn cancellation_waited_successfully(
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
 
     let order_ref = order_proxy
@@ -69,6 +71,7 @@ async fn cancellation_waited_failed_fallback() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
 
     let order_ref = order_proxy
