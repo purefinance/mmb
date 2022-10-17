@@ -3,6 +3,7 @@ use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 
 use crate::binance::binance_builder::BinanceBuilder;
+use crate::binance::common::default_currency_pair;
 use core_tests::order::OrderProxy;
 use mmb_core::exchanges::general::exchange::RequestResult;
 
@@ -22,6 +23,7 @@ async fn cancelled_successfully() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
 
     let order_ref = order_proxy
@@ -50,6 +52,7 @@ async fn cancel_opened_orders_successfully() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
     first_order_proxy
         .create_order(binance_builder.exchange.clone())
@@ -62,6 +65,7 @@ async fn cancel_opened_orders_successfully() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
     second_order_proxy
         .create_order(binance_builder.exchange.clone())
@@ -106,6 +110,7 @@ async fn nothing_to_cancel() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
     let order_to_cancel = OrderCancelling {
         header: order.make_header(),

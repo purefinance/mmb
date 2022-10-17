@@ -1,4 +1,5 @@
 use crate::binance::binance_builder::BinanceBuilder;
+use crate::binance::common::default_currency_pair;
 use core_tests::order::OrderProxy;
 use mmb_domain::events::{AllowedEventSourceType, ExchangeEvent};
 use mmb_domain::order::event::OrderEventType;
@@ -33,6 +34,7 @@ async fn create_successfully(#[case] allowed_create_event_source_type: AllowedEv
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
     order_proxy.timeout = Duration::from_secs(15);
 
@@ -73,15 +75,14 @@ async fn should_fail() {
     };
     let exchange_account_id = binance_builder.exchange.exchange_account_id;
 
-    let mut order_proxy = OrderProxy::new(
+    let order_proxy = OrderProxy::new(
         exchange_account_id,
         Some("FromShouldFailTest".to_owned()),
         CancellationToken::default(),
-        binance_builder.default_price,
-        binance_builder.min_amount,
+        dec!(0.0000000000000000001),
+        dec!(1),
+        default_currency_pair(),
     );
-    order_proxy.amount = dec!(1);
-    order_proxy.price = dec!(0.0000000000000000001);
 
     let error = order_proxy
         .create_order(binance_builder.exchange.clone())

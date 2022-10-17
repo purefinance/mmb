@@ -5,6 +5,7 @@ use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
 
 use crate::binance::binance_builder::BinanceBuilder;
+use crate::binance::common::default_currency_pair;
 use core_tests::order::OrderProxy;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -23,6 +24,7 @@ async fn get_order_info() {
         CancellationToken::default(),
         binance_builder.default_price,
         binance_builder.min_amount,
+        default_currency_pair(),
     );
     order_proxy.reservation_id = Some(ReservationId::generate());
 

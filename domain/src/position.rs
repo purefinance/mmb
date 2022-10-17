@@ -21,7 +21,7 @@ pub struct DerivativePosition {
 impl DerivativePosition {
     pub fn new(
         currency_pair: CurrencyPair,
-        position: Decimal,
+        position: Amount,
         average_entry_price: Price,
         liquidation_price: Price,
         leverage: Decimal,
@@ -37,7 +37,7 @@ impl DerivativePosition {
     }
 
     pub fn get_side(&self) -> OrderSide {
-        debug_assert!(self.position.is_zero());
+        debug_assert!(!self.position.is_zero());
 
         if self.position.is_sign_negative() {
             OrderSide::Sell

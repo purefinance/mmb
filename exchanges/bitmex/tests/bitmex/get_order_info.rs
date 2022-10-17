@@ -1,17 +1,15 @@
 use crate::bitmex::bitmex_builder::BitmexBuilder;
 use core_tests::order::OrderProxy;
-use mmb_domain::market::CurrencyPair;
-use mmb_domain::order::snapshot::{OrderSide, ReservationId};
+use mmb_domain::order::snapshot::ReservationId;
 use mmb_utils::cancellation_token::CancellationToken;
 use mmb_utils::logger::init_logger_file_named;
-use rust_decimal_macros::dec;
 use std::time::Duration;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn get_order_info() {
     init_logger_file_named("log.txt");
 
-    let bitmex_builder = match BitmexBuilder::build_account(false).await {
+    let bitmex_builder = match BitmexBuilder::build_account(true).await {
         Ok(bitmex_builder) => bitmex_builder,
         Err(_) => return,
     };
@@ -20,12 +18,11 @@ async fn get_order_info() {
         bitmex_builder.exchange.exchange_account_id,
         Some("FromGetOrderInfoTest".to_owned()),
         CancellationToken::default(),
-        dec!(10000),
-        dec!(100),
+        bitmex_builder.min_price,
+        bitmex_builder.min_amount,
+        bitmex_builder.default_currency_pair,
     );
     order_proxy.timeout = Duration::from_secs(15);
-    order_proxy.currency_pair = CurrencyPair::from_codes("xbt".into(), "usd".into());
-    order_proxy.side = OrderSide::Buy;
     order_proxy.reservation_id = Some(ReservationId::generate());
 
     let order_ref = order_proxy

@@ -1,0 +1,16 @@
+[strategy]
+spread = 15
+currency_pair = { base = "xbt", quote = "usd" }
+max_amount = 200
+exchange_account_id = "Bitmex_0"
+
+[[core.exchanges]]
+exchange_account_id = "Bitmex_0"
+is_margin_trading = true
+request_trades = false
+subscribe_to_market_data = true
+websocket_channels = []
+
+currency_pairs = [
+    { base = "xbt", quote = "usd" },
+]
